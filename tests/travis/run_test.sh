@@ -11,10 +11,14 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
-    checks='modernize-*,-modernize-raw-string-literal,google-*,-google-default-arguments,-clang-diagnostic-#pragma-messages' 
+    # Rename cuda files for static analysis
+    for file in  $(find src -name '*.cu'); do
+        cp "$file" "${file/.cu/_tmp.cc}"
+    done
+
     header_filter='(xgboost\/src|xgboost\/include)'
     for filename in $(find src -name '*.cc'); do
-	    clang-tidy $filename -header-filter=$header_filter -checks=$checks -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
+	    clang-tidy $filename -header-filter=$header_filter -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
     done
     echo "---------clang-tidy log----------"
     cat logtidy.txt

@@ -22,11 +22,11 @@ class SimpleDMatrix : public DMatrix {
   explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
       : source_(std::move(source)) {}
 
-  MetaInfo& info() override {
+  MetaInfo& Info() override {
     return source_->info;
   }
 
-  const MetaInfo& info() const override {
+  const MetaInfo& Info() const override {
     return source_->info;
   }
 
@@ -37,10 +37,10 @@ class SimpleDMatrix : public DMatrix {
   }
 
   bool HaveColAccess(bool sorted) const override {
-    return col_size_.size() != 0 && col_iter_.sorted == sorted;
+    return col_size_.size() != 0 && col_iter_.sorted_ == sorted;
   }
 
-  const RowSet& buffered_rowset() const override {
+  const RowSet& BufferedRowset() const override {
     return buffered_rowset_;
   }
 
@@ -49,8 +49,8 @@ class SimpleDMatrix : public DMatrix {
   }
 
   float GetColDensity(size_t cidx) const override {
-    size_t nmiss = buffered_rowset_.size() - col_size_[cidx];
-    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.size();
+    size_t nmiss = buffered_rowset_.Size() - col_size_[cidx];
+    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
   dmlc::DataIter<ColBatch>* ColIterator() override;
@@ -90,7 +90,7 @@ class SimpleDMatrix : public DMatrix {
     // temporal space for batch
     ColBatch batch_;
     // Is column sorted?
-    bool sorted{false};
+    bool sorted_{false};
   };
 
   // source data pointer.

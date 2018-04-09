@@ -47,7 +47,7 @@ class ObjFunction {
   virtual void GetGradient(HostDeviceVector<bst_float>* preds,
                            const MetaInfo& info,
                            int iteration,
-                           HostDeviceVector<bst_gpair>* out_gpair) = 0;
+                           HostDeviceVector<GradientPair>* out_gpair) = 0;
 
   /*! \return the default evaluation metric for the objective */
   virtual const char* DefaultEvalMetric() const = 0;

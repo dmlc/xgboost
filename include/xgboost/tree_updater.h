@@ -40,7 +40,7 @@ class TreeUpdater {
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
    */
-  virtual void Update(HostDeviceVector<bst_gpair>* gpair,
+  virtual void Update(HostDeviceVector<GradientPair>* gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
 

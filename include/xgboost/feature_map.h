@@ -54,11 +54,11 @@ class FeatureMap {
     types_.clear();
   }
   /*! \return number of known features */
-  inline size_t size() const {
+  inline size_t Size() const {
     return names_.size();
   }
   /*! \return name of specific feature */
-  inline const char* name(size_t idx) const {
+  inline const char* Name(size_t idx) const {
     CHECK_LT(idx,  names_.size()) << "FeatureMap feature index exceed bound";
     return names_[idx].c_str();
   }

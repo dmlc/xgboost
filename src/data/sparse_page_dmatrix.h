@@ -27,11 +27,11 @@ class SparsePageDMatrix : public DMatrix {
       : source_(std::move(source)), cache_info_(std::move(cache_info)) {
   }
 
-  MetaInfo& info() override {
+  MetaInfo& Info() override {
     return source_->info;
   }
 
-  const MetaInfo& info() const override {
+  const MetaInfo& Info() const override {
     return source_->info;
   }
 
@@ -45,7 +45,7 @@ class SparsePageDMatrix : public DMatrix {
     return col_iter_ != nullptr && col_iter_->sorted == sorted;
   }
 
-  const RowSet& buffered_rowset() const override {
+  const RowSet& BufferedRowset() const override {
     return buffered_rowset_;
   }
 
@@ -54,8 +54,8 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   float GetColDensity(size_t cidx) const override {
-    size_t nmiss = buffered_rowset_.size() - col_size_[cidx];
-    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.size();
+    size_t nmiss = buffered_rowset_.Size() - col_size_[cidx];
+    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
   bool SingleColBlock() const override {

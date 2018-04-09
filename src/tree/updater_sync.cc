@@ -23,7 +23,7 @@ class TreeSyncher: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {}
 
-  void Update(HostDeviceVector<bst_gpair> *gpair,
+  void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
     if (rabit::GetWorldSize() == 1) return;

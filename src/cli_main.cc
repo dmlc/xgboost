@@ -332,7 +332,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (bst_float p : preds.data_h()) {
+  for (bst_float p : preds.HostVector()) {
     os << p << '\n';
   }
   // force flush before fo destruct.
@@ -351,7 +351,7 @@ int CLIRunTask(int argc, char *argv[]) {
 
   common::ConfigIterator itr(argv[1]);
   while (itr.Next()) {
-    cfg.emplace_back(std::string(itr.name()), std::string(itr.val()));
+    cfg.emplace_back(std::string(itr.Name()), std::string(itr.Val()));
   }
 
   for (int i = 2; i < argc; ++i) {

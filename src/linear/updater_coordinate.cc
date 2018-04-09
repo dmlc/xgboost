@@ -85,7 +85,7 @@ class CoordinateUpdater : public LinearUpdater {
     monitor.Init("CoordinateUpdater", param.debug_verbose);
   }
 
-  void Update(std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat,
+  void Update(std::vector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     param.DenormalizePenalties(sum_instance_weight);
     const int ngroup = model->param.num_output_group;
@@ -111,7 +111,7 @@ class CoordinateUpdater : public LinearUpdater {
     }
   }
 
-  inline void UpdateFeature(int fidx, int group_idx, std::vector<bst_gpair> *in_gpair,
+  inline void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair,
                             DMatrix *p_fmat, gbm::GBLinearModel *model) {
     const int ngroup = model->param.num_output_group;
     bst_float &w = (*model)[fidx][group_idx];

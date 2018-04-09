@@ -69,7 +69,7 @@ class GradientBooster {
    * the booster may change content of gpair
    */
   virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<bst_gpair>* in_gpair,
+                       HostDeviceVector<GradientPair>* in_gpair,
                        ObjFunction* obj = nullptr) = 0;
 
   /*!

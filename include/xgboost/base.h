@@ -86,15 +86,14 @@ using bst_int = int32_t;    // NOLINT
 /*! \brief long integers */
 typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
-using bst_float = float;
-
+using bst_float = float;  // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
  * may be used to overload different gradients types e.g. low precision, high
  * precision, integer, floating point. */
 template <typename T>
-class BstGpairInternal {
+class GradientPairInternal {
   /*! \brief gradient statistics */
   T grad_;
   /*! \brief second order gradient statistics */
@@ -104,22 +103,22 @@ class BstGpairInternal {
   XGBOOST_DEVICE void SetHess(float h) { hess_ = h; }
 
  public:
-  using value_t = T;
+  using ValueT = T;
 
-  XGBOOST_DEVICE BstGpairInternal() : grad_(0), hess_(0) {}
+  XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
 
-  XGBOOST_DEVICE BstGpairInternal(float grad, float hess) {
+  XGBOOST_DEVICE GradientPairInternal(float grad, float hess) {
     SetGrad(grad);
     SetHess(hess);
   }
 
   // Copy constructor if of same value type
-  XGBOOST_DEVICE BstGpairInternal(const BstGpairInternal<T> &g) = default;
+  XGBOOST_DEVICE GradientPairInternal(const GradientPairInternal<T> &g) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
   template <typename T2>
-  XGBOOST_DEVICE explicit BstGpairInternal(const BstGpairInternal<T2> &g) {
+  XGBOOST_DEVICE explicit GradientPairInternal(const GradientPairInternal<T2> &g) {
     SetGrad(g.GetGrad());
     SetHess(g.GetHess());
   }
@@ -127,85 +126,85 @@ class BstGpairInternal {
   XGBOOST_DEVICE float GetGrad() const { return grad_; }
   XGBOOST_DEVICE float GetHess() const { return hess_; }
 
-  XGBOOST_DEVICE BstGpairInternal<T> &operator+=(
-      const BstGpairInternal<T> &rhs) {
+  XGBOOST_DEVICE GradientPairInternal<T> &operator+=(
+      const GradientPairInternal<T> &rhs) {
     grad_ += rhs.grad_;
     hess_ += rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE BstGpairInternal<T> operator+(
-      const BstGpairInternal<T> &rhs) const {
-    BstGpairInternal<T> g;
+  XGBOOST_DEVICE GradientPairInternal<T> operator+(
+      const GradientPairInternal<T> &rhs) const {
+    GradientPairInternal<T> g;
     g.grad_ = grad_ + rhs.grad_;
     g.hess_ = hess_ + rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE BstGpairInternal<T> &operator-=(
-      const BstGpairInternal<T> &rhs) {
+  XGBOOST_DEVICE GradientPairInternal<T> &operator-=(
+      const GradientPairInternal<T> &rhs) {
     grad_ -= rhs.grad_;
     hess_ -= rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE BstGpairInternal<T> operator-(
-      const BstGpairInternal<T> &rhs) const {
-    BstGpairInternal<T> g;
+  XGBOOST_DEVICE GradientPairInternal<T> operator-(
+      const GradientPairInternal<T> &rhs) const {
+    GradientPairInternal<T> g;
     g.grad_ = grad_ - rhs.grad_;
     g.hess_ = hess_ - rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE explicit BstGpairInternal(int value) {
-    *this = BstGpairInternal<T>(static_cast<float>(value),
+  XGBOOST_DEVICE explicit GradientPairInternal(int value) {
+    *this = GradientPairInternal<T>(static_cast<float>(value),
                                   static_cast<float>(value));
   }
 
   friend std::ostream &operator<<(std::ostream &os,
-                                  const BstGpairInternal<T> &g) {
+                                  const GradientPairInternal<T> &g) {
     os << g.GetGrad() << "/" << g.GetHess();
     return os;
   }
 };
 
 template<>
-inline XGBOOST_DEVICE float BstGpairInternal<int64_t>::GetGrad() const {
+inline XGBOOST_DEVICE float GradientPairInternal<int64_t>::GetGrad() const {
   return grad_ * 1e-4f;
 }
 template<>
-inline XGBOOST_DEVICE float BstGpairInternal<int64_t>::GetHess() const {
+inline XGBOOST_DEVICE float GradientPairInternal<int64_t>::GetHess() const {
   return hess_ * 1e-4f;
 }
 template<>
-inline XGBOOST_DEVICE void BstGpairInternal<int64_t>::SetGrad(float g) {
+inline XGBOOST_DEVICE void GradientPairInternal<int64_t>::SetGrad(float g) {
   grad_ = static_cast<int64_t>(std::round(g * 1e4));
 }
 template<>
-inline XGBOOST_DEVICE void BstGpairInternal<int64_t>::SetHess(float h) {
+inline XGBOOST_DEVICE void GradientPairInternal<int64_t>::SetHess(float h) {
   hess_ = static_cast<int64_t>(std::round(h * 1e4));
 }
 
 }  // namespace detail
 
 /*! \brief gradient statistics pair usually needed in gradient boosting */
-using bst_gpair = detail::BstGpairInternal<float>;
+using GradientPair = detail::GradientPairInternal<float>;
 
 /*! \brief High precision gradient statistics pair */
-using bst_gpair_precise = detail::BstGpairInternal<double>;
+using GradientPairPrecise = detail::GradientPairInternal<double>;
 
 /*! \brief High precision gradient statistics pair with integer backed
  * storage. Operators are associative where floating point versions are not
  * associative. */
-using bst_gpair_integer = detail::BstGpairInternal<int64_t>;
+using GradientPairInteger = detail::GradientPairInternal<int64_t>;
 
 /*! \brief small eps gap for minimum split decision. */
-const bst_float rt_eps = 1e-6f;
+const bst_float kRtEps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
-using omp_ulong = dmlc::omp_ulong;
+using omp_ulong = dmlc::omp_ulong;  // NOLINT
 /*! \brief define unsigned int for openmp loop */
-using bst_omp_uint = dmlc::omp_uint;
+using bst_omp_uint = dmlc::omp_uint;  // NOLINT
 
 /*!
  * \brief define compatible keywords in g++

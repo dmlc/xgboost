@@ -33,7 +33,7 @@ bool SimpleDMatrix::ColBatchIter::Next() {
 }
 
 dmlc::DataIter<ColBatch>* SimpleDMatrix::ColIterator() {
-  size_t ncol = this->info().num_col;
+  size_t ncol = this->Info().num_col_;
   col_iter_.col_index_.resize(ncol);
   for (size_t i = 0; i < ncol; ++i) {
     col_iter_.col_index_[i] = static_cast<bst_uint>(i);
@@ -43,7 +43,7 @@ dmlc::DataIter<ColBatch>* SimpleDMatrix::ColIterator() {
 }
 
 dmlc::DataIter<ColBatch>* SimpleDMatrix::ColIterator(const std::vector<bst_uint>&fset) {
-  size_t ncol = this->info().num_col;
+  size_t ncol = this->Info().num_col_;
   col_iter_.col_index_.resize(0);
   for (unsigned int i : fset) {
     if (i < ncol) col_iter_.col_index_.push_back(i);
@@ -56,9 +56,9 @@ void SimpleDMatrix::InitColAccess(const std::vector<bool> &enabled,
                                   float pkeep,
                                   size_t max_row_perbatch, bool sorted) {
   if (this->HaveColAccess(sorted)) return;
-  col_iter_.sorted = sorted;
+  col_iter_.sorted_ = sorted;
   col_iter_.cpages_.clear();
-  if (info().num_row < max_row_perbatch) {
+  if (Info().num_row_ < max_row_perbatch) {
     std::unique_ptr<SparsePage> page(new SparsePage());
     this->MakeOneBatch(enabled, pkeep, page.get(), sorted);
     col_iter_.cpages_.push_back(std::move(page));
@@ -66,7 +66,7 @@ void SimpleDMatrix::InitColAccess(const std::vector<bool> &enabled,
     this->MakeManyBatch(enabled, pkeep, max_row_perbatch, sorted);
   }
   // setup col-size
-  col_size_.resize(info().num_col);
+  col_size_.resize(Info().num_col_);
   std::fill(col_size_.begin(), col_size_.end(), 0);
   for (auto & cpage : col_iter_.cpages_) {
     SparsePage *pcol = cpage.get();
@@ -80,14 +80,14 @@ void SimpleDMatrix::InitColAccess(const std::vector<bool> &enabled,
 void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
                                  SparsePage* pcol, bool sorted) {
   // clear rowset
-  buffered_rowset_.clear();
+  buffered_rowset_.Clear();
   // bit map
   const int nthread = omp_get_max_threads();
   std::vector<bool> bmap;
   pcol->Clear();
   common::ParallelGroupBuilder<SparseBatch::Entry>
       builder(&pcol->offset, &pcol->data);
-  builder.InitBudget(info().num_col, nthread);
+  builder.InitBudget(Info().num_col_, nthread);
   // start working
   dmlc::DataIter<RowBatch>* iter = this->RowIterator();
   iter->BeforeFirst();
@@ -101,7 +101,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
     for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
       auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (pkeep == 1.0f || coin_flip(rnd)) {
-        buffered_rowset_.push_back(ridx);
+        buffered_rowset_.PushBack(ridx);
       } else {
         bmap[i] = false;
       }
@@ -142,7 +142,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
     }
   }
 
-  CHECK_EQ(pcol->Size(), info().num_col);
+  CHECK_EQ(pcol->Size(), Info().num_col_);
 
   if (sorted) {
     // sort columns
@@ -164,7 +164,7 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
   size_t btop = 0;
   std::bernoulli_distribution coin_flip(pkeep);
   auto& rnd = common::GlobalRandom();
-  buffered_rowset_.clear();
+  buffered_rowset_.Clear();
   // internal temp cache
   SparsePage tmp; tmp.Clear();
   // start working
@@ -176,14 +176,14 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
     for (size_t i = 0; i < batch.size; ++i) {
       auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (pkeep == 1.0f || coin_flip(rnd)) {
-        buffered_rowset_.push_back(ridx);
+        buffered_rowset_.PushBack(ridx);
         tmp.Push(batch[i]);
       }
       if (tmp.Size() >= max_row_perbatch) {
         std::unique_ptr<SparsePage> page(new SparsePage());
         this->MakeColPage(tmp.GetRowBatch(0), btop, enabled, page.get(), sorted);
         col_iter_.cpages_.push_back(std::move(page));
-        btop = buffered_rowset_.size();
+        btop = buffered_rowset_.Size();
         tmp.Clear();
       }
     }
@@ -205,7 +205,7 @@ void SimpleDMatrix::MakeColPage(const RowBatch& batch,
   pcol->Clear();
   common::ParallelGroupBuilder<SparseBatch::Entry>
       builder(&pcol->offset, &pcol->data);
-  builder.InitBudget(info().num_col, nthread);
+  builder.InitBudget(Info().num_col_, nthread);
   bst_omp_uint ndata = static_cast<bst_uint>(batch.size);
   #pragma omp parallel for schedule(static) num_threads(nthread)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
@@ -231,7 +231,7 @@ void SimpleDMatrix::MakeColPage(const RowBatch& batch,
           tid);
     }
   }
-  CHECK_EQ(pcol->Size(), info().num_col);
+  CHECK_EQ(pcol->Size(), Info().num_col_);
   // sort columns
   if (sorted) {
     auto ncol = static_cast<bst_omp_uint>(pcol->Size());

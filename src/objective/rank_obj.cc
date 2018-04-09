@@ -40,15 +40,15 @@ class LambdaRankObj : public ObjFunction {
   void GetGradient(HostDeviceVector<bst_float>* preds,
                    const MetaInfo& info,
                    int iter,
-                   HostDeviceVector<bst_gpair>* out_gpair) override {
-    CHECK_EQ(preds->size(), info.labels.size()) << "label size predict size not match";
-    auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size());
-    std::vector<bst_gpair>& gpair = out_gpair->data_h();
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_EQ(preds->Size(), info.labels_.size()) << "label size predict size not match";
+    auto& preds_h = preds->HostVector();
+    out_gpair->Resize(preds_h.size());
+    std::vector<GradientPair>& gpair = out_gpair->HostVector();
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
-    const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
-    CHECK(gptr.size() != 0 && gptr.back() == info.labels.size())
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels_.size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+    CHECK(gptr.size() != 0 && gptr.back() == info.labels_.size())
         << "group structure not consistent with #rows";
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     #pragma omp parallel
@@ -64,8 +64,8 @@ class LambdaRankObj : public ObjFunction {
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
-          lst.emplace_back(preds_h[j], info.labels[j], j);
-          gpair[j] = bst_gpair(0.0f, 0.0f);
+          lst.emplace_back(preds_h[j], info.labels_[j], j);
+          gpair[j] = GradientPair(0.0f, 0.0f);
         }
         std::sort(lst.begin(), lst.end(), ListEntry::CmpPred);
         rec.resize(lst.size());
@@ -110,8 +110,8 @@ class LambdaRankObj : public ObjFunction {
           bst_float g = p - 1.0f;
           bst_float h = std::max(p * (1.0f - p), eps);
           // accumulate gradient and hessian in both pid, and nid
-          gpair[pos.rindex] += bst_gpair(g * w, 2.0f*w*h);
-          gpair[neg.rindex] += bst_gpair(-g * w, 2.0f*w*h);
+          gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
+          gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
         }
       }
     }
@@ -177,7 +177,7 @@ class LambdaRankObjNDCG : public LambdaRankObj {
   void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                        std::vector<LambdaPair> *io_pairs) override {
     std::vector<LambdaPair> &pairs = *io_pairs;
-    float IDCG;
+    float IDCG;  // NOLINT
     {
       std::vector<bst_float> labels(sorted_list.size());
       for (size_t i = 0; i < sorted_list.size(); ++i) {

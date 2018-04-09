@@ -84,7 +84,7 @@ class Learner : public rabit::Serializable {
    */
   virtual void BoostOneIter(int iter,
                             DMatrix* train,
-                            HostDeviceVector<bst_gpair>* in_gpair) = 0;
+                            HostDeviceVector<GradientPair>* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number
@@ -194,7 +194,7 @@ inline void Learner::Predict(const SparseBatch::Inst& inst,
                              bool output_margin,
                              HostDeviceVector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
-  gbm_->PredictInstance(inst, &out_preds->data_h(), ntree_limit);
+  gbm_->PredictInstance(inst, &out_preds->HostVector(), ntree_limit);
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

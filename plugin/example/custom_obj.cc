@@ -36,10 +36,10 @@ class MyLogistic : public ObjFunction {
   void GetGradient(HostDeviceVector<bst_float> *preds,
                    const MetaInfo &info,
                    int iter,
-                   HostDeviceVector<bst_gpair> *out_gpair) override {
+                   HostDeviceVector<GradientPair> *out_gpair) override {
     out_gpair->resize(preds->size());
     std::vector<bst_float>& preds_h = preds->data_h();
-    std::vector<bst_gpair>& out_gpair_h = out_gpair->data_h();
+    std::vector<GradientPair>& out_gpair_h = out_gpair->data_h();
     for (size_t i = 0; i < preds_h.size(); ++i) {
       bst_float w = info.GetWeight(i);
       // scale the negative examples!
@@ -50,7 +50,7 @@ class MyLogistic : public ObjFunction {
       bst_float grad = (p - info.labels[i]) * w;
       // this is the second order gradient
       bst_float hess = p * (1.0f - p) * w;
-      out_gpair_h.at(i) = bst_gpair(grad, hess);
+      out_gpair_h.at(i) = GradientPair(grad, hess);
     }
   }
   const char* DefaultEvalMetric() const override {

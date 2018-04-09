@@ -32,7 +32,7 @@ class RowSetCollection {
          int node_id)
         : begin(begin), end(end), node_id(node_id) {}
 
-    inline size_t size() const {
+    inline size_t Size() const {
       return end - begin;
     }
   };
@@ -42,11 +42,11 @@ class RowSetCollection {
     std::vector<size_t> right;
   };
 
-  inline std::vector<Elem>::const_iterator begin() const {
+  inline std::vector<Elem>::const_iterator begin() const {  // NOLINT
     return elem_of_each_node_.begin();
   }
 
-  inline std::vector<Elem>::const_iterator end() const {
+  inline std::vector<Elem>::const_iterator end() const {  // NOLINT
     return elem_of_each_node_.end();
   }
 

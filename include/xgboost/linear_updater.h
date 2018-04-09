@@ -36,7 +36,7 @@ class LinearUpdater {
    * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
    */
 
-  virtual void Update(std::vector<bst_gpair>* in_gpair, DMatrix* data,
+  virtual void Update(std::vector<GradientPair>* in_gpair, DMatrix* data,
                       gbm::GBLinearModel* model,
                       double sum_instance_weight) = 0;
 

@@ -31,8 +31,8 @@ struct GHistEntry {
     sum_grad = sum_hess = 0;
   }
 
-  /*! \brief add a bst_gpair to the sum */
-  inline void Add(const bst_gpair& e) {
+  /*! \brief add a GradientPair to the sum */
+  inline void Add(const GradientPair& e) {
     sum_grad += e.GetGrad();
     sum_hess += e.GetHess();
   }
@@ -154,24 +154,24 @@ class GHistIndexBlockMatrix {
             const FastHistParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
-    return {blocks[i].row_ptr_begin, blocks[i].index_begin};
+    return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
   }
 
   inline size_t GetNumBlock() const {
-    return blocks.size();
+    return blocks_.size();
   }
 
  private:
-  std::vector<size_t> row_ptr;
-  std::vector<uint32_t> index;
-  const HistCutMatrix* cut;
+  std::vector<size_t> row_ptr_;
+  std::vector<uint32_t> index_;
+  const HistCutMatrix* cut_;
   struct Block {
     const size_t* row_ptr_begin;
     const size_t* row_ptr_end;
     const uint32_t* index_begin;
     const uint32_t* index_end;
   };
-  std::vector<Block> blocks;
+  std::vector<Block> blocks_;
 };
 
 /*!
@@ -205,8 +205,8 @@ class HistCollection {
 
   // have we computed a histogram for i-th node?
   inline bool RowExists(bst_uint nid) const {
-    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    return (nid < row_ptr_.size() && row_ptr_[nid] != kMax);
+    const uint32_t k_max = std::numeric_limits<uint32_t>::max();
+    return (nid < row_ptr_.size() && row_ptr_[nid] != k_max);
   }
 
   // initialize histogram collection
@@ -250,13 +250,13 @@ class GHistBuilder {
   }
 
   // construct a histogram via histogram aggregation
-  void BuildHist(const std::vector<bst_gpair>& gpair,
+  void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
                  const std::vector<bst_uint>& feat_set,
                  GHistRow hist);
   // same, with feature grouping
-  void BuildBlockHist(const std::vector<bst_gpair>& gpair,
+  void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
                       const GHistIndexBlockMatrix& gmatb,
                       const std::vector<bst_uint>& feat_set,

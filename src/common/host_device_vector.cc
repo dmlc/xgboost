@@ -45,25 +45,25 @@ HostDeviceVector<T>::~HostDeviceVector() {
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::size() const { return impl_->data_h_.size(); }
+size_t HostDeviceVector<T>::Size() const { return impl_->data_h_.size(); }
 
 template <typename T>
-int HostDeviceVector<T>::device() const { return -1; }
+int HostDeviceVector<T>::DeviceIdx() const { return -1; }
 
 template <typename T>
-T* HostDeviceVector<T>::ptr_d(int device) { return nullptr; }
+T* HostDeviceVector<T>::DevicePointer(int device) { return nullptr; }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h_; }
+std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->data_h_; }
 
 template <typename T>
-void HostDeviceVector<T>::resize(size_t new_size, T v, int new_device) {
+void HostDeviceVector<T>::Resize(size_t new_size, T v, int new_device) {
   impl_->data_h_.resize(new_size, v);
 }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
-template class HostDeviceVector<bst_gpair>;
+template class HostDeviceVector<GradientPair>;
 
 }  // namespace xgboost
 

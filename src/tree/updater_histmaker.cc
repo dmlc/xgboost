@@ -21,18 +21,18 @@ DMLC_REGISTRY_FILE_TAG(updater_histmaker);
 template<typename TStats>
 class HistMaker: public BaseMaker {
  public:
-  void Update(HostDeviceVector<bst_gpair> *gpair,
+  void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
-    TStats::CheckInfo(p_fmat->info());
+    TStats::CheckInfo(p_fmat->Info());
     // rescale learning rate according to size of trees
-    float lr = param.learning_rate;
-    param.learning_rate = lr / trees.size();
+    float lr = param_.learning_rate;
+    param_.learning_rate = lr / trees.size();
     // build tree
     for (auto tree : trees) {
-      this->Update(gpair->data_h(), p_fmat, tree);
+      this->Update(gpair->HostVector(), p_fmat, tree);
     }
-    param.learning_rate = lr;
+    param_.learning_rate = lr;
   }
 
  protected:
@@ -51,7 +51,7 @@ class HistMaker: public BaseMaker {
         : cut(cut), data(data), size(size) {}
     /*! \brief add a histogram to data */
     inline void Add(bst_float fv,
-                    const std::vector<bst_gpair> &gpair,
+                    const std::vector<GradientPair> &gpair,
                     const MetaInfo &info,
                     const bst_uint ridx) {
       unsigned i = std::upper_bound(cut, cut + size, fv) - cut;
@@ -116,44 +116,44 @@ class HistMaker: public BaseMaker {
     }
   };
   // workspace of thread
-  ThreadWSpace wspace;
+  ThreadWSpace wspace_;
   // reducer for histogram
-  rabit::Reducer<TStats, TStats::Reduce> histred;
+  rabit::Reducer<TStats, TStats::Reduce> histred_;
   // set of working features
-  std::vector<bst_uint> fwork_set;
+  std::vector<bst_uint> fwork_set_;
   // update function implementation
-  virtual void Update(const std::vector<bst_gpair> &gpair,
+  virtual void Update(const std::vector<GradientPair> &gpair,
                       DMatrix *p_fmat,
                       RegTree *p_tree) {
     this->InitData(gpair, *p_fmat, *p_tree);
-    this->InitWorkSet(p_fmat, *p_tree, &fwork_set);
+    this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.
     for (int i = 0; i < p_tree->param.num_roots; ++i) {
-      (*p_tree)[i].set_leaf(0.0f, 0);
+      (*p_tree)[i].SetLeaf(0.0f, 0);
     }
 
-    for (int depth = 0; depth < param.max_depth; ++depth) {
+    for (int depth = 0; depth < param_.max_depth; ++depth) {
       // reset and propose candidate split
-      this->ResetPosAndPropose(gpair, p_fmat, fwork_set, *p_tree);
+      this->ResetPosAndPropose(gpair, p_fmat, fwork_set_, *p_tree);
       // create histogram
-      this->CreateHist(gpair, p_fmat, fwork_set, *p_tree);
+      this->CreateHist(gpair, p_fmat, fwork_set_, *p_tree);
       // find split based on histogram statistics
-      this->FindSplit(depth, gpair, p_fmat, fwork_set, p_tree);
+      this->FindSplit(depth, gpair, p_fmat, fwork_set_, p_tree);
       // reset position after split
       this->ResetPositionAfterSplit(p_fmat, *p_tree);
       this->UpdateQueueExpand(*p_tree);
       // if nothing left to be expand, break
-      if (qexpand.size() == 0) break;
+      if (qexpand_.size() == 0) break;
     }
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+    for (size_t i = 0; i < qexpand_.size(); ++i) {
+      const int nid = qexpand_[i];
+      (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
     }
   }
   // this function does two jobs
   // (1) reset the position in array position, to be the latest leaf id
   // (2) propose a set of candidate cuts and set wspace.rptr wspace.cut correctly
-  virtual void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
+  virtual void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                                   DMatrix *p_fmat,
                                   const std::vector <bst_uint> &fset,
                                   const RegTree &tree) = 0;
@@ -170,7 +170,7 @@ class HistMaker: public BaseMaker {
   virtual void ResetPositionAfterSplit(DMatrix *p_fmat,
                                        const RegTree &tree) {
   }
-  virtual void CreateHist(const std::vector<bst_gpair> &gpair,
+  virtual void CreateHist(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector <bst_uint> &fset,
                           const RegTree &tree)  = 0;
@@ -183,14 +183,14 @@ class HistMaker: public BaseMaker {
                              TStats *left_sum) {
     if (hist.size == 0) return;
 
-    double root_gain = node_sum.CalcGain(param);
-    TStats s(param), c(param);
+    double root_gain = node_sum.CalcGain(param_);
+    TStats s(param_), c(param_);
     for (bst_uint i = 0; i < hist.size; ++i) {
       s.Add(hist.data[i]);
-      if (s.sum_hess >= param.min_child_weight) {
+      if (s.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(node_sum, s);
-        if (c.sum_hess >= param.min_child_weight) {
-          double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        if (c.sum_hess >= param_.min_child_weight) {
+          double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
           if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false)) {
             *left_sum = s;
           }
@@ -200,10 +200,10 @@ class HistMaker: public BaseMaker {
     s.Clear();
     for (bst_uint i = hist.size - 1; i != 0; --i) {
       s.Add(hist.data[i]);
-      if (s.sum_hess >= param.min_child_weight) {
+      if (s.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(node_sum, s);
-        if (c.sum_hess >= param.min_child_weight) {
-          double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        if (c.sum_hess >= param_.min_child_weight) {
+          double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
           if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true)) {
             *left_sum = c;
           }
@@ -212,57 +212,57 @@ class HistMaker: public BaseMaker {
     }
   }
   inline void FindSplit(int depth,
-                        const std::vector<bst_gpair> &gpair,
+                        const std::vector<GradientPair> &gpair,
                         DMatrix *p_fmat,
                         const std::vector <bst_uint> &fset,
                         RegTree *p_tree) {
     const size_t num_feature = fset.size();
     // get the best split condition for each node
-    std::vector<SplitEntry> sol(qexpand.size());
-    std::vector<TStats> left_sum(qexpand.size());
-    auto nexpand = static_cast<bst_omp_uint>(qexpand.size());
+    std::vector<SplitEntry> sol(qexpand_.size());
+    std::vector<TStats> left_sum(qexpand_.size());
+    auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
     #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand[wid];
-      CHECK_EQ(node2workindex[nid], static_cast<int>(wid));
+      const int nid = qexpand_[wid];
+      CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
-      TStats &node_sum = wspace.hset[0][num_feature + wid * (num_feature + 1)].data[0];
+      TStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
       for (size_t i = 0; i < fset.size(); ++i) {
-        EnumerateSplit(this->wspace.hset[0][i + wid * (num_feature+1)],
+        EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
                        node_sum, fset[i], &best, &left_sum[wid]);
       }
     }
     // get the best result, we can synchronize the solution
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand[wid];
+      const int nid = qexpand_[wid];
       const SplitEntry &best = sol[wid];
-      const TStats &node_sum = wspace.hset[0][num_feature + wid * (num_feature + 1)].data[0];
+      const TStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
       this->SetStats(p_tree, nid, node_sum);
       // set up the values
-      p_tree->stat(nid).loss_chg = best.loss_chg;
+      p_tree->Stat(nid).loss_chg = best.loss_chg;
       // now we know the solution in snode[nid], set split
-      if (best.loss_chg > rt_eps) {
+      if (best.loss_chg > kRtEps) {
         p_tree->AddChilds(nid);
-        (*p_tree)[nid].set_split(best.split_index(),
-                                 best.split_value, best.default_left());
+        (*p_tree)[nid].SetSplit(best.SplitIndex(),
+                                 best.split_value, best.DefaultLeft());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
+        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
         // right side sum
         TStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].cleft(), left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].cright(), right_sum);
+        this->SetStats(p_tree, (*p_tree)[nid].LeftChild(), left_sum[wid]);
+        this->SetStats(p_tree, (*p_tree)[nid].RightChild(), right_sum);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+        (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }
     }
   }
 
   inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
-    p_tree->stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param));
-    p_tree->stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param, p_tree->leafvec(nid));
+    p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
+    p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
+    node_sum.SetLeafVec(param_, p_tree->Leafvec(nid));
   }
 };
 
@@ -280,7 +280,7 @@ class CQHistMaker: public HistMaker<TStats> {
      * do linear scan, start from istart
      */
     inline void Add(bst_float fv,
-                    const std::vector<bst_gpair> &gpair,
+                    const std::vector<GradientPair> &gpair,
                     const MetaInfo &info,
                     const bst_uint ridx) {
       while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
@@ -292,7 +292,7 @@ class CQHistMaker: public HistMaker<TStats> {
      * do linear scan, start from istart
      */
     inline void Add(bst_float fv,
-                    bst_gpair gstats) {
+                    GradientPair gstats) {
       if (fv < hist.cut[istart]) {
         hist.data[istart].Add(gstats);
       } else {
@@ -316,33 +316,33 @@ class CQHistMaker: public HistMaker<TStats> {
                    const RegTree &tree,
                    std::vector<bst_uint> *p_fset) override {
     if (p_fmat != cache_dmatrix_) {
-      feat_helper.InitByCol(p_fmat, tree);
+      feat_helper_.InitByCol(p_fmat, tree);
       cache_dmatrix_ = p_fmat;
     }
-    feat_helper.SyncInfo();
-    feat_helper.SampleCol(this->param.colsample_bytree, p_fset);
+    feat_helper_.SyncInfo();
+    feat_helper_.SampleCol(this->param_.colsample_bytree, p_fset);
   }
   // code to create histogram
-  void CreateHist(const std::vector<bst_gpair> &gpair,
+  void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
                   const std::vector<bst_uint> &fset,
                   const RegTree &tree) override {
-    const MetaInfo &info = p_fmat->info();
+    const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    feat2workindex.resize(tree.param.num_feature);
-    std::fill(feat2workindex.begin(), feat2workindex.end(), -1);
+    feat2workindex_.resize(tree.param.num_feature);
+    std::fill(feat2workindex_.begin(), feat2workindex_.end(), -1);
     for (size_t i = 0; i < fset.size(); ++i) {
-      feat2workindex[fset[i]] = static_cast<int>(i);
+      feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace.Init(this->param, 1);
+    this->wspace_.Init(this->param_, 1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
 #if __cplusplus >= 201103L
     auto lazy_get_hist = [&]()
 #endif
     {
-      thread_hist.resize(omp_get_max_threads());
+      thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
       dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fset);
       iter->BeforeFirst();
@@ -352,22 +352,22 @@ class CQHistMaker: public HistMaker<TStats> {
         const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = feat2workindex[batch.col_index[i]];
+          int offset = feat2workindex_[batch.col_index[i]];
           if (offset >= 0) {
             this->UpdateHistCol(gpair, batch[i], info, tree,
                                 fset, offset,
-                                &thread_hist[omp_get_thread_num()]);
+                                &thread_hist_[omp_get_thread_num()]);
           }
         }
       }
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
-                         &thread_stats, &node_stats);
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const int nid = this->qexpand[i];
-        const int wid = this->node2workindex[nid];
-        this->wspace.hset[0][fset.size() + wid * (fset.size()+1)]
-            .data[0] = node_stats[nid];
+                         &thread_stats_, &node_stats_);
+      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+        const int nid = this->qexpand_[i];
+        const int wid = this->node2workindex_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size()+1)]
+            .data[0] = node_stats_[nid];
       }
     };
     // sync the histogram
@@ -376,124 +376,124 @@ class CQHistMaker: public HistMaker<TStats> {
     this->histred.Allreduce(dmlc::BeginPtr(this->wspace.hset[0].data),
                             this->wspace.hset[0].data.size(), lazy_get_hist);
 #else
-    this->histred.Allreduce(dmlc::BeginPtr(this->wspace.hset[0].data),
-                            this->wspace.hset[0].data.size());
+    this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
+                            this->wspace_.hset[0].data.size());
 #endif
   }
   void ResetPositionAfterSplit(DMatrix *p_fmat,
                                const RegTree &tree) override {
-    this->GetSplitSet(this->qexpand, tree, &fsplit_set);
+    this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
-  void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
+  void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector<bst_uint> &fset,
                           const RegTree &tree) override {
-    const MetaInfo &info = p_fmat->info();
+    const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    feat2workindex.resize(tree.param.num_feature);
-    std::fill(feat2workindex.begin(), feat2workindex.end(), -1);
-    work_set.clear();
+    feat2workindex_.resize(tree.param.num_feature);
+    std::fill(feat2workindex_.begin(), feat2workindex_.end(), -1);
+    work_set_.clear();
     for (unsigned int i : fset) {
-      if (feat_helper.Type(i) == 2) {
-        feat2workindex[i] = static_cast<int>(work_set.size());
-        work_set.push_back(i);
+      if (feat_helper_.Type(i) == 2) {
+        feat2workindex_[i] = static_cast<int>(work_set_.size());
+        work_set_.push_back(i);
       } else {
-        feat2workindex[i] = -2;
+        feat2workindex_[i] = -2;
       }
     }
-    const size_t work_set_size = work_set.size();
+    const size_t work_set_size = work_set_.size();
 
-    sketchs.resize(this->qexpand.size() * work_set_size);
-    for (size_t i = 0; i < sketchs.size(); ++i) {
-      sketchs[i].Init(info.num_row, this->param.sketch_eps);
+    sketchs_.resize(this->qexpand_.size() * work_set_size);
+    for (size_t i = 0; i < sketchs_.size(); ++i) {
+      sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // intitialize the summary array
-    summary_array.resize(sketchs.size());
+    summary_array_.resize(sketchs_.size());
     // setup maximum size
-    unsigned max_size = this->param.max_sketch_size();
-    for (size_t i = 0; i < sketchs.size(); ++i) {
-      summary_array[i].Reserve(max_size);
+    unsigned max_size = this->param_.MaxSketchSize();
+    for (size_t i = 0; i < sketchs_.size(); ++i) {
+      summary_array_[i].Reserve(max_size);
     }
     {
       // get smmary
-      thread_sketch.resize(omp_get_max_threads());
+      thread_sketch_.resize(omp_get_max_threads());
 
       // TWOPASS: use the real set + split set in the column iteration.
       this->SetDefaultPostion(p_fmat, tree);
-      work_set.insert(work_set.end(), fsplit_set.begin(), fsplit_set.end());
-      std::sort(work_set.begin(), work_set.end());
-      work_set.resize(std::unique(work_set.begin(), work_set.end()) - work_set.begin());
+      work_set_.insert(work_set_.end(), fsplit_set_.begin(), fsplit_set_.end());
+      std::sort(work_set_.begin(), work_set_.end());
+      work_set_.resize(std::unique(work_set_.begin(), work_set_.end()) - work_set_.begin());
 
       // start accumulating statistics
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(work_set);
+      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(work_set_);
       iter->BeforeFirst();
       while (iter->Next()) {
         const ColBatch &batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
-        this->CorrectNonDefaultPositionByBatch(batch, fsplit_set, tree);
+        this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = feat2workindex[batch.col_index[i]];
+          int offset = feat2workindex_[batch.col_index[i]];
           if (offset >= 0) {
             this->UpdateSketchCol(gpair, batch[i], tree,
                                   work_set_size, offset,
-                                  &thread_sketch[omp_get_thread_num()]);
+                                  &thread_sketch_[omp_get_thread_num()]);
           }
         }
       }
-      for (size_t i = 0; i < sketchs.size(); ++i) {
+      for (size_t i = 0; i < sketchs_.size(); ++i) {
         common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
-        sketchs[i].GetSummary(&out);
-        summary_array[i].SetPrune(out, max_size);
+        sketchs_[i].GetSummary(&out);
+        summary_array_[i].SetPrune(out, max_size);
       }
-      CHECK_EQ(summary_array.size(), sketchs.size());
+      CHECK_EQ(summary_array_.size(), sketchs_.size());
     }
-    if (summary_array.size() != 0) {
+    if (summary_array_.size() != 0) {
       size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
-      sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+      sreducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
     }
     // now we get the final result of sketch, setup the cut
-    this->wspace.cut.clear();
-    this->wspace.rptr.clear();
-    this->wspace.rptr.push_back(0);
-    for (size_t wid = 0; wid < this->qexpand.size(); ++wid) {
+    this->wspace_.cut.clear();
+    this->wspace_.rptr.clear();
+    this->wspace_.rptr.push_back(0);
+    for (size_t wid = 0; wid < this->qexpand_.size(); ++wid) {
       for (unsigned int i : fset) {
-        int offset = feat2workindex[i];
+        int offset = feat2workindex_[i];
         if (offset >= 0) {
-          const WXQSketch::Summary &a = summary_array[wid * work_set_size + offset];
+          const WXQSketch::Summary &a = summary_array_[wid * work_set_size + offset];
           for (size_t i = 1; i < a.size; ++i) {
-            bst_float cpt = a.data[i].value - rt_eps;
-            if (i == 1 || cpt > this->wspace.cut.back()) {
-              this->wspace.cut.push_back(cpt);
+            bst_float cpt = a.data[i].value - kRtEps;
+            if (i == 1 || cpt > this->wspace_.cut.back()) {
+              this->wspace_.cut.push_back(cpt);
             }
           }
           // push a value that is greater than anything
           if (a.size != 0) {
             bst_float cpt = a.data[a.size - 1].value;
             // this must be bigger than last value in a scale
-            bst_float last = cpt + fabs(cpt) + rt_eps;
-            this->wspace.cut.push_back(last);
+            bst_float last = cpt + fabs(cpt) + kRtEps;
+            this->wspace_.cut.push_back(last);
           }
-          this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
+          this->wspace_.rptr.push_back(static_cast<unsigned>(this->wspace_.cut.size()));
         } else {
           CHECK_EQ(offset, -2);
-          bst_float cpt = feat_helper.MaxValue(i);
-          this->wspace.cut.push_back(cpt + fabs(cpt) + rt_eps);
-          this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
+          bst_float cpt = feat_helper_.MaxValue(i);
+          this->wspace_.cut.push_back(cpt + fabs(cpt) + kRtEps);
+          this->wspace_.rptr.push_back(static_cast<unsigned>(this->wspace_.cut.size()));
         }
       }
       // reserve last value for global statistics
-      this->wspace.cut.push_back(0.0f);
-      this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
+      this->wspace_.cut.push_back(0.0f);
+      this->wspace_.rptr.push_back(static_cast<unsigned>(this->wspace_.cut.size()));
     }
-    CHECK_EQ(this->wspace.rptr.size(),
-             (fset.size() + 1) * this->qexpand.size() + 1);
+    CHECK_EQ(this->wspace_.rptr.size(),
+             (fset.size() + 1) * this->qexpand_.size() + 1);
   }
 
-  inline void UpdateHistCol(const std::vector<bst_gpair> &gpair,
+  inline void UpdateHistCol(const std::vector<GradientPair> &gpair,
                             const ColBatch::Inst &c,
                             const MetaInfo &info,
                             const RegTree &tree,
@@ -504,21 +504,21 @@ class CQHistMaker: public HistMaker<TStats> {
     // initialize sbuilder for use
     std::vector<HistEntry> &hbuilder = *p_temp;
     hbuilder.resize(tree.param.num_nodes);
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const unsigned nid = this->qexpand[i];
-      const unsigned wid = this->node2workindex[nid];
+    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+      const unsigned nid = this->qexpand_[i];
+      const unsigned wid = this->node2workindex_[nid];
       hbuilder[nid].istart = 0;
-      hbuilder[nid].hist = this->wspace.hset[0][fid_offset + wid * (fset.size()+1)];
+      hbuilder[nid].hist = this->wspace_.hset[0][fid_offset + wid * (fset.size()+1)];
     }
-    if (TStats::kSimpleStats != 0 && this->param.cache_opt != 0) {
-      const bst_uint kBuffer = 32;
+    if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
+      constexpr bst_uint kBuffer = 32;
       bst_uint align_length = c.length / kBuffer * kBuffer;
       int buf_position[kBuffer];
-      bst_gpair buf_gpair[kBuffer];
+      GradientPair buf_gpair[kBuffer];
       for (bst_uint j = 0; j < align_length; j += kBuffer) {
         for (bst_uint i = 0; i < kBuffer; ++i) {
           bst_uint ridx = c[j + i].index;
-          buf_position[i] = this->position[ridx];
+          buf_position[i] = this->position_[ridx];
           buf_gpair[i] = gpair[ridx];
         }
         for (bst_uint i = 0; i < kBuffer; ++i) {
@@ -530,7 +530,7 @@ class CQHistMaker: public HistMaker<TStats> {
       }
       for (bst_uint j = align_length; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
           hbuilder[nid].Add(c[j].fvalue, gpair[ridx]);
         }
@@ -538,14 +538,14 @@ class CQHistMaker: public HistMaker<TStats> {
     } else {
       for (bst_uint j = 0; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
           hbuilder[nid].Add(c[j].fvalue, gpair, info, ridx);
         }
       }
     }
   }
-  inline void UpdateSketchCol(const std::vector<bst_gpair> &gpair,
+  inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
                               const ColBatch::Inst &c,
                               const RegTree &tree,
                               size_t work_set_size,
@@ -555,37 +555,37 @@ class CQHistMaker: public HistMaker<TStats> {
     // initialize sbuilder for use
     std::vector<BaseMaker::SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes);
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const unsigned nid = this->qexpand[i];
-      const unsigned wid = this->node2workindex[nid];
+    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+      const unsigned nid = this->qexpand_[i];
+      const unsigned wid = this->node2workindex_[nid];
       sbuilder[nid].sum_total = 0.0f;
-      sbuilder[nid].sketch = &sketchs[wid * work_set_size + offset];
+      sbuilder[nid].sketch = &sketchs_[wid * work_set_size + offset];
     }
 
     // first pass, get sum of weight, TODO, optimization to skip first pass
     for (bst_uint j = 0; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
         sbuilder[nid].sum_total += gpair[ridx].GetHess();
       }
     }
     // if only one value, no need to do second pass
     if (c[0].fvalue  == c[c.length-1].fvalue) {
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const int nid = this->qexpand[i];
+      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+        const int nid = this->qexpand_[i];
         sbuilder[nid].sketch->Push(c[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
       }
       return;
     }
     // two pass scan
-    unsigned max_size = this->param.max_sketch_size();
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    unsigned max_size = this->param_.MaxSketchSize();
+    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+      const int nid = this->qexpand_[i];
       sbuilder[nid].Init(max_size);
     }
     // second pass, build the sketch
-    if (TStats::kSimpleStats != 0 && this->param.cache_opt != 0) {
+    if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
       const bst_uint kBuffer = 32;
       bst_uint align_length = c.length / kBuffer * kBuffer;
       int buf_position[kBuffer];
@@ -593,7 +593,7 @@ class CQHistMaker: public HistMaker<TStats> {
       for (bst_uint j = 0; j < align_length; j += kBuffer) {
         for (bst_uint i = 0; i < kBuffer; ++i) {
           bst_uint ridx = c[j + i].index;
-          buf_position[i] = this->position[ridx];
+          buf_position[i] = this->position_[ridx];
           buf_hess[i] = gpair[ridx].GetHess();
         }
         for (bst_uint i = 0; i < kBuffer; ++i) {
@@ -605,7 +605,7 @@ class CQHistMaker: public HistMaker<TStats> {
       }
       for (bst_uint j = align_length; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
           sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
         }
@@ -613,136 +613,137 @@ class CQHistMaker: public HistMaker<TStats> {
     } else {
       for (bst_uint j = 0; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
           sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
         }
       }
     }
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+      const int nid = this->qexpand_[i];
       sbuilder[nid].Finalize(max_size);
     }
   }
   // cached dmatrix where we initialized the feature on.
   const DMatrix* cache_dmatrix_{nullptr};
   // feature helper
-  BaseMaker::FMetaHelper feat_helper;
+  BaseMaker::FMetaHelper feat_helper_;
   // temp space to map feature id to working index
-  std::vector<int> feat2workindex;
+  std::vector<int> feat2workindex_;
   // set of index from fset that are current work set
-  std::vector<bst_uint> work_set;
+  std::vector<bst_uint> work_set_;
   // set of index from that are split candidates.
-  std::vector<bst_uint> fsplit_set;
+  std::vector<bst_uint> fsplit_set_;
   // thread temp data
-  std::vector<std::vector<BaseMaker::SketchEntry> > thread_sketch;
+  std::vector<std::vector<BaseMaker::SketchEntry> > thread_sketch_;
   // used to hold statistics
-  std::vector<std::vector<TStats> > thread_stats;
+  std::vector<std::vector<TStats> > thread_stats_;
   // used to hold start pointer
-  std::vector<std::vector<HistEntry> > thread_hist;
+  std::vector<std::vector<HistEntry> > thread_hist_;
   // node statistics
-  std::vector<TStats> node_stats;
+  std::vector<TStats> node_stats_;
   // summary array
-  std::vector<WXQSketch::SummaryContainer> summary_array;
+  std::vector<WXQSketch::SummaryContainer> summary_array_;
   // reducer for summary
-  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer_;
   // per node, per feature sketch
-  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs;
+  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs_;
 };
 
 // global proposal
 template<typename TStats>
 class GlobalProposalHistMaker: public CQHistMaker<TStats> {
  protected:
-  void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
+  void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector<bst_uint> &fset,
                           const RegTree &tree) override {
-    if (this->qexpand.size() == 1) {
+    if (this->qexpand_.size() == 1) {
       cached_rptr_.clear();
       cached_cut_.clear();
     }
     if (cached_rptr_.size() == 0) {
-      CHECK_EQ(this->qexpand.size(), 1U);
+      CHECK_EQ(this->qexpand_.size(), 1U);
       CQHistMaker<TStats>::ResetPosAndPropose(gpair, p_fmat, fset, tree);
-      cached_rptr_ = this->wspace.rptr;
-      cached_cut_ = this->wspace.cut;
+      cached_rptr_ = this->wspace_.rptr;
+      cached_cut_ = this->wspace_.cut;
     } else {
-      this->wspace.cut.clear();
-      this->wspace.rptr.clear();
-      this->wspace.rptr.push_back(0);
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
+      this->wspace_.cut.clear();
+      this->wspace_.rptr.clear();
+      this->wspace_.rptr.push_back(0);
+      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
         for (size_t j = 0; j < cached_rptr_.size() - 1; ++j) {
-          this->wspace.rptr.push_back(
-              this->wspace.rptr.back() + cached_rptr_[j + 1] - cached_rptr_[j]);
+          this->wspace_.rptr.push_back(
+              this->wspace_.rptr.back() + cached_rptr_[j + 1] - cached_rptr_[j]);
         }
-        this->wspace.cut.insert(this->wspace.cut.end(), cached_cut_.begin(), cached_cut_.end());
+        this->wspace_.cut.insert(this->wspace_.cut.end(), cached_cut_.begin(), cached_cut_.end());
       }
-      CHECK_EQ(this->wspace.rptr.size(),
-               (fset.size() + 1) * this->qexpand.size() + 1);
-      CHECK_EQ(this->wspace.rptr.back(), this->wspace.cut.size());
+      CHECK_EQ(this->wspace_.rptr.size(),
+               (fset.size() + 1) * this->qexpand_.size() + 1);
+      CHECK_EQ(this->wspace_.rptr.back(), this->wspace_.cut.size());
     }
   }
 
   // code to create histogram
-  void CreateHist(const std::vector<bst_gpair> &gpair,
+  void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
                   const std::vector<bst_uint> &fset,
                   const RegTree &tree) override {
-    const MetaInfo &info = p_fmat->info();
+    const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    this->feat2workindex.resize(tree.param.num_feature);
-    this->work_set = fset;
-    std::fill(this->feat2workindex.begin(), this->feat2workindex.end(), -1);
+    this->feat2workindex_.resize(tree.param.num_feature);
+    this->work_set_ = fset;
+    std::fill(this->feat2workindex_.begin(), this->feat2workindex_.end(), -1);
     for (size_t i = 0; i < fset.size(); ++i) {
-      this->feat2workindex[fset[i]] = static_cast<int>(i);
+      this->feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace.Init(this->param, 1);
+    this->wspace_.Init(this->param_, 1);
     // to gain speedup in recovery
     {
-      this->thread_hist.resize(omp_get_max_threads());
+      this->thread_hist_.resize(omp_get_max_threads());
 
       // TWOPASS: use the real set + split set in the column iteration.
       this->SetDefaultPostion(p_fmat, tree);
-      this->work_set.insert(this->work_set.end(), this->fsplit_set.begin(), this->fsplit_set.end());
-      std::sort(this->work_set.begin(), this->work_set.end());
-      this->work_set.resize(
-          std::unique(this->work_set.begin(), this->work_set.end()) - this->work_set.begin());
+      this->work_set_.insert(this->work_set_.end(), this->fsplit_set_.begin(),
+                             this->fsplit_set_.end());
+      std::sort(this->work_set_.begin(), this->work_set_.end());
+      this->work_set_.resize(
+          std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
       // start accumulating statistics
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(this->work_set);
+      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(this->work_set_);
       iter->BeforeFirst();
       while (iter->Next()) {
         const ColBatch &batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
-        this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set, tree);
+        this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = this->feat2workindex[batch.col_index[i]];
+          int offset = this->feat2workindex_[batch.col_index[i]];
           if (offset >= 0) {
             this->UpdateHistCol(gpair, batch[i], info, tree,
                                 fset, offset,
-                                &this->thread_hist[omp_get_thread_num()]);
+                                &this->thread_hist_[omp_get_thread_num()]);
           }
         }
       }
 
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
-                         &(this->thread_stats), &(this->node_stats));
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const int nid = this->qexpand[i];
-        const int wid = this->node2workindex[nid];
-        this->wspace.hset[0][fset.size() + wid * (fset.size()+1)]
-            .data[0] = this->node_stats[nid];
+                         &(this->thread_stats_), &(this->node_stats_));
+      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+        const int nid = this->qexpand_[i];
+        const int wid = this->node2workindex_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size()+1)]
+            .data[0] = this->node_stats_[nid];
       }
     }
-    this->histred.Allreduce(dmlc::BeginPtr(this->wspace.hset[0].data),
-                            this->wspace.hset[0].data.size());
+    this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
+                            this->wspace_.hset[0].data.size());
   }
 
   // cached unit pointer
@@ -756,16 +757,16 @@ template<typename TStats>
 class QuantileHistMaker: public HistMaker<TStats> {
  protected:
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
-  void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
+  void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector <bst_uint> &fset,
                           const RegTree &tree) override {
-    const MetaInfo &info = p_fmat->info();
+    const MetaInfo &info = p_fmat->Info();
     // initialize the data structure
     const int nthread = omp_get_max_threads();
-    sketchs.resize(this->qexpand.size() * tree.param.num_feature);
-    for (size_t i = 0; i < sketchs.size(); ++i) {
-      sketchs[i].Init(info.num_row, this->param.sketch_eps);
+    sketchs_.resize(this->qexpand_.size() * tree.param.num_feature);
+    for (size_t i = 0; i < sketchs_.size(); ++i) {
+      sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // start accumulating statistics
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
@@ -774,7 +775,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       const RowBatch &batch = iter->Value();
       // parallel convert to column major format
       common::ParallelGroupBuilder<SparseBatch::Entry>
-          builder(&col_ptr, &col_data, &thread_col_ptr);
+          builder(&col_ptr_, &col_data_, &thread_col_ptr_);
       builder.InitBudget(tree.param.num_feature, nthread);
 
       const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
@@ -782,13 +783,13 @@ class QuantileHistMaker: public HistMaker<TStats> {
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
         RowBatch::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
-        int nid = this->position[ridx];
+        int nid = this->position_[ridx];
         if (nid >= 0) {
-          if (!tree[nid].is_leaf()) {
-            this->position[ridx] = nid = HistMaker<TStats>::NextLevel(inst, tree, nid);
+          if (!tree[nid].IsLeaf()) {
+            this->position_[ridx] = nid = HistMaker<TStats>::NextLevel(inst, tree, nid);
           }
-          if (this->node2workindex[nid] < 0) {
-            this->position[ridx] = ~nid;
+          if (this->node2workindex_[nid] < 0) {
+            this->position_[ridx] = ~nid;
           } else {
             for (bst_uint j = 0; j < inst.length; ++j) {
               builder.AddBudget(inst[j].index, omp_get_thread_num());
@@ -801,7 +802,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
         RowBatch::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
           for (bst_uint j = 0; j < inst.length; ++j) {
             builder.Push(inst[j].index,
@@ -811,71 +812,71 @@ class QuantileHistMaker: public HistMaker<TStats> {
         }
       }
       // start putting things into sketch
-      const bst_omp_uint nfeat = col_ptr.size() - 1;
+      const bst_omp_uint nfeat = col_ptr_.size() - 1;
       #pragma omp parallel for schedule(dynamic, 1)
       for (bst_omp_uint k = 0; k < nfeat; ++k) {
-        for (size_t i = col_ptr[k]; i < col_ptr[k+1]; ++i) {
-          const SparseBatch::Entry &e = col_data[i];
-          const int wid = this->node2workindex[e.index];
-          sketchs[wid * tree.param.num_feature + k].Push(e.fvalue, gpair[e.index].GetHess());
+        for (size_t i = col_ptr_[k]; i < col_ptr_[k+1]; ++i) {
+          const SparseBatch::Entry &e = col_data_[i];
+          const int wid = this->node2workindex_[e.index];
+          sketchs_[wid * tree.param.num_feature + k].Push(e.fvalue, gpair[e.index].GetHess());
         }
       }
     }
     // setup maximum size
-    unsigned max_size = this->param.max_sketch_size();
+    unsigned max_size = this->param_.MaxSketchSize();
     // synchronize sketch
-    summary_array.resize(sketchs.size());
-    for (size_t i = 0; i < sketchs.size(); ++i) {
+    summary_array_.resize(sketchs_.size());
+    for (size_t i = 0; i < sketchs_.size(); ++i) {
       common::WQuantileSketch<bst_float, bst_float>::SummaryContainer out;
-      sketchs[i].GetSummary(&out);
-      summary_array[i].Reserve(max_size);
-      summary_array[i].SetPrune(out, max_size);
+      sketchs_[i].GetSummary(&out);
+      summary_array_[i].Reserve(max_size);
+      summary_array_[i].SetPrune(out, max_size);
     }
 
     size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
-    sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+    sreducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
     // now we get the final result of sketch, setup the cut
-    this->wspace.cut.clear();
-    this->wspace.rptr.clear();
-    this->wspace.rptr.push_back(0);
-    for (size_t wid = 0; wid < this->qexpand.size(); ++wid) {
+    this->wspace_.cut.clear();
+    this->wspace_.rptr.clear();
+    this->wspace_.rptr.push_back(0);
+    for (size_t wid = 0; wid < this->qexpand_.size(); ++wid) {
       for (int fid = 0; fid < tree.param.num_feature; ++fid) {
-        const WXQSketch::Summary &a = summary_array[wid * tree.param.num_feature + fid];
+        const WXQSketch::Summary &a = summary_array_[wid * tree.param.num_feature + fid];
         for (size_t i = 1; i < a.size; ++i) {
-          bst_float cpt = a.data[i].value - rt_eps;
-          if (i == 1 || cpt > this->wspace.cut.back()) {
-            this->wspace.cut.push_back(cpt);
+          bst_float cpt = a.data[i].value - kRtEps;
+          if (i == 1 || cpt > this->wspace_.cut.back()) {
+            this->wspace_.cut.push_back(cpt);
           }
         }
         // push a value that is greater than anything
         if (a.size != 0) {
           bst_float cpt = a.data[a.size - 1].value;
           // this must be bigger than last value in a scale
-          bst_float last = cpt + fabs(cpt) + rt_eps;
-          this->wspace.cut.push_back(last);
+          bst_float last = cpt + fabs(cpt) + kRtEps;
+          this->wspace_.cut.push_back(last);
         }
-        this->wspace.rptr.push_back(this->wspace.cut.size());
+        this->wspace_.rptr.push_back(this->wspace_.cut.size());
       }
       // reserve last value for global statistics
-      this->wspace.cut.push_back(0.0f);
-      this->wspace.rptr.push_back(this->wspace.cut.size());
+      this->wspace_.cut.push_back(0.0f);
+      this->wspace_.rptr.push_back(this->wspace_.cut.size());
     }
-    CHECK_EQ(this->wspace.rptr.size(),
-             (tree.param.num_feature + 1) * this->qexpand.size() + 1);
+    CHECK_EQ(this->wspace_.rptr.size(),
+             (tree.param.num_feature + 1) * this->qexpand_.size() + 1);
   }
 
  private:
   // summary array
-  std::vector<WXQSketch::SummaryContainer> summary_array;
+  std::vector<WXQSketch::SummaryContainer> summary_array_;
   // reducer for summary
-  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer_;
   // local temp column data structure
-  std::vector<size_t> col_ptr;
+  std::vector<size_t> col_ptr_;
   // local storage of column data
-  std::vector<SparseBatch::Entry> col_data;
-  std::vector<std::vector<size_t> > thread_col_ptr;
+  std::vector<SparseBatch::Entry> col_data_;
+  std::vector<std::vector<size_t> > thread_col_ptr_;
   // per node, per feature sketch
-  std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs;
+  std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")

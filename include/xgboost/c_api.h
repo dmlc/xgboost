@@ -215,11 +215,9 @@ XGB_DLL int XGDMatrixCreateFromMat(const float *data,
  * \param nthread number of threads (up to maximum cores available, if <=0 use all cores)
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,
-                                       bst_ulong nrow,
-                                       bst_ulong ncol,
-                                       float missing,
-                                       DMatrixHandle *out,
+XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
+                                       bst_ulong nrow, bst_ulong ncol,
+                                       float missing, DMatrixHandle *out,
                                        int nthread);
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix

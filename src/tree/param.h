@@ -190,25 +190,25 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
   /*! \brief whether need forward small to big search: default right */
-  inline bool need_forward_search(float col_density, bool indicator) const {
+  inline bool NeedForwardSearch(float col_density, bool indicator) const {
     return this->default_direction == 2 ||
            (default_direction == 0 && (col_density < opt_dense_col) &&
             !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool need_backward_search(float col_density, bool indicator) const {
+  inline bool NeedBackwardSearch(float col_density, bool indicator) const {
     return this->default_direction != 2;
   }
   /*! \brief given the loss change, whether we need to invoke pruning */
-  inline bool need_prune(double loss_chg, int depth) const {
+  inline bool NeedPrune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss;
   }
   /*! \brief whether we can split with current hessian */
-  inline bool cannot_split(double sum_hess, int depth) const {
+  inline bool CannotSplit(double sum_hess, int depth) const {
     return sum_hess < this->min_child_weight * 2.0;
   }
   /*! \brief maximum sketch size */
-  inline unsigned max_sketch_size() const {
+  inline unsigned MaxSketchSize() const {
     auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
     CHECK_GT(ret, 0U);
     return ret;
@@ -299,8 +299,8 @@ XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
   return dw;
 }
 
-template <typename TrainingParams, typename gpair_t>
-XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, gpair_t sum_grad) {
+template <typename TrainingParams, typename GpairT>
+XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
@@ -318,8 +318,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam& param) { this->Clear(); }
 
-  template <typename gpair_t>
-  XGBOOST_DEVICE explicit GradStats(const gpair_t &sum)
+  template <typename GpairT>
+  XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
@@ -329,26 +329,26 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    * \brief accumulate statistics
    * \param p the gradient pair
    */
-  inline void Add(bst_gpair p) { this->Add(p.GetGrad(), p.GetHess()); }
+  inline void Add(GradientPair p) { this->Add(p.GetGrad(), p.GetHess()); }
   /*!
    * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
    * \param info the additional information
    * \param ridx instance index of this instance
    */
-  inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
+  inline void Add(const std::vector<GradientPair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
-    const bst_gpair& b = gpair[ridx];
+    const GradientPair& b = gpair[ridx];
     this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
-  template <typename param_t>
-  XGBOOST_DEVICE inline double CalcWeight(const param_t &param) const {
+  template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-template <typename param_t>
-  inline double CalcGain(const param_t& param) const {
+template <typename ParamT>
+  inline double CalcGain(const ParamT& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
@@ -406,8 +406,8 @@ struct ValueConstraint {
   inline static void Init(TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcWeight(const param_t &param, GradStats stats) const {
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, GradStats stats) const {
     double w = stats.CalcWeight(param);
     if (w < lower_bound) {
       return lower_bound;
@@ -418,14 +418,14 @@ template <typename param_t>
     return w;
   }
 
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcGain(const param_t &param, GradStats stats) const {
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcGain(const ParamT &param, GradStats stats) const {
     return CalcGainGivenWeight(param, stats.sum_grad, stats.sum_hess,
                                CalcWeight(param, stats));
   }
 
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcSplitGain(const param_t &param, int constraint,
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcSplitGain(const ParamT &param, int constraint,
                               GradStats left, GradStats right) const {
     const double negative_infinity = -std::numeric_limits<double>::infinity();
     double wleft = CalcWeight(param, left);
@@ -489,7 +489,7 @@ struct SplitEntry {
    * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
-    if (this->split_index() <= split_index) {
+    if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
       return !(this->loss_chg > new_loss_chg);
@@ -501,7 +501,7 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(const SplitEntry &e) {
-    if (this->NeedReplace(e.loss_chg, e.split_index())) {
+    if (this->NeedReplace(e.loss_chg, e.SplitIndex())) {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
@@ -538,9 +538,9 @@ struct SplitEntry {
     dst.Update(src);
   }
   /*!\return feature index to split on */
-  inline unsigned split_index() const { return sindex & ((1U << 31) - 1U); }
+  inline unsigned SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */
-  inline bool default_left() const { return (sindex >> 31) != 0; }
+  inline bool DefaultLeft() const { return (sindex >> 31) != 0; }
 };
 
 }  // namespace tree
