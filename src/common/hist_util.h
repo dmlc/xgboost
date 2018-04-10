@@ -198,7 +198,7 @@ class HistCollection {
  public:
   // access histogram for i-th node
   inline GHistRow operator[](bst_uint nid) const {
-    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
+    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     CHECK_NE(row_ptr_[nid], kMax);
     return {const_cast<GHistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_};
   }
@@ -218,7 +218,7 @@ class HistCollection {
 
   // create an empty histogram for i-th node
   inline void AddHistRow(bst_uint nid) {
-    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
+    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     if (nid >= row_ptr_.size()) {
       row_ptr_.resize(nid + 1, kMax);
     }

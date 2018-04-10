@@ -373,8 +373,8 @@ class CQHistMaker: public HistMaker<TStats> {
     // sync the histogram
     // if it is C++11, use lazy evaluation for Allreduce
 #if __cplusplus >= 201103L
-    this->histred.Allreduce(dmlc::BeginPtr(this->wspace.hset[0].data),
-                            this->wspace.hset[0].data.size(), lazy_get_hist);
+    this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
+                            this->wspace_.hset[0].data.size(), lazy_get_hist);
 #else
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                             this->wspace_.hset[0].data.size());
@@ -586,7 +586,7 @@ class CQHistMaker: public HistMaker<TStats> {
     }
     // second pass, build the sketch
     if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
-      const bst_uint kBuffer = 32;
+      constexpr bst_uint kBuffer = 32;
       bst_uint align_length = c.length / kBuffer * kBuffer;
       int buf_position[kBuffer];
       bst_float buf_hess[kBuffer];

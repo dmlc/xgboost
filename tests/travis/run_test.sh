@@ -23,8 +23,8 @@ if [ ${TASK} == "lint" ]; then
     echo "---------clang-tidy log----------"
     cat logtidy.txt
     echo "----------------------------"
-    (cat logtidy.txt|grep warning|grep -v dmlc-core) && exit -1
-    (cat logtidy.txt|grep error|grep -v dmlc-core) && exit -1
+    # Fail only on warnings related to XGBoost source files
+    (cat logtidy.txt|grep -E 'dmlc/xgboost.*warning'|grep -v dmlc-core) && exit -1
     exit 0
 fi
 

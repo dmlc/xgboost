@@ -70,7 +70,7 @@ struct Monitor {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::synchronize_n_devices(dList.size(), dList);
+      dh::SynchronizeNDevices(dList.size(), dList);
 #endif
     }
     timer_map[name].Start();
@@ -80,7 +80,7 @@ struct Monitor {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::synchronize_n_devices(dList.size(), dList);
+      dh::SynchronizeNDevices(dList.size(), dList);
 #endif
     }
     timer_map[name].Stop();

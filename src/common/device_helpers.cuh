@@ -25,16 +25,16 @@
 
 namespace dh {
 
-#define HOST_DEV_INLINE __host__ __device__ __forceinline__
+#define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
 #define DEV_INLINE __device__ __forceinline__
 
 /*
  * Error handling  functions
  */
 
-#define safe_cuda(ans) throw_on_cuda_error((ans), __FILE__, __LINE__)
+#define safe_cuda(ans) ThrowOnCudaError((ans), __FILE__, __LINE__)
 
-inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
+inline cudaError_t ThrowOnCudaError(cudaError_t code, const char *file,
                                        int line) {
   if (code != cudaSuccess) {
     std::stringstream ss;
@@ -48,9 +48,9 @@ inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
 }
 
 #ifdef XGBOOST_USE_NCCL
-#define safe_nccl(ans) throw_on_nccl_error((ans), __FILE__, __LINE__)
+#define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
 
-inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
+inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
                                         int line) {
   if (code != ncclSuccess) {
     std::stringstream ss;
@@ -64,16 +64,16 @@ inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
 #endif
 
 template <typename T>
-T *raw(thrust::device_vector<T> &v) {  //  NOLINT
+T *Raw(thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
 template <typename T>
-const T *raw(const thrust::device_vector<T> &v) {  //  NOLINT
+const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
-inline int n_visible_devices() {
+inline int NVisibleDevices() {
   int n_visgpus = 0;
 
   dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
@@ -81,40 +81,40 @@ inline int n_visible_devices() {
   return n_visgpus;
 }
 
-inline int n_devices_all(int n_gpus) {
-  int n_devices_visible = dh::n_visible_devices();
+inline int NDevicesAll(int n_gpus) {
+  int n_devices_visible = dh::NVisibleDevices();
   int n_devices = n_gpus < 0 ? n_devices_visible : n_gpus;
   return (n_devices);
 }
-inline int n_devices(int n_gpus, int num_rows) {
-  int n_devices = dh::n_devices_all(n_gpus);
+inline int NDevices(int n_gpus, int num_rows) {
+  int n_devices = dh::NDevicesAll(n_gpus);
   // fix-up device number to be limited by number of rows
   n_devices = n_devices > num_rows ? num_rows : n_devices;
   return (n_devices);
 }
 
 // if n_devices=-1, then use all visible devices
-inline void synchronize_n_devices(int n_devices, std::vector<int> dList) {
+inline void SynchronizeNDevices(int n_devices, std::vector<int> dList) {
   for (int d_idx = 0; d_idx < n_devices; d_idx++) {
     int device_idx = dList[d_idx];
     safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaDeviceSynchronize());
   }
 }
-inline void synchronize_all() {
-  for (int device_idx = 0; device_idx < n_visible_devices(); device_idx++) {
+inline void SynchronizeAll() {
+  for (int device_idx = 0; device_idx < NVisibleDevices(); device_idx++) {
     safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaDeviceSynchronize());
   }
 }
 
-inline std::string device_name(int device_idx) {
+inline std::string DeviceName(int device_idx) {
   cudaDeviceProp prop;
   dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
   return std::string(prop.name);
 }
 
-inline size_t available_memory(int device_idx) {
+inline size_t AvailableMemory(int device_idx) {
   size_t device_free = 0;
   size_t device_total = 0;
   safe_cuda(cudaSetDevice(device_idx));
@@ -130,20 +130,20 @@ inline size_t available_memory(int device_idx) {
  * \param device_idx  Zero-based index of the device.
  */
 
-inline size_t max_shared_memory(int device_idx) {
+inline size_t MaxSharedMemory(int device_idx) {
   cudaDeviceProp prop;
   dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
   return prop.sharedMemPerBlock;
 }
 
 // ensure gpu_id is correct, so not dependent upon user knowing details
-inline int get_device_idx(int gpu_id) {
+inline int GetDeviceIdx(int gpu_id) {
   // protect against overrun for gpu_id
-  return (std::abs(gpu_id) + 0) % dh::n_visible_devices();
+  return (std::abs(gpu_id) + 0) % dh::NVisibleDevices();
 }
 
-inline void check_compute_capability() {
-  int n_devices = n_visible_devices();
+inline void CheckComputeCapability() {
+  int n_devices = NVisibleDevices();
   for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
     cudaDeviceProp prop;
     safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
@@ -159,72 +159,72 @@ inline void check_compute_capability() {
  * Range iterator
  */
 
-class range {
+class Range {
  public:
-  class iterator {
-    friend class range;
+  class Iterator {
+    friend class Range;
 
    public:
-    __host__ __device__ int64_t operator*() const { return i_; }
-    __host__ __device__ const iterator &operator++() {
+    XGBOOST_DEVICE int64_t operator*() const { return i_; }
+    XGBOOST_DEVICE const Iterator &operator++() {
       i_ += step_;
       return *this;
     }
-    __host__ __device__ iterator operator++(int) {
-      iterator copy(*this);
+    XGBOOST_DEVICE Iterator operator++(int) {
+      Iterator copy(*this);
       i_ += step_;
       return copy;
     }
 
-    __host__ __device__ bool operator==(const iterator &other) const {
+    XGBOOST_DEVICE bool operator==(const Iterator &other) const {
       return i_ >= other.i_;
     }
-    __host__ __device__ bool operator!=(const iterator &other) const {
+    XGBOOST_DEVICE bool operator!=(const Iterator &other) const {
       return i_ < other.i_;
     }
 
-    __host__ __device__ void step(int s) { step_ = s; }
+    XGBOOST_DEVICE void Step(int s) { step_ = s; }
 
    protected:
-    __host__ __device__ explicit iterator(int64_t start) : i_(start) {}
+    XGBOOST_DEVICE explicit Iterator(int64_t start) : i_(start) {}
 
    public:
     uint64_t i_;
     int step_ = 1;
   };
 
-  __host__ __device__ iterator begin() const { return begin_; }
-  __host__ __device__ iterator end() const { return end_; }
-  __host__ __device__ range(int64_t begin, int64_t end)
+  XGBOOST_DEVICE Iterator begin() const { return begin_; }  // NOLINT
+  XGBOOST_DEVICE Iterator end() const { return end_; }      // NOLINT
+  XGBOOST_DEVICE Range(int64_t begin, int64_t end)
       : begin_(begin), end_(end) {}
-  __host__ __device__ void step(int s) { begin_.step(s); }
+  XGBOOST_DEVICE void Step(int s) { begin_.Step(s); }
 
  private:
-  iterator begin_;
-  iterator end_;
+  Iterator begin_;
+  Iterator end_;
 };
 
 template <typename T>
-__device__ range grid_stride_range(T begin, T end) {
+__device__ Range GridStrideRange(T begin, T end) {
   begin += blockDim.x * blockIdx.x + threadIdx.x;
-  range r(begin, end);
-  r.step(gridDim.x * blockDim.x);
+  Range r(begin, end);
+  r.Step(gridDim.x * blockDim.x);
   return r;
 }
 
 template <typename T>
-__device__ range block_stride_range(T begin, T end) {
+__device__ Range BlockStrideRange(T begin, T end) {
   begin += threadIdx.x;
-  range r(begin, end);
-  r.step(blockDim.x);
+  Range r(begin, end);
+  r.Step(blockDim.x);
   return r;
 }
 
 // Threadblock iterates over range, filling with value. Requires all threads in
 // block to be active.
 template <typename IterT, typename ValueT>
-__device__ void block_fill(IterT begin, size_t n, ValueT value) {
-  for (auto i : block_stride_range(static_cast<size_t>(0), n)) {
+__device__ void BlockFill(IterT begin, size_t n, ValueT value) {
+  for (auto i : BlockStrideRange(static_cast<size_t>(0), n)) {
     begin[i] = value;
   }
 }
@@ -234,34 +234,34 @@ __device__ void block_fill(IterT begin, size_t n, ValueT value) {
  */
 
 template <typename T1, typename T2>
-T1 div_round_up(const T1 a, const T2 b) {
+T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(ceil(static_cast<double>(a) / b));
 }
 
 template <typename L>
-__global__ void launch_n_kernel(size_t begin, size_t end, L lambda) {
-  for (auto i : grid_stride_range(begin, end)) {
+__global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
+  for (auto i : GridStrideRange(begin, end)) {
     lambda(i);
   }
 }
 template <typename L>
-__global__ void launch_n_kernel(int device_idx, size_t begin, size_t end,
+__global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
                                 L lambda) {
-  for (auto i : grid_stride_range(begin, end)) {
+  for (auto i : GridStrideRange(begin, end)) {
     lambda(i, device_idx);
   }
 }
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void launch_n(int device_idx, size_t n, L lambda) {
+inline void LaunchN(int device_idx, size_t n, L lambda) {
   if (n == 0) {
     return;
   }
 
   safe_cuda(cudaSetDevice(device_idx));
   const int GRID_SIZE =
-      static_cast<int>(div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
+      static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
+  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
                                                 lambda);
 }
 
@@ -269,91 +269,91 @@ inline void launch_n(int device_idx, size_t n, L lambda) {
  * Memory
  */
 
-enum memory_type { DEVICE, DEVICE_MANAGED };
+enum MemoryType { kDevice, kDeviceManaged };
 
-template <memory_type MemoryT>
-class bulk_allocator;
+template <MemoryType MemoryT>
+class BulkAllocator;
 template <typename T>
-class dvec2;
+class DVec2;
 
 template <typename T>
-class dvec {
-  friend class dvec2<T>;
+class DVec {
+  friend class DVec2<T>;
 
  private:
-  T *_ptr;
-  size_t _size;
-  int _device_idx;
+  T *ptr_;
+  size_t size_;
+  int device_idx_;
 
  public:
-  void external_allocate(int device_idx, void *ptr, size_t size) {
-    if (!empty()) {
-      throw std::runtime_error("Tried to allocate dvec but already allocated");
+  void ExternalAllocate(int device_idx, void *ptr, size_t size) {
+    if (!Empty()) {
+      throw std::runtime_error("Tried to allocate DVec but already allocated");
     }
-    _ptr = static_cast<T *>(ptr);
-    _size = size;
-    _device_idx = device_idx;
-    safe_cuda(cudaSetDevice(_device_idx));
+    ptr_ = static_cast<T *>(ptr);
+    size_ = size;
+    device_idx_ = device_idx;
+    safe_cuda(cudaSetDevice(device_idx_));
   }
 
-  dvec() : _ptr(NULL), _size(0), _device_idx(-1) {}
-  size_t size() const { return _size; }
-  int device_idx() const { return _device_idx; }
-  bool empty() const { return _ptr == NULL || _size == 0; }
+  DVec() : ptr_(NULL), size_(0), device_idx_(-1) {}
+  size_t Size() const { return size_; }
+  int DeviceIdx() const { return device_idx_; }
+  bool Empty() const { return ptr_ == NULL || size_ == 0; }
 
-  T *data() { return _ptr; }
+  T *Data() { return ptr_; }
 
-  const T *data() const { return _ptr; }
+  const T *Data() const { return ptr_; }
 
-  std::vector<T> as_vector() const {
-    std::vector<T> h_vector(size());
-    safe_cuda(cudaSetDevice(_device_idx));
-    safe_cuda(cudaMemcpy(h_vector.data(), _ptr, size() * sizeof(T),
+  std::vector<T> AsVector() const {
+    std::vector<T> h_vector(Size());
+    safe_cuda(cudaSetDevice(device_idx_));
+    safe_cuda(cudaMemcpy(h_vector.data(), ptr_, Size() * sizeof(T),
                          cudaMemcpyDeviceToHost));
     return h_vector;
   }
 
-  void fill(T value) {
-    auto d_ptr = _ptr;
-    launch_n(_device_idx, size(),
+  void Fill(T value) {
+    auto d_ptr = ptr_;
+    LaunchN(device_idx_, Size(),
              [=] __device__(size_t idx) { d_ptr[idx] = value; });
   }
 
-  void print() {
-    auto h_vector = this->as_vector();
+  void Print() {
+    auto h_vector = this->AsVector();
     for (auto e : h_vector) {
       std::cout << e << " ";
     }
     std::cout << "\n";
   }
 
-  thrust::device_ptr<T> tbegin() { return thrust::device_pointer_cast(_ptr); }
+  thrust::device_ptr<T> tbegin() { return thrust::device_pointer_cast(ptr_); }
 
   thrust::device_ptr<T> tend() {
-    return thrust::device_pointer_cast(_ptr + size());
+    return thrust::device_pointer_cast(ptr_ + Size());
   }
 
   template <typename T2>
-  dvec &operator=(const std::vector<T2> &other) {
+  DVec &operator=(const std::vector<T2> &other) {
     this->copy(other.begin(), other.end());
     return *this;
   }
 
-  dvec &operator=(dvec<T> &other) {
-    if (other.size() != size()) {
+  DVec &operator=(DVec<T> &other) {
+    if (other.Size() != Size()) {
       throw std::runtime_error(
-          "Cannot copy assign dvec to dvec, sizes are different");
+          "Cannot copy assign DVec to DVec, sizes are different");
     }
-    safe_cuda(cudaSetDevice(this->device_idx()));
-    if (other.device_idx() == this->device_idx()) {
-      dh::safe_cuda(cudaMemcpy(this->data(), other.data(),
-                               other.size() * sizeof(T),
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
+    if (other.DeviceIdx() == this->DeviceIdx()) {
+      dh::safe_cuda(cudaMemcpy(this->Data(), other.Data(),
+                               other.Size() * sizeof(T),
                                cudaMemcpyDeviceToDevice));
     } else {
-      std::cout << "deviceother: " << other.device_idx()
-                << " devicethis: " << this->device_idx() << std::endl;
-      std::cout << "size deviceother: " << other.size()
-                << " devicethis: " << this->device_idx() << std::endl;
+      std::cout << "deviceother: " << other.DeviceIdx()
+                << " devicethis: " << this->DeviceIdx() << std::endl;
+      std::cout << "size deviceother: " << other.Size()
+                << " devicethis: " << this->DeviceIdx() << std::endl;
       throw std::runtime_error("Cannot copy to/from different devices");
     }
 
@@ -362,177 +362,177 @@ class dvec {
 
   template <typename IterT>
   void copy(IterT begin, IterT end) {
-    safe_cuda(cudaSetDevice(this->device_idx()));
-    if (end - begin != size()) {
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
+    if (end - begin != Size()) {
       throw std::runtime_error(
-          "Cannot copy assign vector to dvec, sizes are different");
+          "Cannot copy assign vector to DVec, sizes are different");
     }
     thrust::copy(begin, end, this->tbegin());
   }
 
   void copy(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
-    safe_cuda(cudaSetDevice(this->device_idx()));
-    if (end - begin != size()) {
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
+    if (end - begin != Size()) {
       throw std::runtime_error(
-                               "Cannot copy assign vector to dvec, sizes are different");
+                               "Cannot copy assign vector to DVec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->data(), begin.get(),
-                         size() * sizeof(T), cudaMemcpyDefault));
+    safe_cuda(cudaMemcpy(this->Data(), begin.get(),
+                         Size() * sizeof(T), cudaMemcpyDefault));
   }
 };
 
 /**
- * @class dvec2 device_helpers.cuh
- * @brief wrapper for storing 2 dvec's which are needed for cub::DoubleBuffer
+ * @class DVec2 device_helpers.cuh
+ * @brief wrapper for storing 2 DVec's which are needed for cub::DoubleBuffer
  */
 template <typename T>
-class dvec2 {
+class DVec2 {
  private:
-  dvec<T> _d1, _d2;
-  cub::DoubleBuffer<T> _buff;
-  int _device_idx;
+  DVec<T> d1_, d2_;
+  cub::DoubleBuffer<T> buff_;
+  int device_idx_;
 
  public:
-  void external_allocate(int device_idx, void *ptr1, void *ptr2, size_t size) {
-    if (!empty()) {
-      throw std::runtime_error("Tried to allocate dvec2 but already allocated");
+  void ExternalAllocate(int device_idx, void *ptr1, void *ptr2, size_t size) {
+    if (!Empty()) {
+      throw std::runtime_error("Tried to allocate DVec2 but already allocated");
     }
-    _device_idx = device_idx;
-    _d1.external_allocate(_device_idx, ptr1, size);
-    _d2.external_allocate(_device_idx, ptr2, size);
-    _buff.d_buffers[0] = static_cast<T *>(ptr1);
-    _buff.d_buffers[1] = static_cast<T *>(ptr2);
-    _buff.selector = 0;
+    device_idx_ = device_idx;
+    d1_.ExternalAllocate(device_idx_, ptr1, size);
+    d2_.ExternalAllocate(device_idx_, ptr2, size);
+    buff_.d_buffers[0] = static_cast<T *>(ptr1);
+    buff_.d_buffers[1] = static_cast<T *>(ptr2);
+    buff_.selector = 0;
   }
-  dvec2() : _d1(), _d2(), _buff(), _device_idx(-1) {}
+  DVec2() : d1_(), d2_(), buff_(), device_idx_(-1) {}
 
-  size_t size() const { return _d1.size(); }
-  int device_idx() const { return _device_idx; }
-  bool empty() const { return _d1.empty() || _d2.empty(); }
+  size_t Size() const { return d1_.Size(); }
+  int DeviceIdx() const { return device_idx_; }
+  bool Empty() const { return d1_.Empty() || d2_.Empty(); }
 
-  cub::DoubleBuffer<T> &buff() { return _buff; }
+  cub::DoubleBuffer<T> &buff() { return buff_; }
 
-  dvec<T> &d1() { return _d1; }
-  dvec<T> &d2() { return _d2; }
+  DVec<T> &d1() { return d1_; }
+  DVec<T> &d2() { return d2_; }
 
-  T *current() { return _buff.Current(); }
+  T *current() { return buff_.Current(); }
 
-  dvec<T> &current_dvec() { return _buff.selector == 0 ? d1() : d2(); }
+  DVec<T> &current_DVec() { return buff_.selector == 0 ? d1() : d2(); }
 
-  T *other() { return _buff.Alternate(); }
+  T *other() { return buff_.Alternate(); }
 };
 
-template <memory_type MemoryT>
-class bulk_allocator {
-  std::vector<char *> d_ptr;
-  std::vector<size_t> _size;
-  std::vector<int> _device_idx;
+template <MemoryType MemoryT>
+class BulkAllocator {
+  std::vector<char *> d_ptr_;
+  std::vector<size_t> size_;
+  std::vector<int> device_idx_;
 
-  const int align = 256;
+  static const int kAlign = 256;
 
-  size_t align_round_up(size_t n) const {
-    n = (n + align - 1) / align;
-    return n * align;
+  size_t AlignRoundUp(size_t n) const {
+    n = (n + kAlign - 1) / kAlign;
+    return n * kAlign;
   }
 
   template <typename T>
-  size_t get_size_bytes(dvec<T> *first_vec, size_t first_size) {
-    return align_round_up(first_size * sizeof(T));
+  size_t GetSizeBytes(DVec<T> *first_vec, size_t first_size) {
+    return AlignRoundUp(first_size * sizeof(T));
   }
 
   template <typename T, typename... Args>
-  size_t get_size_bytes(dvec<T> *first_vec, size_t first_size, Args... args) {
-    return get_size_bytes<T>(first_vec, first_size) + get_size_bytes(args...);
+  size_t GetSizeBytes(DVec<T> *first_vec, size_t first_size, Args... args) {
+    return GetSizeBytes<T>(first_vec, first_size) + GetSizeBytes(args...);
   }
 
   template <typename T>
-  void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
+  void AllocateDVec(int device_idx, char *ptr, DVec<T> *first_vec,
                      size_t first_size) {
-    first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
+    first_vec->ExternalAllocate(device_idx, static_cast<void *>(ptr),
                                  first_size);
   }
 
   template <typename T, typename... Args>
-  void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
+  void AllocateDVec(int device_idx, char *ptr, DVec<T> *first_vec,
                      size_t first_size, Args... args) {
-    allocate_dvec<T>(device_idx, ptr, first_vec, first_size);
-    ptr += align_round_up(first_size * sizeof(T));
-    allocate_dvec(device_idx, ptr, args...);
+    AllocateDVec<T>(device_idx, ptr, first_vec, first_size);
+    ptr += AlignRoundUp(first_size * sizeof(T));
+    AllocateDVec(device_idx, ptr, args...);
   }
 
-  char *allocate_device(int device_idx, size_t bytes, memory_type t) {
+  char *AllocateDevice(int device_idx, size_t bytes, MemoryType t) {
     char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaMalloc(&ptr, bytes));
     return ptr;
   }
   template <typename T>
-  size_t get_size_bytes(dvec2<T> *first_vec, size_t first_size) {
-    return 2 * align_round_up(first_size * sizeof(T));
+  size_t GetSizeBytes(DVec2<T> *first_vec, size_t first_size) {
+    return 2 * AlignRoundUp(first_size * sizeof(T));
   }
 
   template <typename T, typename... Args>
-  size_t get_size_bytes(dvec2<T> *first_vec, size_t first_size, Args... args) {
-    return get_size_bytes<T>(first_vec, first_size) + get_size_bytes(args...);
+  size_t GetSizeBytes(DVec2<T> *first_vec, size_t first_size, Args... args) {
+    return GetSizeBytes<T>(first_vec, first_size) + GetSizeBytes(args...);
   }
 
   template <typename T>
-  void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec,
+  void AllocateDVec(int device_idx, char *ptr, DVec2<T> *first_vec,
                      size_t first_size) {
-    first_vec->external_allocate(
+    first_vec->ExternalAllocate(
         device_idx, static_cast<void *>(ptr),
-        static_cast<void *>(ptr + align_round_up(first_size * sizeof(T))),
+        static_cast<void *>(ptr + AlignRoundUp(first_size * sizeof(T))),
         first_size);
   }
 
   template <typename T, typename... Args>
-  void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec,
+  void AllocateDVec(int device_idx, char *ptr, DVec2<T> *first_vec,
                      size_t first_size, Args... args) {
-    allocate_dvec<T>(device_idx, ptr, first_vec, first_size);
-    ptr += (align_round_up(first_size * sizeof(T)) * 2);
-    allocate_dvec(device_idx, ptr, args...);
+    AllocateDVec<T>(device_idx, ptr, first_vec, first_size);
+    ptr += (AlignRoundUp(first_size * sizeof(T)) * 2);
+    AllocateDVec(device_idx, ptr, args...);
   }
 
  public:
-  bulk_allocator() {}
+   BulkAllocator() = default;
   // prevent accidental copying, moving or assignment of this object
-  bulk_allocator(const bulk_allocator<MemoryT>&) = delete;
-  bulk_allocator(bulk_allocator<MemoryT>&&) = delete;
-  void operator=(const bulk_allocator<MemoryT>&) = delete;
-  void operator=(bulk_allocator<MemoryT>&&) = delete;
+  BulkAllocator(const BulkAllocator<MemoryT>&) = delete;
+  BulkAllocator(BulkAllocator<MemoryT>&&) = delete;
+  void operator=(const BulkAllocator<MemoryT>&) = delete;
+  void operator=(BulkAllocator<MemoryT>&&) = delete;
   
-  ~bulk_allocator() {
-    for (size_t i = 0; i < d_ptr.size(); i++) {
-      if (!(d_ptr[i] == nullptr)) {
-        safe_cuda(cudaSetDevice(_device_idx[i]));
-        safe_cuda(cudaFree(d_ptr[i]));
-        d_ptr[i] = nullptr;
+  ~BulkAllocator() {
+    for (size_t i = 0; i < d_ptr_.size(); i++) {
+      if (!(d_ptr_[i] == nullptr)) {
+        safe_cuda(cudaSetDevice(device_idx_[i]));
+        safe_cuda(cudaFree(d_ptr_[i]));
+        d_ptr_[i] = nullptr;
       }
     }
   }
 
   // returns sum of bytes for all allocations
-  size_t size() {
-    return std::accumulate(_size.begin(), _size.end(), static_cast<size_t>(0));
+  size_t Size() {
+    return std::accumulate(size_.begin(), size_.end(), static_cast<size_t>(0));
   }
 
   template <typename... Args>
-  void allocate(int device_idx, bool silent, Args... args) {
-    size_t size = get_size_bytes(args...);
+  void Allocate(int device_idx, bool silent, Args... args) {
+    size_t size = GetSizeBytes(args...);
 
-    char *ptr = allocate_device(device_idx, size, MemoryT);
+    char *ptr = AllocateDevice(device_idx, size, MemoryT);
 
-    allocate_dvec(device_idx, ptr, args...);
+    AllocateDVec(device_idx, ptr, args...);
 
-    d_ptr.push_back(ptr);
-    _size.push_back(size);
-    _device_idx.push_back(device_idx);
+    d_ptr_.push_back(ptr);
+    size_.push_back(size);
+    device_idx_.push_back(device_idx);
 
     if (!silent) {
       const int mb_size = 1048576;
       LOG(CONSOLE) << "Allocated " << size / mb_size << "MB on [" << device_idx
-                   << "] " << device_name(device_idx) << ", "
-                   << available_memory(device_idx) / mb_size << "MB remaining.";
+                   << "] " << DeviceName(device_idx) << ", "
+                   << AvailableMemory(device_idx) / mb_size << "MB remaining.";
     }
   }
 };
@@ -543,7 +543,7 @@ struct CubMemory {
   size_t temp_storage_bytes;
 
   // Thrust
-  typedef char value_type;
+   using ValueT = char;
 
   CubMemory() : d_temp_storage(nullptr), temp_storage_bytes(0) {}
 
@@ -568,17 +568,18 @@ struct CubMemory {
     }
   }
   // Thrust
-  char *allocate(std::ptrdiff_t num_bytes) {
+  char *allocate(std::ptrdiff_t num_bytes) {  // NOLINT
     LazyAllocate(num_bytes);
     return reinterpret_cast<char *>(d_temp_storage);
   }
 
   // Thrust
-  void deallocate(char *ptr, size_t n) {
+  void deallocate(char *ptr, size_t n) {  // NOLINT
+
     // Do nothing
   }
 
-  bool IsAllocated() { return d_temp_storage != NULL; }
+  bool IsAllocated() { return d_temp_storage != nullptr; }
 };
 
 /*
@@ -586,7 +587,7 @@ struct CubMemory {
  */
 
 template <typename T>
-void print(const dvec<T> &v, size_t max_items = 10) {
+void Print(const DVec<T> &v, size_t max_items = 10) {
   std::vector<T> h = v.as_vector();
   for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
     std::cout << " " << h[i];
@@ -609,14 +610,14 @@ void print(const dvec<T> &v, size_t max_items = 10) {
 
 // Load balancing search
 
-template <typename coordinate_t, typename segments_t, typename offset_t>
-void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates,
-                         size_t num_tiles, int tile_size, segments_t segments,
-                         offset_t num_rows, offset_t num_elements) {
-  dh::launch_n(device_idx, num_tiles + 1, [=] __device__(int idx) {
-    offset_t diagonal = idx * tile_size;
-    coordinate_t tile_coordinate;
-    cub::CountingInputIterator<offset_t> nonzero_indices(0);
+template <typename CoordinateT, typename SegmentT, typename OffsetT>
+void FindMergePartitions(int device_idx, CoordinateT *d_tile_coordinates,
+                         size_t num_tiles, int tile_size, SegmentT segments,
+                         OffsetT num_rows, OffsetT num_elements) {
+  dh::LaunchN(device_idx, num_tiles + 1, [=] __device__(int idx) {
+    OffsetT diagonal = idx * tile_size;
+    CoordinateT tile_coordinate;
+    cub::CountingInputIterator<OffsetT> nonzero_indices(0);
 
     // Search the merge path
     // Cast to signed integer as this function can have negatives
@@ -630,27 +631,27 @@ void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates,
 }
 
 template <int TILE_SIZE, int ITEMS_PER_THREAD, int BLOCK_THREADS,
-          typename offset_t, typename coordinate_t, typename func_t,
-          typename segments_iter>
-__global__ void LbsKernel(coordinate_t *d_coordinates,
-                          segments_iter segment_end_offsets, func_t f,
-                          offset_t num_segments) {
+          typename OffsetT, typename CoordinateT, typename FunctionT,
+          typename SegmentIterT>
+__global__ void LbsKernel(CoordinateT *d_coordinates,
+                          SegmentIterT segment_end_offsets, FunctionT f,
+                          OffsetT num_segments) {
   int tile = blockIdx.x;
-  coordinate_t tile_start_coord = d_coordinates[tile];
-  coordinate_t tile_end_coord = d_coordinates[tile + 1];
+  CoordinateT tile_start_coord = d_coordinates[tile];
+  CoordinateT tile_end_coord = d_coordinates[tile + 1];
   int64_t tile_num_rows = tile_end_coord.x - tile_start_coord.x;
   int64_t tile_num_elements = tile_end_coord.y - tile_start_coord.y;
 
-  cub::CountingInputIterator<offset_t> tile_element_indices(tile_start_coord.y);
-  coordinate_t thread_start_coord;
+  cub::CountingInputIterator<OffsetT> tile_element_indices(tile_start_coord.y);
+  CoordinateT thread_start_coord;
 
-  typedef typename std::iterator_traits<segments_iter>::value_type segment_t;
+  typedef typename std::iterator_traits<SegmentIterT>::value_type SegmentT;
   __shared__ struct {
-    segment_t tile_segment_end_offsets[TILE_SIZE + 1];
-    segment_t output_segment[TILE_SIZE];
+    SegmentT tile_segment_end_offsets[TILE_SIZE + 1];
+    SegmentT output_segment[TILE_SIZE];
   } temp_storage;
 
-  for (auto item : dh::block_stride_range(int(0), int(tile_num_rows + 1))) {
+  for (auto item : dh::BlockStrideRange(int(0), int(tile_num_rows + 1))) {
     temp_storage.tile_segment_end_offsets[item] =
         segment_end_offsets[min(static_cast<size_t>(tile_start_coord.x + item),
                                 static_cast<size_t>(num_segments - 1))];
@@ -665,7 +666,7 @@ __global__ void LbsKernel(coordinate_t *d_coordinates,
                        tile_element_indices,                   // List B
                        tile_num_rows, tile_num_elements, thread_start_coord);
 
-  coordinate_t thread_current_coord = thread_start_coord;
+  CoordinateT thread_current_coord = thread_start_coord;
 #pragma unroll
   for (int ITEM = 0; ITEM < ITEMS_PER_THREAD; ++ITEM) {
     if (tile_element_indices[thread_current_coord.y] <
@@ -679,50 +680,50 @@ __global__ void LbsKernel(coordinate_t *d_coordinates,
   }
   __syncthreads();
 
-  for (auto item : dh::block_stride_range(int(0), int(tile_num_elements))) {
+  for (auto item : dh::BlockStrideRange(int(0), int(tile_num_elements))) {
     f(tile_start_coord.y + item, temp_storage.output_segment[item]);
   }
 }
 
-template <typename func_t, typename segments_iter, typename offset_t>
+template <typename FunctionT, typename SegmentIterT, typename OffsetT>
 void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
-                        offset_t count, segments_iter segments,
-                        offset_t num_segments, func_t f) {
-  typedef typename cub::CubVector<offset_t, 2>::Type coordinate_t;
+                        OffsetT count, SegmentIterT segments,
+                        OffsetT num_segments, FunctionT f) {
+  typedef typename cub::CubVector<OffsetT, 2>::Type CoordinateT;
   dh::safe_cuda(cudaSetDevice(device_idx));
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
-  auto num_tiles = dh::div_round_up(count + num_segments, BLOCK_THREADS);
+  auto num_tiles = dh::DivRoundUp(count + num_segments, BLOCK_THREADS);
   CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
-  temp_memory->LazyAllocate(sizeof(coordinate_t) * (num_tiles + 1));
-  coordinate_t *tmp_tile_coordinates =
-      reinterpret_cast<coordinate_t *>(temp_memory->d_temp_storage);
+  temp_memory->LazyAllocate(sizeof(CoordinateT) * (num_tiles + 1));
+  CoordinateT *tmp_tile_coordinates =
+      reinterpret_cast<CoordinateT *>(temp_memory->d_temp_storage);
 
   FindMergePartitions(device_idx, tmp_tile_coordinates, num_tiles,
                       BLOCK_THREADS, segments, num_segments, count);
 
-  LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, offset_t>
+  LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, OffsetT>
       <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates,
                                                segments + 1, f, num_segments);
 }
 
-template <typename func_t, typename offset_t>
-void DenseTransformLbs(int device_idx, offset_t count, offset_t num_segments,
-                       func_t f) {
+template <typename FunctionT, typename OffsetT>
+void DenseTransformLbs(int device_idx, OffsetT count, OffsetT num_segments,
+                       FunctionT f) {
   CHECK(count % num_segments == 0) << "Data is not dense.";
 
-  launch_n(device_idx, count, [=] __device__(offset_t idx) {
-    offset_t segment = idx / (count / num_segments);
+  launch_n(device_idx, count, [=] __device__(OffsetT idx) {
+    OffsetT segment = idx / (count / num_segments);
     f(idx, segment);
   });
 }
 
 /**
- * \fn  template <typename func_t, typename segments_iter, typename offset_t>
- * void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
- * segments_iter segments, offset_t num_segments, bool is_dense, func_t f)
+ * \fn  template <typename FunctionT, typename SegmentIterT, typename OffsetT>
+ * void TransformLbs(int device_idx, dh::CubMemory *temp_memory, OffsetT count,
+ * SegmentIterT segments, OffsetT num_segments, bool is_dense, FunctionT f)
  *
  * \brief Load balancing search function. Reads a CSR type matrix description
  * and allows a function to be executed on each element. Search 'modern GPU load
@@ -731,9 +732,9 @@ void DenseTransformLbs(int device_idx, offset_t count, offset_t num_segments,
  * \author  Rory
  * \date  7/9/2017
  *
- * \tparam  func_t        Type of the function t.
- * \tparam  segments_iter Type of the segments iterator.
- * \tparam  offset_t      Type of the offset.
+ * \tparam  FunctionT        Type of the function t.
+ * \tparam  SegmentIterT Type of the segments iterator.
+ * \tparam  OffsetT      Type of the offset.
  * \param           device_idx    Zero-based index of the device.
  * \param [in,out]  temp_memory   Temporary memory allocator.
  * \param           count         Number of elements.
@@ -743,10 +744,10 @@ void DenseTransformLbs(int device_idx, offset_t count, offset_t num_segments,
  * \param           f             Lambda to be executed on matrix elements.
  */
 
-template <typename func_t, typename segments_iter, typename offset_t>
-void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
-                  segments_iter segments, offset_t num_segments, bool is_dense,
-                  func_t f) {
+template <typename FunctionT, typename SegmentIterT, typename OffsetT>
+void TransformLbs(int device_idx, dh::CubMemory *temp_memory, OffsetT count,
+                  SegmentIterT segments, OffsetT num_segments, bool is_dense,
+                  FunctionT f) {
   if (is_dense) {
     DenseTransformLbs(device_idx, count, num_segments, f);
   } else {
@@ -765,18 +766,18 @@ void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
  * @param offsets the segments
  */
 template <typename T1, typename T2>
-void segmentedSort(dh::CubMemory *tmp_mem, dh::dvec2<T1> *keys,
-                   dh::dvec2<T2> *vals, int nVals, int nSegs,
-                   const dh::dvec<int> &offsets, int start = 0,
+void segmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
+                   dh::DVec2<T2> *vals, int nVals, int nSegs,
+                   const dh::DVec<int> &offsets, int start = 0,
                    int end = sizeof(T1) * 8) {
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      NULL, tmpSize, keys->buff(), vals->buff(), nVals, nSegs, offsets.data(),
-      offsets.data() + 1, start, end));
+      NULL, tmpSize, keys->buff(), vals->buff(), nVals, nSegs, offsets.Data(),
+      offsets.Data() + 1, start, end));
   tmp_mem->LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
       tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals,
-      nSegs, offsets.data(), offsets.data() + 1, start, end));
+      nSegs, offsets.Data(), offsets.Data() + 1, start, end));
 }
 
 /**
@@ -787,14 +788,14 @@ void segmentedSort(dh::CubMemory *tmp_mem, dh::dvec2<T1> *keys,
  * @param nVals number of elements in the input array
  */
 template <typename T>
-void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
+void sumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
                   int nVals) {
   size_t tmpSize;
   dh::safe_cuda(
-      cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(), nVals));
+      cub::DeviceReduce::Sum(NULL, tmpSize, in.Data(), out.Data(), nVals));
   tmp_mem.LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceReduce::Sum(tmp_mem.d_temp_storage, tmpSize,
-                                       in.data(), out.data(), nVals));
+                                       in.Data(), out.Data(), nVals));
 }
 
 /**
@@ -828,7 +829,7 @@ T sumReduction(dh::CubMemory &tmp_mem, T *in, int nVals) {
  */
 template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
 void fillConst(int device_idx, T *out, int len, T def) {
-  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, len,
+  dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, len,
                                        [=] __device__(int i) { out[i] = def; });
 }
 
@@ -842,9 +843,9 @@ void fillConst(int device_idx, T *out, int len, T def) {
  * @param nVals length of the buffers
  */
 template <typename T1, typename T2, int BlkDim = 256, int ItemsPerThread = 4>
-void gather(int device_idx, T1 *out1, const T1 *in1, T2 *out2, const T2 *in2,
+void Gather(int device_idx, T1 *out1, const T1 *in1, T2 *out2, const T2 *in2,
             const int *instId, int nVals) {
-  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+  dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, nVals,
                                        [=] __device__(int i) {
                                          int iid = instId[i];
                                          T1 v1 = in1[iid];
@@ -862,8 +863,8 @@ void gather(int device_idx, T1 *out1, const T1 *in1, T2 *out2, const T2 *in2,
  * @param nVals length of the buffers
  */
 template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
-void gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
-  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
+  dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, nVals,
                                        [=] __device__(int i) {
                                          int iid = instId[i];
                                          out[i] = in[iid];

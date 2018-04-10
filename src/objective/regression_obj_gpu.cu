@@ -16,10 +16,11 @@
 #include "../common/host_device_vector.h"
 #include "./regression_loss.h"
 
-using namespace dh;
 
 namespace xgboost {
 namespace obj {
+
+using dh::DVec;
 
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 
@@ -43,7 +44,7 @@ struct GPURegLossParam : public dmlc::Parameter<GPURegLossParam> {
 // GPU kernel for gradient computation
 template<typename Loss>
 __global__ void get_gradient_k
-(bst_gpair *__restrict__ out_gpair,  unsigned int *__restrict__ label_correct,
+(GradientPair *__restrict__ out_gpair,  unsigned int *__restrict__ label_correct,
  const float * __restrict__ preds, const float * __restrict__ labels,
  const float * __restrict__ weights, int n, float scale_pos_weight) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -56,7 +57,7 @@ __global__ void get_gradient_k
     w *= scale_pos_weight;
   if (!Loss::CheckLabel(label))
     atomicAnd(label_correct, 0);
-  out_gpair[i] = bst_gpair
+  out_gpair[i] = GradientPair
     (Loss::FirstOrderGradient(p, label) * w, Loss::SecondOrderGradient(p, label) * w);
 }
 
@@ -75,40 +76,40 @@ class GPURegLossObj : public ObjFunction {
  protected:
   // manages device data
   struct DeviceData {
-    dvec<float> labels, weights;
-    dvec<unsigned int> label_correct;
+    DVec<float> labels, weights;
+    DVec<unsigned int> label_correct;
 
     // allocate everything on device
-    DeviceData(bulk_allocator<memory_type::DEVICE>* ba, int device_idx, size_t n) {
-      ba->allocate(device_idx, false,
+    DeviceData(dh::BulkAllocator<dh::MemoryType::kDevice>* ba, int device_idx, size_t n) {
+      ba->Allocate(device_idx, false,
                   &labels, n,
                   &weights, n,
                   &label_correct, 1);
     }
-    size_t size() const { return labels.size(); }
+    size_t Size() const { return labels.Size(); }
   };
 
 
   bool copied_;
-  std::unique_ptr<bulk_allocator<memory_type::DEVICE>> ba_;
+  std::unique_ptr<dh::BulkAllocator<dh::MemoryType::kDevice>> ba_;
   std::unique_ptr<DeviceData> data_;
   HostDeviceVector<bst_float> preds_d_;
-  HostDeviceVector<bst_gpair> out_gpair_d_;
+  HostDeviceVector<GradientPair> out_gpair_d_;
 
   // allocate device data for n elements, do nothing if enough memory is allocated already
   void LazyResize(int n) {
-    if (data_.get() != nullptr && data_->size() >= n)
+    if (data_.get() != nullptr && data_->Size() >= n)
       return;
     copied_ = false;
     // free the old data and allocate the new data
-    ba_.reset(new bulk_allocator<memory_type::DEVICE>());
+    ba_.reset(new dh::BulkAllocator<dh::MemoryType::kDevice>());
     data_.reset(new DeviceData(ba_.get(), 0, n));
-    preds_d_.resize(n, 0.0f, param_.gpu_id);
-    out_gpair_d_.resize(n, bst_gpair(), param_.gpu_id);
+    preds_d_.Resize(n, 0.0f, param_.gpu_id);
+    out_gpair_d_.Resize(n, GradientPair(), param_.gpu_id);
   }
 
  public:
-  GPURegLossObj() : copied_(false), preds_d_(0, -1), out_gpair_d_(0, -1) {}
+  GPURegLossObj() : copied_(false), preds_d_(0, -1), out_gpair_d_({}, -1) {}
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
@@ -118,32 +119,32 @@ class GPURegLossObj : public ObjFunction {
   void GetGradient(HostDeviceVector<float>* preds,
                    const MetaInfo &info,
                    int iter,
-                   HostDeviceVector<bst_gpair>* out_gpair) override {
-    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->size(), info.labels.size())
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds->Size(), info.labels_.size())
       << "labels are not correctly provided"
-      << "preds.size=" << preds->size() << ", label.size=" << info.labels.size();
-    size_t ndata = preds->size();
-    out_gpair->resize(ndata, bst_gpair(), param_.gpu_id);
+      << "preds.size=" << preds->Size() << ", label.size=" << info.labels_.size();
+    size_t ndata = preds->Size();
+    out_gpair->Resize(ndata, GradientPair(), param_.gpu_id);
     LazyResize(ndata);
-    GetGradientDevice(preds->ptr_d(param_.gpu_id), info, iter,
-                      out_gpair->ptr_d(param_.gpu_id), ndata);
+    GetGradientDevice(preds->DevicePointer(param_.gpu_id), info, iter,
+                      out_gpair->DevicePointer(param_.gpu_id), ndata);
   }
 
  private:
   void GetGradientDevice(float* preds,
                          const MetaInfo &info,
                          int iter,
-                         bst_gpair* out_gpair, size_t n) {
-    safe_cuda(cudaSetDevice(param_.gpu_id));
+                         GradientPair* out_gpair, size_t n) {
+    dh::safe_cuda(cudaSetDevice(param_.gpu_id));
     DeviceData& d = *data_;
-    d.label_correct.fill(1);
+    d.label_correct.Fill(1);
     // only copy the labels and weights once, similar to how the data is copied
     if (!copied_) {
-      thrust::copy(info.labels.begin(), info.labels.begin() + n,
+      thrust::copy(info.labels_.begin(), info.labels_.begin() + n,
                    d.labels.tbegin());
-      if (info.weights.size() > 0) {
-        thrust::copy(info.weights.begin(), info.weights.begin() + n,
+      if (info.weights_.size() > 0) {
+        thrust::copy(info.weights_.begin(), info.weights_.begin() + n,
                      d.weights.tbegin());
       }
       copied_ = true;
@@ -151,11 +152,11 @@ class GPURegLossObj : public ObjFunction {
 
     // run the kernel
     const int block = 256;
-    get_gradient_k<Loss><<<div_round_up(n, block), block>>>
-      (out_gpair, d.label_correct.data(), preds,
-       d.labels.data(), info.weights.size() > 0 ? d.weights.data() : nullptr,
+    get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>
+      (out_gpair, d.label_correct.Data(), preds,
+       d.labels.Data(), info.weights_.size() > 0 ? d.weights.Data() : nullptr,
        n, param_.scale_pos_weight);
-    safe_cuda(cudaGetLastError());
+    dh::safe_cuda(cudaGetLastError());
 
     // copy output data from the GPU
     unsigned int label_correct_h;
@@ -173,15 +174,15 @@ class GPURegLossObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {
-    PredTransformDevice(io_preds->ptr_d(param_.gpu_id), io_preds->size());
+    PredTransformDevice(io_preds->DevicePointer(param_.gpu_id), io_preds->Size());
   }
 
   void PredTransformDevice(float* preds, size_t n) {
-    safe_cuda(cudaSetDevice(param_.gpu_id));
+    dh::safe_cuda(cudaSetDevice(param_.gpu_id));
     const int block = 256;
-    pred_transform_k<Loss><<<div_round_up(n, block), block>>>(preds, n);
-    safe_cuda(cudaGetLastError());
-    safe_cuda(cudaDeviceSynchronize());
+    pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(preds, n);
+    dh::safe_cuda(cudaGetLastError());
+    dh::safe_cuda(cudaDeviceSynchronize());
   }
 
 

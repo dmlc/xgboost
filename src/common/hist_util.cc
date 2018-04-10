@@ -21,7 +21,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
-  const int kFactor = 8;
+  constexpr int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
   const int nthread = omp_get_max_threads();

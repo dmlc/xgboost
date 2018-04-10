@@ -443,7 +443,7 @@ class Dart : public GBTree {
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
       // parallel over local batch
-      const int kUnroll = 8;
+      constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.size);
       const bst_omp_uint rest = nsize % kUnroll;
       #pragma omp parallel for schedule(static)

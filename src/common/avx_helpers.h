@@ -190,7 +190,7 @@ namespace avx {
  * \brief Fallback implementation not using AVX.
  */
 
-struct Float8 {
+struct Float8 {  // NOLINT
   float x[8];
   explicit Float8(const float& val) {
     for (float & i : x) {

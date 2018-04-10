@@ -35,27 +35,27 @@ struct HostDeviceVectorImpl {
   void operator=(const HostDeviceVectorImpl<T>&) = delete;
   void operator=(HostDeviceVectorImpl<T>&&) = delete;
 
-  size_t size() const { return on_d_ ? data_d_.size() : data_h_.size(); }
+  size_t Size() const { return on_d_ ? data_d_.size() : data_h_.size(); }
 
-  int device() const { return device_; }
+  int DeviceIdx() const { return device_; }
 
-  T* ptr_d(int device) {
-    lazy_sync_device(device);
+  T* DevicePointer(int device) {
+    LazySyncDevice(device);
     return data_d_.data().get();
   }
-  thrust::device_ptr<T> tbegin(int device) {
-    return thrust::device_ptr<T>(ptr_d(device));
+  thrust::device_ptr<T> tbegin(int device) {  // NOLINT
+    return thrust::device_ptr<T>(DevicePointer(device));
   }
-  thrust::device_ptr<T> tend(int device) {
+  thrust::device_ptr<T> tend(int device) {  // NOLINT
     auto begin = tbegin(device);
-    return begin + size();
+    return begin + Size();
   }
-  std::vector<T>& data_h() {
-    lazy_sync_host();
+  std::vector<T>& HostVector() {
+    LazySyncHost();
     return data_h_;
   }
-  void resize(size_t new_size, T v, int new_device) {
-    if (new_size == this->size() && new_device == device_)
+  void Resize(size_t new_size, T v, int new_device) {
+    if (new_size == this->Size() && new_device == device_)
       return;
     if (new_device != -1)
       device_ = new_device;
@@ -70,26 +70,26 @@ struct HostDeviceVectorImpl {
     }
   }
 
-  void lazy_sync_host() {
+  void LazySyncHost() {
     if (!on_d_)
       return;
-    if (data_h_.size() != this->size())
-      data_h_.resize(this->size());
+    if (data_h_.size() != this->Size())
+      data_h_.resize(this->Size());
     dh::safe_cuda(cudaSetDevice(device_));
     thrust::copy(data_d_.begin(), data_d_.end(), data_h_.begin());
     on_d_ = false;
   }
 
-  void lazy_sync_device(int device) {
+  void LazySyncDevice(int device) {
     if (on_d_)
       return;
     if (device != device_) {
       CHECK_EQ(device_, -1);
       device_ = device;
     }
-    if (data_d_.size() != this->size()) {
+    if (data_d_.size() != this->Size()) {
       dh::safe_cuda(cudaSetDevice(device_));
-      data_d_.resize(this->size());
+      data_d_.resize(this->Size());
     }
     dh::safe_cuda(cudaSetDevice(device_));
     thrust::copy(data_h_.begin(), data_h_.end(), data_d_.begin());
@@ -128,34 +128,34 @@ HostDeviceVector<T>::~HostDeviceVector() {
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::size() const { return impl_->size(); }
+size_t HostDeviceVector<T>::Size() const { return impl_->Size(); }
 
 template <typename T>
-int HostDeviceVector<T>::device() const { return impl_->device(); }
+int HostDeviceVector<T>::DeviceIdx() const { return impl_->DeviceIdx(); }
 
 template <typename T>
-T* HostDeviceVector<T>::ptr_d(int device) { return impl_->ptr_d(device); }
+T* HostDeviceVector<T>::DevicePointer(int device) { return impl_->DevicePointer(device); }
 
 template <typename T>
-thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {
+thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {  // NOLINT
   return impl_->tbegin(device);
 }
 
 template <typename T>
-thrust::device_ptr<T> HostDeviceVector<T>::tend(int device) {
+thrust::device_ptr<T> HostDeviceVector<T>::tend(int device) {  // NOLINT
   return impl_->tend(device);
 }
 
 template <typename T>
-std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h(); }
+std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->HostVector(); }
 
 template <typename T>
-void HostDeviceVector<T>::resize(size_t new_size, T v, int new_device) {
-  impl_->resize(new_size, v, new_device);
+void HostDeviceVector<T>::Resize(size_t new_size, T v, int new_device) {
+  impl_->Resize(new_size, v, new_device);
 }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
-template class HostDeviceVector<bst_gpair>;
+template class HostDeviceVector<GradientPair>;
 
 }  // namespace xgboost

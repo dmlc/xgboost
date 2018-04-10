@@ -89,7 +89,7 @@ class TreeRefresher: public TreeUpdater {
       }
     };
 #if __cplusplus >= 201103L
-    reducer.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
+    reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
 #else
     reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size());
 #endif
