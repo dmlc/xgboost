@@ -20,3 +20,11 @@ You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.o
 
 Full code examples for Scala, Java, Apache Spark, and Apache Flink can
 be found in the [examples package](https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example).
+
+**NOTE on LIBSVM Format**: 
+
+* Use *1-based* ascending indexes for the LIBSVM format in distributed training mode
+
+    * Spark does the internal conversion, and does not accept formats that are 0-based
+
+* Whereas, use *0-based* indexes format when predicting in normal mode - for instance, while using the saved model in the Python package
