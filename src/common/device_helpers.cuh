@@ -714,7 +714,7 @@ void DenseTransformLbs(int device_idx, OffsetT count, OffsetT num_segments,
                        FunctionT f) {
   CHECK(count % num_segments == 0) << "Data is not dense.";
 
-  launch_n(device_idx, count, [=] __device__(OffsetT idx) {
+  LaunchN(device_idx, count, [=] __device__(OffsetT idx) {
     OffsetT segment = idx / (count / num_segments);
     f(idx, segment);
   });
@@ -766,7 +766,7 @@ void TransformLbs(int device_idx, dh::CubMemory *temp_memory, OffsetT count,
  * @param offsets the segments
  */
 template <typename T1, typename T2>
-void segmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
+void SegmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
                    dh::DVec2<T2> *vals, int nVals, int nSegs,
                    const dh::DVec<int> &offsets, int start = 0,
                    int end = sizeof(T1) * 8) {
@@ -788,7 +788,7 @@ void segmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
  * @param nVals number of elements in the input array
  */
 template <typename T>
-void sumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
+void SumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
                   int nVals) {
   size_t tmpSize;
   dh::safe_cuda(
@@ -806,7 +806,7 @@ void sumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
 * @param nVals number of elements in the input array
 */
 template <typename T>
-T sumReduction(dh::CubMemory &tmp_mem, T *in, int nVals) {
+T SumReduction(dh::CubMemory &tmp_mem, T *in, int nVals) {
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, in, nVals));
   // Allocate small extra memory for the return value
@@ -828,7 +828,7 @@ T sumReduction(dh::CubMemory &tmp_mem, T *in, int nVals) {
  * @param def default value to be filled
  */
 template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
-void fillConst(int device_idx, T *out, int len, T def) {
+void FillConst(int device_idx, T *out, int len, T def) {
   dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, len,
                                        [=] __device__(int i) { out[i] = def; });
 }

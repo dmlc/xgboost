@@ -374,7 +374,7 @@ void argMaxByKey(ExactSplitCandidate* nodeSplits, const GradientPair* gradScans,
                  const DeviceNodeStats* nodes, int nUniqKeys,
                  NodeIdT nodeStart, int len, const TrainParam param,
                  ArgMaxByKeyAlgo algo) {
-  dh::fillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
+  dh::FillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
       dh::GetDeviceIdx(param.gpu_id), nodeSplits, nUniqKeys,
       ExactSplitCandidate());
   int nBlks = dh::DivRoundUp(len, ITEMS_PER_THREAD * BLKDIM);
@@ -680,7 +680,7 @@ class GPUMaker : public TreeUpdater {
     vals.current_DVec() = fval;
     instIds.current_DVec() = fId;
     colOffsets = offset;
-    dh::segmentedSort<float, int>(&tmp_mem, &vals, &instIds, nVals, nCols,
+    dh::SegmentedSort<float, int>(&tmp_mem, &vals, &instIds, nVals, nCols,
                                   colOffsets);
     vals_cached = vals.current_DVec();
     instIds_cached = instIds.current_DVec();
@@ -693,7 +693,7 @@ class GPUMaker : public TreeUpdater {
                              sizeof(GradientPair) * nRows,
                              cudaMemcpyDefault));
     // evaluate the full-grad reduction for the root node
-    dh::sumReduction<GradientPair>(tmp_mem, gradsInst, gradSums, nRows);
+    dh::SumReduction<GradientPair>(tmp_mem, gradsInst, gradSums, nRows);
   }
 
   void initNodeData(int level, NodeIdT nodeStart, int nNodes) {
@@ -734,7 +734,7 @@ class GPUMaker : public TreeUpdater {
   void sortKeys(int level) {
     // segmented-sort the arrays based on node-id's
     // but we don't need more than level+1 bits for sorting!
-    segmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,
+    SegmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,
                   colOffsets, 0, level + 1);
     dh::Gather<float, int>(dh::GetDeviceIdx(param.gpu_id), vals.other(),
                            vals.current(), instIds.other(), instIds.current(),

@@ -749,7 +749,7 @@ class GPUHistMaker : public TreeUpdater {
       auto cpu_thread_id = omp_get_thread_num();
       auto& shard = shards_[cpu_thread_id];
       dh::safe_cuda(cudaSetDevice(shard->device_idx));
-      tmp_sums[cpu_thread_id] = dh::sumReduction(
+      tmp_sums[cpu_thread_id] = dh::SumReduction(
           shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
     }
     auto sum_gradient =

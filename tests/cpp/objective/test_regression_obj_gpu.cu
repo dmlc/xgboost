@@ -51,8 +51,8 @@ TEST(Objective, GPULogisticRegressionBasic) {
   xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
   obj->PredTransform(&io_preds);
-  auto& preds = io_preds.data_h();
-  for (int i = 0; i < static_cast<int>(io_preds.size()); ++i) {
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
