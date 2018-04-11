@@ -72,6 +72,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
+  // option to specify interaction constraints
+  bool int_constraints_flag;
+  // structure to record interaction constraints
+  std::vector<int> int_constraints_list;
   // gpu to use for single gpu algorithms
   int gpu_id;
   // number of GPUs to use
@@ -174,7 +178,12 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
-        .describe("Constraint of variable monotonicity");
+        .describe("Constraint of variable monotinicity");
+    DMLC_DECLARE_FIELD(int_constraints_flag).set_default(false).describe(
+        "Enforce interaction constraints");
+    DMLC_DECLARE_FIELD(int_constraints_list)
+        .set_default(std::vector<int>())
+        .describe("Constraints for interaction");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
         .set_default(0)

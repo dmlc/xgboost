@@ -95,6 +95,8 @@ class ColMaker: public TreeUpdater {
         this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
         // if nothing left to be expand, break
         if (qexpand_.size() == 0) break;
+        if (depth < (param.max_depth - 1))
+          this->UpdateIntConstraints(*p_tree, qexpand_, p_fmat, &int_cont_);
       }
       // set all the rest expanding nodes to leaf
       for (size_t i = 0; i < qexpand_.size(); ++i) {
@@ -181,6 +183,15 @@ class ColMaker: public TreeUpdater {
           qexpand_.push_back(i);
         }
       }
+      {
+        // reserve space for interaction constraints - up to depth 3
+        int_cont_.clear();
+        int_cont_.resize(fmat.info().num_col, std::vector<int>());
+        for (unsigned i = 0; i < int_cont_.size(); ++i) {
+          int_cont_[i].clear(); int_cont_[i].reserve(24);
+          int_cont_[i].resize(tree.param.num_roots, 1);
+        }
+      }
     }
     /*!
      * \brief initialize the base_weight, root_gain,
@@ -253,6 +264,44 @@ class ColMaker: public TreeUpdater {
       // use new nodes for qexpand
       qexpand = newnodes;
     }
+    /*! \update interaction constraints for new leaves */
+    inline void UpdateIntConstraints(const RegTree& tree,
+                                     const std::vector<int>& qexpand,
+                                     DMatrix* p_fmat,
+                                     std::vector< std::vector<int> >* p_int_cont) {
+      // initialise array
+      std::vector< std::vector<int> > &int_cont = *p_int_cont;
+      for (size_t i = 0; i < int_cont.size(); ++i) {
+        int_cont[i].clear();
+        int_cont[i].resize(qexpand.size(), !param.int_constraints_flag);
+      }
+      if (!param.int_constraints_flag) return;  // return true array if no constraints
+
+      // get details
+      const unsigned ncol = static_cast<unsigned>(p_fmat->info().num_col);
+      const unsigned nint_cont = param.int_constraints_list.size()/ncol;
+      // obtain allowable features under interaction constraints
+      for (size_t i = 0; i < qexpand.size(); ++i) {
+        int nid = qexpand[i];
+        std::vector<unsigned> prev_splits = tree.ParentSplits(nid);
+        // allow previous split variables
+        for (size_t j = 0; j < prev_splits.size(); j++) int_cont[prev_splits[j]][i] = 1;
+        // loop across interaction constraints
+        for (size_t j = 0; j < nint_cont; j++) {
+          bool bint_cont = true;  // initialise flag to determine if constraint is valid
+          // loop across previous split variables
+          for (size_t k = 0; k < prev_splits.size(); k++) {
+            unsigned cvar = prev_splits[k];
+            // check whether constraint is valid
+            if (param.int_constraints_list[ncol*j + cvar] == 0) bint_cont = false;
+          }
+          if (bint_cont == false) continue;  // skip if constraint is not valid
+          // add other variables if constraint is valid
+          for (size_t k = 0; k < ncol; k++)
+            if (param.int_constraints_list[ncol*j + k] != 0) int_cont[k][i] = 1;
+        }
+      }
+    }
     // parallel find the best split of current fid
     // this function does not support nested functions
     inline void ParallelFindSplit(const ColBatch::Inst &col,
@@ -265,6 +314,7 @@ class ColMaker: public TreeUpdater {
       bool need_forward = param.need_forward_search(fmat.GetColDensity(fid), ind);
       bool need_backward = param.need_backward_search(fmat.GetColDensity(fid), ind);
       const std::vector<int> &qexpand = qexpand_;
+      const std::vector<int> &int_cont_fid = int_cont_[fid];
       #pragma omp parallel
       {
         const int tid = omp_get_thread_num();
@@ -279,6 +329,12 @@ class ColMaker: public TreeUpdater {
           const bst_uint ridx = col[i].index;
           const int nid = position[ridx];
           if (nid < 0) continue;
+          // check interaction constraints
+          int qid = -1;
+          for (size_t j = 0; j < qexpand.size(); ++j) {
+            if (qexpand[j] == nid) qid = j;
+          }
+          if (int_cont_fid[qid] == 0) continue;
           const bst_float fvalue = col[i].fvalue;
           if (temp[nid].stats.Empty()) {
             temp[nid].first_fvalue = fvalue;
@@ -292,6 +348,7 @@ class ColMaker: public TreeUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint j = 0; j < nnode; ++j) {
         const int nid = qexpand[j];
+        if (int_cont_fid[j] == 0) continue;  // check interaction constraints
         TStats sum(param), tmp(param), c(param);
         for (int tid = 0; tid < this->nthread; ++tid) {
           tmp = stemp[tid][nid].stats;
@@ -364,6 +421,12 @@ class ColMaker: public TreeUpdater {
           const bst_uint ridx = col[i].index;
           const int nid = position[ridx];
           if (nid < 0) continue;
+          // check interaction constraints
+          int qid = -1;
+          for (size_t j = 0; j < qexpand.size(); ++j) {
+            if (qexpand[j] == nid) qid = j;
+          }
+          if (int_cont_fid[qid] == 0) continue;
           const bst_float fvalue = col[i].fvalue;
           // get the statistics of nid
           ThreadEntry &e = temp[nid];
@@ -449,6 +512,7 @@ class ColMaker: public TreeUpdater {
                                        const std::vector<bst_gpair> &gpair,
                                        std::vector<ThreadEntry> &temp) { // NOLINT(*)
       const std::vector<int> &qexpand = qexpand_;
+      const std::vector<int> &int_cont_fid = int_cont_[fid];
       // clear all the temp statistics
       for (size_t j = 0; j < qexpand.size(); ++j) {
         temp[qexpand[j]].stats.Clear();
@@ -479,6 +543,12 @@ class ColMaker: public TreeUpdater {
         for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           const int nid = buf_position[i];
           if (nid < 0) continue;
+          // check interaction constraints
+          int qid = -1;
+          for (size_t j = 0; j < qexpand.size(); ++j) {
+            if (qexpand[j] == nid) qid = j;
+          }
+          if (int_cont_fid[qid] == 0) continue;
           this->UpdateEnumeration(nid, buf_gpair[i],
                                   p->fvalue, d_step,
                                   fid, c, temp);
@@ -492,6 +562,12 @@ class ColMaker: public TreeUpdater {
       for (it = align_end, i = 0; it != end; ++i, it += d_step) {
         const int nid = buf_position[i];
         if (nid < 0) continue;
+        // check interaction constraints
+        int qid = -1;
+        for (size_t j = 0; j < qexpand.size(); ++j) {
+          if (qexpand[j] == nid) qid = j;
+        }
+        if (int_cont_fid[qid] == 0) continue;
         this->UpdateEnumeration(nid, buf_gpair[i],
                                 it->fvalue, d_step,
                                 fid, c, temp);
@@ -536,6 +612,7 @@ class ColMaker: public TreeUpdater {
         return;
       }
       const std::vector<int> &qexpand = qexpand_;
+      const std::vector<int> &int_cont_fid = int_cont_[fid];
       // clear all the temp statistics
       for (size_t j = 0; j < qexpand.size(); ++j) {
         temp[qexpand[j]].stats.Clear();
@@ -546,6 +623,12 @@ class ColMaker: public TreeUpdater {
         const bst_uint ridx = it->index;
         const int nid = position[ridx];
         if (nid < 0) continue;
+        // check interaction constraints
+        int qid = -1;
+        for (size_t j = 0; j < qexpand.size(); ++j) {
+          if (qexpand[j] == nid) qid = j;
+        }
+        if (int_cont_fid[qid] == 0) continue;
         // start working
         const bst_float fvalue = it->fvalue;
         // get the statistics of nid
@@ -792,6 +875,8 @@ class ColMaker: public TreeUpdater {
     std::vector<int> qexpand_;
     // constraint value
     std::vector<TConstraint> constraints_;
+    // PerFeature x PerTreeNode: record of interaction constraints
+    std::vector< std::vector<int> > int_cont_;
   };
 };
 
