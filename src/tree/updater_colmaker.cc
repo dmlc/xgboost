@@ -331,7 +331,7 @@ class ColMaker: public TreeUpdater {
           if (nid < 0) continue;
           // check interaction constraints
           int qid = -1;
-          for (size_t j = 0; j < qexpand.size(); ++j){
+          for (size_t j = 0; j < qexpand.size(); ++j) {
             if (qexpand[j] == nid) qid = j;
           }
           if (int_cont_fid[qid] == 0) continue;
@@ -423,7 +423,7 @@ class ColMaker: public TreeUpdater {
           if (nid < 0) continue;
           // check interaction constraints
           int qid = -1;
-          for (size_t j = 0; j < qexpand.size(); ++j){
+          for (size_t j = 0; j < qexpand.size(); ++j) {
             if (qexpand[j] == nid) qid = j;
           }
           if (int_cont_fid[qid] == 0) continue;
@@ -545,7 +545,7 @@ class ColMaker: public TreeUpdater {
           if (nid < 0) continue;
           // check interaction constraints
           int qid = -1;
-          for (size_t j = 0; j < qexpand.size(); ++j){
+          for (size_t j = 0; j < qexpand.size(); ++j) {
             if (qexpand[j] == nid) qid = j;
           }
           if (int_cont_fid[qid] == 0) continue;
@@ -564,7 +564,7 @@ class ColMaker: public TreeUpdater {
         if (nid < 0) continue;
         // check interaction constraints
         int qid = -1;
-        for (size_t j = 0; j < qexpand.size(); ++j){
+        for (size_t j = 0; j < qexpand.size(); ++j) {
           if (qexpand[j] == nid) qid = j;
         }
         if (int_cont_fid[qid] == 0) continue;
@@ -625,7 +625,7 @@ class ColMaker: public TreeUpdater {
         if (nid < 0) continue;
         // check interaction constraints
         int qid = -1;
-        for (size_t j = 0; j < qexpand.size(); ++j){
+        for (size_t j = 0; j < qexpand.size(); ++j) {
           if (qexpand[j] == nid) qid = j;
         }
         if (int_cont_fid[qid] == 0) continue;
