@@ -292,6 +292,15 @@ class DMatrix {
   virtual float GetColDensity(size_t cidx) const = 0;
   /*! \return reference of buffered rowset, in column access */
   virtual const RowSet& buffered_rowset() const = 0;
+  // get subsampled indices.
+  virtual std::vector<uint64_t> get_subsampled_indices(
+      const float subsample,
+      const std::vector<xgboost::bst_gpair>& gpair
+  ) {
+      std::vector<uint64_t> subsampled_indices;
+      return subsampled_indices;
+  };
+
   /*! \brief virtual destructor */
   virtual ~DMatrix() {}
   /*!

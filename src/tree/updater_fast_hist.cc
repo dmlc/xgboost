@@ -339,7 +339,7 @@ class FastHistMaker: public TreeUpdater {
     // initialize temp data structure
     inline void InitData(const GHistIndexMatrix& gmat,
                          const std::vector<bst_gpair>& gpair,
-                         const DMatrix& fmat,
+                         DMatrix& fmat,
                          const RegTree& tree) {
       CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
           << "ColMakerHist: can only grow new tree";
@@ -372,13 +372,9 @@ class FastHistMaker: public TreeUpdater {
         std::vector<size_t>& row_indices = row_set_collection_.row_indices_;
         // mark subsample and build list of member rows
         if (param.subsample < 1.0f) {
-          std::bernoulli_distribution coin_flip(param.subsample);
-          auto& rnd = common::GlobalRandom();
-          for (size_t i = 0; i < info.num_row; ++i) {
-            if (gpair[i].GetHess() >= 0.0f && coin_flip(rnd)) {
-              row_indices.push_back(i);
-            }
-          }
+            row_indices = fmat.get_subsampled_indices(
+                param.subsample, gpair
+            );
         } else {
           for (size_t i = 0; i < info.num_row; ++i) {
             if (gpair[i].GetHess() >= 0.0f) {
