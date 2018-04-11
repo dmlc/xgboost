@@ -3,7 +3,34 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-*  BREAKING CHANGES: Updated linear modelling algorithms. In particular L1/L2 regularisation penalties are now normalised to number of training examples. This makes the implementation consistent with sklearn/glmnet. L2 regularisation has also been removed from the intercept. To produce linear models with the old regularisation behaviour, the alpha/lambda regularisation parameters can be manually scaled by dividing them by the number of training examples.
+## v0.71 (2018.04.11)
+* This is a minor release, mainly motivated by issues concerning `pip install`, e.g. #2426, #3189, #3118, and #3194.
+  With this release, users of Linux and MacOS will be able to run `pip install` for the most part.
+* Refactored linear booster class (`gblinear`), so as to support multiple coordinate descent updaters (#3103, #3134). See BREAKING CHANGES below.
+* Fix slow training for multiclass classification with high number of classes (#3109)
+* Fix a corner case in approximate quantile sketch (#3167). Applicable for 'hist' and 'gpu_hist' algorithms
+* Fix memory leak in DMatrix (#3182)
+* New functionality
+  - Better linear booster class (#3103, #3134)
+  - Pairwise SHAP interaction effects (#3043)
+  - Cox loss (#3043)
+  - AUC-PR metric for ranking task (#3172)
+  - Monotonic constraints for 'hist' algorithm (#3085)
+* GPU support
+  - Create an abtract 1D vector class that moves data seamlessly between the main and GPU memory (#2935, #3116, #3068). This eliminates unnecessary PCIe data transfer during training time.
+  - Fix minor bugs (#3051, #3217)
+  - Fix compatibility error for CUDA 9.1 (#3218)
+* Python package:
+  - Correctly handle parameter `verbose_eval=0` (#3115)
+* R package:
+  - Eliminate segmentation fault on 32-bit Windows platform (#2994)
+* JVM packages
+  - Fix a memory bug involving double-freeing Booster objects (#3005, #3011)
+  - Handle empty partition in predict (#3014)
+  - Update docs and unify terminology (#3024)
+  - Delete cache files after job finishes (#3022)
+  - Compatibility fixes for latest Spark versions (#3062, #3093)
+* BREAKING CHANGES: Updated linear modelling algorithms. In particular L1/L2 regularisation penalties are now normalised to number of training examples. This makes the implementation consistent with sklearn/glmnet. L2 regularisation has also been removed from the intercept. To produce linear models with the old regularisation behaviour, the alpha/lambda regularisation parameters can be manually scaled by dividing them by the number of training examples.
 
 ## v0.7 (2017.12.30)
 * **This version represents a major change from the last release (v0.6), which was released one year and half ago.**
