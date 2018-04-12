@@ -531,8 +531,8 @@ class Dart : public GBTree {
     if (!skip) {
       if (dparam_.sample_type == 1) {
         bst_float sum_weight = 0.0;
-        for (float i : weight_drop_) {
-          sum_weight += i;
+        for (auto elem : weight_drop_) {
+          sum_weight += elem;
         }
         for (size_t i = 0; i < weight_drop_.size(); ++i) {
           if (runif(rnd) < dparam_.rate_drop * weight_drop_.size() * weight_drop_[i] / sum_weight) {

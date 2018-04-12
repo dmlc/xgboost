@@ -109,9 +109,9 @@ ColIterator(const std::vector<bst_uint>& fset) {
   CHECK(col_iter_ != nullptr);
   std::vector<bst_uint> col_index;
   size_t ncol = this->Info().num_col_;
-  for (unsigned int i : fset) {
-    if (i < ncol) {
-      col_index.push_back(i);
+  for (auto fidx : fset) {
+    if (fidx < ncol) {
+      col_index.push_back(fidx);
     }
   }
   col_iter_->Init(col_index, false);
@@ -263,8 +263,8 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     double tstart = dmlc::GetTime();
     size_t bytes_write = 0;
     // print every 4 sec.
-    const double k_step = 4.0;
-    size_t tick_expected = k_step;
+    constexpr double kStep = 4.0;
+    size_t tick_expected = kStep;
 
     while (make_next_col(page.get())) {
       for (size_t i = 0; i < page->Size(); ++i) {
@@ -281,7 +281,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
         LOG(CONSOLE) << "Writing col.page file to " << cache_info_
                      << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
                      << (bytes_write >> 20UL) << " MB writen";
-        tick_expected += k_step;
+        tick_expected += kStep;
       }
     }
     // save meta data

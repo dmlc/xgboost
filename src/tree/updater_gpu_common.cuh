@@ -59,8 +59,6 @@ __device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
 }
 
 /**
- * \fn  void CheckGradientMax(const dh::DVec<GradientPair>& gpair)
- *
  * \brief Check maximum gradient value is below 2^16. This is to prevent
  * overflow when using integer gradient summation.
  */

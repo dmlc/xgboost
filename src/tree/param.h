@@ -222,10 +222,10 @@ template <typename T1, typename T2>
 XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
   if (w > +lambda) {
     return w - lambda;
-}
+  }
   if (w < -lambda) {
     return w + lambda;
-}
+  }
   return 0.0;
 }
 

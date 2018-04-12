@@ -13,7 +13,7 @@ void Predictor::Init(
     const std::vector<std::shared_ptr<DMatrix>>& cache) {
   for (const std::shared_ptr<DMatrix>& d : cache) {
     cache_[d.get()].data = d;
-}
+  }
 }
 Predictor* Predictor::Create(std::string name) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);

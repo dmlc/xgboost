@@ -119,8 +119,8 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
     // print every 4 sec.
-    const double k_step = 4.0;
-    size_t tick_expected = static_cast<double>(k_step);
+    constexpr double kStep = 4.0;
+    size_t tick_expected = static_cast<double>(kStep);
 
     while (src->Next()) {
       const dmlc::RowBlock<uint32_t>& batch = src->Value();
@@ -149,7 +149,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
           LOG(CONSOLE) << "Writing row.page to " << cache_info << " in "
                        << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
                        << (bytes_write >> 20UL) << " written";
-          tick_expected += static_cast<size_t>(k_step);
+          tick_expected += static_cast<size_t>(kStep);
         }
       }
     }

@@ -447,33 +447,33 @@ class ColMaker: public TreeUpdater {
                                        std::vector<ThreadEntry> &temp) { // NOLINT(*)
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
-      for (int j : qexpand) {
-        temp[j].stats.Clear();
+      for (auto nid : qexpand) {
+        temp[nid].stats.Clear();
       }
       // left statistics
       TStats c(param_);
       // local cache buffer for position and gradient pair
-      const int k_buffer = 32;
-      int buf_position[k_buffer] = {};
-      GradientPair buf_gpair[k_buffer] = {};
+      constexpr int kBuffer = 32;
+      int buf_position[kBuffer] = {};
+      GradientPair buf_gpair[kBuffer] = {};
       // aligned ending position
       const ColBatch::Entry *align_end;
       if (d_step > 0) {
-        align_end = begin + (end - begin) / k_buffer * k_buffer;
+        align_end = begin + (end - begin) / kBuffer * kBuffer;
       } else {
-        align_end = begin - (begin - end) / k_buffer * k_buffer;
+        align_end = begin - (begin - end) / kBuffer * kBuffer;
       }
       int i;
       const ColBatch::Entry *it;
-      const int align_step = d_step * k_buffer;
+      const int align_step = d_step * kBuffer;
       // internal cached loop
       for (it = begin; it != align_end; it += align_step) {
         const ColBatch::Entry *p;
-        for (i = 0, p = it; i < k_buffer; ++i, p += d_step) {
+        for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           buf_position[i] = position_[p->index];
           buf_gpair[i] = gpair[p->index];
         }
-        for (i = 0, p = it; i < k_buffer; ++i, p += d_step) {
+        for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           const int nid = buf_position[i];
           if (nid < 0) continue;
           this->UpdateEnumeration(nid, buf_gpair[i],
@@ -533,8 +533,8 @@ class ColMaker: public TreeUpdater {
       }
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
-      for (int j : qexpand) {
-        temp[j].stats.Clear();
+      for (auto nid : qexpand) {
+        temp[nid].stats.Clear();
       }
       // left statistics
       TStats c(param_);
