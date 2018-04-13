@@ -176,11 +176,16 @@ class FastHistMaker: public TreeUpdater {
         time_init_new_node += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
-        this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree, feat_set);
+        const bool has_found_split
+           = this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree, feat_set);
         time_evaluate_split += dmlc::GetTime() - tstart;
-        qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
-                                   snode[nid].best.loss_chg,
-                                   timestamp++));
+        if (has_found_split) {
+          qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
+                                     snode[nid].best.loss_chg,
+                                     timestamp++));
+        } else {
+          (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
+        }
         ++num_leaves;
       }
 
@@ -217,17 +222,25 @@ class FastHistMaker: public TreeUpdater {
           time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
-          this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree, feat_set);
-          this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree, feat_set);
+          const bool has_found_split_left
+            = this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree, feat_set);
+          const bool has_found_split_right
+            = this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree, feat_set);
           time_evaluate_split += dmlc::GetTime() - tstart;
-
-          qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
-                                     snode[cleft].best.loss_chg,
-                                     timestamp++));
-          qexpand_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
-                                     snode[cright].best.loss_chg,
-                                     timestamp++));
-
+          if (has_found_split_left) {
+            qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
+                                       snode[cleft].best.loss_chg,
+                                       timestamp++));
+          } else {
+            (*p_tree)[cleft].set_leaf(snode[cleft].weight * param.learning_rate);
+          }
+          if (has_found_split_right) {
+            qexpand_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
+                                       snode[cright].best.loss_chg,
+                                       timestamp++));
+          } else {
+            (*p_tree)[cright].set_leaf(snode[cright].weight * param.learning_rate);
+          }
           ++num_leaves;  // give two and take one, as parent is no longer a leaf
         }
       }
@@ -463,7 +476,9 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
-    inline void EvaluateSplit(int nid,
+    /* returns true  if there is a valid split candidate with a positive gain;
+               false otherwise                                                 */
+    inline bool EvaluateSplit(int nid,
                               const GHistIndexMatrix& gmat,
                               const HistCollection& hist,
                               const DMatrix& fmat,
@@ -487,9 +502,11 @@ class FastHistMaker: public TreeUpdater {
         this->EnumerateSplit(+1, gmat, hist[nid], snode[nid], constraints_[nid], info,
           &best_split_tloc_[tid], fid);
       }
+      bool has_updated_best = false;
       for (unsigned tid = 0; tid < nthread; ++tid) {
-        snode[nid].best.Update(best_split_tloc_[tid]);
+        has_updated_best |= snode[nid].best.Update(best_split_tloc_[tid]);
       }
+      return has_updated_best;
     }
 
     inline void ApplySplit(int nid,
