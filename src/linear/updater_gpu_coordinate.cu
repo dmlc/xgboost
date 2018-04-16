@@ -319,7 +319,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto dw =
         static_cast<float>(param.learning_rate *
                            CoordinateDelta(grad.GetGrad(), grad.GetHess(), w,
-                                           param.reg_lambda_denorm, param.reg_alpha_denorm));
+                                           param.reg_alpha_denorm, param.reg_lambda_denorm));
     w += dw;
 
     dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
