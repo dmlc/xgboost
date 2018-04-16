@@ -931,16 +931,13 @@ class AllReducer {
   }
 
   /**
-   * \fn  void AllReduceSum(int communication_group_idx, const double *sendbuff,
-   * double *recvbuff, int count)
-   *
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
    * streams or comms.
    *
-   * \param           communication_group_idx Zero-based index of the
-   * communication group. \param sendbuff                The sendbuff. \param
-   * sendbuff                The sendbuff. \param [in,out]  recvbuff
-   * The recvbuff. \param           count                   Number of.
+   * \param communication_group_idx Zero-based index of the communication group.
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of elements.
    */
 
   void AllReduceSum(int communication_group_idx, const double *sendbuff,
@@ -956,20 +953,14 @@ class AllReducer {
   }
 
   /**
-   * \fn  void AllReduceSum(int communication_group_idx, const int64_t
-   * *sendbuff, int64_t *recvbuff, int count)
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing streams or comms.
    *
-   * \brief Allreduce. Use in exactly the same way as NCCL but without needing
-   * streams or comms.
+   * \param count Number of.
    *
-   * \param           communication_group_idx Zero-based index of the
-   * communication group. \param sendbuff                The sendbuff. \param
-   * sendbuff The sendbuff. \param
-   * [in,out]  recvbuff The recvbuff.
-   *                                          \param           count Number of.
-   * \param           sendbuff                The sendbuff.
-   * \param [in,out]  recvbuff                If non-null, the recvbuff.
-   * \param           count                   Number of.
+   * \param communication_group_idx Zero-based index of the communication group. \param sendbuff.
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of.
    */
 
   void AllReduceSum(int communication_group_idx, const int64_t *sendbuff,
@@ -1025,11 +1016,11 @@ void ExecuteShards(std::vector<T> *shards, func_t f) {
  * \brief Executes some operation on each element of the input vector, using a single controlling
  *        thread for each element, returns the sum of the results.
  *
- * \param f The func_t to process.
- *
- * \tparam  T       Generic type parameter.
- * \tparam  func_t  Type of the function t.
- * \param parameter1  The shards.
+ * \tparam  reduce_t  Type of the reduce t.
+ * \tparam  T         Generic type parameter.
+ * \tparam  func_t    Type of the function t.
+ * \param shards  The shards.
+ * \param f       The func_t to process.
  *
  * \return  A reduce_t.
  */
