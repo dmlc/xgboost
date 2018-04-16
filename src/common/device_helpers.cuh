@@ -412,12 +412,13 @@ class DVec2 {
 
   cub::DoubleBuffer<T> &buff() { return buff_; }
 
-  DVec<T> &d1() { return d1_; }
-  DVec<T> &d2() { return d2_; }
+  DVec<T> &D1() { return d1_; }
 
-  T *current() { return buff_.Current(); }
+  DVec<T> &D2() { return d2_; }
 
-  DVec<T> &current_DVec() { return buff_.selector == 0 ? d1() : d2(); }
+  T *Current() { return buff_.Current(); }
+
+  DVec<T> &CurrentDVec() { return buff_.selector == 0 ? D1() : D2(); }
 
   T *other() { return buff_.Alternate(); }
 };

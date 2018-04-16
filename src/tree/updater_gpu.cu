@@ -538,8 +538,8 @@ class GPUMaker : public TreeUpdater {
     for (int i = 0; i < param.max_depth; ++i) {
       if (i == 0) {
         // make sure to start on a fresh tree with sorted values!
-        vals.current_DVec() = vals_cached;
-        instIds.current_DVec() = instIds_cached;
+        vals.CurrentDVec() = vals_cached;
+        instIds.CurrentDVec() = instIds_cached;
         transferGrads(gpair);
       }
       int nNodes = 1 << i;
@@ -556,9 +556,9 @@ class GPUMaker : public TreeUpdater {
     auto d_nodes = nodes.Data();
     auto d_gradScans = gradScans.Data();
     auto d_gradSums = gradSums.Data();
-    auto d_nodeAssigns = nodeAssigns.current();
+    auto d_nodeAssigns = nodeAssigns.Current();
     auto d_colIds = colIds.Data();
-    auto d_vals = vals.current();
+    auto d_vals = vals.Current();
     auto d_nodeSplits = nodeSplits.Data();
     int nUniqKeys = nNodes;
     float min_split_loss = param.min_split_loss;
@@ -603,11 +603,11 @@ class GPUMaker : public TreeUpdater {
 
   void findSplit(int level, NodeIdT nodeStart, int nNodes) {
     reduceScanByKey(gradSums.Data(), gradScans.Data(), gradsInst.Data(),
-                    instIds.current(), nodeAssigns.current(), nVals, nNodes,
+                    instIds.Current(), nodeAssigns.Current(), nVals, nNodes,
                     nCols, tmpScanGradBuff.Data(), tmpScanKeyBuff.Data(),
                     colIds.Data(), nodeStart);
     argMaxByKey(nodeSplits.Data(), gradScans.Data(), gradSums.Data(),
-                vals.current(), colIds.Data(), nodeAssigns.current(),
+                vals.Current(), colIds.Data(), nodeAssigns.Current(),
                 nodes.Data(), nNodes, nodeStart, nVals, param,
                 level <= kMaxAbkLevels ? kAbkSmem : kAbkGmem);
     split2node(nNodes, nodeStart);
@@ -677,13 +677,13 @@ class GPUMaker : public TreeUpdater {
   void transferAndSortData(const std::vector<float>& fval,
                            const std::vector<int>& fId,
                            const std::vector<size_t>& offset) {
-    vals.current_DVec() = fval;
-    instIds.current_DVec() = fId;
+    vals.CurrentDVec() = fval;
+    instIds.CurrentDVec() = fId;
     colOffsets = offset;
     dh::SegmentedSort<float, int>(&tmp_mem, &vals, &instIds, nVals, nCols,
                                   colOffsets);
-    vals_cached = vals.current_DVec();
-    instIds_cached = instIds.current_DVec();
+    vals_cached = vals.CurrentDVec();
+    instIds_cached = instIds.CurrentDVec();
     assignColIds<<<nCols, 512>>>(colIds.Data(), colOffsets.Data());
   }
 
@@ -700,7 +700,7 @@ class GPUMaker : public TreeUpdater {
     // all instances belong to root node at the beginning!
     if (level == 0) {
       nodes.Fill(DeviceNodeStats());
-      nodeAssigns.current_DVec().Fill(0);
+      nodeAssigns.CurrentDVec().Fill(0);
       nodeAssignsPerInst.Fill(0);
       // for root node, just update the gradient/score/weight/id info
       // before splitting it! Currently all data is on GPU, hence this
@@ -721,12 +721,12 @@ class GPUMaker : public TreeUpdater {
       // evaluate the correct child indices of non-missing values next
       nBlks = dh::DivRoundUp(nVals, BlkDim * ItemsPerThread);
       assignNodeIds<<<nBlks, BlkDim>>>(
-          nodeAssignsPerInst.Data(), nodeLocations.current(),
-          nodeAssigns.current(), instIds.current(), nodes.Data(),
-          colOffsets.Data(), vals.current(), nVals, nCols);
+          nodeAssignsPerInst.Data(), nodeLocations.Current(),
+          nodeAssigns.Current(), instIds.Current(), nodes.Data(),
+          colOffsets.Data(), vals.Current(), nVals, nCols);
       // gather the node assignments across all other columns too
-      dh::Gather(dh::GetDeviceIdx(param.gpu_id), nodeAssigns.current(),
-                 nodeAssignsPerInst.Data(), instIds.current(), nVals);
+      dh::Gather(dh::GetDeviceIdx(param.gpu_id), nodeAssigns.Current(),
+                 nodeAssignsPerInst.Data(), instIds.Current(), nVals);
       sortKeys(level);
     }
   }
@@ -737,8 +737,8 @@ class GPUMaker : public TreeUpdater {
     SegmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,
                   colOffsets, 0, level + 1);
     dh::Gather<float, int>(dh::GetDeviceIdx(param.gpu_id), vals.other(),
-                           vals.current(), instIds.other(), instIds.current(),
-                           nodeLocations.current(), nVals);
+                           vals.Current(), instIds.other(), instIds.Current(),
+                           nodeLocations.Current(), nVals);
     vals.buff().selector ^= 1;
     instIds.buff().selector ^= 1;
   }

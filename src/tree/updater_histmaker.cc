@@ -393,12 +393,12 @@ class CQHistMaker: public HistMaker<TStats> {
     feat2workindex_.resize(tree.param.num_feature);
     std::fill(feat2workindex_.begin(), feat2workindex_.end(), -1);
     work_set_.clear();
-    for (unsigned int i : fset) {
-      if (feat_helper_.Type(i) == 2) {
-        feat2workindex_[i] = static_cast<int>(work_set_.size());
-        work_set_.push_back(i);
+    for (auto fidx : fset) {
+      if (feat_helper_.Type(fidx) == 2) {
+        feat2workindex_[fidx] = static_cast<int>(work_set_.size());
+        work_set_.push_back(fidx);
       } else {
-        feat2workindex_[i] = -2;
+        feat2workindex_[fidx] = -2;
       }
     }
     const size_t work_set_size = work_set_.size();

@@ -372,11 +372,11 @@ struct DeviceShard {
   void Reset(HostDeviceVector<GradientPair>* dh_gpair, int device) {
     auto begin = dh_gpair->tbegin(device);
     dh::safe_cuda(cudaSetDevice(device_idx));
-    position.current_DVec().Fill(0);
+    position.CurrentDVec().Fill(0);
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
-    thrust::sequence(ridx.current_DVec().tbegin(), ridx.current_DVec().tend());
+    thrust::sequence(ridx.CurrentDVec().tbegin(), ridx.CurrentDVec().tend());
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.Size());
@@ -389,7 +389,7 @@ struct DeviceShard {
     auto segment = ridx_segments[nidx];
     auto d_node_hist = hist.GetHistPtr(nidx);
     auto d_gidx = gidx;
-    auto d_ridx = ridx.current();
+    auto d_ridx = ridx.Current();
     auto d_gpair = gpair.Data();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
@@ -432,8 +432,8 @@ struct DeviceShard {
     auto d_left_count = temp_memory.Pointer<int64_t>();
     dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(int64_t)));
     auto segment = ridx_segments[nidx];
-    auto d_ridx = ridx.current();
-    auto d_position = position.current();
+    auto d_ridx = ridx.Current();
+    auto d_position = position.Current();
     auto d_gidx = gidx;
     auto row_stride = this->row_stride;
     dh::LaunchN<1, 512>(
@@ -482,22 +482,22 @@ struct DeviceShard {
 
     size_t temp_storage_bytes = 0;
     cub::DeviceRadixSort::SortPairs(
-        nullptr, temp_storage_bytes, position.current() + segment.begin,
-        position.other() + segment.begin, ridx.current() + segment.begin,
+        nullptr, temp_storage_bytes, position.Current() + segment.begin,
+        position.other() + segment.begin, ridx.Current() + segment.begin,
         ridx.other() + segment.begin, segment.Size(), min_bits, max_bits);
 
     temp_memory.LazyAllocate(temp_storage_bytes);
 
     cub::DeviceRadixSort::SortPairs(
         temp_memory.d_temp_storage, temp_memory.temp_storage_bytes,
-        position.current() + segment.begin, position.other() + segment.begin,
-        ridx.current() + segment.begin, ridx.other() + segment.begin,
+        position.Current() + segment.begin, position.other() + segment.begin,
+        ridx.Current() + segment.begin, ridx.other() + segment.begin,
         segment.Size(), min_bits, max_bits);
     dh::safe_cuda(cudaMemcpy(
-        position.current() + segment.begin, position.other() + segment.begin,
+        position.Current() + segment.begin, position.other() + segment.begin,
         segment.Size() * sizeof(int), cudaMemcpyDeviceToDevice));
     dh::safe_cuda(cudaMemcpy(
-        ridx.current() + segment.begin, ridx.other() + segment.begin,
+        ridx.Current() + segment.begin, ridx.other() + segment.begin,
         segment.Size() * sizeof(bst_uint), cudaMemcpyDeviceToDevice));
   }
 
@@ -514,8 +514,8 @@ struct DeviceShard {
 
     thrust::copy(node_sum_gradients.begin(), node_sum_gradients.end(),
                  node_sum_gradients_d.tbegin());
-    auto d_position = position.current();
-    auto d_ridx = ridx.current();
+    auto d_position = position.Current();
+    auto d_ridx = ridx.Current();
     auto d_node_sum_gradients = node_sum_gradients_d.Data();
     auto d_prediction_cache = prediction_cache.Data();
 
