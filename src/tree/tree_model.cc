@@ -144,6 +144,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
+  fo.precision(20);
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }
