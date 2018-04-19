@@ -12,10 +12,10 @@ TEST(SparsePageDMatrix, MetaInfo) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache"));
 
   // Test the metadata that was parsed
-  EXPECT_EQ(dmat->info().num_row, 2);
-  EXPECT_EQ(dmat->info().num_col, 5);
-  EXPECT_EQ(dmat->info().num_nonzero, 6);
-  EXPECT_EQ(dmat->info().labels.size(), dmat->info().num_row);
+  EXPECT_EQ(dmat->Info().num_row_, 2);
+  EXPECT_EQ(dmat->Info().num_col_, 5);
+  EXPECT_EQ(dmat->Info().num_nonzero_, 6);
+  EXPECT_EQ(dmat->Info().labels_.size(), dmat->Info().num_row_);
 
   // Clean up of external memory files
   std::remove((tmp_file + ".cache").c_str());
@@ -34,7 +34,7 @@ TEST(SparsePageDMatrix, RowAccess) {
   long row_count = 0;
   row_iter->BeforeFirst();
   while (row_iter->Next()) row_count += row_iter->Value().size;
-  EXPECT_EQ(row_count, dmat->info().num_row);
+  EXPECT_EQ(row_count, dmat->Info().num_row_);
   // Test the data read into the first row
   row_iter->BeforeFirst();
   row_iter->Next();
@@ -57,7 +57,7 @@ TEST(SparsePageDMatrix, ColAcess) {
   EXPECT_FALSE(FileExists(tmp_file + ".cache.col.page"));
 
   EXPECT_EQ(dmat->HaveColAccess(true), false);
-  const std::vector<bool> enable(dmat->info().num_col, true);
+  const std::vector<bool> enable(dmat->Info().num_col_, true);
   dmat->InitColAccess(enable, 1, 1, true); // Max 1 row per patch
   ASSERT_EQ(dmat->HaveColAccess(true), true);
   EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
@@ -73,10 +73,10 @@ TEST(SparsePageDMatrix, ColAcess) {
   col_iter->BeforeFirst();
   while (col_iter->Next()) {
     num_col_batch += 1;
-    EXPECT_EQ(col_iter->Value().size, dmat->info().num_col)
+    EXPECT_EQ(col_iter->Value().size, dmat->Info().num_col_)
       << "Expected batch size to be same as num_cols as max_row_perbatch is 1.";
   }
-  EXPECT_EQ(num_col_batch, dmat->info().num_row)
+  EXPECT_EQ(num_col_batch, dmat->Info().num_row_)
     << "Expected num batches to be same as num_rows as max_row_perbatch is 1";
   col_iter = nullptr;
 

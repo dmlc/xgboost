@@ -51,11 +51,11 @@ class SparsePage {
     return offset.size() - 1;
   }
   /*! \return estimation of memory cost of this page */
-  inline size_t MemCostBytes(void) const {
+  inline size_t MemCostBytes() const {
     return offset.size() * sizeof(size_t) + data.size() * sizeof(SparseBatch::Entry);
   }
   /*! \brief clear the page */
-  inline void Clear(void) {
+  inline void Clear() {
     min_index = 0;
     offset.clear();
     offset.push_back(0);
@@ -92,7 +92,7 @@ class SparsePage {
     for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
       uint32_t index = batch.index[i];
       bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-      data.push_back(SparseBatch::Entry(index, fvalue));
+      data.emplace_back(index, fvalue);
     }
     CHECK_EQ(offset.back(), data.size());
   }
@@ -145,7 +145,7 @@ class SparsePage {
 class SparsePage::Format {
  public:
   /*! \brief virtual destructor */
-  virtual ~Format() {}
+  virtual ~Format() = default;
   /*!
    * \brief Load all the segments into page, advance fi to end of the block.
    * \param page The data to read page into.

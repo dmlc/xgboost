@@ -29,7 +29,7 @@ TEST(gpu_hist_experimental, TestSparseShard) {
 
   ASSERT_LT(shard.row_stride, columns);
 
-  auto host_gidx_buffer = shard.gidx_buffer.as_vector();
+  auto host_gidx_buffer = shard.gidx_buffer.AsVector();
 
   common::CompressedIterator<uint32_t> gidx(host_gidx_buffer.data(),
                                             hmat.row_ptr.back() + 1);
@@ -64,7 +64,7 @@ TEST(gpu_hist_experimental, TestDenseShard) {
 
   ASSERT_EQ(shard.row_stride, columns);
 
-  auto host_gidx_buffer = shard.gidx_buffer.as_vector();
+  auto host_gidx_buffer = shard.gidx_buffer.AsVector();
 
   common::CompressedIterator<uint32_t> gidx(host_gidx_buffer.data(),
                                             hmat.row_ptr.back() + 1);

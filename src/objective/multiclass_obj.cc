@@ -38,15 +38,15 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void GetGradient(HostDeviceVector<bst_float>* preds,
                    const MetaInfo& info,
                    int iter,
-                   HostDeviceVector<bst_gpair>* out_gpair) override {
-    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
-    CHECK(preds->size() == (static_cast<size_t>(param_.num_class) * info.labels.size()))
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
+    CHECK(preds->Size() == (static_cast<size_t>(param_.num_class) * info.labels_.size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match";
-    std::vector<bst_float>& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size());
-    std::vector<bst_gpair>& gpair = out_gpair->data_h();
+    std::vector<bst_float>& preds_h = preds->HostVector();
+    out_gpair->Resize(preds_h.size());
+    std::vector<GradientPair>& gpair = out_gpair->HostVector();
     const int nclass = param_.num_class;
-    const omp_ulong ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
+    const auto ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
 
     int label_error = 0;
     #pragma omp parallel
@@ -58,7 +58,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           rec[k] = preds_h[i * nclass + k];
         }
         common::Softmax(&rec);
-        int label = static_cast<int>(info.labels[i]);
+        auto label = static_cast<int>(info.labels_[i]);
         if (label < 0 || label >= nclass)  {
           label_error = label; label = 0;
         }
@@ -67,9 +67,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
           bst_float p = rec[k];
           const bst_float h = 2.0f * p * (1.0f - p) * wt;
           if (label == k) {
-            gpair[i * nclass + k] = bst_gpair((p - 1.0f) * wt, h);
+            gpair[i * nclass + k] = GradientPair((p - 1.0f) * wt, h);
           } else {
-            gpair[i * nclass + k] = bst_gpair(p* wt, h);
+            gpair[i * nclass + k] = GradientPair(p* wt, h);
           }
         }
       }
@@ -91,10 +91,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
  private:
   inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) {
-    std::vector<bst_float> &preds = io_preds->data_h();
+    std::vector<bst_float> &preds = io_preds->HostVector();
     std::vector<bst_float> tmp;
     const int nclass = param_.num_class;
-    const omp_ulong ndata = static_cast<omp_ulong>(preds.size() / nclass);
+    const auto ndata = static_cast<omp_ulong>(preds.size() / nclass);
     if (!prob) tmp.resize(ndata);
 
     #pragma omp parallel

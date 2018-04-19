@@ -10,10 +10,10 @@ TEST(SimpleDMatrix, MetaInfo) {
   std::remove(tmp_file.c_str());
 
   // Test the metadata that was parsed
-  EXPECT_EQ(dmat->info().num_row, 2);
-  EXPECT_EQ(dmat->info().num_col, 5);
-  EXPECT_EQ(dmat->info().num_nonzero, 6);
-  EXPECT_EQ(dmat->info().labels.size(), dmat->info().num_row);
+  EXPECT_EQ(dmat->Info().num_row_, 2);
+  EXPECT_EQ(dmat->Info().num_col_, 5);
+  EXPECT_EQ(dmat->Info().num_nonzero_, 6);
+  EXPECT_EQ(dmat->Info().labels_.size(), dmat->Info().num_row_);
 }
 
 TEST(SimpleDMatrix, RowAccess) {
@@ -26,7 +26,7 @@ TEST(SimpleDMatrix, RowAccess) {
   long row_count = 0;
   row_iter->BeforeFirst();
   while (row_iter->Next()) row_count += row_iter->Value().size;
-  EXPECT_EQ(row_count, dmat->info().num_row);
+  EXPECT_EQ(row_count, dmat->Info().num_row_);
   // Test the data read into the first row
   row_iter->BeforeFirst();
   row_iter->Next();
@@ -43,15 +43,15 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   std::remove(tmp_file.c_str());
 
   // Unsorted column access
-  const std::vector<bool> enable(dmat->info().num_col, true);
+  const std::vector<bool> enable(dmat->Info().num_col_, true);
   EXPECT_EQ(dmat->HaveColAccess(false), false);
-  dmat->InitColAccess(enable, 1, dmat->info().num_row, false);
+  dmat->InitColAccess(enable, 1, dmat->Info().num_row_, false);
   dmat->InitColAccess(enable, 0, 0, false); // Calling it again should not change it
   ASSERT_EQ(dmat->HaveColAccess(false), true);
 
   // Sorted column access
   EXPECT_EQ(dmat->HaveColAccess(true), false);
-  dmat->InitColAccess(enable, 1, dmat->info().num_row, true);
+  dmat->InitColAccess(enable, 1, dmat->Info().num_row_, true);
   dmat->InitColAccess(enable, 0, 0, true); // Calling it again should not change it
   ASSERT_EQ(dmat->HaveColAccess(true), true);
 
@@ -67,7 +67,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   col_iter->BeforeFirst();
   while (col_iter->Next()) {
     num_col_batch += 1;
-    EXPECT_EQ(col_iter->Value().size, dmat->info().num_col)
+    EXPECT_EQ(col_iter->Value().size, dmat->Info().num_col_)
       << "Expected batch size = number of cells as #batches is 1.";
     for (int i = 0; i < static_cast<int>(col_iter->Value().size); ++i) {
       EXPECT_EQ(col_iter->Value()[i].length, dmat->GetColSize(i))
@@ -94,7 +94,7 @@ TEST(SimpleDMatrix, ColAccessWithBatches) {
   std::remove(tmp_file.c_str());
 
   // Unsorted column access
-  const std::vector<bool> enable(dmat->info().num_col, true);
+  const std::vector<bool> enable(dmat->Info().num_col_, true);
   EXPECT_EQ(dmat->HaveColAccess(false), false);
   dmat->InitColAccess(enable, 1, 1, false);
   dmat->InitColAccess(enable, 0, 0, false); // Calling it again should not change it
@@ -118,20 +118,20 @@ TEST(SimpleDMatrix, ColAccessWithBatches) {
   col_iter->BeforeFirst();
   while (col_iter->Next()) {
     num_col_batch += 1;
-    EXPECT_EQ(col_iter->Value().size, dmat->info().num_col)
+    EXPECT_EQ(col_iter->Value().size, dmat->Info().num_col_)
       << "Expected batch size = num_cols as max_row_perbatch is 1.";
     for (int i = 0; i < static_cast<int>(col_iter->Value().size); ++i) {
       EXPECT_LE(col_iter->Value()[i].length, 1)
         << "Expected length of each colbatch <=1 as max_row_perbatch is 1.";
     }
   }
-  EXPECT_EQ(num_col_batch, dmat->info().num_row)
+  EXPECT_EQ(num_col_batch, dmat->Info().num_row_)
     << "Expected num batches = num_rows as max_row_perbatch is 1";
   col_iter = nullptr;
 
   // The iterator feats should ignore any numbers larger than the num_col
   std::vector<xgboost::bst_uint> sub_feats = {
-    4, 3, static_cast<unsigned int>(dmat->info().num_col + 1)};
+    4, 3, static_cast<unsigned int>(dmat->Info().num_col_ + 1)};
   dmlc::DataIter<xgboost::ColBatch> * sub_col_iter = dmat->ColIterator(sub_feats);
   // Loop over the batches and assert the data is as expected
   sub_col_iter->BeforeFirst();

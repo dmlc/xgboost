@@ -36,8 +36,8 @@ struct GPUPredictionParam : public dmlc::Parameter<GPUPredictionParam> {
 };
 DMLC_REGISTER_PARAMETER(GPUPredictionParam);
 
-template <typename iter_t>
-void increment_offset(iter_t begin_itr, iter_t end_itr, size_t amount) {
+template <typename IterT>
+void IncrementOffset(IterT begin_itr, IterT end_itr, size_t amount) {
   thrust::transform(begin_itr, end_itr, begin_itr,
                     [=] __device__(size_t elem) { return elem + amount; });
 }
@@ -50,16 +50,16 @@ void increment_offset(iter_t begin_itr, iter_t end_itr, size_t amount) {
 
 struct DeviceMatrix {
   DMatrix* p_mat;  // Pointer to the original matrix on the host
-  dh::bulk_allocator<dh::memory_type::DEVICE> ba;
-  dh::dvec<size_t> row_ptr;
-  dh::dvec<SparseBatch::Entry> data;
+  dh::BulkAllocator<dh::MemoryType::kDevice> ba;
+  dh::DVec<size_t> row_ptr;
+  dh::DVec<SparseBatch::Entry> data;
   thrust::device_vector<float> predictions;
 
   DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    auto info = dmat->info();
-    ba.allocate(device_idx, silent, &row_ptr, info.num_row + 1, &data,
-                info.num_nonzero);
+    auto info = dmat->Info();
+    ba.Allocate(device_idx, silent, &row_ptr, info.num_row_ + 1, &data,
+                info.num_nonzero_);
     auto iter = dmat->RowIterator();
     iter->BeforeFirst();
     size_t data_offset = 0;
@@ -71,7 +71,7 @@ struct DeviceMatrix {
       if (batch.base_rowid > 0) {
         auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
         auto end_itr = begin_itr + batch.size + 1;
-        increment_offset(begin_itr, end_itr, batch.base_rowid);
+        IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
       // Copy data
       thrust::copy(batch.data_ptr, batch.data_ptr + batch.ind_ptr[batch.size],
@@ -103,17 +103,17 @@ struct DevicePredictionNode {
   NodeValue val;
 
   DevicePredictionNode(const RegTree::Node& n) {  // NOLINT
-    this->left_child_idx = n.cleft();
-    this->right_child_idx = n.cright();
-    this->fidx = n.split_index();
-    if (n.default_left()) {
+    this->left_child_idx = n.LeftChild();
+    this->right_child_idx = n.RightChild();
+    this->fidx = n.SplitIndex();
+    if (n.DefaultLeft()) {
       fidx |= (1U << 31);
     }
 
-    if (n.is_leaf()) {
-      this->val.leaf_weight = n.leaf_value();
+    if (n.IsLeaf()) {
+      this->val.leaf_weight = n.LeafValue();
     } else {
-      this->val.fvalue = n.split_cond();
+      this->val.fvalue = n.SplitCond();
     }
   }
 
@@ -155,7 +155,7 @@ struct ElementLoader {
     if (use_shared) {
       bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
       int shared_elements = blockDim.x * num_features;
-      dh::block_fill(smem, shared_elements, nanf(""));
+      dh::BlockFill(smem, shared_elements, nanf(""));
       __syncthreads();
       if (global_idx < num_rows) {
         bst_uint elem_begin = d_row_ptr[global_idx];
@@ -309,16 +309,16 @@ class GPUPredictor : public xgboost::Predictor {
     thrust::copy(model.tree_info.begin(), model.tree_info.end(),
                  tree_group.begin());
 
-    device_matrix->predictions.resize(out_preds->size());
+    device_matrix->predictions.resize(out_preds->Size());
     thrust::copy(out_preds->tbegin(param.gpu_id), out_preds->tend(param.gpu_id),
                  device_matrix->predictions.begin());
 
     const int BLOCK_THREADS = 128;
     const int GRID_SIZE = static_cast<int>(
-        dh::div_round_up(device_matrix->row_ptr.size() - 1, BLOCK_THREADS));
+        dh::DivRoundUp(device_matrix->row_ptr.Size() - 1, BLOCK_THREADS));
 
     int shared_memory_bytes = static_cast<int>(
-        sizeof(float) * device_matrix->p_mat->info().num_col * BLOCK_THREADS);
+        sizeof(float) * device_matrix->p_mat->Info().num_col_ * BLOCK_THREADS);
     bool use_shared = true;
     if (shared_memory_bytes > max_shared_memory_bytes) {
       shared_memory_bytes = 0;
@@ -327,11 +327,11 @@ class GPUPredictor : public xgboost::Predictor {
 
     PredictKernel<BLOCK_THREADS>
         <<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>(
-            dh::raw(nodes), dh::raw(device_matrix->predictions),
-            dh::raw(tree_segments), dh::raw(tree_group),
-            device_matrix->row_ptr.data(), device_matrix->data.data(),
-            tree_begin, tree_end, device_matrix->p_mat->info().num_col,
-            device_matrix->p_mat->info().num_row, use_shared,
+            dh::Raw(nodes), dh::Raw(device_matrix->predictions),
+            dh::Raw(tree_segments), dh::Raw(tree_group),
+            device_matrix->row_ptr.Data(), device_matrix->data.Data(),
+            tree_begin, tree_end, device_matrix->p_mat->Info().num_col_,
+            device_matrix->p_mat->Info().num_row_, use_shared,
             model.param.num_output_group);
 
     dh::safe_cuda(cudaDeviceSynchronize());
@@ -349,7 +349,7 @@ class GPUPredictor : public xgboost::Predictor {
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
       return;
     }
-    this->InitOutPredictions(dmat->info(), out_preds, model);
+    this->InitOutPredictions(dmat->Info(), out_preds, model);
 
     int tree_end = ntree_limit * model.param.num_output_group;
 
@@ -364,11 +364,11 @@ class GPUPredictor : public xgboost::Predictor {
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
-    size_t n = model.param.num_output_group * info.num_row;
-    const std::vector<bst_float>& base_margin = info.base_margin;
-    out_preds->resize(n, 0.0f, param.gpu_id);
+    size_t n = model.param.num_output_group * info.num_row_;
+    const std::vector<bst_float>& base_margin = info.base_margin_;
+    out_preds->Resize(n, 0.0f, param.gpu_id);
     if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->size(), n);
+      CHECK_EQ(out_preds->Size(), n);
       thrust::copy(base_margin.begin(), base_margin.end(),
                    out_preds->tbegin(param.gpu_id));
     } else {
@@ -384,12 +384,12 @@ class GPUPredictor : public xgboost::Predictor {
       auto it = cache_.find(dmat);
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
-        if (y.size() != 0) {
+        if (y.Size() != 0) {
           dh::safe_cuda(cudaSetDevice(param.gpu_id));
-          out_preds->resize(y.size(), 0.0f, param.gpu_id);
+          out_preds->Resize(y.Size(), 0.0f, param.gpu_id);
           dh::safe_cuda(cudaMemcpy(
-              out_preds->ptr_d(param.gpu_id), y.ptr_d(param.gpu_id),
-              out_preds->size() * sizeof(bst_float), cudaMemcpyDefault));
+              out_preds->DevicePointer(param.gpu_id), y.DevicePointer(param.gpu_id),
+              out_preds->Size() * sizeof(bst_float), cudaMemcpyDefault));
           return true;
         }
       }
@@ -409,9 +409,9 @@ class GPUPredictor : public xgboost::Predictor {
       DMatrix* dmat = kv.first;
       HostDeviceVector<bst_float>& predictions = e.predictions;
 
-      if (predictions.size() == 0) {
+      if (predictions.Size() == 0) {
         // ensure that the device in predictions is correct
-        predictions.resize(0, 0.0f, param.gpu_id);
+        predictions.Resize(0, 0.0f, param.gpu_id);
         cpu_predictor->PredictBatch(dmat, &predictions, model, 0,
                                     static_cast<bst_uint>(model.trees.size()));
       } else if (model.param.num_output_group == 1 && updaters->size() > 0 &&
@@ -462,7 +462,7 @@ class GPUPredictor : public xgboost::Predictor {
     Predictor::Init(cfg, cache);
     cpu_predictor->Init(cfg, cache);
     param.InitAllowUnknown(cfg);
-    max_shared_memory_bytes = dh::max_shared_memory(param.gpu_id);
+    max_shared_memory_bytes = dh::MaxSharedMemory(param.gpu_id);
   }
 
  private:

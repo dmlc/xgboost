@@ -21,7 +21,7 @@ class BaseLogger {
     log_stream_ << "[" << dmlc::DateLogger().HumanDate() << "] ";
 #endif
   }
-  std::ostream& stream() { return log_stream_; }
+  std::ostream& stream() { return log_stream_; }  // NOLINT
 
  protected:
   std::ostringstream log_stream_;

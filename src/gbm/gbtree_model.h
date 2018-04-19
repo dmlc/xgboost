@@ -70,8 +70,8 @@ struct GBTreeModel {
 
   void InitTreesToUpdate() {
     if (trees_to_update.size() == 0u) {
-      for (size_t i = 0; i < trees.size(); ++i) {
-        trees_to_update.push_back(std::move(trees[i]));
+      for (auto & tree : trees) {
+        trees_to_update.push_back(std::move(tree));
       }
       trees.clear();
       param.num_trees = 0;
@@ -100,8 +100,8 @@ struct GBTreeModel {
   void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
     fo->Write(&param, sizeof(param));
-    for (size_t i = 0; i < trees.size(); ++i) {
-      trees[i]->Save(fo);
+    for (const auto & tree : trees) {
+      tree->Save(fo);
     }
     if (tree_info.size() != 0) {
       fo->Write(dmlc::BeginPtr(tree_info), sizeof(int) * tree_info.size());
@@ -111,15 +111,15 @@ struct GBTreeModel {
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) const {
     std::vector<std::string> dump;
-    for (size_t i = 0; i < trees.size(); i++) {
-      dump.push_back(trees[i]->DumpModel(fmap, with_stats, format));
+    for (const auto & tree : trees) {
+      dump.push_back(tree->DumpModel(fmap, with_stats, format));
     }
     return dump;
   }
   void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
                    int bst_group) {
-    for (size_t i = 0; i < new_trees.size(); ++i) {
-      trees.push_back(std::move(new_trees[i]));
+    for (auto & new_tree : new_trees) {
+      trees.push_back(std::move(new_tree));
       tree_info.push_back(bst_group);
     }
     param.num_trees += static_cast<int>(new_trees.size());

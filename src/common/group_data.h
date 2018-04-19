@@ -29,12 +29,12 @@ struct ParallelGroupBuilder {
   // parallel group builder of data
   ParallelGroupBuilder(std::vector<SizeType> *p_rptr,
                        std::vector<ValueType> *p_data)
-      : rptr(*p_rptr), data(*p_data), thread_rptr(tmp_thread_rptr) {
+      : rptr_(*p_rptr), data_(*p_data), thread_rptr_(tmp_thread_rptr_) {
   }
   ParallelGroupBuilder(std::vector<SizeType> *p_rptr,
                        std::vector<ValueType> *p_data,
                        std::vector< std::vector<SizeType> > *p_thread_rptr)
-      : rptr(*p_rptr), data(*p_data), thread_rptr(*p_thread_rptr) {
+      : rptr_(*p_rptr), data_(*p_data), thread_rptr_(*p_thread_rptr) {
   }
 
  public:
@@ -45,10 +45,10 @@ struct ParallelGroupBuilder {
    * \param nthread number of thread that will be used in construction
    */
   inline void InitBudget(size_t nkeys, int nthread) {
-    thread_rptr.resize(nthread);
-    for (size_t i = 0;  i < thread_rptr.size(); ++i) {
-      thread_rptr[i].resize(nkeys);
-      std::fill(thread_rptr[i].begin(), thread_rptr[i].end(), 0);
+    thread_rptr_.resize(nthread);
+    for (size_t i = 0;  i < thread_rptr_.size(); ++i) {
+      thread_rptr_[i].resize(nkeys);
+      std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
     }
   }
   /*!
@@ -58,34 +58,34 @@ struct ParallelGroupBuilder {
    * \param nelem number of element budget add to this row
    */
   inline void AddBudget(size_t key, int threadid, SizeType nelem = 1) {
-    std::vector<SizeType> &trptr = thread_rptr[threadid];
+    std::vector<SizeType> &trptr = thread_rptr_[threadid];
     if (trptr.size() < key + 1) {
       trptr.resize(key + 1, 0);
     }
     trptr[key] += nelem;
   }
   /*! \brief step 3: initialize the necessary storage */
-  inline void InitStorage(void) {
+  inline void InitStorage() {
     // set rptr to correct size
-    for (size_t tid = 0; tid < thread_rptr.size(); ++tid) {
-      if (rptr.size() <= thread_rptr[tid].size()) {
-        rptr.resize(thread_rptr[tid].size() + 1);
+    for (size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+      if (rptr_.size() <= thread_rptr_[tid].size()) {
+        rptr_.resize(thread_rptr_[tid].size() + 1);
       }
     }
     // initialize rptr to be beginning of each segment
     size_t start = 0;
-    for (size_t i = 0; i + 1 < rptr.size(); ++i) {
-      for (size_t tid = 0; tid < thread_rptr.size(); ++tid) {
-        std::vector<SizeType> &trptr = thread_rptr[tid];
+    for (size_t i = 0; i + 1 < rptr_.size(); ++i) {
+      for (size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+        std::vector<SizeType> &trptr = thread_rptr_[tid];
         if (i < trptr.size()) {
           size_t ncnt = trptr[i];
           trptr[i] = start;
           start += ncnt;
         }
       }
-      rptr[i + 1] = start;
+      rptr_[i + 1] = start;
     }
-    data.resize(start);
+    data_.resize(start);
   }
   /*!
    * \brief step 4: add data to the allocated space,
@@ -96,19 +96,19 @@ struct ParallelGroupBuilder {
    * \param threadid the id of thread that calls this function
    */
   inline void Push(size_t key, ValueType value, int threadid) {
-    SizeType &rp = thread_rptr[threadid][key];
-    data[rp++] = value;
+    SizeType &rp = thread_rptr_[threadid][key];
+    data_[rp++] = value;
   }
 
  private:
   /*! \brief pointer to the beginning and end of each continuous key */
-  std::vector<SizeType> &rptr;
+  std::vector<SizeType> &rptr_;
   /*! \brief index of nonzero entries in each row */
-  std::vector<ValueType> &data;
+  std::vector<ValueType> &data_;
   /*! \brief thread local data structure */
-  std::vector<std::vector<SizeType> > &thread_rptr;
+  std::vector<std::vector<SizeType> > &thread_rptr_;
   /*! \brief local temp thread ptr, use this if not specified by the constructor */
-  std::vector<std::vector<SizeType> > tmp_thread_rptr;
+  std::vector<std::vector<SizeType> > tmp_thread_rptr_;
 };
 }  // namespace common
 }  // namespace xgboost

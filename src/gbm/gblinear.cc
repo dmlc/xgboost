@@ -52,9 +52,9 @@ class GBLinear : public GradientBooster {
   explicit GBLinear(const std::vector<std::shared_ptr<DMatrix> > &cache,
                     bst_float base_margin)
       : base_margin_(base_margin),
-        sum_instance_weight(0),
-        sum_weight_complete(false),
-        is_converged(false) {
+        sum_instance_weight_(0),
+        sum_weight_complete_(false),
+        is_converged_(false) {
     // Add matrices to the prediction cache
     for (auto &d : cache) {
       PredictionCacheEntry e;
@@ -63,46 +63,46 @@ class GBLinear : public GradientBooster {
     }
   }
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
-    if (model.weight.size() == 0) {
-      model.param.InitAllowUnknown(cfg);
+    if (model_.weight.size() == 0) {
+      model_.param.InitAllowUnknown(cfg);
     }
-    param.InitAllowUnknown(cfg);
-    updater.reset(LinearUpdater::Create(param.updater));
-    updater->Init(cfg);
-    monitor.Init("GBLinear ", param.debug_verbose);
+    param_.InitAllowUnknown(cfg);
+    updater_.reset(LinearUpdater::Create(param_.updater));
+    updater_->Init(cfg);
+    monitor_.Init("GBLinear ", param_.debug_verbose);
   }
   void Load(dmlc::Stream* fi) override {
-    model.Load(fi);
+    model_.Load(fi);
   }
   void Save(dmlc::Stream* fo) const override {
-    model.Save(fo);
+    model_.Save(fo);
   }
 
   void DoBoost(DMatrix *p_fmat,
-               HostDeviceVector<bst_gpair> *in_gpair,
+               HostDeviceVector<GradientPair> *in_gpair,
                ObjFunction* obj) override {
-    monitor.Start("DoBoost");
+    monitor_.Start("DoBoost");
 
     if (!p_fmat->HaveColAccess(false)) {
-      std::vector<bool> enabled(p_fmat->info().num_col, true);
-      p_fmat->InitColAccess(enabled, 1.0f, param.max_row_perbatch, false);
+      std::vector<bool> enabled(p_fmat->Info().num_col_, true);
+      p_fmat->InitColAccess(enabled, 1.0f, param_.max_row_perbatch, false);
     }
 
-    model.LazyInitModel();
+    model_.LazyInitModel();
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater->Update(&in_gpair->data_h(), p_fmat, &model, sum_instance_weight);
+      updater_->Update(&in_gpair->HostVector(), p_fmat, &model_, sum_instance_weight_);
     }
     this->UpdatePredictionCache();
 
-    monitor.Stop("DoBoost");
+    monitor_.Stop("DoBoost");
   }
 
   void PredictBatch(DMatrix *p_fmat,
                     HostDeviceVector<bst_float> *out_preds,
                     unsigned ntree_limit) override {
-    monitor.Start("PredictBatch");
+    monitor_.Start("PredictBatch");
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
 
@@ -110,19 +110,19 @@ class GBLinear : public GradientBooster {
     auto it = cache_.find(p_fmat);
     if (it != cache_.end() && it->second.predictions.size() != 0) {
       std::vector<bst_float> &y = it->second.predictions;
-      out_preds->resize(y.size());
-      std::copy(y.begin(), y.end(), out_preds->data_h().begin());
+      out_preds->Resize(y.size());
+      std::copy(y.begin(), y.end(), out_preds->HostVector().begin());
     } else {
-      this->PredictBatchInternal(p_fmat, &out_preds->data_h());
+      this->PredictBatchInternal(p_fmat, &out_preds->HostVector());
     }
-    monitor.Stop("PredictBatch");
+    monitor_.Stop("PredictBatch");
   }
   // add base margin
   void PredictInstance(const SparseBatch::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
-    const int ngroup = model.param.num_output_group;
+    const int ngroup = model_.param.num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
       this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);
     }
@@ -138,15 +138,15 @@ class GBLinear : public GradientBooster {
                            std::vector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition = 0,
                            unsigned condition_feature = 0) override {
-    model.LazyInitModel();
+    model_.LazyInitModel();
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
-    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
-    const int ngroup = model.param.num_output_group;
-    const size_t ncolumns = model.param.num_feature + 1;
+    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
+    const int ngroup = model_.param.num_output_group;
+    const size_t ncolumns = model_.param.num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
     std::vector<bst_float>& contribs = *out_contribs;
-    contribs.resize(p_fmat->info().num_row * ncolumns * ngroup);
+    contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // start collecting the contributions
@@ -155,21 +155,21 @@ class GBLinear : public GradientBooster {
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const RowBatch::Inst &inst = batch[i];
-        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
+        auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           // calculate linear terms' contributions
           for (bst_uint c = 0; c < inst.length; ++c) {
-            if (inst[c].index >= model.param.num_feature) continue;
-            p_contribs[inst[c].index] = inst[c].fvalue * model[inst[c].index][gid];
+            if (inst[c].index >= model_.param.num_feature) continue;
+            p_contribs[inst[c].index] = inst[c].fvalue * model_[inst[c].index][gid];
           }
           // add base margin to BIAS
-          p_contribs[ncolumns - 1] = model.bias()[gid] +
+          p_contribs[ncolumns - 1] = model_.bias()[gid] +
             ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] : base_margin_);
         }
       }
@@ -182,34 +182,34 @@ class GBLinear : public GradientBooster {
                              std::vector<bst_float>& contribs = *out_contribs;
 
      // linear models have no interaction effects
-     const size_t nelements = model.param.num_feature*model.param.num_feature;
-     contribs.resize(p_fmat->info().num_row * nelements * model.param.num_output_group);
+     const size_t nelements = model_.param.num_feature*model_.param.num_feature;
+     contribs.resize(p_fmat->Info().num_row_ * nelements * model_.param.num_output_group);
      std::fill(contribs.begin(), contribs.end(), 0);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
-    return model.DumpModel(fmap, with_stats, format);
+    return model_.DumpModel(fmap, with_stats, format);
   }
 
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds) {
-    monitor.Start("PredictBatchInternal");
-      model.LazyInitModel();
+    monitor_.Start("PredictBatchInternal");
+      model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
-    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
-    const int ngroup = model.param.num_output_group;
-    preds.resize(p_fmat->info().num_row * ngroup);
+    const int ngroup = model_.param.num_output_group;
+    preds.resize(p_fmat->Info().num_row_ * ngroup);
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
-      const omp_ulong nsize = static_cast<omp_ulong>(batch.size);
+      const auto nsize = static_cast<omp_ulong>(batch.size);
       #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
@@ -221,14 +221,14 @@ class GBLinear : public GradientBooster {
         }
       }
     }
-    monitor.Stop("PredictBatchInternal");
+    monitor_.Stop("PredictBatchInternal");
   }
   void UpdatePredictionCache() {
     // update cache entry
     for (auto &kv : cache_) {
       PredictionCacheEntry &e = kv.second;
       if (e.predictions.size() == 0) {
-        size_t n = model.param.num_output_group * e.data->info().num_row;
+        size_t n = model_.param.num_output_group * e.data->Info().num_row_;
         e.predictions.resize(n);
       }
       this->PredictBatchInternal(e.data.get(), &e.predictions);
@@ -236,53 +236,53 @@ class GBLinear : public GradientBooster {
   }
 
   bool CheckConvergence() {
-    if (param.tolerance == 0.0f) return false;
-    if (is_converged) return true;
-    if (previous_model.weight.size() != model.weight.size()) {
-      previous_model = model;
+    if (param_.tolerance == 0.0f) return false;
+    if (is_converged_) return true;
+    if (previous_model_.weight.size() != model_.weight.size()) {
+      previous_model_ = model_;
       return false;
     }
     float largest_dw = 0.0;
-    for (size_t i = 0; i < model.weight.size(); i++) {
+    for (size_t i = 0; i < model_.weight.size(); i++) {
       largest_dw = std::max(
-          largest_dw, std::abs(model.weight[i] - previous_model.weight[i]));
+          largest_dw, std::abs(model_.weight[i] - previous_model_.weight[i]));
     }
-    previous_model = model;
+    previous_model_ = model_;
 
-    is_converged = largest_dw <= param.tolerance;
-    return is_converged;
+    is_converged_ = largest_dw <= param_.tolerance;
+    return is_converged_;
   }
 
   void LazySumWeights(DMatrix *p_fmat) {
-    if (!sum_weight_complete) {
-      auto &info = p_fmat->info();
-      for (size_t i = 0; i < info.num_row; i++) {
-        sum_instance_weight += info.GetWeight(i);
+    if (!sum_weight_complete_) {
+      auto &info = p_fmat->Info();
+      for (size_t i = 0; i < info.num_row_; i++) {
+        sum_instance_weight_ += info.GetWeight(i);
       }
-      sum_weight_complete = true;
+      sum_weight_complete_ = true;
     }
   }
 
   inline void Pred(const RowBatch::Inst &inst, bst_float *preds, int gid,
                    bst_float base) {
-    bst_float psum = model.bias()[gid] + base;
+    bst_float psum = model_.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {
-      if (inst[i].index >= model.param.num_feature) continue;
-      psum += inst[i].fvalue * model[inst[i].index][gid];
+      if (inst[i].index >= model_.param.num_feature) continue;
+      psum += inst[i].fvalue * model_[inst[i].index][gid];
     }
     preds[gid] = psum;
   }
   // biase margin score
   bst_float base_margin_;
   // model field
-  GBLinearModel model;
-  GBLinearModel previous_model;
-  GBLinearTrainParam param;
-  std::unique_ptr<LinearUpdater> updater;
-  double sum_instance_weight;
-  bool sum_weight_complete;
-  common::Monitor monitor;
-  bool is_converged;
+  GBLinearModel model_;
+  GBLinearModel previous_model_;
+  GBLinearTrainParam param_;
+  std::unique_ptr<LinearUpdater> updater_;
+  double sum_instance_weight_;
+  bool sum_weight_complete_;
+  common::Monitor monitor_;
+  bool is_converged_;
 
   /**
    * \struct  PredictionCacheEntry

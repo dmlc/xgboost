@@ -24,33 +24,33 @@ class ConfigReaderBase {
    * \brief get current name, called after Next returns true
    * \return current parameter name
    */
-  inline const char *name(void) const {
-    return s_name.c_str();
+  inline const char *Name() const {
+    return s_name_.c_str();
   }
   /*!
    * \brief get current value, called after Next returns true
    * \return current parameter value
    */
-  inline const char *val(void) const {
-    return s_val.c_str();
+  inline const char *Val() const {
+    return s_val_.c_str();
   }
   /*!
    * \brief move iterator to next position
    * \return true if there is value in next position
    */
-  inline bool Next(void) {
+  inline bool Next() {
     while (!this->IsEnd()) {
-      GetNextToken(&s_name);
-      if (s_name == "=") return false;
-      if (GetNextToken(&s_buf) || s_buf != "=")  return false;
-      if (GetNextToken(&s_val) || s_val == "=")  return false;
+      GetNextToken(&s_name_);
+      if (s_name_ == "=") return false;
+      if (GetNextToken(&s_buf_) || s_buf_ != "=")  return false;
+      if (GetNextToken(&s_val_) || s_val_ == "=")  return false;
       return true;
     }
     return false;
   }
   // called before usage
-  inline void Init(void) {
-    ch_buf = this->GetChar();
+  inline void Init() {
+    ch_buf_ = this->GetChar();
   }
 
  protected:
@@ -58,38 +58,38 @@ class ConfigReaderBase {
    * \brief to be implemented by subclass,
    * get next token, return EOF if end of file
    */
-  virtual char GetChar(void) = 0;
+  virtual char GetChar() = 0;
   /*! \brief to be implemented by child, check if end of stream */
-  virtual bool IsEnd(void) = 0;
+  virtual bool IsEnd() = 0;
 
  private:
-  char ch_buf;
-  std::string s_name, s_val, s_buf;
+  char ch_buf_;
+  std::string s_name_, s_val_, s_buf_;
 
-  inline void SkipLine(void) {
+  inline void SkipLine() {
     do {
-      ch_buf = this->GetChar();
-    } while (ch_buf != EOF && ch_buf != '\n' && ch_buf != '\r');
+      ch_buf_ = this->GetChar();
+    } while (ch_buf_ != EOF && ch_buf_ != '\n' && ch_buf_ != '\r');
   }
 
   inline void ParseStr(std::string *tok) {
-    while ((ch_buf = this->GetChar()) != EOF) {
-      switch (ch_buf) {
+    while ((ch_buf_ = this->GetChar()) != EOF) {
+      switch (ch_buf_) {
         case '\\': *tok += this->GetChar(); break;
         case '\"': return;
         case '\r':
         case '\n': LOG(FATAL)<< "ConfigReader: unterminated string";
-        default: *tok += ch_buf;
+        default: *tok += ch_buf_;
       }
     }
     LOG(FATAL) << "ConfigReader: unterminated string";
   }
   inline void ParseStrML(std::string *tok) {
-    while ((ch_buf = this->GetChar()) != EOF) {
-      switch (ch_buf) {
+    while ((ch_buf_ = this->GetChar()) != EOF) {
+      switch (ch_buf_) {
         case '\\': *tok += this->GetChar(); break;
         case '\'': return;
-        default: *tok += ch_buf;
+        default: *tok += ch_buf_;
       }
     }
     LOG(FATAL) << "unterminated string";
@@ -98,24 +98,24 @@ class ConfigReaderBase {
   inline bool GetNextToken(std::string *tok) {
     tok->clear();
     bool new_line = false;
-    while (ch_buf != EOF) {
-      switch (ch_buf) {
+    while (ch_buf_ != EOF) {
+      switch (ch_buf_) {
         case '#' : SkipLine(); new_line = true; break;
         case '\"':
           if (tok->length() == 0) {
-            ParseStr(tok); ch_buf = this->GetChar(); return new_line;
+            ParseStr(tok); ch_buf_ = this->GetChar(); return new_line;
           } else {
             LOG(FATAL) << "ConfigReader: token followed directly by string";
           }
         case '\'':
           if (tok->length() == 0) {
-            ParseStrML(tok); ch_buf = this->GetChar(); return new_line;
+            ParseStrML(tok); ch_buf_ = this->GetChar(); return new_line;
           } else {
             LOG(FATAL) << "ConfigReader: token followed directly by string";
           }
         case '=':
           if (tok->length() == 0) {
-            ch_buf = this->GetChar();
+            ch_buf_ = this->GetChar();
             *tok = '=';
           }
           return new_line;
@@ -124,12 +124,12 @@ class ConfigReaderBase {
           if (tok->length() == 0) new_line = true;
         case '\t':
         case ' ' :
-          ch_buf = this->GetChar();
+          ch_buf_ = this->GetChar();
           if (tok->length() != 0) return new_line;
           break;
         default:
-          *tok += ch_buf;
-          ch_buf = this->GetChar();
+          *tok += ch_buf_;
+          ch_buf_ = this->GetChar();
           break;
       }
     }
@@ -149,19 +149,19 @@ class ConfigStreamReader: public ConfigReaderBase {
    * \brief constructor
    * \param fin istream input stream
    */
-  explicit ConfigStreamReader(std::istream &fin) : fin(fin) {}
+  explicit ConfigStreamReader(std::istream &fin) : fin_(fin) {}
 
  protected:
-  virtual char GetChar(void) {
-    return fin.get();
+  char GetChar() override {
+    return fin_.get();
   }
   /*! \brief to be implemented by child, check if end of stream */
-  virtual bool IsEnd(void) {
-    return fin.eof();
+  bool IsEnd() override {
+    return fin_.eof();
   }
 
  private:
-  std::istream &fin;
+  std::istream &fin_;
 };
 
 /*!
@@ -173,20 +173,20 @@ class ConfigIterator: public ConfigStreamReader {
    * \brief constructor
    * \param fname name of configure file
    */
-  explicit ConfigIterator(const char *fname) : ConfigStreamReader(fi) {
-    fi.open(fname);
-    if (fi.fail()) {
+  explicit ConfigIterator(const char *fname) : ConfigStreamReader(fi_) {
+    fi_.open(fname);
+    if (fi_.fail()) {
       LOG(FATAL) << "cannot open file " << fname;
     }
     ConfigReaderBase::Init();
   }
   /*! \brief destructor */
-  ~ConfigIterator(void) {
-    fi.close();
+  ~ConfigIterator() {
+    fi_.close();
   }
 
  private:
-  std::ifstream fi;
+  std::ifstream fi_;
 };
 }  // namespace common
 }  // namespace xgboost

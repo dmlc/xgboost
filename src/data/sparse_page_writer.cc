@@ -34,7 +34,7 @@ SparsePage::Writer::Writer(
           fo->Write(format_shard);
           std::shared_ptr<SparsePage> page;
           while (wqueue->Pop(&page)) {
-            if (page.get() == nullptr) break;
+            if (page == nullptr) break;
             fmt->Write(*page, fo.get());
             qrecycle_.Push(std::move(page));
           }
@@ -61,7 +61,7 @@ void SparsePage::Writer::PushWrite(std::shared_ptr<SparsePage>&& page) {
 }
 
 void SparsePage::Writer::Alloc(std::shared_ptr<SparsePage>* out_page) {
-  CHECK(out_page->get() == nullptr);
+  CHECK(*out_page == nullptr);
   if (num_free_buffer_ != 0) {
     out_page->reset(new SparsePage());
     --num_free_buffer_;

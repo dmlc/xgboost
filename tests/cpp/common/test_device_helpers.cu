@@ -38,7 +38,7 @@ void SpeedTest() {
 
   xgboost::common::Timer t;
   dh::TransformLbs(
-      0, &temp_memory, h_rows.size(), dh::raw(row_ptr), row_ptr.size() - 1,
+      0, &temp_memory, h_rows.size(), dh::Raw(row_ptr), row_ptr.size() - 1,
       false,
       [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });
 
@@ -66,7 +66,7 @@ void TestLbs() {
       thrust::device_vector<int> output_row(h_rows.size());
       auto d_output_row = output_row.data();
 
-      dh::TransformLbs(0, &temp_memory, h_rows.size(), dh::raw(row_ptr),
+      dh::TransformLbs(0, &temp_memory, h_rows.size(), dh::Raw(row_ptr),
                        row_ptr.size() - 1, false,
                        [=] __device__(size_t idx, size_t ridx) {
                          d_output_row[idx] = ridx;
@@ -83,6 +83,6 @@ TEST(cub_lbs, Test) { TestLbs(); }
 TEST(sumReduce, Test) {
   thrust::device_vector<float> data(100, 1.0f);
   dh::CubMemory temp;
-  auto sum = dh::sumReduction(temp, dh::raw(data), data.size());
+  auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }

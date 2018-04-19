@@ -15,7 +15,7 @@ namespace common {
 /*!
  * \brief Define mt19937 as default type Random Engine.
  */
-typedef std::mt19937 RandomEngine;
+using RandomEngine = std::mt19937;
 
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 /*!
@@ -56,7 +56,7 @@ typedef CustomGlobalRandomEngine GlobalRandomEngine;
 /*!
  * \brief global random engine
  */
-typedef RandomEngine GlobalRandomEngine;
+using GlobalRandomEngine = RandomEngine;
 #endif
 
 /*!

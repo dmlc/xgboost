@@ -70,10 +70,10 @@ class HostDeviceVector {
   HostDeviceVector(HostDeviceVector<T>&&) = delete;
   void operator=(const HostDeviceVector<T>&) = delete;
   void operator=(HostDeviceVector<T>&&) = delete;
-  size_t size() const;
-  int device() const;
-  T* ptr_d(int device);
-  T* ptr_h() { return data_h().data(); }
+  size_t Size() const;
+  int DeviceIdx() const;
+  T* DevicePointer(int device);
+  T* HostPointer() { return HostVector().data(); }
 
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
@@ -82,10 +82,10 @@ class HostDeviceVector {
   thrust::device_ptr<T> tend(int device);
 #endif
 
-  std::vector<T>& data_h();
+  std::vector<T>& HostVector();
 
   // passing in new_device == -1 keeps the device as is
-  void resize(size_t new_size, T v = T(), int new_device = -1);
+  void Resize(size_t new_size, T v = T(), int new_device = -1);
 
  private:
   HostDeviceVectorImpl<T>* impl_;

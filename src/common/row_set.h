@@ -21,18 +21,18 @@ class RowSetCollection {
    *  rows (instances) associated with a particular node in a decision
    *  tree. */
   struct Elem {
-    const size_t* begin;
-    const size_t* end;
-    int node_id;
+    const size_t* begin{nullptr};
+    const size_t* end{nullptr};
+    int node_id{-1};
       // id of node associated with this instance set; -1 means uninitialized
-    Elem(void)
-        : begin(nullptr), end(nullptr), node_id(-1) {}
+    Elem()
+         = default;
     Elem(const size_t* begin,
          const size_t* end,
          int node_id)
         : begin(begin), end(end), node_id(node_id) {}
 
-    inline size_t size() const {
+    inline size_t Size() const {
       return end - begin;
     }
   };
@@ -42,11 +42,11 @@ class RowSetCollection {
     std::vector<size_t> right;
   };
 
-  inline std::vector<Elem>::const_iterator begin() const {
+  inline std::vector<Elem>::const_iterator begin() const {  // NOLINT
     return elem_of_each_node_.begin();
   }
 
-  inline std::vector<Elem>::const_iterator end() const {
+  inline std::vector<Elem>::const_iterator end() const {  // NOLINT
     return elem_of_each_node_.end();
   }
 
@@ -88,7 +88,7 @@ class RowSetCollection {
                        unsigned left_node_id,
                        unsigned right_node_id) {
     const Elem e = elem_of_each_node_[node_id];
-    const bst_omp_uint nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
+    const auto nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
     CHECK(e.begin != nullptr);
     size_t* all_begin = dmlc::BeginPtr(row_indices_);
     size_t* begin = all_begin + (e.begin - all_begin);

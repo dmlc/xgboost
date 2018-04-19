@@ -68,10 +68,10 @@ inline Float8 round(const Float8& x) {
 
 // Overload std::max/min
 namespace std {
-inline avx::Float8 max(const avx::Float8& a, const avx::Float8& b) {
+inline avx::Float8 max(const avx::Float8& a, const avx::Float8& b) {  // NOLINT
   return avx::Float8(_mm256_max_ps(a.x, b.x));
 }
-inline avx::Float8 min(const avx::Float8& a, const avx::Float8& b) {
+inline avx::Float8 min(const avx::Float8& a, const avx::Float8& b) {  // NOLINT
   return avx::Float8(_mm256_min_ps(a.x, b.x));
 }
 }  // namespace std
@@ -172,7 +172,7 @@ inline Float8 Sigmoid(Float8 x) {
 }
 
 // Store 8 gradient pairs given vectors containing gradient and Hessian
-inline void StoreGpair(xgboost::bst_gpair* dst, const Float8& grad,
+inline void StoreGpair(xgboost::GradientPair* dst, const Float8& grad,
                        const Float8& hess) {
   float* ptr = reinterpret_cast<float*>(dst);
   __m256 gpair_low = _mm256_unpacklo_ps(grad.x, hess.x);
@@ -190,11 +190,11 @@ namespace avx {
  * \brief Fallback implementation not using AVX.
  */
 
-struct Float8 {
+struct Float8 {  // NOLINT
   float x[8];
   explicit Float8(const float& val) {
-    for (int i = 0; i < 8; i++) {
-      x[i] = val;
+    for (float & i : x) {
+      i = val;
     }
   }
   explicit Float8(const float* vec) {
@@ -202,7 +202,7 @@ struct Float8 {
       x[i] = vec[i];
     }
   }
-  Float8() {}
+  Float8() = default;
   Float8& operator+=(const Float8& rhs) {
     for (int i = 0; i < 8; i++) {
       x[i] += rhs.x[i];
@@ -228,7 +228,7 @@ struct Float8 {
     return *this;
   }
   void Print() {
-    float* f = reinterpret_cast<float*>(&x);
+    auto* f = reinterpret_cast<float*>(&x);
     printf("%f %f %f %f %f %f %f %f\n", f[0], f[1], f[2], f[3], f[4], f[5],
            f[6], f[7]);
   }
@@ -252,10 +252,10 @@ inline Float8 operator/(Float8 lhs, const Float8& rhs) {
 }
 
 // Store 8 gradient pairs given vectors containing gradient and Hessian
-inline void StoreGpair(xgboost::bst_gpair* dst, const Float8& grad,
+inline void StoreGpair(xgboost::GradientPair* dst, const Float8& grad,
                        const Float8& hess) {
   for (int i = 0; i < 8; i++) {
-    dst[i] = xgboost::bst_gpair(grad.x[i], hess.x[i]);
+    dst[i] = xgboost::GradientPair(grad.x[i], hess.x[i]);
   }
 }
 
@@ -269,14 +269,14 @@ inline Float8 Sigmoid(Float8 x) {
 }  // namespace avx
 
 namespace std {
-inline avx::Float8 max(const avx::Float8& a, const avx::Float8& b) {
+inline avx::Float8 max(const avx::Float8& a, const avx::Float8& b) {  // NOLINT
   avx::Float8 max;
   for (int i = 0; i < 8; i++) {
     max.x[i] = std::max(a.x[i], b.x[i]);
   }
   return max;
 }
-inline avx::Float8 min(const avx::Float8& a, const avx::Float8& b) {
+inline avx::Float8 min(const avx::Float8& a, const avx::Float8& b) {  // NOLINT
   avx::Float8 min;
   for (int i = 0; i < 8; i++) {
     min.x[i] = std::min(a.x[i], b.x[i]);

@@ -18,7 +18,7 @@ void SimpleCSRSource::Clear() {
 
 void SimpleCSRSource::CopyFrom(DMatrix* src) {
   this->Clear();
-  this->info = src->info();
+  this->info = src->Info();
   dmlc::DataIter<RowBatch>* iter = src->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
@@ -36,10 +36,10 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
     if (batch.label != nullptr) {
-      info.labels.insert(info.labels.end(), batch.label, batch.label + batch.size);
+      info.labels_.insert(info.labels_.end(), batch.label, batch.label + batch.size);
     }
     if (batch.weight != nullptr) {
-      info.weights.insert(info.weights.end(), batch.weight, batch.weight + batch.size);
+      info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
     }
     // Remove the assertion on batch.index, which can be null in the case that the data in this
     // batch is entirely sparse. Although it's true that this indicates a likely issue with the
@@ -48,13 +48,13 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     // CHECK(batch.index != nullptr);
 
     // update information
-    this->info.num_row += batch.size;
+    this->info.num_row_ += batch.size;
     // copy the data over
     for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
       uint32_t index = batch.index[i];
       bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-      row_data_.push_back(SparseBatch::Entry(index, fvalue));
-      this->info.num_col = std::max(this->info.num_col,
+      row_data_.emplace_back(index, fvalue);
+      this->info.num_col_ = std::max(this->info.num_col_,
                                     static_cast<uint64_t>(index + 1));
     }
     size_t top = row_ptr_.size();
@@ -62,7 +62,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       row_ptr_.push_back(row_ptr_[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
-  this->info.num_nonzero = static_cast<uint64_t>(row_data_.size());
+  this->info.num_nonzero_ = static_cast<uint64_t>(row_data_.size());
 }
 
 void SimpleCSRSource::LoadBinary(dmlc::Stream* fi) {

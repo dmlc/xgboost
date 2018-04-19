@@ -40,17 +40,17 @@ class LambdaRankObj : public ObjFunction {
   void GetGradient(HostDeviceVector<bst_float>* preds,
                    const MetaInfo& info,
                    int iter,
-                   HostDeviceVector<bst_gpair>* out_gpair) override {
-    CHECK_EQ(preds->size(), info.labels.size()) << "label size predict size not match";
-    auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size());
-    std::vector<bst_gpair>& gpair = out_gpair->data_h();
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    CHECK_EQ(preds->Size(), info.labels_.size()) << "label size predict size not match";
+    auto& preds_h = preds->HostVector();
+    out_gpair->Resize(preds_h.size());
+    std::vector<GradientPair>& gpair = out_gpair->HostVector();
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
-    const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
-    CHECK(gptr.size() != 0 && gptr.back() == info.labels.size())
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels_.size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+    CHECK(gptr.size() != 0 && gptr.back() == info.labels_.size())
         << "group structure not consistent with #rows";
-    const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
+    const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     #pragma omp parallel
     {
       // parall construct, declare random number generator here, so that each
@@ -64,8 +64,8 @@ class LambdaRankObj : public ObjFunction {
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
-          lst.push_back(ListEntry(preds_h[j], info.labels[j], j));
-          gpair[j] = bst_gpair(0.0f, 0.0f);
+          lst.emplace_back(preds_h[j], info.labels_[j], j);
+          gpair[j] = GradientPair(0.0f, 0.0f);
         }
         std::sort(lst.begin(), lst.end(), ListEntry::CmpPred);
         rec.resize(lst.size());
@@ -85,9 +85,9 @@ class LambdaRankObj : public ObjFunction {
               for (unsigned pid = i; pid < j; ++pid) {
                 unsigned ridx = std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
                 if (ridx < nleft) {
-                  pairs.push_back(LambdaPair(rec[ridx].second, rec[pid].second));
+                  pairs.emplace_back(rec[ridx].second, rec[pid].second);
                 } else {
-                  pairs.push_back(LambdaPair(rec[pid].second, rec[ridx+j-i].second));
+                  pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second);
                 }
               }
             }
@@ -101,22 +101,22 @@ class LambdaRankObj : public ObjFunction {
         if (param_.fix_list_weight != 0.0f) {
           scale *= param_.fix_list_weight / (gptr[k + 1] - gptr[k]);
         }
-        for (size_t i = 0; i < pairs.size(); ++i) {
-          const ListEntry &pos = lst[pairs[i].pos_index];
-          const ListEntry &neg = lst[pairs[i].neg_index];
-          const bst_float w = pairs[i].weight * scale;
+        for (auto & pair : pairs) {
+          const ListEntry &pos = lst[pair.pos_index];
+          const ListEntry &neg = lst[pair.neg_index];
+          const bst_float w = pair.weight * scale;
           const float eps = 1e-16f;
           bst_float p = common::Sigmoid(pos.pred - neg.pred);
           bst_float g = p - 1.0f;
           bst_float h = std::max(p * (1.0f - p), eps);
           // accumulate gradient and hessian in both pid, and nid
-          gpair[pos.rindex] += bst_gpair(g * w, 2.0f*w*h);
-          gpair[neg.rindex] += bst_gpair(-g * w, 2.0f*w*h);
+          gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
+          gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
         }
       }
     }
   }
-  const char* DefaultEvalMetric(void) const override {
+  const char* DefaultEvalMetric() const override {
     return "map";
   }
 
@@ -177,7 +177,7 @@ class LambdaRankObjNDCG : public LambdaRankObj {
   void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                        std::vector<LambdaPair> *io_pairs) override {
     std::vector<LambdaPair> &pairs = *io_pairs;
-    float IDCG;
+    float IDCG;  // NOLINT
     {
       std::vector<bst_float> labels(sorted_list.size());
       for (size_t i = 0; i < sorted_list.size(); ++i) {
@@ -187,32 +187,32 @@ class LambdaRankObjNDCG : public LambdaRankObj {
       IDCG = CalcDCG(labels);
     }
     if (IDCG == 0.0) {
-      for (size_t i = 0; i < pairs.size(); ++i) {
-        pairs[i].weight = 0.0f;
+      for (auto & pair : pairs) {
+        pair.weight = 0.0f;
       }
     } else {
       IDCG = 1.0f / IDCG;
-      for (size_t i = 0; i < pairs.size(); ++i) {
-        unsigned pos_idx = pairs[i].pos_index;
-        unsigned neg_idx = pairs[i].neg_index;
+      for (auto & pair : pairs) {
+        unsigned pos_idx = pair.pos_index;
+        unsigned neg_idx = pair.neg_index;
         float pos_loginv = 1.0f / std::log2(pos_idx + 2.0f);
         float neg_loginv = 1.0f / std::log2(neg_idx + 2.0f);
-        int pos_label = static_cast<int>(sorted_list[pos_idx].label);
-        int neg_label = static_cast<int>(sorted_list[neg_idx].label);
+        auto pos_label = static_cast<int>(sorted_list[pos_idx].label);
+        auto neg_label = static_cast<int>(sorted_list[neg_idx].label);
         bst_float original =
             ((1 << pos_label) - 1) * pos_loginv + ((1 << neg_label) - 1) * neg_loginv;
         float changed  =
             ((1 << neg_label) - 1) * pos_loginv + ((1 << pos_label) - 1) * neg_loginv;
         bst_float delta = (original - changed) * IDCG;
         if (delta < 0.0f) delta = - delta;
-        pairs[i].weight = delta;
+        pair.weight = delta;
       }
     }
   }
   inline static bst_float CalcDCG(const std::vector<bst_float> &labels) {
     double sumdcg = 0.0;
     for (size_t i = 0; i < labels.size(); ++i) {
-      const unsigned rel = static_cast<unsigned>(labels[i]);
+      const auto rel = static_cast<unsigned>(labels[i]);
       if (rel != 0) {
         sumdcg += ((1 << rel) - 1) / std::log2(static_cast<bst_float>(i + 2));
       }
@@ -238,7 +238,7 @@ class LambdaRankObjMAP : public LambdaRankObj {
     float ap_acc_add;
     /* \brief the accumulated positive instance count */
     float hits;
-    MAPStats(void) {}
+    MAPStats() = default;
     MAPStats(float ap_acc, float ap_acc_miss, float ap_acc_add, float hits)
         : ap_acc(ap_acc), ap_acc_miss(ap_acc_miss), ap_acc_add(ap_acc_add), hits(hits) {}
   };
@@ -300,10 +300,10 @@ class LambdaRankObjMAP : public LambdaRankObj {
     std::vector<LambdaPair> &pairs = *io_pairs;
     std::vector<MAPStats> map_stats;
     GetMAPStats(sorted_list, &map_stats);
-    for (size_t i = 0; i < pairs.size(); ++i) {
-      pairs[i].weight =
-          GetLambdaMAP(sorted_list, pairs[i].pos_index,
-                       pairs[i].neg_index, &map_stats);
+    for (auto & pair : pairs) {
+      pair.weight =
+          GetLambdaMAP(sorted_list, pair.pos_index,
+                       pair.neg_index, &map_stats);
     }
   }
 };

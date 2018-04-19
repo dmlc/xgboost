@@ -15,8 +15,8 @@
 
 namespace xgboost {
 namespace common {
-typedef rabit::utils::MemoryFixSizeBuffer MemoryFixSizeBuffer;
-typedef rabit::utils::MemoryBufferStream MemoryBufferStream;
+using MemoryFixSizeBuffer = rabit::utils::MemoryFixSizeBuffer;
+using MemoryBufferStream = rabit::utils::MemoryBufferStream;
 
 /*!
  * \brief Input stream that support additional PeekRead

@@ -42,7 +42,7 @@ struct BitMap {
   inline void InitFromBool(const std::vector<int>& vec) {
     this->Resize(vec.size());
     // parallel over the full cases
-    bst_omp_uint nsize = static_cast<bst_omp_uint>(vec.size() / 32);
+    auto nsize = static_cast<bst_omp_uint>(vec.size() / 32);
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < nsize; ++i) {
       uint32_t res = 0;

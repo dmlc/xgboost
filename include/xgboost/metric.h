@@ -35,7 +35,7 @@ class Metric {
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */
-  virtual ~Metric() {}
+  virtual ~Metric() = default;
   /*!
    * \brief create a metric according to name.
    * \param name name of the metric.

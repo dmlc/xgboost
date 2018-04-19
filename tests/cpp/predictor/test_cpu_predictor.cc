@@ -11,8 +11,8 @@ TEST(cpu_predictor, Test) {
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   trees.back()->InitModel();
-  (*trees.back())[0].set_leaf(1.5f);
-  (*trees.back()).stat(0).sum_hess = 1.0f;
+  (*trees.back())[0].SetLeaf(1.5f);
+  (*trees.back()).Stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);
   model.CommitModel(std::move(trees), 0);
   model.param.num_output_group = 1;
@@ -26,8 +26,8 @@ TEST(cpu_predictor, Test) {
   // Test predict batch
   HostDeviceVector<float> out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  std::vector<float>& out_predictions_h = out_predictions.data_h();
-  for (int i = 0; i < out_predictions.size(); i++) {
+  std::vector<float>& out_predictions_h = out_predictions.HostVector();
+  for (int i = 0; i < out_predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
