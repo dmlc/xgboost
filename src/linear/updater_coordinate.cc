@@ -116,15 +116,14 @@ class CoordinateUpdater : public LinearUpdater {
                             DMatrix *p_fmat, gbm::GBLinearModel *model) {
     const int ngroup = model->param.num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
-    auto gradient = GetGradientParallel(
-        group_idx, model->param.num_output_group, fidx, *in_gpair, p_fmat);
+    auto gradient =
+        GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);
     auto dw = static_cast<float>(
         param.learning_rate *
         CoordinateDelta(gradient.first, gradient.second, w, param.reg_alpha_denorm,
                         param.reg_lambda_denorm));
     w += dw;
-    UpdateResidualParallel(fidx, group_idx, model->param.num_output_group, dw,
-                           in_gpair, p_fmat);
+    UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
   }
 
   // training parameter

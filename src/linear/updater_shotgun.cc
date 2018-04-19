@@ -64,6 +64,7 @@ class ShotgunUpdater : public LinearUpdater {
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     std::vector<GradientPair> &gpair = in_gpair->HostVector();
+    param_.DenormalizePenalties(sum_instance_weight);
     const int ngroup = model->param.num_output_group;
 
     // update bias

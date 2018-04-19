@@ -997,13 +997,13 @@ class AllReducer {
  * single controlling thread for each element.
  *
  * \tparam  T       Generic type parameter.
- * \tparam  func_t  Type of the function t.
+ * \tparam  FunctionT  Type of the function t.
  * \param shards  The shards.
  * \param f       The func_t to process.
  */
 
-template <typename T, typename func_t>
-void ExecuteShards(std::vector<T> *shards, func_t f) {
+template <typename T, typename FunctionT>
+void ExecuteShards(std::vector<T> *shards, FunctionT f) {
   auto previous_num_threads = omp_get_max_threads();
   omp_set_num_threads(shards->size());
 #pragma omp parallel
@@ -1018,26 +1018,26 @@ void ExecuteShards(std::vector<T> *shards, func_t f) {
  * \brief Executes some operation on each element of the input vector, using a single controlling
  *        thread for each element, returns the sum of the results.
  *
- * \tparam  reduce_t  Type of the reduce t.
+ * \tparam  ReduceT  Type of the reduce t.
  * \tparam  T         Generic type parameter.
- * \tparam  func_t    Type of the function t.
+ * \tparam  FunctionT    Type of the function t.
  * \param shards  The shards.
  * \param f       The func_t to process.
  *
  * \return  A reduce_t.
  */
 
-template <typename reduce_t,typename T, typename func_t>
-reduce_t ReduceShards(std::vector<T> *shards, func_t f) {
+template <typename ReduceT,typename T, typename FunctionT>
+ReduceT ReduceShards(std::vector<T> *shards, FunctionT f) {
   auto previous_num_threads = omp_get_max_threads();
   omp_set_num_threads(shards->size());
-  std::vector<reduce_t> sums(shards->size());
+  std::vector<ReduceT> sums(shards->size());
 #pragma omp parallel
   {
     auto cpu_thread_id = omp_get_thread_num();
     sums[cpu_thread_id] = f(shards->at(cpu_thread_id));
   }
   omp_set_num_threads(previous_num_threads);
-  return std::accumulate(sums.begin(), sums.end(), reduce_t());
+  return std::accumulate(sums.begin(), sums.end(), ReduceT());
 }
 }  // namespace dh
