@@ -376,7 +376,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->data(), begin.get(), size() * sizeof(T),
+    safe_cuda(cudaMemcpy(this->Data(), begin.get(), Size() * sizeof(T),
                          cudaMemcpyDefault));
   }
 };
@@ -544,7 +544,7 @@ struct CubMemory {
   size_t temp_storage_bytes;
 
   // Thrust
-   using ValueT = char;
+  using value_type = char;  // NOLINT
 
   CubMemory() : d_temp_storage(nullptr), temp_storage_bytes(0) {}
 
@@ -807,18 +807,20 @@ void SumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
 * @param nVals number of elements in the input array
 */
 template <typename T>
-T SumReduction(dh::CubMemory &tmp_mem, T *in, int nVals) {
+typename std::iterator_traits<T>::value_type SumReduction(dh::CubMemory &tmp_mem, T in, int nVals) {
+  using ValueT = typename std::iterator_traits<T>::value_type;
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, in, nVals));
   // Allocate small extra memory for the return value
-  tmp_mem.LazyAllocate(tmpSize + sizeof(T));
-  auto ptr = reinterpret_cast<T *>(tmp_mem.d_temp_storage) + 1;
+  tmp_mem.LazyAllocate(tmpSize + sizeof(ValueT));
+  auto ptr = reinterpret_cast<ValueT *>(tmp_mem.d_temp_storage) + 1;
   dh::safe_cuda(cub::DeviceReduce::Sum(
-    reinterpret_cast<void *>(ptr), tmpSize, in,
-    reinterpret_cast<T *>(tmp_mem.d_temp_storage), nVals));
-  T sum;
-  dh::safe_cuda(cudaMemcpy(&sum, tmp_mem.d_temp_storage, sizeof(T),
-    cudaMemcpyDeviceToHost));
+      reinterpret_cast<void *>(ptr), tmpSize, in,
+      reinterpret_cast<ValueT *>(tmp_mem.d_temp_storage),
+      nVals));
+  ValueT sum;
+  dh::safe_cuda(cudaMemcpy(&sum, tmp_mem.d_temp_storage, sizeof(ValueT),
+                           cudaMemcpyDeviceToHost));
   return sum;
 }
 

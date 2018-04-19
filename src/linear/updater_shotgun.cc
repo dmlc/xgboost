@@ -76,7 +76,8 @@ class ShotgunUpdater : public LinearUpdater {
     }
 
     // lock-free parallel updates of weights
-    selector_->Setup(*model, in_gpair->HostVector(), p_fmat, param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
+    selector_->Setup(*model, in_gpair->HostVector(), p_fmat,
+                     param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
