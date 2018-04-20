@@ -27,7 +27,7 @@ namespace xgboost {
 class GradientBooster {
  public:
   /*! \brief virtual destructor */
-  virtual ~GradientBooster() {}
+  virtual ~GradientBooster() = default;
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.
@@ -69,7 +69,7 @@ class GradientBooster {
    * the booster may change content of gpair
    */
   virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<bst_gpair>* in_gpair,
+                       HostDeviceVector<GradientPair>* in_gpair,
                        ObjFunction* obj = nullptr) = 0;
 
   /*!

@@ -15,7 +15,7 @@
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 
 #else
-__device__ __forceinline__ double atomicAdd(double* address, double val) {
+XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull =
       (unsigned long long int*)address;                   // NOLINT
   unsigned long long int old = *address_as_ull, assumed;  // NOLINT
@@ -37,8 +37,8 @@ namespace xgboost {
 namespace tree {
 
 // Atomic add function for double precision gradients
-__device__ __forceinline__ void AtomicAddGpair(bst_gpair_precise* dest,
-                                               const bst_gpair& gpair) {
+__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
+                                               const GradientPair& gpair) {
   auto dst_ptr = reinterpret_cast<double*>(dest);
 
   atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
@@ -46,11 +46,11 @@ __device__ __forceinline__ void AtomicAddGpair(bst_gpair_precise* dest,
 }
 
 // For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(bst_gpair_integer* dest,
-                                               const bst_gpair& gpair) {
+__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
+                                               const GradientPair& gpair) {
   auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
-  bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
-  auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
+  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
 
   atomicAdd(dst_ptr,
             static_cast<unsigned long long int>(*src_ptr));  // NOLINT
@@ -59,13 +59,11 @@ __device__ __forceinline__ void AtomicAddGpair(bst_gpair_integer* dest,
 }
 
 /**
- * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
- *
  * \brief Check maximum gradient value is below 2^16. This is to prevent
  * overflow when using integer gradient summation.
  */
 
-inline void CheckGradientMax(const std::vector<bst_gpair>& gpair) {
+inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
   auto* ptr = reinterpret_cast<const float*>(gpair.data());
   float abs_max =
       std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
@@ -87,19 +85,19 @@ struct GPUTrainingParam {
   // default=0 means no constraint on weight delta
   float max_delta_step;
 
-  __host__ __device__ GPUTrainingParam() {}
+  GPUTrainingParam() = default;
 
-  __host__ __device__ GPUTrainingParam(const TrainParam& param)
+  XGBOOST_DEVICE explicit GPUTrainingParam(const TrainParam& param)
       : min_child_weight(param.min_child_weight),
         reg_lambda(param.reg_lambda),
         reg_alpha(param.reg_alpha),
         max_delta_step(param.max_delta_step) {}
 };
 
-typedef int node_id_t;
+using NodeIdT = int;
 
 /** used to assign default id to a Node */
-static const int UNUSED_NODE = -1;
+static const int kUnusedNode = -1;
 
 /**
  * @enum DefaultDirection node.cuh
@@ -107,9 +105,9 @@ static const int UNUSED_NODE = -1;
  */
 enum DefaultDirection {
   /** move to left child */
-  LeftDir = 0,
+  kLeftDir = 0,
   /** move to right child */
-  RightDir
+  kRightDir
 };
 
 struct DeviceSplitCandidate {
@@ -117,15 +115,15 @@ struct DeviceSplitCandidate {
   DefaultDirection dir;
   float fvalue;
   int findex;
-  bst_gpair_integer left_sum;
-  bst_gpair_integer right_sum;
+  GradientPair left_sum;
+  GradientPair right_sum;
 
-  __host__ __device__ DeviceSplitCandidate()
-      : loss_chg(-FLT_MAX), dir(LeftDir), fvalue(0), findex(-1) {}
+  XGBOOST_DEVICE DeviceSplitCandidate()
+      : loss_chg(-FLT_MAX), dir(kLeftDir), fvalue(0), findex(-1) {}
 
-  template <typename param_t>
-  __host__ __device__ void Update(const DeviceSplitCandidate& other,
-                                  const param_t& param) {
+  template <typename ParamT>
+  XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
+                                  const ParamT& param) {
     if (other.loss_chg > loss_chg &&
         other.left_sum.GetHess() >= param.min_child_weight &&
         other.right_sum.GetHess() >= param.min_child_weight) {
@@ -133,10 +131,10 @@ struct DeviceSplitCandidate {
     }
   }
 
-  __device__ void Update(float loss_chg_in, DefaultDirection dir_in,
+  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
                          float fvalue_in, int findex_in,
-                         bst_gpair_integer left_sum_in,
-                         bst_gpair_integer right_sum_in,
+                         GradientPair left_sum_in,
+                         GradientPair right_sum_in,
                          const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&
@@ -149,11 +147,11 @@ struct DeviceSplitCandidate {
       findex = findex_in;
     }
   }
-  __device__ bool IsValid() const { return loss_chg > 0.0f; }
+  XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 };
 
 struct DeviceNodeStats {
-  bst_gpair sum_gradients;
+  GradientPair sum_gradients;
   float root_gain;
   float weight;
 
@@ -161,31 +159,31 @@ struct DeviceNodeStats {
   DefaultDirection dir;
   /** threshold value for comparison */
   float fvalue;
-  bst_gpair left_sum;
-  bst_gpair right_sum;
+  GradientPair left_sum;
+  GradientPair right_sum;
   /** \brief The feature index. */
   int fidx;
   /** node id (used as key for reduce/scan) */
-  node_id_t idx;
+  NodeIdT idx;
 
   HOST_DEV_INLINE DeviceNodeStats()
       : sum_gradients(),
         root_gain(-FLT_MAX),
         weight(-FLT_MAX),
-        dir(LeftDir),
+        dir(kLeftDir),
         fvalue(0.f),
         left_sum(),
         right_sum(),
-        fidx(UNUSED_NODE),
-        idx(UNUSED_NODE) {}
+        fidx(kUnusedNode),
+        idx(kUnusedNode) {}
 
-  template <typename param_t>
-  HOST_DEV_INLINE DeviceNodeStats(bst_gpair sum_gradients, node_id_t nidx,
-                                  const param_t& param)
+  template <typename ParamT>
+  HOST_DEV_INLINE DeviceNodeStats(GradientPair sum_gradients, NodeIdT nidx,
+                                  const ParamT& param)
       : sum_gradients(sum_gradients),
-        dir(LeftDir),
+        dir(kLeftDir),
         fvalue(0.f),
-        fidx(UNUSED_NODE),
+        fidx(kUnusedNode),
         idx(nidx) {
     this->root_gain =
         CalcGain(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
@@ -194,7 +192,7 @@ struct DeviceNodeStats {
   }
 
   HOST_DEV_INLINE void SetSplit(float fvalue, int fidx, DefaultDirection dir,
-                                bst_gpair left_sum, bst_gpair right_sum) {
+                                GradientPair left_sum, GradientPair right_sum) {
     this->fvalue = fvalue;
     this->fidx = fidx;
     this->dir = dir;
@@ -208,11 +206,11 @@ struct DeviceNodeStats {
   }
 
   /** Tells whether this node is part of the decision tree */
-  HOST_DEV_INLINE bool IsUnused() const { return (idx == UNUSED_NODE); }
+  HOST_DEV_INLINE bool IsUnused() const { return (idx == kUnusedNode); }
 
   /** Tells whether this node is a leaf of the decision tree */
   HOST_DEV_INLINE bool IsLeaf() const {
-    return (!IsUnused() && (fidx == UNUSED_NODE));
+    return (!IsUnused() && (fidx == kUnusedNode));
   }
 };
 
@@ -221,37 +219,37 @@ struct SumCallbackOp {
   // Running prefix
   T running_total;
   // Constructor
-  __device__ SumCallbackOp() : running_total(T()) {}
-  __device__ T operator()(T block_aggregate) {
+  XGBOOST_DEVICE SumCallbackOp() : running_total(T()) {}
+  XGBOOST_DEVICE T operator()(T block_aggregate) {
     T old_prefix = running_total;
     running_total += block_aggregate;
     return old_prefix;
   }
 };
 
-template <typename gpair_t>
-__device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
-                                             const gpair_t& left,
-                                             const gpair_t& parent_sum,
+template <typename GradientPairT>
+XGBOOST_DEVICE inline float DeviceCalcLossChange(const GPUTrainingParam& param,
+                                             const GradientPairT& left,
+                                             const GradientPairT& parent_sum,
                                              const float& parent_gain) {
-  gpair_t right = parent_sum - left;
+  GradientPairT right = parent_sum - left;
   float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
   float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
   return left_gain + right_gain - parent_gain;
 }
 
 // Without constraints
-template <typename gpair_t>
-__device__ float inline loss_chg_missing(const gpair_t& scan,
-                                         const gpair_t& missing,
-                                         const gpair_t& parent_sum,
+template <typename GradientPairT>
+XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
+                                         const GradientPairT& missing,
+                                         const GradientPairT& parent_sum,
                                          const float& parent_gain,
                                          const GPUTrainingParam& param,
                                          bool& missing_left_out) {  // NOLINT
   float missing_left_loss =
-      device_calc_loss_chg(param, scan + missing, parent_sum, parent_gain);
+      DeviceCalcLossChange(param, scan + missing, parent_sum, parent_gain);
   float missing_right_loss =
-      device_calc_loss_chg(param, scan, parent_sum, parent_gain);
+      DeviceCalcLossChange(param, scan, parent_sum, parent_gain);
 
   if (missing_left_loss >= missing_right_loss) {
     missing_left_out = true;
@@ -263,9 +261,9 @@ __device__ float inline loss_chg_missing(const gpair_t& scan,
 }
 
 // With constraints
-template <typename gpair_t>
-__device__ float inline loss_chg_missing(
-    const gpair_t& scan, const gpair_t& missing, const gpair_t& parent_sum,
+template <typename GradientPairT>
+XGBOOST_DEVICE float inline LossChangeMissing(
+    const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
     const float& parent_gain, const GPUTrainingParam& param, int constraint,
     const ValueConstraint& value_constraint,
     bool& missing_left_out) {  // NOLINT
@@ -285,54 +283,54 @@ __device__ float inline loss_chg_missing(
 }
 
 // Total number of nodes in tree, given depth
-__host__ __device__ inline int n_nodes(int depth) {
+XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
   return (1 << (depth + 1)) - 1;
 }
 
 // Number of nodes at this level of the tree
-__host__ __device__ inline int n_nodes_level(int depth) { return 1 << depth; }
+XGBOOST_DEVICE inline int MaxNodesLevel(int depth) { return 1 << depth; }
 
 // Whether a node is currently being processed at current depth
-__host__ __device__ inline bool is_active(int nidx, int depth) {
-  return nidx >= n_nodes(depth - 1);
+XGBOOST_DEVICE inline bool IsNodeActive(int nidx, int depth) {
+  return nidx >= MaxNodesDepth(depth - 1);
 }
 
-__host__ __device__ inline int parent_nidx(int nidx) { return (nidx - 1) / 2; }
+XGBOOST_DEVICE inline int ParentNodeIdx(int nidx) { return (nidx - 1) / 2; }
 
-__host__ __device__ inline int left_child_nidx(int nidx) {
+XGBOOST_DEVICE inline int LeftChildNodeIdx(int nidx) {
   return nidx * 2 + 1;
 }
 
-__host__ __device__ inline int right_child_nidx(int nidx) {
+XGBOOST_DEVICE inline int RightChildNodeIdx(int nidx) {
   return nidx * 2 + 2;
 }
 
-__host__ __device__ inline bool is_left_child(int nidx) {
+XGBOOST_DEVICE inline bool IsLeftChild(int nidx) {
   return nidx % 2 == 1;
 }
 
 // Copy gpu dense representation of tree to xgboost sparse representation
-inline void dense2sparse_tree(RegTree* p_tree,
-                              const dh::dvec<DeviceNodeStats>& nodes,
+inline void Dense2SparseTree(RegTree* p_tree,
+                              const dh::DVec<DeviceNodeStats>& nodes,
                               const TrainParam& param) {
   RegTree& tree = *p_tree;
-  std::vector<DeviceNodeStats> h_nodes = nodes.as_vector();
+  std::vector<DeviceNodeStats> h_nodes = nodes.AsVector();
 
   int nid = 0;
   for (int gpu_nid = 0; gpu_nid < h_nodes.size(); gpu_nid++) {
     const DeviceNodeStats& n = h_nodes[gpu_nid];
     if (!n.IsUnused() && !n.IsLeaf()) {
       tree.AddChilds(nid);
-      tree[nid].set_split(n.fidx, n.fvalue, n.dir == LeftDir);
-      tree.stat(nid).loss_chg = n.root_gain;
-      tree.stat(nid).base_weight = n.weight;
-      tree.stat(nid).sum_hess = n.sum_gradients.GetHess();
-      tree[tree[nid].cleft()].set_leaf(0);
-      tree[tree[nid].cright()].set_leaf(0);
+      tree[nid].SetSplit(n.fidx, n.fvalue, n.dir == kLeftDir);
+      tree.Stat(nid).loss_chg = n.root_gain;
+      tree.Stat(nid).base_weight = n.weight;
+      tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
+      tree[tree[nid].LeftChild()].SetLeaf(0);
+      tree[tree[nid].RightChild()].SetLeaf(0);
       nid++;
     } else if (n.IsLeaf()) {
-      tree[nid].set_leaf(n.weight * param.learning_rate);
-      tree.stat(nid).sum_hess = n.sum_gradients.GetHess();
+      tree[nid].SetLeaf(n.weight * param.learning_rate);
+      tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
       nid++;
     }
   }
@@ -346,11 +344,11 @@ struct BernoulliRng {
   float p;
   uint32_t seed;
 
-  __host__ __device__ BernoulliRng(float p, size_t seed_) : p(p) {
+  XGBOOST_DEVICE BernoulliRng(float p, size_t seed_) : p(p) {
     seed = static_cast<uint32_t>(seed_);
   }
 
-  __host__ __device__ bool operator()(const int i) const {
+  XGBOOST_DEVICE bool operator()(const int i) const {
     thrust::default_random_engine rng(seed);
     thrust::uniform_real_distribution<float> dist;
     rng.discard(i);
@@ -359,25 +357,25 @@ struct BernoulliRng {
 };
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void subsample_gpair(dh::dvec<bst_gpair>* p_gpair, float subsample,
+inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsample,
                             int offset = 0) {
   if (subsample == 1.0) {
     return;
   }
 
-  dh::dvec<bst_gpair>& gpair = *p_gpair;
+  dh::DVec<GradientPair>& gpair = *p_gpair;
 
-  auto d_gpair = gpair.data();
+  auto d_gpair = gpair.Data();
   BernoulliRng rng(subsample, common::GlobalRandom()());
 
-  dh::launch_n(gpair.device_idx(), gpair.size(), [=] __device__(int i) {
+  dh::LaunchN(gpair.DeviceIdx(), gpair.Size(), [=] XGBOOST_DEVICE(int i) {
     if (!rng(i + offset)) {
-      d_gpair[i] = bst_gpair();
+      d_gpair[i] = GradientPair();
     }
   });
 }
 
-inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
+inline std::vector<int> ColSample(std::vector<int> features, float colsample) {
   CHECK_GT(features.size(), 0);
   int n = std::max(1, static_cast<int>(colsample * features.size()));
 
@@ -397,9 +395,9 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
  */
 
 class ColumnSampler {
-  std::vector<int> feature_set_tree;
-  std::map<int, std::vector<int>> feature_set_level;
-  TrainParam param;
+  std::vector<int> feature_set_tree_;
+  std::map<int, std::vector<int>> feature_set_level_;
+  TrainParam param_;
 
  public:
   /**
@@ -413,10 +411,10 @@ class ColumnSampler {
 
   void Init(int64_t num_col, const TrainParam& param) {
     this->Reset();
-    this->param = param;
-    feature_set_tree.resize(num_col);
-    std::iota(feature_set_tree.begin(), feature_set_tree.end(), 0);
-    feature_set_tree = col_sample(feature_set_tree, param.colsample_bytree);
+    this->param_ = param;
+    feature_set_tree_.resize(num_col);
+    std::iota(feature_set_tree_.begin(), feature_set_tree_.end(), 0);
+    feature_set_tree_ = ColSample(feature_set_tree_, param.colsample_bytree);
   }
 
   /**
@@ -426,8 +424,8 @@ class ColumnSampler {
    */
 
   void Reset() {
-    feature_set_tree.clear();
-    feature_set_level.clear();
+    feature_set_tree_.clear();
+    feature_set_level_.clear();
   }
 
   /**
@@ -442,13 +440,13 @@ class ColumnSampler {
    */
 
   bool ColumnUsed(int column, int depth) {
-    if (feature_set_level.count(depth) == 0) {
-      feature_set_level[depth] =
-          col_sample(feature_set_tree, param.colsample_bylevel);
+    if (feature_set_level_.count(depth) == 0) {
+      feature_set_level_[depth] =
+          ColSample(feature_set_tree_, param_.colsample_bylevel);
     }
 
-    return std::binary_search(feature_set_level[depth].begin(),
-                              feature_set_level[depth].end(), column);
+    return std::binary_search(feature_set_level_[depth].begin(),
+                              feature_set_level_[depth].end(), column);
   }
 };
 

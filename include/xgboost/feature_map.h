@@ -45,7 +45,7 @@ class FeatureMap {
    */
   inline void PushBack(int fid, const char *fname, const char *ftype) {
     CHECK_EQ(fid, static_cast<int>(names_.size()));
-    names_.push_back(std::string(fname));
+    names_.emplace_back(fname);
     types_.push_back(GetType(ftype));
   }
   /*! \brief clear the feature map */
@@ -54,11 +54,11 @@ class FeatureMap {
     types_.clear();
   }
   /*! \return number of known features */
-  inline size_t size() const {
+  inline size_t Size() const {
     return names_.size();
   }
   /*! \return name of specific feature */
-  inline const char* name(size_t idx) const {
+  inline const char* Name(size_t idx) const {
     CHECK_LT(idx,  names_.size()) << "FeatureMap feature index exceed bound";
     return names_[idx].c_str();
   }
@@ -75,7 +75,7 @@ class FeatureMap {
    * \return The translated type.
    */
   inline static Type GetType(const char* tname) {
-    using namespace std;
+    using std::strcmp;
     if (!strcmp("i", tname)) return kIndicator;
     if (!strcmp("q", tname)) return kQuantitive;
     if (!strcmp("int", tname)) return kInteger;

@@ -30,44 +30,45 @@ enum DataType {
 /*!
  * \brief Meta information about dataset, always sit in memory.
  */
-struct MetaInfo {
+class MetaInfo {
+ public:
   /*! \brief number of rows in the data */
-  uint64_t num_row;
+  uint64_t num_row_{0};
   /*! \brief number of columns in the data */
-  uint64_t num_col;
+  uint64_t num_col_{0};
   /*! \brief number of nonzero entries in the data */
-  uint64_t num_nonzero;
+  uint64_t num_nonzero_{0};
   /*! \brief label of each instance */
-  std::vector<bst_float> labels;
+  std::vector<bst_float> labels_;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
    */
-  std::vector<bst_uint> root_index;
+  std::vector<bst_uint> root_index_;
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
    */
-  std::vector<bst_uint> group_ptr;
+  std::vector<bst_uint> group_ptr_;
   /*! \brief weights of each instance, optional */
-  std::vector<bst_float> weights;
+  std::vector<bst_float> weights_;
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  std::vector<bst_float> base_margin;
+  std::vector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
   static const int kVersion = 1;
   /*! \brief default constructor */
-  MetaInfo() : num_row(0), num_col(0), num_nonzero(0) {}
+  MetaInfo()  = default;
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
    * \return The weight.
    */
   inline bst_float GetWeight(size_t i) const {
-    return weights.size() != 0 ?  weights[i] : 1.0f;
+    return weights_.size() != 0 ?  weights_[i] : 1.0f;
   }
   /*!
    * \brief Get the root index of i-th instance.
@@ -75,20 +76,20 @@ struct MetaInfo {
    * \return The pre-defined root index of i-th instance.
    */
   inline unsigned GetRoot(size_t i) const {
-    return root_index.size() != 0 ? root_index[i] : 0U;
+    return root_index_.size() != 0 ? root_index_[i] : 0U;
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
   inline const std::vector<size_t>& LabelAbsSort() const {
-    if (label_order_cache.size() == labels.size()) {
-      return label_order_cache;
+    if (label_order_cache_.size() == labels_.size()) {
+      return label_order_cache_;
     }
-    label_order_cache.resize(labels.size());
-    std::iota(label_order_cache.begin(), label_order_cache.end(), 0);
-    const auto l = labels;
-    XGBOOST_PARALLEL_SORT(label_order_cache.begin(), label_order_cache.end(),
+    label_order_cache_.resize(labels_.size());
+    std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
+    const auto l = labels_;
+    XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 
-    return label_order_cache;
+    return label_order_cache_;
   }
   /*! \brief clear all the information */
   void Clear();
@@ -113,7 +114,7 @@ struct MetaInfo {
 
  private:
   /*! \brief argsort of labels */
-  mutable std::vector<size_t> label_order_cache;
+  mutable std::vector<size_t> label_order_cache_;
 };
 
 /*! \brief read-only sparse instance batch in CSR format */
@@ -125,7 +126,7 @@ struct SparseBatch {
     /*! \brief feature value */
     bst_float fvalue;
     /*! \brief default constructor */
-    Entry() {}
+    Entry() = default;
     /*!
      * \brief constructor with index and value
      * \param index The feature or row index.
@@ -141,11 +142,11 @@ struct SparseBatch {
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
     /*! \brief pointer to the elements*/
-    const Entry *data;
+    const Entry *data{nullptr};
     /*! \brief length of the instance */
-    bst_uint length;
+    bst_uint length{0};
     /*! \brief constructor */
-    Inst() : data(0), length(0) {}
+    Inst()  = default;
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
     inline const Entry& operator[](size_t i) const {
@@ -167,7 +168,7 @@ struct RowBatch : public SparseBatch {
   const Entry *data_ptr;
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return Inst(data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i]));
+    return {data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i])};
   }
 };
 
@@ -206,16 +207,16 @@ class DataSource : public dmlc::DataIter<RowBatch> {
  * \brief A vector-like structure to represent set of rows.
  * But saves the memory when all rows are in the set (common case in xgb)
  */
-struct RowSet {
+class RowSet {
  public:
   /*! \return i-th row index */
   inline bst_uint operator[](size_t i) const;
   /*! \return the size of the set. */
-  inline size_t size() const;
+  inline size_t Size() const;
   /*! \brief push the index back to the set */
-  inline void push_back(bst_uint i);
+  inline void PushBack(bst_uint i);
   /*! \brief clear the set */
-  inline void clear();
+  inline void Clear();
   /*!
    * \brief save rowset to file.
    * \param fo The file to be saved.
@@ -228,11 +229,11 @@ struct RowSet {
    */
   inline bool Load(dmlc::Stream* fi);
   /*! \brief constructor */
-  RowSet() : size_(0) {}
+  RowSet()  = default;
 
  private:
   /*! \brief The internal data structure of size */
-  uint64_t size_;
+  uint64_t size_{0};
   /*! \brief The internal data structure of row set if not all*/
   std::vector<bst_uint> rows_;
 };
@@ -250,11 +251,11 @@ struct RowSet {
 class DMatrix {
  public:
   /*! \brief default constructor */
-  DMatrix() : cache_learner_ptr_(nullptr) {}
+  DMatrix()  = default;
   /*! \brief meta information of the dataset */
-  virtual MetaInfo& info() = 0;
+  virtual MetaInfo& Info() = 0;
   /*! \brief meta information of the dataset */
-  virtual const MetaInfo& info() const = 0;
+  virtual const MetaInfo& Info() const = 0;
   /*!
    * \brief get the row iterator, reset to beginning position
    * \note Only either RowIterator or  column Iterator can be active.
@@ -291,9 +292,9 @@ class DMatrix {
   /*! \brief get column density */
   virtual float GetColDensity(size_t cidx) const = 0;
   /*! \return reference of buffered rowset, in column access */
-  virtual const RowSet& buffered_rowset() const = 0;
+  virtual const RowSet& BufferedRowset() const = 0;
   /*! \brief virtual destructor */
-  virtual ~DMatrix() {}
+  virtual ~DMatrix() = default;
   /*!
    * \brief Save DMatrix to local file.
    *  The saved file only works for non-sharded dataset(single machine training).
@@ -343,7 +344,7 @@ class DMatrix {
   // allow learner class to access this field.
   friend class LearnerImpl;
   /*! \brief public field to back ref cached matrix. */
-  LearnerImpl* cache_learner_ptr_;
+  LearnerImpl* cache_learner_ptr_{nullptr};
 };
 
 // implementation of inline functions
@@ -351,15 +352,15 @@ inline bst_uint RowSet::operator[](size_t i) const {
   return rows_.size() == 0 ? static_cast<bst_uint>(i) : rows_[i];
 }
 
-inline size_t RowSet::size() const {
+inline size_t RowSet::Size() const {
   return size_;
 }
 
-inline void RowSet::clear() {
+inline void RowSet::Clear() {
   rows_.clear(); size_ = 0;
 }
 
-inline void RowSet::push_back(bst_uint i) {
+inline void RowSet::PushBack(bst_uint i) {
   if (rows_.size() == 0) {
     if (i == size_) {
       ++size_; return;

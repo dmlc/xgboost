@@ -10,6 +10,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <dmlc/threadediter.h>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <string>
@@ -22,15 +23,15 @@ namespace data {
 class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
-                             const std::string& cache_info)
-      : source_(std::move(source)), cache_info_(cache_info) {
+                             std::string  cache_info)
+      : source_(std::move(source)), cache_info_(std::move(cache_info)) {
   }
 
-  MetaInfo& info() override {
+  MetaInfo& Info() override {
     return source_->info;
   }
 
-  const MetaInfo& info() const override {
+  const MetaInfo& Info() const override {
     return source_->info;
   }
 
@@ -41,10 +42,10 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   bool HaveColAccess(bool sorted) const override {
-    return col_iter_.get() != nullptr && col_iter_->sorted == sorted;
+    return col_iter_ != nullptr && col_iter_->sorted == sorted;
   }
 
-  const RowSet& buffered_rowset() const override {
+  const RowSet& BufferedRowset() const override {
     return buffered_rowset_;
   }
 
@@ -53,8 +54,8 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   float GetColDensity(size_t cidx) const override {
-    size_t nmiss = buffered_rowset_.size() - col_size_[cidx];
-    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.size();
+    size_t nmiss = buffered_rowset_.Size() - col_size_[cidx];
+    return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
   bool SingleColBlock() const override {
@@ -79,7 +80,7 @@ class SparsePageDMatrix : public DMatrix {
   class ColPageIter : public dmlc::DataIter<ColBatch> {
    public:
     explicit ColPageIter(std::vector<std::unique_ptr<dmlc::SeekStream> >&& files);
-    virtual ~ColPageIter();
+    ~ColPageIter() override;
     void BeforeFirst() override;
     const ColBatch &Value() const override {
       return out_;

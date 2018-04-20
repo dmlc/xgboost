@@ -20,10 +20,10 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
 
     std::shared_ptr<xgboost::DMatrix> dmat =
         *static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-    xgboost::MetaInfo &info = dmat->info();
-    ASSERT_EQ(info.num_col, num_cols);
-    ASSERT_EQ(info.num_row, row);
-    ASSERT_EQ(info.num_nonzero, num_cols * row - num_missing);
+    xgboost::MetaInfo &info = dmat->Info();
+    ASSERT_EQ(info.num_col_, num_cols);
+    ASSERT_EQ(info.num_row_, row);
+    ASSERT_EQ(info.num_nonzero_, num_cols * row - num_missing);
 
     auto iter = dmat->RowIterator();
     iter->BeforeFirst();

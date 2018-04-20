@@ -44,10 +44,12 @@ matrix:
 addons:
   apt:
     sources:
+      - llvm-toolchain-trusty-5.0
       - ubuntu-toolchain-r-test
       - george-edison55-precise-backports
     packages:
-      - cmake
+      - clang
+      - clang-tidy-5.0
       - cmake-data
       - doxygen
       - wget

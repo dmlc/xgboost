@@ -33,7 +33,7 @@ class SparsePageSource : public DataSource {
    */
   explicit SparsePageSource(const std::string& cache_prefix) noexcept(false);
   /*! \brief destructor */
-  virtual ~SparsePageSource();
+  ~SparsePageSource() override;
   // implement Next
   bool Next() override;
   // implement BeforeFirst

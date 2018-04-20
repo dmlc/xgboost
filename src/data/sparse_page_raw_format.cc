@@ -34,8 +34,7 @@ class SparsePageRawFormat : public SparsePage::Format {
     // setup the offset
     page->offset.clear();
     page->offset.push_back(0);
-    for (size_t i = 0; i < sorted_index_set.size(); ++i) {
-      bst_uint fid = sorted_index_set[i];
+    for (unsigned int fid : sorted_index_set) {
       CHECK_LT(fid + 1, disk_offset_.size());
       size_t size = disk_offset_[fid + 1] - disk_offset_[fid];
       page->offset.push_back(page->offset.back() + size);

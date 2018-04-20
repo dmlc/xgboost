@@ -34,17 +34,17 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
-  info.num_row = labels.size();
-  info.labels = labels;
-  info.weights = weights;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
 
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
 
-  xgboost::HostDeviceVector<xgboost::bst_gpair> out_gpair;
+  xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
   obj->GetGradient(&in_preds, info, 1, &out_gpair);
-  std::vector<xgboost::bst_gpair>& gpair = out_gpair.data_h();
+  std::vector<xgboost::GradientPair>& gpair = out_gpair.HostVector();
 
-  ASSERT_EQ(gpair.size(), in_preds.size());
+  ASSERT_EQ(gpair.size(), in_preds.Size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
     EXPECT_NEAR(gpair[i].GetGrad(), out_grad[i], 0.01)
       << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
@@ -60,9 +60,9 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights) {
   xgboost::MetaInfo info;
-  info.num_row = labels.size();
-  info.labels = labels;
-  info.weights = weights;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
   return metric->Eval(preds, info, false);
 }
 
