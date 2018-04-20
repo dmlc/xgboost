@@ -144,7 +144,8 @@ def assert_updater_accuracy(linear_updater, variable_param):
         train_classification(param_tmp)
         train_classification_multi(param_tmp)
         train_breast_cancer(param_tmp)
-        train_external_mem(param_tmp)
+        if 'gpu' not in linear_updater:
+            train_external_mem(param_tmp)
 
 
 class TestLinear(unittest.TestCase):
