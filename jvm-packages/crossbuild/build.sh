@@ -13,5 +13,5 @@ export CXX=g++
 export MAVEN_OPTS="-Xmx3000m"
 
 # build xgboost
-cd /xgboost/;mvn package
+cd /xgboost/jvm-packages;mvn package
 
