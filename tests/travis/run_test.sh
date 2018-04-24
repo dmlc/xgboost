@@ -118,7 +118,7 @@ if [ ${TASK} == "cmake_test" ]; then
 
     # Build/test without AVX
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON
+    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=../gtest/
     make
     cd ..
     ./testxgboost
@@ -126,7 +126,7 @@ if [ ${TASK} == "cmake_test" ]; then
     
     # Build/test with AVX
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON
+    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON -DGTEST_ROOT=../gtest/
     make
     cd ..
     ./testxgboost
