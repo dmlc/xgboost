@@ -24,7 +24,7 @@ struct HostDeviceVectorImpl {
     : device_(device), on_d_(device >= 0) {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
-      if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+      if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
       data_d_->resize(init.size());
       thrust::copy(init.begin(), init.end(), data_d_->begin());
     } else {
@@ -37,20 +37,19 @@ struct HostDeviceVectorImpl {
   void operator=(HostDeviceVectorImpl<T>&&) = delete;
 
   size_t Size() {
-     if(on_d_){
-       if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+     if (on_d_){
+       if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
        return data_d_->size();
-     }
-     else{
+     } else {
        return data_h_.size();
      }
-   }
+  }
 
   int DeviceIdx() const { return device_; }
 
   T* DevicePointer(int device) {
     LazySyncDevice(device);
-    if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+    if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
     return data_d_->data().get();
   }
   thrust::device_ptr<T> tbegin(int device) {  // NOLINT
@@ -75,7 +74,7 @@ struct HostDeviceVectorImpl {
       data_h_.resize(new_size, v);
     } else {
       dh::safe_cuda(cudaSetDevice(device_));
-      if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+      if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
       data_d_->resize(new_size, v);
       on_d_ = true;
     }
@@ -87,7 +86,7 @@ struct HostDeviceVectorImpl {
     if (data_h_.size() != this->Size())
       data_h_.resize(this->Size());
     dh::safe_cuda(cudaSetDevice(device_));
-    if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+    if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
     thrust::copy(data_d_->begin(), data_d_->end(), data_h_.begin());
     on_d_ = false;
   }
@@ -99,10 +98,10 @@ struct HostDeviceVectorImpl {
       CHECK_EQ(device_, -1);
       device_ = device;
     }
-    if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+    if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
     if (data_d_->size() != this->Size()) {
       dh::safe_cuda(cudaSetDevice(device_));
-      if(data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
+      if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
       data_d_->resize(this->Size());
     }
     dh::safe_cuda(cudaSetDevice(device_));
