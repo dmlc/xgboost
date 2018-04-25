@@ -17,6 +17,9 @@
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
+#include "dt.h"  // Functions for handling datatable
+
+
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -439,6 +442,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
+  int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
@@ -497,11 +501,97 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
       }
     }
   }
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
+
+  mat.info.num_nonzero_ = mat.row_data_.size();
+  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+
+
+XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
+                                  const wchar_t ** feature_names,
+                                  const wchar_t ** feature_stypes,
+                                  xgboost::bst_ulong nrow,
+                                  xgboost::bst_ulong ncol,
+                                  DMatrixHandle* out,
+                                  int nthread) {
+  // avoid openmp unless enough data to be worth it to avoid overhead costs
+  if (nrow * ncol <= 10000*50) {
+     nthread = 1;
+  }
+
+  // copy pointer
+  void ** data = const_cast<void **>(data0);
+
+  API_BEGIN();
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  if (nthread <= 0) nthread=nthreadmax;
+  int nthread_orig = omp_get_max_threads();
+  omp_set_num_threads(nthread);
+
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  data::SimpleCSRSource& mat = *source;
+  mat.row_ptr_.resize(1+nrow);
+  mat.info.num_row_ = nrow;
+  mat.info.num_col_ = ncol;
+
+#pragma omp parallel num_threads(nthread)
+  {
+    // Count elements per row, column by column
+    for (auto j = 0; j < ncol; ++j) {
+      Datacol d(data, feature_stypes, j);
+      float value;
+#pragma omp for schedule(static)
+      for (omp_ulong i = 0; i < nrow; ++i) {
+        if (!DtIsMissingAndGetValue(&d, i, &value)) {
+            mat.row_ptr_[i+1]++;
+        }
+      }
+    }
+  }
+  // do cumulative sum (to avoid otherwise need to copy)
+  PrefixSum(&mat.row_ptr_[0], mat.row_ptr_.size());
+
+  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+
+
+  // reset pointer
+  data = const_cast<void **>(data0);
+
+  // Fill data matrix (now that know size, no need for slow push_back())
+  auto *matj = new xgboost::bst_ulong[nrow]();
+#pragma omp parallel num_threads(nthread)
+  {
+    for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      Datacol d(data, feature_stypes, j);
+      float value;
+      bool missing;
+#pragma omp for schedule(static)
+      for (omp_ulong i = 0; i < nrow; ++i) {
+        missing = DtIsMissingAndGetValue(&d, i, &value);
+        if (!missing) {
+          mat.row_data_[mat.row_ptr_[i] + matj[i]] =
+              RowBatch::Entry(j, value);
+          matj[i]++;
+        }
+      }
+    }
+  }
+  delete[] matj;
+
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
 
   mat.info.num_nonzero_ = mat.page_.data.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
+
+
+
 
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,

@@ -38,7 +38,7 @@ try:
 except ImportError:
 
     class MultiIndex(object):
-        """ dummy for pandas.MultiIndex  """
+        """ dummy for pandas.MultiIndex """
         pass
 
     class DataFrame(object):
