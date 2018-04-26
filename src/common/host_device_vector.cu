@@ -37,7 +37,7 @@ struct HostDeviceVectorImpl {
   void operator=(HostDeviceVectorImpl<T>&&) = delete;
 
   size_t Size() {
-     if (on_d_){
+     if (on_d_) {
        if (data_d_ == nullptr) data_d_.reset(new thrust::device_vector<T>());
        return data_d_->size();
      } else {
