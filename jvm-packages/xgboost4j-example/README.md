@@ -23,7 +23,7 @@ XGBoost4J Code Examples
 * [External Memory](src/main/scala/ml/dmlc/xgboost4j/scala/example/ExternalMemory.scala)
 
 ## Spark API
-* [Distributed Training with Spark](src/main/scala/ml/dmlc/xgboost4j/scala/example/spark/DistTrainWithSpark.scala)
+* [Distributed Training with Spark](src/main/scala/ml/dmlc/xgboost4j/scala/example/spark/SparkWithDataFrame.scala)
 
 ## Flink API
 * [Distributed Training with Flink](src/main/scala/ml/dmlc/xgboost4j/scala/example/flink/DistTrainWithFlink.scala)
