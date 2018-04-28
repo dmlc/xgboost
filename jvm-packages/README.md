@@ -16,8 +16,9 @@ Apache Flink and Apache Spark.
 
 You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) and [Resource Page](../demo/README.md).
 
-## Add Maven Central Dependency
+## Add Maven Dependency
 
+XGBoost4J, XGBoost4J-Spark, etc. in maven repository is compiled with g++-4.8.5  
 
 ### Access SNAPSHOT version
 

@@ -2,11 +2,10 @@
 
 set -e
 
-# install gcc/g++ 4.8.2 from tru/devtools-2
 apt-get update
-apt-get -y dist-upgrade
-apt-get -y install build-essential
+apt-get -y install g++-4.8
 apt-get -y install git openjdk-8-jdk maven python cmake
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50
 
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 export CXX=g++
