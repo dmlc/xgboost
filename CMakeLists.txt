@@ -218,7 +218,7 @@ if(JVM_BINDINGS)
     set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
     target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
-        ${JAVA_JVM_LIBRARY})
+        ${JAVA_JVM_LIBRARY} -static-libgcc -static-libstdc++)
 endif()
 
 
