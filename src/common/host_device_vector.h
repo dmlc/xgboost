@@ -125,8 +125,8 @@ class HostDeviceVector {
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
-  thrust::device_ptr<T> tbegin(int device);
-  thrust::device_ptr<T> tend(int device);
+  thrust::device_ptr<T> tbegin(int device);  // NOLINT
+  thrust::device_ptr<T> tend(int device);  // NOLINT
   void ScatterFrom(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
 #endif

@@ -31,8 +31,7 @@ struct HostDeviceVectorImpl {
     }
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
-      if (vec_ == nullptr)
-        vec_ = vec;
+      if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = device;
       index_ = vec_->devices_.Index(device);
@@ -83,8 +82,7 @@ struct HostDeviceVectorImpl {
     }
 
     void LazySyncDevice() {
-      if (on_d_)
-        return;
+      if (on_d_) { return; }
       // data is on the host
       size_t size_h = vec_->data_h_.size();
       int ndevices = vec_->devices_.Size();
@@ -138,9 +136,9 @@ struct HostDeviceVectorImpl {
   void InitShards() {
     int ndevices = devices_.Size();
     shards_.resize(ndevices);
-#pragma omp parallel for schedule(static, 1)
-    for (int i = 0; i < ndevices; ++i)
-      shards_[i].Init(this, devices_[i]);
+    dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
+        shard.Init(this, devices_[i]);
+      });
   }
 
   HostDeviceVectorImpl(const HostDeviceVectorImpl<T>&) = delete;
@@ -170,11 +168,11 @@ struct HostDeviceVectorImpl {
     return shards_[devices_.Index(device)].start_;
   }
 
-  thrust::device_ptr<T> tbegin(int device) {
+  thrust::device_ptr<T> tbegin(int device) {  // NOLINT
     return thrust::device_ptr<T>(DevicePointer(device));
   }
 
-  thrust::device_ptr<T> tend(int device) {
+  thrust::device_ptr<T> tend(int device) {  // NOLINT
     return tbegin(device) + DeviceSize(device);
   }
 
@@ -183,9 +181,9 @@ struct HostDeviceVectorImpl {
     if (on_h_) {
       thrust::copy(begin, end, data_h_.begin());
     } else {
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].ScatterFrom(begin.get());
+      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+          shard.ScatterFrom(begin.get());
+        });
     }
   }
 
@@ -194,9 +192,7 @@ struct HostDeviceVectorImpl {
     if (on_h_) {
       thrust::copy(data_h_.begin(), data_h_.end(), begin);
     } else {
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].GatherTo(begin);
+      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }
   }
 
@@ -204,9 +200,7 @@ struct HostDeviceVectorImpl {
     if (on_h_) {
       std::fill(data_h_.begin(), data_h_.end(), v);
     } else {
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].Fill(v);
+      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.Fill(v); });
     }
   }
 
@@ -216,9 +210,9 @@ struct HostDeviceVectorImpl {
       std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
     } else {
       CHECK(devices_ == other->devices_);
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].Copy(&other->shards_[i]);
+      dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
+          shard.Copy(&other->shards_[i]);
+        });
     }
   }
 
@@ -227,9 +221,9 @@ struct HostDeviceVectorImpl {
     if (on_h_) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].ScatterFrom(other.data());
+      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+          shard.ScatterFrom(other.data());
+        });
     }
   }
 
@@ -238,9 +232,9 @@ struct HostDeviceVectorImpl {
     if (on_h_) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      #pragma omp parallel for schedule(static, 1)
-      for (int i = 0; i < shards_.size(); ++i)
-        shards_[i].ScatterFrom(other.begin());
+      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+          shard.ScatterFrom(other.begin());
+        });
     }
   }
 
@@ -278,9 +272,7 @@ struct HostDeviceVectorImpl {
       return;
     if (data_h_.size() != size_d_)
       data_h_.resize(size_d_);
-    #pragma omp parallel for schedule(static, 1)
-    for (int i = 0; i < shards_.size(); ++i)
-      shards_[i].LazySyncHost();
+    dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.LazySyncHost(); });
     on_h_ = true;
   }
 
