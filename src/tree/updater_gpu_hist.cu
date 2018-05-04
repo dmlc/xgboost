@@ -610,13 +610,11 @@ class GPUHistMaker : public TreeUpdater {
     }
 
     // Create device shards
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard] = std::unique_ptr<DeviceShard>(
-          new DeviceShard(device_list_[shard], shard, gmat_,
-                          row_segments[shard],
-                          row_segments[shard + 1], n_bins_, param_));
-    }
+    dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
+      shard = std::unique_ptr<DeviceShard>(
+          new DeviceShard(device_list_[i], i, gmat_,
+                          row_segments[i], row_segments[i + 1], n_bins_, param_));
+      });
 
     p_last_fmat_ = dmat;
     initialised_ = true;
@@ -636,9 +634,7 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Start("InitDataReset", device_list_);
 
     gpair->Reshard(devices_);
-    #pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard)
-      shards_[shard]->Reset(gpair);
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {shard->Reset(gpair); });
     monitor_.Stop("InitDataReset", device_list_);
   }
 
@@ -673,18 +669,16 @@ class GPUHistMaker : public TreeUpdater {
       subtraction_trick_nidx = nidx_left;
     }
 
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard]->BuildHist(build_hist_nidx);
-    }
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->BuildHist(build_hist_nidx);
+      });
 
     this->AllReduceHist(build_hist_nidx);
 
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard]->SubtractionTrick(nidx_parent, build_hist_nidx,
-                                      subtraction_trick_nidx);
-    }
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->SubtractionTrick(nidx_parent, build_hist_nidx,
+                               subtraction_trick_nidx);
+      });
   }
 
   // Returns best loss
@@ -742,22 +736,20 @@ class GPUHistMaker : public TreeUpdater {
     auto root_nidx = 0;
     // Sum gradients
     std::vector<GradientPair> tmp_sums(shards_.size());
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      DeviceShard& cur_shard = *shards_[shard];
-      dh::safe_cuda(cudaSetDevice(cur_shard.device_idx));
-      tmp_sums[shard] =
-        dh::SumReduction(cur_shard.temp_memory, cur_shard.gpair.Data(),
-                         cur_shard.gpair.Size());
-    }
+
+    dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
+        dh::safe_cuda(cudaSetDevice(shard->device_idx));
+      tmp_sums[i] =
+        dh::SumReduction(shard->temp_memory, shard->gpair.Data(),
+                         shard->gpair.Size());
+      });
     auto sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), GradientPair());
 
     // Generate root histogram
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard]->BuildHist(root_nidx);
-    }
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->BuildHist(root_nidx);
+      });
 
     this->AllReduceHist(root_nidx);
 
@@ -801,12 +793,11 @@ class GPUHistMaker : public TreeUpdater {
 
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
 
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard]->UpdatePosition(nidx, left_nidx, right_nidx, fidx,
-                                     split_gidx, default_dir_left,
-                                     is_dense, fidx_begin, fidx_end);
-    }
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+      shard->UpdatePosition(nidx, left_nidx, right_nidx, fidx,
+                           split_gidx, default_dir_left,
+                           is_dense, fidx_begin, fidx_end);
+      });
   }
 
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
@@ -908,10 +899,9 @@ class GPUHistMaker : public TreeUpdater {
     if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
       return false;
     p_out_preds->Reshard(devices_);
-#pragma omp parallel for schedule(static, 1)
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-      shards_[shard]->UpdatePredictionCache(p_out_preds->DevicePointer(devices_[shard]));
-    }
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->UpdatePredictionCache(p_out_preds->DevicePointer(shard->device_idx));
+      });
     monitor_.Stop("UpdatePredictionCache", device_list_);
     return true;
   }
