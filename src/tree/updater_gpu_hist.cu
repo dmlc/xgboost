@@ -37,9 +37,9 @@ __device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
     bool thread_active = itr + threadIdx.x < end;
     // Scan histogram
     GradientPairSumT bin = thread_active ? *(itr + threadIdx.x) : GradientPairSumT();
-
-    local_sum += ReduceT(temp_storage->sum_reduce).Reduce(bin, cub::Sum());
+    local_sum += bin;
   }
+  local_sum = ReduceT(temp_storage->sum_reduce).Reduce(local_sum, cub::Sum());
 
   if (threadIdx.x == 0) {
     shared_sum = local_sum;

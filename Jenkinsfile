@@ -8,7 +8,7 @@ dockerRun = 'tests/ci_build/ci_build.sh'
 
 def buildMatrix = [
     [ "enabled": true,  "os" : "linux", "withGpu": true,  "withOmp": true, "pythonVersion": "2.7" ],
-    [ "enabled": true,  "os" : "linux", "withGpu": false, "withOmp": true, "pythonVersion": "2.7" ],
+    [ "enabled": false,  "os" : "linux", "withGpu": false, "withOmp": true, "pythonVersion": "2.7" ],
     [ "enabled": false, "os" : "osx",   "withGpu": false, "withOmp": false, "pythonVersion": "2.7" ],
 ]
 
@@ -69,8 +69,7 @@ def buildFactory(buildName, conf) {
     def os = conf["os"]
     def nodeReq = conf["withGpu"] ? "${os} && gpu" : "${os}"
     def dockerTarget = conf["withGpu"] ? "gpu" : "cpu"
-    [ ("cmake_${buildName}") : { buildPlatformCmake("cmake_${buildName}", conf, nodeReq, dockerTarget) },
-      ("make_${buildName}") : { buildPlatformMake("make_${buildName}", conf, nodeReq, dockerTarget) }
+    [ ("cmake_${buildName}") : { buildPlatformCmake("cmake_${buildName}", conf, nodeReq, dockerTarget) }
     ]
 }
 
@@ -129,7 +128,6 @@ def buildPlatformMake(buildName, conf, nodeReq, dockerTarget) {
 
 def makeOptions(conf) {
     return ([
-        conf["withGpu"] ? 'PLUGIN_UPDATER_GPU=ON' : 'PLUGIN_UPDATER_GPU=OFF',
         conf["withOmp"] ? 'USE_OPENMP=1' : 'USE_OPENMP=0']
         ).join(" ")
 }
@@ -137,7 +135,7 @@ def makeOptions(conf) {
 
 def cmakeOptions(conf) {
     return ([
-        conf["withGpu"] ? '-DPLUGIN_UPDATER_GPU:BOOL=ON' : '',
+        conf["withGpu"] ? '-DUSE_CUDA=ON' : '-DUSE_CUDA=OFF',
         conf["withOmp"] ? '-DOPEN_MP:BOOL=ON' : '']
         ).join(" ")
 }
