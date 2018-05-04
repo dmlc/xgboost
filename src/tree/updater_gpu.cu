@@ -495,6 +495,11 @@ class GPUMaker : public TreeUpdater {
   int nCols;
   int maxNodes;
   int maxLeaves;
+
+  // devices are only used for resharding the HostDeviceVector passed as a parameter;
+  // the algorithm works with a single GPU only
+  GPUSet devices;
+
   dh::CubMemory tmp_mem;
   dh::DVec<GradientPair> tmpScanGradBuff;
   dh::DVec<int> tmpScanKeyBuff;
@@ -510,6 +515,8 @@ class GPUMaker : public TreeUpdater {
     param.InitAllowUnknown(args);
     maxNodes = (1 << (param.max_depth + 1)) - 1;
     maxLeaves = 1 << param.max_depth;
+
+    devices = GPUSet::Range(param.gpu_id, dh::NDevicesAll(param.n_gpus));
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -518,6 +525,8 @@ class GPUMaker : public TreeUpdater {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
+
+    gpair->Reshard(devices);
 
     try {
       // build tree
@@ -688,10 +697,7 @@ class GPUMaker : public TreeUpdater {
   }
 
   void transferGrads(HostDeviceVector<GradientPair>* gpair) {
-    // HACK
-    dh::safe_cuda(cudaMemcpy(gradsInst.Data(), gpair->DevicePointer(param.gpu_id),
-                             sizeof(GradientPair) * nRows,
-                             cudaMemcpyDefault));
+    gpair->GatherTo(gradsInst.tbegin(), gradsInst.tend());
     // evaluate the full-grad reduction for the root node
     dh::SumReduction<GradientPair>(tmp_mem, gradsInst, gradSums, nRows);
   }
