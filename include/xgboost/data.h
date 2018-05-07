@@ -187,6 +187,11 @@ struct ColBatch : public SparseBatch {
   }
 };
 
+namespace data {
+  class SparsePage;
+}
+
+
 /*!
  * \brief This is data structure that user can pass to DMatrix::Create
  *  to create a DMatrix for training, user can create this data structure
@@ -194,7 +199,7 @@ struct ColBatch : public SparseBatch {
  *
  *  On distributed setting, usually an customized dmlc::Parser is needed instead.
  */
-class DataSource : public dmlc::DataIter<RowBatch> {
+class DataSource : public dmlc::DataIter<data::SparsePage> {
  public:
   /*!
    * \brief Meta information about the dataset
@@ -260,7 +265,7 @@ class DMatrix {
    * \brief get the row iterator, reset to beginning position
    * \note Only either RowIterator or  column Iterator can be active.
    */
-  virtual dmlc::DataIter<RowBatch>* RowIterator() = 0;
+  virtual dmlc::DataIter<data::SparsePage>* RowIterator() = 0;
   /*!\brief get column iterator, reset to the beginning position */
   virtual dmlc::DataIter<ColBatch>* ColIterator() = 0;
   /*!

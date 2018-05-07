@@ -167,7 +167,7 @@ class Learner : public rabit::Serializable {
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction
    */
-  inline void Predict(const SparseBatch::Inst &inst,
+  inline void Predict(const data::SparsePage::Inst &inst,
                       bool output_margin,
                       HostDeviceVector<bst_float> *out_preds,
                       unsigned ntree_limit = 0) const;
@@ -190,7 +190,7 @@ class Learner : public rabit::Serializable {
 };
 
 // implementation of inline functions.
-inline void Learner::Predict(const SparseBatch::Inst& inst,
+inline void Learner::Predict(const data::SparsePage::Inst& inst,
                              bool output_margin,
                              HostDeviceVector<bst_float>* out_preds,
                              unsigned ntree_limit) const {

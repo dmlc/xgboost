@@ -769,7 +769,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // start accumulating statistics
-    dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+    dmlc::DataIter<SparseBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
@@ -781,7 +781,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        RowBatch::Inst inst = batch[i];
+        data::SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         int nid = this->position_[ridx];
         if (nid >= 0) {
@@ -800,7 +800,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       builder.InitStorage();
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        RowBatch::Inst inst = batch[i];
+        data::SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         const int nid = this->position_[ridx];
         if (nid >= 0) {

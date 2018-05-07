@@ -30,8 +30,8 @@ class SimpleDMatrix : public DMatrix {
     return source_->info;
   }
 
-  dmlc::DataIter<RowBatch>* RowIterator() override {
-    dmlc::DataIter<RowBatch>* iter = source_.get();
+  dmlc::DataIter<SparsePage>* RowIterator() override {
+    auto iter = source_.get();
     iter->BeforeFirst();
     return iter;
   }
@@ -111,7 +111,7 @@ class SimpleDMatrix : public DMatrix {
                      float pkeep,
                      size_t max_row_perbatch, bool sorted);
 
-  void MakeColPage(const RowBatch& batch,
+  void MakeColPage(const SparsePage& batch,
                    size_t buffer_begin,
                    const std::vector<bool>& enabled,
                    SparsePage* pcol, bool sorted);

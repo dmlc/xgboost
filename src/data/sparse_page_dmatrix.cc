@@ -62,13 +62,13 @@ bool SparsePageDMatrix::ColPageIter::Next() {
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
     out_.col_index = dmlc::BeginPtr(index_set_);
-    col_data_.resize(page_->offset.size() - 1, SparseBatch::Inst(nullptr, 0));
+    col_data_.resize(page_->offset.size() - 1, data::SparsePage::Inst(nullptr, 0));
     for (size_t i = 0; i < col_data_.size(); ++i) {
-      col_data_[i] = SparseBatch::Inst
+      col_data_[i] = data::SparsePage::Inst
           (dmlc::BeginPtr(page_->data) + page_->offset[i],
            static_cast<bst_uint>(page_->offset[i + 1] - page_->offset[i]));
     }
-    out_.col_data = dmlc::BeginPtr(col_data_);
+    out_.col_data =  reinterpret_cast<SparseBatch::Inst*>(dmlc::BeginPtr(col_data_));
     out_.size = col_data_.size();
     // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
@@ -157,7 +157,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   buffered_rowset_.Clear();
   col_size_.resize(info.num_col_);
   std::fill(col_size_.begin(), col_size_.end(), 0);
-  dmlc::DataIter<RowBatch>* iter = this->RowIterator();
+   auto iter = this->RowIterator();
   std::bernoulli_distribution coin_flip(pkeep);
   size_t batch_ptr = 0, batch_top = 0;
   SparsePage tmp;
@@ -217,8 +217,8 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
     while (true) {
       if (batch_ptr != batch_top) {
-        const RowBatch& batch = iter->Value();
-        CHECK_EQ(batch_top, batch.size);
+         auto batch = iter->Value();
+        CHECK_EQ(batch_top, batch.Size());
         for (size_t i = batch_ptr; i < batch_top; ++i) {
           auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           if (pkeep == 1.0f || coin_flip(rnd)) {
@@ -237,7 +237,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
       }
       if (!iter->Next()) break;
       batch_ptr = 0;
-      batch_top = iter->Value().size;
+      batch_top = iter->Value().Size();
     }
 
     if (tmp.Size() != 0) {

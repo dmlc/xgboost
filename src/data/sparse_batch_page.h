@@ -41,6 +41,27 @@ class SparsePage {
   std::vector<size_t> offset;
   /*! \brief the data of the segments */
   std::vector<SparseBatch::Entry> data;
+  
+  size_t base_rowid;
+  /*! \brief an instance of sparse vector in the batch */
+  struct Inst {
+    /*! \brief pointer to the elements*/
+    const SparseBatch::Entry *data{nullptr};
+    /*! \brief length of the instance */
+    bst_uint length{0};
+    /*! \brief constructor */
+    Inst()  = default;
+    Inst(const SparseBatch::Entry *data, bst_uint length) : data(data), length(length) {}
+    /*! \brief get i-th pair in the sparse vector*/
+    inline const SparseBatch::Entry& operator[](size_t i) const {
+      return data[i];
+    }
+  };
+
+  /*! \brief get i-th row from the batch */
+  inline Inst operator[](size_t i) const {
+    return {data.data() + offset[i], static_cast<bst_uint>(offset[i + 1] - offset[i])};
+  }
 
   /*! \brief constructor */
   SparsePage() {
@@ -116,7 +137,7 @@ class SparsePage {
    * \brief Push one instance into page
    *  \param row an instance row
    */
-  inline void Push(const SparseBatch::Inst &inst) {
+  inline void Push(const SparsePage::Inst &inst) {
     offset.push_back(offset.back() + inst.length);
     size_t begin = data.size();
     data.resize(begin + inst.length);
@@ -125,6 +146,9 @@ class SparsePage {
                   sizeof(SparseBatch::Entry) * inst.length);
     }
   }
+
+  size_t Size() { return offset.size() - 1; }
+
   /*!
    * \param base_rowid base_rowid of the data
    * \return row batch representation of the page

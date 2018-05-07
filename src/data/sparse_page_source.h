@@ -39,7 +39,7 @@ class SparsePageSource : public DataSource {
   // implement BeforeFirst
   void BeforeFirst() override;
   // implement Value
-  const RowBatch& Value() const override;
+  const SparsePage& Value() const override;
   /*!
    * \brief Create source by taking data from parser.
    * \param src source parser.

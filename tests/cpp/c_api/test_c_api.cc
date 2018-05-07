@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include "../../../src/data/sparse_batch_page.h"
 
 TEST(c_api, XGDMatrixCreateFromMat_omp) {
   std::vector<int> num_rows = {100, 11374, 15000};
@@ -29,7 +30,7 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     iter->BeforeFirst();
     while (iter->Next()) {
       auto batch = iter->Value();
-      for (int i = 0; i < batch.size; i++) {
+      for (int i = 0; i < batch.Size(); i++) {
         auto inst = batch[i];
         for (int j = 0; i < inst.length; i++) {
           ASSERT_EQ(inst[j].fvalue, 1.5);

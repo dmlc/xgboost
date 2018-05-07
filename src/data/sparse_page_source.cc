@@ -79,8 +79,8 @@ void SparsePageSource::BeforeFirst() {
   }
 }
 
-const RowBatch& SparsePageSource::Value() const {
-  return batch_;
+const SparsePage& SparsePageSource::Value() const {
+  return *page_;
 }
 
 bool SparsePageSource::CacheExist(const std::string& cache_info) {
@@ -186,7 +186,7 @@ void SparsePageSource::Create(DMatrix* src,
     MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    dmlc::DataIter<RowBatch>* iter = src->RowIterator();
+    auto iter = src->RowIterator();
 
     while (iter->Next()) {
       page->Push(iter->Value());

@@ -33,7 +33,7 @@ TEST(cpu_predictor, Test) {
 
   // Test predict instance
   auto batch = dmat->RowIterator()->Value();
-  for (int i = 0; i < batch.size; i++) {
+  for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
     ASSERT_EQ(instance_out_predictions[0], 1.5);

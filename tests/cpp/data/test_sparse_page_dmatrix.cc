@@ -1,6 +1,7 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
 #include "../../../src/data/sparse_page_dmatrix.h"
+#include "../../../src/data/sparse_batch_page.h"
 
 #include "../helpers.h"
 
@@ -29,16 +30,16 @@ TEST(SparsePageDMatrix, RowAccess) {
   std::remove(tmp_file.c_str());
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
-  dmlc::DataIter<xgboost::RowBatch> * row_iter = dmat->RowIterator();
+  auto row_iter = dmat->RowIterator();
   // Loop over the batches and count the records
   long row_count = 0;
   row_iter->BeforeFirst();
-  while (row_iter->Next()) row_count += row_iter->Value().size;
+  while (row_iter->Next()) row_count += row_iter->Value().Size();
   EXPECT_EQ(row_count, dmat->Info().num_row_);
   // Test the data read into the first row
   row_iter->BeforeFirst();
   row_iter->Next();
-  xgboost::SparseBatch::Inst first_row = row_iter->Value()[0];
+  auto first_row = row_iter->Value()[0];
   ASSERT_EQ(first_row.length, 3);
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);

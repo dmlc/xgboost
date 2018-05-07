@@ -6,6 +6,7 @@
 #include <xgboost/tree_updater.h>
 #include "dmlc/logging.h"
 #include "../common/host_device_vector.h"
+#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace predictor {
@@ -14,7 +15,7 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
 class CPUPredictor : public Predictor {
  protected:
-  static bst_float PredValue(const RowBatch::Inst& inst,
+  static bst_float PredValue(const  data::SparsePage::Inst& inst,
                              const std::vector<std::unique_ptr<RegTree>>& trees,
                              const std::vector<int>& tree_info, int bst_group,
                              unsigned root_index, RegTree::FVec* p_feats,
@@ -53,20 +54,20 @@ class CPUPredictor : public Predictor {
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+     auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
+      const  auto& batch = iter->Value();
       // parallel over local batch
       constexpr int kUnroll = 8;
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
         const int tid = omp_get_thread_num();
         RegTree::FVec& feats = thread_temp[tid];
         int64_t ridx[kUnroll];
-        RowBatch::Inst inst[kUnroll];
+        data::SparsePage::Inst inst[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
           ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
         }
@@ -85,7 +86,7 @@ class CPUPredictor : public Predictor {
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
-        const RowBatch::Inst inst = batch[i];
+         auto inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
@@ -183,7 +184,7 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredictInstance(const SparseBatch::Inst& inst,
+  void PredictInstance(const data::SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {
@@ -218,12 +219,12 @@ class CPUPredictor : public Predictor {
     std::vector<bst_float>& preds = *out_preds;
     preds.resize(info.num_row_ * ntree_limit);
     // start collecting the prediction
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+    auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
+      auto batch = iter->Value();
       // parallel over local batch
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
@@ -266,13 +267,13 @@ class CPUPredictor : public Predictor {
       model.trees[i]->FillNodeMeanValues();
     }
     // start collecting the contributions
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+    auto iter = p_fmat->RowIterator();
     const std::vector<bst_float>& base_margin = info.base_margin_;
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
+      auto batch = iter->Value();
       // parallel over local batch
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);

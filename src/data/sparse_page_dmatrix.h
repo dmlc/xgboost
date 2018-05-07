@@ -35,8 +35,8 @@ class SparsePageDMatrix : public DMatrix {
     return source_->info;
   }
 
-  dmlc::DataIter<RowBatch>* RowIterator() override {
-    dmlc::DataIter<RowBatch>* iter = source_.get();
+  dmlc::DataIter<SparsePage>* RowIterator() override {
+     auto iter = source_.get();
     iter->BeforeFirst();
     return iter;
   }
@@ -111,7 +111,7 @@ class SparsePageDMatrix : public DMatrix {
     // temporal space for batch
     ColBatch out_;
     // the pointer data.
-    std::vector<SparseBatch::Inst> col_data_;
+    std::vector<data::SparsePage::Inst> col_data_;
   };
   /*!
    * \brief Try to initialize column data.

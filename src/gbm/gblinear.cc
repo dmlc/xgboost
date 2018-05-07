@@ -15,6 +15,7 @@
 #include <sstream>
 #include <algorithm>
 #include "../common/timer.h"
+#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace gbm {
@@ -120,7 +121,7 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("PredictBatch");
   }
   // add base margin
-  void PredictInstance(const SparseBatch::Inst &inst,
+  void PredictInstance(const data::SparsePage::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
@@ -152,15 +153,15 @@ class GBLinear : public GradientBooster {
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // start collecting the contributions
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+     auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
+       auto batch = iter->Value();
       // parallel over local batch
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-        const RowBatch::Inst &inst = batch[i];
+         auto inst = batch[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
@@ -203,15 +204,15 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float> &preds = *out_preds;
     const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
     // start collecting the prediction
-    dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+     auto iter = p_fmat->RowIterator();
     const int ngroup = model_.param.num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
     while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
+       auto batch = iter->Value();
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
-      const auto nsize = static_cast<omp_ulong>(batch.size);
+      const auto nsize = static_cast<omp_ulong>(batch.Size());
       #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
@@ -265,7 +266,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  inline void Pred(const RowBatch::Inst &inst, bst_float *preds, int gid,
+  inline void Pred(const data::SparsePage::Inst &inst, bst_float *preds, int gid,
                    bst_float base) {
     bst_float psum = model_.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {

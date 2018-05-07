@@ -104,7 +104,7 @@ class BaseMaker: public TreeUpdater {
   // ------static helper functions ------
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
-  inline static int NextLevel(const RowBatch::Inst &inst, const RegTree &tree, int nid) {
+  inline static int NextLevel(const data::SparsePage::Inst &inst, const RegTree &tree, int nid) {
     const RegTree::Node &n = tree[nid];
     bst_uint findex = n.SplitIndex();
     for (unsigned i = 0; i < inst.length; ++i) {
