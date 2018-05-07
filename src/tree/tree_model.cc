@@ -5,6 +5,8 @@
  */
 #include <xgboost/tree_model.h>
 #include <sstream>
+#include <limits>
+#include <iomanip>
 #include "./param.h"
 
 namespace xgboost {
@@ -20,6 +22,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                  const FeatureMap& fmap,
                  int nid, int depth, int add_comma,
                  bool with_stats, std::string format) {
+  int floatMaxPrecision = std::numeric_limits<bst_float>::max_digits10;
   if (format == "json") {
     if (add_comma) {
       fo << ",";
@@ -38,15 +41,15 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
   if (tree[nid].IsLeaf()) {
     if (format == "json") {
       fo << "{ \"nodeid\": " << nid
-         << ", \"leaf\": " << tree[nid].LeafValue();
+         << ", \"leaf\": " << std::setprecision(floatMaxPrecision) << tree[nid].LeafValue();
       if (with_stats) {
-        fo << ", \"cover\": " << tree.Stat(nid).sum_hess;
+        fo << ", \"cover\": " << std::setprecision(floatMaxPrecision) << tree.Stat(nid).sum_hess;
       }
       fo << " }";
     } else {
-      fo << nid << ":leaf=" << tree[nid].LeafValue();
+      fo << nid << ":leaf=" << std::setprecision(floatMaxPrecision) << tree[nid].LeafValue();
       if (with_stats) {
-        fo << ",cover=" << tree.Stat(nid).sum_hess;
+        fo << ",cover=" << std::setprecision(floatMaxPrecision) << tree.Stat(nid).sum_hess;
       }
       fo << '\n';
     }
@@ -95,12 +98,12 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.Name(split_index) << "\""
-               << ", \"split_condition\": " << cond
+               << ", \"split_condition\": " << std::setprecision(floatMaxPrecision) << cond
                << ", \"yes\": " << tree[nid].LeftChild()
                << ", \"no\": " << tree[nid].RightChild()
                << ", \"missing\": " << tree[nid].DefaultChild();
           } else {
-            fo << nid << ":[" << fmap.Name(split_index) << "<" << cond
+            fo << nid << ":[" << std::setprecision(floatMaxPrecision) << fmap.Name(split_index) << "<" << cond
                << "] yes=" << tree[nid].LeftChild()
                << ",no=" << tree[nid].RightChild()
                << ",missing=" << tree[nid].DefaultChild();
@@ -114,12 +117,12 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
         fo << "{ \"nodeid\": " << nid
            << ", \"depth\": " << depth
            << ", \"split\": " << split_index
-           << ", \"split_condition\": " << cond
+           << ", \"split_condition\": " << std::setprecision(floatMaxPrecision) << cond
            << ", \"yes\": " << tree[nid].LeftChild()
            << ", \"no\": " << tree[nid].RightChild()
            << ", \"missing\": " << tree[nid].DefaultChild();
       } else {
-        fo << nid << ":[f" << split_index << "<"<< cond
+        fo << nid << ":[f" << split_index << "<"<< std::setprecision(floatMaxPrecision) << cond
            << "] yes=" << tree[nid].LeftChild()
            << ",no=" << tree[nid].RightChild()
            << ",missing=" << tree[nid].DefaultChild();
@@ -127,10 +130,11 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
     }
     if (with_stats) {
       if (format == "json") {
-        fo << ", \"gain\": " << tree.Stat(nid).loss_chg
-           << ", \"cover\": " << tree.Stat(nid).sum_hess;
+        fo << ", \"gain\": " << std::setprecision(floatMaxPrecision) << tree.Stat(nid).loss_chg
+           << ", \"cover\": " << std::setprecision(floatMaxPrecision) << tree.Stat(nid).sum_hess;
       } else {
-        fo << ",gain=" << tree.Stat(nid).loss_chg << ",cover=" << tree.Stat(nid).sum_hess;
+        fo << ",gain=" << std::setprecision(floatMaxPrecision) << tree.Stat(nid).loss_chg
+           << ",cover=" << std::setprecision(floatMaxPrecision) << tree.Stat(nid).sum_hess;
       }
     }
     if (format == "json") {
