@@ -103,7 +103,8 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"no\": " << tree[nid].RightChild()
                << ", \"missing\": " << tree[nid].DefaultChild();
           } else {
-            fo << nid << ":[" << std::setprecision(floatMaxPrecision) << fmap.Name(split_index) << "<" << cond
+            fo << nid << ":[" << fmap.Name(split_index)
+               << "<" << std::setprecision(floatMaxPrecision) << cond
                << "] yes=" << tree[nid].LeftChild()
                << ",no=" << tree[nid].RightChild()
                << ",missing=" << tree[nid].DefaultChild();
