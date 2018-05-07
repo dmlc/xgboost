@@ -248,7 +248,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
     for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
       if (!common::CheckNAN(data[j])) {
         // automatically skip nan.
-        mat.page_.data.emplace_back(RowBatch::Entry(indices[j], data[j]));
+        mat.page_.data.emplace_back(Entry(indices[j], data[j]));
         num_column = std::max(num_column, static_cast<size_t>(indices[j] + 1));
       }
     }
@@ -294,7 +294,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   // FIXME: User should be able to control number of threads
   const int nthread = omp_get_max_threads();
   data::SimpleCSRSource& mat = *source;
-  common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.page_.offset, &mat.page_.data);
+  common::ParallelGroupBuilder<Entry> builder(&mat.page_.offset, &mat.page_.data);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
@@ -313,7 +313,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       if (!common::CheckNAN(data[j])) {
         builder.Push(indices[j],
-                     RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
+                     Entry(static_cast<bst_uint>(i), data[j]),
                      tid);
       }
     }
@@ -383,7 +383,7 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
       if (common::CheckNAN(data[j])) {
       } else {
         if (nan_missing || data[j] != missing) {
-          mat.page_.data[mat.page_.offset[i] + matj] = RowBatch::Entry(j, data[j]);
+          mat.page_.data[mat.page_.offset[i] + matj] = Entry(j, data[j]);
           ++matj;
         }
       }
@@ -492,7 +492,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
         if (common::CheckNAN(data[ncol * i + j])) {
         } else if (nan_missing || data[ncol * i + j] != missing) {
           mat.page_.data[mat.page_.offset[i] + matj] =
-              RowBatch::Entry(j, data[ncol * i + j]);
+              Entry(j, data[ncol * i + j]);
           ++matj;
         }
       }

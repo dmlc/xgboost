@@ -40,20 +40,20 @@ class SparsePage {
   /*! \brief offset of the segments */
   std::vector<size_t> offset;
   /*! \brief the data of the segments */
-  std::vector<SparseBatch::Entry> data;
+  std::vector<Entry> data;
   
   size_t base_rowid;
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
     /*! \brief pointer to the elements*/
-    const SparseBatch::Entry *data{nullptr};
+    const Entry *data{nullptr};
     /*! \brief length of the instance */
     bst_uint length{0};
     /*! \brief constructor */
     Inst()  = default;
-    Inst(const SparseBatch::Entry *data, bst_uint length) : data(data), length(length) {}
+    Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
-    inline const SparseBatch::Entry& operator[](size_t i) const {
+    inline const Entry& operator[](size_t i) const {
       return data[i];
     }
   };
@@ -73,7 +73,7 @@ class SparsePage {
   }
   /*! \return estimation of memory cost of this page */
   inline size_t MemCostBytes() const {
-    return offset.size() * sizeof(size_t) + data.size() * sizeof(SparseBatch::Entry);
+    return offset.size() * sizeof(size_t) + data.size() * sizeof(Entry);
   }
   /*! \brief clear the page */
   inline void Clear() {
@@ -83,22 +83,6 @@ class SparsePage {
     data.clear();
   }
 
-  /*!
-   * \brief Push row batch into the page
-   * \param batch the row batch
-   */
-  inline void Push(const RowBatch &batch) {
-    data.resize(offset.back() + batch.ind_ptr[batch.size]);
-    std::memcpy(dmlc::BeginPtr(data) + offset.back(),
-                batch.data_ptr + batch.ind_ptr[0],
-                sizeof(SparseBatch::Entry) * batch.ind_ptr[batch.size]);
-    size_t top = offset.back();
-    size_t begin = offset.size();
-    offset.resize(offset.size() + batch.size);
-    for (size_t i = 0; i < batch.size; ++i) {
-      offset[i + begin] = top + batch.ind_ptr[i + 1] - batch.ind_ptr[0];
-    }
-  }
   /*!
    * \brief Push row block into the page.
    * \param batch the row batch.
@@ -126,7 +110,7 @@ class SparsePage {
     data.resize(top + batch.data.size());
     std::memcpy(dmlc::BeginPtr(data) + top,
                 dmlc::BeginPtr(batch.data),
-                sizeof(SparseBatch::Entry) * batch.data.size());
+                sizeof(Entry) * batch.data.size());
     size_t begin = offset.size();
     offset.resize(begin + batch.Size());
     for (size_t i = 0; i < batch.Size(); ++i) {
@@ -143,24 +127,12 @@ class SparsePage {
     data.resize(begin + inst.length);
     if (inst.length != 0) {
       std::memcpy(dmlc::BeginPtr(data) + begin, inst.data,
-                  sizeof(SparseBatch::Entry) * inst.length);
+                  sizeof(Entry) * inst.length);
     }
   }
 
   size_t Size() { return offset.size() - 1; }
 
-  /*!
-   * \param base_rowid base_rowid of the data
-   * \return row batch representation of the page
-   */
-  inline RowBatch GetRowBatch(size_t base_rowid) const {
-    RowBatch out;
-    out.base_rowid  = base_rowid;
-    out.ind_ptr = dmlc::BeginPtr(offset);
-    out.data_ptr = dmlc::BeginPtr(data);
-    out.size = offset.size() - 1;
-    return out;
-  }
 };
 
 /*!

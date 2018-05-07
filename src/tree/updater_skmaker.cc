@@ -144,18 +144,18 @@ class SketchMaker: public BaseMaker {
     // number of rows in
     const size_t nrows = p_fmat->BufferedRowset().Size();
     // start accumulating statistics
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+    auto iter = p_fmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
+      auto batch = iter->Value();
       // start enumeration
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        this->UpdateSketchCol(gpair, batch[i], tree,
+      for (bst_omp_uint fidx = 0; fidx < nsize; ++fidx) {
+        this->UpdateSketchCol(gpair, batch[fidx], tree,
                               node_stats_,
-                              batch.col_index[i],
-                              batch[i].length == nrows,
+                              fidx,
+                              batch[fidx].length == nrows,
                               &thread_sketch_[omp_get_thread_num()]);
       }
     }
@@ -174,7 +174,7 @@ class SketchMaker: public BaseMaker {
   }
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const ColBatch::Inst &c,
+                              const data::SparsePage::Inst &c,
                               const RegTree &tree,
                               const std::vector<SKStats> &nstats,
                               bst_uint fid,

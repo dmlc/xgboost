@@ -53,9 +53,7 @@ class SimpleDMatrix : public DMatrix {
     return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
-  dmlc::DataIter<ColBatch>* ColIterator() override;
-
-  dmlc::DataIter<ColBatch>* ColIterator(const std::vector<bst_uint>& fset) override;
+  dmlc::DataIter<data::SparsePage>* ColIterator() override;
 
   void InitColAccess(const std::vector<bool>& enabled,
                      float subsample,
@@ -65,14 +63,15 @@ class SimpleDMatrix : public DMatrix {
 
  private:
   // in-memory column batch iterator.
-  struct ColBatchIter: dmlc::DataIter<ColBatch> {
+  struct ColBatchIter: dmlc::DataIter<SparsePage> {
    public:
     ColBatchIter()  = default;
     void BeforeFirst() override {
       data_ptr_ = 0;
     }
-    const ColBatch &Value() const override {
-      return batch_;
+    const SparsePage &Value() const override {
+      //return batch_;
+      return *cpages_[data_ptr_ - 1].get();
     }
     bool Next() override;
 
@@ -88,7 +87,7 @@ class SimpleDMatrix : public DMatrix {
     // data pointer
     size_t data_ptr_{0};
     // temporal space for batch
-    ColBatch batch_;
+    //ColBatch batch_;
     // Is column sorted?
     bool sorted_{false};
   };

@@ -61,8 +61,8 @@ bool SparsePageSource::Next() {
     prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
-    batch_ = page_->GetRowBatch(base_rowid_);
-    base_rowid_ += batch_.size;
+    page_->base_rowid = base_rowid_;
+    base_rowid_ += page_->Size();
     // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
     return true;

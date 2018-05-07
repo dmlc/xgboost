@@ -252,7 +252,7 @@ class ColMaker: public TreeUpdater {
     }
     // parallel find the best split of current fid
     // this function does not support nested functions
-    inline void ParallelFindSplit(const ColBatch::Inst &col,
+    inline void ParallelFindSplit(const data::SparsePage::Inst &col,
                                   bst_uint fid,
                                   const DMatrix &fmat,
                                   const std::vector<GradientPair> &gpair) {
@@ -439,8 +439,8 @@ class ColMaker: public TreeUpdater {
       }
     }
     // same as EnumerateSplit, with cacheline prefetch optimization
-    inline void EnumerateSplitCacheOpt(const ColBatch::Entry *begin,
-                                       const ColBatch::Entry *end,
+    inline void EnumerateSplitCacheOpt(const Entry *begin,
+                                       const Entry *end,
                                        int d_step,
                                        bst_uint fid,
                                        const std::vector<GradientPair> &gpair,
@@ -457,18 +457,18 @@ class ColMaker: public TreeUpdater {
       int buf_position[kBuffer] = {};
       GradientPair buf_gpair[kBuffer] = {};
       // aligned ending position
-      const ColBatch::Entry *align_end;
+      const Entry *align_end;
       if (d_step > 0) {
         align_end = begin + (end - begin) / kBuffer * kBuffer;
       } else {
         align_end = begin - (begin - end) / kBuffer * kBuffer;
       }
       int i;
-      const ColBatch::Entry *it;
+      const Entry *it;
       const int align_step = d_step * kBuffer;
       // internal cached loop
       for (it = begin; it != align_end; it += align_step) {
-        const ColBatch::Entry *p;
+        const Entry *p;
         for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
           buf_position[i] = position_[p->index];
           buf_gpair[i] = gpair[p->index];
@@ -519,8 +519,8 @@ class ColMaker: public TreeUpdater {
     }
 
     // enumerate the split values of specific feature
-    inline void EnumerateSplit(const ColBatch::Entry *begin,
-                               const ColBatch::Entry *end,
+    inline void EnumerateSplit(const Entry *begin,
+                               const Entry *end,
                                int d_step,
                                bst_uint fid,
                                const std::vector<GradientPair> &gpair,
@@ -538,7 +538,7 @@ class ColMaker: public TreeUpdater {
       }
       // left statistics
       TStats c(param_);
-      for (const ColBatch::Entry *it = begin; it != end; it += d_step) {
+      for (const Entry *it = begin; it != end; it += d_step) {
         const bst_uint ridx = it->index;
         const int nid = position_[ridx];
         if (nid < 0) continue;
@@ -602,12 +602,12 @@ class ColMaker: public TreeUpdater {
     }
 
     // update the solution candidate
-    virtual void UpdateSolution(const ColBatch& batch,
+    virtual void UpdateSolution(const data::SparsePage& batch, const std::vector<bst_uint>&feat_set,
                                 const std::vector<GradientPair>& gpair,
                                 const DMatrix& fmat) {
       const MetaInfo& info = fmat.Info();
       // start enumeration
-      const auto nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(nsize / this->nthread_ / 32), 1);
       #endif
@@ -618,9 +618,9 @@ class ColMaker: public TreeUpdater {
       if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          const bst_uint fid = batch.col_index[i];
+          int fid = feat_set[i];
           const int tid = omp_get_thread_num();
-          const ColBatch::Inst c = batch[i];
+          auto c = batch[fid];
           const bool ind = c.length != 0 && c.data[0].fvalue == c.data[c.length - 1].fvalue;
           if (param_.NeedForwardSearch(fmat.GetColDensity(fid), ind)) {
             this->EnumerateSplit(c.data, c.data + c.length, +1,
@@ -632,8 +632,8 @@ class ColMaker: public TreeUpdater {
           }
         }
       } else {
-        for (bst_omp_uint i = 0; i < nsize; ++i) {
-          this->ParallelFindSplit(batch[i], batch.col_index[i],
+        for (bst_omp_uint fid = 0; fid < nsize; ++fid) {
+          this->ParallelFindSplit(batch[fid], fid,
                                   fmat, gpair);
         }
       }
@@ -653,9 +653,9 @@ class ColMaker: public TreeUpdater {
             << "colsample_bylevel cannot be zero.";
         feat_set.resize(n);
       }
-      dmlc::DataIter<ColBatch>* iter = p_fmat->ColIterator(feat_set);
+      auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        this->UpdateSolution(iter->Value(), gpair, *p_fmat);
+        this->UpdateSolution(iter->Value(), feat_set, gpair, *p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);
@@ -730,12 +730,11 @@ class ColMaker: public TreeUpdater {
       }
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fsplits);
+      auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
-        for (size_t i = 0; i < batch.size; ++i) {
-          ColBatch::Inst col = batch[i];
-          const bst_uint fid = batch.col_index[i];
+        auto batch = iter->Value();
+        for(auto fid:fsplits){
+          auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
@@ -859,12 +858,11 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
             boolmap_[j] = 0;
         }
       }
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fsplits);
+      auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
-        for (size_t i = 0; i < batch.size; ++i) {
-          ColBatch::Inst col = batch[i];
-          const bst_uint fid = batch.col_index[i];
+        auto batch = iter->Value();
+        for (auto fid : fsplits) {
+          auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {

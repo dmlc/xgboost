@@ -33,7 +33,7 @@ class SimpleCSRSource : public DataSource {
   /*! \brief row pointer of CSR sparse storage */
   //std::vector<size_t> row_ptr_;
   /*! \brief data in the CSR sparse storage */
-  //std::vector<RowBatch::Entry> row_data_;
+  //std::vector<Entry> row_data_;
   SparsePage page_;
   /*! \brief default constructor */
   //SimpleCSRSource() : row_ptr_(1, 0) {}

@@ -62,9 +62,7 @@ class SparsePageDMatrix : public DMatrix {
     return false;
   }
 
-  dmlc::DataIter<ColBatch>* ColIterator() override;
-
-  dmlc::DataIter<ColBatch>* ColIterator(const std::vector<bst_uint>& fset) override;
+  dmlc::DataIter<data::SparsePage>* ColIterator() override;
 
   void InitColAccess(const std::vector<bool>& enabled,
                      float subsample,
@@ -77,13 +75,14 @@ class SparsePageDMatrix : public DMatrix {
 
  private:
   // declare the column batch iter.
-  class ColPageIter : public dmlc::DataIter<ColBatch> {
+  class ColPageIter : public dmlc::DataIter<SparsePage> {
    public:
     explicit ColPageIter(std::vector<std::unique_ptr<dmlc::SeekStream> >&& files);
     ~ColPageIter() override;
     void BeforeFirst() override;
-    const ColBatch &Value() const override {
-      return out_;
+    const SparsePage &Value() const override {
+      return *page_;
+      //return out_;
     }
     bool Next() override;
     // initialize the column iterator with the specified index set.
@@ -109,7 +108,7 @@ class SparsePageDMatrix : public DMatrix {
     // whether to load data dataset.
     bool set_load_all_, load_all_;
     // temporal space for batch
-    ColBatch out_;
+    //ColBatch out_;
     // the pointer data.
     std::vector<data::SparsePage::Inst> col_data_;
   };

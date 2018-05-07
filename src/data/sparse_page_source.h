@@ -67,8 +67,6 @@ class SparsePageSource : public DataSource {
  private:
   /*! \brief number of rows */
   size_t base_rowid_;
-  /*! \brief temp data. */
-  RowBatch batch_;
   /*! \brief page currently on hold. */
   SparsePage *page_;
   /*! \brief internal clock ptr */

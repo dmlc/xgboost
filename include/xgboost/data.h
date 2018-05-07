@@ -117,27 +117,47 @@ class MetaInfo {
   mutable std::vector<size_t> label_order_cache_;
 };
 
+/*! \brief Element from a sparse vector */
+struct Entry {
+  /*! \brief feature index */
+  bst_uint index;
+  /*! \brief feature value */
+  bst_float fvalue;
+  /*! \brief default constructor */
+  Entry() = default;
+  /*!
+   * \brief constructor with index and value
+   * \param index The feature or row index.
+   * \param fvalue THe feature value.
+   */
+  Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+  /*! \brief reversely compare feature values */
+  inline static bool CmpValue(const Entry& a, const Entry& b) {
+    return a.fvalue < b.fvalue;
+  }
+};
+
 /*! \brief read-only sparse instance batch in CSR format */
 struct SparseBatch {
-  /*! \brief an entry of sparse vector */
-  struct Entry {
-    /*! \brief feature index */
-    bst_uint index;
-    /*! \brief feature value */
-    bst_float fvalue;
-    /*! \brief default constructor */
-    XGBOOST_DEVICE Entry() {}
-    /*!
-     * \brief constructor with index and value
-     * \param index The feature or row index.
-     * \param fvalue THe feature value.
-     */
-    XGBOOST_DEVICE Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
-    /*! \brief reversely compare feature values */
-    XGBOOST_DEVICE inline static bool CmpValue(const Entry& a, const Entry& b) {
-      return a.fvalue < b.fvalue;
-    }
-  };
+  ///*! \brief an entry of sparse vector */
+  //struct Entry {
+  //  /*! \brief feature index */
+  //  bst_uint index;
+  //  /*! \brief feature value */
+  //  bst_float fvalue;
+  //  /*! \brief default constructor */
+  //  Entry() = default;
+  //  /*!
+  //   * \brief constructor with index and value
+  //   * \param index The feature or row index.
+  //   * \param fvalue THe feature value.
+  //   */
+  //  Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+  //  /*! \brief reversely compare feature values */
+  //  inline static bool CmpValue(const Entry& a, const Entry& b) {
+  //    return a.fvalue < b.fvalue;
+  //  }
+  //};
 
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
@@ -158,20 +178,20 @@ struct SparseBatch {
   size_t size;
 };
 
-/*! \brief read-only row batch, used to access row continuously */
-struct RowBatch : public SparseBatch {
-  /*! \brief the offset of rowid of this batch */
-  size_t base_rowid;
-  /*! \brief array[size+1], row pointer of each of the elements */
-  const size_t *ind_ptr;
-  /*! \brief array[ind_ptr.back()], content of the sparse element */
-  const Entry *data_ptr;
-  /*! \brief get i-th row from the batch */
-  inline Inst operator[](size_t i) const {
-    return {data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i])};
-  }
-};
-
+///*! \brief read-only row batch, used to access row continuously */
+//struct RowBatch : public SparseBatch {
+//  /*! \brief the offset of rowid of this batch */
+//  size_t base_rowid;
+//  /*! \brief array[size+1], row pointer of each of the elements */
+//  const size_t *ind_ptr;
+//  /*! \brief array[ind_ptr.back()], content of the sparse element */
+//  const Entry *data_ptr;
+//  /*! \brief get i-th row from the batch */
+//  inline Inst operator[](size_t i) const {
+//    return {data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i])};
+//  }
+//};
+//
 /*!
  * \brief read-only column batch, used to access columns,
  * the columns are not required to be continuous
@@ -267,13 +287,7 @@ class DMatrix {
    */
   virtual dmlc::DataIter<data::SparsePage>* RowIterator() = 0;
   /*!\brief get column iterator, reset to the beginning position */
-  virtual dmlc::DataIter<ColBatch>* ColIterator() = 0;
-  /*!
-   * \brief get the column iterator associated with subset of column features.
-   * \param fset is the list of column index set that must be contained in the returning Column iterator
-   * \return the column iterator, initialized so that it reads the elements in fset
-   */
-  virtual dmlc::DataIter<ColBatch>* ColIterator(const std::vector<bst_uint>& fset) = 0;
+  virtual dmlc::DataIter<data::SparsePage>* ColIterator() = 0;
   /*!
    * \brief check if column access is supported, if not, initialize column access.
    * \param enabled whether certain feature should be included in column access.
@@ -393,7 +407,7 @@ inline bool RowSet::Load(dmlc::Stream* fi) {
 }  // namespace xgboost
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(is_pod, xgboost::SparseBatch::Entry, true);
+DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);
 DMLC_DECLARE_TRAITS(has_saveload, xgboost::RowSet, true);
 }
 #endif  // XGBOOST_DATA_H_

@@ -61,15 +61,15 @@ bool SparsePageDMatrix::ColPageIter::Next() {
     prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
-    out_.col_index = dmlc::BeginPtr(index_set_);
+    //out_.col_index = dmlc::BeginPtr(index_set_);
     col_data_.resize(page_->offset.size() - 1, data::SparsePage::Inst(nullptr, 0));
     for (size_t i = 0; i < col_data_.size(); ++i) {
-      col_data_[i] = data::SparsePage::Inst
+      col_data_[i] = SparsePage::Inst
           (dmlc::BeginPtr(page_->data) + page_->offset[i],
            static_cast<bst_uint>(page_->offset[i + 1] - page_->offset[i]));
     }
-    out_.col_data =  reinterpret_cast<SparseBatch::Inst*>(dmlc::BeginPtr(col_data_));
-    out_.size = col_data_.size();
+    //out_.col_data =  reinterpret_cast<SparseBatch::Inst*>(dmlc::BeginPtr(col_data_));
+    //out_.size = col_data_.size();
     // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
     return true;
@@ -93,7 +93,7 @@ void SparsePageDMatrix::ColPageIter::Init(const std::vector<bst_uint>& index_set
   this->BeforeFirst();
 }
 
-dmlc::DataIter<ColBatch>* SparsePageDMatrix::ColIterator() {
+  dmlc::DataIter<data::SparsePage>* SparsePageDMatrix::ColIterator() {
   CHECK(col_iter_ != nullptr);
   std::vector<bst_uint> col_index;
   size_t ncol = this->Info().num_col_;
@@ -103,21 +103,6 @@ dmlc::DataIter<ColBatch>* SparsePageDMatrix::ColIterator() {
   col_iter_->Init(col_index, true);
   return col_iter_.get();
 }
-
-dmlc::DataIter<ColBatch>* SparsePageDMatrix::
-ColIterator(const std::vector<bst_uint>& fset) {
-  CHECK(col_iter_ != nullptr);
-  std::vector<bst_uint> col_index;
-  size_t ncol = this->Info().num_col_;
-  for (auto fidx : fset) {
-    if (fidx < ncol) {
-      col_index.push_back(fidx);
-    }
-  }
-  col_iter_->Init(col_index, false);
-  return col_iter_.get();
-}
-
 
 bool SparsePageDMatrix::TryInitColData(bool sorted) {
   // load meta data.
@@ -171,7 +156,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     pcol->Clear();
     pcol->min_index = buffered_rowset_[begin];
     const int nthread = std::max(omp_get_max_threads(), std::max(omp_get_num_procs() / 2 - 1, 1));
-    common::ParallelGroupBuilder<SparseBatch::Entry>
+    common::ParallelGroupBuilder<Entry>
     builder(&pcol->offset, &pcol->data);
     builder.InitBudget(info.num_col_, nthread);
     bst_omp_uint ndata = static_cast<bst_uint>(prow.Size());
@@ -179,7 +164,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
       for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
-        const SparseBatch::Entry &e = prow.data[j];
+        const  auto e = prow.data[j];
         if (enabled[e.index]) {
           builder.AddBudget(e.index, tid);
         }
@@ -190,9 +175,9 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
       for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
-        const SparseBatch::Entry &e = prow.data[j];
+        const Entry &e = prow.data[j];
         builder.Push(e.index,
-                     SparseBatch::Entry(buffered_rowset_[i + begin], e.fvalue),
+                     Entry(buffered_rowset_[i + begin], e.fvalue),
                      tid);
       }
     }
@@ -205,7 +190,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
         if (pcol->offset[i] < pcol->offset[i + 1]) {
           std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
             dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
-            SparseBatch::Entry::CmpValue);
+            Entry::CmpValue);
         }
       }
     }
