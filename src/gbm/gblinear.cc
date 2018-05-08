@@ -15,7 +15,6 @@
 #include <sstream>
 #include <algorithm>
 #include "../common/timer.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace gbm {
@@ -121,7 +120,7 @@ class GBLinear : public GradientBooster {
     monitor_.Stop("PredictBatch");
   }
   // add base margin
-  void PredictInstance(const data::SparsePage::Inst &inst,
+  void PredictInstance(const SparsePage::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
@@ -266,7 +265,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  inline void Pred(const data::SparsePage::Inst &inst, bst_float *preds, int gid,
+  inline void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
                    bst_float base) {
     bst_float psum = model_.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {

@@ -12,7 +12,6 @@
 #include "./column_matrix.h"
 #include "./hist_util.h"
 #include "./quantile.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace common {
@@ -46,7 +45,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
       unsigned end = std::min(nstep * (tid + 1), ncol);
       for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
         size_t ridx = batch.base_rowid + i;
-        data::SparsePage::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         for (bst_uint j = 0; j < inst.length; ++j) {
           if (inst[j].index >= begin && inst[j].index < end) {
             sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
@@ -133,7 +132,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
-      data::SparsePage::Inst inst = batch[i];
+      SparsePage::Inst inst = batch[i];
       CHECK_EQ(ibegin + inst.length, iend);
       for (bst_uint j = 0; j < inst.length; ++j) {
         unsigned fid = inst[j].index;

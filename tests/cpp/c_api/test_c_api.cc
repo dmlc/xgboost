@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
-#include "../../../src/data/sparse_batch_page.h"
 
 TEST(c_api, XGDMatrixCreateFromMat_omp) {
   std::vector<int> num_rows = {100, 11374, 15000};

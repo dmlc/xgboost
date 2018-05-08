@@ -5,7 +5,6 @@
 
 #include <xgboost/linear_updater.h>
 #include "coordinate_common.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace linear {

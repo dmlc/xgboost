@@ -9,7 +9,6 @@
 #include <vector>
 #include <limits>
 #include "../common/random.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace linear {

@@ -14,8 +14,8 @@
 #include <vector>
 #include <algorithm>
 #include <string>
-#include "./sparse_batch_page.h"
 #include "../common/common.h"
+#include "./sparse_page_writer.h"
 
 namespace xgboost {
 namespace data {
@@ -62,7 +62,7 @@ class SparsePageDMatrix : public DMatrix {
     return false;
   }
 
-  dmlc::DataIter<data::SparsePage>* ColIterator() override;
+  dmlc::DataIter<SparsePage>* ColIterator() override;
 
   void InitColAccess(const std::vector<bool>& enabled,
                      float subsample,
@@ -98,7 +98,7 @@ class SparsePageDMatrix : public DMatrix {
     // data file pointer.
     std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
     // page format.
-    std::vector<std::unique_ptr<SparsePage::Format> > formats_;
+    std::vector<std::unique_ptr<SparsePageFormat> > formats_;
     /*! \brief internal prefetcher. */
     std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
     // The index set to be loaded.
@@ -107,10 +107,6 @@ class SparsePageDMatrix : public DMatrix {
     std::vector<bst_uint> set_index_set_;
     // whether to load data dataset.
     bool set_load_all_, load_all_;
-    // temporal space for batch
-    //ColBatch out_;
-    // the pointer data.
-    std::vector<data::SparsePage::Inst> col_data_;
   };
   /*!
    * \brief Try to initialize column data.

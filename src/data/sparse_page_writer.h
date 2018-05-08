@@ -27,121 +27,12 @@
 namespace xgboost {
 namespace data {
 /*!
- * \brief in-memory storage unit of sparse batch
- */
-class SparsePage {
- public:
-  /*! \brief Format of the sparse page. */
-  class Format;
-  /*! \brief Writer to write the sparse page to files. */
-  class Writer;
-  /*! \brief minimum index of all index, used as hint for compression. */
-  bst_uint min_index;
-  /*! \brief offset of the segments */
-  std::vector<size_t> offset;
-  /*! \brief the data of the segments */
-  std::vector<Entry> data;
-  
-  size_t base_rowid;
-  /*! \brief an instance of sparse vector in the batch */
-  struct Inst {
-    /*! \brief pointer to the elements*/
-    const Entry *data{nullptr};
-    /*! \brief length of the instance */
-    bst_uint length{0};
-    /*! \brief constructor */
-    Inst()  = default;
-    Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
-    /*! \brief get i-th pair in the sparse vector*/
-    inline const Entry& operator[](size_t i) const {
-      return data[i];
-    }
-  };
-
-  /*! \brief get i-th row from the batch */
-  inline Inst operator[](size_t i) const {
-    return {data.data() + offset[i], static_cast<bst_uint>(offset[i + 1] - offset[i])};
-  }
-
-  /*! \brief constructor */
-  SparsePage() {
-    this->Clear();
-  }
-  /*! \return number of instance in the page */
-  inline size_t Size() const {
-    return offset.size() - 1;
-  }
-  /*! \return estimation of memory cost of this page */
-  inline size_t MemCostBytes() const {
-    return offset.size() * sizeof(size_t) + data.size() * sizeof(Entry);
-  }
-  /*! \brief clear the page */
-  inline void Clear() {
-    min_index = 0;
-    offset.clear();
-    offset.push_back(0);
-    data.clear();
-  }
-
-  /*!
-   * \brief Push row block into the page.
-   * \param batch the row batch.
-   */
-  inline void Push(const dmlc::RowBlock<uint32_t>& batch) {
-    data.reserve(data.size() + batch.offset[batch.size] - batch.offset[0]);
-    offset.reserve(offset.size() + batch.size);
-    CHECK(batch.index != nullptr);
-    for (size_t i = 0; i < batch.size; ++i) {
-      offset.push_back(offset.back() + batch.offset[i + 1] - batch.offset[i]);
-    }
-    for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-      uint32_t index = batch.index[i];
-      bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-      data.emplace_back(index, fvalue);
-    }
-    CHECK_EQ(offset.back(), data.size());
-  }
-  /*!
-   * \brief Push a sparse page
-   * \param batch the row page
-   */
-  inline void Push(const SparsePage &batch) {
-    size_t top = offset.back();
-    data.resize(top + batch.data.size());
-    std::memcpy(dmlc::BeginPtr(data) + top,
-                dmlc::BeginPtr(batch.data),
-                sizeof(Entry) * batch.data.size());
-    size_t begin = offset.size();
-    offset.resize(begin + batch.Size());
-    for (size_t i = 0; i < batch.Size(); ++i) {
-      offset[i + begin] = top + batch.offset[i + 1];
-    }
-  }
-  /*!
-   * \brief Push one instance into page
-   *  \param row an instance row
-   */
-  inline void Push(const SparsePage::Inst &inst) {
-    offset.push_back(offset.back() + inst.length);
-    size_t begin = data.size();
-    data.resize(begin + inst.length);
-    if (inst.length != 0) {
-      std::memcpy(dmlc::BeginPtr(data) + begin, inst.data,
-                  sizeof(Entry) * inst.length);
-    }
-  }
-
-  size_t Size() { return offset.size() - 1; }
-
-};
-
-/*!
  * \brief Format specification of SparsePage.
  */
-class SparsePage::Format {
+class SparsePageFormat {
  public:
   /*! \brief virtual destructor */
-  virtual ~Format() = default;
+  virtual ~SparsePageFormat() = default;
   /*!
    * \brief Load all the segments into page, advance fi to end of the block.
    * \param page The data to read page into.
@@ -168,7 +59,7 @@ class SparsePage::Format {
    * \brief Create sparse page of format.
    * \return The created format functors.
    */
-  static Format* Create(const std::string& name);
+  static SparsePageFormat* Create(const std::string& name);
   /*!
    * \brief decide the format from cache prefix.
    * \return pair of row format, column format type of the cache prefix.
@@ -180,7 +71,7 @@ class SparsePage::Format {
 /*!
  * \brief A threaded writer to write sparse batch page to sharded files.
  */
-class SparsePage::Writer {
+class SparsePageWriter {
  public:
   /*!
    * \brief constructor
@@ -188,12 +79,12 @@ class SparsePage::Writer {
    * \param format_shards format of each shard.
    * \param extra_buffer_capacity Extra buffer capacity before block.
    */
-  explicit Writer(
+  explicit SparsePageWriter(
       const std::vector<std::string>& name_shards,
       const std::vector<std::string>& format_shards,
       size_t extra_buffer_capacity);
   /*! \brief destructor, will close the files automatically */
-  ~Writer();
+  ~SparsePageWriter();
   /*!
    * \brief Push a write job to the writer.
    * This function won't block,
@@ -228,7 +119,7 @@ class SparsePage::Writer {
  */
 struct SparsePageFormatReg
     : public dmlc::FunctionRegEntryBase<SparsePageFormatReg,
-                                        std::function<SparsePage::Format* ()> > {
+                                        std::function<SparsePageFormat* ()> > {
 };
 
 /*!

@@ -495,7 +495,7 @@ class CQHistMaker: public HistMaker<TStats> {
   }
 
   inline void UpdateHistCol(const std::vector<GradientPair> &gpair,
-                            const data::SparsePage::Inst &c,
+                            const SparsePage::Inst &c,
                             const MetaInfo &info,
                             const RegTree &tree,
                             const std::vector<bst_uint> &fset,
@@ -547,7 +547,7 @@ class CQHistMaker: public HistMaker<TStats> {
     }
   }
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const data::SparsePage::Inst &c,
+                              const SparsePage::Inst &c,
                               const RegTree &tree,
                               size_t work_set_size,
                               bst_uint offset,
@@ -782,7 +782,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        data::SparsePage::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         int nid = this->position_[ridx];
         if (nid >= 0) {
@@ -801,7 +801,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       builder.InitStorage();
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        data::SparsePage::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         const int nid = this->position_[ridx];
         if (nid >= 0) {

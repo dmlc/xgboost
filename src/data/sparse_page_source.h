@@ -13,7 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
-#include "./sparse_batch_page.h"
+#include "sparse_batch_page.h"
 
 namespace xgboost {
 namespace data {
@@ -74,7 +74,7 @@ class SparsePageSource : public DataSource {
   /*! \brief file pointer to the row blob file. */
   std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
   /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePage::Format> > formats_;
+  std::vector<std::unique_ptr<SparsePageFormat> > formats_;
   /*! \brief internal prefetcher. */
   std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
 };

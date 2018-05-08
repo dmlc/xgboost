@@ -14,7 +14,6 @@
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
-#include "../data/sparse_batch_page.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"

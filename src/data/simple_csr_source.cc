@@ -14,7 +14,6 @@ void SimpleCSRSource::Clear() {
   this->info.Clear();
 }
 
-class SparsePage;
 void SimpleCSRSource::CopyFrom(DMatrix* src) {
   this->Clear();
   this->info = src->Info();

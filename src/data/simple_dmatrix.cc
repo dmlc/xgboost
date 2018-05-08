@@ -31,12 +31,8 @@ bool SimpleDMatrix::ColBatchIter::Next() {
   return true;
 }
 
-  dmlc::DataIter<data::SparsePage>* SimpleDMatrix::ColIterator() {
+  dmlc::DataIter<SparsePage>* SimpleDMatrix::ColIterator() {
   size_t ncol = this->Info().num_col_;
-  col_iter_.col_index_.resize(ncol);
-  for (size_t i = 0; i < ncol; ++i) {
-    col_iter_.col_index_[i] = static_cast<bst_uint>(i);
-  }
   col_iter_.BeforeFirst();
   return &col_iter_;
 }
@@ -199,7 +195,7 @@ void SimpleDMatrix::MakeColPage(const SparsePage& batch,
   #pragma omp parallel for schedule(static) num_threads(nthread)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
     int tid = omp_get_thread_num();
-    data::SparsePage::Inst inst = batch[i];
+    SparsePage::Inst inst = batch[i];
     for (bst_uint j = 0; j < inst.length; ++j) {
       const Entry &e = inst[j];
       if (enabled[e.index]) {
@@ -211,7 +207,7 @@ void SimpleDMatrix::MakeColPage(const SparsePage& batch,
   #pragma omp parallel for schedule(static) num_threads(nthread)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
     int tid = omp_get_thread_num();
-    data::SparsePage::Inst inst = batch[i];
+    SparsePage::Inst inst = batch[i];
     for (bst_uint j = 0; j < inst.length; ++j) {
       const Entry &e = inst[j];
       builder.Push(

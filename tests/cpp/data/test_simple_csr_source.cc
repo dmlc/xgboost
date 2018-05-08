@@ -1,7 +1,6 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
 #include "../../../src/data/simple_csr_source.h"
-#include "../../../src/data/sparse_batch_page.h"
 
 #include "../helpers.h"
 

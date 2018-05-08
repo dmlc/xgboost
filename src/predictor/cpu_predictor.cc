@@ -6,7 +6,6 @@
 #include <xgboost/tree_updater.h>
 #include "dmlc/logging.h"
 #include "../common/host_device_vector.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace predictor {
@@ -15,7 +14,7 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
 class CPUPredictor : public Predictor {
  protected:
-  static bst_float PredValue(const  data::SparsePage::Inst& inst,
+  static bst_float PredValue(const  SparsePage::Inst& inst,
                              const std::vector<std::unique_ptr<RegTree>>& trees,
                              const std::vector<int>& tree_info, int bst_group,
                              unsigned root_index, RegTree::FVec* p_feats,
@@ -67,7 +66,7 @@ class CPUPredictor : public Predictor {
         const int tid = omp_get_thread_num();
         RegTree::FVec& feats = thread_temp[tid];
         int64_t ridx[kUnroll];
-        data::SparsePage::Inst inst[kUnroll];
+        SparsePage::Inst inst[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
           ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
         }
@@ -184,7 +183,7 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredictInstance(const data::SparsePage::Inst& inst,
+  void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {

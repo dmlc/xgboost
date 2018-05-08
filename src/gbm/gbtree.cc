@@ -221,7 +221,7 @@ class GBTree : public GradientBooster {
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
-  void PredictInstance(const data::SparsePage::Inst& inst,
+  void PredictInstance(const SparsePage::Inst& inst,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
@@ -361,7 +361,7 @@ class Dart : public GBTree {
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 
-  void PredictInstance(const data::SparsePage::Inst& inst,
+  void PredictInstance(const SparsePage::Inst& inst,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
@@ -451,7 +451,7 @@ class Dart : public GBTree {
         const int tid = omp_get_thread_num();
         RegTree::FVec& feats = thread_temp_[tid];
         int64_t ridx[kUnroll];
-        data::SparsePage::Inst inst[kUnroll];
+        SparsePage::Inst inst[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
           ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
         }
@@ -470,7 +470,7 @@ class Dart : public GBTree {
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp_[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
-        const data::SparsePage::Inst inst = batch[i];
+        const SparsePage::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
@@ -497,7 +497,7 @@ class Dart : public GBTree {
   }
 
   // predict the leaf scores without dropped trees
-  inline bst_float PredValue(const data::SparsePage::Inst &inst,
+  inline bst_float PredValue(const SparsePage::Inst &inst,
                              int bst_group,
                              unsigned root_index,
                              RegTree::FVec *p_feats,

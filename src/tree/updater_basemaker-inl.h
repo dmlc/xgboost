@@ -19,7 +19,6 @@
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace tree {
@@ -104,7 +103,7 @@ class BaseMaker: public TreeUpdater {
   // ------static helper functions ------
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
-  inline static int NextLevel(const data::SparsePage::Inst &inst, const RegTree &tree, int nid) {
+  inline static int NextLevel(const SparsePage::Inst &inst, const RegTree &tree, int nid) {
     const RegTree::Node &n = tree[nid];
     bst_uint findex = n.SplitIndex();
     for (unsigned i = 0; i < inst.length; ++i) {
@@ -244,7 +243,7 @@ class BaseMaker: public TreeUpdater {
    * \param tree the regression tree structure
    */
   inline void CorrectNonDefaultPositionByBatch(
-      const data::SparsePage&batch,
+      const SparsePage&batch,
       const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
     for (size_t fid = 0; fid < batch.Size(); ++fid) {

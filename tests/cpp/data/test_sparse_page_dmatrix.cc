@@ -1,7 +1,6 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
 #include "../../../src/data/sparse_page_dmatrix.h"
-#include "../../../src/data/sparse_batch_page.h"
 
 #include "../helpers.h"
 
@@ -81,18 +80,6 @@ TEST(SparsePageDMatrix, ColAcess) {
     << "Expected num batches to be same as num_rows as max_row_perbatch is 1";
   col_iter = nullptr;
 
-  //std::vector<xgboost::bst_uint> sub_feats = {4, 3};
-  //auto sub_col_iter = dmat->ColIterator(sub_feats);
-  //// Loop over the batches and assert the data is as expected
-  //sub_col_iter->BeforeFirst();
-  //while (sub_col_iter->Next()) {
-  //  EXPECT_EQ(sub_col_iter->Value().Size(), sub_feats.size())
-  //    << "Expected size of a batch to be same as number of columns "
-  //    << "as max_row_perbatch was set to 1.";
-  //}
-  //sub_col_iter = nullptr;
-
-  // Clean up of external memory files
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.col.page").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());

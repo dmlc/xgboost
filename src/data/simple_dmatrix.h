@@ -12,7 +12,6 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
-#include "./sparse_batch_page.h"
 
 namespace xgboost {
 namespace data {
@@ -53,7 +52,7 @@ class SimpleDMatrix : public DMatrix {
     return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
-  dmlc::DataIter<data::SparsePage>* ColIterator() override;
+  dmlc::DataIter<SparsePage>* ColIterator() override;
 
   void InitColAccess(const std::vector<bool>& enabled,
                      float subsample,
@@ -70,7 +69,6 @@ class SimpleDMatrix : public DMatrix {
       data_ptr_ = 0;
     }
     const SparsePage &Value() const override {
-      //return batch_;
       return *cpages_[data_ptr_ - 1].get();
     }
     bool Next() override;
@@ -78,16 +76,12 @@ class SimpleDMatrix : public DMatrix {
    private:
     // allow SimpleDMatrix to access it.
     friend class SimpleDMatrix;
-    // data content
-    std::vector<bst_uint> col_index_;
     // column content
-    std::vector<ColBatch::Inst> col_data_;
+    //std::vector<ColBatch::Inst> col_data_;
     // column sparse pages
     std::vector<std::unique_ptr<SparsePage> > cpages_;
     // data pointer
     size_t data_ptr_{0};
-    // temporal space for batch
-    //ColBatch batch_;
     // Is column sorted?
     bool sorted_{false};
   };

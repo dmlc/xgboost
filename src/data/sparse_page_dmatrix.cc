@@ -29,8 +29,8 @@ SparsePageDMatrix::ColPageIter::ColPageIter(
     dmlc::SeekStream* fi = files_[i].get();
     std::string format;
     CHECK(fi->Read(&format)) << "Invalid page format";
-    formats_[i].reset(SparsePage::Format::Create(format));
-    SparsePage::Format* fmt = formats_[i].get();
+    formats_[i].reset(SparsePageFormat::Create(format));
+    SparsePageFormat* fmt = formats_[i].get();
     size_t fbegin = fi->Tell();
     prefetchers_[i].reset(new dmlc::ThreadedIter<SparsePage>(4));
     prefetchers_[i]->Init([this, fi, fmt] (SparsePage** dptr) {
@@ -61,16 +61,6 @@ bool SparsePageDMatrix::ColPageIter::Next() {
     prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
-    //out_.col_index = dmlc::BeginPtr(index_set_);
-    col_data_.resize(page_->offset.size() - 1, data::SparsePage::Inst(nullptr, 0));
-    for (size_t i = 0; i < col_data_.size(); ++i) {
-      col_data_[i] = SparsePage::Inst
-          (dmlc::BeginPtr(page_->data) + page_->offset[i],
-           static_cast<bst_uint>(page_->offset[i + 1] - page_->offset[i]));
-    }
-    //out_.col_data =  reinterpret_cast<SparseBatch::Inst*>(dmlc::BeginPtr(col_data_));
-    //out_.size = col_data_.size();
-    // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
     return true;
   } else {
@@ -93,7 +83,7 @@ void SparsePageDMatrix::ColPageIter::Init(const std::vector<bst_uint>& index_set
   this->BeforeFirst();
 }
 
-  dmlc::DataIter<data::SparsePage>* SparsePageDMatrix::ColIterator() {
+  dmlc::DataIter<SparsePage>* SparsePageDMatrix::ColIterator() {
   CHECK(col_iter_ != nullptr);
   std::vector<bst_uint> col_index;
   size_t ncol = this->Info().num_col_;
@@ -237,11 +227,11 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   std::vector<std::string> name_shards, format_shards;
   for (const std::string& prefix : cache_shards) {
     name_shards.push_back(prefix + ".col.page");
-    format_shards.push_back(SparsePage::Format::DecideFormat(prefix).second);
+    format_shards.push_back(SparsePageFormat::DecideFormat(prefix).second);
   }
 
   {
-    SparsePage::Writer writer(name_shards, format_shards, 6);
+    SparsePageWriter writer(name_shards, format_shards, 6);
     std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 

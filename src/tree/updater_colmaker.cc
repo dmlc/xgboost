@@ -252,7 +252,7 @@ class ColMaker: public TreeUpdater {
     }
     // parallel find the best split of current fid
     // this function does not support nested functions
-    inline void ParallelFindSplit(const data::SparsePage::Inst &col,
+    inline void ParallelFindSplit(const SparsePage::Inst &col,
                                   bst_uint fid,
                                   const DMatrix &fmat,
                                   const std::vector<GradientPair> &gpair) {
@@ -602,7 +602,7 @@ class ColMaker: public TreeUpdater {
     }
 
     // update the solution candidate
-    virtual void UpdateSolution(const data::SparsePage& batch, const std::vector<bst_uint>&feat_set,
+    virtual void UpdateSolution(const SparsePage& batch, const std::vector<bst_uint>&feat_set,
                                 const std::vector<GradientPair>& gpair,
                                 const DMatrix& fmat) {
       const MetaInfo& info = fmat.Info();

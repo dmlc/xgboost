@@ -11,7 +11,6 @@
 #include "./param.h"
 #include "../common/sync.h"
 #include "../common/io.h"
-#include "../data/sparse_batch_page.h"
 
 namespace xgboost {
 namespace tree {
@@ -66,7 +65,7 @@ class TreeRefresher: public TreeUpdater {
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nbatch; ++i) {
-          data::SparsePage::Inst inst = batch[i];
+          SparsePage::Inst inst = batch[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           RegTree::FVec &feats = fvec_temp[tid];

@@ -174,7 +174,7 @@ class SketchMaker: public BaseMaker {
   }
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const data::SparsePage::Inst &c,
+                              const SparsePage::Inst &c,
                               const RegTree &tree,
                               const std::vector<SKStats> &nstats,
                               bst_uint fid,

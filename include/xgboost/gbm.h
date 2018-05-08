@@ -19,7 +19,6 @@
 #include "./objective.h"
 #include "./feature_map.h"
 #include "../../src/common/host_device_vector.h"
-#include "../../src/data/sparse_batch_page.h"
 
 namespace xgboost {
 /*!
@@ -95,7 +94,7 @@ class GradientBooster {
    * \param root_index the root index
    * \sa Predict
    */
-  virtual void PredictInstance(const data::SparsePage::Inst& inst,
+  virtual void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0,
                        unsigned root_index = 0) = 0;

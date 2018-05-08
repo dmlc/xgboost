@@ -12,7 +12,6 @@
 #include <xgboost/data.h>
 #include <vector>
 #include <algorithm>
-#include "sparse_batch_page.h"
 
 
 namespace xgboost {
