@@ -52,7 +52,7 @@ struct DeviceMatrix {
   DMatrix* p_mat;  // Pointer to the original matrix on the host
   dh::BulkAllocator<dh::MemoryType::kDevice> ba;
   dh::DVec<size_t> row_ptr;
-  dh::DVec<SparseBatch::Entry> data;
+  dh::DVec<Entry> data;
   thrust::device_vector<float> predictions;
 
   DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
@@ -66,17 +66,17 @@ struct DeviceMatrix {
     while (iter->Next()) {
       auto batch = iter->Value();
       // Copy row ptr
-      thrust::copy(batch.ind_ptr, batch.ind_ptr + batch.size + 1,
+      thrust::copy(batch.offset.data(), batch.offset.data() + batch.Size() + 1,
                    row_ptr.tbegin() + batch.base_rowid);
       if (batch.base_rowid > 0) {
         auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
-        auto end_itr = begin_itr + batch.size + 1;
+        auto end_itr = begin_itr + batch.Size() + 1;
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
       // Copy data
-      thrust::copy(batch.data_ptr, batch.data_ptr + batch.ind_ptr[batch.size],
+      thrust::copy(batch.data.data(), batch.data.data() + batch.offset[batch.Size()],
                    data.tbegin() + data_offset);
-      data_offset += batch.ind_ptr[batch.size];
+      data_offset += batch.offset[batch.Size()];
     }
   }
 };
@@ -139,12 +139,12 @@ struct DevicePredictionNode {
 struct ElementLoader {
   bool use_shared;
   size_t* d_row_ptr;
-  SparseBatch::Entry* d_data;
+  Entry* d_data;
   int num_features;
   float* smem;
 
   __device__ ElementLoader(bool use_shared, size_t* row_ptr,
-                           SparseBatch::Entry* entry, int num_features,
+                           Entry* entry, int num_features,
                            float* smem, int num_rows)
       : use_shared(use_shared),
         d_row_ptr(row_ptr),
@@ -161,7 +161,7 @@ struct ElementLoader {
         bst_uint elem_begin = d_row_ptr[global_idx];
         bst_uint elem_end = d_row_ptr[global_idx + 1];
         for (bst_uint elem_idx = elem_begin; elem_idx < elem_end; elem_idx++) {
-          SparseBatch::Entry elem = d_data[elem_idx];
+          Entry elem = d_data[elem_idx];
           smem[threadIdx.x * num_features + elem.index] = elem.fvalue;
         }
       }
@@ -175,7 +175,7 @@ struct ElementLoader {
       // Binary search
       auto begin_ptr = d_data + d_row_ptr[ridx];
       auto end_ptr = d_data + d_row_ptr[ridx + 1];
-      SparseBatch::Entry* previous_middle = nullptr;
+      Entry* previous_middle = nullptr;
       while (end_ptr != begin_ptr) {
         auto middle = begin_ptr + (end_ptr - begin_ptr) / 2;
         if (middle == previous_middle) {
@@ -221,7 +221,7 @@ template <int BLOCK_THREADS>
 __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
                               float* d_out_predictions, size_t* d_tree_segments,
                               int* d_tree_group, size_t* d_row_ptr,
-                              SparseBatch::Entry* d_data, size_t tree_begin,
+                              Entry* d_data, size_t tree_begin,
                               size_t tree_end, size_t num_features,
                               size_t num_rows, bool use_shared, int num_group) {
   extern __shared__ float smem[];
@@ -422,7 +422,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  void PredictInstance(const SparseBatch::Inst& inst,
+  void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {

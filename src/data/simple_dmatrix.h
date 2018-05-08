@@ -66,22 +66,20 @@ class SimpleDMatrix : public DMatrix {
    public:
     ColBatchIter()  = default;
     void BeforeFirst() override {
-      data_ptr_ = 0;
+      data_ = 0;
     }
     const SparsePage &Value() const override {
-      return *cpages_[data_ptr_ - 1].get();
+      return *cpages_[data_ - 1];
     }
     bool Next() override;
 
    private:
     // allow SimpleDMatrix to access it.
     friend class SimpleDMatrix;
-    // column content
-    //std::vector<ColBatch::Inst> col_data_;
     // column sparse pages
     std::vector<std::unique_ptr<SparsePage> > cpages_;
     // data pointer
-    size_t data_ptr_{0};
+    size_t data_{0};
     // Is column sorted?
     bool sorted_{false};
   };

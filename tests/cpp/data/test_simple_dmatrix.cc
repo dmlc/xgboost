@@ -61,7 +61,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   EXPECT_EQ(dmat->GetColDensity(1), 0.5);
   ASSERT_TRUE(dmat->SingleColBlock());
 
-  auto  * col_iter = dmat->ColIterator();
+  auto* col_iter = dmat->ColIterator();
   // Loop over the batches and assert the data is as expected
   long num_col_batch = 0;
   col_iter->BeforeFirst();
@@ -76,16 +76,6 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
   col_iter = nullptr;
-
-  //std::vector<xgboost::bst_uint> sub_feats = {4, 3};
-  //auto sub_col_iter = dmat->ColIterator(sub_feats);
-  //// Loop over the batches and assert the data is as expected
-  //sub_col_iter->BeforeFirst();
-  //while (sub_col_iter->Next()) {
-  //  EXPECT_EQ(sub_col_iter->Value().Size(), sub_feats.size())
-  //    << "Expected size of a batch = number of cells in subset as #batches is 1.";
-  //}
-  //sub_col_iter = nullptr;
 }
 
 TEST(SimpleDMatrix, ColAccessWithBatches) {
@@ -129,16 +119,4 @@ TEST(SimpleDMatrix, ColAccessWithBatches) {
     << "Expected num batches = num_rows as max_row_perbatch is 1";
   col_iter = nullptr;
 
-  //// The iterator feats should ignore any numbers larger than the num_col
-  //std::vector<xgboost::bst_uint> sub_feats = {
-  //  4, 3, static_cast<unsigned int>(dmat->Info().num_col_ + 1)};
-  //auto sub_col_iter = dmat->ColIterator(sub_feats);
-  //// Loop over the batches and assert the data is as expected
-  //sub_col_iter->BeforeFirst();
-  //while (sub_col_iter->Next()) {
-  //  EXPECT_EQ(sub_col_iter->Value().Size(), sub_feats.size() - 1)
-  //    << "Expected size of a batch = number of columns in subset "
-  //    << "as max_row_perbatch is 1.";
-  //}
-  //sub_col_iter = nullptr;
 }

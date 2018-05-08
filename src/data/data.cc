@@ -6,7 +6,7 @@
 #include <xgboost/logging.h>
 #include <dmlc/registry.h>
 #include <cstring>
-#include "./sparse_batch_page.h"
+#include "./sparse_page_writer.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
 #include "../common/common.h"

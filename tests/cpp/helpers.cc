@@ -3,7 +3,13 @@
 #include <random>
 
 std::string TempFileName() {
-  return std::tmpnam(nullptr);
+  std::string tmp = std::tmpnam(nullptr);
+  std::replace(tmp.begin(), tmp.end(), '\\',
+               '/');  // Remove windows backslashes
+  // Remove drive prefix for windows
+  if (tmp.find("C:") != std::string::npos)
+    tmp.erase(tmp.find("C:"), 2);
+  return tmp;
 }
 
 bool FileExists(const std::string name) {

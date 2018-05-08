@@ -6,8 +6,7 @@
  *   use in external memory computation
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_DATA_SPARSE_BATCH_PAGE_H_
-#define XGBOOST_DATA_SPARSE_BATCH_PAGE_H_
+#pragma once
 
 #include <xgboost/data.h>
 #include <dmlc/io.h>
@@ -139,4 +138,3 @@ struct SparsePageFormatReg
 
 }  // namespace data
 }  // namespace xgboost
-#endif  // XGBOOST_DATA_SPARSE_BATCH_PAGE_H_

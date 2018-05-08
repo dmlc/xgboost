@@ -770,16 +770,16 @@ class QuantileHistMaker: public HistMaker<TStats> {
       sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // start accumulating statistics
-    dmlc::DataIter<Entry> *iter = p_fmat->RowIterator();
+    auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
+      auto batch = iter->Value();
       // parallel convert to column major format
       common::ParallelGroupBuilder<Entry>
           builder(&col_ptr_, &col_data_, &thread_col_ptr_);
       builder.InitBudget(tree.param.num_feature, nthread);
 
-      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
+      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
         SparsePage::Inst inst = batch[i];

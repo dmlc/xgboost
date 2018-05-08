@@ -82,7 +82,6 @@ class SparsePageDMatrix : public DMatrix {
     void BeforeFirst() override;
     const SparsePage &Value() const override {
       return *page_;
-      //return out_;
     }
     bool Next() override;
     // initialize the column iterator with the specified index set.

@@ -132,7 +132,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   buffered_rowset_.Clear();
   col_size_.resize(info.num_col_);
   std::fill(col_size_.begin(), col_size_.end(), 0);
-   auto iter = this->RowIterator();
+  auto iter = this->RowIterator();
   std::bernoulli_distribution coin_flip(pkeep);
   size_t batch_ptr = 0, batch_top = 0;
   SparsePage tmp;
@@ -144,7 +144,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
       size_t begin,
       SparsePage *pcol) {
     pcol->Clear();
-    pcol->min_index = buffered_rowset_[begin];
+    pcol->base_rowid = buffered_rowset_[begin];
     const int nthread = std::max(omp_get_max_threads(), std::max(omp_get_num_procs() / 2 - 1, 1));
     common::ParallelGroupBuilder<Entry>
     builder(&pcol->offset, &pcol->data);

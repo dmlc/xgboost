@@ -9,10 +9,11 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
-#include <string>
+#include <cstring>
 #include <memory>
-#include <vector>
 #include <numeric>
+#include <string>
+#include <vector>
 #include "./base.h"
 
 namespace xgboost {
@@ -142,17 +143,10 @@ struct Entry {
  */
 class SparsePage {
  public:
-  /*! \brief Format of the sparse page. */
-  //class Format;
-  /*! \brief Writer to write the sparse page to files. */
-  //class Writer;
-  /*! \brief minimum index of all index, used as hint for compression. */
-  bst_uint min_index;
-  /*! \brief offset of the segments */
   std::vector<size_t> offset;
   /*! \brief the data of the segments */
   std::vector<Entry> data;
-  
+
   size_t base_rowid;
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
@@ -188,7 +182,6 @@ class SparsePage {
   }
   /*! \brief clear the page */
   inline void Clear() {
-    min_index = 0;
     offset.clear();
     offset.push_back(0);
     data.clear();
@@ -230,9 +223,9 @@ class SparsePage {
   }
   /*!
    * \brief Push one instance into page
-   *  \param row an instance row
+   *  \param inst an instance row
    */
-  inline void Push(const SparsePage::Inst &inst) {
+  inline void Push(const Inst &inst) {
     offset.push_back(offset.back() + inst.length);
     size_t begin = data.size();
     data.resize(begin + inst.length);
@@ -243,7 +236,6 @@ class SparsePage {
   }
 
   size_t Size() { return offset.size() - 1; }
-
 };
 
 

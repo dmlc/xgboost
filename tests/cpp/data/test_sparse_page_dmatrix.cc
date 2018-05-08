@@ -7,8 +7,9 @@
 TEST(SparsePageDMatrix, MetaInfo) {
   std::string tmp_file = CreateSimpleTestData();
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
-    tmp_file + "#" + tmp_file + ".cache", true, false);
+    tmp_file + "#" + tmp_file + ".cache", false, false);
   std::remove(tmp_file.c_str());
+  std::cout << tmp_file << std::endl;
   EXPECT_TRUE(FileExists(tmp_file + ".cache"));
 
   // Test the metadata that was parsed

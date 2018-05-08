@@ -81,7 +81,7 @@ struct GPUCoordinateTrainParam
   float reg_alpha_denorm;
 };
 
-void RescaleIndices(size_t ridx_begin, dh::DVec<SparseBatch::Entry> *data) {
+void RescaleIndices(size_t ridx_begin, dh::DVec<Entry> *data) {
   auto d_data = data->Data();
   dh::LaunchN(data->DeviceIdx(), data->Size(),
               [=] __device__(size_t idx) { d_data[idx].index -= ridx_begin; });
@@ -92,14 +92,14 @@ class DeviceShard {
   int normalised_device_idx_;  // Device index counting from param.gpu_id
   dh::BulkAllocator<dh::MemoryType::kDevice> ba_;
   std::vector<size_t> row_ptr_;
-  dh::DVec<SparseBatch::Entry> data_;
+  dh::DVec<Entry> data_;
   dh::DVec<GradientPair> gpair_;
   dh::CubMemory temp_;
   size_t ridx_begin_;
   size_t ridx_end_;
 
  public:
-  DeviceShard(int device_idx, int normalised_device_idx, const ColBatch &batch,
+  DeviceShard(int device_idx, int normalised_device_idx, const SparsePage &batch,
               bst_uint row_begin, bst_uint row_end,
               const GPUCoordinateTrainParam &param,
               const gbm::GBLinearModelParam &model_param)
@@ -112,17 +112,17 @@ class DeviceShard {
     // this shard
     std::vector<std::pair<bst_uint, bst_uint>> column_segments;
     row_ptr_ = {0};
-    for (auto fidx = 0; fidx < batch.size; fidx++) {
+    for (auto fidx = 0; fidx < batch.Size(); fidx++) {
       auto col = batch[fidx];
-      auto cmp = [](SparseBatch::Entry e1, SparseBatch::Entry e2) {
+      auto cmp = [](Entry e1, Entry e2) {
         return e1.index < e2.index;
       };
       auto column_begin =
           std::lower_bound(col.data, col.data + col.length,
-                           SparseBatch::Entry(row_begin, 0.0f), cmp);
+                           Entry(row_begin, 0.0f), cmp);
       auto column_end =
           std::upper_bound(col.data, col.data + col.length,
-                           SparseBatch::Entry(row_end, 0.0f), cmp);
+                           Entry(row_end, 0.0f), cmp);
       column_segments.push_back(
           std::make_pair(column_begin - col.data, column_end - col.data));
       row_ptr_.push_back(row_ptr_.back() + column_end - column_begin);
@@ -130,8 +130,8 @@ class DeviceShard {
     ba_.Allocate(device_idx, param.silent, &data_, row_ptr_.back(), &gpair_,
                 (row_end - row_begin) * model_param.num_output_group);
 
-    for (int fidx = 0; fidx < batch.size; fidx++) {
-      ColBatch::Inst col = batch[fidx];
+    for (int fidx = 0; fidx < batch.Size(); fidx++) {
+      auto col = batch[fidx];
       thrust::copy(col.data + column_segments[fidx].first,
                    col.data + column_segments[fidx].second,
                    data_.tbegin() + row_ptr_[fidx]);
@@ -233,7 +233,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
       row_begin = row_end;
     }
 
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+    auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
     iter->Next();
     auto batch = iter->Value();

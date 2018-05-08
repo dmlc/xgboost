@@ -664,13 +664,13 @@ class GPUMaker : public TreeUpdater {
       const std::vector<bool> enable(nCols, true);
       dmat->InitColAccess(enable, 1, nRows, true);
     }
-    dmlc::DataIter<ColBatch>* iter = dmat->ColIterator();
+    auto iter = dmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const ColBatch& batch = iter->Value();
-      for (int i = 0; i < batch.size; i++) {
-        const ColBatch::Inst& col = batch[i];
-        for (const ColBatch::Entry* it = col.data; it != col.data + col.length;
+      auto batch = iter->Value();
+      for (int i = 0; i < batch.Size(); i++) {
+        auto col = batch[i];
+        for (const Entry* it = col.data; it != col.data + col.length;
              it++) {
           int inst_id = static_cast<int>(it->index);
           fval->push_back(it->fvalue);

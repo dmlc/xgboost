@@ -521,7 +521,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   ret.info.num_row_ = len;
   ret.info.num_col_ = src.info.num_col_;
 
-   auto iter = &src;
+  auto iter = &src;
   iter->BeforeFirst();
   CHECK(iter->Next());
 

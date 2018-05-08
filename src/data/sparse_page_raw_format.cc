@@ -5,7 +5,7 @@
  */
 #include <xgboost/data.h>
 #include <dmlc/registry.h>
-#include "./sparse_batch_page.h"
+#include "./sparse_page_writer.h"
 
 namespace xgboost {
 namespace data {

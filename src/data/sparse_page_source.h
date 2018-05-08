@@ -13,7 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
-#include "sparse_batch_page.h"
+#include "sparse_page_writer.h"
 
 namespace xgboost {
 namespace data {

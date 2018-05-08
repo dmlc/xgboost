@@ -16,23 +16,12 @@ namespace xgboost {
 namespace data {
 
 bool SimpleDMatrix::ColBatchIter::Next() {
-  if (data_ptr_ >= cpages_.size()) return false;
-  data_ptr_ += 1;
-  //SparsePage* pcol = cpages_[data_ptr_ - 1].get();
-  //batch_.size = col_index_.size();
-  //col_data_.resize(col_index_.size(), SparseBatch::Inst(nullptr, 0));
-  //for (size_t i = 0; i < col_data_.size(); ++i) {
-  //  const bst_uint ridx = col_index_[i];
-  //  col_data_[i] = SparseBatch::Inst(dmlc::BeginPtr(pcol->data) + pcol->offset[ridx],
-  //       static_cast<bst_uint>(pcol->offset[ridx + 1] - pcol->offset[ridx]));
-  //}
-  //batch_.col_index = dmlc::BeginPtr(col_index_);
-  //batch_.col_data = dmlc::BeginPtr(col_data_);
+  if (data_ >= cpages_.size()) return false;
+  data_ += 1;
   return true;
 }
 
   dmlc::DataIter<SparsePage>* SimpleDMatrix::ColIterator() {
-  size_t ncol = this->Info().num_col_;
   col_iter_.BeforeFirst();
   return &col_iter_;
 }
@@ -74,7 +63,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
       builder(&pcol->offset, &pcol->data);
   builder.InitBudget(Info().num_col_, nthread);
   // start working
-   auto iter = this->RowIterator();
+  auto iter = this->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
     const  auto& batch = iter->Value();
@@ -153,7 +142,7 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
   // internal temp cache
   SparsePage tmp; tmp.Clear();
   // start working
-   auto iter = this->RowIterator();
+  auto iter = this->RowIterator();
   iter->BeforeFirst();
 
   while (iter->Next()) {

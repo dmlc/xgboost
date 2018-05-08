@@ -29,14 +29,9 @@ class SimpleCSRSource : public DataSource {
  public:
   // public data members
   // MetaInfo info;  // inheritated from DataSource
-  /*! \brief row pointer of CSR sparse storage */
-  //std::vector<size_t> row_ptr_;
-  /*! \brief data in the CSR sparse storage */
-  //std::vector<Entry> row_data_;
   SparsePage page_;
   /*! \brief default constructor */
-  //SimpleCSRSource() : row_ptr_(1, 0) {}
-   SimpleCSRSource() = default;
+  SimpleCSRSource() = default;
   /*! \brief destructor */
   ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */

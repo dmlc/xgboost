@@ -33,7 +33,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-   auto iter = p_fmat->RowIterator();
+  auto iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
      auto batch = iter->Value();
@@ -106,7 +106,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   CHECK(cut != nullptr);  // NOLINT
-   auto iter = p_fmat->RowIterator();
+  auto iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut->row_ptr.back();

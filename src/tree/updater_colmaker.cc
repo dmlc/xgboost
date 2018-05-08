@@ -733,7 +733,7 @@ class ColMaker: public TreeUpdater {
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
         auto batch = iter->Value();
-        for(auto fid:fsplits){
+        for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);
           #pragma omp parallel for schedule(static)
