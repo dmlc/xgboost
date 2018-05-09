@@ -27,7 +27,7 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
   DMLC_DECLARE_PARAMETER(CoordinateTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
-        .set_default(1.0f)
+        .set_default(0.5f)
         .describe("Learning rate of each update.");
     DMLC_DECLARE_FIELD(reg_lambda)
         .set_lower_bound(0.0f)

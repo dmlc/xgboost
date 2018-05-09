@@ -31,7 +31,7 @@ TEST(Linear, coordinate) {
   mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent"));
-  updater->Init({});
+  updater->Init({{"eta", "1."}});
   xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
       mat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
