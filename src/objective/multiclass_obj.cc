@@ -65,7 +65,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
         const bst_float wt = info.GetWeight(i);
         for (int k = 0; k < nclass; ++k) {
           bst_float p = rec[k];
-          const bst_float h = 2.0f * p * (1.0f - p) * wt;
+          const float eps = 1e-16f;
+          const bst_float h = fmax(2.0f * p * (1.0f - p) * wt, eps);
           if (label == k) {
             gpair[i * nclass + k] = GradientPair((p - 1.0f) * wt, h);
           } else {
