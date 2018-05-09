@@ -15,7 +15,6 @@
 *.Rcheck
 *.rds
 *.tar.gz
-#*txt*
 *conf
 *buffer
 *model
@@ -47,13 +46,12 @@ Debug
 *.cpage.col
 *.cpage
 *.Rproj
-./xgboost
 ./xgboost.mpi
 ./xgboost.mock
 #.Rbuildignore
 R-package.Rproj
 *.cache*
-#java
+# java
 java/xgboost4j/target
 java/xgboost4j/tmp
 java/xgboost4j-demo/target
@@ -68,10 +66,9 @@ nb-configuration*
 .settings/
 build
 config.mk
-xgboost
+/xgboost
 *.data
 build_plugin
-dmlc-core
 .idea
 recommonmark/
 tags
