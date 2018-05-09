@@ -120,9 +120,8 @@ bool SparsePageDMatrix::TryInitColData(bool sorted) {
   return true;
 }
 
-void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
-                                      float pkeep,
-                                      size_t max_row_perbatch, bool sorted) {
+void SparsePageDMatrix::InitColAccess(
+  size_t max_row_perbatch, bool sorted) {
   if (HaveColAccess(sorted)) return;
   if (TryInitColData(sorted)) return;
   const MetaInfo& info = this->Info();
@@ -133,10 +132,8 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   col_size_.resize(info.num_col_);
   std::fill(col_size_.begin(), col_size_.end(), 0);
   auto iter = this->RowIterator();
-  std::bernoulli_distribution coin_flip(pkeep);
   size_t batch_ptr = 0, batch_top = 0;
   SparsePage tmp;
-  auto& rnd = common::GlobalRandom();
 
   // function to create the page.
   auto make_col_batch = [&] (
@@ -155,9 +152,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
       int tid = omp_get_thread_num();
       for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
         const  auto e = prow.data[j];
-        if (enabled[e.index]) {
-          builder.AddBudget(e.index, tid);
-        }
+        builder.AddBudget(e.index, tid);
       }
     }
     builder.InitStorage();
@@ -196,10 +191,8 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
         CHECK_EQ(batch_top, batch.Size());
         for (size_t i = batch_ptr; i < batch_top; ++i) {
           auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-          if (pkeep == 1.0f || coin_flip(rnd)) {
-            buffered_rowset_.PushBack(ridx);
-            tmp.Push(batch[i]);
-          }
+          buffered_rowset_.PushBack(ridx);
+          tmp.Push(batch[i]);
 
           if (tmp.Size() >= max_row_perbatch ||
               tmp.MemCostBytes() >= kPageSize) {

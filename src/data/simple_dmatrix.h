@@ -36,7 +36,7 @@ class SimpleDMatrix : public DMatrix {
   }
 
   bool HaveColAccess(bool sorted) const override {
-    return col_size_.size() != 0 && col_iter_.sorted_ == sorted;
+    return col_iter_.sorted_ == sorted && col_iter_.column_page_!= nullptr;
   }
 
   const RowSet& BufferedRowset() const override {
@@ -44,19 +44,19 @@ class SimpleDMatrix : public DMatrix {
   }
 
   size_t GetColSize(size_t cidx) const override {
-    return col_size_[cidx];
+    auto& batch = *col_iter_.column_page_;
+    return batch[cidx].length;
   }
 
   float GetColDensity(size_t cidx) const override {
-    size_t nmiss = buffered_rowset_.Size() - col_size_[cidx];
+    size_t nmiss = buffered_rowset_.Size() - GetColSize(cidx);
     return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.Size();
   }
 
   dmlc::DataIter<SparsePage>* ColIterator() override;
 
-  void InitColAccess(const std::vector<bool>& enabled,
-                     float subsample,
-                     size_t max_row_perbatch, bool sorted) override;
+  void InitColAccess(
+    size_t max_row_perbatch, bool sorted) override;
 
   bool SingleColBlock() const override;
 
@@ -69,15 +69,15 @@ class SimpleDMatrix : public DMatrix {
       data_ = 0;
     }
     const SparsePage &Value() const override {
-      return *cpages_[data_ - 1];
+      return *column_page_;
     }
     bool Next() override;
 
    private:
     // allow SimpleDMatrix to access it.
     friend class SimpleDMatrix;
-    // column sparse pages
-    std::vector<std::unique_ptr<SparsePage> > cpages_;
+    // column sparse page
+    std::unique_ptr<SparsePage> column_page_;
     // data pointer
     size_t data_{0};
     // Is column sorted?
@@ -90,22 +90,10 @@ class SimpleDMatrix : public DMatrix {
   ColBatchIter col_iter_;
   // list of row index that are buffered.
   RowSet buffered_rowset_;
-  /*! \brief sizeof column data */
-  std::vector<size_t> col_size_;
 
   // internal function to make one batch from row iter.
-  void MakeOneBatch(const std::vector<bool>& enabled,
-                    float pkeep,
-                    SparsePage *pcol, bool sorted);
-
-  void MakeManyBatch(const std::vector<bool>& enabled,
-                     float pkeep,
-                     size_t max_row_perbatch, bool sorted);
-
-  void MakeColPage(const SparsePage& batch,
-                   size_t buffer_begin,
-                   const std::vector<bool>& enabled,
-                   SparsePage* pcol, bool sorted);
+  void MakeOneBatch(
+    SparsePage *pcol, bool sorted);
 };
 }  // namespace data
 }  // namespace xgboost

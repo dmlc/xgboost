@@ -59,7 +59,7 @@ TEST(SparsePageDMatrix, ColAcess) {
 
   EXPECT_EQ(dmat->HaveColAccess(true), false);
   const std::vector<bool> enable(dmat->Info().num_col_, true);
-  dmat->InitColAccess(enable, 1, 1, true); // Max 1 row per patch
+  dmat->InitColAccess(1, true); // Max 1 row per patch
   ASSERT_EQ(dmat->HaveColAccess(true), true);
   EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
 

@@ -45,14 +45,14 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   // Unsorted column access
   const std::vector<bool> enable(dmat->Info().num_col_, true);
   EXPECT_EQ(dmat->HaveColAccess(false), false);
-  dmat->InitColAccess(enable, 1, dmat->Info().num_row_, false);
-  dmat->InitColAccess(enable, 0, 0, false); // Calling it again should not change it
+  dmat->InitColAccess(dmat->Info().num_row_, false);
+  dmat->InitColAccess(0, false); // Calling it again should not change it
   ASSERT_EQ(dmat->HaveColAccess(false), true);
 
   // Sorted column access
   EXPECT_EQ(dmat->HaveColAccess(true), false);
-  dmat->InitColAccess(enable, 1, dmat->Info().num_row_, true);
-  dmat->InitColAccess(enable, 0, 0, true); // Calling it again should not change it
+  dmat->InitColAccess(dmat->Info().num_row_, true);
+  dmat->InitColAccess(0, true); // Calling it again should not change it
   ASSERT_EQ(dmat->HaveColAccess(true), true);
 
   EXPECT_EQ(dmat->GetColSize(0), 2);
@@ -76,47 +76,4 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
   col_iter = nullptr;
-}
-
-TEST(SimpleDMatrix, ColAccessWithBatches) {
-  std::string tmp_file = CreateSimpleTestData();
-  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
-  std::remove(tmp_file.c_str());
-
-  // Unsorted column access
-  const std::vector<bool> enable(dmat->Info().num_col_, true);
-  EXPECT_EQ(dmat->HaveColAccess(false), false);
-  dmat->InitColAccess(enable, 1, 1, false);
-  dmat->InitColAccess(enable, 0, 0, false); // Calling it again should not change it
-  ASSERT_EQ(dmat->HaveColAccess(false), true);
-
-  // Sorted column access
-  EXPECT_EQ(dmat->HaveColAccess(true), false);
-  dmat->InitColAccess(enable, 1, 1, true); // Max 1 row per patch
-  dmat->InitColAccess(enable, 0, 0, true); // Calling it again should not change it
-  ASSERT_EQ(dmat->HaveColAccess(true), true);
-
-  EXPECT_EQ(dmat->GetColSize(0), 2);
-  EXPECT_EQ(dmat->GetColSize(1), 1);
-  EXPECT_EQ(dmat->GetColDensity(0), 1);
-  EXPECT_EQ(dmat->GetColDensity(1), 0.5);
-  ASSERT_FALSE(dmat->SingleColBlock());
-
-  auto col_iter = dmat->ColIterator();
-  // Loop over the batches and assert the data is as expected
-  long num_col_batch = 0;
-  col_iter->BeforeFirst();
-  while (col_iter->Next()) {
-    num_col_batch += 1;
-    EXPECT_EQ(col_iter->Value().Size(), dmat->Info().num_col_)
-      << "Expected batch size = num_cols as max_row_perbatch is 1.";
-    for (int i = 0; i < static_cast<int>(col_iter->Value().Size()); ++i) {
-      EXPECT_LE(col_iter->Value()[i].length, 1)
-        << "Expected length of each colbatch <=1 as max_row_perbatch is 1.";
-    }
-  }
-  EXPECT_EQ(num_col_batch, dmat->Info().num_row_)
-    << "Expected num batches = num_rows as max_row_perbatch is 1";
-  col_iter = nullptr;
-
 }

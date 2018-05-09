@@ -86,7 +86,7 @@ class GBLinear : public GradientBooster {
     if (!p_fmat->HaveColAccess(false)) {
       monitor_.Start("InitColAccess");
       std::vector<bool> enabled(p_fmat->Info().num_col_, true);
-      p_fmat->InitColAccess(enabled, 1.0f, param_.max_row_perbatch, false);
+      p_fmat->InitColAccess(param_.max_row_perbatch, false);
       monitor_.Stop("InitColAccess");
     }
 

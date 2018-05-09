@@ -64,9 +64,8 @@ class SparsePageDMatrix : public DMatrix {
 
   dmlc::DataIter<SparsePage>* ColIterator() override;
 
-  void InitColAccess(const std::vector<bool>& enabled,
-                     float subsample,
-                     size_t max_row_perbatch, bool sorted) override;
+  void InitColAccess(
+    size_t max_row_perbatch, bool sorted) override;
 
   /*! \brief page size 256 MB */
   static const size_t kPageSize = 256UL << 20UL;

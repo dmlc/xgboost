@@ -496,7 +496,7 @@ class LearnerImpl : public Learner {
         max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
       }
       // initialize column access
-      p_train->InitColAccess(enabled, tparam_.prob_buffer_row, max_row_perbatch, true);
+      p_train->InitColAccess(max_row_perbatch, true);
     }
 
     if (!p_train->SingleColBlock() && cfg_.count("updater") == 0) {

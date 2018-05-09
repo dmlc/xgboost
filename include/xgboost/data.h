@@ -318,17 +318,12 @@ class DMatrix {
   virtual dmlc::DataIter<SparsePage>* ColIterator() = 0;
   /*!
    * \brief check if column access is supported, if not, initialize column access.
-   * \param enabled whether certain feature should be included in column access.
-   * \param subsample subsample ratio when generating column access.
    * \param max_row_perbatch auxiliary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
    * \param sorted If column features should be in sorted order           
    * \return Number of column blocks in the column access.
    */
-
-  virtual void InitColAccess(const std::vector<bool>& enabled,
-                             float subsample,
-                             size_t max_row_perbatch, bool sorted) = 0;
+  virtual void InitColAccess(size_t max_row_perbatch, bool sorted) = 0;
   // the following are column meta data, should be able to answer them fast.
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(bool sorted) const = 0;
