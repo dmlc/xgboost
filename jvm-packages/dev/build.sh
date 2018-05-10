@@ -11,14 +11,10 @@ export CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
 export PATH=$CXX:$CC:/opt/rh/python27/root/usr/bin/python:$PATH
 
 scl enable devtoolset-2 bash
-
 scl enable python27 bash
 
 rm /usr/bin/python
-
 ln -s /opt/rh/python27/root/usr/bin/python /usr/bin/python
-
-python -V
 
 # build xgboost
 cd /xgboost/jvm-packages;mvn package
