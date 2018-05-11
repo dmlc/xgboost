@@ -691,9 +691,6 @@ cb.gblinear.history <- function(sparse=FALSE) {
 #' For an \code{xgb.cv} result, a list of such matrices is returned with the elements
 #' corresponding to CV folds.
 #'
-#' @seealso
-#' \code{\link{cv.gblinear.history}}
-#'
 #' @export
 xgb.gblinear.history <- function(model, class_index = NULL) {
 

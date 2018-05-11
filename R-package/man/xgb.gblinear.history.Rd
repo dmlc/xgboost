@@ -27,6 +27,3 @@ A helper function to extract the matrix of linear coefficients' history
 from a gblinear model created while using the \code{cb.gblinear.history()}
 callback.
 }
-\seealso{
-\code{\link{cv.gblinear.history}}
-}

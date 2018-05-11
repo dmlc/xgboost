@@ -267,7 +267,7 @@ Rbuild: Rpack
 	rm -rf xgboost
 
 Rcheck: Rbuild
-	R CMD check  xgboost*.tar.gz
+	R CMD check xgboost*.tar.gz
 
 -include build/*.d
 -include build/*/*.d

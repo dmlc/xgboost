@@ -14,7 +14,7 @@ Authors@R: c(
          email = "khotilovich@gmail.com"),
   person("Yuan", "Tang", role = c("aut"),
          email = "terrytangyuan@gmail.com",
-         comment = c(ORCID = "0000-0001-5243-233X"))
+         comment = c(ORCID = "0000-0001-5243-233X")),
   person("Philip", "Cho", role = c("aut")),
   person("Kailong", "Chen", role = c("aut")),
   person("Rory", "Mitchell", role = c("aut")),
@@ -26,7 +26,7 @@ Authors@R: c(
   person("Yifeng", "Geng", role = c("aut")),
   person("Yutian", "Li", role = c("aut")),
   person("XGBoost contributors", role = c("cph"),
-         comment = "base XGBoost implementation"),
+         comment = "base XGBoost implementation")
   )
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
