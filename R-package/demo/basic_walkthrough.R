@@ -99,8 +99,8 @@ err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))
 
 # You can dump the tree you learned using xgb.dump into a text file
-dump.path = file.path(tempdir(), 'dump.raw.txt')
-xgb.dump(bst, dump.path, with_stats = T)
+dump_path = file.path(tempdir(), 'dump.raw.txt')
+xgb.dump(bst, dump_path, with_stats = T)
 
 # Finally, you can check which features are the most important.
 print("Most important features (look at column Gain):")
