@@ -2,7 +2,7 @@ Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
 Version: 0.71.1
-Date: 2018-04-11
+Date: 2018-05-11
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),
          email = "tianqi.tchen@gmail.com"),
@@ -15,6 +15,18 @@ Authors@R: c(
   person("Yuan", "Tang", role = c("aut"),
          email = "terrytangyuan@gmail.com",
          comment = c(ORCID = "0000-0001-5243-233X"))
+  person("Philip", "Cho", role = c("aut")),
+  person("Kailong", "Chen", role = c("aut")),
+  person("Rory", "Mitchell", role = c("aut")),
+  person("Ignacio", "Cano", role = c("aut")),
+  person("Tianyi", "Zhou", role = c("aut")),
+  person("Mu", "Li", role = c("aut")),
+  person("Junyuan", "Xie", role = c("aut")),
+  person("Min", "Lin", role = c("aut")),
+  person("Yifeng", "Geng", role = c("aut")),
+  person("Yutian", "Li", role = c("aut")),
+  person("XGBoost contributors", role = c("cph"),
+         comment = "base XGBoost implementation"),
   )
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
@@ -28,6 +40,7 @@ Description: Extreme Gradient Boosting, which is an efficient implementation
 License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
 BugReports: https://github.com/dmlc/xgboost/issues
+NeedsCompilation: yes
 VignetteBuilder: knitr
 Suggests:
     knitr,
