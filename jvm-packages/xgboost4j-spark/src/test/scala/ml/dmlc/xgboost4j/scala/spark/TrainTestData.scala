@@ -17,7 +17,6 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.io.Source
-
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 trait TrainTestData {

@@ -90,7 +90,7 @@ trait GeneralParams extends Params {
     * the trained model will get checkpointed every 10 iterations. Note: `checkpoint_path` must
     * also be set if the checkpoint interval is greater than 0.
     */
-  val checkpointInterval: IntParam = new IntParam(this, "checkpointInterval", "set checkpoint " +
+  val checkpointInterval: IntParam = new IntParam(this, "checkpoint_interval", "set checkpoint " +
     "interval (>= 1) or disable checkpoint (-1). E.g. 10 means that the trained model will get " +
     "checkpointed every 10 iterations. Note: `checkpoint_path` must also be set if the checkpoint" +
     " interval is greater than 0.", (interval: Int) => interval == -1 || interval >= 1)
@@ -133,4 +133,17 @@ trait GeneralParams extends Params {
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
     checkpointPath -> "", checkpointInterval -> -1
   )
+}
+
+trait HasBaseMarginCol extends Params {
+
+  /**
+   * Param for initial prediction (aka base margin) column name.
+   * @group param
+   */
+  final val baseMarginCol: Param[String] = new Param[String](this, "baseMarginCol",
+    "Initial prediction (aka base margin) column name.")
+
+  /** @group getParam */
+  final def getBaseMarginCol: String = $(baseMarginCol)
 }
