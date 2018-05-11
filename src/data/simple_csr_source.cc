@@ -27,9 +27,9 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
 
 void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   // use qid get gourp info
-  uint64_t default_max = 0xFFFFFFFFFFFFFFFF;
-  uint64_t last_qid = default_max;
-  bst_uint group_size = 0;
+  const uint64_t defaultMax = 0xFFFFFFFFFFFFFFFF;
+  uint64_t lastGroupId = defaultMax;
+  bst_uint groupSize = 0;
   this->Clear();
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
@@ -43,14 +43,14 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       info.qids.insert(info.qids.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
-        uint64_t cur_qid = batch.qid[i];
-        if (last_qid == default_max) {
+        uint64_t curGroupId = batch.qid[i];
+        if (lastGroupId == defaultMax) {
           info.group_ptr.push_back(0);
-        } else if (last_qid != cur_qid) {
-          info.group_ptr.push_back(group_size);
+        } else if (lastGroupId != curGroupId) {
+          info.group_ptr.push_back(groupSize);
         }
-        last_qid = cur_qid;
-        group_size++;
+        lastGroupId = curGroupId;
+        groupSize++;
       }
     }
 
@@ -75,9 +75,9 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       page_.offset.push_back(page_.offset[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
-  if (last_qid != default_max) {
-    if (group_size > info.group_ptr.back()) {
-      info.group_ptr.push_back(group_size);
+  if (lastGroupId != defaultMax) {
+    if (groupSize > info.group_ptr.back()) {
+      info.group_ptr.push_back(groupSize);
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
