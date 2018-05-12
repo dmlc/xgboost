@@ -23,11 +23,6 @@ import org.apache.spark.ml.param._
 trait LearningTaskParams extends Params {
 
   /**
-   * number of tasks to learn
-   */
-  val numClasses = new IntParam(this, "num_class", "number of classes")
-
-  /**
    * Specify the learning task and the corresponding learning objective.
    * options: reg:linear, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
    * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
@@ -62,16 +57,6 @@ trait LearningTaskParams extends Params {
     " for ranking task. To correspond to partition of training data, it is nested.")
 
   /**
-   * Initial prediction (aka base margin) column name.
-   */
-  val baseMarginCol = new Param[String](this, "baseMarginCol", "base margin column name")
-
-  /**
-   * Instance weights column name.
-   */
-  val weightCol = new Param[String](this, "weightCol", "weight column name")
-
-  /**
    * Fraction of training points to use for testing.
    */
   val trainTestRatio = new DoubleParam(this, "trainTestRatio",
@@ -87,9 +72,8 @@ trait LearningTaskParams extends Params {
     "stopping the training",
     (value: Int) => value == 0 || value > 1)
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null,
-    baseMarginCol -> "baseMargin", weightCol -> "weight", trainTestRatio -> 1.0,
-    numEarlyStoppingRounds -> 0)
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, groupData -> null,
+    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
 }
 
 private[spark] object LearningTaskParams {
