@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.example.spark
 
 import ml.dmlc.xgboost4j.scala.Booster
-import ml.dmlc.xgboost4j.scala.spark.XGBoost
+import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.SparkConf
 
@@ -45,9 +45,10 @@ object SparkWithDataFrame {
     val paramMap = List(
       "eta" -> 0.1f,
       "max_depth" -> 2,
-      "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.trainWithDataFrame(
-      trainDF, paramMap, numRound, nWorkers = args(1).toInt, useExternalMemory = true)
+      "objective" -> "binary:logistic",
+      "num_round" -> numRound,
+      "nWorkers" -> args(1).toInt).toMap
+    val xgboostModel = new XGBoostClassifier(paramMap).fit(trainDF)
     // xgboost-spark appends the column containing prediction results
     xgboostModel.transform(testDF).show()
   }
