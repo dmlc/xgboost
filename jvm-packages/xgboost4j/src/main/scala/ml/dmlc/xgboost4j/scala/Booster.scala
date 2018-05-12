@@ -197,6 +197,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     booster.getFeatureScore(featureMap).asScala
   }
 
+  def getVersion: Int = booster.getVersion
+
   def toByteArray: Array[Byte] = {
     booster.toByteArray
   }

@@ -21,16 +21,15 @@ import java.nio.file.Files
 
 import scala.collection.mutable
 import scala.util.Random
+
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
-import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Dataset
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
 
 
@@ -148,89 +147,6 @@ object XGBoost extends Serializable {
     }.cache()
   }
 
-  /**
-   * Train XGBoost model with the DataFrame-represented data
-   *
-   * @param trainingData the training set represented as DataFrame
-   * @param params Map containing the parameters to configure XGBoost
-   * @param round the number of iterations
-   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
-   *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
-   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
-   *                           true, the user may save the RAM cost for running XGBoost within Spark
-   * @param missing The value which represents a missing value in the dataset
-   * @param featureCol the name of input column, "features" as default value
-   * @param labelCol the name of output column, "label" as default value
-   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
-   * @return XGBoostModel when successful training
-   */
-  @throws(classOf[XGBoostError])
-  def trainWithDataFrame(
-      trainingData: Dataset[_],
-      params: Map[String, Any],
-      round: Int,
-      nWorkers: Int,
-      obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
-      useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
-      featureCol: String = "features",
-      labelCol: String = "label"): XGBoostModel = {
-    require(nWorkers > 0, "you must specify more than 0 workers")
-    val estimator = new XGBoostEstimator(params)
-    // assigning general parameters
-    estimator.
-      set(estimator.useExternalMemory, useExternalMemory).
-      set(estimator.round, round).
-      set(estimator.nWorkers, nWorkers).
-      set(estimator.customObj, obj).
-      set(estimator.customEval, eval).
-      set(estimator.missing, missing).
-      setFeaturesCol(featureCol).
-      setLabelCol(labelCol).
-      fit(trainingData)
-  }
-
-  private[spark] def isClassificationTask(params: Map[String, Any]): Boolean = {
-    val objective = params.getOrElse("objective", params.getOrElse("obj_type", null))
-    objective != null && {
-      val objStr = objective.toString
-      objStr != "regression" && !objStr.startsWith("reg:") && objStr != "count:poisson" &&
-        !objStr.startsWith("rank:")
-    }
-  }
-
-  /**
-   * Train XGBoost model with the RDD-represented data
-   *
-   * @param trainingData the training set represented as RDD
-   * @param params Map containing the configuration entries
-   * @param round the number of iterations
-   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
-   *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
-   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
-   *                           true, the user may save the RAM cost for running XGBoost within Spark
-   * @param missing the value represented the missing value in the dataset
-   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
-   * @return XGBoostModel when successful training
-   */
-  @deprecated("Use XGBoost.trainWithRDD instead.")
-  def train(
-      trainingData: RDD[MLLabeledPoint],
-      params: Map[String, Any],
-      round: Int,
-      nWorkers: Int,
-      obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
-      useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): XGBoostModel = {
-    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
-  }
-
   private def overrideParamsAccordingToTaskCPUs(
       params: Map[String, Any],
       sc: SparkContext): Map[String, Any] = {
@@ -259,39 +175,8 @@ object XGBoost extends Serializable {
   }
 
   /**
-   * Train XGBoost model with the RDD-represented data
-   *
-   * @param trainingData the training set represented as RDD
-   * @param params Map containing the configuration entries
-   * @param round the number of iterations
-   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
-   *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
-   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
-   *                          true, the user may save the RAM cost for running XGBoost within Spark
-   * @param missing The value which represents a missing value in the dataset
-   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training has failed
-   * @return XGBoostModel when successful training
+   * @return A tuple of the booster and the metrics used to build training summary
    */
-  @throws(classOf[XGBoostError])
-  def trainWithRDD(
-      trainingData: RDD[MLLabeledPoint],
-      params: Map[String, Any],
-      round: Int,
-      nWorkers: Int,
-      obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
-      useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): XGBoostModel = {
-    import DataUtils._
-    val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
-      features.asXGB.copy(label = label.toFloat)
-    }
-    trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
-      useExternalMemory, missing)
-  }
-
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],
@@ -301,7 +186,7 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): XGBoostModel = {
+      missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
@@ -350,20 +235,15 @@ object XGBoost extends Serializable {
           }
           sparkJobThread.setUncaughtExceptionHandler(tracker)
           sparkJobThread.start()
-          val isClsTask = isClassificationTask(params)
           val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
           logger.info(s"Rabit returns with exit code $trackerReturnVal")
-          val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
-            sparkJobThread, isClsTask)
-          if (isClsTask){
-            model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
-              params.getOrElse("num_class", "2").toString.toInt
-          }
+          val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
+            sparkJobThread)
           if (checkpointRound < round) {
-            prevBooster = model.booster
-            checkpointManager.updateCheckpoint(model)
+            prevBooster = booster
+            checkpointManager.updateCheckpoint(prevBooster)
           }
-          model
+          (booster, metrics)
       } finally {
         tracker.stop()
       }
@@ -383,17 +263,14 @@ object XGBoost extends Serializable {
   private def postTrackerReturnProcessing(
       trackerReturnVal: Int,
       distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
-      sparkJobThread: Thread,
-      isClassificationTask: Boolean
-  ): XGBoostModel = {
+      sparkJobThread: Thread): (Booster, Map[String, Array[Float]]) = {
     if (trackerReturnVal == 0) {
       // Copies of the final booster and the corresponding metrics
       // reside in each partition of the `distributedBoostersAndMetrics`.
       // Any of them can be used to create the model.
       val (booster, metrics) = distributedBoostersAndMetrics.first()
-      val xgboostModel = XGBoostModel(booster, isClassificationTask)
       distributedBoostersAndMetrics.unpersist(false)
-      xgboostModel.setSummary(XGBoostTrainingSummary(metrics))
+      (booster, metrics)
     } else {
       try {
         if (sparkJobThread.isAlive) {
@@ -407,64 +284,6 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def loadGeneralModelParams(inputStream: FSDataInputStream): (String, String, String) = {
-    val featureCol = inputStream.readUTF()
-    val labelCol = inputStream.readUTF()
-    val predictionCol = inputStream.readUTF()
-    (featureCol, labelCol, predictionCol)
-  }
-
-  private def setGeneralModelParams(
-      featureCol: String,
-      labelCol: String,
-      predCol: String,
-      xgBoostModel: XGBoostModel): XGBoostModel = {
-    xgBoostModel.setFeaturesCol(featureCol)
-    xgBoostModel.setLabelCol(labelCol)
-    xgBoostModel.setPredictionCol(predCol)
-  }
-
-
-  /**
-   * Load XGBoost model from path in HDFS-compatible file system
-   *
-   * @param modelPath The path of the file representing the model
-   * @return The loaded model
-   */
-  def loadModelFromHadoopFile(modelPath: String)(implicit sparkContext: SparkContext):
-      XGBoostModel = {
-    val path = new Path(modelPath)
-    val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
-    val modelType = dataInStream.readUTF()
-    val (featureCol, labelCol, predictionCol) = loadGeneralModelParams(dataInStream)
-    modelType match {
-      case "_cls_" =>
-        val rawPredictionCol = dataInStream.readUTF()
-        val numClasses = dataInStream.readInt()
-        val thresholdLength = dataInStream.readInt()
-        var thresholds: Array[Double] = null
-        if (thresholdLength != -1) {
-          thresholds = new Array[Double](thresholdLength)
-          for (i <- 0 until thresholdLength) {
-            thresholds(i) = dataInStream.readDouble()
-          }
-        }
-        val xgBoostModel = new XGBoostClassificationModel(SXGBoost.loadModel(dataInStream))
-        setGeneralModelParams(featureCol, labelCol, predictionCol, xgBoostModel).
-          asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(rawPredictionCol)
-        if (thresholdLength != -1) {
-          xgBoostModel.setThresholds(thresholds)
-        }
-        xgBoostModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = numClasses
-        xgBoostModel
-      case "_reg_" =>
-        val xgBoostModel = new XGBoostRegressionModel(SXGBoost.loadModel(dataInStream))
-        setGeneralModelParams(featureCol, labelCol, predictionCol, xgBoostModel)
-      case other =>
-        throw new XGBoostError(s"Unknown model type $other. Supported types " +
-          s"are: ['_reg_', '_cls_'].")
-    }
-  }
 }
 
 private class Watches private(
