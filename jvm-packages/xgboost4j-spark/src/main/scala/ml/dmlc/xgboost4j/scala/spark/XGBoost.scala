@@ -174,6 +174,9 @@ object XGBoost extends Serializable {
     tracker
   }
 
+  /**
+   * @return A tuple of the booster and the metrics used to build training summary
+   */
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],

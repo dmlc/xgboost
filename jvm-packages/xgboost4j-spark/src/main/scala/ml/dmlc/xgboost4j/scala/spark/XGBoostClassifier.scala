@@ -226,29 +226,22 @@ class XGBoostClassificationModel private[ml](
     _booster.predict(data = dm, outPutMargin = false)(0)
   }
 
-  // The performance of single instance prediction is poor, need to be optimized later.
   override def predict(features: Vector): Double = {
-    val _probability = probability(features)
-    val probabilityVec = if (numClasses == 2) {
-      Vectors.dense(Array(1.0 - _probability(0), _probability(0)))
-    } else {
-      Vectors.dense(_probability.map(_.toDouble))
-    }
-    probabilityVec.argmax
+    throw new Exception("XGBoost-Spark does not support online prediction")
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
   override def predictRaw(features: Vector): Vector = {
-    Vectors.dense(margin(features).map(_.toDouble))
+    throw new Exception("XGBoost-Spark does not support \'predictRaw\'")
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
   override def raw2probabilityInPlace(rawPrediction: Vector): Vector = {
-    rawPrediction
+    throw new Exception("XGBoost-Spark does not support \'raw2probabilityInPlace\'")
   }
 
   // Generate raw prediction and probability prediction.
-  def transformInternal(dataset: Dataset[_]): DataFrame = {
+  private def transformInternal(dataset: Dataset[_]): DataFrame = {
 
     val schema = StructType(dataset.schema.fields ++
       Seq(StructField(name = _rawPredictionCol, dataType =

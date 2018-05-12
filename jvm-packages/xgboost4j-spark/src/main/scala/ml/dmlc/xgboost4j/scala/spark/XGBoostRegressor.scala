@@ -201,14 +201,11 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
-  // The performance of single instance prediction is poor, need to be optimized later.
   override def predict(features: Vector): Double = {
-    import DataUtils._
-    val dm = new DMatrix(scala.collection.Iterator(features.asXGB))
-    _booster.predict(data = dm, outPutMargin = false)(0)(0)
+    throw new Exception("XGBoost-Spark does not support online prediction")
   }
 
-  def transformInternal(dataset: Dataset[_]): DataFrame = {
+  private def transformInternal(dataset: Dataset[_]): DataFrame = {
 
     val schema = StructType(dataset.schema.fields ++
       Seq(StructField(name = _originalPredictionCol, dataType =

@@ -80,9 +80,8 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
   private[spark] def updateCheckpoint(checkpoint: Booster): Unit = {
     val fs = FileSystem.get(sc.hadoopConfiguration)
     val prevModelPaths = getExistingVersions.map(version => new Path(getPath(version)))
-    val fullPath = getPath(checkpoint.booster.getVersion)
-    logger.info(
-      s"Saving checkpoint model with version ${checkpoint.booster.getVersion} to $fullPath")
+    val fullPath = getPath(checkpoint.getVersion)
+    logger.info(s"Saving checkpoint model with version ${checkpoint.getVersion} to $fullPath")
     checkpoint.saveModel(fullPath)
     prevModelPaths.foreach(path => fs.delete(path, true))
   }
