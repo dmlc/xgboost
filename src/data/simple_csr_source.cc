@@ -40,7 +40,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
     }
     if (batch.qid != nullptr) {
-      info.qids.insert(info.qids.end(), batch.qid, batch.qid + batch.size);
+      info.qids_.insert(info.qids_.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
         uint64_t curGroupId = batch.qid[i];

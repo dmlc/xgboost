@@ -28,6 +28,7 @@ void MetaInfo::Clear() {
   labels_.clear();
   root_index_.clear();
   group_ptr_.clear();
+  qids_.clear();
   weights_.clear();
   base_margin_.clear();
 }
