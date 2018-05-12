@@ -21,7 +21,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
-import ml.dmlc.xgboost4j.scala.spark.{XGBoostEstimator, XGBoost}
+import ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.feature.{VectorAssembler, StringIndexer}
@@ -160,7 +160,7 @@ object SparkModelTuningTool {
   private def crossValidation(
       xgboostParam: Map[String, Any],
       trainingData: Dataset[_]): TrainValidationSplitModel = {
-    val xgbEstimator = new XGBoostEstimator(xgboostParam).setFeaturesCol("features").
+    val xgbEstimator = new XGBoostRegressor(xgboostParam).setFeaturesCol("features").
       setLabelCol("logSales")
     val paramGrid = new ParamGridBuilder()
       .addGrid(xgbEstimator.round, Array(20, 50))
