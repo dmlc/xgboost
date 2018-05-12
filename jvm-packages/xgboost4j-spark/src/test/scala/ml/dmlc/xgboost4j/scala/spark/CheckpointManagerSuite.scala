@@ -21,37 +21,28 @@ import java.nio.file.Files
 
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.{SparkConf, SparkContext}
 
-class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
-  var sc: SparkContext = _
-
-  override def beforeAll(): Unit = {
-    val conf: SparkConf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("XGBoostSuite")
-    sc = new SparkContext(conf)
-  }
+class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
   private lazy val (model4, model8) = {
-    import DataUtils._
-    val trainingRDD = sc.parallelize(Classification.train).map(_.asML).cache()
+    val training = buildDataFrame(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    (XGBoost.trainWithRDD(trainingRDD, paramMap, round = 2, sc.defaultParallelism),
-      XGBoost.trainWithRDD(trainingRDD, paramMap, round = 4, sc.defaultParallelism))
+      "objective" -> "binary:logistic", "nWorkers" -> sc.defaultParallelism)
+    val _model4 = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
+    val _model8 = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 4)).fit(training)
+    (_model4, _model8)
   }
 
   test("test update/load models") {
     val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
-    manager.updateCheckpoint(model4)
+    manager.updateCheckpoint(model4._booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "4.model")
     assert(manager.loadCheckpointAsBooster.booster.getVersion == 4)
 
-    manager.updateCheckpoint(model8)
+    manager.updateCheckpoint(model8._booster)
     files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "8.model")
@@ -61,7 +52,7 @@ class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
   test("test cleanUpHigherVersions") {
     val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
-    manager.updateCheckpoint(model8)
+    manager.updateCheckpoint(model8._booster)
     manager.cleanUpHigherVersions(round = 8)
     assert(new File(s"$tmpPath/8.model").exists())
 
@@ -74,7 +65,8 @@ class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
     val manager = new CheckpointManager(sc, tmpPath)
     assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, round = 7))
     assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, round = 7))
-    manager.updateCheckpoint(model4)
+    manager.updateCheckpoint(model4._booster)
     assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7))
   }
+
 }
