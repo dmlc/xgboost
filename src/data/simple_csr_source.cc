@@ -45,9 +45,9 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       for (size_t i = 0; i < batch.size; ++i) {
         uint64_t curGroupId = batch.qid[i];
         if (lastGroupId == defaultMax) {
-          info.group_ptr.push_back(0);
+          info.group_ptr_.push_back(0);
         } else if (lastGroupId != curGroupId) {
-          info.group_ptr.push_back(groupSize);
+          info.group_ptr_.push_back(groupSize);
         }
         lastGroupId = curGroupId;
         groupSize++;
@@ -76,8 +76,8 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     }
   }
   if (lastGroupId != defaultMax) {
-    if (groupSize > info.group_ptr.back()) {
-      info.group_ptr.push_back(groupSize);
+    if (groupSize > info.group_ptr_.back()) {
+      info.group_ptr_.push_back(groupSize);
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
