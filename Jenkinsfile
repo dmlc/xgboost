@@ -114,7 +114,7 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
 
 def cmakeOptions(conf) {
     return ([
-        conf["withGpu"] ? '-DUSE_CUDA=ON -DUSE_NCCL=ON' : '-DUSE_CUDA=OFF',
+        conf["withGpu"] ? '-DUSE_CUDA=ON' : '-DUSE_CUDA=OFF',
         conf["withNccl"] ? '-DUSE_NCCL=ON' : '-DUSE_NCCL=OFF',
         conf["withOmp"] ? '-DOPEN_MP:BOOL=ON' : '']
         ).join(" ")
