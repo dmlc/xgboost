@@ -18,11 +18,19 @@ long GetFileSize(const std::string filename) {
 }
 
 std::string CreateSimpleTestData() {
+  return CreateBigTestData(6);
+}
+
+std::string CreateBigTestData(size_t n_entries) {
   std::string tmp_file = TempFileName();
   std::ofstream fo;
   fo.open(tmp_file);
-  fo << "0 0:0 1:10 2:20\n";
-  fo << "1 0:0 3:30 4:40\n";
+  const size_t entries_per_row = 3;
+  size_t n_rows = (n_entries + entries_per_row - 1) / entries_per_row;
+  for (size_t i = 0; i < n_rows; ++i) {
+    const char* row = i % 2 == 0 ? " 0:0 1:10 2:20\n" : " 0:0 3:30 4:40\n";
+    fo << i << row;
+  }
   fo.close();
   return tmp_file;
 }

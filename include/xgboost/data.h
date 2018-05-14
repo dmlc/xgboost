@@ -126,15 +126,15 @@ struct SparseBatch {
     /*! \brief feature value */
     bst_float fvalue;
     /*! \brief default constructor */
-    Entry() = default;
+    XGBOOST_DEVICE Entry() {}
     /*!
      * \brief constructor with index and value
      * \param index The feature or row index.
      * \param fvalue THe feature value.
      */
-    Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+    XGBOOST_DEVICE Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
     /*! \brief reversely compare feature values */
-    inline static bool CmpValue(const Entry& a, const Entry& b) {
+    XGBOOST_DEVICE inline static bool CmpValue(const Entry& a, const Entry& b) {
       return a.fvalue < b.fvalue;
     }
   };

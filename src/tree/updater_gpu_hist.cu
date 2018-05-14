@@ -224,6 +224,163 @@ struct CalcWeightTrainParam {
         learning_rate(p.learning_rate) {}
 };
 
+__device__ void atomicOrByte
+(uint* __restrict__ buffer, size_t ibyte, common::CompressedByteT b) {
+  atomicOr(&buffer[ibyte / sizeof(uint)], (uint)b << (ibyte % (sizeof(uint)) * 8));
+}
+
+// index of the first element in cuts greater than v, or n none;
+// cuts are ordered, and binary search is used
+__device__ int upper_bound(const float* __restrict__ cuts, int n, float v) {
+  if (n == 0)
+    return 0;
+  if (cuts[n - 1] <= v)
+    return n;
+  if (cuts[0] > v)
+    return 0;
+  int left = 0, right = n - 1;
+  while (right - left > 1) {
+    int middle = left + (right - left) / 2;
+    if (cuts[middle] > v)
+      right = middle;
+    else
+      left = middle;
+  }
+  return right;
+}
+
+__global__ void max_row_size_k(int* max_size, const size_t* row_ptr, size_t n) {
+  __shared__ int l_max_size;
+  if (threadIdx.x == 0)
+    l_max_size = 0;
+  __syncthreads();
+  size_t i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n)
+    atomicMax(&l_max_size, static_cast<int>(row_ptr[i + 1] - row_ptr[i]));
+  __syncthreads();
+  if (threadIdx.x == 0)
+    atomicMax(max_size, l_max_size);
+}
+
+__global__ void compress_bin_ellpack_k
+(uint* __restrict__ buffer, const size_t* __restrict__ row_ptrs,
+ const RowBatch::Entry* __restrict__ entries,
+ const float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
+ size_t base_row, size_t n_rows, size_t row_ptr_begin, size_t row_stride,
+ int nbits, uint null_gidx_value) {
+  size_t irow = threadIdx.x + size_t(blockIdx.x) * blockDim.x;
+  int ifeature = threadIdx.y + blockIdx.y * blockDim.y;
+  if (irow >= n_rows || ifeature >= row_stride)
+    return;
+  int row_size = static_cast<int>(row_ptrs[irow + 1] - row_ptrs[irow]);
+  uint bin = null_gidx_value;
+  if (ifeature < row_size) {
+    RowBatch::Entry entry = entries[row_ptrs[irow] - row_ptr_begin + ifeature];
+    int feature = entry.index;
+    float fvalue = entry.fvalue;
+    const float *feature_cuts = &cuts[cut_rows[feature]];
+    int ncuts = cut_rows[feature + 1] - cut_rows[feature];
+    bin = upper_bound(feature_cuts, ncuts, fvalue);
+    if (bin >= ncuts)
+      bin = ncuts - 1;
+    bin += cut_rows[feature];
+  }
+  size_t ielement = (irow + base_row) * row_stride + ifeature;
+  size_t ibit_start = ielement * nbits, ibit_end = (ielement + 1) * nbits - 1;
+  size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
+
+  bin <<= 7 - ibit_end % 8;
+  for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
+    atomicOrByte(buffer, ibyte, bin & 0xff);
+    bin >>= 8;
+  }
+}
+
+// Row batch for the histogram updater
+class UpdaterRowBatch {
+ public:
+  UpdaterRowBatch() {}
+  virtual ~UpdaterRowBatch() {}
+  // disable copying
+  UpdaterRowBatch(const UpdaterRowBatch&) = delete;
+  UpdaterRowBatch(UpdaterRowBatch&&) = delete;
+  void operator=(const UpdaterRowBatch&) = delete;
+  void operator=(UpdaterRowBatch&&) = delete;
+  virtual const RowBatch& Value() const = 0;
+  static std::unique_ptr<UpdaterRowBatch> Init(DMatrix* dmat);
+};
+
+// Iterator-based row batch; used when a DMatrix consists of a single RowBatch;
+// the underlying DMatrix and iterator must exist for the entire lifetime of this object
+class IterRowBatch : public UpdaterRowBatch {
+ public:
+  explicit IterRowBatch(dmlc::DataIter<RowBatch>* iter) : iter_(iter) {}
+  ~IterRowBatch() override {
+    CHECK(!iter_->Next());
+  }
+  const RowBatch& Value() const override { return iter_->Value(); }
+
+ private:
+  dmlc::DataIter<RowBatch>* iter_;
+};
+
+// Self-owned row batch; used when a DMatrix consists of multiple RowBatch objects.
+// This object owns the memory used to store the entries.
+class HostRowBatch : public UpdaterRowBatch {
+ public:
+  explicit HostRowBatch(dmlc::DataIter<RowBatch>* iter) {
+    size_t entries_so_far = 0;
+    size_t rows_so_far = 0;
+    row_ptrs_h_.resize(1);
+    row_ptrs_h_[0] = 0;
+    // the iterator is positioned on the first value
+    do {
+      const RowBatch& batch = iter->Value();
+      size_t size = batch.size;
+      row_ptrs_h_.resize(row_ptrs_h_.size() + size);
+      entries_h_.resize(entries_h_.size() + batch.ind_ptr[size] - batch.ind_ptr[0]);
+      #pragma omp parallel for
+      for (size_t i = 0; i < size; ++i) {
+        row_ptrs_h_[rows_so_far + i + 1] = entries_so_far + batch.ind_ptr[i + 1];
+        auto row = batch[i];
+        for (int j = 0; j < row.length; ++j) {
+          entries_h_[entries_so_far + batch.ind_ptr[i] + j] = row[j];
+        }
+      }
+      entries_so_far = entries_h_.size();
+      rows_so_far = row_ptrs_h_.size() - 1;
+    } while (iter->Next());
+
+    // initialize the batch
+    batch_.size = row_ptrs_h_.size() - 1;
+    batch_.base_rowid = 0;
+    batch_.ind_ptr = row_ptrs_h_.data();
+    batch_.data_ptr = entries_h_.data();
+  }
+  const RowBatch& Value() const override { return batch_; }
+
+ private:
+  RowBatch batch_;
+  thrust::host_vector<size_t> row_ptrs_h_;
+  thrust::host_vector<RowBatch::Entry> entries_h_;
+};
+
+std::unique_ptr<UpdaterRowBatch> UpdaterRowBatch::Init(DMatrix* dmat) {
+  dmlc::DataIter<RowBatch>* iter = dmat->RowIterator();
+  iter->BeforeFirst();
+  CHECK(iter->Next());
+  const RowBatch& batch = iter->Value();
+  if (batch.size == dmat->Info().num_row_) {
+    // single-batch DMatrix, avoid extra copying
+    auto ptr = std::unique_ptr<UpdaterRowBatch>(new IterRowBatch(iter));
+    CHECK(!iter->Next());
+    return std::move(ptr);
+  } else {
+    // multi-batch DMatrix, must be converted to a single batch first
+    return std::unique_ptr<UpdaterRowBatch>(new HostRowBatch(iter));
+  }
+}
+
 // Manage memory for a single GPU
 struct DeviceShard {
   struct Segment {
@@ -270,9 +427,10 @@ struct DeviceShard {
 
   dh::CubMemory temp_memory;
 
+  // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int device_idx, int normalised_device_idx,
-              const common::GHistIndexMatrix& gmat, bst_uint row_begin,
-              bst_uint row_end, int n_bins, TrainParam param)
+              const common::HistCutMatrix& hmat, const RowBatch& row_batch,
+              bst_uint row_begin, bst_uint row_end, int n_bins, TrainParam param)
       : device_idx(device_idx),
         normalised_device_idx(normalised_device_idx),
         row_begin_idx(row_begin),
@@ -282,63 +440,109 @@ struct DeviceShard {
         null_gidx_value(n_bins),
         param(param),
         prediction_cache_initialised(false) {
-    // Convert to ELLPACK matrix representation
+    // copy cuts to the GPU
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    thrust::device_vector<float> cuts_d(hmat.cut);
+    thrust::device_vector<size_t> cut_row_ptrs_d(hmat.row_ptr);
+
+    // find the maximum row size
+    thrust::device_vector<size_t> row_ptr_d
+      (row_batch.ind_ptr + row_begin, row_batch.ind_ptr + row_end + 1);
+
     int max_elements_row = 0;
-    for (auto i = row_begin; i < row_end; i++) {
-      max_elements_row =
-          (std::max)(max_elements_row,
-                     static_cast<int>(gmat.row_ptr[i + 1] - gmat.row_ptr[i]));
-    }
+    int block = 256;
+    thrust::device_vector<int> max_row_size_d(1, 0);
+    max_row_size_k<<<dh::DivRoundUp(n_rows, block), block>>>
+      (max_row_size_d.data().get(), row_ptr_d.data().get(), n_rows);
+    dh::safe_cuda(cudaGetLastError());
+    dh::safe_cuda(cudaMemcpy(&max_elements_row, max_row_size_d.data().get(),
+                             sizeof(int), cudaMemcpyDefault));
+    dh::safe_cuda(cudaDeviceSynchronize());
     row_stride = max_elements_row;
-    std::vector<int> ellpack_matrix(row_stride * n_rows, null_gidx_value);
 
-    for (auto i = row_begin; i < row_end; i++) {
-      int row_count = 0;
-      for (auto j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
-        ellpack_matrix[(i - row_begin) * row_stride + row_count] =
-            gmat.index[j];
-        row_count++;
-      }
-    }
-
-    // Allocate
+    // allocate compressed bin data
     int num_symbols = n_bins + 1;
-    size_t compressed_size_bytes =
-        common::CompressedBufferWriter::CalculateBufferSize(
-            ellpack_matrix.size(), num_symbols);
+    size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize
+      (row_stride * n_rows, num_symbols);
 
     CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
         << "Max leaves and max depth cannot both be unconstrained for "
            "gpu_hist.";
+    ba.Allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes);
+
+    int nbits = common::detail::SymbolBits(num_symbols);
+
+    gidx_buffer.Fill(0);
+
+    // bin and compress entries in batches of rows
+    size_t gpu_batch_nrows = 0;
+    if (param.gpu_batch_nrows > 0) {
+      gpu_batch_nrows = param.gpu_batch_nrows;
+    } else if (param.gpu_batch_nrows == 0) {
+      // TODO(canonizer): add a more sophisticated auto-deduction,
+      // based e.g. on the number of elements in a row
+      gpu_batch_nrows = 1000000;
+    } else {  // param.gpu_batch_nrows == -1
+      gpu_batch_nrows = n_rows;
+    }
+    if (gpu_batch_nrows > n_rows)
+      gpu_batch_nrows = n_rows;
+    thrust::device_vector<RowBatch::Entry> entries_d(gpu_batch_nrows * row_stride);
+    size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
+    for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
+      size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
+      size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
+      if (batch_row_end > n_rows)
+        batch_row_end = n_rows;
+      size_t batch_nrows = batch_row_end - batch_row_begin;
+      size_t n_entries =
+        row_batch.ind_ptr[row_begin + batch_row_end] -
+        row_batch.ind_ptr[row_begin + batch_row_begin];
+      dh::safe_cuda
+        (cudaMemcpy(entries_d.data().get(),
+                    &row_batch.data_ptr[row_batch.ind_ptr[row_begin + batch_row_begin]],
+                    n_entries * sizeof(RowBatch::Entry), cudaMemcpyDefault));
+      dim3 block3(32, 8, 1);
+      dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
+                 dh::DivRoundUp(row_stride, block3.y), 1);
+      compress_bin_ellpack_k<<<grid3, block3>>>
+        (reinterpret_cast<uint*>(gidx_buffer.Data() + common::detail::kPadding),
+         row_ptr_d.data().get() + batch_row_begin,
+         entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
+         batch_row_begin, batch_nrows, row_batch.ind_ptr[row_begin + batch_row_begin],
+         row_stride, nbits, null_gidx_value);
+
+      dh::safe_cuda(cudaGetLastError());
+      dh::safe_cuda(cudaDeviceSynchronize());
+    }
+
+    // free the memory that is no longer needed
+    row_ptr_d.resize(0);
+    row_ptr_d.shrink_to_fit();
+    entries_d.resize(0);
+    entries_d.shrink_to_fit();
+
+    gidx = common::CompressedIterator<uint32_t>(gidx_buffer.Data(), num_symbols);
+
+    // allocate the rest
     int max_nodes =
         param.max_leaves > 0 ? param.max_leaves * 2 : MaxNodesDepth(param.max_depth);
-    ba.Allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes,
+    ba.Allocate(device_idx, param.silent,
                 &gpair, n_rows, &ridx, n_rows, &position, n_rows,
                 &prediction_cache, n_rows, &node_sum_gradients_d, max_nodes,
-                &feature_segments, gmat.cut->row_ptr.size(), &gidx_fvalue_map,
-                gmat.cut->cut.size(), &min_fvalue, gmat.cut->min_val.size(),
+                &feature_segments, hmat.row_ptr.size(), &gidx_fvalue_map,
+                hmat.cut.size(), &min_fvalue, hmat.min_val.size(),
                 &monotone_constraints, param.monotone_constraints.size());
-    gidx_fvalue_map = gmat.cut->cut;
-    min_fvalue = gmat.cut->min_val;
-    feature_segments = gmat.cut->row_ptr;
+    gidx_fvalue_map = hmat.cut;
+    min_fvalue = hmat.min_val;
+    feature_segments = hmat.row_ptr;
     monotone_constraints = param.monotone_constraints;
 
     node_sum_gradients.resize(max_nodes);
     ridx_segments.resize(max_nodes);
 
-    // Compress gidx
-    common::CompressedBufferWriter cbw(num_symbols);
-    std::vector<common::CompressedByteT> host_buffer(gidx_buffer.Size());
-    cbw.Write(host_buffer.data(), ellpack_matrix.begin(), ellpack_matrix.end());
-    gidx_buffer = host_buffer;
-    gidx =
-        common::CompressedIterator<uint32_t>(gidx_buffer.Data(), num_symbols);
-
-    common::CompressedIterator<uint32_t> ci_host(host_buffer.data(),
-                                                 num_symbols);
-
     // Init histogram
-    hist.Init(device_idx, max_nodes, gmat.cut->row_ptr.back(), param.silent);
+    hist.Init(device_idx, max_nodes, hmat.row_ptr.back(), param.silent);
 
     dh::safe_cuda(cudaMallocHost(&tmp_pinned, sizeof(int64_t)));
   }
@@ -579,8 +783,6 @@ class GPUHistMaker : public TreeUpdater {
     info_ = &dmat->Info();
     monitor_.Start("Quantiles", device_list_);
     hmat_.Init(dmat, param_.max_bin);
-    gmat_.cut = &hmat_;
-    gmat_.Init(dmat);
     monitor_.Stop("Quantiles", device_list_);
     n_bins_ = hmat_.row_ptr.back();
 
@@ -609,12 +811,17 @@ class GPUHistMaker : public TreeUpdater {
       row_begin = row_end;
     }
 
-    // Create device shards
+    monitor_.Start("BinningCompression", device_list_);
+    {
+      auto row_batch = UpdaterRowBatch::Init(dmat);
+      // Create device shards
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
       shard = std::unique_ptr<DeviceShard>(
-          new DeviceShard(device_list_[i], i, gmat_,
+          new DeviceShard(device_list_[i], i, hmat_, row_batch->Value(),
                           row_segments[i], row_segments[i + 1], n_bins_, param_));
       });
+    }
+    monitor_.Stop("BinningCompression", device_list_);
 
     p_last_fmat_ = dmat;
     initialised_ = true;

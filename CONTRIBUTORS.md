@@ -72,3 +72,4 @@ List of Contributors
 * [Gideon Whitehead](https://github.com/gaw89)
 * [Yi-Lin Juang](https://github.com/frankyjuang)
 * [Andrew Hannigan](https://github.com/andrewhannigan)
+* [Andy Adinets](https://github.com/canonizer)
