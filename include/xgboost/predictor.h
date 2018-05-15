@@ -170,7 +170,6 @@ class Predictor {
   static Predictor* Create(std::string name);
 
  protected:
-
   /**
    * \struct  PredictionCacheEntry
    *

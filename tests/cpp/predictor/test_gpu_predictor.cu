@@ -19,8 +19,8 @@ gbm::GBTreeModel CreateModel(int num_trees, int num_group,
     std::vector<std::unique_ptr<RegTree>> trees;
     trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
     trees.back()->InitModel();
-    (*trees.back())[0].set_leaf(leaf_weights[i % num_group]);
-    (*trees.back()).stat(0).sum_hess = 1.0f;
+    (*trees.back())[0].SetLeaf(leaf_weights[i % num_group]);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
     model.CommitModel(std::move(trees), i % num_group);
   }
 
@@ -38,15 +38,15 @@ TEST(gpu_predictor, test_partial_prediction) {
   auto model = CreateModel(5, 1, { 1.5 }, 0.5);
   auto dmat = CreateDMatrix(100, 20, 0);
 
-  std::vector<float> gpu_out_predictions;
-  std::vector<float> cpu_out_predictions;
+  HostDeviceVector<float> gpu_out_predictions;
+  HostDeviceVector<float> cpu_out_predictions;
   gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 4, 5,
                               false);
   cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 4, 5,
                               false);
-  for (int i = 0; i < gpu_out_predictions.size(); i++) {
-    ASSERT_EQ(gpu_out_predictions[i], 1.5f);
-    ASSERT_EQ(cpu_out_predictions[i], 1.5f);
+  for (int i = 0; i < gpu_out_predictions.Size(); i++) {
+    ASSERT_EQ(gpu_out_predictions.HostVector()[i], 1.5f);
+    ASSERT_EQ(cpu_out_predictions.HostVector()[i], 1.5f);
   }
 }
 
@@ -61,24 +61,24 @@ TEST(gpu_predictor, test_partial_prediction_multi) {
   auto model = CreateModel(9, 3, { 0.5f,1.0f,1.5f }, 0.5);
   auto dmat = CreateDMatrix(100, 20, 0);
 
-  std::vector<float> gpu_out_predictions;
-  std::vector<float> cpu_out_predictions;
+  HostDeviceVector<float> gpu_out_predictions;
+  HostDeviceVector<float> cpu_out_predictions;
   gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 3, 6,
                               false);
   cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 3, 6,
                               false);
-  for (int i = 0; i < gpu_out_predictions.size(); i++) {
+  for (int i = 0; i < gpu_out_predictions.Size(); i++) {
     if (i % 3 == 0) {
-      ASSERT_EQ(gpu_out_predictions[i], 0.5f);
-      ASSERT_EQ(cpu_out_predictions[i], 0.5f);
+      ASSERT_EQ(gpu_out_predictions.HostVector()[i], 0.5f);
+      ASSERT_EQ(cpu_out_predictions.HostVector()[i], 0.5f);
     }
     else if (i % 3 == 1) {
-      ASSERT_EQ(gpu_out_predictions[i], 1.0f);
-      ASSERT_EQ(cpu_out_predictions[i], 1.0f);
+      ASSERT_EQ(gpu_out_predictions.HostVector()[i], 1.0f);
+      ASSERT_EQ(cpu_out_predictions.HostVector()[i], 1.0f);
     }
     else if (i % 3 == 2) {
-      ASSERT_EQ(gpu_out_predictions[i], 1.5f);
-      ASSERT_EQ(cpu_out_predictions[i], 1.5f);
+      ASSERT_EQ(gpu_out_predictions.HostVector()[i], 1.5f);
+      ASSERT_EQ(cpu_out_predictions.HostVector()[i], 1.5f);
     }
   }
 }

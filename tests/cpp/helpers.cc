@@ -95,8 +95,8 @@ xgboost::gbm::GBTreeModel CreateModel(int num_trees, int num_group,
     std::vector<std::unique_ptr<xgboost::RegTree>> trees;
     trees.push_back(std::unique_ptr<xgboost::RegTree>(new xgboost::RegTree()));
     trees.back()->InitModel();
-    (*trees.back())[0].set_leaf(leaf_weights[i % num_group]);
-    (*trees.back()).stat(0).sum_hess = 1.0f;
+    (*trees.back())[0].SetLeaf(leaf_weights[i % num_group]);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
     model.CommitModel(std::move(trees), i % num_group);
   }
 

@@ -106,10 +106,11 @@ class CPUPredictor : public Predictor {
 
   bool PredictFromCache(DMatrix* dmat,
                         HostDeviceVector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model,
+                        const gbm::GBTreeModel& model, int tree_begin,
                         unsigned ntree_limit) {
-    if (ntree_limit == 0 ||
-        ntree_limit * model.param.num_output_group >= model.trees.size()) {
+    if ((ntree_limit == 0 ||
+        ntree_limit * model.param.num_output_group >= model.trees.size()) &&
+            tree_begin == 0) {
       auto it = cache_.find(dmat);
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
@@ -126,16 +127,22 @@ class CPUPredictor : public Predictor {
 
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model,
+                          bool init_margin) const {
     size_t n = model.param.num_output_group * info.num_row_;
-    const std::vector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Resize(n);
-    std::vector<bst_float>& out_preds_h = out_preds->HostVector();
-    if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->Size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
+    auto &host_out_predictions = out_preds->HostVector();
+    host_out_predictions.resize(n);
+    if (init_margin) {
+      const std::vector<bst_float>& base_margin = info.base_margin_;
+      if (base_margin.size() != 0) {
+        CHECK_EQ(out_preds->Size(), n);
+        std::copy(base_margin.begin(), base_margin.end(), host_out_predictions.begin());
+      } else {
+        std::fill(host_out_predictions.begin(), host_out_predictions.end(),
+                  model.base_margin);
+      }
     } else {
-      std::fill(out_preds_h.begin(), out_preds_h.end(), model.base_margin);
+      std::fill(host_out_predictions.begin(), host_out_predictions.end(), 0.0);
     }
   }
 
@@ -151,6 +158,7 @@ class CPUPredictor : public Predictor {
 
     this->InitOutPredictions(dmat->Info(), out_preds, model, init_margin);
 
+    ntree_limit *= model.param.num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
@@ -168,7 +176,7 @@ class CPUPredictor : public Predictor {
     for (auto& kv : cache_) {
       PredictionCacheEntry& e = kv.second;
 
-      if (e.predictions.size() == 0) {
+      if (e.predictions.Size() == 0) {
         InitOutPredictions(e.data->Info(), &(e.predictions), model, true);
         PredLoopInternal(e.data.get(), &(e.predictions.HostVector()), model, 0,
                          model.trees.size());
@@ -264,12 +272,10 @@ class CPUPredictor : public Predictor {
     // allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
 
-    if (approximate) {
-	// initialize tree node mean values
-	#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < ntree_limit; ++i) {
-        model.trees[i]->FillNodeMeanValues();
-      }
+    // initialize tree node mean values
+#pragma omp parallel for schedule(static)
+    for (bst_omp_uint i = 0; i < ntree_limit; ++i) {
+      model.trees[i]->FillNodeMeanValues();
     }
     // start collecting the contributions
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();

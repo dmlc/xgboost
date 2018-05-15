@@ -28,37 +28,39 @@ class NesterovOptimizer : public Optimizer {
  public:
   void Init(
       const std::vector<std::pair<std::string, std::string>>& cfg) override {
-    param.InitAllowUnknown(cfg);
+    param_.InitAllowUnknown(cfg);
   }
-  void OptimizeGradients(std::vector<bst_gpair>* gpair) override {
-    if (param.momentum == 0.0f) {
+  void OptimizeGradients(HostDeviceVector<GradientPair>* gpair) override {
+    auto& host_gpair = gpair->HostVector();
+    if (param_.momentum == 0.0f) {
       return;
     }
     if (!previous_gpair_.empty()) {
       // apply momentum
-      for (size_t i = 0; i < gpair->size(); i++) {
-        (*gpair)[i] =
-            (*gpair)[i] +
-            bst_gpair(previous_gpair_[i].GetGrad() * param.momentum, 0.0f);
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        host_gpair[i] =
+            host_gpair[i] +
+            GradientPair(previous_gpair_[i].GetGrad() * param_.momentum, 0.0f);
       }
     }
-    previous_gpair_ = *gpair;
+    previous_gpair_ = host_gpair;
   }
 
-  void OptimizePredictions(std::vector<float>* predictions,
+  void OptimizePredictions(HostDeviceVector<float>* predictions,
                            GradientBooster* gbm, DMatrix* dmatrix) override {
     gbm->NesterovPredict(dmatrix, &nesterov_predictions_);
-    CHECK_EQ(predictions->size(), nesterov_predictions_.size());
-    for(int i = 0; i < predictions->size(); i++)
-    {
-      (*predictions)[i] += (nesterov_predictions_[i] * param.momentum);
+    CHECK_EQ(predictions->Size(), nesterov_predictions_.Size());
+    auto& host_predictions = predictions->HostVector();
+    auto& host_nesterov_predictions = nesterov_predictions_.HostVector();
+    for (int i = 0; i < predictions->Size(); i++) {
+      host_predictions[i] += host_nesterov_predictions[i] * param_.momentum;
     }
   }
 
  protected:
-  NesterovOptimizerParam param;
-  std::vector<bst_gpair> previous_gpair_;
-  std::vector<float> nesterov_predictions_;
+  NesterovOptimizerParam param_;
+  std::vector<GradientPair> previous_gpair_;
+  HostDeviceVector<float> nesterov_predictions_;
 };
 
 XGBOOST_REGISTER_OPTIMIZER(NesterovOptimizer, "nesterov_optimizer")

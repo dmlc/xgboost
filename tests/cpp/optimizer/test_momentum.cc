@@ -9,18 +9,18 @@ TEST(momentum_optimizer, Test) {
       std::unique_ptr<Optimizer>(Optimizer::Create("momentum_optimizer"));
   optimizer->Init({std::pair<std::string, std::string>("momentum", "0.5")});
 
-  std::vector<bst_gpair> gpair(10, bst_gpair(0.5f, 1.0f));
+  HostDeviceVector<GradientPair> gpair(10, GradientPair(0.5f, 1.0f));
 
   optimizer->OptimizeGradients(&gpair);
 
-  for (auto &g : gpair) {
+  for (auto &g : gpair.HostVector()) {
     ASSERT_EQ(g.GetGrad(), 0.5f);
     ASSERT_EQ(g.GetHess(), 1.0f);
   }
 
   optimizer->OptimizeGradients(&gpair);
 
-  for (auto &g : gpair) {
+  for (auto &g : gpair.HostVector()) {
     ASSERT_EQ(g.GetGrad(), 0.5f + 0.5f * 0.5f);
     ASSERT_EQ(g.GetHess(), 1.0f);
   }
@@ -30,18 +30,18 @@ TEST(nesterov_optimizer, Test) {
       std::unique_ptr<Optimizer>(Optimizer::Create("nesterov_optimizer"));
   optimizer->Init({std::pair<std::string, std::string>("momentum", "0.5")});
 
-  std::vector<bst_gpair> gpair(10, bst_gpair(0.5f, 1.0f));
+  HostDeviceVector<GradientPair> gpair(10, GradientPair(0.5f, 1.0f));
 
   optimizer->OptimizeGradients(&gpair);
 
-  for (auto &g : gpair) {
+  for (auto &g : gpair.HostVector()) {
     ASSERT_EQ(g.GetGrad(), 0.5f);
     ASSERT_EQ(g.GetHess(), 1.0f);
   }
 
   optimizer->OptimizeGradients(&gpair);
 
-  for (auto &g : gpair) {
+  for (auto &g : gpair.HostVector()) {
     ASSERT_EQ(g.GetGrad(), 0.5f + 0.5f * 0.5f);
     ASSERT_EQ(g.GetHess(), 1.0f);
   }
@@ -50,10 +50,10 @@ TEST(nesterov_optimizer, Test) {
   auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create("gbtree",{dmat},0.5));
   gbm->Configure({ std::pair<std::string, std::string>("num_feature","5") });
 
-  std::vector<float > predictions(100, 0.0f);
+  HostDeviceVector<float > predictions(100, 0.0f);
   optimizer->OptimizePredictions(&predictions, gbm.get(), dmat.get());
 
-  for (auto &p : predictions) {
+  for (auto &p : predictions.HostVector()) {
     ASSERT_EQ(p, 0.0f);
   }
 }

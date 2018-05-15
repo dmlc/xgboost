@@ -5,7 +5,7 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/optimizer.h>
-#include <math.h>
+#include <cmath>
 
 namespace xgboost {
 namespace optimizer {
@@ -30,7 +30,9 @@ struct AddSignOptimizerParam : public dmlc::Parameter<AddSignOptimizerParam> {
     DMLC_DECLARE_FIELD(decay)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
-        .describe("Coefficent for calculating exponential decay, if 1 there is no decay.");
+        .describe(
+            "Coefficent for calculating exponential decay, if 1 there is no "
+            "decay.");
   }
 };
 DMLC_REGISTER_PARAMETER(AddSignOptimizerParam);
@@ -39,44 +41,40 @@ class AddSignOptimizer : public Optimizer {
  public:
   void Init(
       const std::vector<std::pair<std::string, std::string>>& cfg) override {
-    param.InitAllowUnknown(cfg);
+    param_.InitAllowUnknown(cfg);
   }
 
-  void OptimizeGradients(std::vector<bst_gpair>* gpair) override {
-	t++;
+  void OptimizeGradients(HostDeviceVector<GradientPair>* gpair) override {
+    auto& host_gpair = gpair->HostVector();
+    t_++;
     if (!previous_gpair_.empty()) {
-       //apply Add sign update
-      for (size_t i = 0; i < gpair->size(); i++) {
-	float g = (*gpair)[i].GetGrad();
-	m[i] = param.beta1 * m[i] + (1 - param.beta1) * g;
-	float newGrad = (param.alpha + exponential(t) * sign(g) * sign(m[i])) * g;
-        (*gpair)[i] = bst_gpair(newGrad, (*gpair)[i].GetHess());
+      // apply Add sign update
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        float g = host_gpair[i].GetGrad();
+        m_[i] = param_.beta1 * m_[i] + (1 - param_.beta1) * g;
+        float new_grad =
+            (param_.alpha + Exponential(t_) * Sign(g) * Sign(m_[i])) * g;
+        host_gpair[i] = GradientPair(new_grad, host_gpair[i].GetHess());
+      }
+    } else {
+      m_.resize(host_gpair.size());
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        m_[i] = host_gpair[i].GetGrad();
       }
     }
-    else{
-	int len = gpair->size();
-	m = std::vector<float>(len);
-	for (size_t i = 0; i < gpair->size(); i++) {
-		m[i] = (*gpair)[i].GetGrad();
-      	}
-    }
-    previous_gpair_ = *gpair;
+    previous_gpair_ = host_gpair;
   }
 
-  int sign(float x){
-	return (x > 0) - (x < 0);
-  }
+  int Sign(float x) { return (x > 0) - (x < 0); }
 
-  float exponential(float t){
-	return pow(param.decay,t);
-  }
+  float Exponential(float t) { return pow(param_.decay, t); }
 
  protected:
-  AddSignOptimizerParam param;
-  int t = 0;
-  float base = M_E;
-  std::vector<float> m;
-  std::vector<bst_gpair> previous_gpair_;
+  AddSignOptimizerParam param_;
+  int t_ = 0;
+  float base_ = M_E;
+  std::vector<float> m_;
+  std::vector<GradientPair> previous_gpair_;
 };
 
 XGBOOST_REGISTER_OPTIMIZER(AddSignOptimizer, "add_sign_optimizer")

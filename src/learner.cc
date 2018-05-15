@@ -267,8 +267,8 @@ class LearnerImpl : public Learner {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
 
-    optimizer.reset(Optimizer::Create(tparam.optimizer));
-    optimizer->Init(args);
+    optimizer_.reset(Optimizer::Create(tparam_.optimizer));
+    optimizer_->Init(args);
   }
 
   void InitModel() override { this->LazyInitModel(); }
@@ -371,11 +371,11 @@ class LearnerImpl : public Learner {
     this->LazyInitDMatrix(train);
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
-    optimizer->OptimizePredictions(&preds_, gbm_.get(), train);
-    monitor.Stop("PredictRaw");
-    monitor.Start("GetGradient");
+    optimizer_->OptimizePredictions(&preds_, gbm_.get(), train);
+    monitor_.Stop("PredictRaw");
+    monitor_.Start("GetGradient");
     obj_->GetGradient(&preds_, train->Info(), iter, &gpair_);
-    optimizer->OptimizeGradients(&gpair_);
+    optimizer_->OptimizeGradients(&gpair_);
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
@@ -586,9 +586,7 @@ class LearnerImpl : public Learner {
   static const int kRandSeedMagic = 127;
   // internal cached dmatrix
   std::vector<std::shared_ptr<DMatrix> > cache_;
-  
-  std::unique_ptr<Optimizer> optimizer;
-
+  std::unique_ptr<Optimizer> optimizer_;
   common::Monitor monitor_;
 };
 

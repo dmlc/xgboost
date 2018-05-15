@@ -1,12 +1,17 @@
 import numpy as np
-import sys
 import unittest
 import xgboost as xgb
-from sklearn.datasets import load_boston
+import testing as tm
+
+try:
+    from sklearn.datasets import load_boston
+except ImportError:
+    None
 
 
 class TestOptimizers(unittest.TestCase):
     def test_momentum(self):
+        tm._skip_if_no_sklearn()
         data = load_boston()
         dtrain = xgb.DMatrix(data.data, label=data.target)
         param = {}
@@ -22,6 +27,7 @@ class TestOptimizers(unittest.TestCase):
         np.testing.assert_array_less(momentum[1: -1], baseline[1:-1])
 
     def test_nesterov(self):
+        tm._skip_if_no_sklearn()
         data = load_boston()
         dtrain = xgb.DMatrix(data.data, label=data.target)
         param = {}

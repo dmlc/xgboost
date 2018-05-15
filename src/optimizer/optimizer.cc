@@ -26,5 +26,10 @@ XGBOOST_REGISTER_OPTIMIZER(DefaultOptimizer, "default_optimizer")
     .describe("Null optimizer.")
     .set_body([]() { return new DefaultOptimizer(); });
 DMLC_REGISTRY_LINK_TAG(momentum_optimizer);
+DMLC_REGISTRY_LINK_TAG(nesterov_optimizer);
+DMLC_REGISTRY_LINK_TAG(alt_nesterov_optimizer);
+DMLC_REGISTRY_LINK_TAG(power_sign_optimizer);
+DMLC_REGISTRY_LINK_TAG(add_sign_optimizer);
+DMLC_REGISTRY_LINK_TAG(adam_optimizer);
 }  // namespace optimizer
 }  // namespace xgboost
