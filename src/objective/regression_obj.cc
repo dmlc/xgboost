@@ -55,9 +55,7 @@ class RegLossObj : public ObjFunction {
     avx::Float8 scale(param_.scale_pos_weight);
 
     const omp_ulong remainder = n % 8;
-    int nthread = omp_get_max_threads();
-    // Use a maximum of 8 threads
-#pragma omp parallel for schedule(static) num_threads(std::min(8, nthread))
+#pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < n - remainder; i += 8) {
       avx::Float8 y(&info.labels_[i]);
       avx::Float8 p = Loss::PredTransform(avx::Float8(&preds_h[i]));
@@ -77,9 +75,6 @@ class RegLossObj : public ObjFunction {
       gpair[i] = GradientPair(Loss::FirstOrderGradient(p, y) * w,
                            Loss::SecondOrderGradient(p, y) * w);
     }
-
-    // Reset omp max threads
-    omp_set_num_threads(nthread);
   }
   const char *DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
