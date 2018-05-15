@@ -99,7 +99,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
   \item \code{params} parameters that were passed to the xgboost library. Note that it does not 
         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
   \item \code{callbacks} callback functions that were either automatically assigned or 
-        explicitely passed.
+        explicitly passed.
   \item \code{evaluation_log} evaluation history storead as a \code{data.table} with the
         first column corresponding to iteration number and the rest corresponding to the 
         CV-based evaluation means and standard deviations for the training and test CV-sets.
