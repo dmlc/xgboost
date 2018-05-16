@@ -37,6 +37,12 @@ if [[ "$1" == "-it" ]]; then
     shift 1
 fi
 
+if [[ "$1" == "--build-arg" ]]; then
+    CI_DOCKER_BUILD_ARG+="$1"
+    CI_DOCKER_BUILD_ARG+=" $2"
+    shift 2
+fi
+
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
     echo "Invalid Dockerfile path: \"${DOCKERFILE_PATH}\""
     exit 1
@@ -76,6 +82,10 @@ WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
 # Determine the docker image name
 DOCKER_IMG_NAME="xgb-ci.${CONTAINER_TYPE}"
 
+# Append cuda version if available
+CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep CUDA_VERSION | egrep -o '[0-9]*\.[0-9]*')
+DOCKER_IMG_NAME=$DOCKER_IMG_NAME$CUDA_VERSION 
+
 # Under Jenkins matrix build, the build tag may contain characters such as
 # commas (,) and equal signs (=), which are not valid inside docker image names.
 DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | sed -e 's/=/_/g' -e 's/,/-/g')
@@ -96,6 +106,7 @@ fi
 cat <<EOF
    WORKSPACE: ${WORKSPACE}
    CI_DOCKER_EXTRA_PARAMS: ${CI_DOCKER_EXTRA_PARAMS[*]}
+   CI_DOCKER_BUILD_ARG: ${CI_DOCKER_BUILD_ARG}
    COMMAND: ${COMMAND[*]}
    CONTAINER_TYPE: ${CONTAINER_TYPE}
    BUILD_TAG: ${BUILD_TAG}
@@ -108,7 +119,12 @@ EOF
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 # --pull should be default
+echo "docker build \
+    ${CI_DOCKER_BUILD_ARG} \
+    -t ${DOCKER_IMG_NAME} \
+    -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH}"
 docker build \
+    ${CI_DOCKER_BUILD_ARG} \
     -t "${DOCKER_IMG_NAME}" \
     -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
 
