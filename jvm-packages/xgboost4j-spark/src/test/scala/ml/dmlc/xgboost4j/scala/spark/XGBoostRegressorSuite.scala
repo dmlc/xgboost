@@ -17,31 +17,31 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-import org.apache.spark.ml.linalg._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("XGBoost-Spark XGBoostRegressor ouput should match XGBoost4j: regression") {
-
-    val paramMap = Map(
-      "eta" -> "1",
-      "max_depth" -> "6",
-      "silent" -> "1",
-      "objective" -> "reg:linear")
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val round = 5
 
+    val paramMap = Map(
+      "eta" -> "1",
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "reg:linear")
+
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
 
-    val model2 = new XGBoostRegressor(paramMap ++
-      Array("num_round" -> round, "nWorkers" -> numWorkers)).fit(trainingDF)
+    val model2 = new XGBoostRegressor(paramMap ++ Array("num_round" -> round,
+      "num_workers" -> numWorkers)).fit(trainingDF)
 
     val prediction2 = model2.transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
@@ -51,52 +51,42 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     } < prediction1.length * 0.1)
   }
 
-  ignore("XGBoost-Spark XGBoostRegressor ouput should match XGBoost4j: ranking") {
+  test("Set params in XGBoost and MLlib way should produce same model") {
+    val trainingDF = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val round = 5
 
     val paramMap = Map(
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
-      "objective" -> "reg:linear")
-    val trainingDM = new DMatrix((Ranking.train0 ++ Ranking.train1).iterator)
-    val testDM = new DMatrix(Ranking.test.iterator)
-    val trainingDF = buildDataFrame(Ranking.train0 ++ Ranking.train1)
-    val testDF = buildDataFrame(Ranking.test)
-    val round = 5
+      "objective" -> "reg:linear",
+      "num_round" -> round,
+      "num_workers" -> numWorkers)
 
-    val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
-    val prediction1 = model1.predict(testDM)
-
-    val model2 = new XGBoostRegressor(paramMap ++
-      Array("num_round" -> round, "nWorkers" -> numWorkers))
+    // Set params in XGBoost way
+    val model1 = new XGBoostRegressor(paramMap).fit(trainingDF)
+    // Set params in MLlib way
+    val model2 = new XGBoostRegressor()
+      .setEta(1)
+      .setMaxDepth(6)
+      .setSilent(1)
+      .setObjective("reg:linear")
+      .setNumRound(round)
+      .setNumWorkers(numWorkers)
       .fit(trainingDF)
 
-    val prediction2 = model2.transform(testDF).
-      collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
+    val prediction1 = model1.transform(testDF).select("prediction").collect()
+    val prediction2 = model2.transform(testDF).select("prediction").collect()
 
-    assert(prediction1.indices.count { i =>
-      math.abs(prediction1(i)(0) - prediction2(i)) > 0.1
-    } < prediction1.length * 0.1)
-  }
-
-  ignore("use nested group data") {
-    val trainingDF = buildDataFrame(Ranking.train0, 1).union(buildDataFrame(Ranking.train1, 1))
-    val trainingGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
-    val testDF = buildDataFrame(Ranking.test)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "rank:pairwise", "groupData" -> trainingGroupData)
-
-    val model = new XGBoostRegressor(paramMap ++ Array("num_round" -> 5, "nWorkers" -> 2))
-      .fit(trainingDF)
-
-    val prediction = model.transform(testDF).collect()
-      .map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
-    assert(testDF.count() === prediction.size)
+    prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
+        assert(math.abs(p1 - p2) <= 0.01f)
+    }
   }
 
   test("use weight") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "nWorkers" -> numWorkers)
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
 
     val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
     val trainingDF = buildDataFrame(Regression.train)
@@ -107,6 +97,5 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val prediction = model.transform(testDF).collect()
     val first = prediction.head.getAs[Double]("prediction")
     prediction.foreach(x => assert(math.abs(x.getAs[Double]("prediction") - first) <= 0.01f))
-
   }
 }

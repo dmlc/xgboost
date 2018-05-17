@@ -20,7 +20,7 @@ import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, Utils, _}
+import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 
 import org.apache.hadoop.fs.Path
@@ -38,14 +38,14 @@ import org.json4s.DefaultFormats
 
 import scala.collection.mutable
 
-private[spark] trait XGBoostRegressorParams extends LearningTaskParams
-  with GeneralParams with BoosterParams with HasWeightCol
+private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
+  with LearningTaskParams with HasBaseMarginCol with  HasWeightCol with ParamMapFuncs
 
 class XGBoostRegressor (
     override val uid: String,
     private val xgboostParams: Map[String, Any])
   extends Predictor[Vector, XGBoostRegressor, XGBoostRegressionModel]
-    with XGBoostRegressorParams with HasBaseMarginCol with MLWritable {
+    with XGBoostRegressorParams with DefaultParamsWritable {
 
   def this() = this(Identifiable.randomUID("xgbr"), Map[String, Any]())
 
@@ -54,46 +54,91 @@ class XGBoostRegressor (
   def this(xgboostParams: Map[String, Any]) = this(
     Identifiable.randomUID("xgbr"), xgboostParams)
 
+  XGBoostToMLlibParams(xgboostParams)
+
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
   def setBaseMarginCol(value: String): this.type = set(baseMarginCol, value)
 
-  private def fromXGBParamMapToParams(): Unit = {
-    for ((paramName, paramValue) <- xgboostParams) {
-      params.find(_.name == paramName) match {
-        case None =>
-        case Some(_: DoubleParam) =>
-          set(paramName, paramValue.toString.toDouble)
-        case Some(_: BooleanParam) =>
-          set(paramName, paramValue.toString.toBoolean)
-        case Some(_: IntParam) =>
-          set(paramName, paramValue.toString.toInt)
-        case Some(_: FloatParam) =>
-          set(paramName, paramValue.toString.toFloat)
-        case Some(_: Param[_]) =>
-          set(paramName, paramValue)
-      }
-    }
-  }
+  // setters for general params
+  def setNumRound(value: Int): this.type = set(numRound, value)
 
-  fromXGBParamMapToParams()
+  def setNumWorkers(value: Int): this.type = set(numWorkers, value)
 
-  private[spark] def fromParamsToXGBParamMap: Map[String, Any] = {
-    val xgbParamMap = new mutable.HashMap[String, Any]()
-    for (param <- params) {
-      if (isDefined(param)) {
-        xgbParamMap += param.name -> $(param)
-      }
-    }
-    val r = xgbParamMap.toMap
-    r
-  }
+  def setNthread(value: Int): this.type = set(nthread, value)
+
+  def setUseExternalMemory(value: Boolean): this.type = set(useExternalMemory, value)
+
+  def setSilent(value: Int): this.type = set(silent, value)
+
+  def setMissing(value: Float): this.type = set(missing, value)
+
+  def setTimeoutRequestWorkers(value: Long): this.type = set(timeoutRequestWorkers, value)
+
+  def setCheckpointPath(value: String): this.type = set(checkpointPath, value)
+
+  def setCheckpointInterval(value: Int): this.type = set(checkpointInterval, value)
+
+  def setSeed(value: Long): this.type = set(seed, value)
+
+  // setters for booster params
+  def setBooster(value: String): this.type = set(booster, value)
+
+  def setEta(value: Double): this.type = set(eta, value)
+
+  def setGamma(value: Double): this.type = set(gamma, value)
+
+  def setMaxDepth(value: Int): this.type = set(maxDepth, value)
+
+  def setMinChildWeight(value: Double): this.type = set(minChildWeight, value)
+
+  def setMaxDeltaStep(value: Double): this.type = set(maxDeltaStep, value)
+
+  def setSubsample(value: Double): this.type = set(subsample, value)
+
+  def setColsampleBytree(value: Double): this.type = set(colsampleBytree, value)
+
+  def setColsampleBylevel(value: Double): this.type = set(colsampleBylevel, value)
+
+  def setLambda(value: Double): this.type = set(lambda, value)
+
+  def setAlpha(value: Double): this.type = set(alpha, value)
+
+  def setTreeMethod(value: String): this.type = set(treeMethod, value)
+
+  def setGrowPolicy(value: String): this.type = set(growPolicy, value)
+
+  def setMaxBins(value: Int): this.type = set(maxBins, value)
+
+  def setSketchEps(value: Double): this.type = set(sketchEps, value)
+
+  def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
+
+  def setSampleType(value: String): this.type = set(sampleType, value)
+
+  def setNormalizeType(value: String): this.type = set(normalizeType, value)
+
+  def setRateDrop(value: Double): this.type = set(rateDrop, value)
+
+  def setSkipDrop(value: Double): this.type = set(skipDrop, value)
+
+  def setLambdaBias(value: Double): this.type = set(lambdaBias, value)
+
+  // setters for learning params
+  def setObjective(value: String): this.type = set(objective, value)
+
+  def setBaseScore(value: Double): this.type = set(baseScore, value)
+
+  def setEvalMetric(value: String): this.type = set(evalMetric, value)
+
+  def setTrainTestRatio(value: Double): this.type = set(trainTestRatio, value)
+
+  def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
-    val objFunc = xgboostParams("objective")
-    require(objFunc != null, "Users must set \'objective\' via xgboostParams.")
-    if (objFunc.toString.startsWith("rank")) {
+    require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
+    if ($(objective).startsWith("rank")) {
       "map"
     } else {
       "rmse"
@@ -102,8 +147,8 @@ class XGBoostRegressor (
 
   override protected def train(dataset: Dataset[_]): XGBoostRegressionModel = {
 
-    if (xgboostParams.get("eval_metric").isEmpty) {
-      set("eval_metric", setupDefaultEvalMetric())
+    if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
+      set(evalMetric, setupDefaultEvalMetric())
     }
 
     val weight = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
@@ -126,53 +171,23 @@ class XGBoostRegressor (
       XGBLabeledPoint(label, indices, values, baseMargin = baseMargin, weight = weight)
     }
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = fromParamsToXGBParamMap
+    val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
-    val (booster, metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
-      $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
+    val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
+      $(numRound), $(numWorkers), $(customObj), $(customEval), $(useExternalMemory),
       $(missing))
-    val model = new XGBoostRegressionModel(uid, booster)
-    val summary = XGBoostTrainingSummary(metrics)
+    val model = new XGBoostRegressionModel(uid, _booster)
+    val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
     model
   }
 
   override def copy(extra: ParamMap): XGBoostRegressor = defaultCopy(extra)
-
-  override def write: MLWriter = new XGBoostRegressor.XGBoostRegressorWriter(this)
 }
 
-object XGBoostRegressor extends MLReadable[XGBoostRegressor] {
-
-  override def read: MLReader[XGBoostRegressor] = new XGBoostRegressorReader
+object XGBoostRegressor extends DefaultParamsReadable[XGBoostRegressor] {
 
   override def load(path: String): XGBoostRegressor = super.load(path)
-
-  private[XGBoostRegressor]
-  class XGBoostRegressorWriter(instance: XGBoostRegressor) extends MLWriter {
-
-    override protected def saveImpl(path: String): Unit = {
-      require(instance.fromParamsToXGBParamMap("custom_eval") == null &&
-        instance.fromParamsToXGBParamMap("custom_obj") == null,
-        "we do not support persist XGBoostEstimator with customized evaluator and objective" +
-          " function for now")
-      implicit val format = DefaultFormats
-      implicit val sc = super.sparkSession.sparkContext
-      DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
-    }
-  }
-
-  private class XGBoostRegressorReader extends MLReader[XGBoostRegressor] {
-
-    override def load(path: String): XGBoostRegressor = {
-      val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc)
-      val cls = Utils.classForName(metadata.className)
-      val instance =
-        cls.getConstructor(classOf[String]).newInstance(metadata.uid).asInstanceOf[Params]
-      DefaultXGBoostParamsReader.getAndSetParams(instance, metadata)
-      instance.asInstanceOf[XGBoostRegressor]
-    }
-  }
 }
 
 class XGBoostRegressionModel private[ml] (
