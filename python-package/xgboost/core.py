@@ -1033,7 +1033,7 @@ class Booster(object):
 
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are identical.
-            Otherwise, it is assumed that the feature_names are the same. 
+            Otherwise, it is assumed that the feature_names are the same.
 
         Returns
         -------
