@@ -262,6 +262,7 @@ Rpack: clean_all
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 	bash R-package/remove_warning_suppression_pragma.sh
+	rm xgboost/remove_warning_suppression_pragma.sh
 
 Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
