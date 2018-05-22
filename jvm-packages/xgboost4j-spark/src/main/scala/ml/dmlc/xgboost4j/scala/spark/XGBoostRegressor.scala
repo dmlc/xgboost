@@ -39,7 +39,7 @@ import org.json4s.DefaultFormats
 import scala.collection.mutable
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
-  with LearningTaskParams with HasBaseMarginCol with  HasWeightCol with ParamMapFuncs
+  with LearningTaskParams with HasBaseMarginCol with HasWeightCol with ParamMapFuncs
 
 class XGBoostRegressor (
     override val uid: String,
