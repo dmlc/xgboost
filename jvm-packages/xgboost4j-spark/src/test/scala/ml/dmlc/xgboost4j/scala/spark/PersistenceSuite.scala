@@ -65,14 +65,14 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val testDM = new DMatrix(Classification.test.iterator)
 
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    val xgbc = new XGBoostClassifier(paramMap ++ Seq("num_rounds" -> 10))
+      "objective" -> "binary:logistic", "num_round" -> "10", "num_workers" -> numWorkers)
+    val xgbc = new XGBoostClassifier(paramMap)
     val xgbcPath = new File(tempDir, "xgbc").getPath
     xgbc.write.overwrite().save(xgbcPath)
     val xgbc2 = XGBoostClassifier.load(xgbcPath)
-    val paramMap2 = xgbc2.fromParamsToXGBParamMap
+    val paramMap2 = xgbc2.MLlib2XGBoostParams
     paramMap.foreach {
-      case (k, v) => assert(v == paramMap2(k).toString)
+      case (k, v) => assert(v.toString == paramMap2(k).toString)
     }
 
     val model = xgbc.fit(trainingDF)
@@ -82,12 +82,10 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     model.write.overwrite.save(xgbcModelPath)
     val model2 = XGBoostClassificationModel.load(xgbcModelPath)
     assert(Arrays.equals(model._booster.toByteArray, model2._booster.toByteArray))
-    val pm = model.extractParamMap()
-    val pm2 = model2.extractParamMap()
-    assert(pm.get(model.useExternalMemory) === pm2.get(model2.useExternalMemory))
-    assert(pm.get(model.featuresCol) === pm2.get(model2.featuresCol))
-    assert(pm.get(model.predictionCol) === pm2.get(model2.predictionCol))
-    assert(pm.get(model.labelCol) === pm2.get(model2.labelCol))
+
+    assert(model.getEta === model2.getEta)
+    assert(model.getNumRound === model2.getNumRound)
+    assert(model.getRawPredictionCol === model2.getRawPredictionCol)
     val evalResults2 = eval.eval(model2._booster.predict(testDM, outPutMargin = true), testDM)
     assert(evalResults === evalResults2)
   }
@@ -98,14 +96,14 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val testDM = new DMatrix(Regression.test.iterator)
 
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear")
-    val xgbr = new XGBoostRegressor(paramMap ++ Seq("num_rounds" -> 10))
+      "objective" -> "reg:linear", "num_round" -> "10", "num_workers" -> numWorkers)
+    val xgbr = new XGBoostRegressor(paramMap)
     val xgbrPath = new File(tempDir, "xgbr").getPath
     xgbr.write.overwrite().save(xgbrPath)
     val xgbr2 = XGBoostRegressor.load(xgbrPath)
-    val paramMap2 = xgbr2.fromParamsToXGBParamMap
+    val paramMap2 = xgbr2.MLlib2XGBoostParams
     paramMap.foreach {
-      case (k, v) => assert(v == paramMap2(k).toString)
+      case (k, v) => assert(v.toString == paramMap2(k).toString)
     }
 
     val model = xgbr.fit(trainingDF)
@@ -115,12 +113,10 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     model.write.overwrite.save(xgbrModelPath)
     val model2 = XGBoostRegressionModel.load(xgbrModelPath)
     assert(Arrays.equals(model._booster.toByteArray, model2._booster.toByteArray))
-    val pm = model.extractParamMap()
-    val pm2 = model2.extractParamMap()
-    assert(pm.get(model.useExternalMemory) === pm2.get(model2.useExternalMemory))
-    assert(pm.get(model.featuresCol) === pm2.get(model2.featuresCol))
-    assert(pm.get(model.predictionCol) === pm2.get(model2.predictionCol))
-    assert(pm.get(model.labelCol) === pm2.get(model2.labelCol))
+
+    assert(model.getEta === model2.getEta)
+    assert(model.getNumRound === model2.getNumRound)
+    assert(model.getPredictionCol === model2.getPredictionCol)
     val evalResults2 = eval.eval(model2._booster.predict(testDM, outPutMargin = true), testDM)
     assert(evalResults === evalResults2)
   }
@@ -137,9 +133,9 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
       .setOutputCol("features")
 
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    val xgb = new XGBoostClassifier(paramMap ++
-      Seq("num_rounds" -> 10, "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")))
+      "objective" -> "binary:logistic", "num_round" -> "10", "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala"))
+    val xgb = new XGBoostClassifier(paramMap)
 
     // Construct MLlib pipeline, save and load
     val pipeline = new Pipeline().setStages(Array(assembler, xgb))
@@ -147,9 +143,9 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     pipeline.write.overwrite().save(pipePath)
     val pipeline2 = Pipeline.read.load(pipePath)
     val xgb2 = pipeline2.getStages(1).asInstanceOf[XGBoostClassifier]
-    val paramMap2 = xgb2.fromParamsToXGBParamMap
+    val paramMap2 = xgb2.MLlib2XGBoostParams
     paramMap.foreach {
-      case (k, v) => assert(v == paramMap2(k).toString)
+      case (k, v) => assert(v.toString == paramMap2(k).toString)
     }
 
     // Model training, save and load
@@ -162,12 +158,10 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val xgbModel2 = pipeModel2.stages(1).asInstanceOf[XGBoostClassificationModel]
 
     assert(Arrays.equals(xgbModel._booster.toByteArray, xgbModel2._booster.toByteArray))
-    val pmpm = pipeModel.extractParamMap()
-    val pmpm2 = pipeModel2.extractParamMap()
-    assert(pmpm.get(xgbModel.useExternalMemory) === pmpm2.get(xgbModel2.useExternalMemory))
-    assert(pmpm.get(xgbModel.featuresCol) === pmpm2.get(xgbModel2.featuresCol))
-    assert(pmpm.get(xgbModel.predictionCol) === pmpm2.get(xgbModel2.predictionCol))
-    assert(pmpm.get(xgbModel.labelCol) === pmpm2.get(xgbModel2.labelCol))
+
+    assert(xgbModel.getEta === xgbModel2.getEta)
+    assert(xgbModel.getNumRound === xgbModel2.getNumRound)
+    assert(xgbModel.getRawPredictionCol === xgbModel2.getRawPredictionCol)
   }
 }
 

@@ -29,7 +29,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
   test("nthread configuration must be no larger than spark.task.cpus") {
     val training = buildDataFrame(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic",
+      "objective" -> "binary:logistic", "num_workers" -> numWorkers,
       "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
       new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
@@ -41,7 +41,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers)
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
 
     val model = new XGBoostClassifier(paramMap).fit(training)
     val eval = new EvalError()

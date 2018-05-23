@@ -133,7 +133,7 @@ object XGBoost extends Serializable {
         fromBaseMarginsToArray(baseMargins), cacheDirName)
 
       try {
-        val numEarlyStoppingRounds = params.get("numEarlyStoppingRounds")
+        val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
             .map(_.toString.toInt).getOrElse(0)
         val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
         val booster = SXGBoost.train(watches.train, params, round,
@@ -313,7 +313,7 @@ private object Watches {
       labeledPoints: Iterator[XGBLabeledPoint],
       baseMarginsOpt: Option[Array[Float]],
       cacheDirName: Option[String]): Watches = {
-    val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
+    val trainTestRatio = params.get("train_test_ratio").map(_.toString.toDouble).getOrElse(1.0)
     val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
     val r = new Random(seed)
     val testPoints = mutable.ArrayBuffer.empty[XGBLabeledPoint]
@@ -335,8 +335,8 @@ private object Watches {
     }
 
     // TODO: use group attribute from the points.
-    if (params.contains("groupData") && params("groupData") != null) {
-      trainMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
+    if (params.contains("group_data") && params("group_data") != null) {
+      trainMatrix.setGroup(params("group_data").asInstanceOf[Seq[Seq[Int]]](
         TaskContext.getPartitionId()).toArray)
     }
     new Watches(trainMatrix, testMatrix, cacheDirName)
