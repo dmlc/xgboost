@@ -3,6 +3,36 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.72 (2018.06.01)
+* Starting with this release, we plan to make a new release every two months. See #3252 for more details.
+* Fix a pathological behavior (near-zero second-order gradients) in multiclass objective (#3304)
+* Tree dumps now use high precision in storing floating-point values (#3298)
+* Submodules `rabit` and `dmlc-core` have been brought up to date, bringing bug fixes (#3330, #3221).
+* GPU support
+  - Continuous integration tests for GPU code (#3294, #3309)
+  - GPU accelerated coordinate descent algorithm (#3178)
+  - Abstract 1D vector class now works with multiple GPUs (#3287)
+  - Generate PTX code for most recent architecture (#3316)
+  - Fix a memory bug on NVIDIA K80 cards (#3293)
+  - Address performance instability for single-GPU, multi-core machines (#3324)
+* Python package
+  - FreeBSD support (#3247)
+  - Validation of feature names in `Booster.predict()` is now optional (#3323)
+* Updated Sklearn API
+  - Validation sets now support instance weights (#2354)
+  - `XGBClassifier.predict_proba()` should not support `output_margin` option. (#3343) See BREAKING CHANGES below.
+* R package:
+  - Better handling of NULL in `print.xgb.Booster()` (#3338)
+  - Comply with CRAN policy by removing compiler warning suppression (#3329)
+  - Updated CRAN submission
+* JVM packages
+  - JVM packages will now use the same versioning scheme as other packages (#3253)
+  - Update Spark to 2.3 (#3254)
+  - Add scripts to cross-build and deploy artifacts (#3276, #3307)
+  - Fix a compilation error for Scala 2.10 (#3332)
+* BREAKING CHANGES
+  - `XGBClassifier.predict_proba()` no longer accepts paramter `output_margin`. The paramater makes no sense for `predict_proba()` because the method is to predict class probabilities, not raw margin scores.
+
 ## v0.71 (2018.04.11)
 * This is a minor release, mainly motivated by issues concerning `pip install`, e.g. #2426, #3189, #3118, and #3194.
   With this release, users of Linux and MacOS will be able to run `pip install` for the most part.
