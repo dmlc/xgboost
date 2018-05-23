@@ -163,7 +163,7 @@ object SparkModelTuningTool {
     val xgbEstimator = new XGBoostRegressor(xgboostParam).setFeaturesCol("features").
       setLabelCol("logSales")
     val paramGrid = new ParamGridBuilder()
-      .addGrid(xgbEstimator.round, Array(20, 50))
+      .addGrid(xgbEstimator.numRound, Array(20, 50))
       .addGrid(xgbEstimator.eta, Array(0.1, 0.4))
       .build()
     val tv = new TrainValidationSplit()

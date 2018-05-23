@@ -90,11 +90,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers,
-      "useExternalMemory" -> true)
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+      "use_external_memory" -> true)
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true),
-      testDM) < 0.1)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
 
@@ -102,12 +101,11 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")).toMap
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala"))
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true),
-      testDM) < 0.1)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
 
@@ -117,11 +115,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
-      "eval_metric" -> "error", "num_round" -> 5, "nWorkers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> math.min(numWorkers, 2))
     // TODO: histogram algorithm seems to be very very sensitive to worker number
     val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true),
-      testDM) < 0.1)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
   ignore("test with fast histo lossguide") {
@@ -131,7 +128,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
       "max_leaves" -> "8", "eval_metric" -> "error", "num_round" -> 5,
-      "nWorkers" -> math.min(numWorkers, 2))
+      "num_workers" -> math.min(numWorkers, 2))
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
@@ -144,7 +141,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
-      "eval_metric" -> "error", "num_round" -> 5, "nWorkers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> math.min(numWorkers, 2))
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
@@ -157,7 +154,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
-      "eval_metric" -> "error", "num_round" -> 10, "nWorkers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> math.min(numWorkers, 2))
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
@@ -170,7 +167,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
-      "eval_metric" -> "error", "num_round" -> 10, "nWorkers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> math.min(numWorkers, 2))
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
@@ -182,7 +179,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       val numCols = 5
 
       val data = (0 until numRows).map { x =>
-        val label = Random.nextDouble
+        val label = Random.nextInt(2)
         val values = Array.tabulate[Double](numCols) { c =>
           if (c == numCols - 1) -0.1 else Random.nextDouble
         }
@@ -195,7 +192,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
     val denseDF = buildDenseDataFrame().repartition(4)
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic", "missing" -> -0.1f).toMap
+      "objective" -> "binary:logistic", "missing" -> -0.1f, "num_workers" -> numWorkers).toMap
     val model = new XGBoostClassifier(paramMap).fit(denseDF)
     model.transform(denseDF).collect()
   }
@@ -206,7 +203,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "timeout_request_workers" -> 0L,
-      "num_round" -> 5, "nWorkers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
@@ -220,7 +217,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
     val paramMap = Map("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
       "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
-      "checkpoint_interval" -> 2, "nWorkers" -> numWorkers)
+      "checkpoint_interval" -> 2, "num_workers" -> numWorkers)
 
     val prevModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 5)).fit(training)
     def error(model: Booster): Float = eval.eval(
