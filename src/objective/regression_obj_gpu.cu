@@ -136,7 +136,7 @@ class GPURegLossObj : public ObjFunction {
     }
 
     // run the kernel
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
       dh::safe_cuda(cudaSetDevice(d));
@@ -173,7 +173,7 @@ class GPURegLossObj : public ObjFunction {
   }
 
   void PredTransformDevice(HostDeviceVector<float>* preds) {
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
       dh::safe_cuda(cudaSetDevice(d));
