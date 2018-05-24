@@ -139,13 +139,11 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
         // get group
         for (size_t i = 0; i < batch.size; ++i) {
           const uint64_t cur_group_id = batch.qid[i];
-          if (last_group_id == default_max) {
-            info.group_ptr_.push_back(0);
-          } else if (last_group_id != cur_group_id) {
+          if (last_group_id == default_max || last_group_id != cur_group_id) {
             info.group_ptr_.push_back(group_size);
           }
           last_group_id = cur_group_id;
-          group_size++;
+          ++group_size;
         }
       }
       info.num_row_ += batch.size;
