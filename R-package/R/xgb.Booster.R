@@ -537,7 +537,7 @@ xgb.ntree <- function(bst) {
 print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   cat('##### xgb.Booster\n')
 
-  valid_handle <- is.null.handle(x$handle)
+  valid_handle <- !is.null.handle(x$handle)
   if (!valid_handle)
     cat("Handle is invalid! Suggest using xgb.Booster.complete\n")
 
