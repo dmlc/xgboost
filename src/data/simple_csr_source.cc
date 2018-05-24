@@ -4,6 +4,7 @@
  */
 #include <dmlc/base.h>
 #include <xgboost/logging.h>
+#include <limits>
 #include "./simple_csr_source.h"
 
 namespace xgboost {
@@ -26,10 +27,10 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
 }
 
 void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
-  // use qid get gourp info
-  const uint64_t defaultMax = 0xFFFFFFFFFFFFFFFF;
-  uint64_t lastGroupId = defaultMax;
-  bst_uint groupSize = 0;
+  // use qid to get group info
+  const uint64_t default_max = std::numeric_limits<uint64_t>::max();
+  uint64_t last_group_id = default_max;
+  bst_uint group_size = 0;
   this->Clear();
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
@@ -43,14 +44,14 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       info.qids_.insert(info.qids_.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
-        uint64_t curGroupId = batch.qid[i];
-        if (lastGroupId == defaultMax) {
+        const uint64_t cur_group_id = batch.qid[i];
+        if (last_group_id == default_max) {
           info.group_ptr_.push_back(0);
-        } else if (lastGroupId != curGroupId) {
-          info.group_ptr_.push_back(groupSize);
+        } else if (last_group_id != cur_group_id) {
+          info.group_ptr_.push_back(group_size);
         }
-        lastGroupId = curGroupId;
-        groupSize++;
+        last_group_id = cur_group_id;
+        group_size++;
       }
     }
 
@@ -75,9 +76,9 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       page_.offset.push_back(page_.offset[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
-  if (lastGroupId != defaultMax) {
-    if (groupSize > info.group_ptr_.back()) {
-      info.group_ptr_.push_back(groupSize);
+  if (last_group_id != default_max) {
+    if (group_size > info.group_ptr_.back()) {
+      info.group_ptr_.push_back(group_size);
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
