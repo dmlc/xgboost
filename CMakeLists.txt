@@ -11,12 +11,15 @@ add_library(rabit_empty src/engine_empty.cc src/c_api.cc)
 
 set(rabit_libs rabit rabit_base rabit_empty)
 if(RABIT_BUILD_MPI)
+  find_package(MPI REQUIRED)
   add_library(rabit_mpi src/engine_mpi.cc)
+  target_link_libraries(rabit_mpi ${MPI_CXX_LIBRARIES})
   list(APPEND rabit_libs rabit_mpi)
 endif()
 
 if(RABIT_BUILD_TESTS)
-  add_library(rabit_mock src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
+  # Use static so that rabit_mock won't be installed when building shared libraries.
+  add_library(rabit_mock STATIC src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
   list(APPEND rabit_libs rabit_mock) # add to list to apply build settings, then remove
 endif()
 
