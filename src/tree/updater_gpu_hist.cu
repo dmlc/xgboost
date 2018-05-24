@@ -296,91 +296,6 @@ __global__ void compress_bin_ellpack_k
   }
 }
 
-// Row batch for the histogram updater
-class UpdaterRowBatch {
- public:
-  UpdaterRowBatch() {}
-  virtual ~UpdaterRowBatch() {}
-  // disable copying
-  UpdaterRowBatch(const UpdaterRowBatch&) = delete;
-  UpdaterRowBatch(UpdaterRowBatch&&) = delete;
-  void operator=(const UpdaterRowBatch&) = delete;
-  void operator=(UpdaterRowBatch&&) = delete;
-  virtual const RowBatch& Value() const = 0;
-  static std::unique_ptr<UpdaterRowBatch> Init(DMatrix* dmat);
-};
-
-// Iterator-based row batch; used when a DMatrix consists of a single RowBatch;
-// the underlying DMatrix and iterator must exist for the entire lifetime of this object
-class IterRowBatch : public UpdaterRowBatch {
- public:
-  explicit IterRowBatch(dmlc::DataIter<RowBatch>* iter) : iter_(iter) {}
-  ~IterRowBatch() override {
-    CHECK(!iter_->Next());
-  }
-  const RowBatch& Value() const override { return iter_->Value(); }
-
- private:
-  dmlc::DataIter<RowBatch>* iter_;
-};
-
-// Self-owned row batch; used when a DMatrix consists of multiple RowBatch objects.
-// This object owns the memory used to store the entries.
-class HostRowBatch : public UpdaterRowBatch {
- public:
-  explicit HostRowBatch(dmlc::DataIter<RowBatch>* iter) {
-    size_t entries_so_far = 0;
-    size_t rows_so_far = 0;
-    row_ptrs_h_.resize(1);
-    row_ptrs_h_[0] = 0;
-    // the iterator is positioned on the first value
-    do {
-      const RowBatch& batch = iter->Value();
-      size_t size = batch.size;
-      row_ptrs_h_.resize(row_ptrs_h_.size() + size);
-      entries_h_.resize(entries_h_.size() + batch.ind_ptr[size] - batch.ind_ptr[0]);
-      #pragma omp parallel for
-      for (size_t i = 0; i < size; ++i) {
-        row_ptrs_h_[rows_so_far + i + 1] = entries_so_far + batch.ind_ptr[i + 1];
-        auto row = batch[i];
-        for (int j = 0; j < row.length; ++j) {
-          entries_h_[entries_so_far + batch.ind_ptr[i] + j] = row[j];
-        }
-      }
-      entries_so_far = entries_h_.size();
-      rows_so_far = row_ptrs_h_.size() - 1;
-    } while (iter->Next());
-
-    // initialize the batch
-    batch_.size = row_ptrs_h_.size() - 1;
-    batch_.base_rowid = 0;
-    batch_.ind_ptr = row_ptrs_h_.data();
-    batch_.data_ptr = entries_h_.data();
-  }
-  const RowBatch& Value() const override { return batch_; }
-
- private:
-  RowBatch batch_;
-  thrust::host_vector<size_t> row_ptrs_h_;
-  thrust::host_vector<RowBatch::Entry> entries_h_;
-};
-
-std::unique_ptr<UpdaterRowBatch> UpdaterRowBatch::Init(DMatrix* dmat) {
-  dmlc::DataIter<RowBatch>* iter = dmat->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const RowBatch& batch = iter->Value();
-  if (batch.size == dmat->Info().num_row_) {
-    // single-batch DMatrix, avoid extra copying
-    auto ptr = std::unique_ptr<UpdaterRowBatch>(new IterRowBatch(iter));
-    CHECK(!iter->Next());
-    return std::move(ptr);
-  } else {
-    // multi-batch DMatrix, must be converted to a single batch first
-    return std::unique_ptr<UpdaterRowBatch>(new HostRowBatch(iter));
-  }
-}
-
 // Manage memory for a single GPU
 struct DeviceShard {
   struct Segment {
@@ -813,13 +728,17 @@ class GPUHistMaker : public TreeUpdater {
 
     monitor_.Start("BinningCompression", device_list_);
     {
-      auto row_batch = UpdaterRowBatch::Init(dmat);
+      dmlc::DataIter<RowBatch>* iter = dmat->RowIterator();
+      iter->BeforeFirst();
+      CHECK(iter->Next()) << "Empty batches are not supported";
+      const RowBatch& batch = iter->Value();
       // Create device shards
-    dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
-      shard = std::unique_ptr<DeviceShard>(
-          new DeviceShard(device_list_[i], i, hmat_, row_batch->Value(),
-                          row_segments[i], row_segments[i + 1], n_bins_, param_));
-      });
+      dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
+          shard = std::unique_ptr<DeviceShard>
+            (new DeviceShard(device_list_[i], i, hmat_, batch,
+                             row_segments[i], row_segments[i + 1], n_bins_, param_));
+        });
+      CHECK(!iter->Next()) << "External memory not supported";
     }
     monitor_.Stop("BinningCompression", device_list_);
 
