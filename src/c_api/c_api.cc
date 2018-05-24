@@ -141,6 +141,8 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
     block_.offset = dmlc::BeginPtr(offset_);
     block_.label = dmlc::BeginPtr(label_);
     block_.weight = dmlc::BeginPtr(weight_);
+    block_.qid = nullptr;
+    block_.field = nullptr;
     block_.index = dmlc::BeginPtr(index_);
     block_.value = dmlc::BeginPtr(value_);
     bytes_read_ += offset_.size() * sizeof(size_t) +
