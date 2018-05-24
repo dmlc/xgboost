@@ -25,31 +25,6 @@ void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
   }
 }
 
-void SpeedTest() {
-  int num_rows = 1000000;
-  int max_row_size = 100;
-  dh::CubMemory temp_memory;
-  thrust::host_vector<int> h_row_ptr;
-  thrust::host_vector<xgboost::bst_uint> h_rows;
-  CreateTestData(num_rows, max_row_size, &h_row_ptr, &h_rows);
-  thrust::device_vector<int> row_ptr = h_row_ptr;
-  thrust::device_vector<int> output_row(h_rows.size());
-  auto d_output_row = output_row.data();
-
-  xgboost::common::Timer t;
-  dh::TransformLbs(
-      0, &temp_memory, h_rows.size(), dh::Raw(row_ptr), row_ptr.size() - 1,
-      false,
-      [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });
-
-  dh::safe_cuda(cudaDeviceSynchronize());
-  double time = t.ElapsedSeconds();
-  const int mb_size = 1048576;
-  size_t size = (sizeof(int) * h_rows.size()) / mb_size;
-  printf("size: %llumb, time: %fs, bandwidth: %fmb/s\n", size, time,
-         size / time);
-}
-
 void TestLbs() {
   srand(17);
   dh::CubMemory temp_memory;
