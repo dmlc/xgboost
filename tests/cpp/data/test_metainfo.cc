@@ -49,7 +49,7 @@ TEST(MetaInfo, SaveLoadBinary) {
   info.SaveBinary(fs);
   delete fs;
 
-  ASSERT_EQ(GetFileSize(tmp_file), 76)
+  ASSERT_EQ(GetFileSize(tmp_file), 84)
     << "Expected saved binary file size to be same as object size";
 
   fs = dmlc::Stream::Create(tmp_file.c_str(), "r");
