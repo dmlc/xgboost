@@ -6,6 +6,7 @@
 #include <dmlc/registry.h>
 #include "split_evaluator.h"
 #include "param.h"
+#include "../common/common.h"
 #include "../common/host_device_vector.h"
 
 namespace dmlc {
@@ -15,12 +16,100 @@ DMLC_REGISTRY_ENABLE(::xgboost::tree::SplitEvaluatorReg);
 namespace xgboost {
 namespace tree {
 
-SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
-  auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown SplitEvaluator " << name;
+// A "meta" split evaluator that can be used for combining multiple split evaluators in a compositional manner.
+class AdditiveSplitEvaluator : public SplitEvaluator {
+ public:
+  AdditiveSplitEvaluator(std::vector<std::unique_ptr<SplitEvaluator> >& inner) {
+    for(auto& e : inner) {
+      m_inner.push_back(std::move(e));
+    }
   }
-  return (e->body)();
+
+  SplitEvaluator* GetHostClone() const override {
+    std::vector<std::unique_ptr<SplitEvaluator> > clones;
+
+    for(auto& e : m_inner) {
+      clones.push_back(std::move(std::unique_ptr<SplitEvaluator>(e->GetHostClone())));
+    }
+
+    return new AdditiveSplitEvaluator(clones);
+  }
+
+  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    for(auto& e : m_inner) {
+      e->Init(args);
+    }
+  }
+
+  void Reset() override {
+    for(auto& e : m_inner) {
+      e->Reset();
+    }
+  }
+
+  bst_float ComputeSplitLoss(bst_uint parentID,
+                             bst_uint featureID,
+                             const GradStats& left,
+                             const GradStats& right) const override {
+    bst_float ret = 0.0f;
+
+    for(auto& e : m_inner) {
+      ret += e->ComputeSplitLoss(parentID, featureID, left, right);
+    }
+
+    return ret;
+  }
+
+  bst_float ComputeLoss(bst_uint parentID, const GradStats& stats) const override {
+    bst_float ret = 0.0f;
+
+    for(auto& e : m_inner) {
+      ret += e->ComputeLoss(parentID, stats);
+    }
+
+    return ret;
+  }
+
+  bst_float ComputeWeight(bst_uint parentID, const GradStats& stats) const override {
+    bst_float ret = 0.0f;
+
+    for(auto& e : m_inner) {
+      ret += e->ComputeWeight(parentID, stats);
+    }
+
+    return ret;
+  }
+
+ private:
+  std::vector<std::unique_ptr<SplitEvaluator> > m_inner;
+};
+
+SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
+
+  std::vector<std::string> names = common::Split(name, ',');
+
+  /* If more than one split evaluator was specified (e.g., RidgePenalty and MonotonicConstraint), merge them using
+     AdditiveSplitEvaluator. */
+  if(names.size() > 1) {
+    std::vector<std::unique_ptr<SplitEvaluator> > inner;
+
+    for(auto& n : names) {
+      auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(name);
+      if (e == nullptr) {
+        LOG(FATAL) << "Unknown SplitEvaluator " << name;
+      }
+      inner.push_back(std::move(std::unique_ptr<SplitEvaluator>((e->body)())));
+    }
+
+    return new AdditiveSplitEvaluator(inner);
+  }
+  else {
+    auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(name);
+    if (e == nullptr) {
+      LOG(FATAL) << "Unknown SplitEvaluator " << name;
+    }
+    return (e->body)();
+  }
 }
 
 // Default implementations of some virtual methods that that need to do anything by default
@@ -96,20 +185,18 @@ struct MonotonicConstraintParams : public dmlc::Parameter<MonotonicConstraintPar
     DMLC_DECLARE_FIELD(monotone_constraints)
       .set_default(std::vector<int>())
       .describe("Constraint of variable monotonicity");
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_gamma, gamma);
   }
 };
 
-/*! \brief Uses the same criteria as RidgePenalty, with the addition that the resulting tree must be monotonically
-      increasing/decreasing with respect to a user specified set of features.
+DMLC_REGISTER_PARAMETER(MonotonicConstraintParams);
+
+/*! \brief Enforces that the tree is monotonically increasing/decreasing with respect to a user specified set of
+      features.
 */
-class MonotonicConstraint : public RidgePenalty {
+class MonotonicConstraint : public SplitEvaluator {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     m_params.InitAllowUnknown(args);
-
-    RidgePenalty::Init(args);
   }
 
   SplitEvaluator* GetHostClone() const override {
@@ -142,11 +229,19 @@ class MonotonicConstraint : public RidgePenalty {
     }
   }
 
+  bst_float ComputeLoss(bst_uint parentID, const GradStats& stats) const override {
+    return 0.0f;
+  }
+
+  bst_float ComputeWeight(bst_uint parentID, const GradStats& stats) const override {
+    return 0.0f;
+  }
+
  private:
   MonotonicConstraintParams m_params;
 };
 
-XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic_constraint")
+XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
 .describe("Enforces that the tree is monotonically increasing/decreasing w.r.t. specified features")
 .set_body([]() {
     return new MonotonicConstraint();
