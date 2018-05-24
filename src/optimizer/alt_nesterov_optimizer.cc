@@ -54,17 +54,6 @@ class AltNesterovOptimizer : public Optimizer {
     previous_gpair_ = host_gpair;
   }
 
-  void OptimizePredictions(HostDeviceVector<float>* predictions,
-                           GradientBooster* gbm, DMatrix* dmatrix) override {
-    gbm->NesterovPredict(dmatrix, &nesterov_predictions_);
-    CHECK_EQ(predictions->Size(), nesterov_predictions_.Size());
-    auto& host_predictions = predictions->HostVector();
-    auto& host_nesterov_predictions = nesterov_predictions_.HostVector();
-    for (int i = 0; i < predictions->Size(); i++) {
-      host_predictions[i] += host_nesterov_predictions[i] * param_.momentum;
-    }
-  }
-
   float UpdateLambda(float lambda) {
     return ((1 + std::sqrt(1 + (4 * lambda * lambda)))) / 2;
   }
@@ -78,7 +67,7 @@ class AltNesterovOptimizer : public Optimizer {
  protected:
   AltNesterovOptimizerParam param_;
   float lambda_ = 0;
-  float gamma_;
+  float gamma_ = 0;
   std::vector<GradientPair> previous_gpair_;
   HostDeviceVector<float> nesterov_predictions_;
 };

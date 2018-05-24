@@ -221,20 +221,6 @@ class GBTree : public GradientBooster {
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
-  void NesterovPredict(DMatrix* dmat,
-                       HostDeviceVector<bst_float>* out_preds) override {
-    if (model_.trees.empty()) {
-      out_preds->Resize(dmat->Info().num_row_ * model_.param.num_output_group,
-                        0.0f);
-    } else {
-      // Predict using last tree only, without base margin
-      predictor_->PredictBatch(
-          dmat, out_preds, model_,
-          std::max(model_.param.num_trees - model_.param.num_output_group, 0),
-          model_.param.num_trees, false);
-    }
-  }
-
   void PredictInstance(const SparseBatch::Inst& inst,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit,

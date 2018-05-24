@@ -83,17 +83,6 @@ class GradientBooster {
                             HostDeviceVector<bst_float>* out_preds,
                             unsigned ntree_limit = 0) = 0;
 
-  /**
-   * \brief Nesterov predict. Return predictions only for the model update in the previous iteration.
-   *        Used to implement lookahead in nesterov momentum.
-   *
-   * \param dmat      The dmat.
-   * \param out_preds Output predictions for only the previous iteration update step. For GBTree this
-   *                  is the most recent tree.
-   */
-
-  virtual void NesterovPredict(DMatrix* dmat,
-                               HostDeviceVector<bst_float>* out_preds) {}
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
