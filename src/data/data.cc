@@ -49,13 +49,18 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   int version;
   CHECK(fi->Read(&version, sizeof(version)) == sizeof(version)) << "MetaInfo: invalid version";
-  CHECK_EQ(version, kVersion) << "MetaInfo: invalid format";
+  CHECK(version >= 1 && version <= kVersion) << "MetaInfo: unsupported file version";
   CHECK(fi->Read(&num_row_, sizeof(num_row_)) == sizeof(num_row_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&num_col_, sizeof(num_col_)) == sizeof(num_col_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&num_nonzero_, sizeof(num_nonzero_)) == sizeof(num_nonzero_))
       << "MetaInfo: invalid format";
   CHECK(fi->Read(&labels_)) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
+  if (version >= kVersionQidAdded) {
+    CHECK(fi->Read(&qids_)) << "MetaInfo: invalid format";
+  } else {  // old format doesn't contain qid field
+    qids_.clear();
+  }
   CHECK(fi->Read(&weights_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&base_margin_)) << "MetaInfo: invalid format";

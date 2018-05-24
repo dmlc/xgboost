@@ -62,7 +62,9 @@ class MetaInfo {
    */
   std::vector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
-  static const int kVersion = 1;
+  static const int kVersion = 2;
+  /*! \brief version that introduced qid field */
+  static const int kVersionQidAdded = 2;
   /*! \brief default constructor */
   MetaInfo()  = default;
   /*!
