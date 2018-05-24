@@ -85,7 +85,6 @@ class AdditiveSplitEvaluator : public SplitEvaluator {
 };
 
 SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
-
   std::vector<std::string> names = common::Split(name, ',');
 
   /* If more than one split evaluator was specified (e.g., RidgePenalty and MonotonicConstraint), merge them using
@@ -94,7 +93,7 @@ SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
     std::vector<std::unique_ptr<SplitEvaluator> > inner;
 
     for(auto& n : names) {
-      auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(name);
+      auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(n);
       if (e == nullptr) {
         LOG(FATAL) << "Unknown SplitEvaluator " << name;
       }
@@ -210,9 +209,13 @@ class MonotonicConstraint : public SplitEvaluator {
                              bst_uint featureID,
                              const GradStats& left,
                              const GradStats& right) const override {
-
+                               
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
-    bst_uint constraint = m_params.monotone_constraints[featureID];
+    bst_uint constraint = 0;
+    
+    if(featureID < m_params.monotone_constraints.size()) {
+      constraint = m_params.monotone_constraints[featureID];
+    }
 
     bst_float loss = ComputeLoss(parentID, left) + ComputeLoss(parentID, right);
     bst_float leftWeight = ComputeWeight(parentID, left);
