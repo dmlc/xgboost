@@ -145,8 +145,10 @@ class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyCheck
     assert(xgbEstimator.get(xgbEstimator.checkpointPath).get === "checkpointPath1" )
 
     val xgbEstimatorCopy = xgbEstimator.copy(ParamMap.empty)
-    assert(xgbEstimatorCopy.fromParamsToXGBParamMap("checkpoint_path").toString === "checkpointPath1")
-    assert(xgbEstimatorCopy.fromParamsToXGBParamMap("checkpoint_interval").toString.toDouble === 13.0)
+    assert(xgbEstimatorCopy
+      .fromParamsToXGBParamMap("checkpoint_path").toString === "checkpointPath1")
+    assert(xgbEstimatorCopy
+      .fromParamsToXGBParamMap("checkpoint_interval").toString.toDouble === 13.0)
   }
 
   test("eval_metric is configured correctly") {
