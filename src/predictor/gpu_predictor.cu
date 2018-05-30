@@ -74,9 +74,9 @@ struct DeviceMatrix {
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
       // Copy data
-      thrust::copy(batch.data.data(), batch.data.data() + batch.offset[batch.Size()],
+      thrust::copy(batch.data.begin(), batch.data.end(),
                    data.tbegin() + data_offset);
-      data_offset += batch.offset[batch.Size()];
+      data_offset += batch.data.size();
     }
   }
 };

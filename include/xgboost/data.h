@@ -182,6 +182,7 @@ class SparsePage {
   }
   /*! \brief clear the page */
   inline void Clear() {
+    base_rowid = 0;
     offset.clear();
     offset.push_back(0);
     data.clear();

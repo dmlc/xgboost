@@ -243,8 +243,7 @@ class BaseMaker: public TreeUpdater {
    * \param tree the regression tree structure
    */
   inline void CorrectNonDefaultPositionByBatch(
-      const SparsePage&batch,
-      const std::vector<bst_uint> &sorted_split_set,
+      const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
     for (size_t fid = 0; fid < batch.Size(); ++fid) {
       auto col = batch[fid];

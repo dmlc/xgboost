@@ -84,7 +84,7 @@ class SparsePageDMatrix : public DMatrix {
     }
     bool Next() override;
     // initialize the column iterator with the specified index set.
-    void Init(const std::vector<bst_uint>& index_set, bool load_all);
+    void Init(const std::vector<bst_uint>& index_set);
     // If the column features are sorted
     bool sorted;
 

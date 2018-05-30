@@ -1,12 +1,10 @@
 /*!
  * Copyright (c) 2014 by Contributors
- * \file sparse_batch_page.h
- *   content holder of sparse batch that can be saved to disk
- *   the representation can be effectively
- *   use in external memory computation
+ * \file sparse_page_writer.h
  * \author Tianqi Chen
  */
-#pragma once
+#ifndef XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
+#define XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
 
 #include <xgboost/data.h>
 #include <dmlc/io.h>
@@ -138,3 +136,4 @@ struct SparsePageFormatReg
 
 }  // namespace data
 }  // namespace xgboost
+#endif  // XGBOOST_DATA_SPARSE_PAGE_WRITER_H_

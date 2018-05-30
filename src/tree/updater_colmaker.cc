@@ -602,22 +602,23 @@ class ColMaker: public TreeUpdater {
     }
 
     // update the solution candidate
-    virtual void UpdateSolution(const SparsePage& batch, const std::vector<bst_uint>&feat_set,
-                                const std::vector<GradientPair>& gpair,
-                                const DMatrix& fmat) {
+    virtual void UpdateSolution(const SparsePage &batch,
+                                const std::vector<bst_uint> &feat_set,
+                                const std::vector<GradientPair> &gpair,
+                                const DMatrix &fmat) {
       const MetaInfo& info = fmat.Info();
       // start enumeration
-      const auto nsize = static_cast<bst_omp_uint>(feat_set.size());
+      const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
-      const int batch_size = std::max(static_cast<int>(nsize / this->nthread_ / 32), 1);
+      const int batch_size = std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
       #endif
       int poption = param_.parallel_option;
       if (poption == 2) {
-        poption = static_cast<int>(nsize) * 2 < this->nthread_ ? 1 : 0;
+        poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
       }
       if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
-        for (bst_omp_uint i = 0; i < nsize; ++i) {
+        for (bst_omp_uint i = 0; i < num_features; ++i) {
           int fid = feat_set[i];
           const int tid = omp_get_thread_num();
           auto c = batch[fid];
@@ -632,7 +633,7 @@ class ColMaker: public TreeUpdater {
           }
         }
       } else {
-        for (bst_omp_uint fid = 0; fid < nsize; ++fid) {
+        for (bst_omp_uint fid = 0; fid < num_features; ++fid) {
           this->ParallelFindSplit(batch[fid], fid,
                                   fmat, gpair);
         }

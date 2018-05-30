@@ -61,6 +61,7 @@ bool SparsePageDMatrix::ColPageIter::Next() {
     prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
+    // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
     return true;
   } else {
@@ -75,10 +76,10 @@ void SparsePageDMatrix::ColPageIter::BeforeFirst() {
   }
 }
 
-void SparsePageDMatrix::ColPageIter::Init(const std::vector<bst_uint>& index_set,
-                                          bool load_all) {
+void SparsePageDMatrix::ColPageIter::Init(
+    const std::vector<bst_uint>& index_set) {
   set_index_set_ = index_set;
-  set_load_all_ = load_all;
+  set_load_all_ = true;
   std::sort(set_index_set_.begin(), set_index_set_.end());
   this->BeforeFirst();
 }
@@ -86,11 +87,8 @@ void SparsePageDMatrix::ColPageIter::Init(const std::vector<bst_uint>& index_set
   dmlc::DataIter<SparsePage>* SparsePageDMatrix::ColIterator() {
   CHECK(col_iter_ != nullptr);
   std::vector<bst_uint> col_index;
-  size_t ncol = this->Info().num_col_;
-  for (size_t i = 0; i < ncol; ++i) {
-    col_index.push_back(static_cast<bst_uint>(i));
-  }
-  col_iter_->Init(col_index, true);
+  std::iota(col_index.begin(), col_index.end(), bst_uint(0));
+  col_iter_->Init(col_index);
   return col_iter_.get();
 }
 
