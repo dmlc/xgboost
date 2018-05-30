@@ -16,8 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.nio.file.Files
+
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
@@ -138,17 +141,25 @@ class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyCheck
     assert(xgbEstimatorCopy.fromParamsToXGBParamMap("objective").toString === "binary:logistic")
   }
 
-  test("checkpoint parameters configured correctly") {
-    val xgbParamMap = Map("checkpoint_path" -> "checkpointPath1", "checkpoint_interval" -> "13")
-    val xgbEstimator = new XGBoostEstimator(xgbParamMap)
-    assert(xgbEstimator.get(xgbEstimator.checkpointInterval).get === 13.0)
-    assert(xgbEstimator.get(xgbEstimator.checkpointPath).get === "checkpointPath1" )
+  test("test checkpointing with dataframe-based training") {
+    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "checkpoint_interval" -> "1")
+    val trainingItr = Classification.train.iterator
+    val testItr = Classification.test.iterator
+    val round = 5
+    val trainDMatrix = new DMatrix(trainingItr)
+    val testDMatrix = new DMatrix(testItr)
+    val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, round)
+    val predResultFromSeq = xgboostModel.predict(testDMatrix)
+    val trainingDF = buildDataFrame(Classification.train)
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = round, nWorkers = numWorkers)
 
-    val xgbEstimatorCopy = xgbEstimator.copy(ParamMap.empty)
-    assert(xgbEstimatorCopy
-      .fromParamsToXGBParamMap("checkpoint_path").toString === "checkpointPath1")
-    assert(xgbEstimatorCopy
-      .fromParamsToXGBParamMap("checkpoint_interval").toString.toDouble === 13.0)
+    var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    assert(files.length == 1)
+    assert(files.head.getPath.getName.endsWith(".model"))
   }
 
   test("eval_metric is configured correctly") {
