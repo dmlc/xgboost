@@ -564,7 +564,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, output_margin=False, ntree_limit=0):
+    def predict_proba(self, data, ntree_limit=0):
         """
         Predict the probability of each `data` example being of a given class.
         NOTE: This function is not thread safe.
@@ -575,8 +575,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         ----------
         data : DMatrix
             The dmatrix storing the input.
-        output_margin : bool
-            Whether to output the raw untransformed margin value.
         ntree_limit : int
             Limit number of trees in the prediction; defaults to 0 (use all trees).
         Returns
@@ -586,7 +584,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         """
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
         class_probs = self.get_booster().predict(test_dmatrix,
-                                                 output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
             return class_probs
