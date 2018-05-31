@@ -2,6 +2,9 @@
  * Copyright 2017 XGBoost contributors
  */
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sequence.h>
 #include <xgboost/tree_updater.h>
@@ -224,11 +227,6 @@ struct CalcWeightTrainParam {
         learning_rate(p.learning_rate) {}
 };
 
-__device__ void atomicOrByte
-(uint* __restrict__ buffer, size_t ibyte, common::CompressedByteT b) {
-  atomicOr(&buffer[ibyte / sizeof(uint)], (uint)b << (ibyte % (sizeof(uint)) * 8));
-}
-
 // index of the first element in cuts greater than v, or n none;
 // cuts are ordered, and binary search is used
 __device__ int upper_bound(const float* __restrict__ cuts, int n, float v) {
@@ -249,25 +247,13 @@ __device__ int upper_bound(const float* __restrict__ cuts, int n, float v) {
   return right;
 }
 
-__global__ void max_row_size_k(int* max_size, const size_t* row_ptr, size_t n) {
-  __shared__ int l_max_size;
-  if (threadIdx.x == 0)
-    l_max_size = 0;
-  __syncthreads();
-  size_t i = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i < n)
-    atomicMax(&l_max_size, static_cast<int>(row_ptr[i + 1] - row_ptr[i]));
-  __syncthreads();
-  if (threadIdx.x == 0)
-    atomicMax(max_size, l_max_size);
-}
-
 __global__ void compress_bin_ellpack_k
-(uint* __restrict__ buffer, const size_t* __restrict__ row_ptrs,
+(common::CompressedBufferWriter wr, common::CompressedByteT* __restrict__ buffer,
+ const size_t* __restrict__ row_ptrs,
  const RowBatch::Entry* __restrict__ entries,
  const float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
  size_t base_row, size_t n_rows, size_t row_ptr_begin, size_t row_stride,
- int nbits, uint null_gidx_value) {
+ uint null_gidx_value) {
   size_t irow = threadIdx.x + size_t(blockIdx.x) * blockDim.x;
   int ifeature = threadIdx.y + blockIdx.y * blockDim.y;
   if (irow >= n_rows || ifeature >= row_stride)
@@ -285,15 +271,7 @@ __global__ void compress_bin_ellpack_k
       bin = ncuts - 1;
     bin += cut_rows[feature];
   }
-  size_t ielement = (irow + base_row) * row_stride + ifeature;
-  size_t ibit_start = ielement * nbits, ibit_end = (ielement + 1) * nbits - 1;
-  size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
-
-  bin <<= 7 - ibit_end % 8;
-  for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
-    atomicOrByte(buffer, ibyte, bin & 0xff);
-    bin >>= 8;
-  }
+  wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
 // Manage memory for a single GPU
@@ -344,17 +322,18 @@ struct DeviceShard {
 
   // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int device_idx, int normalised_device_idx,
-              const common::HistCutMatrix& hmat, const RowBatch& row_batch,
               bst_uint row_begin, bst_uint row_end, int n_bins, TrainParam param)
-      : device_idx(device_idx),
-        normalised_device_idx(normalised_device_idx),
-        row_begin_idx(row_begin),
-        row_end_idx(row_end),
-        n_rows(row_end - row_begin),
-        n_bins(n_bins),
-        null_gidx_value(n_bins),
-        param(param),
-        prediction_cache_initialised(false) {
+    : device_idx(device_idx),
+      normalised_device_idx(normalised_device_idx),
+      row_begin_idx(row_begin),
+      row_end_idx(row_end),
+      n_rows(row_end - row_begin),
+      n_bins(n_bins),
+      null_gidx_value(n_bins),
+      param(param),
+      prediction_cache_initialised(false) {}
+
+  void Init(const common::HistCutMatrix& hmat, const RowBatch& row_batch) {
     // copy cuts to the GPU
     dh::safe_cuda(cudaSetDevice(device_idx));
     thrust::device_vector<float> cuts_d(hmat.cut);
@@ -362,18 +341,14 @@ struct DeviceShard {
 
     // find the maximum row size
     thrust::device_vector<size_t> row_ptr_d
-      (row_batch.ind_ptr + row_begin, row_batch.ind_ptr + row_end + 1);
+      (row_batch.ind_ptr + row_begin_idx, row_batch.ind_ptr + row_end_idx + 1);
 
-    int max_elements_row = 0;
-    int block = 256;
-    thrust::device_vector<int> max_row_size_d(1, 0);
-    max_row_size_k<<<dh::DivRoundUp(n_rows, block), block>>>
-      (max_row_size_d.data().get(), row_ptr_d.data().get(), n_rows);
-    dh::safe_cuda(cudaGetLastError());
-    dh::safe_cuda(cudaMemcpy(&max_elements_row, max_row_size_d.data().get(),
-                             sizeof(int), cudaMemcpyDefault));
-    dh::safe_cuda(cudaDeviceSynchronize());
-    row_stride = max_elements_row;
+    auto row_iter = row_ptr_d.begin();
+    auto row_size_iter = thrust::make_transform_iterator
+      (thrust::make_counting_iterator(0),
+       [=] __device__(size_t row){ return row_iter[row + 1] - row_iter[row]; });
+    row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows,
+                                0, thrust::maximum<size_t>());
 
     // allocate compressed bin data
     int num_symbols = n_bins + 1;
@@ -384,8 +359,6 @@ struct DeviceShard {
         << "Max leaves and max depth cannot both be unconstrained for "
            "gpu_hist.";
     ba.Allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes);
-
-    int nbits = common::detail::SymbolBits(num_symbols);
 
     gidx_buffer.Fill(0);
 
@@ -411,21 +384,23 @@ struct DeviceShard {
         batch_row_end = n_rows;
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries =
-        row_batch.ind_ptr[row_begin + batch_row_end] -
-        row_batch.ind_ptr[row_begin + batch_row_begin];
+        row_batch.ind_ptr[row_begin_idx + batch_row_end] -
+        row_batch.ind_ptr[row_begin_idx + batch_row_begin];
       dh::safe_cuda
-        (cudaMemcpy(entries_d.data().get(),
-                    &row_batch.data_ptr[row_batch.ind_ptr[row_begin + batch_row_begin]],
-                    n_entries * sizeof(RowBatch::Entry), cudaMemcpyDefault));
+        (cudaMemcpy
+         (entries_d.data().get(),
+          &row_batch.data_ptr[row_batch.ind_ptr[row_begin_idx + batch_row_begin]],
+          n_entries * sizeof(RowBatch::Entry), cudaMemcpyDefault));
       dim3 block3(32, 8, 1);
       dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
                  dh::DivRoundUp(row_stride, block3.y), 1);
       compress_bin_ellpack_k<<<grid3, block3>>>
-        (reinterpret_cast<uint*>(gidx_buffer.Data() + common::detail::kPadding),
+        (common::CompressedBufferWriter(num_symbols), gidx_buffer.Data(),
          row_ptr_d.data().get() + batch_row_begin,
          entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
-         batch_row_begin, batch_nrows, row_batch.ind_ptr[row_begin + batch_row_begin],
-         row_stride, nbits, null_gidx_value);
+         batch_row_begin, batch_nrows,
+         row_batch.ind_ptr[row_begin_idx + batch_row_begin],
+         row_stride, null_gidx_value);
 
       dh::safe_cuda(cudaGetLastError());
       dh::safe_cuda(cudaDeviceSynchronize());
@@ -735,8 +710,9 @@ class GPUHistMaker : public TreeUpdater {
       // Create device shards
       dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
           shard = std::unique_ptr<DeviceShard>
-            (new DeviceShard(device_list_[i], i, hmat_, batch,
+            (new DeviceShard(device_list_[i], i,
                              row_segments[i], row_segments[i + 1], n_bins_, param_));
+          shard->Init(hmat_, batch);
         });
       CHECK(!iter->Next()) << "External memory not supported";
     }

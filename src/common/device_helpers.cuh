@@ -155,6 +155,13 @@ inline void CheckComputeCapability() {
   }
 }
 
+
+DEV_INLINE void AtomicOrByte
+(uint* __restrict__ buffer, size_t ibyte, unsigned char b) {
+  atomicOr(&buffer[ibyte / sizeof(uint)], (uint)b << (ibyte % (sizeof(uint)) * 8));
+}
+
+
 /*
  * Range iterator
  */
