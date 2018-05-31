@@ -146,18 +146,12 @@ class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyCheck
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
       "checkpoint_interval" -> "1")
-    val trainingItr = Classification.train.iterator
-    val testItr = Classification.test.iterator
     val round = 5
-    val trainDMatrix = new DMatrix(trainingItr)
-    val testDMatrix = new DMatrix(testItr)
-    val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, round)
-    val predResultFromSeq = xgboostModel.predict(testDMatrix)
     val trainingDF = buildDataFrame(Classification.train)
-    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+    XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = round, nWorkers = numWorkers)
 
-    var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName.endsWith(".model"))
   }
