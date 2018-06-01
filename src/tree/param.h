@@ -76,8 +76,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_id;
   // number of GPUs to use
   int n_gpus;
-  // number of rows in a single GPU batch
-  int gpu_batch_nrows;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -185,11 +183,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_lower_bound(-1)
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
-    DMLC_DECLARE_FIELD(gpu_batch_nrows)
-        .set_lower_bound(-1)
-        .set_default(0)
-        .describe("Number of rows in a GPU batch; "
-                  "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
 
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);

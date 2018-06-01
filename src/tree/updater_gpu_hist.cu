@@ -227,7 +227,7 @@ struct CalcWeightTrainParam {
         learning_rate(p.learning_rate) {}
 };
 
-// index of the first element in cuts greater than v, or n none;
+// index of the first element in cuts greater than v, or n if none;
 // cuts are ordered, and binary search is used
 __device__ int upper_bound(const float* __restrict__ cuts, int n, float v) {
   if (n == 0)
@@ -320,7 +320,6 @@ struct DeviceShard {
 
   dh::CubMemory temp_memory;
 
-  // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int device_idx, int normalised_device_idx,
               bst_uint row_begin, bst_uint row_end, int n_bins, TrainParam param)
     : device_idx(device_idx),
@@ -363,16 +362,9 @@ struct DeviceShard {
     gidx_buffer.Fill(0);
 
     // bin and compress entries in batches of rows
-    size_t gpu_batch_nrows = 0;
-    if (param.gpu_batch_nrows > 0) {
-      gpu_batch_nrows = param.gpu_batch_nrows;
-    } else if (param.gpu_batch_nrows == 0) {
-      // TODO(canonizer): add a more sophisticated auto-deduction,
-      // based e.g. on the number of elements in a row
-      gpu_batch_nrows = 1000000;
-    } else {  // param.gpu_batch_nrows == -1
-      gpu_batch_nrows = n_rows;
-    }
+    // use no more than 1/16th of GPU memory per batch
+    size_t gpu_batch_nrows = dh::TotalMemory(device_idx) /
+      (16 * row_stride * sizeof(RowBatch::Entry));
     if (gpu_batch_nrows > n_rows)
       gpu_batch_nrows = n_rows;
     thrust::device_vector<RowBatch::Entry> entries_d(gpu_batch_nrows * row_stride);
