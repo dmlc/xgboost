@@ -228,6 +228,7 @@ class FastHistMaker: public TreeUpdater {
           tstart = dmlc::GetTime();
           this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
           this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
+          spliteval_->AddSplit(nid, cleft, cright, snode_[nid].best.SplitIndex(), snode_[cleft].weight, snode_[cright].weight);
           time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
@@ -496,11 +497,10 @@ class FastHistMaker: public TreeUpdater {
       for (bst_omp_uint i = 0; i < nfeature; ++i) {
         const bst_uint fid = feat_set[i];
         const unsigned tid = omp_get_thread_num();
-        const bst_uint parentID = tree[nid].Parent();
         this->EnumerateSplit(-1, gmat, hist[nid], snode_[nid], info,
-          &best_split_tloc_[tid], fid, parentID);
+          &best_split_tloc_[tid], fid, nid);
         this->EnumerateSplit(+1, gmat, hist[nid], snode_[nid], info,
-          &best_split_tloc_[tid], fid, parentID);
+          &best_split_tloc_[tid], fid, nid);
       }
       for (unsigned tid = 0; tid < nthread; ++tid) {
         snode_[nid].best.Update(best_split_tloc_[tid]);
@@ -748,10 +748,9 @@ class FastHistMaker: public TreeUpdater {
 
       // calculating the weights
       {
-        const int parentID = tree[nid].Parent();
-
+        bst_uint parentID = tree[nid].Parent();
         snode_[nid].root_gain = static_cast<float>(
-            spliteval_->ComputeLoss(parentID, snode_[nid].stats));
+            spliteval_->ComputeScore(parentID, snode_[nid].stats));
         snode_[nid].weight = static_cast<float>(
             spliteval_->ComputeWeight(parentID, snode_[nid].stats));
       }
@@ -765,7 +764,7 @@ class FastHistMaker: public TreeUpdater {
                                const MetaInfo& info,
                                SplitEntry* p_best,
                                bst_uint fid,
-                               bst_uint parentID) {
+                               bst_uint nodeID) {
       CHECK(d_step == +1 || d_step == -1);
 
       // aliases
@@ -809,13 +808,13 @@ class FastHistMaker: public TreeUpdater {
             if (d_step > 0) {
               // forward enumeration: split at right bound of each bin
               loss_chg = static_cast<bst_float>(
-                  spliteval_->ComputeSplitLoss(parentID, fid, e, c) -
+                  spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
                   snode.root_gain);
               split_pt = cut_val[i];
             } else {
               // backward enumeration: split at left bound of each bin
               loss_chg = static_cast<bst_float>(
-                  spliteval_->ComputeSplitLoss(parentID, fid, c, e) -
+                  spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
                   snode.root_gain);
               if (i == imin) {
                 // for leftmost bin, left bound is the smallest feature value

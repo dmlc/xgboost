@@ -36,17 +36,24 @@ class SplitEvaluator {
   // This will create a clone of the SplitEvaluator in host memory
   virtual SplitEvaluator* GetHostClone() const = 0;
 
-  // Convenience method that calls ComputeLoss for two different GradStats instances
-  virtual bst_float ComputeSplitLoss(bst_uint parentID,
+  // Computes the score (negative loss) attributable to the leaf nodes resulting from performing this split
+  virtual bst_float ComputeSplitScore(bst_uint parentID,
                                      bst_uint featureID,
                                      const GradStats& left,
-                                     const GradStats& right) const;
+                                     const GradStats& right) const = 0;
 
-  // Compute the loss for a node with the given stats
-  virtual bst_float ComputeLoss(bst_uint parentID, const GradStats& stats) const = 0;
+  // Compute the Score for a node with the given stats
+  virtual bst_float ComputeScore(bst_uint parentID, const GradStats& stats) const = 0;
 
   // Compute the weight for a node with the given stats
   virtual bst_float ComputeWeight(bst_uint parentID, const GradStats& stats) const = 0;
+
+  virtual void AddSplit(bst_uint nodeID,
+                        bst_uint leftID,
+                        bst_uint rightID,
+                        bst_uint featureID,
+                        bst_float leftWeight,
+                        bst_float rightWeight);
 };
 
 struct SplitEvaluatorReg
