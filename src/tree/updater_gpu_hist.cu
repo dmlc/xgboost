@@ -365,15 +365,17 @@ struct DeviceShard {
     // use no more than 1/16th of GPU memory per batch
     size_t gpu_batch_nrows = dh::TotalMemory(device_idx) /
       (16 * row_stride * sizeof(RowBatch::Entry));
-    if (gpu_batch_nrows > n_rows)
+    if (gpu_batch_nrows > n_rows) {
       gpu_batch_nrows = n_rows;
+    }
     thrust::device_vector<RowBatch::Entry> entries_d(gpu_batch_nrows * row_stride);
     size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
     for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
       size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
-      if (batch_row_end > n_rows)
+      if (batch_row_end > n_rows) {
         batch_row_end = n_rows;
+      }
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries =
         row_batch.ind_ptr[row_begin_idx + batch_row_end] -
