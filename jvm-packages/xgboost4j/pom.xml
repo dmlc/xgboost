@@ -6,10 +6,10 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm</artifactId>
-        <version>0.72-SNAPSHOT</version>
+        <version>0.80-SNAPSHOT</version>
     </parent>
     <artifactId>xgboost4j</artifactId>
-    <version>0.72-SNAPSHOT</version>
+    <version>0.80-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <dependencies>
