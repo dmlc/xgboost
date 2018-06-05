@@ -58,6 +58,15 @@
 #include "../src/linear/updater_coordinate.cc"
 #include "../src/linear/updater_shotgun.cc"
 
+// Optimizers
+#include "../src/optimizer/optimizer.cc"
+#include "../src/optimizer/adam_optimizer.cc"
+#include "../src/optimizer/add_sign.cc"
+#include "../src/optimizer/alt_nesterov_optimizer.cc"
+#include "../src/optimizer/momentum_optimizer.cc"
+#include "../src/optimizer/nesterov_optimizer.cc"
+#include "../src/optimizer/power_sign.cc"
+
 // global
 #include "../src/learner.cc"
 #include "../src/logging.cc"

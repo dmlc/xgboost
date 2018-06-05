@@ -347,41 +347,47 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
-                    unsigned ntree_limit = 0) override {
-    if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
+                    unsigned ntree_limit = 0,
+                    bool init_margin = true) override {
+    if (this->PredictFromCache(dmat, out_preds, model, tree_begin,
+                               ntree_limit)) {
       return;
     }
-    this->InitOutPredictions(dmat->Info(), out_preds, model);
+    this->InitOutPredictions(dmat->Info(), out_preds, model, init_margin);
 
-    int tree_end = ntree_limit * model.param.num_output_group;
-
+    ntree_limit *= model.param.num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
-      tree_end = static_cast<unsigned>(model.trees.size());
+      ntree_limit = static_cast<unsigned>(model.trees.size());
     }
 
-    DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
+    DevicePredictInternal(dmat, out_preds, model, tree_begin, ntree_limit);
   }
 
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model, bool init_margin) const {
     size_t n = model.param.num_output_group * info.num_row_;
-    const std::vector<bst_float>& base_margin = info.base_margin_;
     out_preds->Reshard(devices);
     out_preds->Resize(n);
-    if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->Size(), n);
-      out_preds->Copy(base_margin);
+    if (init_margin) {
+      const std::vector<bst_float>& base_margin = info.base_margin_;
+      if (base_margin.size() != 0) {
+        CHECK_EQ(out_preds->Size(), n);
+        out_preds->Copy(base_margin);
+      } else {
+        out_preds->Fill(model.base_margin);
+      }
     } else {
-      out_preds->Fill(model.base_margin);
+      out_preds->Fill(0.0);
     }
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model, unsigned ntree_limit) {
-    if (ntree_limit == 0 ||
-        ntree_limit * model.param.num_output_group >= model.trees.size()) {
+                        const gbm::GBTreeModel& model, int tree_begin, unsigned ntree_limit) {
+    if ((ntree_limit == 0 ||
+        ntree_limit * model.param.num_output_group >= model.trees.size()) &&
+            tree_begin == 0) {
       auto it = cache_.find(dmat);
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
@@ -409,7 +415,7 @@ class GPUPredictor : public xgboost::Predictor {
       HostDeviceVector<bst_float>& predictions = e.predictions;
 
       if (predictions.Size() == 0) {
-        this->InitOutPredictions(dmat->Info(), &predictions, model);
+        this->InitOutPredictions(dmat->Info(), &predictions, model, true);
       }
 
       if (model.param.num_output_group == 1 && updaters->size() > 0 &&
