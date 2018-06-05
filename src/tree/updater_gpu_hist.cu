@@ -253,13 +253,13 @@ __global__ void compress_bin_ellpack_k
  const RowBatch::Entry* __restrict__ entries,
  const float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
  size_t base_row, size_t n_rows, size_t row_ptr_begin, size_t row_stride,
- uint null_gidx_value) {
+ unsigned int null_gidx_value) {
   size_t irow = threadIdx.x + size_t(blockIdx.x) * blockDim.x;
   int ifeature = threadIdx.y + blockIdx.y * blockDim.y;
   if (irow >= n_rows || ifeature >= row_stride)
     return;
   int row_size = static_cast<int>(row_ptrs[irow + 1] - row_ptrs[irow]);
-  uint bin = null_gidx_value;
+  unsigned int bin = null_gidx_value;
   if (ifeature < row_size) {
     RowBatch::Entry entry = entries[row_ptrs[irow] - row_ptr_begin + ifeature];
     int feature = entry.index;
@@ -339,20 +339,25 @@ struct DeviceShard {
     thrust::device_vector<size_t> cut_row_ptrs_d(hmat.row_ptr);
 
     // find the maximum row size
-    thrust::device_vector<size_t> row_ptr_d
-      (row_batch.ind_ptr + row_begin_idx, row_batch.ind_ptr + row_end_idx + 1);
+    thrust::device_vector<size_t> row_ptr_d(
+        row_batch.ind_ptr + row_begin_idx, row_batch.ind_ptr + row_end_idx + 1);
 
     auto row_iter = row_ptr_d.begin();
-    auto row_size_iter = thrust::make_transform_iterator
-      (thrust::make_counting_iterator(0),
-       [=] __device__(size_t row){ return row_iter[row + 1] - row_iter[row]; });
-    row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows,
-                                0, thrust::maximum<size_t>());
+    auto get_size = [=] __device__(size_t row) {
+      return row_iter[row + 1] - row_iter[row];
+    }; // NOLINT
+    auto counting = thrust::make_counting_iterator(size_t(0));
+    using TransformT = thrust::transform_iterator<decltype(get_size),
+                                                  decltype(counting), size_t>;
+    TransformT row_size_iter = TransformT(counting, get_size);
+    row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows, 0,
+                                thrust::maximum<size_t>());
 
     // allocate compressed bin data
     int num_symbols = n_bins + 1;
-    size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize
-      (row_stride * n_rows, num_symbols);
+    size_t compressed_size_bytes =
+        common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
+                                                            num_symbols);
 
     CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
         << "Max leaves and max depth cannot both be unconstrained for "

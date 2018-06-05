@@ -110,7 +110,7 @@ class CompressedBufferWriter {
 
     symbol <<= 7 - ibit_end % 8;
     for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
-      dh::AtomicOrByte(reinterpret_cast<uint*>(buffer + detail::kPadding),
+      dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
                    ibyte, symbol & 0xff);
       symbol >>= 8;
     }

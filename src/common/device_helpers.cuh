@@ -164,9 +164,8 @@ inline void CheckComputeCapability() {
 }
 
 
-DEV_INLINE void AtomicOrByte
-(uint* __restrict__ buffer, size_t ibyte, unsigned char b) {
-  atomicOr(&buffer[ibyte / sizeof(uint)], (uint)b << (ibyte % (sizeof(uint)) * 8));
+DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+  atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
 
