@@ -122,6 +122,14 @@ inline size_t AvailableMemory(int device_idx) {
   return device_free;
 }
 
+inline size_t TotalMemory(int device_idx) {
+  size_t device_free = 0;
+  size_t device_total = 0;
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_total;
+}
+
 /**
  * \fn  inline int max_shared_memory(int device_idx)
  *
@@ -154,6 +162,12 @@ inline void CheckComputeCapability() {
     if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
   }
 }
+
+
+DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+  atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
+}
+
 
 /*
  * Range iterator

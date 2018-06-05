@@ -7,6 +7,7 @@
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
+#include "../../../src/data/sparse_page_source.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/tree/updater_gpu_hist.cu"
 
@@ -24,8 +25,14 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   gmat.Init(dmat.get());
   TrainParam p;
   p.max_depth = 6;
-  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
-                    p);
+
+  dmlc::DataIter<RowBatch>* iter = dmat->RowIterator();
+  iter->BeforeFirst();
+  CHECK(iter->Next());
+  const RowBatch& batch = iter->Value();
+  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
+  shard.Init(hmat, batch);
+  CHECK(!iter->Next());
 
   ASSERT_LT(shard.row_stride, columns);
 
@@ -59,8 +66,15 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   gmat.Init(dmat.get());
   TrainParam p;
   p.max_depth = 6;
-  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
-                    p);
+
+  dmlc::DataIter<RowBatch>* iter = dmat->RowIterator();
+  iter->BeforeFirst();
+  CHECK(iter->Next());
+  const RowBatch& batch = iter->Value();
+
+  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
+  shard.Init(hmat, batch);
+  CHECK(!iter->Next());
 
   ASSERT_EQ(shard.row_stride, columns);
 
