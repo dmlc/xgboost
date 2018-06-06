@@ -5,6 +5,7 @@
  */
 #include <algorithm>
 #include <limits>
+#include <string>
 #include <utility>
 #include <dmlc/registry.h>
 #include "split_evaluator.h"
@@ -146,11 +147,27 @@ class MonotonicConstraint final : public SplitEvaluator {
   }
 
   SplitEvaluator* GetHostClone() const override {
-    MonotonicConstraint* c = new MonotonicConstraint();
-    c->m_params = this->m_params;
-    c->Reset();
-
-    return c;
+    if (m_params.monotone_constraints.size() == 0) {
+      // No monotone constraints specified, make a RidgePenalty evaluator
+      using std::pair;
+      using std::string;
+      using std::to_string;
+      using std::vector;
+      RidgePenalty* c = new RidgePenalty();
+      vector<pair<string, string> > args;
+      args.push_back(
+        pair<string, string>("reg_lambda", to_string(m_params.reg_lambda)));
+      args.push_back(
+        pair<string, string>("reg_gamma", to_string(m_params.reg_gamma)));
+      c->Init(args);
+      c->Reset();
+      return c;
+    } else {
+      MonotonicConstraint* c = new MonotonicConstraint();
+      c->m_params = this->m_params;
+      c->Reset();
+      return c;
+    }
   }
 
   bst_float ComputeSplitScore(bst_uint nodeID,
