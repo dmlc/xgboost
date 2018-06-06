@@ -3,6 +3,9 @@
  * \file split_evaluator.cc
  * \brief Contains implementations of different split evaluators.
  */
+#include <algorithm>
+#include <limits>
+#include <utility>
 #include <dmlc/registry.h>
 #include "split_evaluator.h"
 #include "param.h"
@@ -98,8 +101,11 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(RidgePenalty, "ridge")
     return new RidgePenalty();
   });
 
-  /*! \brief Encapsulates the parameters required by the MonotonicConstraint split evaluator */
-struct MonotonicConstraintParams : public dmlc::Parameter<MonotonicConstraintParams> {
+/*! \brief Encapsulates the parameters required by the MonotonicConstraint
+        split evaluator
+*/
+struct MonotonicConstraintParams
+    : public dmlc::Parameter<MonotonicConstraintParams> {
   std::vector<bst_int> monotone_constraints;
   float reg_lambda;
   float reg_gamma;
@@ -128,7 +134,8 @@ DMLC_REGISTER_PARAMETER(MonotonicConstraintParams);
 */
 class MonotonicConstraint final : public SplitEvaluator {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Init(const std::vector<std::pair<std::string, std::string> >& args)
+      override {
     m_params.InitAllowUnknown(args);
     Reset();
   }
@@ -157,13 +164,11 @@ class MonotonicConstraint final : public SplitEvaluator {
     bst_float leftWeight = ComputeWeight(nodeID, left);
     bst_float rightWeight = ComputeWeight(nodeID, right);
 
-    if(constraint == 0) {
+    if (constraint == 0) {
       return score;
-    }
-    else if(constraint > 0) {
+    } else if (constraint > 0) {
       return leftWeight <= rightWeight ? score : -infinity;
-    }
-    else {
+    } else {
       return leftWeight >= rightWeight ? score : -infinity;
     }
   }
@@ -177,17 +182,14 @@ class MonotonicConstraint final : public SplitEvaluator {
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats) const override {
     bst_float weight = -stats.sum_grad / (stats.sum_hess + m_params.reg_lambda);
 
-    if(parentID == ROOT_PARENT_ID) {
+    if (parentID == ROOT_PARENT_ID) {
       // This is the root node
       return weight;
-    }
-    else if(weight < m_lower.at(parentID)) {
+    } else if (weight < m_lower.at(parentID)) {
       return m_lower.at(parentID);
-    }
-    else if(weight > m_upper.at(parentID)) {
+    } else if (weight > m_upper.at(parentID)) {
       return m_upper.at(parentID);
-    }
-    else {
+    } else {
       return weight;
     }
   }
@@ -206,16 +208,15 @@ class MonotonicConstraint final : public SplitEvaluator {
     bst_float mid = (leftWeight + rightWeight) / 2;
     CHECK(!std::isnan(mid));
 
-    m_upper[leftID] = m_upper[nodeID];
-    m_upper[rightID] = m_upper[nodeID];
-    m_lower[leftID] = m_lower[nodeID];
-    m_lower[rightID] = m_lower[nodeID];
+    m_upper[leftID] = m_upper.at(nodeID);
+    m_upper[rightID] = m_upper.at(nodeID);
+    m_lower[leftID] = m_lower.at(nodeID);
+    m_lower[rightID] = m_lower.at(nodeID);
 
-    if(constraint < 0) {
+    if (constraint < 0) {
       m_lower[leftID] = mid;
       m_upper[rightID] = mid;
-    }
-    else if(constraint > 0) {
+    } else if (constraint > 0) {
       m_upper[leftID] = mid;
       m_lower[rightID] = mid;
     }
@@ -227,10 +228,9 @@ class MonotonicConstraint final : public SplitEvaluator {
   std::vector<bst_float> m_upper;
 
   inline bst_int getConstraint(bst_uint featureID) const {
-    if(featureID < m_params.monotone_constraints.size()) {
+    if (featureID < m_params.monotone_constraints.size()) {
       return m_params.monotone_constraints[featureID];
-    }
-    else {
+    } else {
       return 0;
     }
   }
