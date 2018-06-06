@@ -94,7 +94,7 @@ class GradientBooster {
    * \param root_index the root index
    * \sa Predict
    */
-  virtual void PredictInstance(const SparseBatch::Inst& inst,
+  virtual void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0,
                        unsigned root_index = 0) = 0;

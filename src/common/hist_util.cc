@@ -33,19 +33,19 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-  dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+  auto iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
-    const RowBatch& batch = iter->Value();
+     auto batch = iter->Value();
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
-      for (size_t i = 0; i < batch.size; ++i) { // NOLINT(*)
+      for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
         size_t ridx = batch.base_rowid + i;
-        RowBatch::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         for (bst_uint j = 0; j < inst.length; ++j) {
           if (inst[j].index >= begin && inst[j].index < end) {
             sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
@@ -106,7 +106,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   CHECK(cut != nullptr);  // NOLINT
-  dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+  auto iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut->row_ptr.back();
@@ -116,9 +116,9 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   iter->BeforeFirst();
   row_ptr.push_back(0);
   while (iter->Next()) {
-    const RowBatch& batch = iter->Value();
+     auto batch = iter->Value();
     const size_t rbegin = row_ptr.size() - 1;
-    for (size_t i = 0; i < batch.size; ++i) {
+    for (size_t i = 0; i < batch.Size(); ++i) {
       row_ptr.push_back(batch[i].length + row_ptr.back());
     }
     index.resize(row_ptr.back());
@@ -126,13 +126,13 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
     CHECK_GT(cut->cut.size(), 0U);
     CHECK_EQ(cut->row_ptr.back(), cut->cut.size());
 
-    auto bsize = static_cast<omp_ulong>(batch.size);
+    auto bsize = static_cast<omp_ulong>(batch.Size());
     #pragma omp parallel for num_threads(nthread) schedule(static)
     for (omp_ulong i = 0; i < bsize; ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
-      RowBatch::Inst inst = batch[i];
+      SparsePage::Inst inst = batch[i];
       CHECK_EQ(ibegin + inst.length, iend);
       for (bst_uint j = 0; j < inst.length; ++j) {
         unsigned fid = inst[j].index;

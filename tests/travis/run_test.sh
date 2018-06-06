@@ -16,15 +16,16 @@ if [ ${TASK} == "lint" ]; then
         cp "$file" "${file/.cu/_tmp.cc}"
     done
 
+    echo "Running clang tidy..."
     header_filter='(xgboost\/src|xgboost\/include)'
     for filename in $(find src -name '*.cc'); do
 	    clang-tidy $filename -header-filter=$header_filter -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
     done
-    echo "---------clang-tidy log----------"
-    cat logtidy.txt
-    echo "----------------------------"
+
+    echo "---------clang-tidy failures----------"
     # Fail only on warnings related to XGBoost source files
-    (cat logtidy.txt|grep -E 'dmlc/xgboost.*warning'|grep -v dmlc-core) && exit -1
+    (cat logtidy.txt|grep -E 'xgboost.*warning'|grep -v dmlc-core) && exit -1
+    echo "----------------------------"
     exit 0
 fi
 

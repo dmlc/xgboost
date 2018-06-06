@@ -5,13 +5,13 @@
  */
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
-#include "./sparse_batch_page.h"
+#include "./sparse_page_writer.h"
 
 #if DMLC_ENABLE_STD_THREAD
 namespace xgboost {
 namespace data {
 
-SparsePage::Writer::Writer(
+SparsePageWriter::SparsePageWriter(
     const std::vector<std::string>& name_shards,
     const std::vector<std::string>& format_shards,
     size_t extra_buffer_capacity)
@@ -29,8 +29,8 @@ SparsePage::Writer::Writer(
         [this, name_shard, format_shard, wqueue] () {
           std::unique_ptr<dmlc::Stream> fo(
               dmlc::Stream::Create(name_shard.c_str(), "w"));
-          std::unique_ptr<SparsePage::Format> fmt(
-              SparsePage::Format::Create(format_shard));
+          std::unique_ptr<SparsePageFormat> fmt(
+              SparsePageFormat::Create(format_shard));
           fo->Write(format_shard);
           std::shared_ptr<SparsePage> page;
           while (wqueue->Pop(&page)) {
@@ -44,7 +44,7 @@ SparsePage::Writer::Writer(
   }
 }
 
-SparsePage::Writer::~Writer() {
+SparsePageWriter::~SparsePageWriter() {
   for (auto& queue : qworkers_) {
     // use nullptr to signal termination.
     std::shared_ptr<SparsePage> sig(nullptr);
@@ -55,12 +55,12 @@ SparsePage::Writer::~Writer() {
   }
 }
 
-void SparsePage::Writer::PushWrite(std::shared_ptr<SparsePage>&& page) {
+void SparsePageWriter::PushWrite(std::shared_ptr<SparsePage>&& page) {
   qworkers_[clock_ptr_].Push(std::move(page));
   clock_ptr_ = (clock_ptr_ + 1) % workers_.size();
 }
 
-void SparsePage::Writer::Alloc(std::shared_ptr<SparsePage>* out_page) {
+void SparsePageWriter::Alloc(std::shared_ptr<SparsePage>* out_page) {
   CHECK(*out_page == nullptr);
   if (num_free_buffer_ != 0) {
     out_page->reset(new SparsePage());

@@ -79,17 +79,17 @@ class ShotgunUpdater : public LinearUpdater {
     // lock-free parallel updates of weights
     selector_->Setup(*model, in_gpair->HostVector(), p_fmat,
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+     auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      const auto nfeat = static_cast<bst_omp_uint>(batch.size);
+      auto batch = iter->Value();
+      const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         int ii = selector_->NextFeature(i, *model, 0, in_gpair->HostVector(), p_fmat,
                                        param_.reg_alpha_denorm, param_.reg_lambda_denorm);
         if (ii < 0) continue;
-        const bst_uint fid = batch.col_index[ii];
-        ColBatch::Inst col = batch[ii];
+        const bst_uint fid = ii;
+        auto col = batch[ii];
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (bst_uint j = 0; j < col.length; ++j) {

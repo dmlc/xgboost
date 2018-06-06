@@ -9,7 +9,7 @@
 #include <dmlc/parameter.h>
 #include <lz4.h>
 #include <lz4hc.h>
-#include "../../src/data/sparse_batch_page.h"
+#include "../../src/data/sparse_page_writer.h"
 
 namespace xgboost {
 namespace data {
@@ -155,7 +155,7 @@ inline void CompressArray<DType>::Write(dmlc::Stream* fo) {
 }
 
 template<typename StorageIndex>
-class SparsePageLZ4Format : public SparsePage::Format {
+class SparsePageLZ4Format : public SparsePageFormat {
  public:
   explicit SparsePageLZ4Format(bool use_lz4_hc)
       : use_lz4_hc_(use_lz4_hc) {
@@ -185,7 +185,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
     CHECK_EQ(index_.data.size(), value_.data.size());
     CHECK_EQ(index_.data.size(), page->data.size());
     for (size_t i = 0; i < page->data.size(); ++i) {
-      page->data[i] = SparseBatch::Entry(index_.data[i] + min_index_, value_.data[i]);
+      page->data[i] = Entry(index_.data[i] + min_index_, value_.data[i]);
     }
     return true;
   }
@@ -212,7 +212,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
       size_t src_begin = disk_offset_[cid];
       size_t num = disk_offset_[cid + 1] - disk_offset_[cid];
       for (size_t j = 0; j < num; ++j) {
-        page->data[dst_begin + j] = SparseBatch::Entry(
+        page->data[dst_begin + j] = Entry(
             index_.data[src_begin + j] + min_index_, value_.data[src_begin + j]);
       }
     }
@@ -223,7 +223,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
     CHECK(page.offset.size() != 0 && page.offset[0] == 0);
     CHECK_EQ(page.offset.back(), page.data.size());
     fo->Write(page.offset);
-    min_index_ = page.min_index;
+    min_index_ = page.base_rowid;
     fo->Write(&min_index_, sizeof(min_index_));
     index_.data.resize(page.data.size());
     value_.data.resize(page.data.size());
