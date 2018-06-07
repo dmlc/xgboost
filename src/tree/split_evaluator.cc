@@ -17,22 +17,24 @@
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::tree::SplitEvaluatorReg);
-} // namespace dmlc
+}  // namespace dmlc
 
 namespace xgboost {
 namespace tree {
 
 SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
-  auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>::Get()->Find(name);
+  auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>
+      ::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown SplitEvaluator " << name;
   }
   return (e->body)();
 }
 
-// Default implementations of some virtual methods that don't need to do anything by default
+// Default implementations of some virtual methods that aren't always needed
 SplitEvaluator::~SplitEvaluator() {}
-void SplitEvaluator::Init(const std::vector<std::pair<std::string, std::string> >& args) {}
+void SplitEvaluator::Init(
+    const std::vector<std::pair<std::string, std::string> >& args) {}
 void SplitEvaluator::Reset() {}
 void SplitEvaluator::AddSplit(bst_uint nodeID,
                               bst_uint leftID,
@@ -41,7 +43,7 @@ void SplitEvaluator::AddSplit(bst_uint nodeID,
                               bst_float leftWeight,
                               bst_float rightWeight) {}
 
-/*! \brief Encapsulates the parameters required by the RidgePenalty split evaluator */
+//! \brief Encapsulates the parameters for by the RidgePenalty
 struct RidgePenaltyParams : public dmlc::Parameter<RidgePenaltyParams> {
   float reg_lambda;
   float reg_gamma;
@@ -65,7 +67,8 @@ DMLC_REGISTER_PARAMETER(RidgePenaltyParams);
 /*! \brief Applies an L2 penalty and per-leaf penalty. */
 class RidgePenalty final : public SplitEvaluator {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Init(
+      const std::vector<std::pair<std::string, std::string> >& args) override {
     m_params.InitAllowUnknown(args);
   }
 
@@ -80,15 +83,18 @@ class RidgePenalty final : public SplitEvaluator {
                              bst_uint featureID,
                              const GradStats& left,
                              const GradStats& right) const {
-    // nodeID parameter is not used by the SpitEvaluator, so just call other members with 0 to prevent code duplication
+    // parentID is not needed for this split evaluator. Just use 0.
     return ComputeScore(0, left) + ComputeScore(0, right);
   }
 
-  bst_float ComputeScore(bst_uint nodeID, const GradStats& stats) const override {
-    return (stats.sum_grad * stats.sum_grad) / (stats.sum_hess + m_params.reg_lambda) - m_params.reg_gamma;
+  bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+      const override {
+    return (stats.sum_grad * stats.sum_grad)
+        / (stats.sum_hess + m_params.reg_lambda) - m_params.reg_gamma;
   }
 
-  bst_float ComputeWeight(bst_uint nodeID, const GradStats& stats) const override {
+  bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
+      const override {
     return -stats.sum_grad / (stats.sum_hess + m_params.reg_lambda);
   }
 
@@ -190,13 +196,16 @@ class MonotonicConstraint final : public SplitEvaluator {
     }
   }
 
-  bst_float ComputeScore(bst_uint parentID, const GradStats& stats) const override {
+  bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+      const override {
     bst_float w = ComputeWeight(parentID, stats);
 
-    return -(2.0 * stats.sum_grad * w + (stats.sum_hess + m_params.reg_lambda) * w * w);
+    return -(2.0 * stats.sum_grad * w + (stats.sum_hess + m_params.reg_lambda)
+        * w * w);
   }
 
-  bst_float ComputeWeight(bst_uint parentID, const GradStats& stats) const override {
+  bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
+      const override {
     bst_float weight = -stats.sum_grad / (stats.sum_hess + m_params.reg_lambda);
 
     if (parentID == ROOT_PARENT_ID) {
@@ -254,10 +263,11 @@ class MonotonicConstraint final : public SplitEvaluator {
 };
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
-.describe("Enforces that the tree is monotonically increasing/decreasing w.r.t. specified features")
+.describe("Enforces that the tree is monotonically increasing/decreasing "
+    "w.r.t. specified features")
 .set_body([]() {
     return new MonotonicConstraint();
   });
 
-} // tree
-} // xgboost
+}  // tree
+}  // xgboost

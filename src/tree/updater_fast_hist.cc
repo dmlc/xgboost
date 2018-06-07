@@ -56,7 +56,7 @@ class FastHistMaker: public TreeUpdater {
     is_gmat_initialized_ = false;
 
     // initialise the split evaluator
-    if(!spliteval_) {
+    if (!spliteval_) {
       spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     }
 
@@ -146,8 +146,9 @@ class FastHistMaker: public TreeUpdater {
                      const FastHistParam& fhparam,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval)
-      : param_(param), fhparam_(fhparam), pruner_(std::move(pruner)), spliteval_(std::move(spliteval)),
-        p_last_tree_(nullptr), p_last_fmat_(nullptr) {}
+      : param_(param), fhparam_(fhparam), pruner_(std::move(pruner)),
+        spliteval_(std::move(spliteval)), p_last_tree_(nullptr),
+        p_last_fmat_(nullptr) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const GHistIndexBlockMatrix& gmatb,
@@ -228,7 +229,9 @@ class FastHistMaker: public TreeUpdater {
           tstart = dmlc::GetTime();
           this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
           this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
-          spliteval_->AddSplit(nid, cleft, cright, snode_[nid].best.SplitIndex(), snode_[cleft].weight, snode_[cright].weight);
+          bst_uint featureID = snode_[nid].best.SplitIndex();
+          spliteval_->AddSplit(nid, cleft, cright, featureID,
+              snode_[cleft].weight, snode_[cright].weight);
           time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
