@@ -39,7 +39,8 @@ import org.json4s.DefaultFormats
 import scala.collection.mutable
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
-  with LearningTaskParams with HasBaseMarginCol with HasWeightCol with ParamMapFuncs
+  with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
+  with ParamMapFuncs
 
 class XGBoostRegressor (
     override val uid: String,
@@ -59,6 +60,8 @@ class XGBoostRegressor (
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
   def setBaseMarginCol(value: String): this.type = set(baseMarginCol, value)
+
+  def setGroupCol(value: String): this.type = set(groupCol, value)
 
   // setters for general params
   def setNumRound(value: Int): this.type = set(numRound, value)
@@ -157,18 +160,21 @@ class XGBoostRegressor (
     } else {
       col($(baseMarginCol))
     }
+    val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
 
     val instances: RDD[XGBLabeledPoint] = dataset.select(
-      col($(featuresCol)),
       col($(labelCol)).cast(FloatType),
-      baseMargin.cast(FloatType),
-      weight.cast(FloatType)
-    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float, weight: Float) =>
-      val (indices, values) = features match {
-        case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-        case v: DenseVector => (null, v.values.map(_.toFloat))
-      }
-      XGBLabeledPoint(label, indices, values, baseMargin = baseMargin, weight = weight)
+      col($(featuresCol)),
+      weight.cast(FloatType),
+      group.cast(IntegerType),
+      baseMargin.cast(FloatType)
+    ).rdd.map {
+      case Row(label: Float, features: Vector, weight: Float, group: Int, baseMargin: Float) =>
+        val (indices, values) = features match {
+          case v: SparseVector => (v.indices, v.values.map(_.toFloat))
+          case v: DenseVector => (null, v.values.map(_.toFloat))
+        }
+        XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
