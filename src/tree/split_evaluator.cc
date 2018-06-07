@@ -269,5 +269,5 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
     return new MonotonicConstraint();
   });
 
-}  // tree
-}  // xgboost
+}  // namespace tree
+}  // namespace xgboost

@@ -5,8 +5,8 @@
  * \author Henry Gouk
  */
 
-#ifndef XGBOOST_SPLIT_EVALUATOR_H_
-#define XGBOOST_SPLIT_EVALUATOR_H_
+#ifndef XGBOOST_TREE_SPLIT_EVALUATOR_H_
+#define XGBOOST_TREE_SPLIT_EVALUATOR_H_
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
@@ -84,4 +84,4 @@ struct SplitEvaluatorReg
 }  // namespace tree
 }  // namespace xgboost
 
-#endif  // XGBOOST_SPLIT_EVALUATOR_H_
+#endif  // XGBOOST_TREE_SPLIT_EVALUATOR_H_
