@@ -233,6 +233,7 @@ class MonotonicConstraint final : public SplitEvaluator {
 
     bst_float mid = (leftWeight + rightWeight) / 2;
     CHECK(!std::isnan(mid));
+    CHECK(nodeID >= m_upper.size());
 
     m_upper[leftID] = m_upper.at(nodeID);
     m_upper[rightID] = m_upper.at(nodeID);
