@@ -154,7 +154,7 @@ trait BoosterParams extends Params {
 
   /**
    * Control the balance of positive and negative weights, useful for unbalanced classes. A typical
-   * value to consider: sum(negative cases) / sum(positive cases).   [default=0]
+   * value to consider: sum(negative cases) / sum(positive cases).   [default=1]
    */
   val scalePosWeight = new DoubleParam(this, "scale_pos_weight", "Control the balance of positive" +
     " and negative weights, useful for unbalanced classes. A typical value to consider:" +

@@ -90,7 +90,7 @@ class XGBoostSparkPipelinePersistence extends FunSuite with PerTest
       .setInputCols(df.columns
         .filter(!_.contains("label")))
       .setOutputCol("features")
-    val xgbEstimator = new XGBoostEstimator(Map("num_rounds" -> 10,
+    val xgbEstimator = new XGBoostEstimator(Map("num_round" -> 10,
       "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")
     )).setFeaturesCol("features").setLabelCol("label")
     // separate

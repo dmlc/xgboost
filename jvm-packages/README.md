@@ -57,6 +57,8 @@ the add dependency as following:
  "ml.dmlc" % "xgboost4j" % "latest_version_num"
 ``` 
 
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
 if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
 
 ## Examples
