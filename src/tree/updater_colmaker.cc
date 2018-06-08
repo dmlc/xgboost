@@ -104,6 +104,9 @@ class ColMaker: public TreeUpdater {
         this->UpdateQueueExpand(*p_tree, qexpand_, &newnodes);
         this->InitNewNode(newnodes, gpair, *p_fmat, *p_tree);
         for (auto nid : qexpand_) {
+          if ((*p_tree)[nid].IsLeaf()) {
+            continue;
+          }
           int cleft = (*p_tree)[nid].LeftChild();
           int cright = (*p_tree)[nid].RightChild();
           spliteval_->AddSplit(nid,

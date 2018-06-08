@@ -3,12 +3,12 @@
  * \file split_evaluator.cc
  * \brief Contains implementations of different split evaluators.
  */
+#include "split_evaluator.h"
+#include <dmlc/registry.h>
 #include <algorithm>
 #include <limits>
 #include <string>
 #include <utility>
-#include <dmlc/registry.h>
-#include "split_evaluator.h"
 #include "param.h"
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
@@ -233,7 +233,7 @@ class MonotonicConstraint final : public SplitEvaluator {
 
     bst_float mid = (leftWeight + rightWeight) / 2;
     CHECK(!std::isnan(mid));
-    CHECK(nodeID >= m_upper.size());
+    CHECK(nodeID < m_upper.size());
 
     m_upper[leftID] = m_upper.at(nodeID);
     m_upper[rightID] = m_upper.at(nodeID);
