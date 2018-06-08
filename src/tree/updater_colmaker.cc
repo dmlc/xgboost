@@ -121,8 +121,7 @@ class ColMaker: public TreeUpdater {
         if (qexpand_.size() == 0) break;
       }
       // set all the rest expanding nodes to leaf
-      for (size_t i = 0; i < qexpand_.size(); ++i) {
-        const int nid = qexpand_[i];
+      for (const int nid : qexpand_) {
         (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
       }
       // remember auxiliary statistics in the tree node
@@ -193,8 +192,8 @@ class ColMaker: public TreeUpdater {
         // reserve a small space
         stemp_.clear();
         stemp_.resize(this->nthread_, std::vector<ThreadEntry>());
-        for (size_t i = 0; i < stemp_.size(); ++i) {
-          stemp_[i].clear(); stemp_[i].reserve(256);
+        for (auto& i : stemp_) {
+          i.clear(); i.reserve(256);
         }
         snode_.reserve(256);
       }
@@ -216,8 +215,8 @@ class ColMaker: public TreeUpdater {
                             const RegTree& tree) {
       {
         // setup statistics space for each tree node
-        for (size_t i = 0; i < stemp_.size(); ++i) {
-          stemp_[i].resize(tree.param.num_nodes, ThreadEntry(param_));
+        for (auto& i : stemp_) {
+          i.resize(tree.param.num_nodes, ThreadEntry(param_));
         }
         snode_.resize(tree.param.num_nodes, NodeEntry(param_));
       }
@@ -235,19 +234,19 @@ class ColMaker: public TreeUpdater {
       // sum the per thread statistics together
       for (int nid : qexpand) {
         GradStats stats(param_);
-        for (size_t tid = 0; tid < stemp_.size(); ++tid) {
-          stats.Add(stemp_[tid][nid].stats);
+        for (auto& s : stemp_) {
+          stats.Add(s[nid].stats);
         }
         // update node statistics
         snode_[nid].stats = stats;
       }
       // calculating the weights
       for (int nid : qexpand) {
-        bst_uint parentID = tree[nid].Parent();
+        bst_uint parentid = tree[nid].Parent();
         snode_[nid].root_gain = static_cast<float>(
-            spliteval_->ComputeScore(parentID, snode_[nid].stats));
+            spliteval_->ComputeScore(parentid, snode_[nid].stats));
         snode_[nid].weight = static_cast<float>(
-            spliteval_->ComputeWeight(parentID, snode_[nid].stats));
+            spliteval_->ComputeWeight(parentid, snode_[nid].stats));
       }
     }
     /*! \brief update queue expand add in new leaves */

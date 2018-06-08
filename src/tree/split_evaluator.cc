@@ -32,16 +32,15 @@ SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
 }
 
 // Default implementations of some virtual methods that aren't always needed
-SplitEvaluator::~SplitEvaluator() {}
 void SplitEvaluator::Init(
     const std::vector<std::pair<std::string, std::string> >& args) {}
 void SplitEvaluator::Reset() {}
-void SplitEvaluator::AddSplit(bst_uint nodeID,
-                              bst_uint leftID,
-                              bst_uint rightID,
-                              bst_uint featureID,
-                              bst_float leftWeight,
-                              bst_float rightWeight) {}
+void SplitEvaluator::AddSplit(bst_uint nodeid,
+                              bst_uint leftid,
+                              bst_uint rightid,
+                              bst_uint featureid,
+                              bst_float leftweight,
+                              bst_float rightweight) {}
 
 //! \brief Encapsulates the parameters for by the RidgePenalty
 struct RidgePenaltyParams : public dmlc::Parameter<RidgePenaltyParams> {
@@ -69,20 +68,20 @@ class RidgePenalty final : public SplitEvaluator {
  public:
   void Init(
       const std::vector<std::pair<std::string, std::string> >& args) override {
-    m_params.InitAllowUnknown(args);
+    params_.InitAllowUnknown(args);
   }
 
   SplitEvaluator* GetHostClone() const override {
-    RidgePenalty* r = new RidgePenalty();
-    r->m_params = this->m_params;
+    auto r = new RidgePenalty();
+    r->params_ = this->params_;
 
     return r;
   }
 
-  bst_float ComputeSplitScore(bst_uint nodeID,
-                             bst_uint featureID,
+  bst_float ComputeSplitScore(bst_uint nodeid,
+                             bst_uint featureid,
                              const GradStats& left,
-                             const GradStats& right) const {
+                             const GradStats& right) const override {
     // parentID is not needed for this split evaluator. Just use 0.
     return ComputeScore(0, left) + ComputeScore(0, right);
   }
@@ -90,16 +89,16 @@ class RidgePenalty final : public SplitEvaluator {
   bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
       const override {
     return (stats.sum_grad * stats.sum_grad)
-        / (stats.sum_hess + m_params.reg_lambda) - m_params.reg_gamma;
+        / (stats.sum_hess + params_.reg_lambda) - params_.reg_gamma;
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    return -stats.sum_grad / (stats.sum_hess + m_params.reg_lambda);
+    return -stats.sum_grad / (stats.sum_hess + params_.reg_lambda);
   }
 
  private:
-  RidgePenaltyParams m_params;
+  RidgePenaltyParams params_;
 };
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(RidgePenalty, "ridge")
@@ -143,56 +142,56 @@ class MonotonicConstraint final : public SplitEvaluator {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args)
       override {
-    m_params.InitAllowUnknown(args);
+    params_.InitAllowUnknown(args);
     Reset();
   }
 
   void Reset() override {
-    m_lower.resize(1, -std::numeric_limits<bst_float>::max());
-    m_upper.resize(1, std::numeric_limits<bst_float>::max());
+    lower_.resize(1, -std::numeric_limits<bst_float>::max());
+    upper_.resize(1, std::numeric_limits<bst_float>::max());
   }
 
   SplitEvaluator* GetHostClone() const override {
-    if (m_params.monotone_constraints.size() == 0) {
+    if (params_.monotone_constraints.size() == 0) {
       // No monotone constraints specified, make a RidgePenalty evaluator
       using std::pair;
       using std::string;
       using std::to_string;
       using std::vector;
-      RidgePenalty* c = new RidgePenalty();
+      auto c = new RidgePenalty();
       vector<pair<string, string> > args;
       args.push_back(
-        pair<string, string>("reg_lambda", to_string(m_params.reg_lambda)));
+        pair<string, string>("reg_lambda", to_string(params_.reg_lambda)));
       args.push_back(
-        pair<string, string>("reg_gamma", to_string(m_params.reg_gamma)));
+        pair<string, string>("reg_gamma", to_string(params_.reg_gamma)));
       c->Init(args);
       c->Reset();
       return c;
     } else {
-      MonotonicConstraint* c = new MonotonicConstraint();
-      c->m_params = this->m_params;
+      auto c = new MonotonicConstraint();
+      c->params_ = this->params_;
       c->Reset();
       return c;
     }
   }
 
-  bst_float ComputeSplitScore(bst_uint nodeID,
-                             bst_uint featureID,
+  bst_float ComputeSplitScore(bst_uint nodeid,
+                             bst_uint featureid,
                              const GradStats& left,
                              const GradStats& right) const override {
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
-    bst_int constraint = getConstraint(featureID);
+    bst_int constraint = getConstraint(featureid);
 
-    bst_float score = ComputeScore(nodeID, left) + ComputeScore(nodeID, right);
-    bst_float leftWeight = ComputeWeight(nodeID, left);
-    bst_float rightWeight = ComputeWeight(nodeID, right);
+    bst_float score = ComputeScore(nodeid, left) + ComputeScore(nodeid, right);
+    bst_float leftweight = ComputeWeight(nodeid, left);
+    bst_float rightweight = ComputeWeight(nodeid, right);
 
     if (constraint == 0) {
       return score;
     } else if (constraint > 0) {
-      return leftWeight <= rightWeight ? score : -infinity;
+      return leftweight <= rightweight ? score : -infinity;
     } else {
-      return leftWeight >= rightWeight ? score : -infinity;
+      return leftweight >= rightweight ? score : -infinity;
     }
   }
 
@@ -200,63 +199,63 @@ class MonotonicConstraint final : public SplitEvaluator {
       const override {
     bst_float w = ComputeWeight(parentID, stats);
 
-    return -(2.0 * stats.sum_grad * w + (stats.sum_hess + m_params.reg_lambda)
+    return -(2.0 * stats.sum_grad * w + (stats.sum_hess + params_.reg_lambda)
         * w * w);
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    bst_float weight = -stats.sum_grad / (stats.sum_hess + m_params.reg_lambda);
+    bst_float weight = -stats.sum_grad / (stats.sum_hess + params_.reg_lambda);
 
     if (parentID == ROOT_PARENT_ID) {
       // This is the root node
       return weight;
-    } else if (weight < m_lower.at(parentID)) {
-      return m_lower.at(parentID);
-    } else if (weight > m_upper.at(parentID)) {
-      return m_upper.at(parentID);
+    } else if (weight < lower_.at(parentID)) {
+      return lower_.at(parentID);
+    } else if (weight > upper_.at(parentID)) {
+      return upper_.at(parentID);
     } else {
       return weight;
     }
   }
 
-  void AddSplit(bst_uint nodeID,
-                bst_uint leftID,
-                bst_uint rightID,
-                bst_uint featureID,
-                bst_float leftWeight,
-                bst_float rightWeight) override {
-    bst_uint newSize = std::max(leftID, rightID) + 1;
-    m_lower.resize(newSize);
-    m_upper.resize(newSize);
-    bst_int constraint = getConstraint(featureID);
+  void AddSplit(bst_uint nodeid,
+                bst_uint leftid,
+                bst_uint rightid,
+                bst_uint featureid,
+                bst_float leftweight,
+                bst_float rightweight) override {
+    bst_uint newSize = std::max(leftid, rightid) + 1;
+    lower_.resize(newSize);
+    upper_.resize(newSize);
+    bst_int constraint = getConstraint(featureid);
 
-    bst_float mid = (leftWeight + rightWeight) / 2;
+    bst_float mid = (leftweight + rightweight) / 2;
     CHECK(!std::isnan(mid));
-    CHECK(nodeID < m_upper.size());
+    CHECK(nodeid < upper_.size());
 
-    m_upper[leftID] = m_upper.at(nodeID);
-    m_upper[rightID] = m_upper.at(nodeID);
-    m_lower[leftID] = m_lower.at(nodeID);
-    m_lower[rightID] = m_lower.at(nodeID);
+    upper_[leftid] = upper_.at(nodeid);
+    upper_[rightid] = upper_.at(nodeid);
+    lower_[leftid] = lower_.at(nodeid);
+    lower_[rightid] = lower_.at(nodeid);
 
     if (constraint < 0) {
-      m_lower[leftID] = mid;
-      m_upper[rightID] = mid;
+      lower_[leftid] = mid;
+      upper_[rightid] = mid;
     } else if (constraint > 0) {
-      m_upper[leftID] = mid;
-      m_lower[rightID] = mid;
+      upper_[leftid] = mid;
+      lower_[rightid] = mid;
     }
   }
 
  private:
-  MonotonicConstraintParams m_params;
-  std::vector<bst_float> m_lower;
-  std::vector<bst_float> m_upper;
+  MonotonicConstraintParams params_;
+  std::vector<bst_float> lower_;
+  std::vector<bst_float> upper_;
 
-  inline bst_int getConstraint(bst_uint featureID) const {
-    if (featureID < m_params.monotone_constraints.size()) {
-      return m_params.monotone_constraints[featureID];
+  inline bst_int GetConstraint(bst_uint featureid) const {
+    if (featureid < params_.monotone_constraints.size()) {
+      return params_.monotone_constraints[featureid];
     } else {
       return 0;
     }

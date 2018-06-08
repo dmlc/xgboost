@@ -26,7 +26,7 @@ class SplitEvaluator {
   // Factory method for constructing new SplitEvaluators
   static SplitEvaluator* Create(const std::string& name);
 
-  virtual ~SplitEvaluator();
+  virtual ~SplitEvaluator() = default;
 
   // Used to initialise any regularisation hyperparameters provided by the user
   virtual void Init(
@@ -39,25 +39,25 @@ class SplitEvaluator {
   virtual SplitEvaluator* GetHostClone() const = 0;
 
   // Computes the score (negative loss) resulting from performing this split
-  virtual bst_float ComputeSplitScore(bst_uint parentID,
-                                     bst_uint featureID,
+  virtual bst_float ComputeSplitScore(bst_uint nodeid,
+                                     bst_uint featureid,
                                      const GradStats& left,
                                      const GradStats& right) const = 0;
 
   // Compute the Score for a node with the given stats
-  virtual bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+  virtual bst_float ComputeScore(bst_uint parentid, const GradStats& stats)
       const = 0;
 
   // Compute the weight for a node with the given stats
-  virtual bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
+  virtual bst_float ComputeWeight(bst_uint parentid, const GradStats& stats)
       const = 0;
 
-  virtual void AddSplit(bst_uint nodeID,
-                        bst_uint leftID,
-                        bst_uint rightID,
-                        bst_uint featureID,
-                        bst_float leftWeight,
-                        bst_float rightWeight);
+  virtual void AddSplit(bst_uint nodeid,
+                        bst_uint leftid,
+                        bst_uint rightid,
+                        bst_uint featureid,
+                        bst_float leftweight,
+                        bst_float rightweight);
 };
 
 struct SplitEvaluatorReg
