@@ -1,8 +1,8 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.71.1
-Date: 2018-05-11
+Version: 0.71.2
+Date: 2018-06-08
 Authors@R: c(
   person("Tianqi", "Chen", role = c("aut"),
          email = "tianqi.tchen@gmail.com"),
@@ -51,6 +51,7 @@ Suggests:
     Ckmeans.1d.dp (>= 3.3.1),
     vcd (>= 1.3),
     testthat,
+    lintr,
     igraph (>= 1.0.1)
 Depends:
     R (>= 3.3.0)
