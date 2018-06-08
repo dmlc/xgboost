@@ -261,12 +261,8 @@ def _maybe_dt_data(data, feature_names, feature_types):
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
-    if feature_names is not None:
-        raise ValueError('DataTable has own feature names, cannot pass them in')
-    else:
-        feature_names = (ctypes.c_wchar_p * data.ncols)()
-        for icol in range(data.ncols):
-            feature_names[icol] = ctypes.c_wchar_p(data.names[icol])
+    if feature_names is None:
+        feature_names = data.names
 
     # always return stypes for dt ingestion
     if feature_types is not None:
@@ -465,8 +461,8 @@ class DMatrix(object):
 
         self.handle = ctypes.c_void_p()
 
-        _check_call(_LIB.XGDMatrixCreateFromdt(
-            data, data_names, data_types,
+        _check_call(_LIB.XGDMatrixCreateFromDT(
+            data, data_types,
             c_bst_ulong(self.nrows),
             c_bst_ulong(self.ncols),
             ctypes.byref(self.handle),

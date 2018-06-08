@@ -504,15 +504,14 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   // restore omp state
   omp_set_num_threads(nthread_orig);
 
-  mat.info.num_nonzero_ = mat.row_data_.size();
+  mat.info.num_nonzero_ = mat.page_.data.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
 
 
 
-XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
-                                  const wchar_t ** feature_names,
+XGB_DLL int XGDMatrixCreateFromDT(const void** data0,
                                   const wchar_t ** feature_stypes,
                                   xgboost::bst_ulong nrow,
                                   xgboost::bst_ulong ncol,
@@ -534,7 +533,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;
-  mat.row_ptr_.resize(1+nrow);
+  mat.page_.offset.resize(1+nrow);
   mat.info.num_row_ = nrow;
   mat.info.num_col_ = ncol;
 
@@ -547,15 +546,15 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (!DtIsMissingAndGetValue(&d, i, &value)) {
-            mat.row_ptr_[i+1]++;
+            mat.page_.offset[i+1]++;
         }
       }
     }
   }
   // do cumulative sum (to avoid otherwise need to copy)
-  PrefixSum(&mat.row_ptr_[0], mat.row_ptr_.size());
+  PrefixSum(&mat.page_.offset[0], mat.page_.offset.size());
 
-  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
 
 
   // reset pointer
@@ -573,8 +572,8 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
       for (omp_ulong i = 0; i < nrow; ++i) {
         missing = DtIsMissingAndGetValue(&d, i, &value);
         if (!missing) {
-          mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, value);
+          mat.page_.data[mat.page_.offset[i] + matj[i]] =
+              Entry(j, value);
           matj[i]++;
         }
       }

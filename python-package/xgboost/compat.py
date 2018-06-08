@@ -47,6 +47,13 @@ except ImportError:
 
     PANDAS_INSTALLED = False
 
+# dt
+try:
+    import datatable
+    DT_INSTALLED = True
+except ImportError:
+    DT_INSTALLED = False
+
 # sklearn
 try:
     from sklearn.base import BaseEstimator

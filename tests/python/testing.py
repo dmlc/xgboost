@@ -2,7 +2,7 @@
 
 import nose
 
-from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
+from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
 
 
 def _skip_if_no_sklearn():
@@ -14,6 +14,9 @@ def _skip_if_no_pandas():
     if not PANDAS_INSTALLED:
         raise nose.SkipTest()
 
+def _skip_if_no_dt():
+    if not DT_INSTALLED:
+        raise nose.SkipTest()
 
 def _skip_if_no_matplotlib():
     try:
