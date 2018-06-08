@@ -160,9 +160,9 @@ class MonotonicConstraint final : public SplitEvaluator {
       using std::vector;
       auto c = new RidgePenalty();
       vector<pair<string, string> > args;
-      args.push_back(
+      args.emplace_back(
         pair<string, string>("reg_lambda", to_string(params_.reg_lambda)));
-      args.push_back(
+      args.emplace_back(
         pair<string, string>("reg_gamma", to_string(params_.reg_gamma)));
       c->Init(args);
       c->Reset();
@@ -180,7 +180,7 @@ class MonotonicConstraint final : public SplitEvaluator {
                              const GradStats& left,
                              const GradStats& right) const override {
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
-    bst_int constraint = getConstraint(featureid);
+    bst_int constraint = GetConstraint(featureid);
 
     bst_float score = ComputeScore(nodeid, left) + ComputeScore(nodeid, right);
     bst_float leftweight = ComputeWeight(nodeid, left);
@@ -225,10 +225,10 @@ class MonotonicConstraint final : public SplitEvaluator {
                 bst_uint featureid,
                 bst_float leftweight,
                 bst_float rightweight) override {
-    bst_uint newSize = std::max(leftid, rightid) + 1;
-    lower_.resize(newSize);
-    upper_.resize(newSize);
-    bst_int constraint = getConstraint(featureid);
+    bst_uint newsize = std::max(leftid, rightid) + 1;
+    lower_.resize(newsize);
+    upper_.resize(newsize);
+    bst_int constraint = GetConstraint(featureid);
 
     bst_float mid = (leftweight + rightweight) / 2;
     CHECK(!std::isnan(mid));

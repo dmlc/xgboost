@@ -229,8 +229,8 @@ class FastHistMaker: public TreeUpdater {
           tstart = dmlc::GetTime();
           this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
           this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
-          bst_uint featureID = snode_[nid].best.SplitIndex();
-          spliteval_->AddSplit(nid, cleft, cright, featureID,
+          bst_uint featureid = snode_[nid].best.SplitIndex();
+          spliteval_->AddSplit(nid, cleft, cright, featureid,
               snode_[cleft].weight, snode_[cright].weight);
           time_init_new_node += dmlc::GetTime() - tstart;
 
