@@ -509,31 +509,79 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   API_END();
 }
 
+int DTGetType(const wchar_t* type_string) {
+  if (wcscmp(type_string, L"float32") == 0) {
+    return 0;
+  } else if (wcscmp(type_string, L"float64") == 0) {
+    return 1;
+  } else if (wcscmp(type_string, L"bool8") == 0) {
+    return 2;
+  } else if (wcscmp(type_string, L"int32") == 0) {
+    return 3;
+  } else if (wcscmp(type_string, L"int8") == 0) {
+    return 4;
+  } else if (wcscmp(type_string, L"int16") == 0) {
+    return 5;
+  } else if (wcscmp(type_string, L"int64") == 0) {
+    return 6;
+  } else {
+    LOG(FATAL) << "Unknown data table type.";
+  }
+}
 
+float DTGetValue(void* column, int dt_type, size_t ridx) {
+  float missing = std::numeric_limits<float>::quiet_NaN();
+  switch (dt_type) {
+    case 0: {
+      float val = reinterpret_cast<float*>(column)[ridx];
+      return std::isfinite(val) ? val : missing;
+    }
+    case 1: {
+      double val = reinterpret_cast<double*>(column)[ridx];
+      return std::isfinite(val) ? static_cast<float>(val) : missing;
+    }
+    case 2: {
+      bool val = reinterpret_cast<bool*>(column)[ridx];
+      return val != -128 ? static_cast<float>(val) : missing;
+    }
+    case 3: {
+      int32_t val = reinterpret_cast<int32_t*>(column)[ridx];
+      return val != (-2147483647 - 1) ? static_cast<float>(val) : missing;
+    }
+    case 4: {
+      int8_t val = reinterpret_cast<int8_t*>(column)[ridx];
+      return val != -128 ? static_cast<float>(val) : missing;
+    }
+    case 5: {
+      int16_t val = reinterpret_cast<int16_t*>(column)[ridx];
+      return val != -32768 ? static_cast<float>(val) : missing;
+    }
+    case 6: {
+      int64_t val = reinterpret_cast<int64_t*>(column)[ridx];
+      return val != -9223372036854775807 - 1 ? static_cast<float>(val)
+                                             : missing;
+    }
+  }
+}
 
-XGB_DLL int XGDMatrixCreateFromDT(const void** data0,
-                                  const wchar_t ** feature_stypes,
+XGB_DLL int XGDMatrixCreateFromDT(void** data, const wchar_t** feature_stypes,
                                   xgboost::bst_ulong nrow,
-                                  xgboost::bst_ulong ncol,
-                                  DMatrixHandle* out,
+                                  xgboost::bst_ulong ncol, DMatrixHandle* out,
                                   int nthread) {
   // avoid openmp unless enough data to be worth it to avoid overhead costs
-  if (nrow * ncol <= 10000*50) {
-     nthread = 1;
+  if (nrow * ncol <= 10000 * 50) {
+    nthread = 1;
   }
-
-  // copy pointer
-  void ** data = const_cast<void **>(data0);
 
   API_BEGIN();
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
-  if (nthread <= 0) nthread=nthreadmax;
+  if (nthread <= 0) nthread = nthreadmax;
   int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;
-  mat.page_.offset.resize(1+nrow);
+  mat.page_.offset.resize(1 + nrow);
   mat.info.num_row_ = nrow;
   mat.info.num_col_ = ncol;
 
@@ -541,12 +589,12 @@ XGB_DLL int XGDMatrixCreateFromDT(const void** data0,
   {
     // Count elements per row, column by column
     for (auto j = 0; j < ncol; ++j) {
-      Datacol d(data, feature_stypes, j);
-      float value;
+      int dtype = DTGetType(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (!DtIsMissingAndGetValue(&d, i, &value)) {
-            mat.page_.offset[i+1]++;
+        float val = DTGetValue(data[j], dtype, i);
+        if (!std::isnan(val)) {
+          mat.page_.offset[i + 1]++;
         }
       }
     }
@@ -556,41 +604,30 @@ XGB_DLL int XGDMatrixCreateFromDT(const void** data0,
 
   mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
 
-
-  // reset pointer
-  data = const_cast<void **>(data0);
-
   // Fill data matrix (now that know size, no need for slow push_back())
-  auto *matj = new xgboost::bst_ulong[nrow]();
+  std::vector<size_t> position(nrow);
 #pragma omp parallel num_threads(nthread)
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      Datacol d(data, feature_stypes, j);
-      float value;
-      bool missing;
+      int dtype = DTGetType(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        missing = DtIsMissingAndGetValue(&d, i, &value);
-        if (!missing) {
-          mat.page_.data[mat.page_.offset[i] + matj[i]] =
-              Entry(j, value);
-          matj[i]++;
+        float val = DTGetValue(data[j], dtype, i);
+        if (!std::isnan(val)) {
+          mat.page_.data[mat.page_.offset[i] + position[i]] = Entry(j, val);
+          position[i]++;
         }
       }
     }
   }
-  delete[] matj;
 
   // restore omp state
   omp_set_num_threads(nthread_orig);
 
   mat.info.num_nonzero_ = mat.page_.data.size();
-  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
-
-
-
 
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,

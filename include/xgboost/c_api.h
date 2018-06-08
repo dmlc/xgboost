@@ -229,7 +229,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
  * \param nthread number of threads (up to maximum cores available, if <=0 use all cores)
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromDT(const void** data,
+XGB_DLL int XGDMatrixCreateFromDT( void** data,
                                   const wchar_t ** feature_stypes,
                                   bst_ulong nrow,
                                   bst_ulong ncol,
