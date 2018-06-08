@@ -254,6 +254,9 @@ class DMatrix(object):
             Set names for features.
         feature_types : list, optional
             Set types for features.
+        nthread : integer, optional
+            Number of threads to use for loading data from numpy array. If -1,
+            uses maximum threads available on the system.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
