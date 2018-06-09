@@ -14,9 +14,11 @@ def _skip_if_no_pandas():
     if not PANDAS_INSTALLED:
         raise nose.SkipTest()
 
+
 def _skip_if_no_dt():
     if not DT_INSTALLED:
         raise nose.SkipTest()
+
 
 def _skip_if_no_matplotlib():
     try:

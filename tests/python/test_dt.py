@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-import numpy as np
 import testing as tm
 import xgboost as xgb
 
@@ -20,7 +19,7 @@ class TestDataTable(unittest.TestCase):
     def test_dt(self):
         df = pd.DataFrame([[1, 2., True], [2, 3., False]], columns=['a', 'b', 'c'])
         dtable = dt.Frame(df)
-        labels = dt.Frame([1,2])
+        labels = dt.Frame([1, 2])
         dm = xgb.DMatrix(dtable, label=labels)
         assert dm.feature_names == ['a', 'b', 'c']
         assert dm.feature_types == ['int', 'float', 'i']

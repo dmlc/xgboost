@@ -4,18 +4,17 @@
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
-import sys
-import os
-import ctypes
 import collections
+import ctypes
+import os
 import re
+import sys
 
 import numpy as np
 import scipy.sparse
 
-from .libpath import find_lib_path
-
 from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
+from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
@@ -317,8 +316,8 @@ class DMatrix(object):
                                                                 feature_types)
 
         data, feature_names, feature_types = _maybe_dt_data(data,
-                                                                feature_names,
-                                                                feature_types)
+                                                            feature_names,
+                                                            feature_types)
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)

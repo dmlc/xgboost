@@ -524,6 +524,7 @@ int DTGetType(const wchar_t* type_string) {
     return 6;
   } else {
     LOG(FATAL) << "Unknown data table type.";
+    return -1;
   }
 }
 
@@ -540,7 +541,7 @@ float DTGetValue(void* column, int dt_type, size_t ridx) {
     }
     case 2: {
       bool val = reinterpret_cast<bool*>(column)[ridx];
-      return val != -128 ? static_cast<float>(val) : missing;
+      return static_cast<float>(val);
     }
     case 3: {
       int32_t val = reinterpret_cast<int32_t*>(column)[ridx];
@@ -558,6 +559,10 @@ float DTGetValue(void* column, int dt_type, size_t ridx) {
       int64_t val = reinterpret_cast<int64_t*>(column)[ridx];
       return val != -9223372036854775807 - 1 ? static_cast<float>(val)
                                              : missing;
+    }
+    default: {
+      LOG(FATAL) << "Unknown data table type.";
+      return 0.0f;
     }
   }
 }
