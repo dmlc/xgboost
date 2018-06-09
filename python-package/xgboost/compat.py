@@ -49,9 +49,14 @@ except ImportError:
 
 # dt
 try:
-    import datatable
+    from datatable import DataTable
     DT_INSTALLED = True
 except ImportError:
+
+    class DataTable(object):
+        """ dummy for datatable.DataTable """
+        pass
+
     DT_INSTALLED = False
 
 # sklearn

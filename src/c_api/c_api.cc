@@ -17,8 +17,6 @@
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
-#include "dt.h"  // Functions for handling datatable
-
 
 
 namespace xgboost {

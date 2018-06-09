@@ -1,7 +1,6 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-branches, too-many-lines, W0141
-# pylint: disable=too-many-public-methods, no-member
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
@@ -16,7 +15,7 @@ import scipy.sparse
 
 from .libpath import find_lib_path
 
-from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED
+from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
@@ -179,11 +178,6 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_types = [data_dtypes[i].name for i, dtype in
-                     enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
-        msg = """Bad types: """
-        print(msg + ', '.join(bad_types))
-
         bad_fields = [data.columns[i] for i, dtype in
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
@@ -225,34 +219,19 @@ def _maybe_pandas_label(label):
     return label
 
 
-try:
-    import datatable as dt
-    HAVE_DT = True
-except ImportError:
-    HAVE_DT = False
-
-
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
 
 def _maybe_dt_data(data, feature_names, feature_types):
-    """ Extract internal data from dt.Frame for DMatrix data """
-    if not HAVE_DT or not isinstance(data, dt.DataTable) or data is None:
-        return data, feature_names, feature_types, 0, 0
+    """
+    Validate feature names and types if data table
+    """
+    if not isinstance(data, DataTable):
+        return data, feature_names, feature_types
 
-    data_types = data.ltypes
-    data_types_names = tuple(lt.name for lt in data_types)
-    cols = []
-    ptrs = (ctypes.c_void_p * data.ncols)()
-    for icol in range(data.ncols):
-        col = data.internal.column(icol)
-        cols.append(col)
-        # int64_t (void*)
-        ptr = col.data_pointer
-        ptrs[icol] = ctypes.c_void_p(ptr)
-
+    data_types_names = tuple(lt.name for lt in data.ltypes)
     if not all(type_name in DT_TYPE_MAPPER for type_name in data_types_names):
         bad_fields = [data.names[i] for i, type_name in
                       enumerate(data_types_names) if type_name not in DT_TYPE_MAPPER]
@@ -264,35 +243,29 @@ def _maybe_dt_data(data, feature_names, feature_types):
     if feature_names is None:
         feature_names = data.names
 
-    # always return stypes for dt ingestion
-    if feature_types is not None:
-        raise ValueError('DataTable has own feature types, cannot pass them in')
-    else:
-        feature_stypes = (ctypes.c_wchar_p * data.ncols)()
-        for icol in range(data.ncols):
-            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol].name)
-        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
+        # always return stypes for dt ingestion
+        if feature_types is not None:
+            raise ValueError('DataTable has own feature types, cannot pass them in')
+        else:
+            data_types_names = tuple(lt.name for lt in data.ltypes)
+            feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
 
-    return ptrs, feature_names, feature_types, feature_stypes, data.nrows, data.ncols
+    return data, feature_names, feature_types
 
 
-def _maybe_dt_label(label):
-    """ Extract internal data from dt.Frame for DMatrix label """
+def _maybe_dt_array(array):
+    """ Extract numpy array from single column data table """
+    if not isinstance(array, DataTable) or array is None:
+        return array
 
-    if not HAVE_DT or not isinstance(label, dt.DataTable) or label is None:
-        return label
-
-    # lazy way of detecting correc data types and column count
-    ptrs, _, _, _, _, ncols =\
-        _maybe_dt_data(label, None, None)
-    if ptrs is not None and ncols > 1:
+    if array is not None and array.shape[1] > 1:
         raise ValueError('DataTable for label or weight cannot have multiple columns')
 
     # below requires new dt version
     # extract first column
-    label = label.tonumpy()[:, 0].astype('float')
+    array = array.tonumpy()[:, 0].astype('float')
 
-    return label
+    return array
 
 
 class DMatrix(object):
@@ -335,43 +308,42 @@ class DMatrix(object):
             uses maximum threads available on the system.
         """
         # force into void_p, mac need to pass things in as void_p
-        self.handle = None
         if data is None:
+            self.handle = None
             return
 
-        if HAVE_DT and isinstance(data, dt.DataTable):
-            data, feature_names, feature_types, feature_stypes, self.nrows, self.ncols =\
-                _maybe_dt_data(data, feature_names, feature_types)
-            label = _maybe_dt_label(label)
-            weight = _maybe_dt_label(weight)
-            if data is not None:
-                # missing is well-defined for dt
-                self._init_from_dt(data, feature_names, feature_stypes, nthread)
+        data, feature_names, feature_types = _maybe_pandas_data(data,
+                                                                feature_names,
+                                                                feature_types)
 
+        data, feature_names, feature_types = _maybe_dt_data(data,
+                                                                feature_names,
+                                                                feature_types)
+        label = _maybe_pandas_label(label)
+        label = _maybe_dt_array(label)
+        weight = _maybe_dt_array(weight)
+
+        if isinstance(data, STRING_TYPES):
+            self.handle = ctypes.c_void_p()
+            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+                                                     ctypes.c_int(silent),
+                                                     ctypes.byref(self.handle)))
+        elif isinstance(data, scipy.sparse.csr_matrix):
+            self._init_from_csr(data)
+        elif isinstance(data, scipy.sparse.csc_matrix):
+            self._init_from_csc(data)
+        elif isinstance(data, np.ndarray):
+            self._init_from_npy2d(data, missing, nthread)
+        elif isinstance(data, DataTable):
+            self._init_from_dt(data, nthread)
         else:
-            data, feature_names, feature_types = _maybe_pandas_data(data,
-                                                                    feature_names,
-                                                                    feature_types)
-            label = _maybe_pandas_label(label)
+            try:
+                csr = scipy.sparse.csr_matrix(data)
+                self._init_from_csr(csr)
+            except:
+                raise TypeError('can not initialize DMatrix from'
+                                ' {}'.format(type(data).__name__))
 
-            if isinstance(data, STRING_TYPES):
-                self.handle = ctypes.c_void_p()
-                _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
-                                                         ctypes.c_int(silent),
-                                                         ctypes.byref(self.handle)))
-            elif isinstance(data, scipy.sparse.csr_matrix):
-                self._init_from_csr(data)
-            elif isinstance(data, scipy.sparse.csc_matrix):
-                self._init_from_csc(data)
-            elif isinstance(data, np.ndarray):
-                self._init_from_npy2d(data, missing, nthread)
-            else:
-                try:
-                    csr = scipy.sparse.csr_matrix(data)
-                    self._init_from_csr(csr)
-                except:
-                    raise TypeError('can not initialize DMatrix from'
-                                    ' {}'.format(type(data).__name__))
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
@@ -452,29 +424,37 @@ class DMatrix(object):
                 ctypes.byref(self.handle),
                 nthread))
 
-    def _init_from_dt(self, data, data_names, data_types, nthread):
+    def _init_from_dt(self, data, nthread):
         """
-        Initialize data from a 2D dt data matrix set of pointers
-        Pass raw pointer list of int64_t
-        (i.e. don't use ctypes for pointers, only use it to pass array)
+        Initialize data from a DataTable
         """
+        cols = []
+        ptrs = (ctypes.c_void_p * data.ncols)()
+        for icol in range(data.ncols):
+            col = data.internal.column(icol)
+            cols.append(col)
+            # int64_t (void*)
+            ptr = col.data_pointer
+            ptrs[icol] = ctypes.c_void_p(ptr)
+
+        # always return stypes for dt ingestion
+        feature_stypes = (ctypes.c_wchar_p * data.ncols)()
+        for icol in range(data.ncols):
+            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol].name)
 
         self.handle = ctypes.c_void_p()
 
         _check_call(_LIB.XGDMatrixCreateFromDT(
-            data, data_types,
-            c_bst_ulong(self.nrows),
-            c_bst_ulong(self.ncols),
+            ptrs, feature_stypes,
+            c_bst_ulong(data.shape[0]),
+            c_bst_ulong(data.shape[1]),
             ctypes.byref(self.handle),
             nthread))
 
     def __del__(self):
-        try:
-            if self.handle is not None:
-                _check_call(_LIB.XGDMatrixFree(self.handle))
-                self.handle = None
-        except AttributeError:
-            pass
+        if self.handle is not None:
+            _check_call(_LIB.XGDMatrixFree(self.handle))
+            self.handle = None
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -832,7 +812,6 @@ class Booster(object):
         model_file : string
             Path to the model file.
         """
-        self.handle = None
         for d in cache:
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__))
@@ -848,12 +827,9 @@ class Booster(object):
             self.load_model(model_file)
 
     def __del__(self):
-        try:
-            if self.handle is not None:
-                _check_call(_LIB.XGBoosterFree(self.handle))
-                self.handle = None
-        except AttributeError:
-            pass
+        if self.handle is not None:
+            _check_call(_LIB.XGBoosterFree(self.handle))
+            self.handle = None
 
     def __getstate__(self):
         # can't pickle ctypes pointers
@@ -1192,7 +1168,7 @@ class Booster(object):
                 if ngroup == 1:
                     preds = preds.reshape(nrow, data.num_col() + 1)
                 else:
-                    preds = preds.reshape(nrow, ngroup * (data.num_col() + 1))
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
             else:
                 preds = preds.reshape(nrow, chunk_size)
         return preds
