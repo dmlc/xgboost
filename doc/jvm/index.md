@@ -23,13 +23,21 @@ Or, if you would like to skip tests, run
 
 This command will publish the xgboost binaries, the compiled java classes as well as the java sources to your local repository. Then you can use XGBoost4J in your Java projects by including the following dependency in `pom.xml`:
 
+<b>maven</b>
+
     <dependency>
       <groupId>ml.dmlc</groupId>
       <artifactId>xgboost4j</artifactId>
-      <version>0.7</version>
+      <version>0.72</version>
     </dependency>
 
 
+<b>sbt</b> 
+```sbt
+resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
+
+"ml.dmlc" % "xgboost4j" % "0.72"
+``` 
 
 
 After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=2.0.0 package`.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like `spark.version`, `scala.version`, and `scala.binary.version`. Users also need to change the implementation by replacing SparkSession with SQLContext and the type of API parameters from Dataset[_] to Dataframe)

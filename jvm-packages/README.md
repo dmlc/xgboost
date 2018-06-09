@@ -61,6 +61,8 @@ if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `x
 
 ## Examples
 
+latest_version_num=0.72
+
 Full code examples for Scala, Java, Apache Spark, and Apache Flink can
 be found in the [examples package](https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example).
 
