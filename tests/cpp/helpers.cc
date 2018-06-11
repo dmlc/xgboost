@@ -41,17 +41,13 @@ std::string CreateBigTestData(size_t n_entries) {
   return tmp_file;
 }
 
-void CheckObjFunction(xgboost::ObjFunction * obj,
+void _CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
+                      xgboost::MetaInfo info,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
-  xgboost::MetaInfo info;
-  info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
-
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
 
   xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
@@ -68,6 +64,37 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
       << " weight=" << weights[i];
   }
 }
+
+void CheckObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
+void CheckRankingObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_uint> groups,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+  info.group_ptr_ = groups;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
 
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> preds,
