@@ -447,12 +447,12 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      * \brief fill the vector with sparse vector
      * \param inst The sparse instance to fill.
      */
-    inline void Fill(const RowBatch::Inst& inst);
+    inline void Fill(const SparsePage::Inst& inst);
     /*!
      * \brief drop the trace after fill, must be called after fill.
      * \param inst The sparse instance to drop.
      */
-    inline void Drop(const RowBatch::Inst& inst);
+    inline void Drop(const SparsePage::Inst& inst);
     /*!
      * \brief returns the size of the feature vector
      * \return the size of the feature vector
@@ -573,14 +573,14 @@ inline void RegTree::FVec::Init(size_t size) {
   std::fill(data_.begin(), data_.end(), e);
 }
 
-inline void RegTree::FVec::Fill(const RowBatch::Inst& inst) {
+inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
   for (bst_uint i = 0; i < inst.length; ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].fvalue = inst[i].fvalue;
   }
 }
 
-inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
+inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
   for (bst_uint i = 0; i < inst.length; ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].flag = -1;

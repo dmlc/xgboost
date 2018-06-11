@@ -344,17 +344,18 @@ class CQHistMaker: public HistMaker<TStats> {
     {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fset);
+      auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
+        auto batch = iter->Value();
         // start enumeration
-        const auto nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(fset.size());
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = feat2workindex_[batch.col_index[i]];
+          int fid = fset[i];
+          int offset = feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[i], info, tree,
+            this->UpdateHistCol(gpair, batch[fid], info, tree,
                                 fset, offset,
                                 &thread_hist_[omp_get_thread_num()]);
           }
@@ -425,20 +426,20 @@ class CQHistMaker: public HistMaker<TStats> {
       work_set_.resize(std::unique(work_set_.begin(), work_set_.end()) - work_set_.begin());
 
       // start accumulating statistics
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(work_set_);
+      auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
+        auto batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
         // start enumeration
-        const auto nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(dynamic, 1)
-        for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = feat2workindex_[batch.col_index[i]];
+        for (bst_omp_uint fid = 0; fid < nsize; ++fid) {
+          int offset = feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateSketchCol(gpair, batch[i], tree,
+            this->UpdateSketchCol(gpair, batch[fid], tree,
                                   work_set_size, offset,
                                   &thread_sketch_[omp_get_thread_num()]);
           }
@@ -494,7 +495,7 @@ class CQHistMaker: public HistMaker<TStats> {
   }
 
   inline void UpdateHistCol(const std::vector<GradientPair> &gpair,
-                            const ColBatch::Inst &c,
+                            const SparsePage::Inst &c,
                             const MetaInfo &info,
                             const RegTree &tree,
                             const std::vector<bst_uint> &fset,
@@ -546,7 +547,7 @@ class CQHistMaker: public HistMaker<TStats> {
     }
   }
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const ColBatch::Inst &c,
+                              const SparsePage::Inst &c,
                               const RegTree &tree,
                               size_t work_set_size,
                               bst_uint offset,
@@ -712,18 +713,18 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
       // start accumulating statistics
-      dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(this->work_set_);
+      auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
+        auto batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 
         // start enumeration
-        const auto nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = this->feat2workindex_[batch.col_index[i]];
+          int offset = this->feat2workindex_[this->work_set_[i]];
           if (offset >= 0) {
             this->UpdateHistCol(gpair, batch[i], info, tree,
                                 fset, offset,
@@ -769,19 +770,19 @@ class QuantileHistMaker: public HistMaker<TStats> {
       sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // start accumulating statistics
-    dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+    auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
+      auto batch = iter->Value();
       // parallel convert to column major format
-      common::ParallelGroupBuilder<SparseBatch::Entry>
+      common::ParallelGroupBuilder<Entry>
           builder(&col_ptr_, &col_data_, &thread_col_ptr_);
       builder.InitBudget(tree.param.num_feature, nthread);
 
-      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
+      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        RowBatch::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         int nid = this->position_[ridx];
         if (nid >= 0) {
@@ -800,13 +801,13 @@ class QuantileHistMaker: public HistMaker<TStats> {
       builder.InitStorage();
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        RowBatch::Inst inst = batch[i];
+        SparsePage::Inst inst = batch[i];
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         const int nid = this->position_[ridx];
         if (nid >= 0) {
           for (bst_uint j = 0; j < inst.length; ++j) {
             builder.Push(inst[j].index,
-                         SparseBatch::Entry(nid, inst[j].fvalue),
+                         Entry(nid, inst[j].fvalue),
                          omp_get_thread_num());
           }
         }
@@ -816,7 +817,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       #pragma omp parallel for schedule(dynamic, 1)
       for (bst_omp_uint k = 0; k < nfeat; ++k) {
         for (size_t i = col_ptr_[k]; i < col_ptr_[k+1]; ++i) {
-          const SparseBatch::Entry &e = col_data_[i];
+          const Entry &e = col_data_[i];
           const int wid = this->node2workindex_[e.index];
           sketchs_[wid * tree.param.num_feature + k].Push(e.fvalue, gpair[e.index].GetHess());
         }
@@ -873,7 +874,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
   // local temp column data structure
   std::vector<size_t> col_ptr_;
   // local storage of column data
-  std::vector<SparseBatch::Entry> col_data_;
+  std::vector<Entry> col_data_;
   std::vector<std::vector<size_t> > thread_col_ptr_;
   // per node, per feature sketch
   std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs_;

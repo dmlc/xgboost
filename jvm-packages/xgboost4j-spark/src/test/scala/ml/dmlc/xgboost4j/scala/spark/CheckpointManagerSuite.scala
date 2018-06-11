@@ -38,8 +38,8 @@ class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
     val trainingRDD = sc.parallelize(Classification.train).map(_.asML).cache()
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
-    (XGBoost.trainWithRDD(trainingRDD, paramMap, round = 2, sc.defaultParallelism),
-      XGBoost.trainWithRDD(trainingRDD, paramMap, round = 4, sc.defaultParallelism))
+    (XGBoost.trainWithRDD(trainingRDD, paramMap, round = 2, nWorkers = sc.defaultParallelism),
+      XGBoost.trainWithRDD(trainingRDD, paramMap, round = 4, nWorkers = sc.defaultParallelism))
   }
 
   test("test update/load models") {

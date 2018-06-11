@@ -29,7 +29,7 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     iter->BeforeFirst();
     while (iter->Next()) {
       auto batch = iter->Value();
-      for (int i = 0; i < batch.size; i++) {
+      for (int i = 0; i < batch.Size(); i++) {
         auto inst = batch[i];
         for (int j = 0; i < inst.length; i++) {
           ASSERT_EQ(inst[j].fvalue, 1.5);

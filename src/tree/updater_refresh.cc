@@ -57,15 +57,15 @@ class TreeRefresher: public TreeUpdater {
     {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
-      dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+       auto *iter = p_fmat->RowIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        const RowBatch &batch = iter->Value();
-        CHECK_LT(batch.size, std::numeric_limits<unsigned>::max());
-        const auto nbatch = static_cast<bst_omp_uint>(batch.size);
+         auto batch = iter->Value();
+        CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
+        const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nbatch; ++i) {
-          RowBatch::Inst inst = batch[i];
+          SparsePage::Inst inst = batch[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           RegTree::FVec &feats = fvec_temp[tid];
