@@ -16,6 +16,7 @@ option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+set(NCCL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/nccl" CACHE STRING "Location of NCCL library")
 
 # Deprecation warning
 if(PLUGIN_UPDATER_GPU)
@@ -118,7 +119,7 @@ if(USE_CUDA)
   include_directories(cub)
 
   if(USE_NCCL)
-    include_directories(nccl/src)
+    include_directories("${NCCL_ROOT}/include")
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
@@ -131,14 +132,10 @@ if(USE_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -Xcompiler -Werror; -std=c++11")
   endif()
 
-  if(USE_NCCL)
-    add_subdirectory(nccl)
-  endif()
-
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
   
   if(USE_NCCL)
-    target_link_libraries(gpuxgboost nccl)
+    target_link_libraries(gpuxgboost "${NCCL_ROOT}/lib/libnccl_static.a")
   endif()
   list(APPEND LINK_LIBRARIES gpuxgboost) 
 endif()

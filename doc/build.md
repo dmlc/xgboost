@@ -158,7 +158,14 @@ Other versions of Visual Studio may work but are untested.
 
 ### Building with GPU support
 
-XGBoost can be built with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. See [Installing R package with GPU support](#installing-r-package-with-gpu-support) for special instructions for R.
+Linux users may simply install prebuilt python binaries:
+```bash
+pip install xgboost
+```
+
+Third party windows binaries with GPU support [are available here](http://www.picnet.com.au/blogs/guido/2016/09/22/xgboost-windows-x64-binaries-for-download/).
+
+XGBoost can be built from source with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. See [Installing R package with GPU support](#installing-r-package-with-gpu-support) for special instructions for R.
 
 An up-to-date version of the CUDA toolkit is required.
 
@@ -189,11 +196,15 @@ cmake --build . --target xgboost --config Release
 ```
 If build seems to use only a single process, you might try to append an option like ` -- /m:6` to the above command.
 
-### Windows Binaries
-
 After the build process successfully ends, you will find a `xgboost.dll` library file inside `./lib/` folder, copy this file to the the API package folder like `python-package/xgboost` if you are using *python* API. And you are good to follow the below instructions.
 
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
+
+#### Building with Multi-GPU support
+Multi-GPU support requires the [NCCL](https://developer.nvidia.com/nccl) library. With NCCL installed, run cmake as:
+```bash
+cmake .. -DUSE_CUDA=ON -USE_NCCL=ON -NCCL_ROOT="<NCCL_DIRECTORY>"
+```
 
 ### Customized Building
 

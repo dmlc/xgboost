@@ -961,7 +961,6 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised);
 
-    dh::safe_cuda(cudaSetDevice(device_ordinals[communication_group_idx]));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum,
                                 comms[communication_group_idx],
                                 streams[communication_group_idx]));
@@ -973,7 +972,7 @@ class AllReducer {
    *
    * \param count Number of.
    *
-   * \param communication_group_idx Zero-based index of the communication group. \param sendbuff.
+   * \param communication_group_idx Zero-based index of the communication group. 
    * \param sendbuff                The sendbuff.
    * \param recvbuff                The recvbuff.
    * \param count                   Number of.
@@ -984,7 +983,6 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised);
 
-    dh::safe_cuda(cudaSetDevice(device_ordinals[communication_group_idx]));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum,
                                 comms[communication_group_idx],
                                 streams[communication_group_idx]));
