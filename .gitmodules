@@ -4,9 +4,6 @@
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/dmlc/rabit
-[submodule "nccl"]
-	path = nccl
-	url = https://github.com/dmlc/nccl
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub

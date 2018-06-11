@@ -740,14 +740,15 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void AllReduceHist(int nidx) {
-    for (auto& shard : shards_) {
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
       auto d_node_hist = shard->hist.GetHistPtr(nidx);
       reducer_.AllReduceSum(
           shard->normalised_device_idx,
           reinterpret_cast<GradientPairSumT::ValueT*>(d_node_hist),
           reinterpret_cast<GradientPairSumT::ValueT*>(d_node_hist),
-          n_bins_ * (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
-    }
+          n_bins_ *
+              (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
+    });
 
     reducer_.Synchronize();
   }
