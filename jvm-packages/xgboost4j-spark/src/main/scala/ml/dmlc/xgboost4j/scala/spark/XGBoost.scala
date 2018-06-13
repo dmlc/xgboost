@@ -21,10 +21,12 @@ import java.nio.file.Files
 
 import scala.collection.mutable
 import scala.util.Random
+
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.rdd.RDD
@@ -54,8 +56,8 @@ object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
   private def removeMissingValues(
-      denseLabeledPoints: Seq[XGBLabeledPoint],
-      missing: Float): Seq[XGBLabeledPoint] = {
+      denseLabeledPoints: Iterator[XGBLabeledPoint],
+      missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
       denseLabeledPoints.map { labeledPoint =>
         val indicesBuilder = new mutable.ArrayBuilder.ofInt()
@@ -127,7 +129,7 @@ object XGBoost extends Serializable {
       rabitEnv.put("DMLC_TASK_ID", taskId)
       Rabit.init(rabitEnv)
       val watches = Watches(params,
-        removeMissingValues(labeledPoints.toSeq, missing),
+        removeMissingValues(labeledPoints, missing),
         fromBaseMarginsToArray(baseMargins), cacheDirName)
 
       try {
@@ -306,7 +308,7 @@ private class Watches private(
 
 private object Watches {
 
-  def formatGroups(groups: Seq[Int]): Seq[Int] = {
+  def buildGroups(groups: Seq[Int]): Seq[Int] = {
     val output = mutable.ArrayBuffer.empty[Int]
     var count = 1
     var i = 1
@@ -325,7 +327,7 @@ private object Watches {
 
   def apply(
       params: Map[String, Any],
-      labeledPoints: Seq[XGBLabeledPoint],
+      labeledPoints: Iterator[XGBLabeledPoint],
       baseMarginsOpt: Option[Array[Float]],
       cacheDirName: Option[String]): Watches = {
     val trainTestRatio = params.get("train_test_ratio").map(_.toString.toDouble).getOrElse(1.0)
@@ -341,13 +343,14 @@ private object Watches {
       accepted
     }
 
-    val trainMatrix = new DMatrix(trainPoints.iterator, cacheDirName.map(_ + "/train").orNull)
-    val trainGroups = formatGroups(trainPoints.map(_.group)).toArray
+    val (trainIter1, trainIter2) = trainPoints.duplicate
+    val trainMatrix = new DMatrix(trainIter1, cacheDirName.map(_ + "/train").orNull)
+    val trainGroups = buildGroups(trainIter2.map(_.group).toSeq).toArray
     trainMatrix.setGroup(trainGroups)
 
     val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull)
     if (trainTestRatio < 1.0) {
-      val testGroups = formatGroups(testPoints.map(_.group)).toArray
+      val testGroups = buildGroups(testPoints.map(_.group)).toArray
       testMatrix.setGroup(testGroups)
     }
 
