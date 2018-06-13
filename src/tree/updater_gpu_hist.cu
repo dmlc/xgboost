@@ -464,17 +464,6 @@ struct DeviceShard {
     auto max_smem = dh::MaxSharedMemory(device_idx);
     can_use_smem_atomics = (bin_size <= max_smem);
 
-    // Compress gidx
-    common::CompressedBufferWriter cbw(num_symbols);
-    std::vector<common::CompressedByteT> host_buffer(gidx_buffer.Size());
-    cbw.Write(host_buffer.data(), ellpack_matrix.begin(), ellpack_matrix.end());
-    gidx_buffer = host_buffer;
-    gidx =
-        common::CompressedIterator<uint32_t>(gidx_buffer.Data(), num_symbols);
-
-    common::CompressedIterator<uint32_t> ci_host(host_buffer.data(),
-                                                 num_symbols);
-
     // Init histogram
     hist.Init(device_idx, max_nodes, hmat.row_ptr.back(), param.silent);
 
@@ -559,6 +548,9 @@ struct DeviceShard {
     const int grid_size =
         static_cast<int>(dh::DivRoundUp(n_elements,
                                         ITEMS_PER_THREAD * BLOCK_THREADS));
+    if (grid_size <= 0) {
+      return;
+    }
     dh::safe_cuda(cudaSetDevice(device_idx));
     sharedMemHistKernel<<<grid_size, BLOCK_THREADS, smem_size>>>
         (row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist, d_gpair,
