@@ -284,19 +284,19 @@ __global__ void sharedMemHistKernel(size_t row_stride,
                                     size_t n_elements) {
   extern __shared__ char smem[];
   GradientPairSumT* smem_arr = reinterpret_cast<GradientPairSumT*>(smem); // NOLINT
-  for (int i = threadIdx.x; i < null_gidx_value; i += blockDim.x) {
+  for (auto i : dh::BlockStrideRange(0, null_gidx_value)) {
     smem_arr[i] = GradientPairSumT();
   }
   __syncthreads();
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[(idx / row_stride) + segment_begin];
+    int ridx = d_ridx[idx / row_stride + segment_begin];
     int gidx = d_gidx[ridx * row_stride + idx % row_stride];
     if (gidx != null_gidx_value) {
       AtomicAddGpair(smem_arr + gidx, d_gpair[ridx]);
     }
   }
   __syncthreads();
-  for (int i = threadIdx.x; i < null_gidx_value; i += blockDim.x) {
+  for (auto i : dh::BlockStrideRange(0, null_gidx_value)) {
     AtomicAddGpair(d_node_hist + i, smem_arr[i]);
   }
 }
@@ -358,7 +358,8 @@ struct DeviceShard {
       n_bins(n_bins),
       null_gidx_value(n_bins),
       param(param),
-      prediction_cache_initialised(false) {}
+      prediction_cache_initialised(false),
+      can_use_smem_atomics(false) {}
 
   void Init(const common::HistCutMatrix& hmat, const RowBatch& row_batch) {
     // copy cuts to the GPU
@@ -460,9 +461,9 @@ struct DeviceShard {
 
     // check if we can use shared memory for building histograms
     // (assuming atleast we need 2 CTAs per SM to maintain decent latency hiding)
-    auto bin_size = sizeof(GradientPairSumT) * null_gidx_value;
+    auto histogram_size = sizeof(GradientPairSumT) * null_gidx_value;
     auto max_smem = dh::MaxSharedMemory(device_idx);
-    can_use_smem_atomics = (bin_size <= max_smem);
+    can_use_smem_atomics = histogram_size <= max_smem;
 
     // Init histogram
     hist.Init(device_idx, max_nodes, hmat.row_ptr.back(), param.silent);
