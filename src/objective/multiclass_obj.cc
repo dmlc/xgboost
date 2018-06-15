@@ -57,7 +57,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
         for (int k = 0; k < nclass; ++k) {
           rec[k] = preds_h[i * nclass + k];
         }
-        common::Softmax(&rec);
+        common::Softmax(rec.begin(), rec.end());
         auto label = static_cast<int>(info.labels_[i]);
         if (label < 0 || label >= nclass)  {
           label_error = label; label = 0;
@@ -110,7 +110,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           tmp[j] = static_cast<bst_float>(
               common::FindMaxIndex(rec.begin(), rec.end()) - rec.begin());
         } else {
-          common::Softmax(&rec);
+          common::Softmax(rec.begin(), rec.end());
           for (int k = 0; k < nclass; ++k) {
             preds[j * nclass + k] = rec[k];
           }
