@@ -31,6 +31,7 @@ This command will publish the xgboost binaries, the compiled java classes as wel
       <version>0.72</version>
     </dependency>
 
+For sbt, please add the repository and dependency in build.sbt as following:
 
 <b>sbt</b> 
 ```sbt
