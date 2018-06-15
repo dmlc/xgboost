@@ -170,6 +170,19 @@ trait HasBaseMarginCol extends Params {
   final def getBaseMarginCol: String = $(baseMarginCol)
 }
 
+trait HasGroupCol extends Params {
+
+  /**
+   * Param for group column name.
+   * @group param
+   */
+  final val groupCol: Param[String] = new Param[String](this, "groupCol", "group column name.")
+
+  /** @group getParam */
+  final def getGroupCol: String = $(groupCol)
+
+}
+
 trait HasNumClass extends Params {
 
   /**

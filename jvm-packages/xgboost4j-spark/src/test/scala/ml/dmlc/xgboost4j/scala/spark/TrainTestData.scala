@@ -16,6 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.mutable
 import scala.io.Source
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
@@ -45,6 +46,17 @@ trait TrainTestData {
       }
 
       XGBLabeledPoint(label, null, values)
+    }.toList
+  }
+
+  protected def getLabeledPointsWithGroup(resource: String): Seq[XGBLabeledPoint] = {
+    getResourceLines(resource).map { line =>
+      val original = line.split(",")
+      val length = original.length
+      val label = original.head.toFloat
+      val group = original.last.toInt
+      val values = original.slice(1, length - 1).map(_.toFloat)
+      XGBLabeledPoint(label, null, values, 1f, group, Float.NaN)
     }.toList
   }
 }
@@ -79,11 +91,8 @@ object Regression extends TrainTestData {
 }
 
 object Ranking extends TrainTestData {
-  val train0: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo-0.txt.train", zeroBased = false)
-  val train1: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo-1.txt.train", zeroBased = false)
-  val trainGroup0: Seq[Int] = getGroups("/rank-demo-0.txt.train.group")
-  val trainGroup1: Seq[Int] = getGroups("/rank-demo-1.txt.train.group")
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo.txt.test", zeroBased = false)
+  val train: Seq[XGBLabeledPoint] = getLabeledPointsWithGroup("/rank.train.csv")
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/rank.test.txt", zeroBased = false)
 
   private def getGroups(resource: String): Seq[Int] = {
     getResourceLines(resource).map(_.toInt).toList

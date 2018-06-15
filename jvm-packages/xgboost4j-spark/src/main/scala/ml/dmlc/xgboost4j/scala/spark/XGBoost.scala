@@ -308,6 +308,23 @@ private class Watches private(
 
 private object Watches {
 
+  def buildGroups(groups: Seq[Int]): Seq[Int] = {
+    val output = mutable.ArrayBuffer.empty[Int]
+    var count = 1
+    var i = 1
+    while (i < groups.length) {
+      if (groups(i) != groups(i - 1)) {
+        output += count
+        count = 1
+      } else {
+        count += 1
+      }
+      i += 1
+    }
+    output += count
+    output
+  }
+
   def apply(
       params: Map[String, Any],
       labeledPoints: Iterator[XGBLabeledPoint],
@@ -325,8 +342,18 @@ private object Watches {
 
       accepted
     }
-    val trainMatrix = new DMatrix(trainPoints, cacheDirName.map(_ + "/train").orNull)
+
+    val (trainIter1, trainIter2) = trainPoints.duplicate
+    val trainMatrix = new DMatrix(trainIter1, cacheDirName.map(_ + "/train").orNull)
+    val trainGroups = buildGroups(trainIter2.map(_.group).toSeq).toArray
+    trainMatrix.setGroup(trainGroups)
+
     val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull)
+    if (trainTestRatio < 1.0) {
+      val testGroups = buildGroups(testPoints.map(_.group)).toArray
+      testMatrix.setGroup(testGroups)
+    }
+
     r.setSeed(seed)
     for (baseMargins <- baseMarginsOpt) {
       val (trainMargin, testMargin) = baseMargins.partition(_ => r.nextDouble() <= trainTestRatio)
@@ -334,11 +361,6 @@ private object Watches {
       testMatrix.setBaseMargin(testMargin)
     }
 
-    // TODO: use group attribute from the points.
-    if (params.contains("group_data") && params("group_data") != null) {
-      trainMatrix.setGroup(params("group_data").asInstanceOf[Seq[Seq[Int]]](
-        TaskContext.getPartitionId()).toArray)
-    }
     new Watches(trainMatrix, testMatrix, cacheDirName)
   }
 }

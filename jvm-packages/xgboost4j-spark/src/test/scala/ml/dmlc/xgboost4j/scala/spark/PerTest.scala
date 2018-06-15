@@ -77,4 +77,17 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
       .toDF("id", "label", "features")
   }
+
+  protected def buildDataFrameWithGroup(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group)
+      }
+
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+      .toDF("id", "label", "features", "group")
+  }
 }

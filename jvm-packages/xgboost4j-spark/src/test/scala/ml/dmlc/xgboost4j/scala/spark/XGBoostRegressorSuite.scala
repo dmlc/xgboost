@@ -84,6 +84,19 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     }
   }
 
+  test("ranking: use group data") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
+      "group_col" -> "group")
+
+    val trainingDF = buildDataFrameWithGroup(Ranking.train)
+    val testDF = buildDataFrame(Ranking.test)
+    val model = new XGBoostRegressor(paramMap).fit(trainingDF)
+
+    val prediction = model.transform(testDF).collect()
+    assert(testDF.count() === prediction.length)
+  }
+
   test("use weight") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
