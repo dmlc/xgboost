@@ -28,9 +28,8 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
     val training = buildDataFrame(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic", "num_workers" -> sc.defaultParallelism)
-    val _model4 = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
-    val _model8 = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 4)).fit(training)
-    (_model4, _model8)
+    (new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training),
+    new XGBoostClassifier(paramMap ++ Seq("num_round" -> 4)).fit(training))
   }
 
   test("test update/load models") {
