@@ -15,12 +15,13 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.util.Arrays;
-import java.util.Random;
-
 import junit.framework.TestCase;
 import ml.dmlc.xgboost4j.LabeledPoint;
+import ml.dmlc.xgboost4j.scala.Classification$;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Random;
 
 /**
  * test cases for DMatrix
@@ -51,9 +52,9 @@ public class DMatrixTest {
   }
 
   @Test
-  public void testCreateFromFile() throws XGBoostError {
+  public void  testCreateFromFile() throws XGBoostError {
     //create DMatrix from file
-    DMatrix dmat = new DMatrix("../../demo/data/agaricus.txt.test");
+    DMatrix dmat = new DMatrix(Classification$.MODULE$.testFile().toString());
     //get label
     float[] labels = dmat.getLabel();
     //check length

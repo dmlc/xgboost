@@ -25,7 +25,7 @@ import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 
 class DMatrixSuite extends FunSuite {
   test("create DMatrix from File") {
-    val dmat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val dmat = new DMatrix(Classification.testFile.toString)
     // get label
     val labels: Array[Float] = dmat.getLabel
     // check length

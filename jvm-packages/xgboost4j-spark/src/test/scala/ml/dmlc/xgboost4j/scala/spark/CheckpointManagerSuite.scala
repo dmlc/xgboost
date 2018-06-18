@@ -19,9 +19,10 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import ml.dmlc.xgboost4j.scala.Classification
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
   var sc: SparkContext = _

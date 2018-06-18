@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+import ml.dmlc.xgboost4j.scala.{Booster, Classification, DMatrix}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}

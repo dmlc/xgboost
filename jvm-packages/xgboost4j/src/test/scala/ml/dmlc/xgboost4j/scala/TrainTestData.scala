@@ -14,15 +14,33 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark
+package ml.dmlc.xgboost4j.scala
+
+import java.io.File
+import java.nio.file.{Files, StandardCopyOption}
 
 import scala.io.Source
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 trait TrainTestData {
+  protected def getResourceFile(resource: String): File = {
+    val is = getClass.getResourceAsStream(resource)
+    if (is == null) {
+      sys.error(s"failed to resolve resource $resource")
+    }
+
+    try {
+      val file = File.createTempFile(resource.substring(1), "")
+      Files.copy(is, file.toPath, StandardCopyOption.REPLACE_EXISTING)
+      file.deleteOnExit()
+      file
+    } finally {
+      is.close()
+    }
+  }
+
   protected def getResourceLines(resource: String): Iterator[String] = {
-    require(resource.startsWith("/"), "resource must start with /")
     val is = getClass.getResourceAsStream(resource)
     if (is == null) {
       sys.error(s"failed to resolve resource $resource")
@@ -51,6 +69,9 @@ trait TrainTestData {
 }
 
 object Classification extends TrainTestData {
+  private[xgboost4j] val trainFile = getResourceFile("/agaricus.txt.train")
+  private[xgboost4j] val testFile = getResourceFile("/agaricus.txt.test")
+
   val train: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
   val test: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
 }
