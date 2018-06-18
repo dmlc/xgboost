@@ -57,11 +57,11 @@ the add dependency as following:
  "ml.dmlc" % "xgboost4j" % "latest_version_num"
 ``` 
 
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
 if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
 
 ## Examples
-
-latest_version_num=0.72
 
 Full code examples for Scala, Java, Apache Spark, and Apache Flink can
 be found in the [examples package](https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example).

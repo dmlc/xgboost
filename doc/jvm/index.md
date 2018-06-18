@@ -45,8 +45,6 @@ resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/
 "ml.dmlc" % "xgboost4j" % "latest_source_version_num"
 ``` 
 
-e.g. 
-latest_source_version_num=0.80-SNAPSHOT
 
 #### Installation from repo
 
@@ -85,7 +83,7 @@ the add dependency as following:
  "ml.dmlc" % "xgboost4j" % "latest_version_num"
 ```
 
-e.g. latest_version_num=0.72
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
 
 After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=2.0.0 package`.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like `spark.version`, `scala.version`, and `scala.binary.version`. Users also need to change the implementation by replacing SparkSession with SQLContext and the type of API parameters from Dataset[_] to Dataframe)
 
