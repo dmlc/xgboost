@@ -507,55 +507,66 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   API_END();
 }
 
-int DTGetType(const wchar_t* type_string) {
-  if (wcscmp(type_string, L"float32") == 0) {
-    return 0;
-  } else if (wcscmp(type_string, L"float64") == 0) {
-    return 1;
-  } else if (wcscmp(type_string, L"bool8") == 0) {
-    return 2;
-  } else if (wcscmp(type_string, L"int32") == 0) {
-    return 3;
-  } else if (wcscmp(type_string, L"int8") == 0) {
-    return 4;
-  } else if (wcscmp(type_string, L"int16") == 0) {
-    return 5;
-  } else if (wcscmp(type_string, L"int64") == 0) {
-    return 6;
+enum class DTType : uint8_t {
+  kFloat32 = 0,
+  kFloat64 = 1,
+  kBool8 = 2,
+  kInt32 = 3,
+  kInt8 = 4,
+  kInt16 = 5,
+  kInt64 = 6,
+  kUnknown = 7
+};
+
+DTType DTGetType(std::string type_string) {
+  if (type_string == "float32") {
+    return DTType::kFloat32;
+  } else if (type_string == "float64") {
+    return DTType::kFloat64;
+  } else if (type_string == "bool8") {
+    return DTType::kBool8;
+  } else if (type_string == "int32") {
+    return DTType::kInt32;
+  } else if (type_string == "int8") {
+    return DTType::kInt8;
+  } else if (type_string == "int16") {
+    return DTType::kInt16;
+  } else if (type_string == "int64") {
+    return DTType::kInt64;
   } else {
     LOG(FATAL) << "Unknown data table type.";
-    return -1;
+    return DTType::kUnknown;
   }
 }
 
-float DTGetValue(void* column, int dt_type, size_t ridx) {
+float DTGetValue(void* column, DTType dt_type, size_t ridx) {
   float missing = std::numeric_limits<float>::quiet_NaN();
   switch (dt_type) {
-    case 0: {
+    case DTType::kFloat32: {
       float val = reinterpret_cast<float*>(column)[ridx];
       return std::isfinite(val) ? val : missing;
     }
-    case 1: {
+    case DTType::kFloat64: {
       double val = reinterpret_cast<double*>(column)[ridx];
       return std::isfinite(val) ? static_cast<float>(val) : missing;
     }
-    case 2: {
+    case DTType::kBool8: {
       bool val = reinterpret_cast<bool*>(column)[ridx];
       return static_cast<float>(val);
     }
-    case 3: {
+    case DTType::kInt32: {
       int32_t val = reinterpret_cast<int32_t*>(column)[ridx];
       return val != (-2147483647 - 1) ? static_cast<float>(val) : missing;
     }
-    case 4: {
+    case DTType::kInt8: {
       int8_t val = reinterpret_cast<int8_t*>(column)[ridx];
       return val != -128 ? static_cast<float>(val) : missing;
     }
-    case 5: {
+    case DTType::kInt16: {
       int16_t val = reinterpret_cast<int16_t*>(column)[ridx];
       return val != -32768 ? static_cast<float>(val) : missing;
     }
-    case 6: {
+    case DTType::kInt64: {
       int64_t val = reinterpret_cast<int64_t*>(column)[ridx];
       return val != -9223372036854775807 - 1 ? static_cast<float>(val)
                                              : missing;
@@ -567,7 +578,7 @@ float DTGetValue(void* column, int dt_type, size_t ridx) {
   }
 }
 
-XGB_DLL int XGDMatrixCreateFromDT(void** data, const wchar_t** feature_stypes,
+XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
                                   xgboost::bst_ulong nrow,
                                   xgboost::bst_ulong ncol, DMatrixHandle* out,
                                   int nthread) {
@@ -592,7 +603,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const wchar_t** feature_stypes,
   {
     // Count elements per row, column by column
     for (auto j = 0; j < ncol; ++j) {
-      int dtype = DTGetType(feature_stypes[j]);
+      DTType dtype = DTGetType(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         float val = DTGetValue(data[j], dtype, i);
@@ -612,7 +623,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const wchar_t** feature_stypes,
 #pragma omp parallel num_threads(nthread)
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      int dtype = DTGetType(feature_stypes[j]);
+      DTType dtype = DTGetType(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         float val = DTGetValue(data[j], dtype, i);

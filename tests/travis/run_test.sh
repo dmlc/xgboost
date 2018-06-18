@@ -53,7 +53,7 @@ if [ ${TASK} == "python_test" ]; then
     wget http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
     tar xf clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
     export LLVM5=$(pwd)/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04
-    python -m pip install datatable
+    python -m pip install datatable --no-binary datatable
 
     python -m pip install graphviz pytest pytest-cov codecov
     python -m nose tests/python || exit -1

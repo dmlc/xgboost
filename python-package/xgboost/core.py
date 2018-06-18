@@ -246,7 +246,6 @@ def _maybe_dt_data(data, feature_names, feature_types):
         if feature_types is not None:
             raise ValueError('DataTable has own feature types, cannot pass them in')
         else:
-            data_types_names = tuple(lt.name for lt in data.ltypes)
             feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
 
     return data, feature_names, feature_types
@@ -257,7 +256,7 @@ def _maybe_dt_array(array):
     if not isinstance(array, DataTable) or array is None:
         return array
 
-    if array is not None and array.shape[1] > 1:
+    if array.shape[1] > 1:
         raise ValueError('DataTable for label or weight cannot have multiple columns')
 
     # below requires new dt version
@@ -437,14 +436,14 @@ class DMatrix(object):
             ptrs[icol] = ctypes.c_void_p(ptr)
 
         # always return stypes for dt ingestion
-        feature_stypes = (ctypes.c_wchar_p * data.ncols)()
+        feature_type_strings = (ctypes.c_char_p * data.ncols)()
         for icol in range(data.ncols):
-            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol].name)
+            feature_type_strings[icol] = ctypes.c_char_p(data.stypes[icol].name.encode('utf-8'))
 
         self.handle = ctypes.c_void_p()
 
         _check_call(_LIB.XGDMatrixCreateFromDT(
-            ptrs, feature_stypes,
+            ptrs, feature_type_strings,
             c_bst_ulong(data.shape[0]),
             c_bst_ulong(data.shape[1]),
             ctypes.byref(self.handle),

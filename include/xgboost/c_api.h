@@ -230,7 +230,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromDT(void** data,
-                                  const wchar_t ** feature_stypes,
+                                  const char ** feature_stypes,
                                   bst_ulong nrow,
                                   bst_ulong ncol,
                                   DMatrixHandle* out,
@@ -277,7 +277,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
  * \param field field name
- * \param array pointer to pointer to columns
+ * \param array pointer to unsigned int vector
  * \param len length of array
  * \return 0 when success, -1 when failure happens
  */

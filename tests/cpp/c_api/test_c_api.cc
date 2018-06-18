@@ -6,10 +6,10 @@
 TEST(c_api, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
-  const wchar_t *col0_type = L"int32";
-  const wchar_t *col1_type = L"float32";
+  const char *col0_type = "int32";
+  const char *col1_type = "float32";
   std::vector<void *> data = {col0.data(), col1.data()};
-  std::vector<const wchar_t *> types = {col0_type, col1_type};
+  std::vector<const char *> types = {col0_type, col1_type};
   DMatrixHandle handle;
   XGDMatrixCreateFromDT(data.data(), types.data(), 3, 2, &handle,
                         0);
