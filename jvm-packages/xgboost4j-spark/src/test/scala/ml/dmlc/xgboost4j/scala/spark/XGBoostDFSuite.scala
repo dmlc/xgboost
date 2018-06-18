@@ -194,6 +194,8 @@ class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyCheck
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
     assert(model.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
+    assert(model.get[Int](model.round).get == 5)
+    assert(model.get[String](model.objective).get == "multi:softmax")
   }
 
   test("test use base margin") {

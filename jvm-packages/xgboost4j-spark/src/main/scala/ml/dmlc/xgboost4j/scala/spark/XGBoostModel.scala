@@ -17,13 +17,10 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.Rabit
-import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
+import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, BoostingParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
-
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
-
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
@@ -39,8 +36,8 @@ import org.json4s.DefaultFormats
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
  */
 abstract class XGBoostModel(protected var _booster: Booster)
-  extends PredictionModel[MLVector, XGBoostModel] with BoosterParams with Serializable
-    with Params with MLWritable {
+  extends PredictionModel[MLVector, XGBoostModel] with BoosterParams
+    with BoostingParams with Serializable with MLWritable {
 
   private var trainingSummary: Option[XGBoostTrainingSummary] = None
 

@@ -35,8 +35,8 @@ import org.json4s.DefaultFormats
  */
 class XGBoostEstimator private[spark](
   override val uid: String, xgboostParams: Map[String, Any])
-  extends Predictor[Vector, XGBoostEstimator, XGBoostModel]
-  with LearningTaskParams with GeneralParams with BoosterParams with MLWritable {
+  extends Predictor[Vector, XGBoostEstimator, XGBoostModel] with BoostingParams
+    with LearningTaskParams with GeneralParams with BoosterParams with MLWritable {
 
   def this(xgboostParams: Map[String, Any]) =
     this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any])
