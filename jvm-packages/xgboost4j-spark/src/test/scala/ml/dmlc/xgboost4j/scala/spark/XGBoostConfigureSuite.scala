@@ -17,36 +17,34 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
 class XGBoostConfigureSuite extends FunSuite with PerTest {
+
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .config("spark.kryo.classesToRegister", classOf[Booster].getName)
 
   test("nthread configuration must be no larger than spark.task.cpus") {
+    val training = buildDataFrame(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic",
+      "objective" -> "binary:logistic", "num_workers" -> numWorkers,
       "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
-      XGBoost.trainWithRDD(sc.parallelize(List()), paramMap, 5, numWorkers)
+      new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
     }
   }
 
   test("kryoSerializer test") {
-    import DataUtils._
     // TODO write an isolated test for Booster.
-    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
-    val testSetDMatrix = new DMatrix(Classification.test.iterator, null)
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
+
+    val model = new XGBoostClassifier(paramMap).fit(training)
     val eval = new EvalError()
-    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
-      testSetDMatrix) < 0.1)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 }
