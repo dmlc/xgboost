@@ -90,7 +90,7 @@ trait GeneralParams extends Params {
     * the trained model will get checkpointed every 10 iterations. Note: `checkpoint_path` must
     * also be set if the checkpoint interval is greater than 0.
     */
-  val checkpointInterval: IntParam = new IntParam(this, "checkpointInterval", "set checkpoint " +
+  val checkpointInterval: IntParam = new IntParam(this, "checkpoint_interval", "set checkpoint " +
     "interval (>= 1) or disable checkpoint (-1). E.g. 10 means that the trained model will get " +
     "checkpointed every 10 iterations. Note: `checkpoint_path` must also be set if the checkpoint" +
     " interval is greater than 0.", (interval: Int) => interval == -1 || interval >= 1)

@@ -16,8 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.nio.file.Files
+
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
@@ -136,6 +139,21 @@ class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyCheck
     val xgbEstimatorCopy = xgbEstimator.copy(ParamMap.empty)
     assert(xgbEstimatorCopy.fromParamsToXGBParamMap("eta").toString.toDouble === 1.0)
     assert(xgbEstimatorCopy.fromParamsToXGBParamMap("objective").toString === "binary:logistic")
+  }
+
+  test("test checkpointing with dataframe-based training") {
+    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "checkpoint_interval" -> "1")
+    val round = 5
+    val trainingDF = buildDataFrame(Classification.train)
+    XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = round, nWorkers = numWorkers)
+
+    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    assert(files.length == 1)
+    assert(files.head.getPath.getName.endsWith(".model"))
   }
 
   test("eval_metric is configured correctly") {
