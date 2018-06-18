@@ -28,11 +28,13 @@ This command will publish the xgboost binaries, the compiled java classes as wel
 
 <b>maven</b>
 
-    <dependency>
-      <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j</artifactId>
-      <version>latest_source_version_num</version>
-    </dependency>
+```
+<dependency>
+  <groupId>ml.dmlc</groupId>
+  <artifactId>xgboost4j</artifactId>
+  <version>latest_source_version_num</version>
+</dependency>
+```
 
 For sbt, please add the repository and dependency in build.sbt as following:
 
