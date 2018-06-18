@@ -544,16 +544,16 @@ struct DeviceShard {
     auto n_elements = segment.Size() * row_stride;
 
     const size_t smem_size = sizeof(GradientPairSumT) * null_gidx_value;
-    const int ITEMS_PER_THREAD = 8;
-    const int BLOCK_THREADS = 256;
+    const int items_per_thread = 8;
+    const int block_threads = 256;
     const int grid_size =
         static_cast<int>(dh::DivRoundUp(n_elements,
-                                        ITEMS_PER_THREAD * BLOCK_THREADS));
+                                        items_per_thread * block_threads));
     if (grid_size <= 0) {
       return;
     }
     dh::safe_cuda(cudaSetDevice(device_idx));
-    sharedMemHistKernel<<<grid_size, BLOCK_THREADS, smem_size>>>
+    sharedMemHistKernel<<<grid_size, block_threads, smem_size>>>
         (row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist, d_gpair,
          segment_begin, n_elements);
   }
