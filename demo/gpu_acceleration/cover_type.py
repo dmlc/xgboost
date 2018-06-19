@@ -17,7 +17,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, train_
 num_round = 3000
 
 # Leave most parameters as default
-param = {'objective': 'multi:softmax', # Specify multiclass classification
+param = {'objective': 'gpu:multi:softmax', # Specify multiclass classification
          'num_class': 8, # Number of possible output classes
          'tree_method': 'gpu_hist' # Use GPU accelerated algorithm
          }
