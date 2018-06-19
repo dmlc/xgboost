@@ -12,6 +12,7 @@
 #include <vector>
 #include "row_set.h"
 #include "../tree/fast_hist_param.h"
+#include "./quantile.h"
 
 namespace xgboost {
 namespace common {
@@ -77,9 +78,14 @@ struct HistCutMatrix {
     return {dmlc::BeginPtr(cut) + row_ptr[fid],
                        row_ptr[fid + 1] - row_ptr[fid]};
   }
+
+  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
   void Init(DMatrix* p_fmat, uint32_t max_num_bins);
+
+  void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 };
 
 

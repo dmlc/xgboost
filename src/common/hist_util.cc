@@ -43,18 +43,28 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
-      for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-        size_t ridx = batch.base_rowid + i;
-        SparsePage::Inst inst = batch[i];
-        for (bst_uint j = 0; j < inst.length; ++j) {
-          if (inst[j].index >= begin && inst[j].index < end) {
-            sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
+      // do not iterate if no columns are assigned to the thread
+      if (begin < end && end <= ncol) {
+        for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
+          size_t ridx = batch.base_rowid + i;
+          SparsePage::Inst inst = batch[i];
+          for (bst_uint j = 0; j < inst.length; ++j) {
+            if (inst[j].index >= begin && inst[j].index < end) {
+              sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
+            }
           }
         }
       }
     }
   }
 
+  Init(&sketchs, max_num_bins);
+}
+
+void HistCutMatrix::Init
+(std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
+  std::vector<WXQSketch>& sketchs = *in_sketchs;
+  const int kFactor = 8;
   // gather the histogram data
   rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   std::vector<WXQSketch::SummaryContainer> summary_array;
@@ -68,7 +78,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
 
-  this->min_val.resize(info.num_col_);
+  this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WXQSketch::SummaryContainer a;

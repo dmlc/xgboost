@@ -20,7 +20,7 @@ def non_increasing(L, tolerance):
 # Check result is always decreasing and final accuracy is within tolerance
 def assert_accuracy(res, tree_method, comparison_tree_method, tolerance, param):
     assert non_increasing(res[tree_method], tolerance)
-    assert np.allclose(res[tree_method][-1], res[comparison_tree_method][-1], 1e-3, 1e-2)
+    assert np.allclose(res[tree_method][-1], res[comparison_tree_method][-1], 2e-2, 1e-2)
 
 
 def train_boston(param_in, comparison_tree_method):
@@ -94,6 +94,25 @@ def train_sparse(param_in, comparison_tree_method):
     res[comparison_tree_method] = res_tmp['train']['rmse']
     return res
 
+def train_sparse_weights(param_in, comparison_tree_method):
+    n = 10000
+    sparsity = 0.25
+    X, y = make_regression(n, random_state=rng)
+    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    w = np.array([rng.uniform(1, 10) for i in range(n)])
+    dtrain = xgb.DMatrix(X, label=y, weight=w)
+    param = {}
+    param.update(param_in)
+    res_tmp = {}
+    res = {}
+    num_rounds = 10
+    bst = xgb.train(param, dtrain, num_rounds, [(dtrain, 'train')], evals_result=res_tmp)
+    res[param['tree_method']] = res_tmp['train']['rmse']
+    param["tree_method"] = comparison_tree_method
+    bst = xgb.train(param, dtrain, num_rounds, [(dtrain, 'train')], evals_result=res_tmp)
+    res[comparison_tree_method] = res_tmp['train']['rmse']
+    return res
+
 
 # Enumerates all permutations of variable parameters
 def assert_updater_accuracy(tree_method, comparison_tree_method, variable_param, tolerance):
@@ -109,14 +128,16 @@ def assert_updater_accuracy(tree_method, comparison_tree_method, variable_param,
             param_tmp[name] = set[i]
 
         print(param_tmp, file=sys.stderr)
-        assert_accuracy(train_boston(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
-                        param_tmp)
-        assert_accuracy(train_digits(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
-                        param_tmp)
-        assert_accuracy(train_cancer(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
-                        param_tmp)
-        assert_accuracy(train_sparse(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
-                        param_tmp)
+        assert_accuracy(train_boston(param_tmp, comparison_tree_method),
+                        tree_method, comparison_tree_method, tolerance, param_tmp)
+        assert_accuracy(train_digits(param_tmp, comparison_tree_method),
+                        tree_method, comparison_tree_method, tolerance, param_tmp)
+        assert_accuracy(train_cancer(param_tmp, comparison_tree_method),
+                        tree_method, comparison_tree_method, tolerance, param_tmp)
+        assert_accuracy(train_sparse(param_tmp, comparison_tree_method),
+                        tree_method, comparison_tree_method, tolerance, param_tmp)
+        assert_accuracy(train_sparse_weights(param_tmp, comparison_tree_method),
+                        tree_method, comparison_tree_method, tolerance, param_tmp)
 
 
 @attr('gpu')
@@ -124,7 +145,7 @@ class TestGPU(unittest.TestCase):
     def test_gpu_exact(self):
         variable_param = {'max_depth': [2, 6, 15]}
         assert_updater_accuracy('gpu_exact', 'exact', variable_param, 0.02)
-
+    
     def test_gpu_hist(self):
         variable_param = {'n_gpus': [1, -1], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024],
                           'grow_policy': ['depthwise', 'lossguide']}
