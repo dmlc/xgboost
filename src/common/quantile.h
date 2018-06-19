@@ -35,7 +35,7 @@ struct WQSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    XGBOOST_DEVICE Entry() {}
+    XGBOOST_DEVICE Entry() {}  // NOLINT
     // constructor
     XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}

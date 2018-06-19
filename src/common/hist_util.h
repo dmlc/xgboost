@@ -79,7 +79,7 @@ struct HistCutMatrix {
                        row_ptr[fid + 1] - row_ptr[fid]};
   }
 
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach

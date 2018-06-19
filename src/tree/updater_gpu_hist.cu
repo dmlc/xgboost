@@ -302,7 +302,7 @@ __global__ void sharedMemHistKernel(size_t row_stride,
   }
 }
 
-typedef common::HistCutMatrix::WXQSketch WXQSketch;
+using WXQSketch = common::HistCutMatrix::WXQSketch;
 
 __global__ void find_cuts_k
 (WXQSketch::Entry* __restrict__ cuts, const bst_float* __restrict__ data,
@@ -331,7 +331,7 @@ __global__ void find_cuts_k
 }
 
 // predictate for thrust filtering that returns true if the element is not a NaN
-struct is_not_nan {
+struct IsNotNaN {
   __device__ bool operator()(float a) const { return !isnan(a); }
 };
 
@@ -450,7 +450,7 @@ struct DeviceShard {
     sketches.resize(num_cols);
     summaries.resize(num_cols);
     int max_num_bins = param.max_bin;
-    const int kFactor = 8;
+    constexpr int kFactor = 8;
     double eps = 1.0 / (kFactor * max_num_bins);
     size_t dummy_nlevel;
     size_t ncuts = 0;
@@ -517,7 +517,7 @@ struct DeviceShard {
     // temporary storage for filtering using CUB
     size_t if_tmp_size = 0;
     cub::DeviceSelect::If(nullptr, if_tmp_size, fvalues.begin(), fvalues_cur.begin(),
-                          num_elements.begin(), gpu_batch_nrows, is_not_nan());
+                          num_elements.begin(), gpu_batch_nrows, IsNotNaN());
     thrust::device_vector<char> if_tmp_storage(if_tmp_size);
 
     size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
@@ -526,8 +526,9 @@ struct DeviceShard {
       // compute start and end indices
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
       size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
-      if (batch_row_end > n_rows)
+      if (batch_row_end > n_rows) {
         batch_row_end = n_rows;
+      }
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries =
         row_batch.offset[row_begin_idx + batch_row_end] -
@@ -566,7 +567,7 @@ struct DeviceShard {
         auto fvalues_begin = fvalues.data() + icol * gpu_batch_nrows;
         cub::DeviceSelect::If
           (if_tmp_storage.data().get(), if_tmp_size, fvalues_begin, fvalues_cur.data(),
-           num_elements.begin(), batch_nrows, is_not_nan());
+           num_elements.begin(), batch_nrows, IsNotNaN());
         size_t nfvalues_cur = 0;
         thrust::copy_n(num_elements.begin(), 1, &nfvalues_cur);
 
@@ -578,7 +579,7 @@ struct DeviceShard {
           auto feature_weights_begin = feature_weights.data() + icol * gpu_batch_nrows;
           cub::DeviceSelect::If
             (if_tmp_storage.data().get(), if_tmp_size, feature_weights_begin,
-             weights.data().get(), num_elements.begin(), batch_nrows, is_not_nan());
+             weights.data().get(), num_elements.begin(), batch_nrows, IsNotNaN());
 
           // sort the values and weights
           cub::DeviceRadixSort::SortPairs
