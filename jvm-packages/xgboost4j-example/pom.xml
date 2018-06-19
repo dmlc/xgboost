@@ -11,8 +11,28 @@
     <artifactId>xgboost4j-example</artifactId>
     <version>0.72</version>
     <packaging>jar</packaging>
+    <properties>
+    <!--    <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>-->
+    </properties>
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>2.10.3</version>
+                <configuration>
+                    <show>protected</show>
+                    <nohelp>true</nohelp>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
