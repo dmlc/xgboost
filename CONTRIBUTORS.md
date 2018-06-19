@@ -7,8 +7,8 @@ Committers
 Committers are people who have made substantial contribution to the project and granted write access to the project.
 * [Tianqi Chen](https://github.com/tqchen), University of Washington
   - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
-* [Tong He](https://github.com/hetong007), Simon Fraser University
-  - Tong is a master student working on data mining, he is the maintainer of xgboost R package.
+* [Tong He](https://github.com/hetong007), Amazon AI
+  - Tong is an applied scientist in Amazon AI, he is the maintainer of xgboost R package.
 * [Vadim Khotilovich](https://github.com/khotilov)
   - Vadim contributes many improvements in R and core packages.
 * [Bing Xu](https://github.com/antinucleon)
@@ -54,7 +54,8 @@ List of Contributors
 * [Masaaki Horikoshi](https://github.com/sinhrks)
   - Masaaki is the initial creator of xgboost python plotting module.
 * [Hongliang Liu](https://github.com/phunterlau)
-  - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
+* [Hyunsu Cho](http://hyunsu-cho.io/)
+  - Hyunsu is the maintainer of the XGBoost Python package. He is in charge of submitting the Python package to Python Package Index (PyPI). He is also the initial author of the CPU 'hist' updater.
 * [daiyl0320](https://github.com/daiyl0320)
   - daiyl0320 contributed patch to xgboost distributed version more robust, and scales stably on TB scale datasets.
 * [Huayi Zhang](https://github.com/irachex)
@@ -72,3 +73,4 @@ List of Contributors
 * [Gideon Whitehead](https://github.com/gaw89)
 * [Yi-Lin Juang](https://github.com/frankyjuang)
 * [Andrew Hannigan](https://github.com/andrewhannigan)
+* [Andy Adinets](https://github.com/canonizer)

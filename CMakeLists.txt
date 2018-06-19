@@ -14,8 +14,8 @@ option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
-set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
-  "Space separated list of compute versions to be built against")
+set(GPU_COMPUTE_VER "" CACHE STRING
+  "Space separated list of compute versions to be built against, e.g. '35 61'")
 
 # Deprecation warning
 if(PLUGIN_UPDATER_GPU)
@@ -106,7 +106,7 @@ endif()
 
 # dmlc-core
 add_subdirectory(dmlc-core)
-set(LINK_LIBRARIES dmlccore rabit)
+set(LINK_LIBRARIES dmlc rabit)
 
 
 if(USE_CUDA)
@@ -122,16 +122,13 @@ if(USE_CUDA)
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
-  if((CUDA_VERSION_MAJOR EQUAL 9) OR (CUDA_VERSION_MAJOR GREATER 9))
-    message("CUDA 9.0 detected, adding Volta compute capability (7.0).")
-    set(GPU_COMPUTE_VER "${GPU_COMPUTE_VER};70")
-  endif()
-  
   set(GENCODE_FLAGS "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)
+  message("cuda architecture flags: ${GENCODE_FLAGS}")
+
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;--expt-relaxed-constexpr;${GENCODE_FLAGS};-lineinfo;")
   if(NOT MSVC)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -std=c++11")
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -Xcompiler -Werror; -std=c++11")
   endif()
 
   if(USE_NCCL)

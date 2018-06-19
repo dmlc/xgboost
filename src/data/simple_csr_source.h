@@ -29,13 +29,9 @@ class SimpleCSRSource : public DataSource {
  public:
   // public data members
   // MetaInfo info;  // inheritated from DataSource
-  /*! \brief row pointer of CSR sparse storage */
-  std::vector<size_t> row_ptr_;
-  /*! \brief data in the CSR sparse storage */
-  std::vector<RowBatch::Entry> row_data_;
-  // functions
+  SparsePage page_;
   /*! \brief default constructor */
-  SimpleCSRSource() : row_ptr_(1, 0) {}
+  SimpleCSRSource() = default;
   /*! \brief destructor */
   ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */
@@ -66,15 +62,13 @@ class SimpleCSRSource : public DataSource {
   // implement BeforeFirst
   void BeforeFirst() override;
   // implement Value
-  const RowBatch &Value() const override;
+  const SparsePage &Value() const override;
   /*! \brief magic number used to identify SimpleCSRSource */
   static const int kMagic = 0xffffab01;
 
  private:
   /*! \brief internal variable, used to support iterator interface */
   bool at_first_{true};
-  /*! \brief */
-  RowBatch batch_;
 };
 }  // namespace data
 }  // namespace xgboost

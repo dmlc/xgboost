@@ -16,6 +16,51 @@ Apache Flink and Apache Spark.
 
 You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) and [Resource Page](../demo/README.md).
 
+## Add Maven Dependency
+
+XGBoost4J, XGBoost4J-Spark, etc. in maven repository is compiled with g++-4.8.5  
+
+### Access SNAPSHOT version
+
+You need to add github as repo:
+
+<b>maven</b>:
+
+```xml
+<repository>
+  <id>GitHub Repo</id>
+  <name>GitHub Repo</name>
+  <url>https://raw.githubusercontent.com/CodingCat/xgboost/maven-repo/</url>
+</repository>
+```
+
+<b>sbt</b>:
+ 
+```sbt 
+resolvers += "GitHub Repo" at "https://raw.githubusercontent.com/CodingCat/xgboost/maven-repo/"
+```
+
+the add dependency as following:
+
+<b>maven</b> 
+
+```
+<dependency>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost4j</artifactId>
+    <version>latest_version_num</version>
+</dependency>
+``` 
+ 
+<b>sbt</b> 
+```sbt
+ "ml.dmlc" % "xgboost4j" % "latest_version_num"
+``` 
+
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
+if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
+
 ## Examples
 
 Full code examples for Scala, Java, Apache Spark, and Apache Flink can

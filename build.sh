@@ -15,25 +15,21 @@ else
 
     if [[ ! -e ./rabit/Makefile ]]; then
         echo ""
-        echo "Please clone the rabit repository into this directory."
-        echo "Here are the commands:"
-        echo "rm -rf rabit"
-        echo "git clone https://github.com/dmlc/rabit.git rabit"
+        echo "Please init the rabit submodule:"
+        echo "git submodule update --init --recursive -- rabit"
         not_ready=1
     fi
     
     if [[ ! -e ./dmlc-core/Makefile ]]; then
         echo ""
-        echo "Please clone the dmlc-core repository into this directory."
-        echo "Here are the commands:"
-        echo "rm -rf dmlc-core"
-        echo "git clone https://github.com/dmlc/dmlc-core.git dmlc-core"
+        echo "Please init the dmlc-core submodule:"
+        echo "git submodule update --init --recursive -- dmlc-core"
         not_ready=1
     fi
 
     if [[ "${not_ready}" == "1" ]]; then
         echo ""
-        echo "Please fix the errors above and retry the build or reclone the repository with:"
+        echo "Please fix the errors above and retry the build, or reclone the repository with:"
         echo "git clone --recursive https://github.com/dmlc/xgboost.git"
         echo ""
         exit 1

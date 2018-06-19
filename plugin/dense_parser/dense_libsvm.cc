@@ -69,7 +69,7 @@ class DensifyParser : public dmlc::Parser<IndexType> {
   std::vector<xgboost::bst_float> dense_value_;
 };
 
-template<typename IndexType>
+template<typename IndexType, typename DType = real_t>
 Parser<IndexType> *
 CreateDenseLibSVMParser(const std::string& path,
                         const std::map<std::string, std::string>& args,
@@ -82,5 +82,6 @@ CreateDenseLibSVMParser(const std::string& path,
 }
 }  // namespace data
 
-DMLC_REGISTER_DATA_PARSER(uint32_t, dense_libsvm, data::CreateDenseLibSVMParser<uint32_t>);
+DMLC_REGISTER_DATA_PARSER(uint32_t, real_t, dense_libsvm,
+  data::CreateDenseLibSVMParser<uint32_t __DMLC_COMMA real_t>);
 }  // namespace dmlc

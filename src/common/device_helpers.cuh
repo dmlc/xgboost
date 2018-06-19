@@ -122,6 +122,14 @@ inline size_t AvailableMemory(int device_idx) {
   return device_free;
 }
 
+inline size_t TotalMemory(int device_idx) {
+  size_t device_free = 0;
+  size_t device_total = 0;
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_total;
+}
+
 /**
  * \fn  inline int max_shared_memory(int device_idx)
  *
@@ -154,6 +162,12 @@ inline void CheckComputeCapability() {
     if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
   }
 }
+
+
+DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+  atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
+}
+
 
 /*
  * Range iterator
@@ -1004,14 +1018,29 @@ class AllReducer {
 
 template <typename T, typename FunctionT>
 void ExecuteShards(std::vector<T> *shards, FunctionT f) {
-  auto previous_num_threads = omp_get_max_threads();
-  omp_set_num_threads(shards->size());
-#pragma omp parallel
-  {
-    auto cpu_thread_id = omp_get_thread_num();
-    f(shards->at(cpu_thread_id));
+#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
+  for (int shard = 0; shard < shards->size(); ++shard) {
+    f(shards->at(shard));
   }
-  omp_set_num_threads(previous_num_threads);
+}
+
+/**
+ * \brief Executes some operation on each element of the input vector, using a
+ * single controlling thread for each element. In addition, passes the shard index
+ * into the function.
+ *
+ * \tparam  T       Generic type parameter.
+ * \tparam  FunctionT  Type of the function t.
+ * \param shards  The shards.
+ * \param f       The func_t to process.
+ */
+
+template <typename T, typename FunctionT>
+void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
+#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
+  for (int shard = 0; shard < shards->size(); ++shard) {
+    f(shard, shards->at(shard));
+  }
 }
 
 /**
@@ -1029,15 +1058,11 @@ void ExecuteShards(std::vector<T> *shards, FunctionT f) {
 
 template <typename ReduceT,typename T, typename FunctionT>
 ReduceT ReduceShards(std::vector<T> *shards, FunctionT f) {
-  auto previous_num_threads = omp_get_max_threads();
-  omp_set_num_threads(shards->size());
   std::vector<ReduceT> sums(shards->size());
-#pragma omp parallel
-  {
-    auto cpu_thread_id = omp_get_thread_num();
-    sums[cpu_thread_id] = f(shards->at(cpu_thread_id));
+#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
+  for (int shard = 0; shard < shards->size(); ++shard) {
+    sums[shard] = f(shards->at(shard));
   }
-  omp_set_num_threads(previous_num_threads);
   return std::accumulate(sums.begin(), sums.end(), ReduceT());
 }
 }  // namespace dh

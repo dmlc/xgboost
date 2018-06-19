@@ -6,7 +6,7 @@
 #include <xgboost/logging.h>
 #include <dmlc/registry.h>
 #include <cstring>
-#include "./sparse_batch_page.h"
+#include "./sparse_page_writer.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
 #include "../common/common.h"
@@ -278,8 +278,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-namespace data {
-SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
+  data::SparsePageFormat* data::SparsePageFormat::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::data::SparsePageFormatReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown format type " << name;
@@ -288,7 +287,7 @@ SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
 }
 
 std::pair<std::string, std::string>
-SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
+data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
   size_t pos = cache_prefix.rfind(".fmt-");
 
   if (pos != std::string::npos) {
@@ -305,6 +304,7 @@ SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
   }
 }
 
+namespace data {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 }  // namespace data

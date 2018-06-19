@@ -254,6 +254,9 @@ class DMatrix(object):
             Set names for features.
         feature_types : list, optional
             Set types for features.
+        nthread : integer, optional
+            Number of threads to use for loading data from numpy array. If -1,
+            uses maximum threads available on the system.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -988,7 +991,8 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False, approx_contribs=False, pred_interactions=False):
+                pred_contribs=False, approx_contribs=False, pred_interactions=False,
+                validate_features=True):
         """
         Predict with data.
 
@@ -1030,6 +1034,10 @@ class Booster(object):
             pred_contribs), and the sum of the entire matrix equals the raw untransformed margin
             value of the prediction. Note the last row and column correspond to the bias term.
 
+        validate_features : bool
+            When this is True, validate that the Booster's and data's feature_names are identical.
+            Otherwise, it is assumed that the feature_names are the same.
+
         Returns
         -------
         prediction : numpy array
@@ -1046,7 +1054,8 @@ class Booster(object):
         if pred_interactions:
             option_mask |= 0x10
 
-        self._validate_features(data)
+        if validate_features:
+            self._validate_features(data)
 
         length = c_bst_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()

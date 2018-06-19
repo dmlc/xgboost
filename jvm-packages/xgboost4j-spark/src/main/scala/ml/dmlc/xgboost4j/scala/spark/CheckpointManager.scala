@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.Booster
+import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
@@ -63,9 +64,9 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
       val version = versions.max
       val fullPath = getPath(version)
       logger.info(s"Start training from previous booster at $fullPath")
-      val model = XGBoost.loadModelFromHadoopFile(fullPath)(sc)
-      model.booster.booster.setVersion(version)
-      model.booster
+      val booster = SXGBoost.loadModel(fullPath)
+      booster.booster.setVersion(version)
+      booster
     } else {
       null
     }
@@ -76,12 +77,12 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
     *
     * @param checkpoint the checkpoint to save as an XGBoostModel
     */
-  private[spark] def updateCheckpoint(checkpoint: XGBoostModel): Unit = {
+  private[spark] def updateCheckpoint(checkpoint: Booster): Unit = {
     val fs = FileSystem.get(sc.hadoopConfiguration)
     val prevModelPaths = getExistingVersions.map(version => new Path(getPath(version)))
-    val fullPath = getPath(checkpoint.version)
-    logger.info(s"Saving checkpoint model with version ${checkpoint.version} to $fullPath")
-    checkpoint.saveModelAsHadoopFile(fullPath)(sc)
+    val fullPath = getPath(checkpoint.getVersion)
+    logger.info(s"Saving checkpoint model with version ${checkpoint.getVersion} to $fullPath")
+    checkpoint.saveModel(fullPath)
     prevModelPaths.foreach(path => fs.delete(path, true))
   }
 

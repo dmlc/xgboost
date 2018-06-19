@@ -74,46 +74,35 @@ __global__ void pred_transform_k(float * __restrict__ preds, int n) {
 template<typename Loss>
 class GPURegLossObj : public ObjFunction {
  protected:
-  // manages device data
-  struct DeviceData {
-    DVec<float> labels, weights;
-    DVec<unsigned int> label_correct;
-
-    // allocate everything on device
-    DeviceData(dh::BulkAllocator<dh::MemoryType::kDevice>* ba, int device_idx, size_t n) {
-      ba->Allocate(device_idx, false,
-                  &labels, n,
-                  &weights, n,
-                  &label_correct, 1);
-    }
-    size_t Size() const { return labels.Size(); }
-  };
-
-
   bool copied_;
-  std::unique_ptr<dh::BulkAllocator<dh::MemoryType::kDevice>> ba_;
-  std::unique_ptr<DeviceData> data_;
-  HostDeviceVector<bst_float> preds_d_;
-  HostDeviceVector<GradientPair> out_gpair_d_;
+  HostDeviceVector<bst_float> labels_, weights_;
+  HostDeviceVector<unsigned int> label_correct_;
 
-  // allocate device data for n elements, do nothing if enough memory is allocated already
-  void LazyResize(int n) {
-    if (data_.get() != nullptr && data_->Size() >= n)
+  // allocate device data for n elements, do nothing if memory is allocated already
+  void LazyResize(size_t n, size_t n_weights) {
+    if (labels_.Size() == n && weights_.Size() == n_weights)
       return;
     copied_ = false;
-    // free the old data and allocate the new data
-    ba_.reset(new dh::BulkAllocator<dh::MemoryType::kDevice>());
-    data_.reset(new DeviceData(ba_.get(), 0, n));
-    preds_d_.Resize(n, 0.0f, param_.gpu_id);
-    out_gpair_d_.Resize(n, GradientPair(), param_.gpu_id);
+
+    labels_.Reshard(devices_);
+    weights_.Reshard(devices_);
+    label_correct_.Reshard(devices_);
+
+    if (labels_.Size() != n) {
+      labels_.Resize(n);
+      label_correct_.Resize(devices_.Size());
+    }
+    if (weights_.Size() != n_weights)
+      weights_.Resize(n_weights);
   }
 
  public:
-  GPURegLossObj() : copied_(false), preds_d_(0, -1), out_gpair_d_({}, -1) {}
+  GPURegLossObj() : copied_(false) {}
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
+    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevicesAll(param_.n_gpus));
   }
 
   void GetGradient(HostDeviceVector<float>* preds,
@@ -125,46 +114,50 @@ class GPURegLossObj : public ObjFunction {
       << "labels are not correctly provided"
       << "preds.size=" << preds->Size() << ", label.size=" << info.labels_.size();
     size_t ndata = preds->Size();
-    out_gpair->Resize(ndata, GradientPair(), param_.gpu_id);
-    LazyResize(ndata);
-    GetGradientDevice(preds->DevicePointer(param_.gpu_id), info, iter,
-                      out_gpair->DevicePointer(param_.gpu_id), ndata);
+    preds->Reshard(devices_);
+    out_gpair->Reshard(devices_);
+    out_gpair->Resize(ndata);
+    LazyResize(ndata, info.weights_.size());
+    GetGradientDevice(preds, info, iter, out_gpair);
   }
 
  private:
-  void GetGradientDevice(float* preds,
+  void GetGradientDevice(HostDeviceVector<float>* preds,
                          const MetaInfo &info,
                          int iter,
-                         GradientPair* out_gpair, size_t n) {
-    dh::safe_cuda(cudaSetDevice(param_.gpu_id));
-    DeviceData& d = *data_;
-    d.label_correct.Fill(1);
+                         HostDeviceVector<GradientPair>* out_gpair) {
+    label_correct_.Fill(1);
     // only copy the labels and weights once, similar to how the data is copied
     if (!copied_) {
-      thrust::copy(info.labels_.begin(), info.labels_.begin() + n,
-                   d.labels.tbegin());
-      if (info.weights_.size() > 0) {
-        thrust::copy(info.weights_.begin(), info.weights_.begin() + n,
-                     d.weights.tbegin());
-      }
+      labels_.Copy(info.labels_);
+      if (info.weights_.size() > 0)
+        weights_.Copy(info.weights_);
       copied_ = true;
     }
 
     // run the kernel
-    const int block = 256;
-    get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>
-      (out_gpair, d.label_correct.Data(), preds,
-       d.labels.Data(), info.weights_.size() > 0 ? d.weights.Data() : nullptr,
-       n, param_.scale_pos_weight);
-    dh::safe_cuda(cudaGetLastError());
+#pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
+    for (int i = 0; i < devices_.Size(); ++i) {
+      int d = devices_[i];
+      dh::safe_cuda(cudaSetDevice(d));
+      const int block = 256;
+      size_t n = preds->DeviceSize(d);
+      if (n > 0) {
+        get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>
+          (out_gpair->DevicePointer(d), label_correct_.DevicePointer(d),
+           preds->DevicePointer(d), labels_.DevicePointer(d),
+           info.weights_.size() > 0 ? weights_.DevicePointer(d) : nullptr,
+           n, param_.scale_pos_weight);
+        dh::safe_cuda(cudaGetLastError());
+      }
+      dh::safe_cuda(cudaDeviceSynchronize());
+    }
 
-    // copy output data from the GPU
-    unsigned int label_correct_h;
-    thrust::copy_n(d.label_correct.tbegin(), 1, &label_correct_h);
-
-    bool label_correct = label_correct_h != 0;
-    if (!label_correct) {
-      LOG(FATAL) << Loss::LabelErrorMsg();
+    // copy "label correct" flags back to host
+    std::vector<unsigned int>& label_correct_h = label_correct_.HostVector();
+    for (int i = 0; i < devices_.Size(); ++i) {
+      if (label_correct_h[i] == 0)
+        LOG(FATAL) << Loss::LabelErrorMsg();
     }
   }
 
@@ -174,17 +167,25 @@ class GPURegLossObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {
-    PredTransformDevice(io_preds->DevicePointer(param_.gpu_id), io_preds->Size());
+    io_preds->Reshard(devices_);
+    size_t ndata = io_preds->Size();
+    PredTransformDevice(io_preds);
   }
 
-  void PredTransformDevice(float* preds, size_t n) {
-    dh::safe_cuda(cudaSetDevice(param_.gpu_id));
-    const int block = 256;
-    pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(preds, n);
-    dh::safe_cuda(cudaGetLastError());
-    dh::safe_cuda(cudaDeviceSynchronize());
+  void PredTransformDevice(HostDeviceVector<float>* preds) {
+#pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
+    for (int i = 0; i < devices_.Size(); ++i) {
+      int d = devices_[i];
+      dh::safe_cuda(cudaSetDevice(d));
+      const int block = 256;
+      size_t n = preds->DeviceSize(d);
+      if (n > 0) {
+        pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(preds->DevicePointer(d), n);
+        dh::safe_cuda(cudaGetLastError());
+      }
+      dh::safe_cuda(cudaDeviceSynchronize());
+    }
   }
-
 
   float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
@@ -192,6 +193,7 @@ class GPURegLossObj : public ObjFunction {
 
  protected:
   GPURegLossParam param_;
+  GPUSet devices_;
 };
 
 // register the objective functions

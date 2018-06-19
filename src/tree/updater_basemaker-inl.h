@@ -43,13 +43,12 @@ class BaseMaker: public TreeUpdater {
       std::fill(fminmax_.begin(), fminmax_.end(),
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
-      dmlc::DataIter<ColBatch>* iter = p_fmat->ColIterator();
+      auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        const ColBatch& batch = iter->Value();
-        for (bst_uint i = 0; i < batch.size; ++i) {
-          const bst_uint fid = batch.col_index[i];
-          const ColBatch::Inst& c = batch[i];
+        auto batch = iter->Value();
+        for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
+           auto c = batch[fid];
           if (c.length != 0) {
             fminmax_[fid * 2 + 0] = std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
             fminmax_[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax_[fid * 2 + 1]);
@@ -104,7 +103,7 @@ class BaseMaker: public TreeUpdater {
   // ------static helper functions ------
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
-  inline static int NextLevel(const RowBatch::Inst &inst, const RegTree &tree, int nid) {
+  inline static int NextLevel(const SparsePage::Inst &inst, const RegTree &tree, int nid) {
     const RegTree::Node &n = tree[nid];
     bst_uint findex = n.SplitIndex();
     for (unsigned i = 0; i < inst.length; ++i) {
@@ -244,12 +243,10 @@ class BaseMaker: public TreeUpdater {
    * \param tree the regression tree structure
    */
   inline void CorrectNonDefaultPositionByBatch(
-      const ColBatch& batch,
-      const std::vector<bst_uint> &sorted_split_set,
+      const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
-    for (size_t i = 0; i < batch.size; ++i) {
-      ColBatch::Inst col = batch[i];
-      const bst_uint fid = batch.col_index[i];
+    for (size_t fid = 0; fid < batch.Size(); ++fid) {
+      auto col = batch[fid];
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
@@ -306,12 +303,11 @@ class BaseMaker: public TreeUpdater {
                                         const RegTree &tree) {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fsplits);
+    auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
-        ColBatch::Inst col = batch[i];
-        const bst_uint fid = batch.col_index[i];
+      auto batch = iter->Value();
+      for (auto fid : fsplits) {
+        auto col = batch[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.length);
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
