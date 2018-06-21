@@ -810,6 +810,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void AllReduceHist(int nidx) {
+    reducer_.GroupStart();
     for (auto& shard : shards_) {
       auto d_node_hist = shard->hist.GetHistPtr(nidx);
       reducer_.AllReduceSum(
@@ -818,6 +819,7 @@ class GPUHistMaker : public TreeUpdater {
           reinterpret_cast<GradientPairSumT::ValueT*>(d_node_hist),
           n_bins_ * (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
     }
+    reducer_.GroupEnd();
 
     reducer_.Synchronize();
   }

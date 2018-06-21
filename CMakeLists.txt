@@ -118,7 +118,8 @@ if(USE_CUDA)
   include_directories(cub)
 
   if(USE_NCCL)
-    include_directories(nccl/src)
+    find_package(Nccl REQUIRED)
+    include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
@@ -131,14 +132,11 @@ if(USE_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -Xcompiler -Werror; -std=c++11")
   endif()
 
-  if(USE_NCCL)
-    add_subdirectory(nccl)
-  endif()
-
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
   
   if(USE_NCCL)
-    target_link_libraries(gpuxgboost nccl)
+    link_directories(${NCCL_LIBRARY})
+    target_link_libraries(gpuxgboost ${NCCL_LIB_NAME})
   endif()
   list(APPEND LINK_LIBRARIES gpuxgboost) 
 endif()

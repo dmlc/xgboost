@@ -947,6 +947,24 @@ class AllReducer {
   }
 
   /**
+   * \brief Use in exactly the same way as ncclGroupStart
+   */
+  void GroupStart() {
+#ifdef XGBOOST_USE_NCCL
+    dh::safe_nccl(ncclGroupStart());
+#endif
+  }
+
+  /**
+   * \brief Use in exactly the same way as ncclGroupEnd
+   */
+  void GroupEnd() {
+#ifdef XGBOOST_USE_NCCL
+    dh::safe_nccl(ncclGroupEnd());
+#endif
+  }
+
+  /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
    * streams or comms.
    *
