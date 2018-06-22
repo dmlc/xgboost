@@ -32,6 +32,14 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
 
+void CheckRankingObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_uint> groups,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess);
+
 xgboost::bst_float GetMetricEval(
   xgboost::Metric * metric,
   std::vector<xgboost::bst_float> preds,
