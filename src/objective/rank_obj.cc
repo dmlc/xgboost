@@ -92,9 +92,11 @@ class LambdaRankObj : public ObjFunction {
               for (unsigned pid = i; pid < j; ++pid) {
                 unsigned ridx = std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
                 if (ridx < nleft) {
-                  pairs.emplace_back(rec[ridx].second, rec[pid].second, info.GetWeight(k) * weight_normalization_factor);
+                  pairs.emplace_back(rec[ridx].second, rec[pid].second,
+                      info.GetWeight(k) * weight_normalization_factor);
                 } else {
-                  pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second, info.GetWeight(k) * weight_normalization_factor);
+                  pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second,
+                      info.GetWeight(k) * weight_normalization_factor);
                 }
               }
             }
