@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y wget unzip && \
+    yum install -y tar unzip wget xz && \
     wget http://people.centos.org/tru/devtools-2/devtools-2.repo -O /etc/yum.repos.d/devtools-2.repo && \
     yum install -y devtoolset-2-gcc devtoolset-2-binutils devtoolset-2-gcc-c++ && \
     # Python
@@ -17,12 +17,18 @@ RUN \
     wget http://www.cmake.org/files/v3.5/cmake-3.5.2.tar.gz && \
     tar -xvzf cmake-3.5.2.tar.gz && \
     cd cmake-3.5.2/ && ./configure && make && make install && cd ../ && \
-    rm -rf cmake-3.5.2/ && rm -rf cmake-3.5.2.tar.gz
+    rm -rf cmake-3.5.2/ && rm -rf cmake-3.5.2.tar.gz && \
+    # NCCL2
+    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]\.[0-9]'` && \
+    wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
+    tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
+    rm -rf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz"
 
 ENV PATH=/opt/python/bin:$PATH
 ENV CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-2/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
+ENV NCCL_ROOT=/nccl_2.2.13-1+cuda*_x86_64
 
 # Install Python packages
 RUN \

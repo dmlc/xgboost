@@ -37,11 +37,11 @@ set(NCCL_LIB_NAME nccl)
 
 find_path(NCCL_INCLUDE_DIR
   NAMES ${NCCL_LIB_NAME}.h
-  PATHS ${NCCL_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
+  PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
 
 find_library(NCCL_LIBRARY
   NAMES ${NCCL_LIB_NAME}
-  PATHS ${NCCL_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib)
+  PATHS $ENV{NCCL_ROOT}/lib ${NCCL_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib)
 
 if (NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
   get_filename_component(NCCL_LIBRARY ${NCCL_LIBRARY} PATH)
