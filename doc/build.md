@@ -199,6 +199,7 @@ Unofficial windows binaries and instructions on how to use them are hosted on [G
 Multi-GPU support requires the [NCCL](https://developer.nvidia.com/nccl) library. With NCCL installed, run cmake as:
 ```bash
 cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT="<NCCL_DIRECTORY>"
+export LD_LIBRARY_PATH=<NCCL_DIRECTORY>/lib:$LD_LIBRARY_PATH
 ```
 One can also pass NCCL_ROOT as an environment variable, in which case, this takes precedence over the cmake variable NCCL_ROOT.
 
