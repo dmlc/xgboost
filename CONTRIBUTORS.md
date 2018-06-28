@@ -74,3 +74,4 @@ List of Contributors
 * [Yi-Lin Juang](https://github.com/frankyjuang)
 * [Andrew Hannigan](https://github.com/andrewhannigan)
 * [Andy Adinets](https://github.com/canonizer)
+* [Henry Gouk](https://github.com/henrygouk)
