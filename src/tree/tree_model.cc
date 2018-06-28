@@ -22,7 +22,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                  const FeatureMap& fmap,
                  int nid, int depth, int add_comma,
                  bool with_stats, std::string format) {
-  int float_max_precision = std::numeric_limits<bst_float>::max_digits10;
+  int float_max_precision = 20;
   if (format == "json") {
     if (add_comma) {
       fo << ",";
@@ -159,7 +159,6 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
-  fo.precision(20);
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }
