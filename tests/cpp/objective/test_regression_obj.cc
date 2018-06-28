@@ -163,9 +163,9 @@ TEST(Objective, TweedieRegressionBasic) {
     << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), 0.10f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0.5f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 0.89f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
 
   // test PredTransform
   xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};

@@ -75,3 +75,4 @@ List of Contributors
 * [Andrew Hannigan](https://github.com/andrewhannigan)
 * [Andy Adinets](https://github.com/canonizer)
 * [Henry Gouk](https://github.com/henrygouk)
+* [Pierre de Sahb](https://github.com/pdesahb)
