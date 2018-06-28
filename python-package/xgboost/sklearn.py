@@ -478,6 +478,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if self.n_classes_ > 2:
             # Switch to using a multiclass objective in the underlying XGB instance
             xgb_options["objective"] = "multi:softprob"
+
+        if self.n_classes_ >= 2:
             xgb_options['num_class'] = self.n_classes_
 
         feval = eval_metric if callable(eval_metric) else None
