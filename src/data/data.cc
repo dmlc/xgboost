@@ -41,6 +41,7 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(&num_nonzero_, sizeof(num_nonzero_));
   fo->Write(labels_);
   fo->Write(group_ptr_);
+  fo->Write(qids_);
   fo->Write(weights_);
   fo->Write(root_index_);
   fo->Write(base_margin_);
