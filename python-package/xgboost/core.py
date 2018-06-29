@@ -1175,6 +1175,11 @@ class Booster(object):
         """
         Save the model to a file.
 
+        The model is saved in an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature_names) will not be saved.
+        To preserve all attributes, pickle the Booster object.
+
         Parameters
         ----------
         fname : string
@@ -1203,6 +1208,11 @@ class Booster(object):
     def load_model(self, fname):
         """
         Load the model from a file.
+
+        The model is loaded from an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature_names) will not be loaded.
+        To preserve all attributes, pickle the Booster object.
 
         Parameters
         ----------
