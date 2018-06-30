@@ -22,58 +22,57 @@ DMLC_REGISTRY_FILE_TAG(updater_skmaker);
 
 class SketchMaker: public BaseMaker {
  public:
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees
-    float lr = param.learning_rate;
-    param.learning_rate = lr / trees.size();
+    float lr = param_.learning_rate;
+    param_.learning_rate = lr / trees.size();
     // build tree
-    for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair, p_fmat, trees[i]);
+    for (auto tree : trees) {
+      this->Update(gpair->HostVector(), p_fmat, tree);
     }
-    param.learning_rate = lr;
+    param_.learning_rate = lr;
   }
 
  protected:
-  inline void Update(const std::vector<bst_gpair> &gpair,
+  inline void Update(const std::vector<GradientPair> &gpair,
                      DMatrix *p_fmat,
                      RegTree *p_tree) {
     this->InitData(gpair, *p_fmat, *p_tree);
-    for (int depth = 0; depth < param.max_depth; ++depth) {
+    for (int depth = 0; depth < param_.max_depth; ++depth) {
       this->GetNodeStats(gpair, *p_fmat, *p_tree,
-                         &thread_stats, &node_stats);
+                         &thread_stats_, &node_stats_);
       this->BuildSketch(gpair, p_fmat, *p_tree);
       this->SyncNodeStats();
       this->FindSplit(depth, gpair, p_fmat, p_tree);
-      this->ResetPositionCol(qexpand, p_fmat, *p_tree);
+      this->ResetPositionCol(qexpand_, p_fmat, *p_tree);
       this->UpdateQueueExpand(*p_tree);
       // if nothing left to be expand, break
-      if (qexpand.size() == 0) break;
+      if (qexpand_.size() == 0) break;
     }
-    if (qexpand.size() != 0) {
+    if (qexpand_.size() != 0) {
       this->GetNodeStats(gpair, *p_fmat, *p_tree,
-                         &thread_stats, &node_stats);
+                         &thread_stats_, &node_stats_);
       this->SyncNodeStats();
     }
     // set all statistics correctly
     for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
-      this->SetStats(nid, node_stats[nid], p_tree);
-      if (!(*p_tree)[nid].is_leaf()) {
-        p_tree->stat(nid).loss_chg = static_cast<bst_float>(
-            node_stats[(*p_tree)[nid].cleft()].CalcGain(param) +
-            node_stats[(*p_tree)[nid].cright()].CalcGain(param) -
-            node_stats[nid].CalcGain(param));
+      this->SetStats(nid, node_stats_[nid], p_tree);
+      if (!(*p_tree)[nid].IsLeaf()) {
+        p_tree->Stat(nid).loss_chg = static_cast<bst_float>(
+            node_stats_[(*p_tree)[nid].LeftChild()].CalcGain(param_) +
+            node_stats_[(*p_tree)[nid].RightChild()].CalcGain(param_) -
+            node_stats_[nid].CalcGain(param_));
       }
     }
     // set left leaves
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+    for (int nid : qexpand_) {
+      (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
     }
   }
   // define the sketch we want to use
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
  private:
   // statistics needed in the gradient calculation
@@ -84,20 +83,20 @@ class SketchMaker: public BaseMaker {
     double neg_grad;
     /*! \brief sum of hessian statistics */
     double sum_hess;
-    SKStats(void) {}
+    SKStats() = default;
     // constructor
     explicit SKStats(const TrainParam &param) {
       this->Clear();
     }
     /*! \brief clear the statistics */
-    inline void Clear(void) {
+    inline void Clear() {
       neg_grad = pos_grad = sum_hess = 0.0f;
     }
     // accumulate statistics
-    inline void Add(const std::vector<bst_gpair> &gpair,
+    inline void Add(const std::vector<GradientPair> &gpair,
                     const MetaInfo &info,
                     bst_uint ridx) {
-      const bst_gpair &b = gpair[ridx];
+      const GradientPair &b = gpair[ridx];
       if (b.GetGrad() >= 0.0f) {
         pos_grad += b.GetGrad();
       } else {
@@ -133,49 +132,49 @@ class SketchMaker: public BaseMaker {
     inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {
     }
   };
-  inline void BuildSketch(const std::vector<bst_gpair> &gpair,
+  inline void BuildSketch(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const RegTree &tree) {
-    const MetaInfo& info = p_fmat->info();
-    sketchs.resize(this->qexpand.size() * tree.param.num_feature * 3);
-    for (size_t i = 0; i < sketchs.size(); ++i) {
-      sketchs[i].Init(info.num_row, this->param.sketch_eps);
+    const MetaInfo& info = p_fmat->Info();
+    sketchs_.resize(this->qexpand_.size() * tree.param.num_feature * 3);
+    for (auto & sketch : sketchs_) {
+      sketch.Init(info.num_row_, this->param_.sketch_eps);
     }
-    thread_sketch.resize(omp_get_max_threads());
+    thread_sketch_.resize(omp_get_max_threads());
     // number of rows in
-    const size_t nrows = p_fmat->buffered_rowset().size();
+    const size_t nrows = p_fmat->BufferedRowset().Size();
     // start accumulating statistics
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+    auto iter = p_fmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
+      auto batch = iter->Value();
       // start enumeration
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        this->UpdateSketchCol(gpair, batch[i], tree,
-                              node_stats,
-                              batch.col_index[i],
-                              batch[i].length == nrows,
-                              &thread_sketch[omp_get_thread_num()]);
+      for (bst_omp_uint fidx = 0; fidx < nsize; ++fidx) {
+        this->UpdateSketchCol(gpair, batch[fidx], tree,
+                              node_stats_,
+                              fidx,
+                              batch[fidx].length == nrows,
+                              &thread_sketch_[omp_get_thread_num()]);
       }
     }
     // setup maximum size
-    unsigned max_size = param.max_sketch_size();
+    unsigned max_size = param_.MaxSketchSize();
     // synchronize sketch
-    summary_array.resize(sketchs.size());
-    for (size_t i = 0; i < sketchs.size(); ++i) {
+    summary_array_.resize(sketchs_.size());
+    for (size_t i = 0; i < sketchs_.size(); ++i) {
       common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
-      sketchs[i].GetSummary(&out);
-      summary_array[i].Reserve(max_size);
-      summary_array[i].SetPrune(out, max_size);
+      sketchs_[i].GetSummary(&out);
+      summary_array_[i].Reserve(max_size);
+      summary_array_[i].SetPrune(out, max_size);
     }
     size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
-    sketch_reducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+    sketch_reducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
   }
   // update sketch information in column fid
-  inline void UpdateSketchCol(const std::vector<bst_gpair> &gpair,
-                              const ColBatch::Inst &c,
+  inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
+                              const SparsePage::Inst &c,
                               const RegTree &tree,
                               const std::vector<SKStats> &nstats,
                               bst_uint fid,
@@ -185,20 +184,19 @@ class SketchMaker: public BaseMaker {
     // initialize sbuilder for use
     std::vector<SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes * 3);
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const unsigned nid = this->qexpand[i];
-      const unsigned wid = this->node2workindex[nid];
+    for (unsigned int nid : this->qexpand_) {
+      const unsigned wid = this->node2workindex_[nid];
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].sum_total = 0.0f;
-        sbuilder[3 * nid + k].sketch = &sketchs[(wid * tree.param.num_feature + fid) * 3 + k];
+        sbuilder[3 * nid + k].sketch = &sketchs_[(wid * tree.param.num_feature + fid) * 3 + k];
       }
     }
     if (!col_full) {
       for (bst_uint j = 0; j < c.length; ++j) {
         const bst_uint ridx = c[j].index;
-        const int nid = this->position[ridx];
+        const int nid = this->position_[ridx];
         if (nid >= 0) {
-          const bst_gpair &e = gpair[ridx];
+          const GradientPair &e = gpair[ridx];
           if (e.GetGrad() >= 0.0f) {
             sbuilder[3 * nid + 0].sum_total += e.GetGrad();
           } else {
@@ -208,8 +206,7 @@ class SketchMaker: public BaseMaker {
         }
       }
     } else {
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const unsigned nid = this->qexpand[i];
+      for (unsigned int nid : this->qexpand_) {
         sbuilder[3 * nid + 0].sum_total = static_cast<bst_float>(nstats[nid].pos_grad);
         sbuilder[3 * nid + 1].sum_total = static_cast<bst_float>(nstats[nid].neg_grad);
         sbuilder[3 * nid + 2].sum_total = static_cast<bst_float>(nstats[nid].sum_hess);
@@ -217,8 +214,7 @@ class SketchMaker: public BaseMaker {
     }
     // if only one value, no need to do second pass
     if (c[0].fvalue  == c[c.length-1].fvalue) {
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const int nid = this->qexpand[i];
+      for (int nid : this->qexpand_) {
         for (int k = 0; k < 3; ++k) {
           sbuilder[3 * nid + k].sketch->Push(c[0].fvalue,
                                              static_cast<bst_float>(
@@ -228,9 +224,8 @@ class SketchMaker: public BaseMaker {
       return;
     }
     // two pass scan
-    unsigned max_size = param.max_sketch_size();
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    unsigned max_size = param_.MaxSketchSize();
+    for (int nid : this->qexpand_) {
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].Init(max_size);
       }
@@ -238,9 +233,9 @@ class SketchMaker: public BaseMaker {
     // second pass, build the sketch
     for (bst_uint j = 0; j < c.length; ++j) {
       const bst_uint ridx = c[j].index;
-      const int nid = this->position[ridx];
+      const int nid = this->position_[ridx];
       if (nid >= 0) {
-        const bst_gpair &e = gpair[ridx];
+        const GradientPair &e = gpair[ridx];
         if (e.GetGrad() >= 0.0f) {
           sbuilder[3 * nid + 0].Push(c[j].fvalue, e.GetGrad(), max_size);
         } else {
@@ -249,70 +244,69 @@ class SketchMaker: public BaseMaker {
         sbuilder[3 * nid + 2].Push(c[j].fvalue, e.GetHess(), max_size);
       }
     }
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    for (int nid : this->qexpand_) {
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].Finalize(max_size);
       }
     }
   }
-  inline void SyncNodeStats(void) {
-    CHECK_NE(qexpand.size(), 0U);
-    std::vector<SKStats> tmp(qexpand.size());
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      tmp[i] = node_stats[qexpand[i]];
+  inline void SyncNodeStats() {
+    CHECK_NE(qexpand_.size(), 0U);
+    std::vector<SKStats> tmp(qexpand_.size());
+    for (size_t i = 0; i < qexpand_.size(); ++i) {
+      tmp[i] = node_stats_[qexpand_[i]];
     }
-    stats_reducer.Allreduce(dmlc::BeginPtr(tmp), tmp.size());
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      node_stats[qexpand[i]] = tmp[i];
+    stats_reducer_.Allreduce(dmlc::BeginPtr(tmp), tmp.size());
+    for (size_t i = 0; i < qexpand_.size(); ++i) {
+      node_stats_[qexpand_[i]] = tmp[i];
     }
   }
   inline void FindSplit(int depth,
-                        const std::vector<bst_gpair> &gpair,
+                        const std::vector<GradientPair> &gpair,
                         DMatrix *p_fmat,
                         RegTree *p_tree) {
     const bst_uint num_feature = p_tree->param.num_feature;
     // get the best split condition for each node
-    std::vector<SplitEntry> sol(qexpand.size());
-    bst_omp_uint nexpand = static_cast<bst_omp_uint>(qexpand.size());
+    std::vector<SplitEntry> sol(qexpand_.size());
+    auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
     #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand[wid];
-      CHECK_EQ(node2workindex[nid], static_cast<int>(wid));
+      const int nid = qexpand_[wid];
+      CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
       for (bst_uint fid = 0; fid < num_feature; ++fid) {
         unsigned base = (wid * p_tree->param.num_feature + fid) * 3;
-        EnumerateSplit(summary_array[base + 0],
-                       summary_array[base + 1],
-                       summary_array[base + 2],
-                       node_stats[nid], fid, &best);
+        EnumerateSplit(summary_array_[base + 0],
+                       summary_array_[base + 1],
+                       summary_array_[base + 2],
+                       node_stats_[nid], fid, &best);
       }
     }
     // get the best result, we can synchronize the solution
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand[wid];
+      const int nid = qexpand_[wid];
       const SplitEntry &best = sol[wid];
       // set up the values
-      p_tree->stat(nid).loss_chg = best.loss_chg;
-      this->SetStats(nid, node_stats[nid], p_tree);
+      p_tree->Stat(nid).loss_chg = best.loss_chg;
+      this->SetStats(nid, node_stats_[nid], p_tree);
       // now we know the solution in snode[nid], set split
-      if (best.loss_chg > rt_eps) {
+      if (best.loss_chg > kRtEps) {
         p_tree->AddChilds(nid);
-        (*p_tree)[nid].set_split(best.split_index(),
-                                 best.split_value, best.default_left());
+        (*p_tree)[nid].SetSplit(best.SplitIndex(),
+                                 best.split_value, best.DefaultLeft());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
+        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+        (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }
     }
   }
   // set statistics on ptree
   inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
-    p_tree->stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param));
-    p_tree->stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param, p_tree->leafvec(nid));
+    p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
+    p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
+    node_sum.SetLeafVec(param_, p_tree->Leafvec(nid));
   }
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
                              const WXQSketch::Summary &neg_grad,
@@ -321,7 +315,7 @@ class SketchMaker: public BaseMaker {
                              bst_uint fid,
                              SplitEntry *best) {
     if (sum_hess.size == 0) return;
-    double root_gain = node_sum.CalcGain(param);
+    double root_gain = node_sum.CalcGain(param_);
     std::vector<bst_float> fsplits;
     for (size_t i = 0; i < pos_grad.size; ++i) {
       fsplits.push_back(pos_grad.data[i].value);
@@ -350,17 +344,17 @@ class SketchMaker: public BaseMaker {
       s.sum_hess = 0.5f * (hess.rmin + hess.rmax - hess.wmin);
       c.SetSubstract(node_sum, s);
       // forward
-      if (s.sum_hess >= param.min_child_weight &&
-          c.sum_hess >= param.min_child_weight) {
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+      if (s.sum_hess >= param_.min_child_weight &&
+          c.sum_hess >= param_.min_child_weight) {
+        double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
         best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], false);
       }
       // backward
       c.SetSubstract(feat_sum, s);
       s.SetSubstract(node_sum, c);
-      if (s.sum_hess >= param.min_child_weight &&
-          c.sum_hess >= param.min_child_weight) {
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+      if (s.sum_hess >= param_.min_child_weight &&
+          c.sum_hess >= param_.min_child_weight) {
+        double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
         best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], true);
       }
     }
@@ -368,10 +362,10 @@ class SketchMaker: public BaseMaker {
       // all including
       SKStats s = feat_sum, c;
       c.SetSubstract(node_sum, s);
-      if (s.sum_hess >= param.min_child_weight &&
-          c.sum_hess >= param.min_child_weight) {
+      if (s.sum_hess >= param_.min_child_weight &&
+          c.sum_hess >= param_.min_child_weight) {
         bst_float cpt = fsplits.back();
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
         best->Update(static_cast<bst_float>(loss_chg),
                      fid, cpt + std::abs(cpt) + 1.0f, false);
       }
@@ -380,19 +374,19 @@ class SketchMaker: public BaseMaker {
 
   // thread temp data
   // used to hold temporal sketch
-  std::vector<std::vector<SketchEntry> > thread_sketch;
+  std::vector<std::vector<SketchEntry> > thread_sketch_;
   // used to hold statistics
-  std::vector<std::vector<SKStats> > thread_stats;
+  std::vector<std::vector<SKStats> > thread_stats_;
   // node statistics
-  std::vector<SKStats> node_stats;
+  std::vector<SKStats> node_stats_;
   // summary array
-  std::vector<WXQSketch::SummaryContainer> summary_array;
+  std::vector<WXQSketch::SummaryContainer> summary_array_;
   // reducer for summary
-  rabit::Reducer<SKStats, SKStats::Reduce> stats_reducer;
+  rabit::Reducer<SKStats, SKStats::Reduce> stats_reducer_;
   // reducer for summary
-  rabit::SerializeReducer<WXQSketch::SummaryContainer> sketch_reducer;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sketch_reducer_;
   // per node, per feature sketch
-  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs;
+  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(SketchMaker, "grow_skmaker")

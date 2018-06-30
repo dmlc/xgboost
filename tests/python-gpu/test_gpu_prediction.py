@@ -72,3 +72,31 @@ class TestGPUPredict(unittest.TestCase):
 
         assert np.allclose(predict0, predict1)
         assert np.allclose(predict0, cpu_predict)
+
+    def test_sklearn(self):
+        m, n = 15000, 14
+        tr_size = 2500
+        X = np.random.rand(m, n)
+        y = 200 * np.matmul(X, np.arange(-3, -3 + n))
+        X_train, y_train = X[:tr_size, :], y[:tr_size]
+        X_test, y_test = X[tr_size:, :], y[tr_size:]
+
+        # First with cpu_predictor
+        params = {'tree_method': 'gpu_hist',
+                  'predictor': 'cpu_predictor',
+                  'n_jobs': -1,
+                  'seed': 123
+                  }
+        m = xgb.XGBRegressor(**params).fit(X_train, y_train)
+        cpu_train_score = m.score(X_train, y_train)
+        cpu_test_score = m.score(X_test, y_test)
+
+        # Now with gpu_predictor
+        params['predictor'] = 'gpu_predictor'
+
+        m = xgb.XGBRegressor(**params).fit(X_train, y_train)
+        gpu_train_score = m.score(X_train, y_train)
+        gpu_test_score = m.score(X_test, y_test)
+
+        assert np.allclose(cpu_train_score, gpu_train_score)
+        assert np.allclose(cpu_test_score, gpu_test_score)

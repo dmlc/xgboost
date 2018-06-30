@@ -18,6 +18,7 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
+
 namespace xgboost {
 // booster wrapper for backward compatible reason.
 class Booster {
@@ -27,7 +28,7 @@ class Booster {
         initialized_(false),
         learner_(Learner::Create(cache_mats)) {}
 
-  inline Learner* learner() {
+  inline Learner* learner() {  // NOLINT
     return learner_.get();
   }
 
@@ -40,7 +41,7 @@ class Booster {
         return x.first == name;
       });
     if (it == cfg_.end()) {
-      cfg_.push_back(std::make_pair(name, val));
+      cfg_.emplace_back(name, val);
     } else {
       (*it).second = val;
     }
@@ -191,13 +192,13 @@ struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string pointers */
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */
-  std::vector<bst_float> ret_vec_float;
+  HostDeviceVector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
-  std::vector<bst_gpair> tmp_gpair;
+  HostDeviceVector<GradientPair> tmp_gpair;
 };
 
 // define the threadlocal store.
-typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
+using XGBAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
@@ -238,30 +239,30 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
-  mat.row_ptr_.reserve(nindptr);
-  mat.row_data_.reserve(nelem);
-  mat.row_ptr_.resize(1);
-  mat.row_ptr_[0] = 0;
+  mat.page_.offset.reserve(nindptr);
+  mat.page_.data.reserve(nelem);
+  mat.page_.offset.resize(1);
+  mat.page_.offset[0] = 0;
   size_t num_column = 0;
   for (size_t i = 1; i < nindptr; ++i) {
     for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
       if (!common::CheckNAN(data[j])) {
         // automatically skip nan.
-        mat.row_data_.emplace_back(RowBatch::Entry(indices[j], data[j]));
+        mat.page_.data.emplace_back(Entry(indices[j], data[j]));
         num_column = std::max(num_column, static_cast<size_t>(indices[j] + 1));
       }
     }
-    mat.row_ptr_.push_back(mat.row_data_.size());
+    mat.page_.offset.push_back(mat.page_.data.size());
   }
 
-  mat.info.num_col = num_column;
+  mat.info.num_col_ = num_column;
   if (num_col > 0) {
-    CHECK_LE(mat.info.num_col, num_col)
-        << "num_col=" << num_col << " vs " << mat.info.num_col;
-    mat.info.num_col = num_col;
+    CHECK_LE(mat.info.num_col_, num_col)
+        << "num_col=" << num_col << " vs " << mat.info.num_col_;
+    mat.info.num_col_ = num_col;
   }
-  mat.info.num_row = nindptr - 1;
-  mat.info.num_nonzero = mat.row_data_.size();
+  mat.info.num_row_ = nindptr - 1;
+  mat.info.num_nonzero_ = mat.page_.data.size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -293,7 +294,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   // FIXME: User should be able to control number of threads
   const int nthread = omp_get_max_threads();
   data::SimpleCSRSource& mat = *source;
-  common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
+  common::ParallelGroupBuilder<Entry> builder(&mat.page_.offset, &mat.page_.data);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
@@ -312,18 +313,18 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       if (!common::CheckNAN(data[j])) {
         builder.Push(indices[j],
-                     RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
+                     Entry(static_cast<bst_uint>(i), data[j]),
                      tid);
       }
     }
   }
-  mat.info.num_row = mat.row_ptr_.size() - 1;
+  mat.info.num_row_ = mat.page_.offset.size() - 1;
   if (num_row > 0) {
-    CHECK_LE(mat.info.num_row, num_row);
-    mat.info.num_row = num_row;
+    CHECK_LE(mat.info.num_row_, num_row);
+    mat.info.num_row_ = num_row;
   }
-  mat.info.num_col = ncol;
-  mat.info.num_nonzero = nelem;
+  mat.info.num_col_ = ncol;
+  mat.info.num_nonzero_ = nelem;
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -351,10 +352,10 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
-  mat.row_ptr_.resize(1+nrow);
+  mat.page_.offset.resize(1+nrow);
   bool nan_missing = common::CheckNAN(missing);
-  mat.info.num_row = nrow;
-  mat.info.num_col = ncol;
+  mat.info.num_row_ = nrow;
+  mat.info.num_col_ = ncol;
   const bst_float* data0 = data;
 
   // count elements for sizing data
@@ -371,9 +372,9 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
         }
       }
     }
-    mat.row_ptr_[i+1] = mat.row_ptr_[i] + nelem;
+    mat.page_.offset[i+1] = mat.page_.offset[i] + nelem;
   }
-  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
 
   data = data0;
   for (xgboost::bst_ulong i = 0; i < nrow; ++i, data += ncol) {
@@ -382,19 +383,19 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
       if (common::CheckNAN(data[j])) {
       } else {
         if (nan_missing || data[j] != missing) {
-          mat.row_data_[mat.row_ptr_[i] + matj] = RowBatch::Entry(j, data[j]);
+          mat.page_.data[mat.page_.offset[i] + matj] = Entry(j, data[j]);
           ++matj;
         }
       }
     }
   }
 
-  mat.info.num_nonzero = mat.row_data_.size();
+  mat.info.num_nonzero_ = mat.page_.data.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
 
-void prefixsum_inplace(size_t *x, size_t N) {
+void PrefixSum(size_t *x, size_t N) {
   size_t *suma;
 #pragma omp parallel
   {
@@ -406,6 +407,7 @@ void prefixsum_inplace(size_t *x, size_t N) {
       suma[0] = 0;
     }
     size_t sum = 0;
+    size_t offset = 0;
 #pragma omp for schedule(static)
     for (omp_ulong i = 0; i < N; i++) {
       sum += x[i];
@@ -413,7 +415,6 @@ void prefixsum_inplace(size_t *x, size_t N) {
     }
     suma[ithread+1] = sum;
 #pragma omp barrier
-    size_t offset = 0;
     for (omp_ulong i = 0; i < static_cast<omp_ulong>(ithread+1); i++) {
       offset += suma[i];
     }
@@ -425,12 +426,10 @@ void prefixsum_inplace(size_t *x, size_t N) {
   delete[] suma;
 }
 
-
-XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
+XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
                                        xgboost::bst_ulong nrow,
                                        xgboost::bst_ulong ncol,
-                                       bst_float missing,
-                                       DMatrixHandle* out,
+                                       bst_float missing, DMatrixHandle* out,
                                        int nthread) {
   // avoid openmp unless enough data to be worth it to avoid overhead costs
   if (nrow*ncol <= 10000*50) {
@@ -441,22 +440,20 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
+  int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;
-  mat.row_ptr_.resize(1+nrow);
-  mat.info.num_row = nrow;
-  mat.info.num_col = ncol;
+  mat.page_.offset.resize(1+nrow);
+  mat.info.num_row_ = nrow;
+  mat.info.num_col_ = ncol;
 
   // Check for errors in missing elements
   // Count elements per row (to avoid otherwise need to copy)
   bool nan_missing = common::CheckNAN(missing);
-  int *badnan;
-  badnan = new int[nthread];
-  for (int i = 0; i < nthread; i++) {
-    badnan[i] = 0;
-  }
+  std::vector<int> badnan;
+  badnan.resize(nthread, 0);
 
 #pragma omp parallel num_threads(nthread)
   {
@@ -474,7 +471,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
           ++nelem;
         }
       }
-      mat.row_ptr_[i+1] = nelem;
+      mat.page_.offset[i+1] = nelem;
     }
   }
   // Inform about any NaNs and resize data matrix
@@ -483,8 +480,8 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   }
 
   // do cumulative sum (to avoid otherwise need to copy)
-  prefixsum_inplace(&mat.row_ptr_[0], mat.row_ptr_.size());
-  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+  PrefixSum(&mat.page_.offset[0], mat.page_.offset.size());
+  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
 
   // Fill data matrix (now that know size, no need for slow push_back())
 #pragma omp parallel num_threads(nthread)
@@ -495,16 +492,154 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
       for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
         if (common::CheckNAN(data[ncol * i + j])) {
         } else if (nan_missing || data[ncol * i + j] != missing) {
-          mat.row_data_[mat.row_ptr_[i] + matj] =
-              RowBatch::Entry(j, data[ncol * i + j]);
+          mat.page_.data[mat.page_.offset[i] + matj] =
+              Entry(j, data[ncol * i + j]);
           ++matj;
         }
       }
     }
   }
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
 
-  mat.info.num_nonzero = mat.row_data_.size();
+  mat.info.num_nonzero_ = mat.page_.data.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+enum class DTType : uint8_t {
+  kFloat32 = 0,
+  kFloat64 = 1,
+  kBool8 = 2,
+  kInt32 = 3,
+  kInt8 = 4,
+  kInt16 = 5,
+  kInt64 = 6,
+  kUnknown = 7
+};
+
+DTType DTGetType(std::string type_string) {
+  if (type_string == "float32") {
+    return DTType::kFloat32;
+  } else if (type_string == "float64") {
+    return DTType::kFloat64;
+  } else if (type_string == "bool8") {
+    return DTType::kBool8;
+  } else if (type_string == "int32") {
+    return DTType::kInt32;
+  } else if (type_string == "int8") {
+    return DTType::kInt8;
+  } else if (type_string == "int16") {
+    return DTType::kInt16;
+  } else if (type_string == "int64") {
+    return DTType::kInt64;
+  } else {
+    LOG(FATAL) << "Unknown data table type.";
+    return DTType::kUnknown;
+  }
+}
+
+float DTGetValue(void* column, DTType dt_type, size_t ridx) {
+  float missing = std::numeric_limits<float>::quiet_NaN();
+  switch (dt_type) {
+    case DTType::kFloat32: {
+      float val = reinterpret_cast<float*>(column)[ridx];
+      return std::isfinite(val) ? val : missing;
+    }
+    case DTType::kFloat64: {
+      double val = reinterpret_cast<double*>(column)[ridx];
+      return std::isfinite(val) ? static_cast<float>(val) : missing;
+    }
+    case DTType::kBool8: {
+      bool val = reinterpret_cast<bool*>(column)[ridx];
+      return static_cast<float>(val);
+    }
+    case DTType::kInt32: {
+      int32_t val = reinterpret_cast<int32_t*>(column)[ridx];
+      return val != (-2147483647 - 1) ? static_cast<float>(val) : missing;
+    }
+    case DTType::kInt8: {
+      int8_t val = reinterpret_cast<int8_t*>(column)[ridx];
+      return val != -128 ? static_cast<float>(val) : missing;
+    }
+    case DTType::kInt16: {
+      int16_t val = reinterpret_cast<int16_t*>(column)[ridx];
+      return val != -32768 ? static_cast<float>(val) : missing;
+    }
+    case DTType::kInt64: {
+      int64_t val = reinterpret_cast<int64_t*>(column)[ridx];
+      return val != -9223372036854775807 - 1 ? static_cast<float>(val)
+                                             : missing;
+    }
+    default: {
+      LOG(FATAL) << "Unknown data table type.";
+      return 0.0f;
+    }
+  }
+}
+
+XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
+                                  xgboost::bst_ulong nrow,
+                                  xgboost::bst_ulong ncol, DMatrixHandle* out,
+                                  int nthread) {
+  // avoid openmp unless enough data to be worth it to avoid overhead costs
+  if (nrow * ncol <= 10000 * 50) {
+    nthread = 1;
+  }
+
+  API_BEGIN();
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  if (nthread <= 0) nthread = nthreadmax;
+  int nthread_orig = omp_get_max_threads();
+  omp_set_num_threads(nthread);
+
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  data::SimpleCSRSource& mat = *source;
+  mat.page_.offset.resize(1 + nrow);
+  mat.info.num_row_ = nrow;
+  mat.info.num_col_ = ncol;
+
+#pragma omp parallel num_threads(nthread)
+  {
+    // Count elements per row, column by column
+    for (auto j = 0; j < ncol; ++j) {
+      DTType dtype = DTGetType(feature_stypes[j]);
+#pragma omp for schedule(static)
+      for (omp_ulong i = 0; i < nrow; ++i) {
+        float val = DTGetValue(data[j], dtype, i);
+        if (!std::isnan(val)) {
+          mat.page_.offset[i + 1]++;
+        }
+      }
+    }
+  }
+  // do cumulative sum (to avoid otherwise need to copy)
+  PrefixSum(&mat.page_.offset[0], mat.page_.offset.size());
+
+  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
+
+  // Fill data matrix (now that know size, no need for slow push_back())
+  std::vector<size_t> position(nrow);
+#pragma omp parallel num_threads(nthread)
+  {
+    for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      DTType dtype = DTGetType(feature_stypes[j]);
+#pragma omp for schedule(static)
+      for (omp_ulong i = 0; i < nrow; ++i) {
+        float val = DTGetValue(data[j], dtype, i);
+        if (!std::isnan(val)) {
+          mat.page_.data[mat.page_.offset[i] + position[i]] = Entry(j, val);
+          position[i]++;
+        }
+      }
+    }
+  }
+
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
+
+  mat.info.num_nonzero_ = mat.page_.data.size();
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
 
@@ -515,43 +650,43 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
+  CHECK_HANDLE();
   data::SimpleCSRSource src;
   src.CopyFrom(static_cast<std::shared_ptr<DMatrix>*>(handle)->get());
   data::SimpleCSRSource& ret = *source;
 
-  CHECK_EQ(src.info.group_ptr.size(), 0U)
+  CHECK_EQ(src.info.group_ptr_.size(), 0U)
       << "slice does not support group structure";
 
   ret.Clear();
-  ret.info.num_row = len;
-  ret.info.num_col = src.info.num_col;
+  ret.info.num_row_ = len;
+  ret.info.num_col_ = src.info.num_col_;
 
-  dmlc::DataIter<RowBatch>* iter = &src;
+  auto iter = &src;
   iter->BeforeFirst();
   CHECK(iter->Next());
 
-  const RowBatch& batch = iter->Value();
+  const  auto& batch = iter->Value();
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     const int ridx = idxset[i];
-    RowBatch::Inst inst = batch[ridx];
-    CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.size);
-    ret.row_data_.resize(ret.row_data_.size() + inst.length);
-    std::memcpy(dmlc::BeginPtr(ret.row_data_) + ret.row_ptr_.back(), inst.data,
-                sizeof(RowBatch::Entry) * inst.length);
-    ret.row_ptr_.push_back(ret.row_ptr_.back() + inst.length);
-    ret.info.num_nonzero += inst.length;
+    auto inst = batch[ridx];
+    CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.Size());
+    ret.page_.data.insert(ret.page_.data.end(), inst.data,
+                         inst.data + inst.length);
+    ret.page_.offset.push_back(ret.page_.offset.back() + inst.length);
+    ret.info.num_nonzero_ += inst.length;
 
-    if (src.info.labels.size() != 0) {
-      ret.info.labels.push_back(src.info.labels[ridx]);
+    if (src.info.labels_.size() != 0) {
+      ret.info.labels_.push_back(src.info.labels_[ridx]);
     }
-    if (src.info.weights.size() != 0) {
-      ret.info.weights.push_back(src.info.weights[ridx]);
+    if (src.info.weights_.size() != 0) {
+      ret.info.weights_.push_back(src.info.weights_[ridx]);
     }
-    if (src.info.base_margin.size() != 0) {
-      ret.info.base_margin.push_back(src.info.base_margin[ridx]);
+    if (src.info.base_margin_.size() != 0) {
+      ret.info.base_margin_.push_back(src.info.base_margin_[ridx]);
     }
-    if (src.info.root_index.size() != 0) {
-      ret.info.root_index.push_back(src.info.root_index[ridx]);
+    if (src.info.root_index_.size() != 0) {
+      ret.info.root_index_.push_back(src.info.root_index_[ridx]);
     }
   }
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
@@ -560,6 +695,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_BEGIN();
+  CHECK_HANDLE();
   delete static_cast<std::shared_ptr<DMatrix>*>(handle);
   API_END();
 }
@@ -568,6 +704,7 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
                                 const char* fname,
                                 int silent) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->SaveToLocalFile(fname);
   API_END();
 }
@@ -577,8 +714,9 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                           const bst_float* info,
                           xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->info().SetInfo(field, info, kFloat32, len);
+      ->get()->Info().SetInfo(field, info, kFloat32, len);
   API_END();
 }
 
@@ -587,8 +725,9 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const unsigned* info,
                          xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->info().SetInfo(field, info, kUInt32, len);
+      ->get()->Info().SetInfo(field, info, kUInt32, len);
   API_END();
 }
 
@@ -596,12 +735,13 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               const unsigned* group,
                               xgboost::bst_ulong len) {
   API_BEGIN();
-  std::shared_ptr<DMatrix> *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
-  MetaInfo& info = pmat->get()->info();
-  info.group_ptr.resize(len + 1);
-  info.group_ptr[0] = 0;
+  CHECK_HANDLE();
+  auto *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
+  MetaInfo& info = pmat->get()->Info();
+  info.group_ptr_.resize(len + 1);
+  info.group_ptr_[0] = 0;
   for (uint64_t i = 0; i < len; ++i) {
-    info.group_ptr[i + 1] = info.group_ptr[i] + group[i];
+    info.group_ptr_[i + 1] = info.group_ptr_[i] + group[i];
   }
   API_END();
 }
@@ -611,18 +751,19 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
                                   xgboost::bst_ulong* out_len,
                                   const bst_float** out_dptr) {
   API_BEGIN();
-  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->info();
+  CHECK_HANDLE();
+  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<bst_float>* vec = nullptr;
   if (!std::strcmp(field, "label")) {
-    vec = &info.labels;
+    vec = &info.labels_;
   } else if (!std::strcmp(field, "weight")) {
-    vec = &info.weights;
+    vec = &info.weights_;
   } else if (!std::strcmp(field, "base_margin")) {
-    vec = &info.base_margin;
+    vec = &info.base_margin_;
   } else {
     LOG(FATAL) << "Unknown float field name " << field;
   }
-  *out_len = static_cast<xgboost::bst_ulong>(vec->size());
+  *out_len = static_cast<xgboost::bst_ulong>(vec->size());  // NOLINT
   *out_dptr = dmlc::BeginPtr(*vec);
   API_END();
 }
@@ -632,31 +773,34 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
                                  xgboost::bst_ulong *out_len,
                                  const unsigned **out_dptr) {
   API_BEGIN();
-  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->info();
+  CHECK_HANDLE();
+  const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<unsigned>* vec = nullptr;
   if (!std::strcmp(field, "root_index")) {
-    vec = &info.root_index;
+    vec = &info.root_index_;
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size());
+    *out_dptr = dmlc::BeginPtr(*vec);
   } else {
     LOG(FATAL) << "Unknown uint field name " << field;
   }
-  *out_len = static_cast<xgboost::bst_ulong>(vec->size());
-  *out_dptr = dmlc::BeginPtr(*vec);
   API_END();
 }
 
 XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
+  CHECK_HANDLE();
   *out = static_cast<xgboost::bst_ulong>(
-      static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->info().num_row);
+      static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info().num_row_);
   API_END();
 }
 
 XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
+  CHECK_HANDLE();
   *out = static_cast<size_t>(
-      static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->info().num_col);
+      static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info().num_col_);
   API_END();
 }
 
@@ -675,6 +819,7 @@ XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
 
 XGB_DLL int XGBoosterFree(BoosterHandle handle) {
   API_BEGIN();
+  CHECK_HANDLE();
   delete static_cast<Booster*>(handle);
   API_END();
 }
@@ -683,6 +828,7 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *name,
                               const char *value) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<Booster*>(handle)->SetParam(name, value);
   API_END();
 }
@@ -691,8 +837,9 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
                                    int iter,
                                    DMatrixHandle dtrain) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
-  std::shared_ptr<DMatrix> *dtr =
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
+  auto *dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
 
   bst->LazyInit();
@@ -705,14 +852,16 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
                                   bst_float *grad,
                                   bst_float *hess,
                                   xgboost::bst_ulong len) {
-  std::vector<bst_gpair>& tmp_gpair = XGBAPIThreadLocalStore::Get()->tmp_gpair;
+  HostDeviceVector<GradientPair>& tmp_gpair = XGBAPIThreadLocalStore::Get()->tmp_gpair;
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
-  std::shared_ptr<DMatrix>* dtr =
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
+  auto* dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
-  tmp_gpair.resize(len);
+  tmp_gpair.Resize(len);
+  std::vector<GradientPair>& tmp_gpair_h = tmp_gpair.HostVector();
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
-    tmp_gpair[i] = bst_gpair(grad[i], hess[i]);
+    tmp_gpair_h[i] = GradientPair(grad[i], hess[i]);
   }
 
   bst->LazyInit();
@@ -728,13 +877,14 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
                                  const char** out_str) {
   std::string& eval_str = XGBAPIThreadLocalStore::Get()->ret_str;
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
   std::vector<DMatrix*> data_sets;
   std::vector<std::string> data_names;
 
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     data_sets.push_back(static_cast<std::shared_ptr<DMatrix>*>(dmats[i])->get());
-    data_names.push_back(std::string(evnames[i]));
+    data_names.emplace_back(evnames[i]);
   }
 
   bst->LazyInit();
@@ -749,9 +899,11 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              xgboost::bst_ulong *len,
                              const bst_float **out_result) {
-  std::vector<bst_float>& preds = XGBAPIThreadLocalStore::Get()->ret_vec_float;
+  HostDeviceVector<bst_float>& preds =
+    XGBAPIThreadLocalStore::Get()->ret_vec_float;
   API_BEGIN();
-  Booster *bst = static_cast<Booster*>(handle);
+  CHECK_HANDLE();
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Predict(
       static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
@@ -759,14 +911,16 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
       &preds, ntree_limit,
       (option_mask & 2) != 0,
       (option_mask & 4) != 0,
-      (option_mask & 8) != 0);
-  *out_result = dmlc::BeginPtr(preds);
-  *len = static_cast<xgboost::bst_ulong>(preds.size());
+      (option_mask & 8) != 0,
+      (option_mask & 16) != 0);
+  *out_result = dmlc::BeginPtr(preds.HostVector());
+  *len = static_cast<xgboost::bst_ulong>(preds.Size());
   API_END();
 }
 
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
+  CHECK_HANDLE();
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
   static_cast<Booster*>(handle)->LoadModel(fi.get());
   API_END();
@@ -774,8 +928,9 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
 
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
+  CHECK_HANDLE();
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname, "w"));
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Save(fo.get());
   API_END();
@@ -785,6 +940,7 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
                                  const void* buf,
                                  xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   common::MemoryFixSizeBuffer fs((void*)buf, len);  // NOLINT(*)
   static_cast<Booster*>(handle)->LoadModel(&fs);
   API_END();
@@ -797,8 +953,9 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
   raw_str.resize(0);
 
   API_BEGIN();
+  CHECK_HANDLE();
   common::MemoryBufferStream fo(&raw_str);
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Save(&fo);
   *out_dptr = dmlc::BeginPtr(raw_str);
@@ -815,7 +972,7 @@ inline void XGBoostDumpModelImpl(
     const char*** out_models) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   str_vecs = bst->learner()->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
@@ -839,6 +996,7 @@ XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
                        xgboost::bst_ulong* len,
                        const char*** out_models) {
   API_BEGIN();
+  CHECK_HANDLE();
   FeatureMap featmap;
   if (strlen(fmap) != 0) {
     std::unique_ptr<dmlc::Stream> fs(
@@ -869,6 +1027,7 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
                                    xgboost::bst_ulong* len,
                                    const char*** out_models) {
   API_BEGIN();
+  CHECK_HANDLE();
   FeatureMap featmap;
   for (int i = 0; i < fnum; ++i) {
     featmap.PushBack(i, fname[i], ftype[i]);
@@ -881,9 +1040,10 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
                      const char* key,
                      const char** out,
                      int* success) {
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   std::string& ret_str = XGBAPIThreadLocalStore::Get()->ret_str;
   API_BEGIN();
+  CHECK_HANDLE();
   if (bst->learner()->GetAttr(key, &ret_str)) {
     *out = ret_str.c_str();
     *success = 1;
@@ -897,8 +1057,9 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
                      const char* key,
                      const char* value) {
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   API_BEGIN();
+  CHECK_HANDLE();
   if (value == nullptr) {
     bst->learner()->DelAttr(key);
   } else {
@@ -912,8 +1073,9 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                      const char*** out) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   API_BEGIN();
+  CHECK_HANDLE();
   str_vecs = bst->learner()->GetAttrNames();
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
@@ -927,7 +1089,8 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
 XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
                                  int* version) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
   *version = rabit::LoadCheckPoint(bst->learner());
   if (*version != 0) {
     bst->initialized_ = true;
@@ -937,7 +1100,8 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
 
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
   if (bst->learner()->AllowLazyCheckPoint()) {
     rabit::LazyCheckPoint(bst->learner());
   } else {

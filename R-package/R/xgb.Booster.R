@@ -37,11 +37,14 @@ xgb.handleToBooster <- function(handle, raw = NULL) {
 # Check whether xgb.Booster.handle is null
 # internal utility function
 is.null.handle <- function(handle) {
+  if (is.null(handle)) return(TRUE)
+
   if (!identical(class(handle), "xgb.Booster.handle"))
     stop("argument type must be xgb.Booster.handle")
 
-  if (is.null(handle) || .Call(XGCheckNullPtr_R, handle))
+  if (.Call(XGCheckNullPtr_R, handle))
     return(TRUE)
+
   return(FALSE)
 }
 
@@ -537,7 +540,7 @@ xgb.ntree <- function(bst) {
 print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   cat('##### xgb.Booster\n')
 
-  valid_handle <- is.null.handle(x$handle)
+  valid_handle <- !is.null.handle(x$handle)
   if (!valid_handle)
     cat("Handle is invalid! Suggest using xgb.Booster.complete\n")
 

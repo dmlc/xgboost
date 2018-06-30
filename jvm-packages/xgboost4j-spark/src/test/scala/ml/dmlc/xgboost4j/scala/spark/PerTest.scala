@@ -18,11 +18,13 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql._
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
 trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
+
   protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
 
   @transient private var currentSession: SparkSession = _
@@ -61,5 +63,31 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
     for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
       file.delete()
     }
+  }
+
+  protected def buildDataFrame(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+        (id, labeledPoint.label, labeledPoint.features)
+      }
+
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+      .toDF("id", "label", "features")
+  }
+
+  protected def buildDataFrameWithGroup(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group)
+      }
+
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+      .toDF("id", "label", "features", "group")
   }
 }

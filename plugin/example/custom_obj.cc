@@ -33,30 +33,32 @@ class MyLogistic : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(const std::vector<bst_float> &preds,
+  void GetGradient(HostDeviceVector<bst_float> *preds,
                    const MetaInfo &info,
                    int iter,
-                   std::vector<bst_gpair> *out_gpair) override {
-    out_gpair->resize(preds.size());
-    for (size_t i = 0; i < preds.size(); ++i) {
+                   HostDeviceVector<GradientPair> *out_gpair) override {
+    out_gpair->Resize(preds->Size());
+    std::vector<bst_float>& preds_h = preds->HostVector();
+    std::vector<GradientPair>& out_gpair_h = out_gpair->HostVector();
+    for (size_t i = 0; i < preds_h.size(); ++i) {
       bst_float w = info.GetWeight(i);
       // scale the negative examples!
-      if (info.labels[i] == 0.0f) w *= param_.scale_neg_weight;
+      if (info.labels_[i] == 0.0f) w *= param_.scale_neg_weight;
       // logistic transformation
-      bst_float p = 1.0f / (1.0f + std::exp(-preds[i]));
+      bst_float p = 1.0f / (1.0f + std::exp(-preds_h[i]));
       // this is the gradient
-      bst_float grad = (p - info.labels[i]) * w;
+      bst_float grad = (p - info.labels_[i]) * w;
       // this is the second order gradient
       bst_float hess = p * (1.0f - p) * w;
-      out_gpair->at(i) = bst_gpair(grad, hess);
+      out_gpair_h.at(i) = GradientPair(grad, hess);
     }
   }
   const char* DefaultEvalMetric() const override {
     return "error";
   }
-  void PredTransform(std::vector<bst_float> *io_preds) override {
+  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     // transform margin value to probability.
-    std::vector<bst_float> &preds = *io_preds;
+    std::vector<bst_float> &preds = io_preds->HostVector();
     for (size_t i = 0; i < preds.size(); ++i) {
       preds[i] = 1.0f / (1.0f + std::exp(-preds[i]));
     }

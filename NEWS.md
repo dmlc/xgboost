@@ -3,6 +3,65 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.72 (2018.06.01)
+* Starting with this release, we plan to make a new release every two months. See #3252 for more details.
+* Fix a pathological behavior (near-zero second-order gradients) in multiclass objective (#3304)
+* Tree dumps now use high precision in storing floating-point values (#3298)
+* Submodules `rabit` and `dmlc-core` have been brought up to date, bringing bug fixes (#3330, #3221).
+* GPU support
+  - Continuous integration tests for GPU code (#3294, #3309)
+  - GPU accelerated coordinate descent algorithm (#3178)
+  - Abstract 1D vector class now works with multiple GPUs (#3287)
+  - Generate PTX code for most recent architecture (#3316)
+  - Fix a memory bug on NVIDIA K80 cards (#3293)
+  - Address performance instability for single-GPU, multi-core machines (#3324)
+* Python package
+  - FreeBSD support (#3247)
+  - Validation of feature names in `Booster.predict()` is now optional (#3323)
+* Updated Sklearn API
+  - Validation sets now support instance weights (#2354)
+  - `XGBClassifier.predict_proba()` should not support `output_margin` option. (#3343) See BREAKING CHANGES below.
+* R package:
+  - Better handling of NULL in `print.xgb.Booster()` (#3338)
+  - Comply with CRAN policy by removing compiler warning suppression (#3329)
+  - Updated CRAN submission
+* JVM packages
+  - JVM packages will now use the same versioning scheme as other packages (#3253)
+  - Update Spark to 2.3 (#3254)
+  - Add scripts to cross-build and deploy artifacts (#3276, #3307)
+  - Fix a compilation error for Scala 2.10 (#3332)
+* BREAKING CHANGES
+  - `XGBClassifier.predict_proba()` no longer accepts paramter `output_margin`. The paramater makes no sense for `predict_proba()` because the method is to predict class probabilities, not raw margin scores.
+
+## v0.71 (2018.04.11)
+* This is a minor release, mainly motivated by issues concerning `pip install`, e.g. #2426, #3189, #3118, and #3194.
+  With this release, users of Linux and MacOS will be able to run `pip install` for the most part.
+* Refactored linear booster class (`gblinear`), so as to support multiple coordinate descent updaters (#3103, #3134). See BREAKING CHANGES below.
+* Fix slow training for multiclass classification with high number of classes (#3109)
+* Fix a corner case in approximate quantile sketch (#3167). Applicable for 'hist' and 'gpu_hist' algorithms
+* Fix memory leak in DMatrix (#3182)
+* New functionality
+  - Better linear booster class (#3103, #3134)
+  - Pairwise SHAP interaction effects (#3043)
+  - Cox loss (#3043)
+  - AUC-PR metric for ranking task (#3172)
+  - Monotonic constraints for 'hist' algorithm (#3085)
+* GPU support
+  - Create an abtract 1D vector class that moves data seamlessly between the main and GPU memory (#2935, #3116, #3068). This eliminates unnecessary PCIe data transfer during training time.
+  - Fix minor bugs (#3051, #3217)
+  - Fix compatibility error for CUDA 9.1 (#3218)
+* Python package:
+  - Correctly handle parameter `verbose_eval=0` (#3115)
+* R package:
+  - Eliminate segmentation fault on 32-bit Windows platform (#2994)
+* JVM packages
+  - Fix a memory bug involving double-freeing Booster objects (#3005, #3011)
+  - Handle empty partition in predict (#3014)
+  - Update docs and unify terminology (#3024)
+  - Delete cache files after job finishes (#3022)
+  - Compatibility fixes for latest Spark versions (#3062, #3093)
+* BREAKING CHANGES: Updated linear modelling algorithms. In particular L1/L2 regularisation penalties are now normalised to number of training examples. This makes the implementation consistent with sklearn/glmnet. L2 regularisation has also been removed from the intercept. To produce linear models with the old regularisation behaviour, the alpha/lambda regularisation parameters can be manually scaled by dividing them by the number of training examples.
+
 ## v0.7 (2017.12.30)
 * **This version represents a major change from the last release (v0.6), which was released one year and half ago.**
 * Updated Sklearn API

@@ -13,7 +13,7 @@ namespace tree {
 /*! \brief training parameters for histogram-based training */
 struct FastHistParam : public dmlc::Parameter<FastHistParam> {
   // integral data type to be used with columnar data storage
-  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
+  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };  // NOLINT
   int colmat_dtype;
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse

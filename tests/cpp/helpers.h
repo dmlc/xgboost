@@ -23,10 +23,20 @@ long GetFileSize(const std::string filename);
 
 std::string CreateSimpleTestData();
 
+std::string CreateBigTestData(size_t n_entries);
+
 void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess);
+
+void CheckRankingObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_uint> groups,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
 

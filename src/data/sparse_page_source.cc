@@ -37,8 +37,8 @@ SparsePageSource::SparsePageSource(const std::string& cache_info)
     dmlc::SeekStream* fi = files_[i].get();
     std::string format;
     CHECK(fi->Read(&format)) << "Invalid page format";
-    formats_[i].reset(SparsePage::Format::Create(format));
-    SparsePage::Format* fmt = formats_[i].get();
+    formats_[i].reset(SparsePageFormat::Create(format));
+    SparsePageFormat* fmt = formats_[i].get();
     size_t fbegin = fi->Tell();
     prefetchers_[i].reset(new dmlc::ThreadedIter<SparsePage>(4));
     prefetchers_[i]->Init([fi, fmt] (SparsePage** dptr) {
@@ -61,8 +61,8 @@ bool SparsePageSource::Next() {
     prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
   }
   if (prefetchers_[clock_ptr_]->Next(&page_)) {
-    batch_ = page_->GetRowBatch(base_rowid_);
-    base_rowid_ += batch_.size;
+    page_->base_rowid = base_rowid_;
+    base_rowid_ += page_->Size();
     // advance clock
     clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
     return true;
@@ -79,8 +79,8 @@ void SparsePageSource::BeforeFirst() {
   }
 }
 
-const RowBatch& SparsePageSource::Value() const {
-  return batch_;
+const SparsePage& SparsePageSource::Value() const {
+  return *page_;
 }
 
 bool SparsePageSource::CacheExist(const std::string& cache_info) {
@@ -89,12 +89,12 @@ bool SparsePageSource::CacheExist(const std::string& cache_info) {
   {
     std::string name_info = cache_shards[0];
     std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r", true));
-    if (finfo.get() == nullptr) return false;
+    if (finfo == nullptr) return false;
   }
   for (const std::string& prefix : cache_shards) {
     std::string name_row = prefix + ".row.page";
     std::unique_ptr<dmlc::Stream> frow(dmlc::Stream::Create(name_row.c_str(), "r", true));
-    if (frow.get() == nullptr) return false;
+    if (frow == nullptr) return false;
   }
   return true;
 }
@@ -108,10 +108,10 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   std::vector<std::string> name_shards, format_shards;
   for (const std::string& prefix : cache_shards) {
     name_shards.push_back(prefix + ".row.page");
-    format_shards.push_back(SparsePage::Format::DecideFormat(prefix).first);
+    format_shards.push_back(SparsePageFormat::DecideFormat(prefix).first);
   }
   {
-    SparsePage::Writer writer(name_shards, format_shards, 6);
+    SparsePageWriter writer(name_shards, format_shards, 6);
     std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
@@ -119,22 +119,22 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
     // print every 4 sec.
-    const double kStep = 4.0;
+    constexpr double kStep = 4.0;
     size_t tick_expected = static_cast<double>(kStep);
 
     while (src->Next()) {
       const dmlc::RowBlock<uint32_t>& batch = src->Value();
       if (batch.label != nullptr) {
-        info.labels.insert(info.labels.end(), batch.label, batch.label + batch.size);
+        info.labels_.insert(info.labels_.end(), batch.label, batch.label + batch.size);
       }
       if (batch.weight != nullptr) {
-        info.weights.insert(info.weights.end(), batch.weight, batch.weight + batch.size);
+        info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
       }
-      info.num_row += batch.size;
-      info.num_nonzero +=  batch.offset[batch.size] - batch.offset[0];
+      info.num_row_ += batch.size;
+      info.num_nonzero_ +=  batch.offset[batch.size] - batch.offset[0];
       for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
         uint32_t index = batch.index[i];
-        info.num_col = std::max(info.num_col,
+        info.num_col_ = std::max(info.num_col_,
                                 static_cast<uint64_t>(index + 1));
       }
       page->Push(batch);
@@ -176,17 +176,17 @@ void SparsePageSource::Create(DMatrix* src,
   std::vector<std::string> name_shards, format_shards;
   for (const std::string& prefix : cache_shards) {
     name_shards.push_back(prefix + ".row.page");
-    format_shards.push_back(SparsePage::Format::DecideFormat(prefix).first);
+    format_shards.push_back(SparsePageFormat::DecideFormat(prefix).first);
   }
   {
-    SparsePage::Writer writer(name_shards, format_shards, 6);
+    SparsePageWriter writer(name_shards, format_shards, 6);
     std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
-    MetaInfo info = src->info();
+    MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    dmlc::DataIter<RowBatch>* iter = src->RowIterator();
+    auto iter = src->RowIterator();
 
     while (iter->Next()) {
       page->Push(iter->Value());

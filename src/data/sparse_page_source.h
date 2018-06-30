@@ -13,7 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
-#include "./sparse_batch_page.h"
+#include "sparse_page_writer.h"
 
 namespace xgboost {
 namespace data {
@@ -33,13 +33,13 @@ class SparsePageSource : public DataSource {
    */
   explicit SparsePageSource(const std::string& cache_prefix) noexcept(false);
   /*! \brief destructor */
-  virtual ~SparsePageSource();
+  ~SparsePageSource() override;
   // implement Next
   bool Next() override;
   // implement BeforeFirst
   void BeforeFirst() override;
   // implement Value
-  const RowBatch& Value() const override;
+  const SparsePage& Value() const override;
   /*!
    * \brief Create source by taking data from parser.
    * \param src source parser.
@@ -67,8 +67,6 @@ class SparsePageSource : public DataSource {
  private:
   /*! \brief number of rows */
   size_t base_rowid_;
-  /*! \brief temp data. */
-  RowBatch batch_;
   /*! \brief page currently on hold. */
   SparsePage *page_;
   /*! \brief internal clock ptr */
@@ -76,7 +74,7 @@ class SparsePageSource : public DataSource {
   /*! \brief file pointer to the row blob file. */
   std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
   /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePage::Format> > formats_;
+  std::vector<std::unique_ptr<SparsePageFormat> > formats_;
   /*! \brief internal prefetcher. */
   std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
 };

@@ -198,7 +198,11 @@ endif
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
-	cd R-package/src; $(RM) -rf rabit src include dmlc-core amalgamation *.so *.dll; cd $(ROOTDIR)
+	if [ -d "R-package/src" ]; then \
+		cd R-package/src; \
+		$(RM) -rf rabit src include dmlc-core amalgamation *.so *.dll; \
+		cd $(ROOTDIR); \
+	fi
 
 clean_all: clean
 	cd $(DMLC_CORE); "$(MAKE)" clean; cd $(ROOTDIR)
@@ -212,16 +216,28 @@ pypack: ${XGBOOST_DYLIB}
 	cp ${XGBOOST_DYLIB} python-package/xgboost
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
-# create pip installation pack for PyPI
+# create pip source dist (sdist) pack for PyPI
 pippack: clean_all
 	rm -rf xgboost-python
+# remove symlinked directories in python-package/xgboost
+	rm -rf python-package/xgboost/lib
+	rm -rf python-package/xgboost/dmlc-core
+	rm -rf python-package/xgboost/include
+	rm -rf python-package/xgboost/make
+	rm -rf python-package/xgboost/rabit
+	rm -rf python-package/xgboost/src
 	cp -r python-package xgboost-python
 	cp -r Makefile xgboost-python/xgboost/
 	cp -r make xgboost-python/xgboost/
 	cp -r src xgboost-python/xgboost/
+	cp -r tests xgboost-python/xgboost/
 	cp -r include xgboost-python/xgboost/
 	cp -r dmlc-core xgboost-python/xgboost/
 	cp -r rabit xgboost-python/xgboost/
+# Use setup_pip.py instead of setup.py
+	mv xgboost-python/setup_pip.py xgboost-python/setup.py
+# Build sdist tarball
+	cd xgboost-python; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
 
 # Script to make a clean installable R package.
 Rpack: clean_all
@@ -245,13 +261,15 @@ Rpack: clean_all
 	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.in
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
+	bash R-package/remove_warning_suppression_pragma.sh
+	rm xgboost/remove_warning_suppression_pragma.sh
 
 Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
 Rcheck: Rbuild
-	R CMD check  xgboost*.tar.gz
+	R CMD check xgboost*.tar.gz
 
 -include build/*.d
 -include build/*/*.d

@@ -11,8 +11,8 @@ TEST(cpu_predictor, Test) {
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   trees.back()->InitModel();
-  (*trees.back())[0].set_leaf(1.5f);
-  (*trees.back()).stat(0).sum_hess = 1.0f;
+  (*trees.back())[0].SetLeaf(1.5f);
+  (*trees.back()).Stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);
   model.CommitModel(std::move(trees), 0);
   model.param.num_output_group = 1;
@@ -24,15 +24,16 @@ TEST(cpu_predictor, Test) {
   auto dmat = CreateDMatrix(n_row, n_col, 0);
 
   // Test predict batch
-  std::vector<float> out_predictions;
+  HostDeviceVector<float> out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  for (int i = 0; i < out_predictions.size(); i++) {
-    ASSERT_EQ(out_predictions[i], 1.5);
+  std::vector<float>& out_predictions_h = out_predictions.HostVector();
+  for (int i = 0; i < out_predictions.Size(); i++) {
+    ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
   // Test predict instance
   auto batch = dmat->RowIterator()->Value();
-  for (int i = 0; i < batch.size; i++) {
+  for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
     ASSERT_EQ(instance_out_predictions[0], 1.5);

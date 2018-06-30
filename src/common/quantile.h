@@ -35,7 +35,7 @@ struct WQSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    Entry() {}
+    Entry() = default;
     // constructor
     Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
@@ -48,11 +48,11 @@ struct WQSummary {
       CHECK(rmax- rmin - wmin > -eps) <<  "relation constraint: min/max";
     }
     /*! \return rmin estimation for v strictly bigger than value */
-    inline RType rmin_next() const {
+    inline RType RMinNext() const {
       return rmin + wmin;
     }
     /*! \return rmax estimation for v strictly smaller than value */
-    inline RType rmax_prev() const {
+    inline RType RMaxPrev() const {
       return rmax - wmin;
     }
   };
@@ -65,7 +65,7 @@ struct WQSummary {
       // weight of instance
       RType weight;
       // default constructor
-      QEntry() {}
+      QEntry() = default;
       // constructor
       QEntry(DType value, RType weight)
           : value(value), weight(weight) {}
@@ -116,7 +116,7 @@ struct WQSummary {
   inline RType MaxError() const {
     RType res = data[0].rmax - data[0].rmin - data[0].wmin;
     for (size_t i = 1; i < size; ++i) {
-      res = std::max(data[i].rmax_prev() - data[i - 1].rmin_next(), res);
+      res = std::max(data[i].RMaxPrev() - data[i - 1].RMinNext(), res);
       res = std::max(data[i].rmax - data[i].rmin - data[i].wmin, res);
     }
     return res;
@@ -140,8 +140,8 @@ struct WQSummary {
       if (istart == 0) {
         return Entry(0.0f, 0.0f, 0.0f, qvalue);
       } else {
-        return Entry(data[istart - 1].rmin_next(),
-                     data[istart].rmax_prev(),
+        return Entry(data[istart - 1].RMinNext(),
+                     data[istart].RMaxPrev(),
                      0.0f, qvalue);
       }
     }
@@ -197,7 +197,7 @@ struct WQSummary {
       while (i < src.size - 1
              && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
       CHECK(i != src.size - 1);
-      if (dx2 < src.data[i].rmin_next() + src.data[i + 1].rmax_prev()) {
+      if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
           data[size++] = src.data[i]; lastidx = i;
         }
@@ -236,20 +236,20 @@ struct WQSummary {
         *dst = Entry(a->rmin + b->rmin,
                      a->rmax + b->rmax,
                      a->wmin + b->wmin, a->value);
-        aprev_rmin = a->rmin_next();
-        bprev_rmin = b->rmin_next();
+        aprev_rmin = a->RMinNext();
+        bprev_rmin = b->RMinNext();
         ++dst; ++a; ++b;
       } else if (a->value < b->value) {
         *dst = Entry(a->rmin + bprev_rmin,
-                     a->rmax + b->rmax_prev(),
+                     a->rmax + b->RMaxPrev(),
                      a->wmin, a->value);
-        aprev_rmin = a->rmin_next();
+        aprev_rmin = a->RMinNext();
         ++dst; ++a;
       } else {
         *dst = Entry(b->rmin + aprev_rmin,
-                     b->rmax + a->rmax_prev(),
+                     b->rmax + a->RMaxPrev(),
                      b->wmin, b->value);
-        bprev_rmin = b->rmin_next();
+        bprev_rmin = b->RMinNext();
         ++dst; ++b;
       }
     }
@@ -281,10 +281,10 @@ struct WQSummary {
   // helper function to print the current content of sketch
   inline void Print() const {
     for (size_t i = 0; i < this->size; ++i) {
-      LOG(INFO) << "[" << i << "] rmin=" << data[i].rmin
-                << ", rmax=" << data[i].rmax
-                << ", wmin=" << data[i].wmin
-                << ", v=" << data[i].value;
+      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin
+                   << ", rmax=" << data[i].rmax
+                   << ", wmin=" << data[i].wmin
+                   << ", v=" << data[i].value;
     }
   }
   // try to fix rounding error
@@ -307,7 +307,7 @@ struct WQSummary {
         data[i].rmax = prev_rmax;
         *err_maxgap = std::max(*err_maxgap, prev_rmax - data[i].rmax);
       }
-      RType rmin_next = data[i].rmin_next();
+      RType rmin_next = data[i].RMinNext();
       if (data[i].rmax < rmin_next) {
         data[i].rmax = rmin_next;
         *err_wgap = std::max(*err_wgap, data[i].rmax - rmin_next);
@@ -321,7 +321,7 @@ struct WQSummary {
     for (size_t i = 0; i < this->size; ++i) {
       if (data[i].rmin + data[i].wmin > data[i].rmax + tol ||
           data[i].rmin < -1e-6f || data[i].rmax < -1e-6f) {
-        LOG(INFO) << "----------check not pass----------";
+        LOG(INFO) << "---------- WQSummary::Check did not pass ----------";
         this->Print();
         return false;
       }
@@ -334,13 +334,13 @@ struct WQSummary {
 template<typename DType, typename RType>
 struct WXQSummary : public WQSummary<DType, RType> {
   // redefine entry type
-  typedef typename WQSummary<DType, RType>::Entry Entry;
+  using Entry = typename WQSummary<DType, RType>::Entry;
   // constructor
   WXQSummary(Entry *data, size_t size)
       : WQSummary<DType, RType>(data, size) {}
   // check if the block is large chunk
   inline static bool CheckLarge(const Entry &e, RType chunk) {
-    return  e.rmin_next() > e.rmax_prev() + chunk;
+    return  e.RMinNext() > e.RMaxPrev() + chunk;
   }
   // set prune
   inline void SetPrune(const WQSummary<DType, RType> &src, size_t maxsize) {
@@ -377,13 +377,13 @@ struct WXQSummary : public WQSummary<DType, RType> {
         if (CheckLarge(src.data[i], chunk)) {
           if (bid != i - 1) {
             // accumulate the range of the rest points
-            mrange += src.data[i].rmax_prev() - src.data[bid].rmin_next();
+            mrange += src.data[i].RMaxPrev() - src.data[bid].RMinNext();
           }
           bid = i; ++nbig;
         }
       }
       if (bid != src.size - 2) {
-        mrange += src.data[src.size-1].rmax_prev() - src.data[bid].rmin_next();
+        mrange += src.data[src.size-1].RMaxPrev() - src.data[bid].RMinNext();
       }
     }
     // assert: there cannot be more than n big data points
@@ -405,14 +405,14 @@ struct WXQSummary : public WQSummary<DType, RType> {
       if (end == src.size - 1 || CheckLarge(src.data[end], chunk)) {
         if (bid != end - 1) {
           size_t i = bid;
-          RType maxdx2 = src.data[end].rmax_prev() * 2;
+          RType maxdx2 = src.data[end].RMaxPrev() * 2;
           for (; k < n; ++k) {
             RType dx2 =  2 * ((k * mrange) / n + begin);
             if (dx2 >= maxdx2) break;
             while (i < end &&
                    dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
             if (i == end) break;
-            if (dx2 < src.data[i].rmin_next() + src.data[i + 1].rmax_prev()) {
+            if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
               if (i != lastidx) {
                 this->data[this->size++] = src.data[i]; lastidx = i;
               }
@@ -429,7 +429,7 @@ struct WXQSummary : public WQSummary<DType, RType> {
         }
         bid = end;
         // shift base by the gap
-        begin += src.data[bid].rmin_next() - src.data[bid].rmax_prev();
+        begin += src.data[bid].RMinNext() - src.data[bid].RMaxPrev();
       }
     }
   }
@@ -448,7 +448,7 @@ struct GKSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    Entry() {}
+    Entry() = default;
     // constructor
     Entry(RType rmin, RType rmax, DType value)
         : rmin(rmin), rmax(rmax), value(value) {}
@@ -503,9 +503,8 @@ struct GKSummary {
   /*! \brief used for debug purpose, print the summary */
   inline void Print() const {
     for (size_t i = 0; i < size; ++i) {
-      std::cout << "x=" << data[i].value << "\t"
-                << "[" << data[i].rmin << "," << data[i].rmax << "]"
-                << std::endl;
+      LOG(CONSOLE) << "x=" << data[i].value << "\t"
+                   << "[" << data[i].rmin << "," << data[i].rmax << "]";
     }
   }
   /*!
@@ -592,17 +591,17 @@ template<typename DType, typename RType, class TSummary>
 class QuantileSketchTemplate {
  public:
   /*! \brief type of summary type */
-  typedef TSummary Summary;
+  using Summary = TSummary;
   /*! \brief the entry type */
-  typedef typename Summary::Entry Entry;
+  using Entry = typename Summary::Entry;
   /*! \brief same as summary, but use STL to backup the space */
   struct SummaryContainer : public Summary {
     std::vector<Entry> space;
-    SummaryContainer(const SummaryContainer &src) : Summary(NULL, src.size) {
+    SummaryContainer(const SummaryContainer &src) : Summary(nullptr, src.size) {
       this->space = src.space;
       this->data = dmlc::BeginPtr(this->space);
     }
-    SummaryContainer() : Summary(NULL, 0) {
+    SummaryContainer() : Summary(nullptr, 0) {
     }
     /*! \brief reserve space for summary */
     inline void Reserve(size_t size) {
@@ -776,7 +775,7 @@ class QuantileSketchTemplate {
   inline void InitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
     data.resize(limit_size * nlevel);
-    level.resize(nlevel, Summary(NULL, 0));
+    level.resize(nlevel, Summary(nullptr, 0));
     for (size_t l = 0; l < level.size(); ++l) {
       level[l].data = dmlc::BeginPtr(data) + l * limit_size;
     }

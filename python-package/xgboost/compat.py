@@ -38,7 +38,7 @@ try:
 except ImportError:
 
     class MultiIndex(object):
-        """ dummy for pandas.MultiIndex  """
+        """ dummy for pandas.MultiIndex """
         pass
 
     class DataFrame(object):
@@ -46,6 +46,18 @@ except ImportError:
         pass
 
     PANDAS_INSTALLED = False
+
+# dt
+try:
+    from datatable import DataTable
+    DT_INSTALLED = True
+except ImportError:
+
+    class DataTable(object):
+        """ dummy for datatable.DataTable """
+        pass
+
+    DT_INSTALLED = False
 
 # sklearn
 try:

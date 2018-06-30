@@ -8,23 +8,27 @@
 #include <cstddef>
 #include <algorithm>
 
+#ifdef __CUDACC__
+#include "device_helpers.cuh"
+#endif
+
 namespace xgboost {
 namespace common {
 
-typedef unsigned char compressed_byte_t;
+using CompressedByteT = unsigned char;
 
 namespace detail {
-inline void SetBit(compressed_byte_t *byte, int bit_idx) {
+inline void SetBit(CompressedByteT *byte, int bit_idx) {
   *byte |= 1 << bit_idx;
 }
 template <typename T>
 inline T CheckBit(const T &byte, int bit_idx) {
   return byte & (1 << bit_idx);
 }
-inline void ClearBit(compressed_byte_t *byte, int bit_idx) {
+inline void ClearBit(CompressedByteT *byte, int bit_idx) {
   *byte &= ~(1 << bit_idx);
 }
-static const int padding = 4;  // Assign padding so we can read slightly off
+static const int kPadding = 4;  // Assign padding so we can read slightly off
                                // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
@@ -76,16 +80,16 @@ class CompressedBufferWriter {
     size_t compressed_size = static_cast<size_t>(std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
         bits_per_byte));
-    return compressed_size + detail::padding;
+    return compressed_size + detail::kPadding;
   }
 
   template <typename T>
-  void WriteSymbol(compressed_byte_t *buffer, T symbol, size_t offset) {
+  void WriteSymbol(CompressedByteT *buffer, T symbol, size_t offset) {
     const int bits_per_byte = 8;
 
     for (size_t i = 0; i < symbol_bits_; i++) {
       size_t byte_idx = ((offset + 1) * symbol_bits_ - (i + 1)) / bits_per_byte;
-      byte_idx += detail::padding;
+      byte_idx += detail::kPadding;
       size_t bit_idx =
           ((bits_per_byte + i) - ((offset + 1) * symbol_bits_)) % bits_per_byte;
 
@@ -96,20 +100,37 @@ class CompressedBufferWriter {
       }
     }
   }
-  template <typename iter_t>
-  void Write(compressed_byte_t *buffer, iter_t input_begin, iter_t input_end) {
+
+#ifdef __CUDACC__
+  __device__ void AtomicWriteSymbol
+    (CompressedByteT* buffer, uint64_t symbol, size_t offset) {
+    size_t ibit_start = offset * symbol_bits_;
+    size_t ibit_end = (offset + 1) * symbol_bits_ - 1;
+    size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
+
+    symbol <<= 7 - ibit_end % 8;
+    for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
+      dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
+                   ibyte, symbol & 0xff);
+      symbol >>= 8;
+    }
+  }
+#endif
+
+  template <typename IterT>
+  void Write(CompressedByteT *buffer, IterT input_begin, IterT input_end) {
     uint64_t tmp = 0;
     size_t stored_bits = 0;
     const size_t max_stored_bits = 64 - symbol_bits_;
-    size_t buffer_position = detail::padding;
+    size_t buffer_position = detail::kPadding;
     const size_t num_symbols = input_end - input_begin;
     for (size_t i = 0; i < num_symbols; i++) {
-      typename std::iterator_traits<iter_t>::value_type symbol = input_begin[i];
+      typename std::iterator_traits<IterT>::value_type symbol = input_begin[i];
       if (stored_bits > max_stored_bits) {
         // Eject only full bytes
         size_t tmp_bytes = stored_bits / 8;
         for (size_t j = 0; j < tmp_bytes; j++) {
-          buffer[buffer_position] = static_cast<compressed_byte_t>(
+          buffer[buffer_position] = static_cast<CompressedByteT>(
               tmp >> (stored_bits - (j + 1) * 8));
           buffer_position++;
         }
@@ -129,10 +150,10 @@ class CompressedBufferWriter {
       int shift_bits = static_cast<int>(stored_bits) - (j + 1) * 8;
       if (shift_bits >= 0) {
         buffer[buffer_position] =
-            static_cast<compressed_byte_t>(tmp >> shift_bits);
+            static_cast<CompressedByteT>(tmp >> shift_bits);
       } else {
         buffer[buffer_position] =
-            static_cast<compressed_byte_t>(tmp << std::abs(shift_bits));
+            static_cast<CompressedByteT>(tmp << std::abs(shift_bits));
       }
       buffer_position++;
     }
@@ -153,23 +174,21 @@ template <typename T>
 
 class CompressedIterator {
  public:
-  typedef CompressedIterator<T> self_type;  ///< My own type
-  typedef ptrdiff_t
-      difference_type;   ///< Type to express the result of subtracting
-                         /// one iterator from another
-  typedef T value_type;  ///< The type of the element the iterator can point to
-  typedef value_type *pointer;   ///< The type of a pointer to an element the
-                                 /// iterator can point to
-  typedef value_type reference;  ///< The type of a reference to an element the
-                                 /// iterator can point to
+  // Type definitions for thrust
+  typedef CompressedIterator<T> self_type;  // NOLINT
+  typedef ptrdiff_t difference_type;        // NOLINT
+  typedef T value_type;                     // NOLINT
+  typedef value_type *pointer;              // NOLINT
+  typedef value_type reference;             // NOLINT
+
  private:
-  compressed_byte_t *buffer_;
+  CompressedByteT *buffer_;
   size_t symbol_bits_;
   size_t offset_;
 
  public:
   CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
-  CompressedIterator(compressed_byte_t *buffer, int num_symbols)
+  CompressedIterator(CompressedByteT *buffer, int num_symbols)
       : buffer_(buffer), offset_(0) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
@@ -178,7 +197,7 @@ class CompressedIterator {
     const int bits_per_byte = 8;
     size_t start_bit_idx = ((offset_ + 1) * symbol_bits_ - 1);
     size_t start_byte_idx = start_bit_idx / bits_per_byte;
-    start_byte_idx += detail::padding;
+    start_byte_idx += detail::kPadding;
 
     // Read 5 bytes - the maximum we will need
     uint64_t tmp = static_cast<uint64_t>(buffer_[start_byte_idx - 4]) << 32 |

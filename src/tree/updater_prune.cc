@@ -21,37 +21,37 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 class TreePruner: public TreeUpdater {
  public:
   TreePruner() {
-    syncher.reset(TreeUpdater::Create("sync"));
+    syncher_.reset(TreeUpdater::Create("sync"));
   }
   // set training parameter
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.InitAllowUnknown(args);
-    syncher->Init(args);
+    param_.InitAllowUnknown(args);
+    syncher_->Init(args);
   }
   // update the tree, do pruning
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees
-    float lr = param.learning_rate;
-    param.learning_rate = lr / trees.size();
-    for (size_t i = 0; i < trees.size(); ++i) {
-      this->DoPrune(*trees[i]);
+    float lr = param_.learning_rate;
+    param_.learning_rate = lr / trees.size();
+    for (auto tree : trees) {
+      this->DoPrune(*tree);
     }
-    param.learning_rate = lr;
-    syncher->Update(gpair, p_fmat, trees);
+    param_.learning_rate = lr;
+    syncher_->Update(gpair, p_fmat, trees);
   }
 
  private:
   // try to prune off current leaf
   inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
-    if (tree[nid].is_root()) return npruned;
-    int pid = tree[nid].parent();
-    RegTree::NodeStat &s = tree.stat(pid);
+    if (tree[nid].IsRoot()) return npruned;
+    int pid = tree[nid].Parent();
+    RegTree::NodeStat &s = tree.Stat(pid);
     ++s.leaf_child_cnt;
-    if (s.leaf_child_cnt >= 2 && param.need_prune(s.loss_chg, depth - 1)) {
+    if (s.leaf_child_cnt >= 2 && param_.NeedPrune(s.loss_chg, depth - 1)) {
       // need to be pruned
-      tree.ChangeToLeaf(pid, param.learning_rate * s.base_weight);
+      tree.ChangeToLeaf(pid, param_.learning_rate * s.base_weight);
       // tail recursion
       return this->TryPruneLeaf(tree, pid, depth - 1, npruned + 2);
     } else {
@@ -63,25 +63,25 @@ class TreePruner: public TreeUpdater {
     int npruned = 0;
     // initialize auxiliary statistics
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
-      tree.stat(nid).leaf_child_cnt = 0;
+      tree.Stat(nid).leaf_child_cnt = 0;
     }
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
-      if (tree[nid].is_leaf()) {
+      if (tree[nid].IsLeaf()) {
         npruned = this->TryPruneLeaf(tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    if (!param.silent) {
+    if (!param_.silent) {
       LOG(INFO) << "tree pruning end, " << tree.param.num_roots << " roots, "
-                << tree.num_extra_nodes() << " extra nodes, " << npruned
+                << tree.NumExtraNodes() << " extra nodes, " << npruned
                 << " pruned nodes, max_depth=" << tree.MaxDepth();
     }
   }
 
  private:
   // synchronizer
-  std::unique_ptr<TreeUpdater> syncher;
+  std::unique_ptr<TreeUpdater> syncher_;
   // training parameter
-  TrainParam param;
+  TrainParam param_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")

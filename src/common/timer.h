@@ -2,6 +2,7 @@
  * Copyright by Contributors 2017
  */
 #pragma once
+#include <xgboost/logging.h>
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -11,10 +12,10 @@
 namespace xgboost {
 namespace common {
 struct Timer {
-  typedef std::chrono::high_resolution_clock ClockT;
-  typedef std::chrono::high_resolution_clock::time_point TimePointT;
-  typedef std::chrono::high_resolution_clock::duration DurationT;
-  typedef std::chrono::duration<double> SecondsT;
+  using ClockT = std::chrono::high_resolution_clock;
+  using TimePointT = std::chrono::high_resolution_clock::time_point;
+  using DurationT = std::chrono::high_resolution_clock::duration;
+  using SecondsT = std::chrono::duration<double>;
 
   TimePointT start;
   DurationT elapsed;
@@ -27,7 +28,10 @@ struct Timer {
   void Stop() { elapsed += ClockT::now() - start; }
   double ElapsedSeconds() const { return SecondsT(elapsed).count(); }
   void PrintElapsed(std::string label) {
-    printf("%s:\t %fs\n", label.c_str(), SecondsT(elapsed).count());
+    char buffer[255];
+    snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(),
+             SecondsT(elapsed).count());
+    LOG(CONSOLE) << buffer;
     Reset();
   }
 };
@@ -50,9 +54,7 @@ struct Monitor {
   ~Monitor() {
     if (!debug_verbose) return;
 
-    std::cout << "========\n";
-    std::cout << "Monitor: " << label << "\n";
-    std::cout << "========\n";
+    LOG(CONSOLE) << "======== Monitor: " << label << " ========";
     for (auto &kv : timer_map) {
       kv.second.PrintElapsed(kv.first);
     }
@@ -68,7 +70,7 @@ struct Monitor {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::synchronize_n_devices(dList.size(), dList);
+      dh::SynchronizeNDevices(dList.size(), dList);
 #endif
     }
     timer_map[name].Start();
@@ -78,7 +80,7 @@ struct Monitor {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::synchronize_n_devices(dList.size(), dList);
+      dh::SynchronizeNDevices(dList.size(), dList);
 #endif
     }
     timer_map[name].Stop();

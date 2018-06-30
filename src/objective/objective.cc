@@ -25,17 +25,6 @@ ObjFunction* ObjFunction::Create(const std::string& name) {
   return (e->body)();
 }
 
-void ObjFunction::GetGradient(HostDeviceVector<bst_float>* preds,
-                              const MetaInfo& info,
-                              int iteration,
-                              HostDeviceVector<bst_gpair>* out_gpair) {
-  GetGradient(preds->data_h(), info, iteration, &out_gpair->data_h());
-}
-
-void ObjFunction::PredTransform(HostDeviceVector<bst_float> *io_preds) {
-  PredTransform(&io_preds->data_h());
-}
-
 }  // namespace xgboost
 
 namespace xgboost {

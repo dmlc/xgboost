@@ -7,9 +7,9 @@
 dockerRun = 'tests/ci_build/ci_build.sh'
 
 def buildMatrix = [
-    [ "enabled": true,  "os" : "linux", "withGpu": true,  "withOmp": true, "pythonVersion": "2.7" ],
-    [ "enabled": true,  "os" : "linux", "withGpu": false, "withOmp": true, "pythonVersion": "2.7" ],
-    [ "enabled": false, "os" : "osx",   "withGpu": false, "withOmp": false, "pythonVersion": "2.7" ],
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.1" ],
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
+    [ "enabled": false,  "os" : "linux", "withGpu": false, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": ""  ],
 ]
 
 pipeline {
@@ -69,8 +69,7 @@ def buildFactory(buildName, conf) {
     def os = conf["os"]
     def nodeReq = conf["withGpu"] ? "${os} && gpu" : "${os}"
     def dockerTarget = conf["withGpu"] ? "gpu" : "cpu"
-    [ ("cmake_${buildName}") : { buildPlatformCmake("cmake_${buildName}", conf, nodeReq, dockerTarget) },
-      ("make_${buildName}") : { buildPlatformMake("make_${buildName}", conf, nodeReq, dockerTarget) }
+    [ ("${buildName}") : { buildPlatformCmake("${buildName}", conf, nodeReq, dockerTarget) }
     ]
 }
 
@@ -81,6 +80,10 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
     def opts = cmakeOptions(conf)
     // Destination dir for artifacts
     def distDir = "dist/${buildName}"
+    def dockerArgs = ""
+    if(conf["withGpu"]){
+        dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
+    }
     // Build node - this is returned result
     node(nodeReq) {
         unstash name: 'srcs'
@@ -92,58 +95,33 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         """.stripMargin('|')
         // Invoke command inside docker
         sh """
-        ${dockerRun} ${dockerTarget} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} tests/ci_build/test_${dockerTarget}.sh
-        ${dockerRun} ${dockerTarget} bash -c "cd python-package; python setup.py bdist_wheel"
+        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
+        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${dockerTarget}.sh
+        ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
         rm -rf "${distDir}"; mkdir -p "${distDir}/py"
         cp xgboost "${distDir}"
         cp -r lib "${distDir}"
         cp -r python-package/dist "${distDir}/py"
+        # Test the wheel for compatibility on a barebones CPU container
+        ${dockerRun} release ${dockerArgs} bash -c " \
+            auditwheel show xgboost-*-py2-none-any.whl
+            pip install --user python-package/dist/xgboost-*-none-any.whl && \
+            python -m nose tests/python"
         """
         archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
     }
 }
 
-/**
- * Build platform via make
- */
-def buildPlatformMake(buildName, conf, nodeReq, dockerTarget) {
-    def opts = makeOptions(conf)
-    // Destination dir for artifacts
-    def distDir = "dist/${buildName}"
-    // Build node
-    node(nodeReq) {
-        unstash name: 'srcs'
-        echo """
-        |===== XGBoost Make build =====
-        |  dockerTarget: ${dockerTarget}
-        |  makeOpts    : ${opts}
-        |=========================
-        """.stripMargin('|')
-        // Invoke command inside docker
-        sh """
-        ${dockerRun} ${dockerTarget} tests/ci_build/build_via_make.sh ${opts}
-        """
-    }
-}
-
-def makeOptions(conf) {
-    return ([
-        conf["withGpu"] ? 'PLUGIN_UPDATER_GPU=ON' : 'PLUGIN_UPDATER_GPU=OFF',
-        conf["withOmp"] ? 'USE_OPENMP=1' : 'USE_OPENMP=0']
-        ).join(" ")
-}
-
-
 def cmakeOptions(conf) {
     return ([
-        conf["withGpu"] ? '-DPLUGIN_UPDATER_GPU:BOOL=ON' : '',
+        conf["withGpu"] ? '-DUSE_CUDA=ON' : '-DUSE_CUDA=OFF',
+        conf["withNccl"] ? '-DUSE_NCCL=ON' : '-DUSE_NCCL=OFF',
         conf["withOmp"] ? '-DOPEN_MP:BOOL=ON' : '']
         ).join(" ")
 }
 
 def getBuildName(conf) {
-    def gpuLabel = conf['withGpu'] ? "_gpu" : "_cpu"
+    def gpuLabel = conf['withGpu'] ? "_cuda" + conf['cudaVersion'] : "_cpu"
     def ompLabel = conf['withOmp'] ? "_omp" : ""
     def pyLabel = "_py${conf['pythonVersion']}"
     return "${conf['os']}${gpuLabel}${ompLabel}${pyLabel}"

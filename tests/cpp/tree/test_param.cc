@@ -1,5 +1,5 @@
 // Copyright by Contributors
-#include "../../src/tree/param.h"
+#include "../../../src/tree/param.h"
 
 #include "../helpers.h"
 
@@ -89,8 +89,8 @@ TEST(Param, SplitEntry) {
   xgboost::tree::SplitEntry se3;
   se3.Update(2, 101, 0, false);
   xgboost::tree::SplitEntry::Reduce(se2, se3);
-  EXPECT_EQ(se2.split_index(), 101);
-  EXPECT_FALSE(se2.default_left());
+  EXPECT_EQ(se2.SplitIndex(), 101);
+  EXPECT_FALSE(se2.DefaultLeft());
 
   EXPECT_TRUE(se1.NeedReplace(3, 1));
 }

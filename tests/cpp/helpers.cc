@@ -3,7 +3,13 @@
 #include <random>
 
 std::string TempFileName() {
-  return std::tmpnam(nullptr);
+  std::string tmp = std::tmpnam(nullptr);
+  std::replace(tmp.begin(), tmp.end(), '\\',
+               '/');  // Remove windows backslashes
+  // Remove drive prefix for windows
+  if (tmp.find("C:") != std::string::npos)
+    tmp.erase(tmp.find("C:"), 2);
+  return tmp;
 }
 
 bool FileExists(const std::string name) {
@@ -18,30 +24,37 @@ long GetFileSize(const std::string filename) {
 }
 
 std::string CreateSimpleTestData() {
+  return CreateBigTestData(6);
+}
+
+std::string CreateBigTestData(size_t n_entries) {
   std::string tmp_file = TempFileName();
   std::ofstream fo;
   fo.open(tmp_file);
-  fo << "0 0:0 1:10 2:20\n";
-  fo << "1 0:0 3:30 4:40\n";
+  const size_t entries_per_row = 3;
+  size_t n_rows = (n_entries + entries_per_row - 1) / entries_per_row;
+  for (size_t i = 0; i < n_rows; ++i) {
+    const char* row = i % 2 == 0 ? " 0:0 1:10 2:20\n" : " 0:0 3:30 4:40\n";
+    fo << i << row;
+  }
   fo.close();
   return tmp_file;
 }
 
-void CheckObjFunction(xgboost::ObjFunction * obj,
+void _CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
+                      xgboost::MetaInfo info,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
-  xgboost::MetaInfo info;
-  info.num_row = labels.size();
-  info.labels = labels;
-  info.weights = weights;
+  xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
 
-  std::vector<xgboost::bst_gpair> gpair;
-  obj->GetGradient(preds, info, 1, &gpair);
+  xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
+  obj->GetGradient(&in_preds, info, 1, &out_gpair);
+  std::vector<xgboost::GradientPair>& gpair = out_gpair.HostVector();
 
-  ASSERT_EQ(gpair.size(), preds.size());
+  ASSERT_EQ(gpair.size(), in_preds.Size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
     EXPECT_NEAR(gpair[i].GetGrad(), out_grad[i], 0.01)
       << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
@@ -52,14 +65,45 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   }
 }
 
+void CheckObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
+void CheckRankingObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_uint> groups,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+  info.group_ptr_ = groups;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
+
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> preds,
                                  std::vector<xgboost::bst_float> labels,
                                  std::vector<xgboost::bst_float> weights) {
   xgboost::MetaInfo info;
-  info.num_row = labels.size();
-  info.labels = labels;
-  info.weights = weights;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
   return metric->Eval(preds, info, false);
 }
 

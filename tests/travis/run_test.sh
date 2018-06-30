@@ -10,6 +10,22 @@ if [ ${TASK} == "lint" ]; then
     echo "----------------------------"
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
+
+    # Rename cuda files for static analysis
+    for file in  $(find src -name '*.cu'); do
+        cp "$file" "${file/.cu/_tmp.cc}"
+    done
+
+    echo "Running clang tidy..."
+    header_filter='(xgboost\/src|xgboost\/include)'
+    for filename in $(find src -name '*.cc'); do
+	    clang-tidy $filename -header-filter=$header_filter -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
+    done
+
+    echo "---------clang-tidy failures----------"
+    # Fail only on warnings related to XGBoost source files
+    (cat logtidy.txt|grep -E 'xgboost.*warning'|grep -v dmlc-core) && exit -1
+    echo "----------------------------"
     exit 0
 fi
 
@@ -32,6 +48,13 @@ if [ ${TASK} == "python_test" ]; then
     source activate python3
     python --version
     conda install numpy scipy pandas matplotlib nose scikit-learn
+
+    # Install data table from source
+    wget http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
+    tar xf clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
+    export LLVM5=$(pwd)/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04
+    python -m pip install datatable --no-binary datatable
+
     python -m pip install graphviz pytest pytest-cov codecov
     python -m nose tests/python || exit -1
     py.test tests/python --cov=python-package/xgboost
@@ -93,8 +116,8 @@ fi
 if [ ${TASK} == "cmake_test" ]; then
     set -e
     # Build gtest via cmake
-    wget https://github.com/google/googletest/archive/release-1.7.0.zip
-    unzip release-1.7.0.zip
+    wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
+    unzip -n release-1.7.0.zip
     mv googletest-release-1.7.0 gtest && cd gtest
     cmake . && make
     mkdir lib && mv libgtest.a lib
@@ -103,7 +126,7 @@ if [ ${TASK} == "cmake_test" ]; then
 
     # Build/test without AVX
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON 
+    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=../gtest/
     make
     cd ..
     ./testxgboost
@@ -111,7 +134,7 @@ if [ ${TASK} == "cmake_test" ]; then
     
     # Build/test with AVX
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON
+    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON -DGTEST_ROOT=../gtest/
     make
     cd ..
     ./testxgboost

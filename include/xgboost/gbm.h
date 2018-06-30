@@ -27,7 +27,7 @@ namespace xgboost {
 class GradientBooster {
  public:
   /*! \brief virtual destructor */
-  virtual ~GradientBooster() {}
+  virtual ~GradientBooster() = default;
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.
@@ -69,11 +69,8 @@ class GradientBooster {
    * the booster may change content of gpair
    */
   virtual void DoBoost(DMatrix* p_fmat,
-                       std::vector<bst_gpair>* in_gpair,
+                       HostDeviceVector<GradientPair>* in_gpair,
                        ObjFunction* obj = nullptr) = 0;
-  virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<bst_gpair>* in_gpair,
-                       ObjFunction* obj = nullptr);
 
   /*!
    * \brief generate predictions for given feature matrix
@@ -83,11 +80,8 @@ class GradientBooster {
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictBatch(DMatrix* dmat,
-                       std::vector<bst_float>* out_preds,
-                       unsigned ntree_limit = 0) = 0;
-  virtual void PredictBatch(DMatrix* dmat,
                             HostDeviceVector<bst_float>* out_preds,
-                            unsigned ntree_limit = 0);
+                            unsigned ntree_limit = 0) = 0;
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
@@ -100,7 +94,7 @@ class GradientBooster {
    * \param root_index the root index
    * \sa Predict
    */
-  virtual void PredictInstance(const SparseBatch::Inst& inst,
+  virtual void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0,
                        unsigned root_index = 0) = 0;
@@ -124,10 +118,17 @@ class GradientBooster {
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees
    * \param approximate use a faster (inconsistent) approximation of SHAP values
+   * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).
+   * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
                            std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit = 0, bool approximate = false) = 0;
+                           unsigned ntree_limit = 0, bool approximate = false,
+                           int condition = 0, unsigned condition_feature = 0) = 0;
+
+  virtual void PredictInteractionContributions(DMatrix* dmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit, bool approximate) = 0;
 
   /*!
    * \brief dump the model in the requested format

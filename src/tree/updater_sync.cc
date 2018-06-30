@@ -23,7 +23,7 @@ class TreeSyncher: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {}
 
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
     if (rabit::GetWorldSize() == 1) return;
@@ -31,14 +31,14 @@ class TreeSyncher: public TreeUpdater {
     common::MemoryBufferStream fs(&s_model);
     int rank = rabit::GetRank();
     if (rank == 0) {
-      for (size_t i = 0; i < trees.size(); ++i) {
-        trees[i]->Save(&fs);
+      for (auto tree : trees) {
+        tree->Save(&fs);
       }
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
-    for (size_t i = 0; i < trees.size(); ++i) {
-      trees[i]->Load(&fs);
+    for (auto tree : trees) {
+      tree->Load(&fs);
     }
   }
 };

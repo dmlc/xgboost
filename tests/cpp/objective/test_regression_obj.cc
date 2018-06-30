@@ -46,10 +46,11 @@ TEST(Objective, LogisticRegressionBasic) {
     << "Expected error when base_score not in range [0,1f] for LogisticRegression";
 
   // test PredTransform
-  std::vector<xgboost::bst_float> preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
-  obj->PredTransform(&preds);
-  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
@@ -94,10 +95,11 @@ TEST(Objective, PoissonRegressionBasic) {
   EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
 
   // test PredTransform
-  std::vector<xgboost::bst_float> preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&preds);
-  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
@@ -129,10 +131,11 @@ TEST(Objective, GammaRegressionBasic) {
   EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
 
   // test PredTransform
-  std::vector<xgboost::bst_float> preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&preds);
-  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
@@ -160,15 +163,28 @@ TEST(Objective, TweedieRegressionBasic) {
     << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), 0.10f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0.5f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 0.89f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
 
   // test PredTransform
-  std::vector<xgboost::bst_float> preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
-  obj->PredTransform(&preds);
-  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+}
+
+TEST(Objective, CoxRegressionGPair) {
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("survival:cox");
+  std::vector<std::pair<std::string, std::string> > args;
+  obj->Configure(args);
+  CheckObjFunction(obj,
+                   { 0, 0.1f, 0.9f,       1,       0,    0.1f,   0.9f,       1},
+                   { 0,   -2,   -2,       2,       3,       5,    -10,     100},
+                   { 1,    1,    1,       1,       1,       1,      1,       1},
+                   { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
+                   { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }

@@ -42,9 +42,10 @@ mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
 
 test_that("xgb.dump works", {
   expect_length(xgb.dump(bst.Tree), 200)
-  expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
-  expect_true(file.exists('xgb.model.dump'))
-  expect_gt(file.size('xgb.model.dump'), 8000)
+  dump_file = file.path(tempdir(), 'xgb.model.dump')
+  expect_true(xgb.dump(bst.Tree, dump_file, with_stats = T))
+  expect_true(file.exists(dump_file))
+  expect_gt(file.size(dump_file), 8000)
 
   # JSON format
   dmp <- xgb.dump(bst.Tree, dump_format = "json")

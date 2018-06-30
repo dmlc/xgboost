@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 
 
@@ -76,6 +77,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_id;
   // number of GPUs to use
   int n_gpus;
+  // the criteria to use for ranking splits
+  std::string split_evaluator;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -183,6 +186,9 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_lower_bound(-1)
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
+    DMLC_DECLARE_FIELD(split_evaluator)
+        .set_default("monotonic")
+        .describe("The criteria to use for ranking splits");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
@@ -190,26 +196,26 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
   /*! \brief whether need forward small to big search: default right */
-  inline bool need_forward_search(float col_density, bool indicator) const {
+  inline bool NeedForwardSearch(float col_density, bool indicator) const {
     return this->default_direction == 2 ||
            (default_direction == 0 && (col_density < opt_dense_col) &&
             !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool need_backward_search(float col_density, bool indicator) const {
+  inline bool NeedBackwardSearch(float col_density, bool indicator) const {
     return this->default_direction != 2;
   }
   /*! \brief given the loss change, whether we need to invoke pruning */
-  inline bool need_prune(double loss_chg, int depth) const {
+  inline bool NeedPrune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss;
   }
   /*! \brief whether we can split with current hessian */
-  inline bool cannot_split(double sum_hess, int depth) const {
+  inline bool CannotSplit(double sum_hess, int depth) const {
     return sum_hess < this->min_child_weight * 2.0;
   }
   /*! \brief maximum sketch size */
-  inline unsigned max_sketch_size() const {
-    unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
+  inline unsigned MaxSketchSize() const {
+    auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
     CHECK_GT(ret, 0U);
     return ret;
   }
@@ -220,10 +226,12 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
 // functions for L1 cost
 template <typename T1, typename T2>
 XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
-  if (w > +lambda)
+  if (w > +lambda) {
     return w - lambda;
-  if (w < -lambda)
+  }
+  if (w < -lambda) {
     return w + lambda;
+  }
   return 0.0;
 }
 
@@ -240,8 +248,9 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
-  if (sum_hess < p.min_child_weight)
+  if (sum_hess < p.min_child_weight) {
     return T(0.0);
+}
   if (p.max_delta_step == 0.0f) {
     if (p.reg_alpha == 0.0f) {
       return Sqr(sum_grad) / (sum_hess + p.reg_lambda);
@@ -276,8 +285,9 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
-  if (sum_hess < p.min_child_weight)
+  if (sum_hess < p.min_child_weight) {
     return 0.0;
+}
   T dw;
   if (p.reg_alpha == 0.0f) {
     dw = -sum_grad / (sum_hess + p.reg_lambda);
@@ -285,16 +295,18 @@ XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
     dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
   }
   if (p.max_delta_step != 0.0f) {
-    if (dw > p.max_delta_step)
+    if (dw > p.max_delta_step) {
       dw = p.max_delta_step;
-    if (dw < -p.max_delta_step)
+}
+    if (dw < -p.max_delta_step) {
       dw = -p.max_delta_step;
+}
   }
   return dw;
 }
 
-template <typename TrainingParams, typename gpair_t>
-XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, gpair_t sum_grad) {
+template <typename TrainingParams, typename GpairT>
+XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
@@ -312,8 +324,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam& param) { this->Clear(); }
 
-  template <typename gpair_t>
-  XGBOOST_DEVICE explicit GradStats(const gpair_t &sum)
+  template <typename GpairT>
+  XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
@@ -323,26 +335,26 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    * \brief accumulate statistics
    * \param p the gradient pair
    */
-  inline void Add(bst_gpair p) { this->Add(p.GetGrad(), p.GetHess()); }
+  inline void Add(GradientPair p) { this->Add(p.GetGrad(), p.GetHess()); }
   /*!
    * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
    * \param info the additional information
    * \param ridx instance index of this instance
    */
-  inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
+  inline void Add(const std::vector<GradientPair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
-    const bst_gpair& b = gpair[ridx];
+    const GradientPair& b = gpair[ridx];
     this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
-  template <typename param_t>
-  XGBOOST_DEVICE inline double CalcWeight(const param_t &param) const {
+  template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-template <typename param_t>
-  inline double CalcGain(const param_t& param) const {
+template <typename ParamT>
+  inline double CalcGain(const ParamT& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
@@ -364,7 +376,7 @@ template <typename param_t>
   /*! \brief set leaf vector value based on statistics */
   inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
-  GradStats() {}
+  GradStats() = default;
   /*! \brief add statistics to the data */
   inline void Add(double grad, double hess) {
     sum_grad += grad;
@@ -376,7 +388,7 @@ struct NoConstraint {
   inline static void Init(TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-  inline double CalcSplitGain(const TrainParam &param, bst_uint split_index,
+  inline double CalcSplitGain(const TrainParam &param, int constraint,
                               GradStats left, GradStats right) const {
     return left.CalcGain(param) + right.CalcGain(param);
   }
@@ -400,8 +412,8 @@ struct ValueConstraint {
   inline static void Init(TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcWeight(const param_t &param, GradStats stats) const {
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, GradStats stats) const {
     double w = stats.CalcWeight(param);
     if (w < lower_bound) {
       return lower_bound;
@@ -412,15 +424,16 @@ template <typename param_t>
     return w;
   }
 
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcGain(const param_t &param, GradStats stats) const {
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcGain(const ParamT &param, GradStats stats) const {
     return CalcGainGivenWeight(param, stats.sum_grad, stats.sum_hess,
                                CalcWeight(param, stats));
   }
 
-template <typename param_t>
-  XGBOOST_DEVICE inline double CalcSplitGain(const param_t &param, int constraint,
+template <typename ParamT>
+  XGBOOST_DEVICE inline double CalcSplitGain(const ParamT &param, int constraint,
                               GradStats left, GradStats right) const {
+    const double negative_infinity = -std::numeric_limits<double>::infinity();
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double gain =
@@ -429,9 +442,9 @@ template <typename param_t>
     if (constraint == 0) {
       return gain;
     } else if (constraint > 0) {
-      return wleft < wright ? gain : 0.0;
+      return wleft <= wright ? gain : negative_infinity;
     } else {
-      return wleft > wright ? gain : 0.0;
+      return wleft >= wright ? gain : negative_infinity;
     }
   }
 
@@ -441,8 +454,9 @@ template <typename param_t>
     int c = param.monotone_constraints.at(split_index);
     *cleft = *this;
     *cright = *this;
-    if (c == 0)
+    if (c == 0) {
       return;
+}
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double mid = (wleft + wright) / 2;
@@ -463,13 +477,13 @@ template <typename param_t>
  */
 struct SplitEntry {
   /*! \brief loss change after split this node */
-  bst_float loss_chg;
+  bst_float loss_chg{0.0f};
   /*! \brief split index */
-  unsigned sindex;
+  unsigned sindex{0};
   /*! \brief split value */
-  bst_float split_value;
+  bst_float split_value{0.0f};
   /*! \brief constructor */
-  SplitEntry() : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
+  SplitEntry()  = default;
   /*!
    * \brief decides whether we can replace current entry with the given
    * statistics
@@ -481,7 +495,7 @@ struct SplitEntry {
    * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
-    if (this->split_index() <= split_index) {
+    if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
       return !(this->loss_chg > new_loss_chg);
@@ -493,7 +507,7 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(const SplitEntry &e) {
-    if (this->NeedReplace(e.loss_chg, e.split_index())) {
+    if (this->NeedReplace(e.loss_chg, e.SplitIndex())) {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
@@ -514,8 +528,9 @@ struct SplitEntry {
                      bst_float new_split_value, bool default_left) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
-      if (default_left)
+      if (default_left) {
         split_index |= (1U << 31);
+}
       this->sindex = split_index;
       this->split_value = new_split_value;
       return true;
@@ -529,9 +544,9 @@ struct SplitEntry {
     dst.Update(src);
   }
   /*!\return feature index to split on */
-  inline unsigned split_index() const { return sindex & ((1U << 31) - 1U); }
+  inline unsigned SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */
-  inline bool default_left() const { return (sindex >> 31) != 0; }
+  inline bool DefaultLeft() const { return (sindex >> 31) != 0; }
 };
 
 }  // namespace tree
@@ -541,14 +556,16 @@ struct SplitEntry {
 namespace std {
 inline std::ostream &operator<<(std::ostream &os, const std::vector<int> &t) {
   os << '(';
-  for (std::vector<int>::const_iterator it = t.begin(); it != t.end(); ++it) {
-    if (it != t.begin())
+  for (auto it = t.begin(); it != t.end(); ++it) {
+    if (it != t.begin()) {
       os << ',';
+}
     os << *it;
   }
   // python style tuple
-  if (t.size() == 1)
+  if (t.size() == 1) {
     os << ',';
+}
   os << ')';
   return os;
 }
@@ -565,8 +582,9 @@ inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
       return is;
     }
     is.get();
-    if (ch == '(')
+    if (ch == '(') {
       break;
+}
     if (!isspace(ch)) {
       is.setstate(std::ios::failbit);
       return is;
@@ -596,8 +614,9 @@ inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
         }
         break;
       }
-      if (ch == ')')
+      if (ch == ')') {
         break;
+}
     } else if (ch == ')') {
       break;
     } else {

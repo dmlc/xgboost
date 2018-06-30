@@ -77,10 +77,11 @@ NULL
 
 # Various imports
 #' @importClassesFrom Matrix dgCMatrix dgeMatrix
-#' @importFrom Matrix cBind
 #' @importFrom Matrix colSums
 #' @importFrom Matrix sparse.model.matrix
 #' @importFrom Matrix sparseVector
+#' @importFrom Matrix sparseMatrix
+#' @importFrom Matrix t
 #' @importFrom data.table data.table
 #' @importFrom data.table is.data.table
 #' @importFrom data.table as.data.table

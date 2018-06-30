@@ -4,18 +4,17 @@
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
-import sys
-import os
-import ctypes
 import collections
+import ctypes
+import os
 import re
+import sys
 
 import numpy as np
 import scipy.sparse
 
+from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
 from .libpath import find_lib_path
-
-from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
@@ -182,7 +181,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
-Did not expect the data types in fields """
+                Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
@@ -219,6 +218,54 @@ def _maybe_pandas_label(label):
     return label
 
 
+DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
+
+DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
+
+
+def _maybe_dt_data(data, feature_names, feature_types):
+    """
+    Validate feature names and types if data table
+    """
+    if not isinstance(data, DataTable):
+        return data, feature_names, feature_types
+
+    data_types_names = tuple(lt.name for lt in data.ltypes)
+    if not all(type_name in DT_TYPE_MAPPER for type_name in data_types_names):
+        bad_fields = [data.names[i] for i, type_name in
+                      enumerate(data_types_names) if type_name not in DT_TYPE_MAPPER]
+
+        msg = """DataFrame.types for data must be int, float or bool.
+                Did not expect the data types in fields """
+        raise ValueError(msg + ', '.join(bad_fields))
+
+    if feature_names is None:
+        feature_names = data.names
+
+        # always return stypes for dt ingestion
+        if feature_types is not None:
+            raise ValueError('DataTable has own feature types, cannot pass them in')
+        else:
+            feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
+
+    return data, feature_names, feature_types
+
+
+def _maybe_dt_array(array):
+    """ Extract numpy array from single column data table """
+    if not isinstance(array, DataTable) or array is None:
+        return array
+
+    if array.shape[1] > 1:
+        raise ValueError('DataTable for label or weight cannot have multiple columns')
+
+    # below requires new dt version
+    # extract first column
+    array = array.tonumpy()[:, 0].astype('float')
+
+    return array
+
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -235,11 +282,9 @@ class DMatrix(object):
                  feature_names=None, feature_types=None,
                  nthread=None):
         """
-        Data matrix used in XGBoost.
-
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse/pd.DataFrame
+        data : string/numpy array/scipy.sparse/pd.DataFrame/DataTable
             Data source of DMatrix.
             When data is string type, it represents the path libsvm format txt file,
             or binary file that xgboost can read from.
@@ -256,6 +301,9 @@ class DMatrix(object):
             Set names for features.
         feature_types : list, optional
             Set types for features.
+        nthread : integer, optional
+            Number of threads to use for loading data from numpy array. If -1,
+            uses maximum threads available on the system.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -265,7 +313,13 @@ class DMatrix(object):
         data, feature_names, feature_types = _maybe_pandas_data(data,
                                                                 feature_names,
                                                                 feature_types)
+
+        data, feature_names, feature_types = _maybe_dt_data(data,
+                                                            feature_names,
+                                                            feature_types)
         label = _maybe_pandas_label(label)
+        label = _maybe_dt_array(label)
+        weight = _maybe_dt_array(weight)
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
@@ -278,19 +332,23 @@ class DMatrix(object):
             self._init_from_csc(data)
         elif isinstance(data, np.ndarray):
             self._init_from_npy2d(data, missing, nthread)
+        elif isinstance(data, DataTable):
+            self._init_from_dt(data, nthread)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
                 self._init_from_csr(csr)
             except:
-                raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
+                raise TypeError('can not initialize DMatrix from'
+                                ' {}'.format(type(data).__name__))
+
         if label is not None:
-            if isinstance(data, np.ndarray):
+            if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
             else:
                 self.set_label(label)
         if weight is not None:
-            if isinstance(data, np.ndarray):
+            if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
             else:
                 self.set_weight(weight)
@@ -363,6 +421,33 @@ class DMatrix(object):
                 ctypes.c_float(missing),
                 ctypes.byref(self.handle),
                 nthread))
+
+    def _init_from_dt(self, data, nthread):
+        """
+        Initialize data from a DataTable
+        """
+        cols = []
+        ptrs = (ctypes.c_void_p * data.ncols)()
+        for icol in range(data.ncols):
+            col = data.internal.column(icol)
+            cols.append(col)
+            # int64_t (void*)
+            ptr = col.data_pointer
+            ptrs[icol] = ctypes.c_void_p(ptr)
+
+        # always return stypes for dt ingestion
+        feature_type_strings = (ctypes.c_char_p * data.ncols)()
+        for icol in range(data.ncols):
+            feature_type_strings[icol] = ctypes.c_char_p(data.stypes[icol].name.encode('utf-8'))
+
+        self.handle = ctypes.c_void_p()
+
+        _check_call(_LIB.XGDMatrixCreateFromDT(
+            ptrs, feature_type_strings,
+            c_bst_ulong(data.shape[0]),
+            c_bst_ulong(data.shape[1]),
+            ctypes.byref(self.handle),
+            nthread))
 
     def __del__(self):
         if self.handle is not None:
@@ -628,9 +713,8 @@ class DMatrix(object):
         feature_names : list or None
         """
         if self._feature_names is None:
-            return ['f{0}'.format(i) for i in range(self.num_col())]
-        else:
-            return self._feature_names
+            self._feature_names = ['f{0}'.format(i) for i in range(self.num_col())]
+        return self._feature_names
 
     @property
     def feature_types(self):
@@ -706,7 +790,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """"A Booster of of XGBoost.
+    """A Booster of of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
@@ -716,8 +800,7 @@ class Booster(object):
 
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
-        """Initialize the Booster.
-
+        """
         Parameters
         ----------
         params : dict
@@ -992,7 +1075,8 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False, approx_contribs=False):
+                pred_contribs=False, approx_contribs=False, pred_interactions=False,
+                validate_features=True):
         """
         Predict with data.
 
@@ -1019,13 +1103,24 @@ class Booster(object):
             in both tree 1 and tree 0.
 
         pred_contribs : bool
-            When this option is on, the output will be a matrix of (nsample, nfeats+1)
+            When this is True the output will be a matrix of size (nsample, nfeats + 1)
             with each record indicating the feature contributions (SHAP values) for that
-            prediction. The sum of all feature contributions is equal to the prediction.
-            Note that the bias is added as the final column, on top of the regular features.
+            prediction. The sum of all feature contributions is equal to the raw untransformed
+            margin value of the prediction. Note the final column is the bias term.
 
         approx_contribs : bool
             Approximate the contributions of each feature
+
+        pred_interactions : bool
+            When this is True the output will be a matrix of size (nsample, nfeats + 1, nfeats + 1)
+            indicating the SHAP interaction values for each pair of features. The sum of each
+            row (or column) of the interaction values equals the corresponding SHAP value (from
+            pred_contribs), and the sum of the entire matrix equals the raw untransformed margin
+            value of the prediction. Note the last row and column correspond to the bias term.
+
+        validate_features : bool
+            When this is True, validate that the Booster's and data's feature_names are identical.
+            Otherwise, it is assumed that the feature_names are the same.
 
         Returns
         -------
@@ -1040,8 +1135,11 @@ class Booster(object):
             option_mask |= 0x04
         if approx_contribs:
             option_mask |= 0x08
+        if pred_interactions:
+            option_mask |= 0x10
 
-        self._validate_features(data)
+        if validate_features:
+            self._validate_features(data)
 
         length = c_bst_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()
@@ -1055,13 +1153,32 @@ class Booster(object):
             preds = preds.astype(np.int32)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
-            ncol = int(preds.size / nrow)
-            preds = preds.reshape(nrow, ncol)
+            chunk_size = int(preds.size / nrow)
+
+            if pred_interactions:
+                ngroup = int(chunk_size / ((data.num_col() + 1) * (data.num_col() + 1)))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col() + 1, data.num_col() + 1)
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1, data.num_col() + 1)
+            elif pred_contribs:
+                ngroup = int(chunk_size / (data.num_col() + 1))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col() + 1)
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
+            else:
+                preds = preds.reshape(nrow, chunk_size)
         return preds
 
     def save_model(self, fname):
         """
         Save the model to a file.
+
+        The model is saved in an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature_names) will not be saved.
+        To preserve all attributes, pickle the Booster object.
 
         Parameters
         ----------
@@ -1091,6 +1208,11 @@ class Booster(object):
     def load_model(self, fname):
         """
         Load the model from a file.
+
+        The model is loaded from an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature_names) will not be loaded.
+        To preserve all attributes, pickle the Booster object.
 
         Parameters
         ----------

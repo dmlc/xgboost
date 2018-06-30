@@ -2,7 +2,6 @@
 import numpy as np
 import xgboost as xgb
 import unittest
-import itertools
 import json
 
 dpath = 'demo/data/'
@@ -143,35 +142,6 @@ class TestBasic(unittest.TestCase):
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
             self.assertRaises(ValueError, bst.predict, dm)
 
-    def test_feature_importances(self):
-        data = np.random.randn(100, 5)
-        target = np.array([0, 1] * 50)
-
-        features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
-
-        dm = xgb.DMatrix(data, label=target,
-                         feature_names=features)
-        params = {'objective': 'multi:softprob',
-                  'eval_metric': 'mlogloss',
-                  'eta': 0.3,
-                  'num_class': 3}
-
-        bst = xgb.train(params, dm, num_boost_round=10)
-
-        # number of feature importances should == number of features
-        scores1 = bst.get_score()
-        scores2 = bst.get_score(importance_type='weight')
-        scores3 = bst.get_score(importance_type='cover')
-        scores4 = bst.get_score(importance_type='gain')
-        assert len(scores1) == len(features)
-        assert len(scores2) == len(features)
-        assert len(scores3) == len(features)
-        assert len(scores4) == len(features)
-
-        # check backwards compatibility of get_fscore
-        fscores = bst.get_fscore()
-        assert scores1 == fscores
-
     def test_dump(self):
         data = np.random.randn(100, 2)
         target = np.array([0, 1] * 50)
@@ -268,41 +238,3 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
-
-
-def test_contributions():
-    dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-    dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-
-    def test_fn(max_depth, num_rounds):
-        # train
-        params = {'max_depth': max_depth, 'eta': 1, 'silent': 1}
-        bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
-
-        # predict
-        preds = bst.predict(dtest)
-        contribs = bst.predict(dtest, pred_contribs=True)
-
-        # result should be (number of features + BIAS) * number of rows
-        assert contribs.shape == (dtest.num_row(), dtest.num_col() + 1)
-
-        # sum of contributions should be same as predictions
-        np.testing.assert_array_almost_equal(np.sum(contribs, axis=1), preds)
-
-    for max_depth, num_rounds in itertools.product(range(0, 3), range(1, 5)):
-        yield test_fn, max_depth, num_rounds
-
-    # check that we get the right SHAP values for a basic AND example
-    # (https://arxiv.org/abs/1706.06060)
-    X = np.zeros((4, 2))
-    X[0, :] = 1
-    X[1, 0] = 1
-    X[2, 1] = 1
-    y = np.zeros(4)
-    y[0] = 1
-    param = {"max_depth": 2, "base_score": 0.0, "eta": 1.0, "lambda": 0}
-    bst = xgb.train(param, xgb.DMatrix(X, label=y), 1)
-    out = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True)
-    assert out[0, 0] == 0.375
-    assert out[0, 1] == 0.375
-    assert out[0, 2] == 0.25

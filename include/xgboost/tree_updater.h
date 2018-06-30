@@ -25,7 +25,7 @@ namespace xgboost {
 class TreeUpdater {
  public:
   /*! \brief virtual destructor */
-  virtual ~TreeUpdater() {}
+  virtual ~TreeUpdater() = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
@@ -40,12 +40,9 @@ class TreeUpdater {
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
    */
-  virtual void Update(const std::vector<bst_gpair>& gpair,
+  virtual void Update(HostDeviceVector<GradientPair>* gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
-  virtual void Update(HostDeviceVector<bst_gpair>* gpair,
-                      DMatrix* data,
-                      const std::vector<RegTree*>& trees);
 
   /*!
    * \brief determines whether updater has enough knowledge about a given dataset
@@ -58,11 +55,9 @@ class TreeUpdater {
    *         updated by the time this function returns.
    */
   virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     std::vector<bst_float>* out_preds) {
+                                     HostDeviceVector<bst_float>* out_preds) {
     return false;
   }
-  virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     HostDeviceVector<bst_float>* out_preds);
 
   /*!
    * \brief Create a tree updater given name

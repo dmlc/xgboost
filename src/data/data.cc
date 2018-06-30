@@ -6,7 +6,7 @@
 #include <xgboost/logging.h>
 #include <dmlc/registry.h>
 #include <cstring>
-#include "./sparse_batch_page.h"
+#include "./sparse_page_writer.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
 #include "../common/common.h"
@@ -24,51 +24,51 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
 namespace xgboost {
 // implementation of inline functions
 void MetaInfo::Clear() {
-  num_row = num_col = num_nonzero = 0;
-  labels.clear();
-  root_index.clear();
-  group_ptr.clear();
-  weights.clear();
-  base_margin.clear();
+  num_row_ = num_col_ = num_nonzero_ = 0;
+  labels_.clear();
+  root_index_.clear();
+  group_ptr_.clear();
+  weights_.clear();
+  base_margin_.clear();
 }
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   int32_t version = kVersion;
   fo->Write(&version, sizeof(version));
-  fo->Write(&num_row, sizeof(num_row));
-  fo->Write(&num_col, sizeof(num_col));
-  fo->Write(&num_nonzero, sizeof(num_nonzero));
-  fo->Write(labels);
-  fo->Write(group_ptr);
-  fo->Write(weights);
-  fo->Write(root_index);
-  fo->Write(base_margin);
+  fo->Write(&num_row_, sizeof(num_row_));
+  fo->Write(&num_col_, sizeof(num_col_));
+  fo->Write(&num_nonzero_, sizeof(num_nonzero_));
+  fo->Write(labels_);
+  fo->Write(group_ptr_);
+  fo->Write(weights_);
+  fo->Write(root_index_);
+  fo->Write(base_margin_);
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   int version;
   CHECK(fi->Read(&version, sizeof(version)) == sizeof(version)) << "MetaInfo: invalid version";
   CHECK_EQ(version, kVersion) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_row, sizeof(num_row)) == sizeof(num_row)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_col, sizeof(num_col)) == sizeof(num_col)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_nonzero, sizeof(num_nonzero)) == sizeof(num_nonzero))
+  CHECK(fi->Read(&num_row_, sizeof(num_row_)) == sizeof(num_row_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&num_col_, sizeof(num_col_)) == sizeof(num_col_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&num_nonzero_, sizeof(num_nonzero_)) == sizeof(num_nonzero_))
       << "MetaInfo: invalid format";
-  CHECK(fi->Read(&labels)) <<  "MetaInfo: invalid format";
-  CHECK(fi->Read(&group_ptr)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&weights)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&root_index)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&base_margin)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&labels_)) <<  "MetaInfo: invalid format";
+  CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&weights_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&base_margin_)) << "MetaInfo: invalid format";
 }
 
 // try to load group information from file, if exists
 inline bool MetaTryLoadGroup(const std::string& fname,
                              std::vector<unsigned>* group) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi.get() == nullptr) return false;
+  if (fi == nullptr) return false;
   dmlc::istream is(fi.get());
   group->clear();
   group->push_back(0);
-  unsigned nline;
+  unsigned nline = 0;
   while (is >> nline) {
     group->push_back(group->back() + nline);
   }
@@ -79,7 +79,7 @@ inline bool MetaTryLoadGroup(const std::string& fname,
 inline bool MetaTryLoadFloatInfo(const std::string& fname,
                                  std::vector<bst_float>* data) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi.get() == nullptr) return false;
+  if (fi == nullptr) return false;
   dmlc::istream is(fi.get());
   data->clear();
   bst_float value;
@@ -93,16 +93,16 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
   switch (dtype) {                                                      \
     case kFloat32: {                                                    \
-      const float* cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
     }                                                                   \
     case kDouble: {                                                     \
-      const double* cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
     }                                                                   \
     case kUInt32: {                                                     \
-      const uint32_t* cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
     }                                                                   \
     case kUInt64: {                                                     \
-      const uint64_t* cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
     }                                                                   \
     default: LOG(FATAL) << "Unknown data type" << dtype;                \
   }                                                                     \
@@ -110,28 +110,28 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
   if (!std::strcmp(key, "root_index")) {
-    root_index.resize(num);
+    root_index_.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, root_index.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, root_index_.begin()));
   } else if (!std::strcmp(key, "label")) {
-    labels.resize(num);
+    labels_.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, labels_.begin()));
   } else if (!std::strcmp(key, "weight")) {
-    weights.resize(num);
+    weights_.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, weights.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, weights_.begin()));
   } else if (!std::strcmp(key, "base_margin")) {
-    base_margin.resize(num);
+    base_margin_.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, base_margin_.begin()));
   } else if (!std::strcmp(key, "group")) {
-    group_ptr.resize(num + 1);
+    group_ptr_.resize(num + 1);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, group_ptr.begin() + 1));
-    group_ptr[0] = 0;
-    for (size_t i = 1; i < group_ptr.size(); ++i) {
-      group_ptr[i] = group_ptr[i - 1] + group_ptr[i];
+                       std::copy(cast_dptr, cast_dptr + num, group_ptr_.begin() + 1));
+    group_ptr_[0] = 0;
+    for (size_t i = 1; i < group_ptr_.size(); ++i) {
+      group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
   }
 }
@@ -163,7 +163,9 @@ DMatrix* DMatrix::Load(const std::string& uri,
              << "-" <<  rabit::GetWorldSize()
              << cache_shards[i].substr(pos, cache_shards[i].length());
         }
-        if (i + 1 != cache_shards.size()) os << ':';
+        if (i + 1 != cache_shards.size()) {
+          os << ':';
+        }
       }
       cache_file = os.str();
     }
@@ -187,7 +189,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   if (file_format == "auto" && npart == 1) {
     int magic;
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-    if (fi.get() != nullptr) {
+    if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
           magic == data::SimpleCSRSource::kMagic) {
@@ -195,8 +197,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
         source->LoadBinary(&is);
         DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
         if (!silent) {
-          LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
-                       << dmat->info().num_nonzero << " entries loaded from " << uri;
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                       << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
         }
         return dmat;
       }
@@ -207,26 +209,26 @@ DMatrix* DMatrix::Load(const std::string& uri,
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);
   if (!silent) {
-    LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
-                 << dmat->info().num_nonzero << " entries loaded from " << uri;
+    LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                 << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
   }
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check 
    * since partitioned data not knowing the real number of features. */
-  rabit::Allreduce<rabit::op::Max>(&dmat->info().num_col, 1);
+  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
   // backward compatiblity code.
   if (!load_row_split) {
-    MetaInfo& info = dmat->info();
-    if (MetaTryLoadGroup(fname + ".group", &info.group_ptr) && !silent) {
-      LOG(CONSOLE) << info.group_ptr.size() - 1
+    MetaInfo& info = dmat->Info();
+    if (MetaTryLoadGroup(fname + ".group", &info.group_ptr_) && !silent) {
+      LOG(CONSOLE) << info.group_ptr_.size() - 1
                    << " groups are loaded from " << fname << ".group";
     }
-    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin) && !silent) {
-      LOG(CONSOLE) << info.base_margin.size()
+    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin_) && !silent) {
+      LOG(CONSOLE) << info.base_margin_.size()
                    << " base_margin are loaded from " << fname << ".base_margin";
     }
-    if (MetaTryLoadFloatInfo(fname + ".weight", &info.weights) && !silent) {
-      LOG(CONSOLE) << info.weights.size()
+    if (MetaTryLoadFloatInfo(fname + ".weight", &info.weights_) && !silent) {
+      LOG(CONSOLE) << info.weights_.size()
                    << " weights are loaded from " << fname << ".weight";
     }
   }
@@ -276,8 +278,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-namespace data {
-SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
+  data::SparsePageFormat* data::SparsePageFormat::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::data::SparsePageFormatReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown format type " << name;
@@ -286,7 +287,7 @@ SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
 }
 
 std::pair<std::string, std::string>
-SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
+data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
   size_t pos = cache_prefix.rfind(".fmt-");
 
   if (pos != std::string::npos) {
@@ -303,6 +304,7 @@ SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
   }
 }
 
+namespace data {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 }  // namespace data

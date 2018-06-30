@@ -117,7 +117,7 @@ else()
     # ask R for R_HOME 
     if(LIBR_EXECUTABLE)
       execute_process(
-        COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(), winslash='/'))"
+        COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(),winslash='/'))"
         OUTPUT_VARIABLE LIBR_HOME)
     endif()
     # if R executable not available, query R_HOME path from registry

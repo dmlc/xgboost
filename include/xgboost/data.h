@@ -9,8 +9,10 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
-#include <string>
+#include <cstring>
 #include <memory>
+#include <numeric>
+#include <string>
 #include <vector>
 #include "./base.h"
 
@@ -29,44 +31,45 @@ enum DataType {
 /*!
  * \brief Meta information about dataset, always sit in memory.
  */
-struct MetaInfo {
+class MetaInfo {
+ public:
   /*! \brief number of rows in the data */
-  uint64_t num_row;
+  uint64_t num_row_{0};
   /*! \brief number of columns in the data */
-  uint64_t num_col;
+  uint64_t num_col_{0};
   /*! \brief number of nonzero entries in the data */
-  uint64_t num_nonzero;
+  uint64_t num_nonzero_{0};
   /*! \brief label of each instance */
-  std::vector<bst_float> labels;
+  std::vector<bst_float> labels_;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
    */
-  std::vector<bst_uint> root_index;
+  std::vector<bst_uint> root_index_;
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
    */
-  std::vector<bst_uint> group_ptr;
+  std::vector<bst_uint> group_ptr_;
   /*! \brief weights of each instance, optional */
-  std::vector<bst_float> weights;
+  std::vector<bst_float> weights_;
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  std::vector<bst_float> base_margin;
+  std::vector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
   static const int kVersion = 1;
   /*! \brief default constructor */
-  MetaInfo() : num_row(0), num_col(0), num_nonzero(0) {}
+  MetaInfo()  = default;
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
    * \return The weight.
    */
   inline bst_float GetWeight(size_t i) const {
-    return weights.size() != 0 ?  weights[i] : 1.0f;
+    return weights_.size() != 0 ?  weights_[i] : 1.0f;
   }
   /*!
    * \brief Get the root index of i-th instance.
@@ -74,7 +77,20 @@ struct MetaInfo {
    * \return The pre-defined root index of i-th instance.
    */
   inline unsigned GetRoot(size_t i) const {
-    return root_index.size() != 0 ? root_index[i] : 0U;
+    return root_index_.size() != 0 ? root_index_[i] : 0U;
+  }
+  /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
+  inline const std::vector<size_t>& LabelAbsSort() const {
+    if (label_order_cache_.size() == labels_.size()) {
+      return label_order_cache_;
+    }
+    label_order_cache_.resize(labels_.size());
+    std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
+    const auto l = labels_;
+    XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
+              [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
+
+    return label_order_cache_;
   }
   /*! \brief clear all the information */
   void Clear();
@@ -96,38 +112,50 @@ struct MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+
+ private:
+  /*! \brief argsort of labels */
+  mutable std::vector<size_t> label_order_cache_;
 };
 
-/*! \brief read-only sparse instance batch in CSR format */
-struct SparseBatch {
-  /*! \brief an entry of sparse vector */
-  struct Entry {
-    /*! \brief feature index */
-    bst_uint index;
-    /*! \brief feature value */
-    bst_float fvalue;
-    /*! \brief default constructor */
-    Entry() {}
-    /*!
-     * \brief constructor with index and value
-     * \param index The feature or row index.
-     * \param fvalue THe feature value.
-     */
-    Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
-    /*! \brief reversely compare feature values */
-    inline static bool CmpValue(const Entry& a, const Entry& b) {
-      return a.fvalue < b.fvalue;
-    }
-  };
+/*! \brief Element from a sparse vector */
+struct Entry {
+  /*! \brief feature index */
+  bst_uint index;
+  /*! \brief feature value */
+  bst_float fvalue;
+  /*! \brief default constructor */
+  Entry() = default;
+  /*!
+   * \brief constructor with index and value
+   * \param index The feature or row index.
+   * \param fvalue THe feature value.
+   */
+  Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+  /*! \brief reversely compare feature values */
+  inline static bool CmpValue(const Entry& a, const Entry& b) {
+    return a.fvalue < b.fvalue;
+  }
+};
 
+/*!
+ * \brief in-memory storage unit of sparse batch
+ */
+class SparsePage {
+ public:
+  std::vector<size_t> offset;
+  /*! \brief the data of the segments */
+  std::vector<Entry> data;
+
+  size_t base_rowid;
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
     /*! \brief pointer to the elements*/
-    const Entry *data;
+    const Entry *data{nullptr};
     /*! \brief length of the instance */
-    bst_uint length;
+    bst_uint length{0};
     /*! \brief constructor */
-    Inst() : data(0), length(0) {}
+    Inst()  = default;
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
     inline const Entry& operator[](size_t i) const {
@@ -135,38 +163,83 @@ struct SparseBatch {
     }
   };
 
-  /*! \brief batch size */
-  size_t size;
-};
-
-/*! \brief read-only row batch, used to access row continuously */
-struct RowBatch : public SparseBatch {
-  /*! \brief the offset of rowid of this batch */
-  size_t base_rowid;
-  /*! \brief array[size+1], row pointer of each of the elements */
-  const size_t *ind_ptr;
-  /*! \brief array[ind_ptr.back()], content of the sparse element */
-  const Entry *data_ptr;
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return Inst(data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i]));
+    return {data.data() + offset[i], static_cast<bst_uint>(offset[i + 1] - offset[i])};
   }
+
+  /*! \brief constructor */
+  SparsePage() {
+    this->Clear();
+  }
+  /*! \return number of instance in the page */
+  inline size_t Size() const {
+    return offset.size() - 1;
+  }
+  /*! \return estimation of memory cost of this page */
+  inline size_t MemCostBytes() const {
+    return offset.size() * sizeof(size_t) + data.size() * sizeof(Entry);
+  }
+  /*! \brief clear the page */
+  inline void Clear() {
+    base_rowid = 0;
+    offset.clear();
+    offset.push_back(0);
+    data.clear();
+  }
+
+  /*!
+   * \brief Push row block into the page.
+   * \param batch the row batch.
+   */
+  inline void Push(const dmlc::RowBlock<uint32_t>& batch) {
+    data.reserve(data.size() + batch.offset[batch.size] - batch.offset[0]);
+    offset.reserve(offset.size() + batch.size);
+    CHECK(batch.index != nullptr);
+    for (size_t i = 0; i < batch.size; ++i) {
+      offset.push_back(offset.back() + batch.offset[i + 1] - batch.offset[i]);
+    }
+    for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
+      uint32_t index = batch.index[i];
+      bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+      data.emplace_back(index, fvalue);
+    }
+    CHECK_EQ(offset.back(), data.size());
+  }
+  /*!
+   * \brief Push a sparse page
+   * \param batch the row page
+   */
+  inline void Push(const SparsePage &batch) {
+    size_t top = offset.back();
+    data.resize(top + batch.data.size());
+    std::memcpy(dmlc::BeginPtr(data) + top,
+                dmlc::BeginPtr(batch.data),
+                sizeof(Entry) * batch.data.size());
+    size_t begin = offset.size();
+    offset.resize(begin + batch.Size());
+    for (size_t i = 0; i < batch.Size(); ++i) {
+      offset[i + begin] = top + batch.offset[i + 1];
+    }
+  }
+  /*!
+   * \brief Push one instance into page
+   *  \param inst an instance row
+   */
+  inline void Push(const Inst &inst) {
+    offset.push_back(offset.back() + inst.length);
+    size_t begin = data.size();
+    data.resize(begin + inst.length);
+    if (inst.length != 0) {
+      std::memcpy(dmlc::BeginPtr(data) + begin, inst.data,
+                  sizeof(Entry) * inst.length);
+    }
+  }
+
+  size_t Size() { return offset.size() - 1; }
 };
 
-/*!
- * \brief read-only column batch, used to access columns,
- * the columns are not required to be continuous
- */
-struct ColBatch : public SparseBatch {
-  /*! \brief column index of each columns in the data */
-  const bst_uint *col_index;
-  /*! \brief pointer to the column data */
-  const Inst *col_data;
-  /*! \brief get i-th column from the batch */
-  inline Inst operator[](size_t i) const {
-    return col_data[i];
-  }
-};
+
 
 /*!
  * \brief This is data structure that user can pass to DMatrix::Create
@@ -175,7 +248,7 @@ struct ColBatch : public SparseBatch {
  *
  *  On distributed setting, usually an customized dmlc::Parser is needed instead.
  */
-class DataSource : public dmlc::DataIter<RowBatch> {
+class DataSource : public dmlc::DataIter<SparsePage> {
  public:
   /*!
    * \brief Meta information about the dataset
@@ -188,16 +261,16 @@ class DataSource : public dmlc::DataIter<RowBatch> {
  * \brief A vector-like structure to represent set of rows.
  * But saves the memory when all rows are in the set (common case in xgb)
  */
-struct RowSet {
+class RowSet {
  public:
   /*! \return i-th row index */
   inline bst_uint operator[](size_t i) const;
   /*! \return the size of the set. */
-  inline size_t size() const;
+  inline size_t Size() const;
   /*! \brief push the index back to the set */
-  inline void push_back(bst_uint i);
+  inline void PushBack(bst_uint i);
   /*! \brief clear the set */
-  inline void clear();
+  inline void Clear();
   /*!
    * \brief save rowset to file.
    * \param fo The file to be saved.
@@ -210,11 +283,11 @@ struct RowSet {
    */
   inline bool Load(dmlc::Stream* fi);
   /*! \brief constructor */
-  RowSet() : size_(0) {}
+  RowSet()  = default;
 
  private:
   /*! \brief The internal data structure of size */
-  uint64_t size_;
+  uint64_t size_{0};
   /*! \brief The internal data structure of row set if not all*/
   std::vector<bst_uint> rows_;
 };
@@ -232,38 +305,29 @@ struct RowSet {
 class DMatrix {
  public:
   /*! \brief default constructor */
-  DMatrix() : cache_learner_ptr_(nullptr) {}
+  DMatrix()  = default;
   /*! \brief meta information of the dataset */
-  virtual MetaInfo& info() = 0;
+  virtual MetaInfo& Info() = 0;
   /*! \brief meta information of the dataset */
-  virtual const MetaInfo& info() const = 0;
+  virtual const MetaInfo& Info() const = 0;
   /*!
    * \brief get the row iterator, reset to beginning position
    * \note Only either RowIterator or  column Iterator can be active.
    */
-  virtual dmlc::DataIter<RowBatch>* RowIterator() = 0;
+  virtual dmlc::DataIter<SparsePage>* RowIterator() = 0;
   /*!\brief get column iterator, reset to the beginning position */
-  virtual dmlc::DataIter<ColBatch>* ColIterator() = 0;
-  /*!
-   * \brief get the column iterator associated with subset of column features.
-   * \param fset is the list of column index set that must be contained in the returning Column iterator
-   * \return the column iterator, initialized so that it reads the elements in fset
-   */
-  virtual dmlc::DataIter<ColBatch>* ColIterator(const std::vector<bst_uint>& fset) = 0;
+  virtual dmlc::DataIter<SparsePage>* ColIterator() = 0;
   /*!
    * \brief check if column access is supported, if not, initialize column access.
-   * \param enabled whether certain feature should be included in column access.
-   * \param subsample subsample ratio when generating column access.
    * \param max_row_perbatch auxiliary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
+   * \param sorted If column features should be in sorted order           
    * \return Number of column blocks in the column access.
    */
-  virtual void InitColAccess(const std::vector<bool>& enabled,
-                             float subsample,
-                             size_t max_row_perbatch) = 0;
+  virtual void InitColAccess(size_t max_row_perbatch, bool sorted) = 0;
   // the following are column meta data, should be able to answer them fast.
   /*! \return whether column access is enabled */
-  virtual bool HaveColAccess() const = 0;
+  virtual bool HaveColAccess(bool sorted) const = 0;
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
   /*! \brief get number of non-missing entries in column */
@@ -271,9 +335,9 @@ class DMatrix {
   /*! \brief get column density */
   virtual float GetColDensity(size_t cidx) const = 0;
   /*! \return reference of buffered rowset, in column access */
-  virtual const RowSet& buffered_rowset() const = 0;
+  virtual const RowSet& BufferedRowset() const = 0;
   /*! \brief virtual destructor */
-  virtual ~DMatrix() {}
+  virtual ~DMatrix() = default;
   /*!
    * \brief Save DMatrix to local file.
    *  The saved file only works for non-sharded dataset(single machine training).
@@ -323,7 +387,7 @@ class DMatrix {
   // allow learner class to access this field.
   friend class LearnerImpl;
   /*! \brief public field to back ref cached matrix. */
-  LearnerImpl* cache_learner_ptr_;
+  LearnerImpl* cache_learner_ptr_{nullptr};
 };
 
 // implementation of inline functions
@@ -331,15 +395,15 @@ inline bst_uint RowSet::operator[](size_t i) const {
   return rows_.size() == 0 ? static_cast<bst_uint>(i) : rows_[i];
 }
 
-inline size_t RowSet::size() const {
+inline size_t RowSet::Size() const {
   return size_;
 }
 
-inline void RowSet::clear() {
+inline void RowSet::Clear() {
   rows_.clear(); size_ = 0;
 }
 
-inline void RowSet::push_back(bst_uint i) {
+inline void RowSet::PushBack(bst_uint i) {
   if (rows_.size() == 0) {
     if (i == size_) {
       ++size_; return;
@@ -367,7 +431,7 @@ inline bool RowSet::Load(dmlc::Stream* fi) {
 }  // namespace xgboost
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(is_pod, xgboost::SparseBatch::Entry, true);
+DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);
 DMLC_DECLARE_TRAITS(has_saveload, xgboost::RowSet, true);
 }
 #endif  // XGBOOST_DATA_H_

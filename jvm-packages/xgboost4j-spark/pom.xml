@@ -6,7 +6,7 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm</artifactId>
-        <version>0.8-SNAPSHOT</version>
+        <version>0.80-SNAPSHOT</version>
     </parent>
     <artifactId>xgboost4j-spark</artifactId>
     <build>
@@ -24,7 +24,19 @@
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j</artifactId>
-            <version>0.8-SNAPSHOT</version>
+            <version>0.80-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_${scala.binary.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_${scala.binary.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
