@@ -8,13 +8,16 @@ from nose.tools import raises
 
 rng = np.random.RandomState(1994)
 
+
 class TemporaryDirectory(object):
-  """Context manager for tempfile.mkdtemp()"""
-  def __enter__(self):
-    self.name = tempfile.mkdtemp()
-    return self.name
-  def __exit__(self, exc_type, exc_value, traceback):
-    shutil.rmtree(self.name)
+    """Context manager for tempfile.mkdtemp()"""
+    def __enter__(self):
+        self.name = tempfile.mkdtemp()
+        return self.name
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        shutil.rmtree(self.name)
+
 
 def test_binary_classification():
     tm._skip_if_no_sklearn()
@@ -381,6 +384,7 @@ def test_sklearn_clone():
     clf.n_jobs = -1
     clone(clf)
 
+
 def test_validation_weights_xgbmodel():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import make_hastie_10_2
@@ -424,6 +428,7 @@ def test_validation_weights_xgbmodel():
     # than when not using them
     assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
 
+
 def test_validation_weights_xgbclassifier():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import make_hastie_10_2
@@ -466,6 +471,7 @@ def test_validation_weights_xgbclassifier():
     # check that the logloss in the test set is actually different when using weights
     # than when not using them
     assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
+
 
 def test_save_load_model():
     tm._skip_if_no_sklearn()
