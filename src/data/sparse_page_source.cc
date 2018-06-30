@@ -122,6 +122,10 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     constexpr double kStep = 4.0;
     size_t tick_expected = static_cast<double>(kStep);
 
+    const uint64_t default_max = std::numeric_limits<uint64_t>::max();
+    uint64_t last_group_id = default_max;
+    bst_uint group_size = 0;
+
     while (src->Next()) {
       const dmlc::RowBlock<uint32_t>& batch = src->Value();
       if (batch.label != nullptr) {
@@ -129,6 +133,18 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
       }
       if (batch.weight != nullptr) {
         info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
+      }
+      if (batch.qid != nullptr) {
+        info.qids_.insert(info.qids_.end(), batch.qid, batch.qid + batch.size);
+        // get group
+        for (size_t i = 0; i < batch.size; ++i) {
+          const uint64_t cur_group_id = batch.qid[i];
+          if (last_group_id == default_max || last_group_id != cur_group_id) {
+            info.group_ptr_.push_back(group_size);
+          }
+          last_group_id = cur_group_id;
+          ++group_size;
+        }
       }
       info.num_row_ += batch.size;
       info.num_nonzero_ +=  batch.offset[batch.size] - batch.offset[0];
@@ -153,6 +169,11 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
         }
       }
     }
+    if (last_group_id != default_max) {
+      if (group_size > info.group_ptr_.back()) {
+        info.group_ptr_.push_back(group_size);
+      }
+    }
 
     if (page->data.size() != 0) {
       writer.PushWrite(std::move(page));
@@ -162,6 +183,8 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
         dmlc::Stream::Create(name_info.c_str(), "w"));
     int tmagic = kMagic;
     fo->Write(&tmagic, sizeof(tmagic));
+    // Either every row has query ID or none at all
+    CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
     info.SaveBinary(fo.get());
   }
   LOG(CONSOLE) << "SparsePageSource: Finished writing to " << name_info;
