@@ -140,6 +140,9 @@ struct Entry {
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
   }
+  inline bool operator==(const Entry& other) const {
+    return (this->index == other.index && this->fvalue == other.fvalue);
+  }
 };
 
 /*!
