@@ -183,6 +183,8 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
         dmlc::Stream::Create(name_info.c_str(), "w"));
     int tmagic = kMagic;
     fo->Write(&tmagic, sizeof(tmagic));
+    // Either every row has query ID or none at all
+    CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
     info.SaveBinary(fo.get());
   }
   LOG(CONSOLE) << "SparsePageSource: Finished writing to " << name_info;

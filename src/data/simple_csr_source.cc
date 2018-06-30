@@ -80,6 +80,8 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
+  // Either every row has query ID or none at all
+  CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
 }
 
 void SimpleCSRSource::LoadBinary(dmlc::Stream* fi) {
