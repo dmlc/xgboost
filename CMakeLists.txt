@@ -39,6 +39,9 @@ else()
   # Performance
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
+if(WIN32 AND MINGW)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+endif()
 
 # AVX
 if(USE_AVX)
