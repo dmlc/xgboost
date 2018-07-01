@@ -40,13 +40,21 @@ class SplitEvaluator {
 
   // Computes the score (negative loss) resulting from performing this split
   virtual bst_float ComputeSplitScore(bst_uint nodeid,
-                                     bst_uint featureid,
-                                     const GradStats& left,
-                                     const GradStats& right) const = 0;
+                                      bst_uint featureid,
+                                      const GradStats& left_stats,
+                                      const GradStats& right_stats,
+                                      bst_float left_weight,
+                                      bst_float right_weight) const = 0;
+
+  virtual bst_float ComputeSplitScore(bst_uint nodeid,
+                                      bst_uint featureid,
+                                      const GradStats& left_stats,
+                                      const GradStats& right_stats) const;
 
   // Compute the Score for a node with the given stats
-  virtual bst_float ComputeScore(bst_uint parentid, const GradStats& stats)
-      const = 0;
+  virtual bst_float ComputeScore(bst_uint parentid,
+                                const GradStats &stats,
+                                bst_float weight) const = 0;
 
   // Compute the weight for a node with the given stats
   virtual bst_float ComputeWeight(bst_uint parentid, const GradStats& stats)
@@ -62,7 +70,7 @@ class SplitEvaluator {
 
 struct SplitEvaluatorReg
     : public dmlc::FunctionRegEntryBase<SplitEvaluatorReg,
-                                        std::function<SplitEvaluator* ()> > {};
+        std::function<SplitEvaluator* (std::unique_ptr<SplitEvaluator>)> > {};
 
 /*!
  * \brief Macro to register tree split evaluator.

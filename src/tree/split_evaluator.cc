@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <limits>
 #include <string>
+#include <sstream>
 #include <utility>
 #include "param.h"
 #include "../common/common.h"
@@ -23,12 +24,19 @@ namespace xgboost {
 namespace tree {
 
 SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
-  auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>
-      ::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown SplitEvaluator " << name;
+  std::stringstream ss(name);
+  std::string item;
+  SplitEvaluator* eval = nullptr;
+  // Construct a chain of SplitEvaluators. This allows one to specify multiple constraints.
+  while (std::getline(ss, item, ',')) {
+    auto* e = ::dmlc::Registry< ::xgboost::tree::SplitEvaluatorReg>
+        ::Get()->Find(item);
+    if (e == nullptr) {
+      LOG(FATAL) << "Unknown SplitEvaluator " << name;
+    }
+    eval = (e->body)(std::unique_ptr<SplitEvaluator>(eval));
   }
-  return (e->body)();
+  return eval;
 }
 
 // Default implementations of some virtual methods that aren't always needed
@@ -41,6 +49,15 @@ void SplitEvaluator::AddSplit(bst_uint nodeid,
                               bst_uint featureid,
                               bst_float leftweight,
                               bst_float rightweight) {}
+
+bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
+                                            bst_uint featureid,
+                                            const GradStats& left_stats,
+                                            const GradStats& right_stats) const {
+  bst_float left_weight = ComputeWeight(nodeid, left_stats);
+  bst_float right_weight = ComputeWeight(nodeid, right_stats);
+  return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
+}
 
 //! \brief Encapsulates the parameters for by the RidgePenalty
 struct RidgePenaltyParams : public dmlc::Parameter<RidgePenaltyParams> {
@@ -80,16 +97,19 @@ class RidgePenalty final : public SplitEvaluator {
 
   bst_float ComputeSplitScore(bst_uint nodeid,
                              bst_uint featureid,
-                             const GradStats& left,
-                             const GradStats& right) const override {
+                             const GradStats& left_stats,
+                             const GradStats& right_stats,
+                             bst_float left_weight,
+                             bst_float right_weight) const override {
     // parentID is not needed for this split evaluator. Just use 0.
-    return ComputeScore(0, left) + ComputeScore(0, right);
+    return ComputeScore(0, left_stats, left_weight) +
+      ComputeScore(0, right_stats, right_weight);
   }
 
-  bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+  bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
-    return (stats.sum_grad * stats.sum_grad)
-        / (stats.sum_hess + params_.reg_lambda) - params_.reg_gamma;
+    return -(2.0 * stats.sum_grad * weight + (stats.sum_hess + params_.reg_lambda)
+        * weight * weight);
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
@@ -103,7 +123,7 @@ class RidgePenalty final : public SplitEvaluator {
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(RidgePenalty, "ridge")
 .describe("Use an L2 penalty term for the weights and a cost per leaf node")
-.set_body([]() {
+.set_body([](std::unique_ptr<SplitEvaluator> inner) {
     return new RidgePenalty();
   });
 
@@ -113,23 +133,11 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(RidgePenalty, "ridge")
 struct MonotonicConstraintParams
     : public dmlc::Parameter<MonotonicConstraintParams> {
   std::vector<bst_int> monotone_constraints;
-  float reg_lambda;
-  float reg_gamma;
 
   DMLC_DECLARE_PARAMETER(MonotonicConstraintParams) {
-    DMLC_DECLARE_FIELD(reg_lambda)
-      .set_lower_bound(0.0)
-      .set_default(1.0)
-      .describe("L2 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(reg_gamma)
-      .set_lower_bound(0.0f)
-      .set_default(0.0f)
-      .describe("Cost incurred by adding a new leaf node to the tree");
     DMLC_DECLARE_FIELD(monotone_constraints)
       .set_default(std::vector<bst_int>())
       .describe("Constraint of variable monotonicity");
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_gamma, gamma);
   }
 };
 
@@ -140,8 +148,16 @@ DMLC_REGISTER_PARAMETER(MonotonicConstraintParams);
 */
 class MonotonicConstraint final : public SplitEvaluator {
  public:
+  MonotonicConstraint(std::unique_ptr<SplitEvaluator> inner) {
+    if (!inner) {
+      LOG(FATAL) << "MonotonicConstraint must be given an inner evaluator";
+    }
+    inner_ = std::move(inner);
+  }
+
   void Init(const std::vector<std::pair<std::string, std::string> >& args)
       override {
+    inner_->Init(args);
     params_.InitAllowUnknown(args);
     Reset();
   }
@@ -153,22 +169,11 @@ class MonotonicConstraint final : public SplitEvaluator {
 
   SplitEvaluator* GetHostClone() const override {
     if (params_.monotone_constraints.size() == 0) {
-      // No monotone constraints specified, make a RidgePenalty evaluator
-      using std::pair;
-      using std::string;
-      using std::to_string;
-      using std::vector;
-      auto c = new RidgePenalty();
-      vector<pair<string, string> > args;
-      args.emplace_back(
-        pair<string, string>("reg_lambda", to_string(params_.reg_lambda)));
-      args.emplace_back(
-        pair<string, string>("reg_gamma", to_string(params_.reg_gamma)));
-      c->Init(args);
-      c->Reset();
-      return c;
+      // No monotone constraints specified, just return a clone of inner
+      return inner_->GetHostClone();
     } else {
-      auto c = new MonotonicConstraint();
+      auto c = new MonotonicConstraint(
+        std::unique_ptr<SplitEvaluator>(inner_->GetHostClone()));
       c->params_ = this->params_;
       c->Reset();
       return c;
@@ -177,35 +182,32 @@ class MonotonicConstraint final : public SplitEvaluator {
 
   bst_float ComputeSplitScore(bst_uint nodeid,
                              bst_uint featureid,
-                             const GradStats& left,
-                             const GradStats& right) const override {
+                             const GradStats& left_stats,
+                             const GradStats& right_stats,
+                             bst_float left_weight,
+                             bst_float right_weight) const override {
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
     bst_int constraint = GetConstraint(featureid);
-
-    bst_float score = ComputeScore(nodeid, left) + ComputeScore(nodeid, right);
-    bst_float leftweight = ComputeWeight(nodeid, left);
-    bst_float rightweight = ComputeWeight(nodeid, right);
+    bst_float score = inner_->ComputeSplitScore(
+      nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 
     if (constraint == 0) {
       return score;
     } else if (constraint > 0) {
-      return leftweight <= rightweight ? score : -infinity;
+      return left_weight <= right_weight ? score : -infinity;
     } else {
-      return leftweight >= rightweight ? score : -infinity;
+      return left_weight >= right_weight ? score : -infinity;
     }
   }
 
-  bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+  bst_float ComputeScore(bst_uint parentID, const GradStats& stats, bst_float weight)
       const override {
-    bst_float w = ComputeWeight(parentID, stats);
-
-    return -(2.0 * stats.sum_grad * w + (stats.sum_hess + params_.reg_lambda)
-        * w * w);
+    return inner_->ComputeScore(parentID, stats, weight);
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    bst_float weight = -stats.sum_grad / (stats.sum_hess + params_.reg_lambda);
+    bst_float weight = inner_->ComputeWeight(parentID, stats);
 
     if (parentID == ROOT_PARENT_ID) {
       // This is the root node
@@ -225,6 +227,7 @@ class MonotonicConstraint final : public SplitEvaluator {
                 bst_uint featureid,
                 bst_float leftweight,
                 bst_float rightweight) override {
+    inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
     bst_uint newsize = std::max(leftid, rightid) + 1;
     lower_.resize(newsize);
     upper_.resize(newsize);
@@ -250,6 +253,7 @@ class MonotonicConstraint final : public SplitEvaluator {
 
  private:
   MonotonicConstraintParams params_;
+  std::unique_ptr<SplitEvaluator> inner_;
   std::vector<bst_float> lower_;
   std::vector<bst_float> upper_;
 
@@ -265,8 +269,8 @@ class MonotonicConstraint final : public SplitEvaluator {
 XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
 .describe("Enforces that the tree is monotonically increasing/decreasing "
     "w.r.t. specified features")
-.set_body([]() {
-    return new MonotonicConstraint();
+.set_body([](std::unique_ptr<SplitEvaluator> inner) {
+    return new MonotonicConstraint(std::move(inner));
   });
 
 }  // namespace tree
