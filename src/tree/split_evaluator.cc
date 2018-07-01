@@ -59,29 +59,35 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
-//! \brief Encapsulates the parameters for by the RidgePenalty
-struct RidgePenaltyParams : public dmlc::Parameter<RidgePenaltyParams> {
-  float reg_lambda;
-  float reg_gamma;
+//! \brief Encapsulates the parameters for ElasticNet
+struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
+  bst_float reg_lambda;
+  bst_float reg_alpha;
+  bst_float reg_gamma;
 
-  DMLC_DECLARE_PARAMETER(RidgePenaltyParams) {
+  DMLC_DECLARE_PARAMETER(ElasticNetParams) {
     DMLC_DECLARE_FIELD(reg_lambda)
       .set_lower_bound(0.0)
       .set_default(1.0)
       .describe("L2 regularization on leaf weight");
+    DMLC_DECLARE_FIELD(reg_alpha)
+      .set_lower_bound(0.0)
+      .set_default(0.0)
+      .describe("L1 regularization on leaf weight");
     DMLC_DECLARE_FIELD(reg_gamma)
-      .set_lower_bound(0.0f)
+      .set_lower_bound(0.0)
       .set_default(0.0f)
       .describe("Cost incurred by adding a new leaf node to the tree");
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
+    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
     DMLC_DECLARE_ALIAS(reg_gamma, gamma);
   }
 };
 
-DMLC_REGISTER_PARAMETER(RidgePenaltyParams);
+DMLC_REGISTER_PARAMETER(ElasticNetParams);
 
-/*! \brief Applies an L2 penalty and per-leaf penalty. */
-class RidgePenalty final : public SplitEvaluator {
+/*! \brief Applies an elastic net penalty and per-leaf penalty. */
+class ElasticNet final : public SplitEvaluator {
  public:
   void Init(
       const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -89,7 +95,7 @@ class RidgePenalty final : public SplitEvaluator {
   }
 
   SplitEvaluator* GetHostClone() const override {
-    auto r = new RidgePenalty();
+    auto r = new ElasticNet();
     r->params_ = this->params_;
 
     return r;
@@ -108,23 +114,30 @@ class RidgePenalty final : public SplitEvaluator {
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
-    return -(2.0 * stats.sum_grad * weight + (stats.sum_hess + params_.reg_lambda)
-        * weight * weight);
+    return -(2.0 * stats.sum_grad * weight +
+        (stats.sum_hess + params_.reg_lambda) * weight * weight +
+        (params_.reg_alpha * std::abs(weight)));
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    return -stats.sum_grad / (stats.sum_hess + params_.reg_lambda);
+    bst_float g = stats.sum_grad;
+    if (g > params_.reg_alpha) {
+      g = g - params_.reg_alpha;
+    } else if (g < -params_.reg_alpha) {
+      g = g + params_.reg_alpha;
+    }
+    return -g / (stats.sum_hess + params_.reg_lambda);
   }
 
  private:
-  RidgePenaltyParams params_;
+  ElasticNetParams params_;
 };
 
-XGBOOST_REGISTER_SPLIT_EVALUATOR(RidgePenalty, "ridge")
-.describe("Use an L2 penalty term for the weights and a cost per leaf node")
+XGBOOST_REGISTER_SPLIT_EVALUATOR(ElasticNet, "elastic_net")
+.describe("Use an elastic net regulariser and a cost per leaf node")
 .set_body([](std::unique_ptr<SplitEvaluator> inner) {
-    return new RidgePenalty();
+    return new ElasticNet();
   });
 
 /*! \brief Encapsulates the parameters required by the MonotonicConstraint
