@@ -161,7 +161,7 @@ DMLC_REGISTER_PARAMETER(MonotonicConstraintParams);
 */
 class MonotonicConstraint final : public SplitEvaluator {
  public:
-  MonotonicConstraint(std::unique_ptr<SplitEvaluator> inner) {
+  explicit MonotonicConstraint(std::unique_ptr<SplitEvaluator> inner) {
     if (!inner) {
       LOG(FATAL) << "MonotonicConstraint must be given an inner evaluator";
     }
