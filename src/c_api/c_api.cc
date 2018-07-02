@@ -206,11 +206,13 @@ int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
                             DMatrixHandle *out) {
   API_BEGIN();
+  bool load_row_split = false;
   if (rabit::IsDistributed()) {
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
+    load_row_split = true;
   }
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, true));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, load_row_split));
   API_END();
 }
 
