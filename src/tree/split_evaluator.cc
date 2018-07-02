@@ -76,7 +76,7 @@ struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
       .describe("L1 regularization on leaf weight");
     DMLC_DECLARE_FIELD(reg_gamma)
       .set_lower_bound(0.0)
-      .set_default(0.0f)
+      .set_default(0.0)
       .describe("Cost incurred by adding a new leaf node to the tree");
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
@@ -121,7 +121,7 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    bst_float g = stats.sum_grad;
+    double g = stats.sum_grad;
     if (g > params_.reg_alpha) {
       g = g - params_.reg_alpha;
     } else if (g < -params_.reg_alpha) {
