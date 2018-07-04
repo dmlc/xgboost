@@ -37,3 +37,7 @@ dmlc-core
 recommonmark
 recom
 _*
+
+# Jetbrain
+.idea
+cmake-build-debug/
