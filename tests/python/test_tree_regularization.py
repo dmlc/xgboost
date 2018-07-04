@@ -7,8 +7,8 @@ from numpy.testing import assert_approx_equal
 train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 
 
-class TestElasticNet(unittest.TestCase):
-    def test_lasso(self):
+class TestTreeRegularization(unittest.TestCase):
+    def test_alpha(self):
         params = {
             'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
             'eta': 1,
@@ -21,7 +21,7 @@ class TestElasticNet(unittest.TestCase):
 
         assert_approx_equal(preds[0], 0.9)
 
-    def test_ridge(self):
+    def test_lambda(self):
         params = {
             'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
             'eta': 1,
@@ -34,7 +34,7 @@ class TestElasticNet(unittest.TestCase):
 
         assert_approx_equal(preds[0], 0.75)
 
-    def test_elastic_net(self):
+    def test_alpha_and_lambda(self):
         params = {
             'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
             'eta': 1,
