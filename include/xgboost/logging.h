@@ -9,6 +9,7 @@
 #define XGBOOST_LOGGING_H_
 
 #include <dmlc/logging.h>
+#include <dmlc/thread_local.h>
 #include <sstream>
 #include "./base.h"
 
@@ -36,6 +37,23 @@ class TrackerLogger : public BaseLogger {
  public:
   ~TrackerLogger();
 };
+
+class LogCallbackRegistry {
+ public:
+  using Callback = void (*)(const char*);
+  LogCallbackRegistry()
+    : log_callback_([] (const char* msg) { std::cerr << msg << std::endl; }) {}
+  inline void Register(Callback log_callback) {
+    this->log_callback_ = log_callback;
+  }
+  inline Callback Get() const {
+    return log_callback_;
+  }
+ private:
+  Callback log_callback_;
+};
+
+using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
 // redefines the logging macro if not existed
 #ifndef LOG
