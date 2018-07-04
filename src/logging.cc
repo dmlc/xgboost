@@ -21,8 +21,11 @@ namespace xgboost {
 ConsoleLogger::~ConsoleLogger() {
   dmlc::CustomLogMessage::Log(log_stream_.str());
 }
+
 TrackerLogger::~TrackerLogger() {
-  dmlc::CustomLogMessage::Log(log_stream_.str());
+  log_stream_ << '\n';
+  rabit::TrackerPrint(log_stream_.str());
 }
+
 }  // namespace xgboost
 #endif
