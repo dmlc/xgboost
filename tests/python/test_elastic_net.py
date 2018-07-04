@@ -6,6 +6,7 @@ from numpy.testing import assert_approx_equal
 
 train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 
+
 class TestElasticNet(unittest.TestCase):
     def test_lasso(self):
         params = {
@@ -19,7 +20,7 @@ class TestElasticNet(unittest.TestCase):
         preds = model.predict(train_data)
 
         assert_approx_equal(preds[0], 0.9)
-    
+
     def test_ridge(self):
         params = {
             'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
@@ -32,7 +33,7 @@ class TestElasticNet(unittest.TestCase):
         preds = model.predict(train_data)
 
         assert_approx_equal(preds[0], 0.75)
-    
+
     def test_elastic_net(self):
         params = {
             'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
