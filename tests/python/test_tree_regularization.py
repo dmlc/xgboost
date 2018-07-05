@@ -19,6 +19,10 @@ class TestTreeRegularization(unittest.TestCase):
         model = xgb.train(params, train_data, 1)
         preds = model.predict(train_data)
 
+        # Default prediction (with no trees) is 0.5
+        # sum_grad = (0.5 - 1.0)
+        # sum_hess = 1.0
+        # 0.9 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / sum_hess
         assert_approx_equal(preds[0], 0.9)
 
     def test_lambda(self):
@@ -32,6 +36,10 @@ class TestTreeRegularization(unittest.TestCase):
         model = xgb.train(params, train_data, 1)
         preds = model.predict(train_data)
 
+        # Default prediction (with no trees) is 0.5
+        # sum_grad = (0.5 - 1.0)
+        # sum_hess = 1.0
+        # 0.75 = 0.5 - sum_grad / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.75)
 
     def test_alpha_and_lambda(self):
@@ -45,4 +53,8 @@ class TestTreeRegularization(unittest.TestCase):
         model = xgb.train(params, train_data, 1)
         preds = model.predict(train_data)
 
+        # Default prediction (with no trees) is 0.5
+        # sum_grad = (0.5 - 1.0)
+        # sum_hess = 1.0
+        # 0.7 = 0.5 - (sum_grad - alpha * sgn(sum_grad)) / (sum_hess + lambda)
         assert_approx_equal(preds[0], 0.7)
