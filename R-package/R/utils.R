@@ -27,13 +27,13 @@ NVL <- function(x, val) {
 
 # Merges booster params with whatever is provided in ...
 # plus runs some checks
-check.booster.params <- function(params, ...) {
-  if (typeof(params) != "list") 
+check.booster.params <- function(params, column_names, ...) {
+  if (typeof(params) != "list")
     stop("params must be a list")
-  
+
   # in R interface, allow for '.' instead of '_' in parameter names
   names(params) <- gsub("\\.", "_", names(params))
-  
+
   # merge parameters from the params and the dots-expansion
   dot_params <- list(...)
   names(dot_params) <- gsub("\\.", "_", names(dot_params))
@@ -41,15 +41,15 @@ check.booster.params <- function(params, ...) {
                        names(dot_params))) > 0)
     stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
   params <- c(params, dot_params)
-  
+
   # providing a parameter multiple times makes sense only for 'eval_metric'
   name_freqs <- table(names(params))
   multi_names <- setdiff(names(name_freqs[name_freqs > 1]), 'eval_metric')
   if (length(multi_names) > 0) {
     warning("The following parameters were provided multiple times:\n\t",
             paste(multi_names, collapse = ', '), "\n  Only the last value for each of them will be used.\n")
-    # While xgboost internals would choose the last value for a multiple-times parameter, 
-    # enforce it here in R as well (b/c multi-parameters might be used further in R code, 
+    # While xgboost internals would choose the last value for a multiple-times parameter,
+    # enforce it here in R as well (b/c multi-parameters might be used further in R code,
     # and R takes the 1st value when multiple elements with the same name are present in a list).
     for (n in multi_names) {
       del_idx <- which(n == names(params))
@@ -57,23 +57,49 @@ check.booster.params <- function(params, ...) {
       params[[del_idx]] <- NULL
     }
   }
-  
+
   # for multiclass, expect num_class to be set
   if (typeof(params[['objective']]) == "character" &&
       substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:' &&
       as.numeric(NVL(params[['num_class']], 0)) < 2) {
         stop("'num_class' > 1 parameter must be set for multiclass classification")
   }
-  
+
   # monotone_constraints parser
-  
   if (!is.null(params[['monotone_constraints']]) &&
       typeof(params[['monotone_constraints']]) != "character") {
         vec2str = paste(params[['monotone_constraints']], collapse = ',')
         vec2str = paste0('(', vec2str, ')')
         params[['monotone_constraints']] = vec2str
   }
-  
+
+  # interaction constraints parser
+  if (!is.null(params[['int_constraints']])){
+    # check input class
+    temp.in_class <- unique(sapply(params[['int_constraints']], class))
+    if (length(temp.in_class) > 1) stop('invalid class specification for int_constraints')
+    if (is.null(column_names)) stop('require column names to set interaction constraints')
+
+    # initialise list
+    int.cont <- list()
+    length(int.cont) <- length(params[['int_constraints']])
+
+    # convert input to list of 1/0 vectors
+    for (i in 1:length(params[['int_constraints']])){
+      int.cont[[i]] <- as.integer(column_names %in% params[['int_constraints']][[i]])
+      if (all(params[['int_constraints']][[i]] %in% column_names) == F)
+        stop('unknown variable names in int_constraints')
+    }
+
+    # recast parameter as string
+    params[['int_constraints']] <- as.vector(data.matrix(data.frame(int.cont)))
+    vec2str <- paste(params[['int_constraints']], collapse=',')
+    vec2str <- paste0('(', vec2str, ')')
+    params[['int_constraints']] <- vec2str
+
+    # number of specified interactions in interaction constraints
+    params[['nint_constraints']] <- length(params[['int_constraints']])
+  }
   return(params)
 }
 
@@ -83,10 +109,10 @@ check.booster.params <- function(params, ...) {
 check.custom.obj <- function(env = parent.frame()) {
   if (!is.null(env$params[['objective']]) && !is.null(env$obj))
     stop("Setting objectives in 'params' and 'obj' at the same time is not allowed")
-  
+
   if (!is.null(env$obj) && typeof(env$obj) != 'closure')
     stop("'obj' must be a function")
-  
+
   # handle the case when custom objective function was provided through params
   if (!is.null(env$params[['objective']]) &&
       typeof(env$params$objective) == 'closure') {
@@ -100,21 +126,21 @@ check.custom.obj <- function(env = parent.frame()) {
 check.custom.eval <- function(env = parent.frame()) {
   if (!is.null(env$params[['eval_metric']]) && !is.null(env$feval))
     stop("Setting evaluation metrics in 'params' and 'feval' at the same time is not allowed")
-  
+
   if (!is.null(env$feval) && typeof(env$feval) != 'closure')
     stop("'feval' must be a function")
-  
+
   # handle a situation when custom eval function was provided through params
   if (!is.null(env$params[['eval_metric']]) &&
       typeof(env$params$eval_metric) == 'closure') {
     env$feval <- env$params$eval_metric
     env$params$eval_metric <- NULL
   }
-  
+
   # require maximize to be set when custom feval and early stopping are used together
   if (!is.null(env$feval) &&
       is.null(env$maximize) && (
-        !is.null(env$early_stopping_rounds) || 
+        !is.null(env$early_stopping_rounds) ||
         has.callbacks(env$callbacks, 'cb.early.stop')))
     stop("Please set 'maximize' to indicate whether the evaluation metric needs to be maximized or not")
 }
@@ -141,15 +167,15 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
 
 
 # Evaluate one iteration.
-# Returns a named vector of evaluation metrics 
+# Returns a named vector of evaluation metrics
 # with the names in a 'datasetname-metricname' format.
 xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   if (!identical(class(booster_handle), "xgb.Booster.handle"))
     stop("class of booster_handle must be xgb.Booster.handle")
 
-  if (length(watchlist) == 0) 
+  if (length(watchlist) == 0)
     return(NULL)
-  
+
   evnames <- names(watchlist)
   if (is.null(feval)) {
     msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
@@ -176,7 +202,7 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
 
 # Generates random (stratified if needed) CV folds
 generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
-  
+
   # cannot do it for rank
   if (exists('objective', where = params) &&
       is.character(params$objective) &&
@@ -279,22 +305,22 @@ xgb.createFolds <- function(y, k = 10)
 #
 
 #' Deprecation notices.
-#' 
+#'
 #' At this time, some of the parameter names were changed in order to make the code style more uniform.
 #' The deprecated parameters would be removed in the next release.
-#' 
+#'
 #' To see all the current deprecated and new parameters, check the \code{xgboost:::depr_par_lut} table.
-#' 
-#' A deprecation warning is shown when any of the deprecated parameters is used in a call. 
-#' An additional warning is shown when there was a partial match to a deprecated parameter 
+#'
+#' A deprecation warning is shown when any of the deprecated parameters is used in a call.
+#' An additional warning is shown when there was a partial match to a deprecated parameter
 #' (as R is able to partially match parameter names).
-#' 
+#'
 #' @name xgboost-deprecated
 NULL
 
 # Lookup table for the deprecated parameters bookkeeping
 depr_par_lut <- matrix(c(
-  'print.every.n', 'print_every_n', 
+  'print.every.n', 'print_every_n',
   'early.stop.round', 'early_stopping_rounds',
   'training.data', 'data',
   'with.stats', 'with_stats',
