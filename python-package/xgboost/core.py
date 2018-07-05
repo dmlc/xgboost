@@ -107,7 +107,7 @@ def _log_callback(msg):
 
 def _get_log_callback_func():
     """Wrap log_callback() method in ctypes callback type"""
-    #pylint: disable=invalid-name
+    # pylint: disable=invalid-name
     CALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
     return CALLBACK(_log_callback)
 
