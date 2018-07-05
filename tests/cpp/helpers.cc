@@ -73,8 +73,8 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
 
   _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
 }
@@ -88,8 +88,8 @@ void CheckRankingObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
   _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -102,8 +102,8 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> weights) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
   return metric->Eval(preds, info, false);
 }
 

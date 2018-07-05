@@ -650,7 +650,7 @@ class GPUMaker : public TreeUpdater {
 
   void convertToCsc(DMatrix* dmat, std::vector<float>* fval,
                     std::vector<int>* fId, std::vector<size_t>* offset) {
-    MetaInfo info = dmat->Info();
+    const MetaInfo& info = dmat->Info();
     CHECK(info.num_col_ < std::numeric_limits<int>::max());
     CHECK(info.num_row_ < std::numeric_limits<int>::max());
     nRows = static_cast<int>(info.num_row_);

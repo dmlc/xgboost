@@ -2,10 +2,11 @@
  * Copyright 2017 XGBoost contributors
  */
 
-
-#include <thrust/fill.h>
 #include "./host_device_vector.h"
+#include <thrust/fill.h>
+#include <xgboost/data.h>
 #include "./device_helpers.cuh"
+
 
 namespace xgboost {
 
@@ -13,34 +14,16 @@ namespace xgboost {
 template <typename T>
 struct HostDeviceVectorImpl {
   struct DeviceShard {
-    DeviceShard() : index_(-1), device_(-1), start_(0), on_d_(false), vec_(nullptr) {}
-
-    static size_t ShardStart(size_t size, int ndevices, int index) {
-      size_t portion = dh::DivRoundUp(size, ndevices);
-      size_t begin = index * portion;
-      begin = begin > size ? size : begin;
-      return begin;
-    }
-
-    static size_t ShardSize(size_t size, int ndevices, int index) {
-      size_t portion = dh::DivRoundUp(size, ndevices);
-      size_t begin = index * portion, end = (index + 1) * portion;
-      begin = begin > size ? size : begin;
-      end = end > size ? size : end;
-      return end - begin;
-    }
+    DeviceShard()
+      : index_(-1), proper_size_(0), device_(-1), start_(0), on_d_(false), cached_size_(~0),
+        vec_(nullptr) {}
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = device;
-      index_ = vec_->devices_.Index(device);
-      size_t size_h = vec_->Size();
-      int ndevices = vec_->devices_.Size();
-      start_ = ShardStart(size_h, ndevices, index_);
-      size_t size_d = ShardSize(size_h, ndevices, index_);
-      dh::safe_cuda(cudaSetDevice(device_));
-      data_.resize(size_d);
+      index_ = vec_->distribution_.devices_.Index(device);
+      LazyResize(vec_->Size());
       on_d_ = !vec_->on_h_;
     }
 
@@ -56,7 +39,7 @@ struct HostDeviceVectorImpl {
       LazySyncDevice();
       dh::safe_cuda(cudaSetDevice(device_));
       dh::safe_cuda(cudaMemcpy(begin.get() + start_, data_.data().get(),
-                               data_.size() * sizeof(T), cudaMemcpyDefault));
+                               proper_size_ * sizeof(T), cudaMemcpyDefault));
     }
 
     void Fill(T v) {
@@ -78,43 +61,56 @@ struct HostDeviceVectorImpl {
     void LazySyncHost() {
       dh::safe_cuda(cudaSetDevice(device_));
       dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
-                               data_.data().get(), data_.size() * sizeof(T),
+                               data_.data().get(),  proper_size_ * sizeof(T),
                                cudaMemcpyDeviceToHost));
       on_d_ = false;
+    }
+
+    void LazyResize(size_t new_size) {
+      if (new_size == cached_size_) { return; }
+      // resize is required
+      int ndevices = vec_->distribution_.devices_.Size();
+      start_ = vec_->distribution_.ShardStart(new_size, index_);
+      proper_size_ = vec_->distribution_.ShardProperSize(new_size, index_);
+      size_t size_d = vec_->distribution_.ShardSize(new_size, index_);
+      dh::safe_cuda(cudaSetDevice(device_));
+      data_.resize(size_d);
+      cached_size_ = new_size;
     }
 
     void LazySyncDevice() {
       if (on_d_) { return; }
       // data is on the host
       size_t size_h = vec_->data_h_.size();
-      int ndevices = vec_->devices_.Size();
-      start_ = ShardStart(size_h, ndevices, index_);
-      size_t size_d = ShardSize(size_h, ndevices, index_);
+      LazyResize(size_h);
       dh::safe_cuda(cudaSetDevice(device_));
-      data_.resize(size_d);
-      dh::safe_cuda(cudaMemcpy(data_.data().get(),
-                               vec_->data_h_.data() + start_,
-                               size_d * sizeof(T), cudaMemcpyHostToDevice));
+      dh::safe_cuda(
+          cudaMemcpy(data_.data().get(), vec_->data_h_.data() + start_,
+                     data_.size() * sizeof(T), cudaMemcpyHostToDevice));
       on_d_ = true;
       // this may cause a race condition if LazySyncDevice() is called
       // from multiple threads in parallel;
       // however, the race condition is benign, and will not cause problems
       vec_->on_h_ = false;
-      vec_->size_d_ = vec_->data_h_.size();
+      vec_->size_d_ = size_h;
     }
 
     int index_;
     int device_;
     thrust::device_vector<T> data_;
+    // cached vector size
+    size_t cached_size_;
     size_t start_;
+    // size of the portion to copy back to the host
+    size_t proper_size_;
     // true if there is an up-to-date copy of data on device, false otherwise
     bool on_d_;
     HostDeviceVectorImpl<T>* vec_;
   };
 
-  HostDeviceVectorImpl(size_t size, T v, GPUSet devices)
-    : devices_(devices), on_h_(devices.IsEmpty()), size_d_(0) {
-    if (!devices.IsEmpty()) {
+  HostDeviceVectorImpl(size_t size, T v, GPUDistribution distribution)
+    : distribution_(distribution), on_h_(distribution.IsEmpty()), size_d_(0) {
+    if (!distribution_.IsEmpty()) {
       size_d_ = size;
       InitShards();
       Fill(v);
@@ -125,9 +121,9 @@ struct HostDeviceVectorImpl {
 
   // Init can be std::vector<T> or std::initializer_list<T>
   template <class Init>
-  HostDeviceVectorImpl(const Init& init, GPUSet devices)
-    : devices_(devices), on_h_(devices.IsEmpty()), size_d_(0) {
-    if (!devices.IsEmpty()) {
+  HostDeviceVectorImpl(const Init& init, GPUDistribution distribution)
+    : distribution_(distribution), on_h_(distribution.IsEmpty()), size_d_(0) {
+    if (!distribution_.IsEmpty()) {
       size_d_ = init.size();
       InitShards();
       Copy(init);
@@ -137,26 +133,23 @@ struct HostDeviceVectorImpl {
   }
 
   void InitShards() {
-    int ndevices = devices_.Size();
+    int ndevices = distribution_.devices_.Size();
     shards_.resize(ndevices);
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-        shard.Init(this, devices_[i]);
+        shard.Init(this, distribution_.devices_[i]);
       });
   }
 
-  HostDeviceVectorImpl(const HostDeviceVectorImpl<T>&) = delete;
-  HostDeviceVectorImpl(HostDeviceVectorImpl<T>&&) = delete;
-  void operator=(const HostDeviceVectorImpl<T>&) = delete;
-  void operator=(HostDeviceVectorImpl<T>&&) = delete;
-
   size_t Size() const { return on_h_ ? data_h_.size() : size_d_; }
 
-  GPUSet Devices() const { return devices_; }
+  GPUSet Devices() const { return distribution_.devices_; }
+
+  const GPUDistribution& Distribution() const { return distribution_; }
 
   T* DevicePointer(int device) {
-    CHECK(devices_.Contains(device));
+    CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device);
-    return shards_[devices_.Index(device)].data_.data().get();
+    return shards_[distribution_.devices_.Index(device)].data_.data().get();
   }
 
   common::Span<T> DeviceSpan(int device) {
@@ -167,15 +160,15 @@ struct HostDeviceVectorImpl {
   }
 
   size_t DeviceSize(int device) {
-    CHECK(devices_.Contains(device));
+    CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device);
-    return shards_[devices_.Index(device)].data_.size();
+    return shards_[distribution_.devices_.Index(device)].data_.size();
   }
 
   size_t DeviceStart(int device) {
-    CHECK(devices_.Contains(device));
+    CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device);
-    return shards_[devices_.Index(device)].start_;
+    return shards_[distribution_.devices_.Index(device)].start_;
   }
 
   thrust::device_ptr<T> tbegin(int device) {  // NOLINT
@@ -223,7 +216,7 @@ struct HostDeviceVectorImpl {
     if (on_h_ && other->on_h_) {
       std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
     } else {
-      CHECK(devices_ == other->devices_);
+      CHECK(distribution_ == other->distribution_);
       dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
           shard.Copy(&other->shards_[i]);
         });
@@ -257,18 +250,27 @@ struct HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void Reshard(GPUSet new_devices) {
-    if (devices_ == new_devices)
+  void Reshard(const GPUDistribution& distribution) {
+    if (distribution_ == distribution)
       return;
-    CHECK(devices_.IsEmpty());
-    devices_ = new_devices;
+    CHECK(distribution_.IsEmpty());
+    distribution_ = distribution;
     InitShards();
+  }
+
+  void Reshard(GPUSet new_devices) {
+    if (distribution_.Devices() == new_devices)
+      return;
+    Reshard(GPUDistribution::Block(new_devices));
   }
 
   void Resize(size_t new_size, T v) {
     if (new_size == Size())
       return;
-    if (Size() == 0 && !devices_.IsEmpty()) {
+    if (distribution_.IsFixedSize()) {
+      CHECK_EQ(new_size, distribution_.offsets_.back());
+    }
+    if (Size() == 0 && !distribution_.IsEmpty()) {
       // fast on-device resize
       on_h_ = false;
       size_d_ = new_size;
@@ -291,34 +293,52 @@ struct HostDeviceVectorImpl {
   }
 
   void LazySyncDevice(int device) {
-    CHECK(devices_.Contains(device));
-    shards_[devices_.Index(device)].LazySyncDevice();
+    GPUSet devices = distribution_.Devices();
+    CHECK(devices.Contains(device));
+    shards_[devices.Index(device)].LazySyncDevice();
   }
 
   std::vector<T> data_h_;
   bool on_h_;
   // the total size of the data stored on the devices
   size_t size_d_;
-  GPUSet devices_;
+  GPUDistribution distribution_;
   std::vector<DeviceShard> shards_;
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, GPUSet devices)
-  : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(size, v, devices);
+HostDeviceVector<T>::HostDeviceVector
+(size_t size, T v, GPUDistribution distribution) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(size, v, distribution);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, GPUSet devices)
-  : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(init, devices);
+HostDeviceVector<T>::HostDeviceVector
+(std::initializer_list<T> init, GPUDistribution distribution) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init, distribution);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, GPUSet devices)
+HostDeviceVector<T>::HostDeviceVector
+(const std::vector<T>& init, GPUDistribution distribution) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init, distribution);
+}
+
+template <typename T>
+HostDeviceVector<T>::HostDeviceVector(const HostDeviceVector<T>& other)
   : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(init, devices);
+  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
+}
+
+template <typename T>
+HostDeviceVector<T>& HostDeviceVector<T>::operator=
+(const HostDeviceVector<T>& other) {
+  if (this == &other) {
+    return *this;
+  }
+  delete impl_;
+  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
+  return *this;
 }
 
 template <typename T>
@@ -335,6 +355,11 @@ template <typename T>
 GPUSet HostDeviceVector<T>::Devices() const { return impl_->Devices(); }
 
 template <typename T>
+const GPUDistribution& HostDeviceVector<T>::Distribution() const {
+  return impl_->Distribution();
+}
+
+template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return impl_->DevicePointer(device); }
 
 template <typename T>
@@ -345,8 +370,14 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
 template <typename T>
 size_t HostDeviceVector<T>::DeviceStart(int device) { return impl_->DeviceStart(device); }
 
+const T* HostDeviceVector<T>::DevicePointer(int device) const {
+  return impl_->DevicePointer(device);
+}
+
 template <typename T>
-size_t HostDeviceVector<T>::DeviceSize(int device) { return impl_->DeviceSize(device); }
+size_t HostDeviceVector<T>::DeviceSize(int device) const {
+  return impl_->DeviceSize(device);
+}
 
 template <typename T>
 thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {  // NOLINT
@@ -354,8 +385,18 @@ thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {  // NOLINT
 }
 
 template <typename T>
+thrust::device_ptr<const T> HostDeviceVector<T>::tbegin(int device) const {  // NOLINT
+  return thrust::device_ptr<const T>(impl_->tbegin(device));
+}
+
+template <typename T>
 thrust::device_ptr<T> HostDeviceVector<T>::tend(int device) {  // NOLINT
   return impl_->tend(device);
+}
+
+template <typename T>
+thrust::device_ptr<const T> HostDeviceVector<T>::tend(int device) const {  // NOLINT
+  return thrust::device_ptr<const T>(impl_->tend(device));
 }
 
 template <typename T>
@@ -376,8 +417,8 @@ void HostDeviceVector<T>::Fill(T v) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Copy(HostDeviceVector<T>* other) {
-  impl_->Copy(other->impl_);
+void HostDeviceVector<T>::Copy(const HostDeviceVector<T>& other) {
+  impl_->Copy(other.impl_);
 }
 
 template <typename T>
@@ -394,8 +435,18 @@ template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->HostVector(); }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(GPUSet new_devices) {
+const std::vector<T>& HostDeviceVector<T>::HostVector() const {
+  return impl_->HostVector();
+}
+
+template <typename T>
+void HostDeviceVector<T>::Reshard(GPUSet new_devices) const {
   impl_->Reshard(new_devices);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) {
+  impl_->Reshard(distribution);
 }
 
 template <typename T>
@@ -408,5 +459,7 @@ template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<unsigned int>;
 template class HostDeviceVector<int>;
+template class HostDeviceVector<Entry>;
+template class HostDeviceVector<size_t>;
 
 }  // namespace xgboost

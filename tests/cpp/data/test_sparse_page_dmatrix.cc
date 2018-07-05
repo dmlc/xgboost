@@ -16,7 +16,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_row_, 2);
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
-  EXPECT_EQ(dmat->Info().labels_.size(), dmat->Info().num_row_);
+  EXPECT_EQ(dmat->Info().labels_.Size(), dmat->Info().num_row_);
 
   // Clean up of external memory files
   std::remove((tmp_file + ".cache").c_str());
@@ -54,7 +54,7 @@ TEST(SparsePageDMatrix, RowAccess) {
   delete dmat;
 }
 
-TEST(SparsePageDMatrix, ColAcess) {
+TEST(SparsePageDMatrix, ColAccess) {
   std::string tmp_file = CreateSimpleTestData();
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
     tmp_file + "#" + tmp_file + ".cache", true, false);

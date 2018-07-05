@@ -41,8 +41,10 @@ void SimpleDMatrix::MakeOneBatch(SparsePage* pcol, bool sorted) {
   // bit map
   const int nthread = omp_get_max_threads();
   pcol->Clear();
+  auto& pcol_offset_vec = pcol->offset.HostVector();
+  auto& pcol_data_vec = pcol->data.HostVector();
   common::ParallelGroupBuilder<Entry>
-      builder(&pcol->offset, &pcol->data);
+      builder(&pcol_offset_vec, &pcol_data_vec);
   builder.InitBudget(Info().num_col_, nthread);
   // start working
   auto iter = this->RowIterator();
@@ -88,9 +90,9 @@ void SimpleDMatrix::MakeOneBatch(SparsePage* pcol, bool sorted) {
     auto ncol = static_cast<bst_omp_uint>(pcol->Size());
 #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ncol; ++i) {
-      if (pcol->offset[i] < pcol->offset[i + 1]) {
-        std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
-          dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
+      if (pcol_offset_vec[i] < pcol_offset_vec[i + 1]) {
+        std::sort(dmlc::BeginPtr(pcol_data_vec) + pcol_offset_vec[i],
+          dmlc::BeginPtr(pcol_data_vec) + pcol_offset_vec[i + 1],
           Entry::CmpValue);
       }
     }

@@ -39,8 +39,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK(preds->Size() == (static_cast<size_t>(param_.num_class) * info.labels_.size()))
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK(preds->Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match";
     std::vector<bst_float>& preds_h = preds->HostVector();
     out_gpair->Resize(preds_h.size());
@@ -48,6 +48,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
 
+    const auto& labels = info.labels_.HostVector();
     int label_error = 0;
     #pragma omp parallel
     {
@@ -58,7 +59,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           rec[k] = preds_h[i * nclass + k];
         }
         common::Softmax(&rec);
-        auto label = static_cast<int>(info.labels_[i]);
+        auto label = static_cast<int>(labels[i]);
         if (label < 0 || label >= nclass)  {
           label_error = label; label = 0;
         }

@@ -17,6 +17,8 @@
 #include "./base.h"
 #include "../../src/common/span.h"
 
+#include "../../src/common/host_device_vector.h"
+
 namespace xgboost {
 // forward declare learner.
 class LearnerImpl;
@@ -41,7 +43,7 @@ class MetaInfo {
   /*! \brief number of nonzero entries in the data */
   uint64_t num_nonzero_{0};
   /*! \brief label of each instance */
-  std::vector<bst_float> labels_;
+  HostDeviceVector<bst_float> labels_;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
@@ -53,7 +55,7 @@ class MetaInfo {
    */
   std::vector<bst_uint> group_ptr_;
   /*! \brief weights of each instance, optional */
-  std::vector<bst_float> weights_;
+  HostDeviceVector<bst_float> weights_;
   /*! \brief session-id of each instance, optional */
   std::vector<uint64_t> qids_;
   /*!
@@ -61,7 +63,7 @@ class MetaInfo {
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  std::vector<bst_float> base_margin_;
+  HostDeviceVector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
   static const int kVersion = 2;
   /*! \brief version that introduced qid field */
@@ -74,7 +76,7 @@ class MetaInfo {
    * \return The weight.
    */
   inline bst_float GetWeight(size_t i) const {
-    return weights_.size() != 0 ?  weights_[i] : 1.0f;
+    return weights_.Size() != 0 ?  weights_.HostVector()[i] : 1.0f;
   }
   /*!
    * \brief Get the root index of i-th instance.
@@ -86,12 +88,12 @@ class MetaInfo {
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
   inline const std::vector<size_t>& LabelAbsSort() const {
-    if (label_order_cache_.size() == labels_.size()) {
+    if (label_order_cache_.size() == labels_.Size()) {
       return label_order_cache_;
     }
-    label_order_cache_.resize(labels_.size());
+    label_order_cache_.resize(labels_.Size());
     std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
-    const auto l = labels_;
+    const auto& l = labels_.HostVector();
     XGBOOST_PARALLEL_SORT(label_order_cache_.begin(), label_order_cache_.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 
@@ -151,9 +153,9 @@ struct Entry {
  */
 class SparsePage {
  public:
-  std::vector<size_t> offset;
+  HostDeviceVector<size_t> offset;
   /*! \brief the data of the segments */
-  std::vector<Entry> data;
+  HostDeviceVector<Entry> data;
 
   size_t base_rowid;
 
@@ -162,8 +164,10 @@ class SparsePage {
 
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return {data.data() + offset[i],
-            static_cast<Inst::index_type>(offset[i + 1] - offset[i])};
+    const auto& data_vec = data.HostVector();
+    const auto& offset_vec = offset.HostVector();
+    return {data_vec.data() + offset_vec[i],
+            static_cast<Inst::index_type>(offset_vec[i + 1] - offset_vec[i])};
   }
 
   /*! \brief constructor */
@@ -172,18 +176,19 @@ class SparsePage {
   }
   /*! \return number of instance in the page */
   inline size_t Size() const {
-    return offset.size() - 1;
+    return offset.Size() - 1;
   }
   /*! \return estimation of memory cost of this page */
   inline size_t MemCostBytes() const {
-    return offset.size() * sizeof(size_t) + data.size() * sizeof(Entry);
+    return offset.Size() * sizeof(size_t) + data.Size() * sizeof(Entry);
   }
   /*! \brief clear the page */
   inline void Clear() {
     base_rowid = 0;
-    offset.clear();
-    offset.push_back(0);
-    data.clear();
+    auto& offset_vec = offset.HostVector();
+    offset_vec.clear();
+    offset_vec.push_back(0);
+    data.HostVector().clear();
   }
 
   /*!
@@ -191,33 +196,39 @@ class SparsePage {
    * \param batch the row batch.
    */
   inline void Push(const dmlc::RowBlock<uint32_t>& batch) {
-    data.reserve(data.size() + batch.offset[batch.size] - batch.offset[0]);
-    offset.reserve(offset.size() + batch.size);
+    auto& data_vec = data.HostVector();
+    auto& offset_vec = offset.HostVector();
+    data_vec.reserve(data.Size() + batch.offset[batch.size] - batch.offset[0]);
+    offset_vec.reserve(offset.Size() + batch.size);
     CHECK(batch.index != nullptr);
     for (size_t i = 0; i < batch.size; ++i) {
-      offset.push_back(offset.back() + batch.offset[i + 1] - batch.offset[i]);
+      offset_vec.push_back(offset_vec.back() + batch.offset[i + 1] - batch.offset[i]);
     }
     for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
       uint32_t index = batch.index[i];
       bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-      data.emplace_back(index, fvalue);
+      data_vec.emplace_back(index, fvalue);
     }
-    CHECK_EQ(offset.back(), data.size());
+    CHECK_EQ(offset_vec.back(), data.Size());
   }
   /*!
    * \brief Push a sparse page
    * \param batch the row page
    */
   inline void Push(const SparsePage &batch) {
-    size_t top = offset.back();
-    data.resize(top + batch.data.size());
-    std::memcpy(dmlc::BeginPtr(data) + top,
-                dmlc::BeginPtr(batch.data),
-                sizeof(Entry) * batch.data.size());
-    size_t begin = offset.size();
-    offset.resize(begin + batch.Size());
+    auto& data_vec = data.HostVector();
+    auto& offset_vec = offset.HostVector();
+    auto& batch_offset_vec = batch.offset.HostVector();
+    auto& batch_data_vec = batch.data.HostVector();
+    size_t top = offset_vec.back();
+    data_vec.resize(top + batch.data.Size());
+    std::memcpy(dmlc::BeginPtr(data_vec) + top,
+                dmlc::BeginPtr(batch_data_vec),
+                sizeof(Entry) * batch.data.Size());
+    size_t begin = offset.Size();
+    offset_vec.resize(begin + batch.Size());
     for (size_t i = 0; i < batch.Size(); ++i) {
-      offset[i + begin] = top + batch.offset[i + 1];
+      offset_vec[i + begin] = top + batch_offset_vec[i + 1];
     }
   }
   /*!
@@ -225,16 +236,27 @@ class SparsePage {
    *  \param inst an instance row
    */
   inline void Push(const Inst &inst) {
+<<<<<<< HEAD
     offset.push_back(offset.back() + inst.size());
     size_t begin = data.size();
     data.resize(begin + inst.size());
     if (inst.size() != 0) {
       std::memcpy(dmlc::BeginPtr(data) + begin, inst.data(),
                   sizeof(Entry) * inst.size());
+=======
+    auto& data_vec = data.HostVector();
+    auto& offset_vec = offset.HostVector();
+    offset_vec.push_back(offset_vec.back() + inst.length);
+    size_t begin = data.Size();
+    data_vec.resize(begin + inst.length);
+    if (inst.length != 0) {
+      std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data,
+                  sizeof(Entry) * inst.length);
+>>>>>>> Replaced std::vector with HostDeviceVector in MetaInfo and SparsePage.
     }
   }
 
-  size_t Size() { return offset.size() - 1; }
+  size_t Size() { return offset.Size() - 1; }
 };
 
 
