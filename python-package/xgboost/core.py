@@ -737,8 +737,15 @@ class DMatrix(object):
         """
         if feature_names is not None:
             # validate feature name
-            if not isinstance(feature_names, list):
+            
+            try:
+                if not isinstance(feature_names, str):
+                    feature_names = [n for n in iter(feature_names)]
+                else:
+                    feature_names = [feature_names]
+            except TypeError:
                 feature_names = [feature_names]
+                
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
             if len(feature_names) != self.num_col():
@@ -775,9 +782,15 @@ class DMatrix(object):
             if isinstance(feature_types, STRING_TYPES):
                 # single string will be applied to all columns
                 feature_types = [feature_types] * self.num_col()
-
-            if not isinstance(feature_types, list):
+                
+            try:
+                if not isinstance(feature_types, str):
+                    feature_types = [n for n in iter(feature_types)]
+                else:
+                    feature_types = [feature_types]
+            except TypeError:
                 feature_types = [feature_types]
+                
             if len(feature_types) != self.num_col():
                 msg = 'feature_types must have the same length as data'
                 raise ValueError(msg)
