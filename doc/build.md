@@ -1,6 +1,15 @@
 Installation Guide
 ==================
 
+**NOTE**. If you are planning to use Python on a Linux system, consider installing XGBoost from a pre-built binary wheel. The wheel is available from Python Package Index (PyPI). You may download and install it by running
+```bash
+# Ensure that you are downloading xgboost-{version}-py2.py3-none-manylinux1_x86_64.whl
+pip3 install xgboost
+```
+* This package will support GPU algorithms (`gpu_exact`, `gpu_hist`) on machines with NVIDIA GPUs.
+* Currently, PyPI has a binary wheel only for 64-bit Linux.
+
+# Building XGBoost from source
 This page gives instructions on how to build and install the xgboost package from
 scratch on various systems. It consists of two steps:
 
