@@ -15,6 +15,12 @@
 #include "./quantile.h"
 
 namespace xgboost {
+
+// forward declaration
+namespace tree {
+struct TrainParam;
+}  // namespace tree
+
 namespace common {
 
 using tree::FastHistParam;
@@ -88,6 +94,10 @@ struct HistCutMatrix {
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 };
 
+/* builds the cut matrix on the GPU */
+void DeviceSketch
+  (const SparsePage& batch, const MetaInfo& info,
+   const tree::TrainParam& param, HistCutMatrix* hmat);
 
 /*!
  * \brief A single row in global histogram index.
