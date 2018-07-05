@@ -574,7 +574,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined 
+            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
         Returns
         -------
@@ -605,7 +605,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         data : DMatrix
             The dmatrix storing the input.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined 
+            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
         Returns
         -------
