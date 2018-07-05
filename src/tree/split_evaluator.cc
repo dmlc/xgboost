@@ -50,15 +50,6 @@ void SplitEvaluator::AddSplit(bst_uint nodeid,
                               bst_float leftweight,
                               bst_float rightweight) {}
 
-bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
-                                            bst_uint featureid,
-                                            const GradStats& left_stats,
-                                            const GradStats& right_stats) const {
-  bst_float left_weight = ComputeWeight(nodeid, left_stats);
-  bst_float right_weight = ComputeWeight(nodeid, right_stats);
-  return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
-}
-
 //! \brief Encapsulates the parameters for ElasticNet
 struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
   bst_float reg_lambda;
@@ -129,6 +120,8 @@ class ElasticNet final : public SplitEvaluator {
     }
     return -g / (stats.sum_hess + params_.reg_lambda);
   }
+
+  XGBOOST_SPLIT_EVALUATOR_MIXIN()
 
  private:
   ElasticNetParams params_;
@@ -263,6 +256,8 @@ class MonotonicConstraint final : public SplitEvaluator {
       lower_[rightid] = mid;
     }
   }
+
+  XGBOOST_SPLIT_EVALUATOR_MIXIN()
 
  private:
   MonotonicConstraintParams params_;

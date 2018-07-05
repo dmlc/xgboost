@@ -49,7 +49,7 @@ class SplitEvaluator {
   virtual bst_float ComputeSplitScore(bst_uint nodeid,
                                       bst_uint featureid,
                                       const GradStats& left_stats,
-                                      const GradStats& right_stats) const;
+                                      const GradStats& right_stats) const = 0;
 
   // Compute the Score for a node with the given stats
   virtual bst_float ComputeScore(bst_uint parentid,
@@ -67,6 +67,21 @@ class SplitEvaluator {
                         bst_float leftweight,
                         bst_float rightweight);
 };
+
+/*!
+ * \brief Macro that implements ComputeSplitScore(4). If this is used in a final class that
+ * inherits from SplitEvaluator, then several method calls will be devirtualized. This results
+ * in a noticeable speedup for updaters that evaluate a large number of candidate splits.
+ */
+#define XGBOOST_SPLIT_EVALUATOR_MIXIN() \
+  bst_float ComputeSplitScore(bst_uint nodeid, \
+                              bst_uint featureid, \
+                              const GradStats& left_stats, \
+                              const GradStats& right_stats) const override { \
+    bst_float left_weight = ComputeWeight(nodeid, left_stats); \
+    bst_float right_weight = ComputeWeight(nodeid, right_stats); \
+    return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight); \
+  }
 
 struct SplitEvaluatorReg
     : public dmlc::FunctionRegEntryBase<SplitEvaluatorReg,
