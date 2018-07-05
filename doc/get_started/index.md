@@ -5,6 +5,7 @@ on the demo dataset on a binary classification task.
 
 ## Links to Helpful Other Resources
 - See [Installation Guide](../build.md) on how to install xgboost.
+- See [Text Input Format](../input_format.md) on using text format for specifying training/testing data.
 - See [How to pages](../how_to/index.md) on various tips on using xgboost.
 - See [Tutorials](../tutorials/index.md) on tutorials on specific tasks.
 - See [Learning to use XGBoost by Examples](../../demo) for more code examples.
