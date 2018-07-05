@@ -132,8 +132,16 @@ def _check_call(ret):
 def ctypes2numpy(cptr, length, dtype):
     """Convert a ctypes pointer array to a numpy array.
     """
-    if not isinstance(cptr, ctypes.POINTER(ctypes.c_float)):
-        raise RuntimeError('expected float pointer')
+    NUMPY_TO_CTYPES_MAPPING ={
+        np.float32: ctypes.c_float,
+        np.uint32: ctypes.c_uint,
+    }
+    if dtype not in NUMPY_TO_CTYPES_MAPPING:
+        raise RuntimeError('Supported types: {}'\
+                           .format(NUMPY_TO_CTYPES_MAPPING.keys()))
+    ctype = NUMPY_TO_CTYPES_MAPPING[dtype]
+    if not isinstance(cptr, ctypes.POINTER(ctype)):
+        raise RuntimeError('expected {} pointer'.format(ctype))
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError('memmove failed')
@@ -486,7 +494,7 @@ class DMatrix(object):
         Returns
         -------
         info : array
-            a numpy array of float information of the data
+            a numpy array of unsigned integer information of the data
         """
         length = c_bst_ulong()
         ret = ctypes.POINTER(ctypes.c_uint)()
