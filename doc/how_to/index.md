@@ -6,6 +6,7 @@ This page contains guidelines to use and develop XGBoost.
 - [How to Install XGBoost](../build.md)
 
 ## Use XGBoost in Specific Ways
+- [Text input format](../input_format.md)
 - [Parameter tuning guide](param_tuning.md)
 - [Use out of core computation for large dataset](external_memory.md)
 - [Use XGBoost GPU algorithms](../gpu/index.md)

@@ -211,6 +211,12 @@ class XGBoostClassificationModel private[ml](
   // only called in copy()
   def this(uid: String) = this(uid, 2, null)
 
+  /**
+   * Get the native booster instance of this model.
+   * This is used to call low-level APIs on native booster, such as "getFeatureScore".
+   */
+  def nativeBooster: Booster = _booster
+
   private var trainingSummary: Option[XGBoostTrainingSummary] = None
 
   /**

@@ -74,3 +74,7 @@ List of Contributors
 * [Yi-Lin Juang](https://github.com/frankyjuang)
 * [Andrew Hannigan](https://github.com/andrewhannigan)
 * [Andy Adinets](https://github.com/canonizer)
+* [Henry Gouk](https://github.com/henrygouk)
+* [Pierre de Sahb](https://github.com/pdesahb)
+* [liuliang01](https://github.com/liuliang01)
+  - liuliang01 added support for the qid column for LibSVM input format. This makes ranking task easier in distributed setting.

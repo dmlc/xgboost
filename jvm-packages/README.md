@@ -20,6 +20,27 @@ You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.o
 
 XGBoost4J, XGBoost4J-Spark, etc. in maven repository is compiled with g++-4.8.5  
 
+### Access release version
+
+<b>maven</b> 
+
+```
+<dependency>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost4j</artifactId>
+    <version>latest_version_num</version>
+</dependency>
+``` 
+ 
+<b>sbt</b> 
+```sbt
+ "ml.dmlc" % "xgboost4j" % "latest_version_num"
+``` 
+
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
+if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
+
 ### Access SNAPSHOT version
 
 You need to add github as repo:
@@ -57,7 +78,7 @@ the add dependency as following:
  "ml.dmlc" % "xgboost4j" % "latest_version_num"
 ``` 
 
-For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+For the latest release version number, please check [here](https://github.com/CodingCat/xgboost/tree/maven-repo/ml/dmlc/xgboost4j).
 
 if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
 

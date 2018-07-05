@@ -38,15 +38,38 @@ This command will publish the xgboost binaries, the compiled java classes as wel
 
 For sbt, please add the repository and dependency in build.sbt as following:
 
-<b>sbt</b> 
+<b>sbt</b>
 ```sbt
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 
 "ml.dmlc" % "xgboost4j" % "latest_source_version_num"
-``` 
+```
 
 
-#### Installation from repo
+#### Installation from maven repo
+
+### Access release version
+
+<b>maven</b>
+
+```
+<dependency>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost4j</artifactId>
+    <version>latest_version_num</version>
+</dependency>
+```
+
+<b>sbt</b>
+```sbt
+ "ml.dmlc" % "xgboost4j" % "latest_version_num"
+```
+
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
+if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
+
+### Access SNAPSHOT version
 
 You need to add github as repo:
 
@@ -83,12 +106,14 @@ the add dependency as following:
  "ml.dmlc" % "xgboost4j" % "latest_version_num"
 ```
 
-For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+For the latest release version number, please check [here](https://github.com/CodingCat/xgboost/tree/maven-repo/ml/dmlc/xgboost4j).
+
+if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
 
 After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=2.0.0 package`.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like `spark.version`, `scala.version`, and `scala.binary.version`. Users also need to change the implementation by replacing SparkSession with SQLContext and the type of API parameters from Dataset[_] to Dataframe)
 
 #### Enabling OpenMP for  Mac OS
-If you are on Mac OS and using a compiler that supports OpenMP, you need to go to the file `xgboost/jvm-packages/create_jni.py` and comment out the line 
+If you are on Mac OS and using a compiler that supports OpenMP, you need to go to the file `xgboost/jvm-packages/create_jni.py` and comment out the line
 ```python
 CONFIG["USE_OPENMP"] = "OFF"
 ```

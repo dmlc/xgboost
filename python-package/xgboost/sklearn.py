@@ -176,7 +176,7 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if self._Booster is None:
-            raise XGBoostError('need to call fit beforehand')
+            raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
     def get_params(self, deep=False):
@@ -213,6 +213,28 @@ class XGBModel(XGBModelBase):
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
         return xgb_params
+
+    def save_model(self, fname):
+        """
+        Save the model to a file.
+        Parameters
+        ----------
+        fname : string
+            Output file name
+        """
+        self.get_booster().save_model(fname)
+
+    def load_model(self, fname):
+        """
+        Load the model from a file.
+        Parameters
+        ----------
+        fname : string or a memory buffer
+            Input file name or memory buffer(see also save_raw)
+        """
+        if self._Booster is None:
+            self._Booster = Booster({'nthread': self.n_jobs})
+        self._Booster.load_model(fname)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,

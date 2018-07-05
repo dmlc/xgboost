@@ -48,6 +48,13 @@ if [ ${TASK} == "python_test" ]; then
     source activate python3
     python --version
     conda install numpy scipy pandas matplotlib nose scikit-learn
+
+    # Install data table from source
+    wget http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
+    tar xf clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
+    export LLVM5=$(pwd)/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04
+    python -m pip install datatable --no-binary datatable
+
     python -m pip install graphviz pytest pytest-cov codecov
     python -m nose tests/python || exit -1
     py.test tests/python --cov=python-package/xgboost
@@ -109,8 +116,8 @@ fi
 if [ ${TASK} == "cmake_test" ]; then
     set -e
     # Build gtest via cmake
-    wget https://github.com/google/googletest/archive/release-1.7.0.zip
-    unzip release-1.7.0.zip
+    wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
+    unzip -n release-1.7.0.zip
     mv googletest-release-1.7.0 gtest && cd gtest
     cmake . && make
     mkdir lib && mv libgtest.a lib

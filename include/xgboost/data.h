@@ -53,6 +53,8 @@ class MetaInfo {
   std::vector<bst_uint> group_ptr_;
   /*! \brief weights of each instance, optional */
   std::vector<bst_float> weights_;
+  /*! \brief session-id of each instance, optional */
+  std::vector<uint64_t> qids_;
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
@@ -60,7 +62,9 @@ class MetaInfo {
    */
   std::vector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
-  static const int kVersion = 1;
+  static const int kVersion = 2;
+  /*! \brief version that introduced qid field */
+  static const int kVersionQidAdded = 2;
   /*! \brief default constructor */
   MetaInfo()  = default;
   /*!
@@ -135,6 +139,9 @@ struct Entry {
   /*! \brief reversely compare feature values */
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
+  }
+  inline bool operator==(const Entry& other) const {
+    return (this->index == other.index && this->fvalue == other.fvalue);
   }
 };
 

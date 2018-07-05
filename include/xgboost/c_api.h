@@ -220,6 +220,22 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
                                        float missing, DMatrixHandle *out,
                                        int nthread);
 /*!
+ * \brief create matrix content from python data table
+ * \param data pointer to pointer to column data
+ * \param feature_stypes pointer to strings
+ * \param nrow number of rows
+ * \param ncol number columns
+ * \param out created dmatrix
+ * \param nthread number of threads (up to maximum cores available, if <=0 use all cores)
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromDT(void** data,
+                                  const char ** feature_stypes,
+                                  bst_ulong nrow,
+                                  bst_ulong ncol,
+                                  DMatrixHandle* out,
+                                  int nthread);
+/*!
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
  * \param idxset index set
@@ -261,7 +277,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
  * \param field field name
- * \param array pointer to float vector
+ * \param array pointer to unsigned int vector
  * \param len length of array
  * \return 0 when success, -1 when failure happens
  */
