@@ -367,9 +367,11 @@ struct DeviceShard {
     thrust::device_vector<float> cuts_d(hmat.cut);
     thrust::device_vector<size_t> cut_row_ptrs_d(hmat.row_ptr);
 
+    auto& offset_vec = row_batch.offset.HostVector();
+    auto& data_vec = row_batch.data.HostVector();
     // find the maximum row size
     thrust::device_vector<size_t> row_ptr_d(
-        &row_batch.offset[row_begin_idx], &row_batch.offset[row_end_idx + 1]);
+        &offset_vec[row_begin_idx], &offset_vec[row_end_idx + 1]);
 
     auto row_iter = row_ptr_d.begin();
     auto get_size = [=] __device__(size_t row) {
@@ -412,12 +414,12 @@ struct DeviceShard {
       }
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries =
-        row_batch.offset[row_begin_idx + batch_row_end] -
-        row_batch.offset[row_begin_idx + batch_row_begin];
+        offset_vec[row_begin_idx + batch_row_end] -
+        offset_vec[row_begin_idx + batch_row_begin];
       dh::safe_cuda
         (cudaMemcpy
          (entries_d.data().get(),
-          &row_batch.data[row_batch.offset[row_begin_idx + batch_row_begin]],
+          &data_vec[offset_vec[row_begin_idx + batch_row_begin]],
           n_entries * sizeof(Entry), cudaMemcpyDefault));
       dim3 block3(32, 8, 1);
       dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
@@ -427,7 +429,7 @@ struct DeviceShard {
          row_ptr_d.data().get() + batch_row_begin,
          entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
          batch_row_begin, batch_nrows,
-         row_batch.offset[row_begin_idx + batch_row_begin],
+         offset_vec[row_begin_idx + batch_row_begin],
          row_stride, null_gidx_value);
 
       dh::safe_cuda(cudaGetLastError());

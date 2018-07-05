@@ -54,6 +54,102 @@ class GPUSet {
   int start_, ndevices_;
 };
 
+// Distribution for the HostDeviceVector; it specifies such aspects as the devices it is
+// distributed on, whether there are copies of elements from other GPUs as well as the granularity
+// of splitting. It may also specify explicit boundaries for devices, in which case the size of the
+// array cannot be changed.
+class GPUDistribution {
+  template<typename T> friend struct HostDeviceVectorImpl;
+
+ public:
+  explicit GPUDistribution(GPUSet devices = GPUSet::Empty())
+    : devices_(devices), granularity_(1), overlap_(0) {}
+
+ private:
+  GPUDistribution(GPUSet devices, int granularity, int overlap, std::vector<size_t> offsets)
+    : devices_(devices), granularity_(granularity), overlap_(overlap), offsets_(offsets) {}
+
+ public:
+  static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }
+
+  static GPUDistribution Overlap(GPUSet devices, int overlap) {
+    return GPUDistribution(devices, 1, overlap, std::vector<size_t>());
+  }
+
+  static GPUDistribution Granular(GPUSet devices, int granularity) {
+    return GPUDistribution(devices, granularity, 0, std::vector<size_t>());
+  }
+
+  static GPUDistribution Explicit(GPUSet devices, std::vector<size_t> offsets) {
+    return GPUDistribution(devices, 1, 0, offsets);
+  }
+
+  friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
+    return a.devices_ == b.devices_ && a.granularity_ == b.granularity_ &&
+      a.overlap_ == b.overlap_ && a.offsets_ == b.offsets_;
+  }
+
+  friend bool operator!=(const GPUDistribution& a, const GPUDistribution& b) {
+    return !(a == b);
+  }
+
+  GPUSet Devices() const { return devices_; }
+
+  bool IsEmpty() const { return devices_.IsEmpty(); }
+
+  size_t ShardStart(size_t size, int index) const {
+    if (size == 0) { return 0; }
+    if (offsets_.size() > 0) {
+      // explicit offsets are provided
+      CHECK_EQ(offsets_.back(), size);
+      return offsets_.at(index);
+    }
+    // no explicit offsets
+    size_t begin = std::min(index * Portion(size), size);
+    begin = begin > size ? size : begin;
+    return begin;
+  }
+
+  size_t ShardSize(size_t size, int index) const {
+    if (size == 0) { return 0; }
+    if (offsets_.size() > 0) {
+      // explicit offsets are provided
+      CHECK_EQ(offsets_.back(), size);
+      return offsets_.at(index + 1)  - offsets_.at(index) +
+        (index == devices_.Size() - 1 ? overlap_ : 0);
+    }
+    size_t portion = Portion(size);
+    size_t begin = std::min(index * portion, size);
+    size_t end = std::min((index + 1) * portion + overlap_ * granularity_, size);
+    return end - begin;
+  }
+
+  size_t ShardProperSize(size_t size, int index) const {
+    if (size == 0) { return 0; }
+    return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
+  }
+
+  bool IsFixedSize() const { return !offsets_.empty(); }
+
+ private:
+  static size_t DivRoundUp(size_t a, size_t b) { return (a + b - 1) / b; }
+  static size_t RoundUp(size_t a, size_t b) { return DivRoundUp(a, b) * b; }
+
+  size_t Portion(size_t size) const {
+    return RoundUp
+      (DivRoundUp
+       (std::max(static_cast<int64_t>(size - overlap_ * granularity_),
+                 static_cast<int64_t>(1)),
+        devices_.Size()), granularity_);
+  }
+
+  GPUSet devices_;
+  int granularity_;
+  int overlap_;
+  // explicit offsets for the GPU parts, if any
+  std::vector<size_t> offsets_;
+};
+
 
 /**
  * @file host_device_vector.h
@@ -105,39 +201,47 @@ template <typename T>
 class HostDeviceVector {
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(),
-                            GPUSet devices = GPUSet::Empty());
-  HostDeviceVector(std::initializer_list<T> init, GPUSet devices = GPUSet::Empty());
+                            GPUDistribution distribution = GPUDistribution());
+  HostDeviceVector(std::initializer_list<T> init,
+                   GPUDistribution distribution = GPUDistribution());
   explicit HostDeviceVector(const std::vector<T>& init,
-                            GPUSet devices = GPUSet::Empty());
+                            GPUDistribution distribution = GPUDistribution());
   ~HostDeviceVector();
-  HostDeviceVector(const HostDeviceVector<T>&) = delete;
-  HostDeviceVector(HostDeviceVector<T>&&) = delete;
-  void operator=(const HostDeviceVector<T>&) = delete;
-  void operator=(HostDeviceVector<T>&&) = delete;
+  HostDeviceVector(const HostDeviceVector<T>&);
+  HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);
   size_t Size() const;
   GPUSet Devices() const;
+  const GPUDistribution& Distribution() const;
   T* DevicePointer(int device);
+  const T* DevicePointer(int device) const;
 
   T* HostPointer() { return HostVector().data(); }
-  size_t DeviceStart(int device);
-  size_t DeviceSize(int device);
+  const T* HostPointer() const { return HostVector().data(); }
+
+  size_t DeviceStart(int device) const;
+  size_t DeviceSize(int device) const;
 
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
   thrust::device_ptr<T> tbegin(int device);  // NOLINT
   thrust::device_ptr<T> tend(int device);  // NOLINT
+  thrust::device_ptr<const T> tbegin(int device) const;  // NOLINT
+  thrust::device_ptr<const T> tend(int device) const;  // NOLINT
+
   void ScatterFrom(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
 #endif
 
   void Fill(T v);
-  void Copy(HostDeviceVector<T>* other);
+  void Copy(const HostDeviceVector<T>& other);
   void Copy(const std::vector<T>& other);
   void Copy(std::initializer_list<T> other);
 
   std::vector<T>& HostVector();
-  void Reshard(GPUSet devices);
+  const std::vector<T>& HostVector() const;
+  void Reshard(const GPUDistribution& distribution);
+  void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());
 
  private:

@@ -241,20 +241,22 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
-  mat.page_.offset.reserve(nindptr);
-  mat.page_.data.reserve(nelem);
-  mat.page_.offset.resize(1);
-  mat.page_.offset[0] = 0;
+  auto& offset_vec = mat.page_.offset.HostVector();
+  auto& data_vec = mat.page_.data.HostVector();
+  offset_vec.reserve(nindptr);
+  data_vec.reserve(nelem);
+  offset_vec.resize(1);
+  offset_vec[0] = 0;
   size_t num_column = 0;
   for (size_t i = 1; i < nindptr; ++i) {
     for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
       if (!common::CheckNAN(data[j])) {
         // automatically skip nan.
-        mat.page_.data.emplace_back(Entry(indices[j], data[j]));
+        data_vec.emplace_back(Entry(indices[j], data[j]));
         num_column = std::max(num_column, static_cast<size_t>(indices[j] + 1));
       }
     }
-    mat.page_.offset.push_back(mat.page_.data.size());
+    offset_vec.push_back(mat.page_.data.Size());
   }
 
   mat.info.num_col_ = num_column;
@@ -264,7 +266,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
     mat.info.num_col_ = num_col;
   }
   mat.info.num_row_ = nindptr - 1;
-  mat.info.num_nonzero_ = mat.page_.data.size();
+  mat.info.num_nonzero_ = mat.page_.data.Size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -296,7 +298,9 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   // FIXME: User should be able to control number of threads
   const int nthread = omp_get_max_threads();
   data::SimpleCSRSource& mat = *source;
-  common::ParallelGroupBuilder<Entry> builder(&mat.page_.offset, &mat.page_.data);
+  auto& offset_vec = mat.page_.offset.HostVector();
+  auto& data_vec = mat.page_.data.HostVector();
+  common::ParallelGroupBuilder<Entry> builder(&offset_vec, &data_vec);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
@@ -320,7 +324,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
       }
     }
   }
-  mat.info.num_row_ = mat.page_.offset.size() - 1;
+  mat.info.num_row_ = mat.page_.offset.Size() - 1;
   if (num_row > 0) {
     CHECK_LE(mat.info.num_row_, num_row);
     mat.info.num_row_ = num_row;
@@ -354,7 +358,9 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
-  mat.page_.offset.resize(1+nrow);
+  auto& offset_vec = mat.page_.offset.HostVector();
+  auto& data_vec = mat.page_.data.HostVector();
+  offset_vec.resize(1+nrow);
   bool nan_missing = common::CheckNAN(missing);
   mat.info.num_row_ = nrow;
   mat.info.num_col_ = ncol;
@@ -374,9 +380,9 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
         }
       }
     }
-    mat.page_.offset[i+1] = mat.page_.offset[i] + nelem;
+    offset_vec[i+1] = offset_vec[i] + nelem;
   }
-  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
+  data_vec.resize(mat.page_.data.Size() + offset_vec.back());
 
   data = data0;
   for (xgboost::bst_ulong i = 0; i < nrow; ++i, data += ncol) {
@@ -385,14 +391,14 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
       if (common::CheckNAN(data[j])) {
       } else {
         if (nan_missing || data[j] != missing) {
-          mat.page_.data[mat.page_.offset[i] + matj] = Entry(j, data[j]);
+          data_vec[offset_vec[i] + matj] = Entry(j, data[j]);
           ++matj;
         }
       }
     }
   }
 
-  mat.info.num_nonzero_ = mat.page_.data.size();
+  mat.info.num_nonzero_ = mat.page_.data.Size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -447,7 +453,9 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;
-  mat.page_.offset.resize(1+nrow);
+  auto& offset_vec = mat.page_.offset.HostVector();
+  auto& data_vec = mat.page_.data.HostVector();
+  offset_vec.resize(1+nrow);
   mat.info.num_row_ = nrow;
   mat.info.num_col_ = ncol;
 
@@ -473,7 +481,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
           ++nelem;
         }
       }
-      mat.page_.offset[i+1] = nelem;
+      offset_vec[i+1] = nelem;
     }
   }
   // Inform about any NaNs and resize data matrix
@@ -482,8 +490,8 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   }
 
   // do cumulative sum (to avoid otherwise need to copy)
-  PrefixSum(&mat.page_.offset[0], mat.page_.offset.size());
-  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
+  PrefixSum(&offset_vec[0], offset_vec.size());
+  data_vec.resize(mat.page_.data.Size() + offset_vec.back());
 
   // Fill data matrix (now that know size, no need for slow push_back())
 #pragma omp parallel num_threads(nthread)
@@ -494,7 +502,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
       for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
         if (common::CheckNAN(data[ncol * i + j])) {
         } else if (nan_missing || data[ncol * i + j] != missing) {
-          mat.page_.data[mat.page_.offset[i] + matj] =
+          data_vec[offset_vec[i] + matj] =
               Entry(j, data[ncol * i + j]);
           ++matj;
         }
@@ -504,7 +512,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   // restore omp state
   omp_set_num_threads(nthread_orig);
 
-  mat.info.num_nonzero_ = mat.page_.data.size();
+  mat.info.num_nonzero_ = mat.page_.data.Size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -597,10 +605,11 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;
-  mat.page_.offset.resize(1 + nrow);
+  mat.page_.offset.Resize(1 + nrow);
   mat.info.num_row_ = nrow;
   mat.info.num_col_ = ncol;
 
+  auto& page_offset = mat.page_.offset.HostVector();
 #pragma omp parallel num_threads(nthread)
   {
     // Count elements per row, column by column
@@ -610,15 +619,17 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
       for (omp_ulong i = 0; i < nrow; ++i) {
         float val = DTGetValue(data[j], dtype, i);
         if (!std::isnan(val)) {
-          mat.page_.offset[i + 1]++;
+          page_offset[i + 1]++;
         }
       }
     }
   }
   // do cumulative sum (to avoid otherwise need to copy)
-  PrefixSum(&mat.page_.offset[0], mat.page_.offset.size());
+  PrefixSum(&page_offset[0], page_offset.size());
 
-  mat.page_.data.resize(mat.page_.data.size() + mat.page_.offset.back());
+  mat.page_.data.Resize(mat.page_.data.Size() + page_offset.back());
+
+  auto& page_data = mat.page_.data.HostVector();
 
   // Fill data matrix (now that know size, no need for slow push_back())
   std::vector<size_t> position(nrow);
@@ -630,7 +641,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
       for (omp_ulong i = 0; i < nrow; ++i) {
         float val = DTGetValue(data[j], dtype, i);
         if (!std::isnan(val)) {
-          mat.page_.data[mat.page_.offset[i] + position[i]] = Entry(j, val);
+          page_data[page_offset[i] + position[i]] = Entry(j, val);
           position[i]++;
         }
       }
@@ -640,7 +651,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   // restore omp state
   omp_set_num_threads(nthread_orig);
 
-  mat.info.num_nonzero_ = mat.page_.data.size();
+  mat.info.num_nonzero_ = mat.page_.data.Size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -668,24 +679,32 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   iter->BeforeFirst();
   CHECK(iter->Next());
 
-  const  auto& batch = iter->Value();
+  const auto& batch = iter->Value();
+  const auto& src_labels = src.info.labels_.HostVector();
+  const auto& src_weights = src.info.weights_.HostVector();
+  const auto& src_base_margin = src.info.base_margin_.HostVector();
+  auto& ret_labels = ret.info.labels_.HostVector();
+  auto& ret_weights = ret.info.weights_.HostVector();
+  auto& ret_base_margin = ret.info.base_margin_.HostVector();
+  auto& offset_vec = ret.page_.offset.HostVector();
+  auto& data_vec = ret.page_.data.HostVector();
+
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     const int ridx = idxset[i];
     auto inst = batch[ridx];
     CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.Size());
-    ret.page_.data.insert(ret.page_.data.end(), inst.data,
-                         inst.data + inst.length);
-    ret.page_.offset.push_back(ret.page_.offset.back() + inst.length);
+    data_vec.insert(data_vec.end(), inst.data, inst.data + inst.length);
+    offset_vec.push_back(offset_vec.back() + inst.length);
     ret.info.num_nonzero_ += inst.length;
 
-    if (src.info.labels_.size() != 0) {
-      ret.info.labels_.push_back(src.info.labels_[ridx]);
+    if (src_labels.size() != 0) {
+      ret_labels.push_back(src_labels[ridx]);
     }
-    if (src.info.weights_.size() != 0) {
-      ret.info.weights_.push_back(src.info.weights_[ridx]);
+    if (src_weights.size() != 0) {
+      ret_weights.push_back(src_weights[ridx]);
     }
-    if (src.info.base_margin_.size() != 0) {
-      ret.info.base_margin_.push_back(src.info.base_margin_[ridx]);
+    if (src_base_margin.size() != 0) {
+      ret_base_margin.push_back(src_base_margin[ridx]);
     }
     if (src.info.root_index_.size() != 0) {
       ret.info.root_index_.push_back(src.info.root_index_[ridx]);
@@ -757,11 +776,11 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
   const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<bst_float>* vec = nullptr;
   if (!std::strcmp(field, "label")) {
-    vec = &info.labels_;
+    vec = &info.labels_.HostVector();
   } else if (!std::strcmp(field, "weight")) {
-    vec = &info.weights_;
+    vec = &info.weights_.HostVector();
   } else if (!std::strcmp(field, "base_margin")) {
-    vec = &info.base_margin_;
+    vec = &info.base_margin_.HostVector();
   } else {
     LOG(FATAL) << "Unknown float field name " << field;
   }

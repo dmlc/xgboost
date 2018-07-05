@@ -143,7 +143,7 @@ class GBLinear : public GradientBooster {
     model_.LazyInitModel();
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
-    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
+    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_.HostVector();
     const int ngroup = model_.param.num_output_group;
     const size_t ncolumns = model_.param.num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
@@ -201,7 +201,7 @@ class GBLinear : public GradientBooster {
     monitor_.Start("PredictBatchInternal");
       model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
-    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
+    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_.HostVector();
     // start collecting the prediction
      auto iter = p_fmat->RowIterator();
     const int ngroup = model_.param.num_output_group;
