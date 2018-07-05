@@ -202,6 +202,13 @@ struct XGBAPIThreadLocalEntry {
 // define the threadlocal store.
 using XGBAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
+int XGBRegisterLogCallback(void (*callback)(const char*)) {
+  API_BEGIN();
+  LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
+  registry->Register(callback);
+  API_END();
+}
+
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
                             DMatrixHandle *out) {

@@ -100,6 +100,18 @@ def from_cstr_to_pystr(data, length):
     return res
 
 
+def _log_callback(msg):
+    """Redirect logs from native library into Python console"""
+    print("{0:s}".format(py_str(msg)))
+
+
+def _get_log_callback_func():
+    """Wrap log_callback() method in ctypes callback type"""
+    # pylint: disable=invalid-name
+    CALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
+    return CALLBACK(_log_callback)
+
+
 def _load_lib():
     """Load xgboost Library."""
     lib_path = find_lib_path()
@@ -107,6 +119,9 @@ def _load_lib():
         return None
     lib = ctypes.cdll.LoadLibrary(lib_path[0])
     lib.XGBGetLastError.restype = ctypes.c_char_p
+    lib.callback = _get_log_callback_func()
+    if lib.XGBRegisterLogCallback(lib.callback) != 0:
+        raise XGBoostError(lib.XGBGetLastError())
     return lib
 
 
