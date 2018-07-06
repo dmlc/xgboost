@@ -53,6 +53,8 @@ if(USE_AVX)
   add_definitions(-DXGBOOST_USE_AVX)
 endif()
 
+# enable custom logging
+add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
 
 # compiled code customizations for R package
 if(R_LIB)

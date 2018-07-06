@@ -299,3 +299,10 @@ class TestBasic(unittest.TestCase):
             )
             output = out.getvalue().strip()
         assert output == '[array([5., 8.], dtype=float32), array([23., 43., 11.], dtype=float32)]'
+
+    def test_get_info(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtrain.get_float_info('label')
+        dtrain.get_float_info('weight')
+        dtrain.get_float_info('base_margin')
+        dtrain.get_uint_info('root_index')

@@ -97,6 +97,15 @@ XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
 XGB_DLL const char *XGBGetLastError(void);
 
 /*!
+ * \brief register callback function for LOG(INFO) messages -- helpful messages
+ *        that are not errors.
+ * Note: this function can be called by multiple threads. The callback function
+ *       will run on the thread that registered it
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
+
+/*!
  * \brief load a data matrix
  * \param fname the name of the file
  * \param silent whether print messages during loading
