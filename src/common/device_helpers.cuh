@@ -271,6 +271,18 @@ T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(ceil(static_cast<double>(a) / b));
 }
 
+inline void RowSegments(size_t n_rows, size_t n_devices, std::vector<size_t>* segments) {
+  segments->push_back(0);
+  size_t row_begin = 0;
+  size_t shard_size = DivRoundUp(n_rows, n_devices);
+  for (size_t d_idx = 0; d_idx < n_devices; ++d_idx) {
+    size_t row_end = std::min(row_begin + shard_size, n_rows);
+    segments->push_back(row_end);
+    row_begin = row_end;
+  }
+}
+
+
 template <typename L>
 __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
   for (auto i : GridStrideRange(begin, end)) {

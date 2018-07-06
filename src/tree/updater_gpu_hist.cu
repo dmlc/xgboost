@@ -363,21 +363,6 @@ struct DeviceShard {
                                 thrust::maximum<size_t>());
   }
 
-  size_t BatchSize() {
-    size_t gpu_batch_nrows = param.gpu_batch_nrows;
-    if (param.gpu_batch_nrows == 0) {
-      // By default, use no more than 1/16th of GPU memory
-      gpu_batch_nrows = dh::TotalMemory(device_idx) /
-        (16 * row_stride * sizeof(Entry));
-    } else if (param.gpu_batch_nrows == -1) {
-      gpu_batch_nrows = n_rows;
-    }
-    if (gpu_batch_nrows > n_rows) {
-      gpu_batch_nrows = n_rows;
-    }
-    return gpu_batch_nrows;
-  }
-
   void InitCompressedData(const common::HistCutMatrix& hmat, const SparsePage& row_batch) {
     n_bins = hmat.row_ptr.back();
     null_gidx_value = hmat.row_ptr.back();
@@ -402,7 +387,10 @@ struct DeviceShard {
     int nbits = common::detail::SymbolBits(num_symbols);
 
     // bin and compress entries in batches of rows
-    size_t gpu_batch_nrows = BatchSize();
+    size_t gpu_batch_nrows = std::min
+      (dh::TotalMemory(device_idx) / (16 * row_stride * sizeof(Entry)),
+       static_cast<size_t>(n_rows));
+
     thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
 
     size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
@@ -745,10 +733,6 @@ class GPUHistMaker : public TreeUpdater {
 
     int n_devices = dh::NDevices(param_.n_gpus, info_->num_row_);
 
-    bst_uint row_begin = 0;
-    bst_uint shard_size =
-        std::ceil(static_cast<double>(info_->num_row_) / n_devices);
-
     device_list_.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       int device_idx = (param_.gpu_id + d_idx) % dh::NVisibleDevices();
@@ -759,20 +743,14 @@ class GPUHistMaker : public TreeUpdater {
 
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
-    shards_.resize(n_devices);
-    row_segments.push_back(0);
-    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      bst_uint row_end =
-          std::min(static_cast<size_t>(row_begin + shard_size), info_->num_row_);
-      row_segments.push_back(row_end);
-      row_begin = row_end;
-    }
+    dh::RowSegments(info_->num_row_, n_devices, &row_segments);
 
     dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
     iter->BeforeFirst();
     CHECK(iter->Next()) << "Empty batches are not supported";
     const SparsePage& batch = iter->Value();
     // Create device shards
+    shards_.resize(n_devices);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
         shard = std::unique_ptr<DeviceShard>
           (new DeviceShard(device_list_[i], i,

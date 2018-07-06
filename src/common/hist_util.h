@@ -12,14 +12,10 @@
 #include <vector>
 #include "row_set.h"
 #include "../tree/fast_hist_param.h"
+#include "../tree/param.h"
 #include "./quantile.h"
 
 namespace xgboost {
-
-// forward declaration
-namespace tree {
-struct TrainParam;
-}  // namespace tree
 
 namespace common {
 
@@ -94,7 +90,7 @@ struct HistCutMatrix {
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 };
 
-/* builds the cut matrix on the GPU */
+/*! \brief Builds the cut matrix on the GPU */
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
    const tree::TrainParam& param, HistCutMatrix* hmat);
