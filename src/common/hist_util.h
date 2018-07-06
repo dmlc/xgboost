@@ -24,7 +24,8 @@ struct GHistEntry {
   double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
   double sum_hess{0};
-
+  /*! \brief sum instances statistics */
+  bst_uint sum_instance;
   GHistEntry()  = default;
 
   inline void Clear() {

@@ -129,6 +129,7 @@ class ColMaker: public TreeUpdater {
         p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
         p_tree->Stat(nid).base_weight = snode_[nid].weight;
         p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
+        p_tree->Stat(nid).sum_instance = snode_[nid].stats.sum_instance;
         snode_[nid].stats.SetLeafVec(param_, p_tree->Leafvec(nid));
       }
     }
@@ -228,6 +229,10 @@ class ColMaker: public TreeUpdater {
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
         const int tid = omp_get_thread_num();
+        if (gpair[ridx].GetHess() < 0.0f)
+          stemp_[tid][~position_[ridx]].stats.IncreaseSumInstance();
+        else
+          stemp_[tid][position_[ridx]].stats.IncreaseSumInstance();
         if (position_[ridx] < 0) continue;
         stemp_[tid][position_[ridx]].stats.Add(gpair, info, ridx);
       }
@@ -236,6 +241,7 @@ class ColMaker: public TreeUpdater {
         GradStats stats(param_);
         for (auto& s : stemp_) {
           stats.Add(s[nid].stats);
+          stats.AddSumInstance(s[nid].stats);
         }
         // update node statistics
         snode_[nid].stats = stats;

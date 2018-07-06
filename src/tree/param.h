@@ -316,6 +316,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   double sum_grad;
   /*! \brief sum hessian statistics */
   double sum_hess;
+  /*! \brief sum instances statistics */
+  bst_uint sum_instance = 0;
   /*!
    * \brief whether this is simply statistics and we only need to call
    *   Add(gpair), instead of Add(gpair, info, ridx)
@@ -381,6 +383,14 @@ template <typename ParamT>
   inline void Add(double grad, double hess) {
     sum_grad += grad;
     sum_hess += hess;
+  }
+  /*! \brief update sum_instance wiht one */
+  inline void IncreaseSumInstance() {
+    ++sum_instance;
+  }
+  /*! \brief add sum_instance to the data */
+  inline void AddSumInstance(const GradStats& b) {
+    sum_instance += b.sum_instance;
   }
 };
 

@@ -410,6 +410,8 @@ struct RTreeNodeStat {
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
   int leaf_child_cnt;
+  /*! \brief sum instances statistics */
+  bst_uint sum_instance;
 };
 
 // Used by TreeShap

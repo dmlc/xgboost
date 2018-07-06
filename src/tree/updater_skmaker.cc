@@ -83,6 +83,8 @@ class SketchMaker: public BaseMaker {
     double neg_grad;
     /*! \brief sum of hessian statistics */
     double sum_hess;
+    /*! \brief sum instances statistics */
+    bst_uint sum_instance;
     SKStats() = default;
     // constructor
     explicit SKStats(const TrainParam &param) {
