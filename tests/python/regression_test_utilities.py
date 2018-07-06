@@ -15,11 +15,16 @@ except ImportError:
 
 
 class Dataset:
-    def __init__(self, name, get_dataset, objective, metric, use_external_memory=False):
+    def __init__(self, name, get_dataset, objective, metric,
+                 has_weights=False, use_external_memory=False):
         self.name = name
         self.objective = objective
         self.metric = metric
-        self.X, self.y = get_dataset()
+        if has_weights:
+            self.X, self.y, self.w = get_dataset();
+        else:
+            self.X, self.y = get_dataset()
+            self.w = None
         self.use_external_memory = use_external_memory
 
 
@@ -48,6 +53,14 @@ def get_sparse():
     X = sparse.csr_matrix(X)
     return X, y
 
+def get_sparse_weights():
+    rng = np.random.RandomState(199)
+    n = 10000
+    sparsity = 0.25
+    X, y = datasets.make_regression(n, random_state=rng)
+    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    w = np.array([rng.uniform(1, 10) for i in range(n)])
+    return X, y, w
 
 def train_dataset(dataset, param_in, num_rounds=10, scale_features=False):
     param = param_in.copy()
@@ -64,9 +77,10 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False):
     if dataset.use_external_memory:
         np.savetxt('tmptmp_1234.csv', np.hstack((dataset.y.reshape(len(dataset.y), 1), X)),
                    delimiter=',')
-        dtrain = xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_')
+        dtrain = xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
+                             weight=dataset.w)
     else:
-        dtrain = xgb.DMatrix(X, dataset.y)
+        dtrain = xgb.DMatrix(X, dataset.y, weight=dataset.w)
 
     print("Training on dataset: " + dataset.name, file=sys.stderr)
     print("Using parameters: " + str(param), file=sys.stderr)
@@ -112,6 +126,8 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
         Dataset("Digits", get_digits, "multi:softmax", "merror"),
         Dataset("Cancer", get_cancer, "binary:logistic", "error"),
         Dataset("Sparse regression", get_sparse, "reg:linear", "rmse"),
+        Dataset("Sparse regression with weights", get_sparse_weights,
+                "reg:linear", "rmse", has_weights=True),
         Dataset("Boston External Memory", get_boston, "reg:linear", "rmse",
                 use_external_memory=True)
     ]
