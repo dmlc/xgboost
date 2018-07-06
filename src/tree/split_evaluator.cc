@@ -49,6 +49,14 @@ void SplitEvaluator::AddSplit(bst_uint nodeid,
                               bst_uint featureid,
                               bst_float leftweight,
                               bst_float rightweight) {}
+bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
+                                            bst_uint featureid,
+                                            const GradStats& left_stats,
+                                            const GradStats& right_stats) const {
+  bst_float left_weight = ComputeWeight(nodeid, left_stats);
+  bst_float right_weight = ComputeWeight(nodeid, right_stats);
+  return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
+}
 
 //! \brief Encapsulates the parameters for ElasticNet
 struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
@@ -80,13 +88,18 @@ DMLC_REGISTER_PARAMETER(ElasticNetParams);
 /*! \brief Applies an elastic net penalty and per-leaf penalty. */
 class ElasticNet final : public SplitEvaluator {
  public:
+  ElasticNet(std::unique_ptr<SplitEvaluator> inner) {
+    if (inner) {
+      LOG(FATAL) << "ElasticNet does not accept an inner SplitEvaluator";
+    }
+  }
   void Init(
       const std::vector<std::pair<std::string, std::string> >& args) override {
     params_.InitAllowUnknown(args);
   }
 
   SplitEvaluator* GetHostClone() const override {
-    auto r = new ElasticNet();
+    auto r = new ElasticNet(NULL);
     r->params_ = this->params_;
 
     return r;
@@ -98,39 +111,50 @@ class ElasticNet final : public SplitEvaluator {
                              const GradStats& right_stats,
                              bst_float left_weight,
                              bst_float right_weight) const override {
-    // parentID is not needed for this split evaluator. Just use 0.
-    return ComputeScore(0, left_stats, left_weight) +
-      ComputeScore(0, right_stats, right_weight);
+    return ComputeScore(nodeid, left_stats, left_weight) +
+      ComputeScore(nodeid, right_stats, right_weight);
+  }
+
+  bst_float ComputeSplitScore(bst_uint nodeid,
+                             bst_uint featureid,
+                             const GradStats& left_stats,
+                             const GradStats& right_stats) const override {
+    return ComputeScore(nodeid, left_stats) + ComputeScore(nodeid, right_stats);
   }
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
     return -(2.0 * stats.sum_grad * weight +
-        (stats.sum_hess + params_.reg_lambda) * weight * weight +
+        (stats.sum_hess + params_.reg_lambda) * Sqr(weight) +
         (params_.reg_alpha * std::abs(weight)));
+  }
+
+  bst_float ComputeScore(bst_uint parentID, const GradStats &stats) const {
+    return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    double g = stats.sum_grad;
+    return -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_.reg_lambda);
+  }
+
+ private:
+  ElasticNetParams params_;
+
+  inline double ThresholdL1(double g) const {
     if (g > params_.reg_alpha) {
       g = g - params_.reg_alpha;
     } else if (g < -params_.reg_alpha) {
       g = g + params_.reg_alpha;
     }
-    return -g / (stats.sum_hess + params_.reg_lambda);
+    return g;
   }
-
-  XGBOOST_SPLIT_EVALUATOR_MIXIN()
-
- private:
-  ElasticNetParams params_;
 };
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(ElasticNet, "elastic_net")
 .describe("Use an elastic net regulariser and a cost per leaf node")
 .set_body([](std::unique_ptr<SplitEvaluator> inner) {
-    return new ElasticNet();
+    return new ElasticNet(std::move(inner));
   });
 
 /*! \brief Encapsulates the parameters required by the MonotonicConstraint
@@ -256,8 +280,6 @@ class MonotonicConstraint final : public SplitEvaluator {
       lower_[rightid] = mid;
     }
   }
-
-  XGBOOST_SPLIT_EVALUATOR_MIXIN()
 
  private:
   MonotonicConstraintParams params_;
