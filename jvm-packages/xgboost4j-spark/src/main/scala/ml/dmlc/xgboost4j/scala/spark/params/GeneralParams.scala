@@ -16,8 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import java.security.InvalidParameterException
+
 import com.google.common.base.CaseFormat
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
+
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
@@ -198,6 +201,12 @@ private[spark] trait ParamMapFuncs extends Params {
 
   def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
+      if ((paramName == "booster" && paramValue != "gbtree") ||
+        (paramName == "updater" && paramValue != "grow_colmaker,prune")) {
+        throw new InvalidParameterException(s"you specified $paramName as $paramValue," +
+          s" XGBoost-Spark only supports gbtree as booster type" +
+          " and grow_colmaker,prune as the updater type")
+      }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name) match {
         case None =>
