@@ -84,9 +84,6 @@ class XGBoostRegressor (
 
   def setSeed(value: Long): this.type = set(seed, value)
 
-  // setters for booster params
-  def setBooster(value: String): this.type = set(booster, value)
-
   def setEta(value: Double): this.type = set(eta, value)
 
   def setGamma(value: Double): this.type = set(gamma, value)
