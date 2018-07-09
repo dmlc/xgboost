@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#define ROOT_PARENT_ID (-1 & ((1U << 31) - 1))
+
 namespace xgboost {
 namespace tree {
 

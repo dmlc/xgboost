@@ -14,8 +14,6 @@
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
 
-#define ROOT_PARENT_ID (-1 & ((1U << 31) - 1))
-
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::tree::SplitEvaluatorReg);
 }  // namespace dmlc
@@ -88,7 +86,7 @@ DMLC_REGISTER_PARAMETER(ElasticNetParams);
 /*! \brief Applies an elastic net penalty and per-leaf penalty. */
 class ElasticNet final : public SplitEvaluator {
  public:
-  ElasticNet(std::unique_ptr<SplitEvaluator> inner) {
+  explicit ElasticNet(std::unique_ptr<SplitEvaluator> inner) {
     if (inner) {
       LOG(FATAL) << "ElasticNet does not accept an inner SplitEvaluator";
     }
