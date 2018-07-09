@@ -1,3 +1,4 @@
+ARG CUDA_VERSION
 FROM centos:6
 
 # Environment
@@ -6,12 +7,25 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y wget graphviz && \
+    yum install -y graphviz tar unzip wget xz && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda2-4.3.27-Linux-x86_64.sh && \
     bash Miniconda2-4.3.27-Linux-x86_64.sh -b -p /opt/python
 
+# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
+RUN \
+    if [ "$CUDA_VERSION" != "" ]; then \
+        export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]\.[0-9]'` && \
+        wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
+        tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
+        cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
+        cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
+        rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
+        rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; \
+    fi
+
 ENV PATH=/opt/python/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
 
 # Install Python packages
 RUN \
