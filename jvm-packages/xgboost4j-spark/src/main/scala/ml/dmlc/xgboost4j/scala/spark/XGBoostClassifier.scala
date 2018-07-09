@@ -82,9 +82,6 @@ class XGBoostClassifier (
 
   def setSeed(value: Long): this.type = set(seed, value)
 
-  // setters for booster params
-  def setBooster(value: String): this.type = set(booster, value)
-
   def setEta(value: Double): this.type = set(eta, value)
 
   def setGamma(value: Double): this.type = set(gamma, value)
@@ -210,6 +207,12 @@ class XGBoostClassificationModel private[ml](
 
   // only called in copy()
   def this(uid: String) = this(uid, 2, null)
+
+  /**
+   * Get the native booster instance of this model.
+   * This is used to call low-level APIs on native booster, such as "getFeatureScore".
+   */
+  def nativeBooster: Booster = _booster
 
   private var trainingSummary: Option[XGBoostTrainingSummary] = None
 

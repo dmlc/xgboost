@@ -23,15 +23,6 @@ import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 private[spark] trait BoosterParams extends Params {
 
   /**
-   * Booster to use, options: {'gbtree', 'gblinear', 'dart'}
-   */
-  final val booster = new Param[String](this, "booster",
-    s"Booster to use, options: {'gbtree', 'gblinear', 'dart'}",
-    (value: String) => BoosterParams.supportedBoosters.contains(value.toLowerCase))
-
-  final def getBooster: String = $(booster)
-
-  /**
    * step size shrinkage used in update to prevents overfitting. After each boosting step, we
    * can directly get the weights of new features and eta actually shrinks the feature weights
    * to make the boosting process more conservative. [default=0.3] range: [0,1]
@@ -246,7 +237,7 @@ private[spark] trait BoosterParams extends Params {
 
   final def getLambdaBias: Double = $(lambdaBias)
 
-  setDefault(booster -> "gbtree", eta -> 0.3, gamma -> 0, maxDepth -> 6,
+  setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
     growPolicy -> "depthwise", maxBins -> 16,
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,

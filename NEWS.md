@@ -3,6 +3,9 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.72.1 (2018.07.08)
+This version is only applicable for the Python package. The content is identical to that of v0.72.
+
 ## v0.72 (2018.06.01)
 * Starting with this release, we plan to make a new release every two months. See #3252 for more details.
 * Fix a pathological behavior (near-zero second-order gradients) in multiclass objective (#3304)

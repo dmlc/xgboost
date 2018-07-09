@@ -39,6 +39,9 @@ else()
   # Performance
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
+if(WIN32 AND MINGW)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+endif()
 
 # AVX
 if(USE_AVX)
@@ -50,6 +53,8 @@ if(USE_AVX)
   add_definitions(-DXGBOOST_USE_AVX)
 endif()
 
+# enable custom logging
+add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
 
 # compiled code customizations for R package
 if(R_LIB)

@@ -1,9 +1,22 @@
 import numpy as np
 import xgboost as xgb
 import testing as tm
+import tempfile
+import os
+import shutil
 from nose.tools import raises
 
 rng = np.random.RandomState(1994)
+
+
+class TemporaryDirectory(object):
+    """Context manager for tempfile.mkdtemp()"""
+    def __enter__(self):
+        self.name = tempfile.mkdtemp()
+        return self.name
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        shutil.rmtree(self.name)
 
 
 def test_binary_classification():
@@ -458,3 +471,34 @@ def test_validation_weights_xgbclassifier():
     # check that the logloss in the test set is actually different when using weights
     # than when not using them
     assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
+
+
+def test_save_load_model():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    try:
+        from sklearn.model_selection import KFold
+    except:
+        from sklearn.cross_validation import KFold
+
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    try:
+        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    except TypeError:  # sklearn.model_selection.KFold uses n_split
+        kf = KFold(
+            n_splits=2, shuffle=True, random_state=rng
+        ).split(np.arange(y.shape[0]))
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model')
+        for train_index, test_index in kf:
+            xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+            xgb_model.save_model(model_path)
+            xgb_model = xgb.XGBModel()
+            xgb_model.load_model(model_path)
+            preds = xgb_model.predict(X[test_index])
+            labels = y[test_index]
+            err = sum(1 for i in range(len(preds))
+                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            assert err < 0.1

@@ -311,15 +311,15 @@ private object Watches {
   def buildGroups(groups: Seq[Int]): Seq[Int] = {
     val output = mutable.ArrayBuffer.empty[Int]
     var count = 1
-    var i = 1
-    while (i < groups.length) {
-      if (groups(i) != groups(i - 1)) {
+    var lastGroup = groups.head
+    for (group <- groups.tail) {
+      if (group != lastGroup) {
+        lastGroup = group
         output += count
         count = 1
       } else {
         count += 1
       }
-      i += 1
     }
     output += count
     output

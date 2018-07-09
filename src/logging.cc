@@ -8,16 +8,24 @@
 #include <iostream>
 #include "./common/sync.h"
 
-namespace xgboost {
+#if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
+// Override logging mechanism for non-R interfaces
+void dmlc::CustomLogMessage::Log(const std::string& msg) {
+  const xgboost::LogCallbackRegistry* registry
+    = xgboost::LogCallbackRegistryStore::Get();
+  auto callback = registry->Get();
+  callback(msg.c_str());
+}
 
-#if XGBOOST_CUSTOMIZE_LOGGER == 0
+namespace xgboost {
 ConsoleLogger::~ConsoleLogger() {
-  std::cerr << log_stream_.str() << std::endl;
+  dmlc::CustomLogMessage::Log(log_stream_.str());
 }
 
 TrackerLogger::~TrackerLogger() {
   log_stream_ << '\n';
   rabit::TrackerPrint(log_stream_.str());
 }
-#endif
+
 }  // namespace xgboost
+#endif

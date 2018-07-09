@@ -176,7 +176,7 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if self._Booster is None:
-            raise XGBoostError('need to call fit beforehand')
+            raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
     def get_params(self, deep=False):
@@ -213,6 +213,28 @@ class XGBModel(XGBModelBase):
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
         return xgb_params
+
+    def save_model(self, fname):
+        """
+        Save the model to a file.
+        Parameters
+        ----------
+        fname : string
+            Output file name
+        """
+        self.get_booster().save_model(fname)
+
+    def load_model(self, fname):
+        """
+        Load the model from a file.
+        Parameters
+        ----------
+        fname : string or a memory buffer
+            Input file name or memory buffer(see also save_raw)
+        """
+        if self._Booster is None:
+            self._Booster = Booster({'nthread': self.n_jobs})
+        self._Booster.load_model(fname)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
@@ -313,9 +335,13 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, output_margin=False, ntree_limit=None):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        # get ntree_limit to use - if none specified, default to
+        # best_ntree_limit if defined, otherwise 0.
+        if ntree_limit is None:
+            ntree_limit = getattr(self, "best_ntree_limit", 0)
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
@@ -534,7 +560,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, output_margin=False, ntree_limit=None):
         """
         Predict with `data`.
         NOTE: This function is not thread safe.
@@ -548,12 +574,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all trees).
+            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
+            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
         Returns
         -------
         prediction : numpy array
         """
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if ntree_limit is None:
+            ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
@@ -564,7 +593,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, ntree_limit=0):
+    def predict_proba(self, data, ntree_limit=None):
         """
         Predict the probability of each `data` example being of a given class.
         NOTE: This function is not thread safe.
@@ -576,13 +605,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         data : DMatrix
             The dmatrix storing the input.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all trees).
+            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
+            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
         Returns
         -------
         prediction : numpy array
             a numpy array with the probability of each data example being of a given class.
         """
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if ntree_limit is None:
+            ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
