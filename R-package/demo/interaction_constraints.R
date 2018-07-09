@@ -60,7 +60,7 @@ train = as.matrix(x)
 # Fit model with interaction constraints
 bst = xgboost(data = train, label = y, max_depth = 4,
               eta = 0.1, nthread = 2, nrounds = 1000,
-              int_constraints_list = list(c('V1','V2'),c('V3','V4','V5')),
+              int_constraints = list(c('V1','V2'),c('V3','V4','V5')),
               split_evaluator = 'interaction')
 
 temp <- xgb.model.dt.tree(colnames(train), bst)

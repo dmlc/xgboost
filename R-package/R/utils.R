@@ -80,6 +80,9 @@ check.booster.params <- function(params, column_names, ...) {
     if (length(temp.in_class) > 1) stop('invalid class specification for int_constraints')
     if (is.null(column_names)) stop('require column names to set interaction constraints')
 
+    # number of specified interactions in interaction constraints
+    params[['nint_constraints']] <- length(params[['int_constraints']])
+
     # initialise list
     int.cont <- list()
     length(int.cont) <- length(params[['int_constraints']])
@@ -96,9 +99,6 @@ check.booster.params <- function(params, column_names, ...) {
     vec2str <- paste(params[['int_constraints']], collapse=',')
     vec2str <- paste0('(', vec2str, ')')
     params[['int_constraints']] <- vec2str
-
-    # number of specified interactions in interaction constraints
-    params[['nint_constraints']] <- length(params[['int_constraints']])
   }
   return(params)
 }
