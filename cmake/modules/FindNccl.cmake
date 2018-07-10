@@ -33,10 +33,10 @@
 # This module assumes that the user has already called find_package(CUDA)
 
 
-set(NCCL_LIB_NAME nccl)
+set(NCCL_LIB_NAME nccl_static)
 
 find_path(NCCL_INCLUDE_DIR
-  NAMES ${NCCL_LIB_NAME}.h
+  NAMES nccl.h
   PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
 
 find_library(NCCL_LIBRARY

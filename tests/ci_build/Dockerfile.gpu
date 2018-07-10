@@ -33,7 +33,6 @@ ENV PATH=/opt/python/bin:$PATH
 ENV CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-2/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
-ENV LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
 
 # Install Python packages
 RUN \
