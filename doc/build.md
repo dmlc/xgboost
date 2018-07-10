@@ -204,6 +204,14 @@ After the build process successfully ends, you will find a `xgboost.dll` library
 
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
 
+### Building with Multi-GPU support
+Multi-GPU support requires the [NCCL](https://developer.nvidia.com/nccl) library. With NCCL installed, run cmake as:
+```bash
+cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT="<NCCL_DIRECTORY>"
+export LD_LIBRARY_PATH=<NCCL_DIRECTORY>/lib:$LD_LIBRARY_PATH
+```
+One can also pass NCCL_ROOT as an environment variable, in which case, this takes precedence over the cmake variable NCCL_ROOT.
+
 ### Customized Building
 
 The configuration of xgboost can be modified by ```config.mk```
