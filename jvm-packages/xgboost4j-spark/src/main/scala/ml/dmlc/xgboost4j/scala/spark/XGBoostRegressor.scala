@@ -16,6 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.Rabit
@@ -225,8 +226,11 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  // The performance of single instance prediction is not ideal, use it carefully!
   override def predict(features: Vector): Double = {
-    throw new Exception("XGBoost-Spark does not support online prediction")
+    import DataUtils._
+    val dm = new DMatrix(Iterator(features.asXGB))
+    _booster.predict(data = dm)(0)(0)
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
