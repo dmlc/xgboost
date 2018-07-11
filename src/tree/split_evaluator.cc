@@ -97,7 +97,7 @@ class ElasticNet final : public SplitEvaluator {
   }
 
   SplitEvaluator* GetHostClone() const override {
-    auto r = new ElasticNet(NULL);
+    auto r = new ElasticNet(nullptr);
     r->params_ = this->params_;
 
     return r;
@@ -122,9 +122,11 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
-    return -(2.0 * stats.sum_grad * weight +
-        (stats.sum_hess + params_.reg_lambda) * Sqr(weight) +
-        (params_.reg_alpha * std::abs(weight)));
+    //return -(ThresholdL1(stats.sum_grad + params_.reg_lambda * weight) * weight + 0.5 * (stats.sum_hess + params_.reg_lambda) * Sqr(weight));
+    auto loss = weight * (
+      ThresholdL1(stats.sum_grad + params_.reg_lambda * weight) +
+      0.5 * (stats.sum_hess + params_.reg_lambda) * weight);
+    return -loss;
   }
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats) const {
