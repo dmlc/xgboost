@@ -230,7 +230,10 @@ class XGBoostClassificationModel private[ml](
     this
   }
 
-  // The performance of single instance prediction is not ideal, use it carefully!
+  /**
+   * Single instance prediction.
+   * Note: The performance is not ideal, use it carefully!
+   */
   override def predict(features: Vector): Double = {
     import DataUtils._
     val dm = new DMatrix(Iterator(features.asXGB))
