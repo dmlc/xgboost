@@ -66,6 +66,13 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
         assert(prediction3(i)(j) === prediction4(i)(j))
       }
     }
+
+    // check the equality of single instance prediction
+    val firstOfDM = testDM.slice(Array(0))
+    val firstOfDF = testDF.head().getAs[Vector]("features")
+    val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
+    val prediction6 = model2.predict(firstOfDF)
+    assert(prediction5 === prediction6)
   }
 
   test("Set params in XGBoost and MLlib way should produce same model") {
