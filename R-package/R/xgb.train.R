@@ -26,6 +26,7 @@
 #'   \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
 #'   \item \code{num_parallel_tree} Experimental parameter. number of trees to grow per round. Useful to test Random Forest through Xgboost (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly. Default: 1
 #'   \item \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length equals to the number of features in the training data. \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.
+#'   \item \code{int_constraints} A list of character vectors specifying column names for interaction constraints - each item of the list represents the columns of one permissible interaction.  Leave unspecified for no interaction constraints.
 #' }
 #' 
 #' 2.2. Parameter for Linear Booster
@@ -247,7 +248,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   
   check.deprecation(...)
   
-  params <- check.booster.params(params, ...)
+  params <- check.booster.params(params, column_names = colnames(data), ...)
 
   check.custom.obj()
   check.custom.eval()
