@@ -122,7 +122,6 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
-    //return -(ThresholdL1(stats.sum_grad + params_.reg_lambda * weight) * weight + 0.5 * (stats.sum_hess + params_.reg_lambda) * Sqr(weight));
     auto loss = weight * (
       ThresholdL1(stats.sum_grad + params_.reg_lambda * weight) +
       0.5 * (stats.sum_hess + params_.reg_lambda) * weight);
