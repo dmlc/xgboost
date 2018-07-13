@@ -66,16 +66,18 @@ struct DeviceMatrix {
     while (iter->Next()) {
       auto batch = iter->Value();
       // Copy row ptr
-      thrust::copy(batch.offset.data(), batch.offset.data() + batch.Size() + 1,
-                   row_ptr.tbegin() + batch.base_rowid);
+      dh::safe_cuda(cudaMemcpy(
+          row_ptr.Data() + batch.base_rowid, batch.offset.data(),
+          sizeof(size_t) * batch.offset.size(), cudaMemcpyHostToDevice));
       if (batch.base_rowid > 0) {
         auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
         auto end_itr = begin_itr + batch.Size() + 1;
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
+      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, batch.data.data(),
+                               sizeof(Entry) * batch.data.size(),
+                               cudaMemcpyHostToDevice));
       // Copy data
-      thrust::copy(batch.data.begin(), batch.data.end(),
-                   data.tbegin() + data_offset);
       data_offset += batch.data.size();
     }
   }
@@ -301,13 +303,17 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     nodes.resize(h_nodes.size());
-    thrust::copy(h_nodes.begin(), h_nodes.end(), nodes.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(nodes), h_nodes.data(),
+                             sizeof(DevicePredictionNode) * h_nodes.size(),
+                             cudaMemcpyHostToDevice));
     tree_segments.resize(h_tree_segments.size());
-    thrust::copy(h_tree_segments.begin(), h_tree_segments.end(),
-                 tree_segments.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(tree_segments), h_tree_segments.data(),
+                             sizeof(size_t) * h_tree_segments.size(),
+                             cudaMemcpyHostToDevice));
     tree_group.resize(model.tree_info.size());
-    thrust::copy(model.tree_info.begin(), model.tree_info.end(),
-                 tree_group.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(tree_group), model.tree_info.data(),
+                             sizeof(int) * model.tree_info.size(),
+                             cudaMemcpyHostToDevice));
 
     device_matrix->predictions.resize(out_preds->Size());
     auto& predictions = device_matrix->predictions;

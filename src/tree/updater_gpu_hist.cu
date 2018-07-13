@@ -369,7 +369,7 @@ struct DeviceShard {
 
     // find the maximum row size
     thrust::device_vector<size_t> row_ptr_d(
-        &row_batch.offset[row_begin_idx], &row_batch.offset[row_end_idx + 1]);
+        row_batch.offset.data() + row_begin_idx, row_batch.offset.data() + row_end_idx  + 1);
 
     auto row_iter = row_ptr_d.begin();
     auto get_size = [=] __device__(size_t row) {
@@ -377,13 +377,12 @@ struct DeviceShard {
     }; // NOLINT
     auto counting = thrust::make_counting_iterator(size_t(0));
     using TransformT = thrust::transform_iterator<decltype(get_size),
-                                                  decltype(counting), size_t>;
+      decltype(counting), size_t>;
     TransformT row_size_iter = TransformT(counting, get_size);
     row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows, 0,
-                                thrust::maximum<size_t>());
-
-    // allocate compressed bin data
-    int num_symbols = n_bins + 1;
+      thrust::maximum<size_t>());
+    int num_symbols =
+      n_bins + 1;
     size_t compressed_size_bytes =
         common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
                                                             num_symbols);
@@ -674,8 +673,10 @@ struct DeviceShard {
 
     CalcWeightTrainParam param_d(param);
 
-    thrust::copy(node_sum_gradients.begin(), node_sum_gradients.end(),
-                 node_sum_gradients_d.tbegin());
+    dh::safe_cuda(cudaMemcpy(node_sum_gradients_d.Data(),
+                             node_sum_gradients.data(),
+                             sizeof(GradientPair) * node_sum_gradients.size(),
+                             cudaMemcpyHostToDevice));
     auto d_position = position.Current();
     auto d_ridx = ridx.Current();
     auto d_node_sum_gradients = node_sum_gradients_d.Data();
