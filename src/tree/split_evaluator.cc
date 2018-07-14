@@ -122,9 +122,9 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
-    auto loss = weight * (
-      ThresholdL1(stats.sum_grad + params_.reg_lambda * weight) +
-      0.5 * (stats.sum_hess + params_.reg_lambda) * weight);
+    auto loss = weight * (2.0 * stats.sum_grad + stats.sum_hess * weight
+        + params_.reg_lambda * weight)
+        + params_.reg_alpha * std::abs(weight);
     return -loss;
   }
 
@@ -198,7 +198,7 @@ class MonotonicConstraint final : public SplitEvaluator {
 
   SplitEvaluator* GetHostClone() const override {
     if (params_.monotone_constraints.size() == 0) {
-      // No monotone constraints specified, just return a clone of inner
+      // No monotone constraints specified, just return a clone of inner to speed things up
       return inner_->GetHostClone();
     } else {
       auto c = new MonotonicConstraint(
