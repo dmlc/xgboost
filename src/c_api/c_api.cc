@@ -194,9 +194,9 @@ struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string pointers */
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */
-  HostDeviceVector<bst_float> ret_vec_float;
+  std::vector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
-  HostDeviceVector<GradientPair> tmp_gpair;
+  std::vector<GradientPair> tmp_gpair;
 };
 
 // define the threadlocal store.
@@ -861,7 +861,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
                                   bst_float *grad,
                                   bst_float *hess,
                                   xgboost::bst_ulong len) {
-  HostDeviceVector<GradientPair>& tmp_gpair = XGBAPIThreadLocalStore::Get()->tmp_gpair;
+  HostDeviceVector<GradientPair> tmp_gpair;
   API_BEGIN();
   CHECK_HANDLE();
   auto* bst = static_cast<Booster*>(handle);
@@ -908,22 +908,24 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              xgboost::bst_ulong *len,
                              const bst_float **out_result) {
-  HostDeviceVector<bst_float>& preds =
+  std::vector<bst_float>&preds =
     XGBAPIThreadLocalStore::Get()->ret_vec_float;
   API_BEGIN();
   CHECK_HANDLE();
   auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
+  HostDeviceVector<bst_float> tmp_preds;
   bst->learner()->Predict(
       static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
       (option_mask & 1) != 0,
-      &preds, ntree_limit,
+      &tmp_preds, ntree_limit,
       (option_mask & 2) != 0,
       (option_mask & 4) != 0,
       (option_mask & 8) != 0,
       (option_mask & 16) != 0);
-  *out_result = dmlc::BeginPtr(preds.HostVector());
-  *len = static_cast<xgboost::bst_ulong>(preds.Size());
+  preds = tmp_preds.HostVector();
+  *out_result = dmlc::BeginPtr(preds);
+  *len = static_cast<xgboost::bst_ulong>(preds.size());
   API_END();
 }
 
