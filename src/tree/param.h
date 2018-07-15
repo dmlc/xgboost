@@ -187,7 +187,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("monotonic")
+        .set_default("elastic_net,monotonic")
         .describe("The criteria to use for ranking splits");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
