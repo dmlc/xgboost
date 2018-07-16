@@ -9,9 +9,8 @@ on the demo dataset on a binary classification task.
 Links to Other Helpful Resources
 ********************************
 - See :doc:`Installation Guide </build>` on how to install XGBoost.
-- See :doc:`Text Input Format <../input_format>` on using text format for specifying training/testing data.
-- See :doc:`How to pages <../how_to/index>` on various tips on using XGBoost.
-- See :doc:`Tutorials <../tutorials/index>` on tutorials on specific tasks.
+- See :doc:`Text Input Format </tutorials/input_format>` on using text format for specifying training/testing data.
+- See :doc:`Tutorials </tutorials/index>` for tips and tutorials.
 - See `Learning to use XGBoost by Examples <https://github.com/dmlc/xgboost/tree/master/demo>`_ for more code examples.
 
 ******

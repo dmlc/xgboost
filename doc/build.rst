@@ -33,7 +33,7 @@ This page gives instructions on how to build and install XGBoost from scratch on
 
 For windows users who use github tools, you can open the git shell and type the following command:
 
-.. code-block:: cmd
+.. code-block:: batch
 
   git submodule init
   git submodule update

@@ -15,12 +15,14 @@ Contents
   :maxdepth: 2
   :titlesonly:
 
+  build
+  get_started
   python/index
+  python/python_api
   R-package/index
   jvm/index
   julia/index
   cli/index
   gpu/index
   how_to/index
-  get_started/index
   tutorials/index
