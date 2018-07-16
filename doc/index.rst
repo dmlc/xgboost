@@ -1,0 +1,26 @@
+#####################
+XGBoost Documentation
+#####################
+
+**XGBoost** is an optimized distributed gradient boosting library designed to be highly **efficient**, **flexible** and **portable**.
+It implements machine learning algorithms under the `Gradient Boosting <https://en.wikipedia.org/wiki/Gradient_boosting>`_ framework.
+XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many data science problems in a fast and accurate way.
+The same code runs on major distributed environment (Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
+
+********
+Contents
+********
+
+.. toctree::
+  :maxdepth: 2
+  :titlesonly:
+
+  python/index
+  R-package/index
+  jvm/index
+  julia/index
+  cli/index
+  gpu/index
+  how_to/index
+  get_started/index
+  tutorials/index

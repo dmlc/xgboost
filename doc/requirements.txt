@@ -1,3 +1,2 @@
-sphinx==1.5.6
-commonmark==0.5.4
+sphinx
 mock
