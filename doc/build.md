@@ -167,7 +167,12 @@ Other versions of Visual Studio may work but are untested.
 
 ### Building with GPU support
 
-XGBoost can be built with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. See [Installing R package with GPU support](#installing-r-package-with-gpu-support) for special instructions for R.
+Linux users may simply install prebuilt python binaries:
+```bash
+pip install xgboost
+```
+
+XGBoost can be built from source with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. See [Installing R package with GPU support](#installing-r-package-with-gpu-support) for special instructions for R.
 
 An up-to-date version of the CUDA toolkit is required.
 
