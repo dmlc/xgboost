@@ -122,6 +122,7 @@ class ColumnMatrix {
       boundary_[fid].row_ind_begin = accum_row_ind_;
       if (type_[fid] == kDenseColumn) {
         accum_index_ += static_cast<size_t>(nrow);
+        accum_row_ind_ += static_cast<size_t>(nrow);
       } else {
         accum_index_ += feature_counts_[fid];
         accum_row_ind_ += feature_counts_[fid];
