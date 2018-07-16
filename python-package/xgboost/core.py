@@ -1030,7 +1030,7 @@ class Booster(object):
                                                c_array(ctypes.c_float, hess),
                                                c_bst_ulong(len(grad))))
 
-    def eval_set(self, evals, iteration=0, feval=None):
+    def eval_set(self, evals, iteration=0, feval=None, feval_apart=False):
         # pylint: disable=invalid-name
         """Evaluate a set of data.
 
@@ -1040,12 +1040,13 @@ class Booster(object):
             List of items to be evaluated.
         iteration : int
             Current iteration.
-        feval : function
-            Custom evaluation function.
-
+        feval : function or list of functions
+            Custom evaluation function(s).
+        feval_apart: bool, default False
+            Whether to return the feval values apart or not.
         Returns
         -------
-        result: str
+        result: str or (str, str)
             Evaluation result string.
         """
         for d in evals:
@@ -1062,17 +1063,45 @@ class Booster(object):
                                               dmats, evnames,
                                               c_bst_ulong(len(evals)),
                                               ctypes.byref(msg)))
-        res = msg.value.decode()
+        res1 = msg.value.decode()
+        res2 = res1.split()[0]
         if feval is not None:
             for dmat, evname in evals:
-                feval_ret = feval(self.predict(dmat), dmat)
-                if isinstance(feval_ret, list):
-                    for name, val in feval_ret:
-                        res += '\t%s-%s:%f' % (evname, name, val)
+                if isinstance(feval, list):
+                    if not all([callable(f) for f in feval]):
+                        raise TypeError('expected a list of callables, got {}' .format(''.join([type(f).__name__ for f in feval])))
+                    else:
+                        feval_ret = [f(self.predict(dmat), dmat) for f in feval]
+                        if isinstance(feval_ret, list):
+                            for name, val in feval_ret:
+                                s = '\t%s-%s:%f' % (evname, name, val)
+                                res1 += s
+                                if feval_apart:
+                                    res2 += s
+                        else:
+                            name, val = feval_ret
+                            s = '\t%s-%s:%f' % (evname, name, val)
+                            res1 += s
+                            if feval_apart:
+                                res2 += s
+                elif callable(feval):
+                    feval_ret = feval(self.predict(dmat), dmat)
+                    if isinstance(feval_ret, list):
+                        for name, val in feval_ret:
+                            s = '\t%s-%s:%f' % (evname, name, val)
+                            res1 += s
+                            if feval_apart:
+                                res2 += s
+                    else:
+                        name, val = feval_ret
+                        s = '\t%s-%s:%f' % (evname, name, val)
+                        res1 += s
+                        if feval_apart:
+                            res2 += s
                 else:
-                    name, val = feval_ret
-                    res += '\t%s-%s:%f' % (evname, name, val)
-        return res
+                    raise TypeError('expected callable or list of callables, got {}' .format(type(feval).__name__))
+
+        return res1 if not feval_apart else (res1, res2)
 
     def eval(self, data, name='eval', iteration=0):
         """Evaluate the model on mat.

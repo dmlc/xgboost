@@ -217,9 +217,9 @@ class CVPack(object):
         """"Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
-    def eval(self, iteration, feval):
+    def eval(self, iteration, feval, feval_apart=False):
         """"Evaluate the CVPack for one iteration."""
-        return self.bst.eval_set(self.watchlist, iteration, feval)
+        return self.bst.eval_set(self.watchlist, iteration, feval, feval_apart)
 
 
 def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
@@ -274,7 +274,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     return ret
 
 
-def aggcv(rlist):
+def aggcv(rlist, aggregate=True):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
@@ -301,13 +301,16 @@ def aggcv(rlist):
         v = np.array(v)
         if not isinstance(msg, STRING_TYPES):
             msg = msg.decode()
-        mean, std = np.mean(v), np.std(v)
-        results.extend([(k, mean, std)])
+        if aggregate:
+            mean, std = np.mean(v), np.std(v)
+            results.extend([(k, mean, std)])
+        else:
+            results.extend([(k, v)])
     return results
 
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+       metrics=(), obj=None, feval=None, feval_apart=False, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
        seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
@@ -336,8 +339,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Evaluation metrics to be watched in CV.
     obj : function
         Custom objective function.
-    feval : function
-        Custom evaluation function.
+    feval : function or list of functions
+        Custom evaluation function(s).
+    feval_apart bool, default False
+        Whether to return the feval values apart or not.
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
@@ -369,7 +374,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     Returns
     -------
-    evaluation history : list(string)
+    evaluation history : list(string) or (list(string), list(string)) if
+                         feval_apart = True
     """
     if stratified is True and not SKLEARN_INSTALLED:
         raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
@@ -393,7 +399,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     params.pop("eval_metric", None)
 
-    results = {}
+    results1, results2 = {}, {}
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
                       stratified, folds, shuffle)
 
@@ -426,15 +432,29 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                            evaluation_result_list=None))
         for fold in cvfolds:
             fold.update(i, obj)
-        res = aggcv([f.eval(i, feval) for f in cvfolds])
 
-        for key, mean, std in res:
-            if key + '-mean' not in results:
-                results[key + '-mean'] = []
-            if key + '-std' not in results:
-                results[key + '-std'] = []
-            results[key + '-mean'].append(mean)
-            results[key + '-std'].append(std)
+        res1, res2 = [], []
+        if feval_apart:
+            results = [f.eval(i, feval, feval_apart=feval_apart) for f in cvfolds]
+            res1 = aggcv([x[0] for x in results])
+            res2 = aggcv([x[1] for x in results], aggregate=False)
+        else:
+            res1 = aggcv([f.eval(i, feval) for f in cvfolds])
+
+        for key, mean, std in res1:
+            if key + '-mean' not in results1:
+                results1[key + '-mean'] = []
+            if key + '-std' not in results1:
+                results1[key + '-std'] = []
+            results1[key + '-mean'].append(mean)
+            results1[key + '-std'].append(std)
+
+        for key, values in res2:
+            if key not in results2:
+                results2[key] = []
+            for value in values:
+                results2[key].append(value)
+
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=None,
@@ -443,15 +463,23 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                                begin_iteration=0,
                                end_iteration=num_boost_round,
                                rank=0,
-                               evaluation_result_list=res))
+                               evaluation_result_list=res1))
         except EarlyStopException as e:
-            for k in results.keys():
-                results[k] = results[k][:(e.best_iteration + 1)]
+            for k in results1.keys():
+                results1[k] = results1[k][:(e.best_iteration + 1)]
+            for k in results2.keys():
+                results2[k] = results2[k][:(e.best_iteration + 1)]
             break
+
     if as_pandas:
         try:
             import pandas as pd
-            results = pd.DataFrame.from_dict(results)
+            results1 = pd.DataFrame.from_dict(results1)
+            results2 = pd.DataFrame.from_dict(results2)
         except ImportError:
             pass
-    return results
+
+    if feval_apart:
+        return results1, results2
+    else:
+        return results1

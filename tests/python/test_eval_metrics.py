@@ -5,7 +5,6 @@ import unittest
 
 rng = np.random.RandomState(1337)
 
-
 class TestEvalMetrics(unittest.TestCase):
     xgb_params_01 = {
         'silent': 1,
@@ -29,6 +28,12 @@ class TestEvalMetrics(unittest.TestCase):
         'silent': 1,
         'nthread': 1,
         'eval_metric': ['error', 'rmse']
+    }
+
+    xgb_params_05 = {
+        'silent': 1,
+        'nthread': 1,
+        'eval_metric': ['error']
     }
 
     def evalerror_01(self, preds, dtrain):
@@ -103,3 +108,32 @@ class TestEvalMetrics(unittest.TestCase):
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
         assert gbdt_03.predict(dvalid)[0] != gbdt_04.predict(dvalid)[0]
+
+    def test_cv_multiple_evals(self):
+        tm._skip_if_no_sklearn()
+        try:
+            from sklearn.model_selection import train_test_split
+        except:
+            from sklearn.cross_validation import train_test_split
+        from sklearn.datasets import load_digits
+        from sklearn.metrics import roc_auc_score
+
+        digits = load_digits(2)
+        X = digits['data']
+        y = digits['target']
+
+        Xt, Xv, yt, yv = train_test_split(X, y, test_size=0.2, random_state=0)
+        d_matrix = xgb.DMatrix(Xt, yt)
+
+        def _gini(preds, train):
+            return 'gini', 2*roc_auc_score(train.get_label(), preds) - 1
+        def _auc(preds, train):
+            return 'auc', roc_auc_score(train.get_label(), preds)
+
+        _, results = xgb.cv(self.xgb_params_05, d_matrix, stratified=True, feval=[_gini, _auc], feval_apart=True)
+
+        assert len(results.columns) == 4
+        assert 'train-gini' in results.columns
+        assert 'test-gini' in results.columns
+        assert 'train-auc' in results.columns
+        assert 'test-auc' in results.columns
