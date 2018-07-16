@@ -54,6 +54,8 @@ install:
           Bootstrap
           $DEPS = "c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','igraph','knitr','rmarkdown')"
           cmd.exe /c "R.exe -q -e ""install.packages($DEPS, repos='$CRAN', type='both')"" 2>&1"
+          $BINARY_DEPS = "c('XML')"
+          cmd.exe /c "R.exe -q -e ""install.packages($BINARY_DEPS, repos='$CRAN', type='win.binary')"" 2>&1"
         }
 
 build_script:
