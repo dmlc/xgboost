@@ -36,7 +36,7 @@ class HingeObj : public ObjFunction {
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
 
-    for (size_t i = 0; i < preds_h.size(); ++i) { // NOLINT
+    for (size_t i = 0; i < preds_h.size(); ++i) {
       auto y = info.labels_[i] * 2.0 - 1.0;
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
@@ -52,8 +52,8 @@ class HingeObj : public ObjFunction {
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = io_preds->HostVector();
-    for (size_t i = 0; i < preds.size(); i++) {
-      preds[i] = preds[i] > 0.0 ? 1.0 : 0.0;
+    for (auto& p : preds) {
+      p = p > 0.0 ? 1.0 : 0.0;
     }
   }
 
