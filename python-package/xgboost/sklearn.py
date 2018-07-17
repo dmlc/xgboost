@@ -570,7 +570,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               early_stopping_threshold=early_stopping_threshold,
                               early_stopping_limit=early_stopping_limit,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=None)
+                              verbose_eval=verbose, xgb_model=xgb_model)
 
         self.objective = xgb_options["objective"]
         if evals_result:
