@@ -113,7 +113,8 @@ def _train_internal(params, dtrain,
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          maximize=False, early_stopping_rounds=None, evals_result=None,
+          maximize=False, early_stopping_rounds=None, early_stopping_threshold=None,early_stopping_limit=None,
+          evals_result=None,
           verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
@@ -145,6 +146,14 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         bst.best_score, bst.best_iteration and bst.best_ntree_limit.
         (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
         and/or num_class appears in the parameters)
+    early_stopping_threshold : float
+        Sets an potional threshold to smoothen the early stopping policy.
+￼           If after early_stopping_rounds iterations, the model hasn't improved
+        more than threshold times the score from early_stopping_rounds before,
+        then the learning stops.
+    early_stopping_limit: float
+        Sets limit of "threshold times the score from early_stopping_rounds_before"
+        to value of limit.
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
         Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
@@ -187,6 +196,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
     if early_stopping_rounds is not None:
         callbacks.append(callback.early_stop(early_stopping_rounds,
+                                             early_stopping_threshold,
+                                             early_stopping_limit,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
     if evals_result is not None:
@@ -307,7 +318,7 @@ def aggcv(rlist):
 
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None, early_stopping_threshold=None, early_stopping_limit=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
        seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
@@ -344,6 +355,14 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Activates early stopping. CV error needs to decrease at least
         every <early_stopping_rounds> round(s) to continue.
         Last entry in evaluation history is the one from best iteration.
+    early_stopping_threshold : float
+        Sets an potional threshold to smoothen the early stopping policy.
+￼           If after early_stopping_rounds iterations, the model hasn't improved
+        more than threshold times the score from early_stopping_rounds before,
+        then the learning stops.
+    early_stopping_limit: float
+        Sets limit of "threshold times the score from early_stopping_rounds_before"
+        to value of limit.
     fpreproc : function
         Preprocessing function that takes (dtrain, dtest, param) and returns
         transformed versions of those.
@@ -401,6 +420,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     callbacks = [] if callbacks is None else callbacks
     if early_stopping_rounds is not None:
         callbacks.append(callback.early_stop(early_stopping_rounds,
+                                             early_stopping_threshold,
+                                             early_stopping_limit,
                                              maximize=maximize,
                                              verbose=False))
 
