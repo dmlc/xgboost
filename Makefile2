@@ -1,0 +1,34 @@
+# https://xgboost.readthedocs.io/en/latest/build.html
+default: libxgboost
+libxgboost: libxgboostgpu libxgboostp2nccl libxgboostp3
+libxgboost2: libxgboostgpu libxgboostp2nonccl libxgboostp3
+libxgboost-cpu: libxgboostcpu libxgboostp2cpu-only libxgboostp3
+
+libxgboostgpu:
+	git submodule init && git submodule update dmlc-core && git submodule update && git submodule update cub && git submodule update rabit
+	rm -rf src/tree/updater_gpu_hist2.cu ;\
+	cp -a src/tree/updater_gpu_hist.cu src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/updater_gpu_hist/updater_gpu_hist2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/grow_gpu_hist/grow_gpu_hist2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/define PRECISE 1/define PRECISE 0/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/GPUHistMaker/GPUHistMaker2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/upper_bound/upper_bound2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/compress_bin_ellpack_k/compress_bin_ellpack_k2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/Grow tree with GPU using doubles for sum/Grow tree with GPU using integer64s for sum/g' src/tree/updater_gpu_hist2.cu
+libxgboostcpu:
+	git submodule init && git submodule update dmlc-core && git submodule update rabit
+libxgboostp2nccl:
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+libxgboostp2nonccl:
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+libxgboostp2cpu-only:
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=OFF -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+libxgboostp3:
+	cd python-package && rm -rf dist && python setup.py sdist bdist_wheel
+
+
+.PHONY: build/VERSION.txt
+
+build/VERSION.txt:
+	@mkdir -p build
+	cd python-package; python setup.py --version > ../build/VERSION.txt 2>/dev/null

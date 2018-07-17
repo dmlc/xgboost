@@ -1,0 +1,117 @@
+#How to run:
+#To build: docker build -t opsh2o4gpu/h2o4gpu-runtime -f Dockerfile-runtime .
+#To run: nvidia-docker run -p 8888:8888 -v /some/local/log:/log opsh2o4gpu/h2o4gpu-runtime &
+
+ARG cuda
+FROM $cuda
+
+MAINTAINER H2o.ai <ops@h2o.ai>
+
+ENV DEBIAN_FRONTEND noninteractive
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=/usr/local/cuda/bin:$PATH
+ENV LD_LIBRARY_PATH_MORE=/home/$USER/lib/:$CUDA_HOME/lib64/:$CUDA_HOME/lib/:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LD_LIBRARY_PATH_MORE
+ENV CUDADIR=/usr/local/cuda/include/
+ENV OMP_NUM_THREADS=32
+ENV MKL_NUM_THREADS=32
+ENV VECLIB_MAXIMUM_THREADS=32
+
+RUN \
+  # Setup Repos
+  apt-get update -y && \
+  apt-get -y install curl apt-utils \
+  software-properties-common iputils-ping wget cpio net-tools build-essential \
+  git zip dirmngr && \
+  apt-get -y --no-install-recommends  install \
+      python3-dateutil \
+      python3-magic && \
+  wget http://launchpadlibrarian.net/326935544/s3cmd_2.0.0-1_all.deb && \
+  dpkg -i s3cmd_2.0.0-1_all.deb && \
+  add-apt-repository -y ppa:deadsnakes/ppa && \
+  apt-get update -yqq && \
+  # Install H2o dependencies
+  apt-get -y --no-install-recommends  install \
+    python3.6 \
+    python3.6-dev \
+    virtualenv \
+    python3-pip python3-dev python3-virtualenv python-virtualenv && \
+  update-alternatives --install /usr/bin/python python /usr/bin/python3.6 100 && \
+  python -m pip install --upgrade pip && \
+  apt-get clean && \
+  rm -rf /var/cache/apt/* && \
+  apt-get install -y libopenblas-dev
+
+# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
+RUN \
+    export CUDA_HOME=/usr/local/cuda ; if [ -d "$CUDA_HOME" ]; then \
+    export CUDA_LIB=$CUDA_HOME/lib64 && \
+    export CUDA_VERSION=`ls $CUDA_LIB/libcudart.so.* | head -1 | rev | cut -d "." -f -2 | rev` && \
+    export CUDA_MAJOR=`echo $CUDA_VERSION | cut -d "." -f 1` && \
+    export CUDA_MINOR=`echo $CUDA_VERSION | cut -d "." -f 2| sed 's/@//g'` && \
+    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]\.[0-9]'` && \
+    wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
+    tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
+    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
+    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
+    rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
+    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64 ; \
+    fi
+
+RUN \
+  mkdir h2o4gpu_env && \
+  virtualenv --python=/usr/bin/python3.6 h2o4gpu_env && \
+  chmod -R o+w h2o4gpu_env && \
+  . h2o4gpu_env/bin/activate && \
+  pip install --no-cache-dir --upgrade pip && \
+  pip install --no-cache-dir --upgrade setuptools && \
+  pip install --no-cache-dir --upgrade numpy && \
+  pip install --no-cache-dir --upgrade jupyter
+
+# Add requirements
+COPY requirements_runtime.txt requirements.txt
+RUN \
+  . h2o4gpu_env/bin/activate && \
+  pip install --no-cache-dir -r requirements.txt
+
+#Below will get the latest stable wheel file instead.
+RUN \
+  . h2o4gpu_env/bin/activate && \
+  pip install --no-cache-dir https://s3.amazonaws.com/artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/h2o4gpu/0.0.4/h2o4gpu-0.0.4-py36-none-any.whl
+
+# Add a canned jupyter notebook demo to the container
+RUN \
+  mkdir -p jupyter/demos
+COPY examples/py/demos/H2O4GPU_Ridge.ipynb /jupyter/demos/H2O4GPU_Ridge.ipynb
+COPY examples/py/demos/H2O4GPU_LinearRegression.ipynb /jupyter/demos/H2O4GPU_LinearRegression.ipynb
+COPY examples/py/demos/H2O4GPU_GBM.ipynb /jupyter/demos/H2O4GPU_GBM.ipynb
+COPY examples/py/demos/H2O4GPU_GLM.ipynb /jupyter/demos/H2O4GPU_GLM.ipynb
+COPY examples/py/demos/H2O4GPU_Lasso.ipynb /jupyter/demos/H2O4GPU_Lasso.ipynb
+COPY examples/py/demos/H2O4GPU_KMeans_Images.ipynb /jupyter/demos/H2O4GPU_KMeans_Images.ipynb
+COPY examples/py/demos/Multi-GPU-H2O-GLM-simple.ipynb /jupyter/demos/Multi-GPU-H2O-GLM-simple.ipynb
+
+
+
+RUN \
+  . h2o4gpu_env/bin/activate && \
+  cd /jupyter/demos && \
+  chmod -R o+w /jupyter && \
+  python -c "exec(\"from sklearn.datasets import fetch_covtype\\ncov = fetch_covtype()\")" && \
+  python -c "exec(\"from sklearn.datasets import fetch_covtype\\ncov = fetch_covtype()\")" && \
+  wget https://s3.amazonaws.com/h2o-public-test-data/h2o4gpu/open_data/creditcard.csv && \
+  wget https://s3.amazonaws.com/h2o-public-test-data/h2o4gpu/open_data/kmeans_data/h2o-logo.jpg && \
+  cp ../../open_data/ipums_1k.csv . && \
+  wget https://s3.amazonaws.com/h2o-public-test-data/h2o4gpu/open_data/ipums.feather
+
+# Add shell wrapper
+COPY run.sh /run.sh
+
+ARG h2o4gpu_VERSION
+ARG h2o4gpu_COMMIT
+ARG DOCKER_VERSION_TAG
+LABEL \
+h2o4gpu_commit="$h2o4gpu_COMMIT" \
+docker_version_tag="$DOCKER_VERSION_TAG"
+
+ENTRYPOINT ["./run.sh"]  
+EXPOSE 8888
