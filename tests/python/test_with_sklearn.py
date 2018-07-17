@@ -255,7 +255,8 @@ def test_sklearn_api_gblinear():
     err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
     assert err < 0.2
 
-
+from nose.tools import nottest
+@nottest
 def test_sklearn_plotting():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
