@@ -472,9 +472,12 @@ class DMatrix(object):
             nthread))
 
     def __del__(self):
-        if self.handle is not None:
-            _check_call(_LIB.XGDMatrixFree(self.handle))
-            self.handle = None
+        try:
+            if self.handle is not None:
+                _check_call(_LIB.XGDMatrixFree(self.handle))
+                self.handle = None
+        except AttributeError:
+            pass
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
