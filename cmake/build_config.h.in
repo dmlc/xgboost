@@ -1,0 +1,15 @@
+#cmakedefine01 XGBOOST_USE_AVX
+#cmakedefine01 XGBOOST_STRICT_R_MODE
+#cmakedefine01 XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+#cmakedefine XGBOOST_USE_CUDA
+#cmakedefine XGBOOST_USE_NCCL
+
+#cmakedefine01 DMLC_LOG_CUSTOMIZE
+#cmakedefine01 DMLC_LOG_BEFORE_THROW
+#cmakedefine01 DMLC_DISABLE_STDIN
+#cmakedefine01 DMLC_LOG_CUSTOMIZE
+
+#cmakedefine RABIT_CUSTOMIZE_MSG_
+#cmakedefine RABIT_STRICT_CXX98_
+
+

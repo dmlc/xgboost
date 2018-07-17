@@ -6,6 +6,7 @@
 #ifndef XGBOOST_BASE_H_
 #define XGBOOST_BASE_H_
 
+#include <dmlc/build_config.h>
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
 #include <cmath>

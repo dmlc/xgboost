@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 3.2)
 project(xgboost)
-include(cmake/Utils.cmake)
+
+set(CMAKE_LOCAL "${PROJECT_SOURCE_DIR}/cmake")
+include(${CMAKE_LOCAL}/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 find_package(OpenMP)
 
@@ -50,7 +52,7 @@ if(USE_AVX)
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
   endif()
-  add_definitions(-DXGBOOST_USE_AVX)
+  add_definitions(-D)
 endif()
 
 # enable custom logging
@@ -58,17 +60,19 @@ add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
 
 # compiled code customizations for R package
 if(R_LIB)
-  add_definitions(
-    -DXGBOOST_STRICT_R_MODE=1
-    -DXGBOOST_CUSTOMIZE_GLOBAL_PRNG=1
-    -DDMLC_LOG_BEFORE_THROW=0
-    -DDMLC_DISABLE_STDIN=1
-    -DDMLC_LOG_CUSTOMIZE=1
-    -DRABIT_CUSTOMIZE_MSG_
-    -DRABIT_STRICT_CXX98_
-  )
+  set(XGBOOST_STRICT_R_MODE 1)
+  set(XGBOOST_STRICT_R_MODE 1)
+  set(XGBOOST_CUSTOMIZE_GLOBAL_PRNG 1)
+  set(DMLC_LOG_BEFORE_THROW 0)
+  set(DMLC_DISABLE_STDIN 1)
+  set(DMLC_LOG_CUSTOMIZE 1)
+  set(DMLC_LOG_CUSTOMIZE 1)
+  set(RABIT_CUSTOMIZE_MSG_ 1)
+  set(RABIT_STRICT_CXX98_ 1)
 endif()
 
+set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include")
+set(XGBOOST_INCLUDE_DIR "${INCLUDE_DIR}/xgboost")
 include_directories (
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/dmlc-core/include
@@ -118,14 +122,14 @@ if(USE_CUDA)
   find_package(CUDA 8.0 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
 
-  add_definitions(-DXGBOOST_USE_CUDA)
+  set(XGBOOST_USE_CUDA 1)
   
   include_directories(cub)
 
   if(USE_NCCL)
     find_package(Nccl REQUIRED)
     include_directories(${NCCL_INCLUDE_DIR})
-    add_definitions(-DXGBOOST_USE_NCCL)
+    set(XGBOOST_USE_NCCL 1)
   endif()
 
   set(GENCODE_FLAGS "")
@@ -146,6 +150,8 @@ if(USE_CUDA)
   list(APPEND LINK_LIBRARIES gpuxgboost) 
 endif()
 
+message(STATUS "creating config: ${CMAKE_LOCAL}/build_config.h.in -> ${XGBOOST_INCLUDE_DIR}/build_config.h")
+configure_file("${CMAKE_LOCAL}/build_config.h.in" "${XGBOOST_INCLUDE_DIR}/build_config.h")
 
 # flags and sources for R-package
 if(R_LIB)
