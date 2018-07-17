@@ -55,6 +55,19 @@ __device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
 
 // For integer gradients
 __device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
+                                               const GradientPairInteger& gpair) {
+  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
+  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
+  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
+
+  atomicAdd(dst_ptr,
+            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+  atomicAdd(dst_ptr + 1,
+            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+}
+
+// For integer gradients
+__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
                                                const GradientPair& gpair) {
   auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
   GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
@@ -67,18 +80,25 @@ __device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
 }
 
 /**
- * \brief Check maximum gradient value is below 2^16. This is to prevent
+ * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
+ *
+ * \brief Check maximum gradient value is below max allowed. This is to prevent
  * overflow when using integer gradient summation.
  */
 
-inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
-  auto* ptr = reinterpret_cast<const float*>(gpair.data());
+inline void CheckGradientMax(HostDeviceVector<GradientPair> *gpair_ptr) {
+  auto* ptr = reinterpret_cast<const float*>(gpair_ptr->HostVector().data());
   float abs_max =
-      std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
+    std::accumulate(ptr, ptr + (gpair_ptr->Size() * 2) , 0.f,
                       [=](float a, float b) { return max(abs(a), abs(b)); });
 
-  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
-      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+  float max_allowed = 1E-4f*std::pow(2.0f, 63.0f)/(1+ gpair_ptr->Size());
+  CHECK_LT(abs_max, max_allowed)
+      << "Labels are too large for this algorithm. Rescale to much less than " << max_allowed << ".";
+
+// This is a weaker issue.  And (say) if have 0000011111 in labels, may not have taken gradient of that 1 case due to sampling, but that's ok.
+//  CHECK_GT(abs_max, 1e-4f)
+//      << "Labels are too small for this algorithm. Rescale to much more than 1E-4.";
 }
 
 struct GPUTrainingParam {
