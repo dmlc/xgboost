@@ -114,10 +114,16 @@ def _get_log_callback_func():
 
 def _load_lib():
     """Load xgboost Library."""
-    lib_path = find_lib_path()
-    if len(lib_path) == 0:
+    lib_paths = find_lib_path()
+    if len(lib_paths) == 0:
         return None
-    lib = ctypes.cdll.LoadLibrary(lib_path[0])
+    pathBackup = os.environ['PATH']
+    for lib_path in lib_paths:
+      try:
+        os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path) # needed when the lib is compiled with non-system-available dependencies
+        lib = ctypes.cdll.LoadLibrary(lib_path)
+      except:
+        continue
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
