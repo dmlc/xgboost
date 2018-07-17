@@ -230,7 +230,7 @@ def test_sklearn_api():
     iris = load_iris()
     tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
 
-    classifier = xgb.XGBClassifier(booster='gbtree', n_estimators=10)
+    classifier = xgb.XGBClassifier(booster='gbtree', n_estimators=10, random_state = 1995)
     classifier.fit(tr_d, tr_l)
 
     preds = classifier.predict(te_d)
