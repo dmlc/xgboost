@@ -1188,7 +1188,7 @@ class Booster(object):
                 if ngroup == 1:
                     preds = preds.reshape(nrow, data.num_col() + 1)
                 else:
-                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
+                    preds = preds.reshape(nrow, ngroup * (data.num_col() + 1))  # HACK, FIX SOON
             else:
                 preds = preds.reshape(nrow, chunk_size)
         return preds

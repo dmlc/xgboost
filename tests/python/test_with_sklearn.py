@@ -44,6 +44,9 @@ def test_binary_classification():
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         assert err < 0.1
 
+        pred_contribs = xgb_model.predict_proba(X[test_index], pred_contribs=True)
+        assert pred_contribs.shape[1] == X.shape[1] + 1
+
 
 def test_multiclass_classification():
     tm._skip_if_no_sklearn()
@@ -70,6 +73,10 @@ def test_multiclass_classification():
         preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
         preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
+
+        pred_contribs = xgb_model.predict_proba(X[test_index], pred_contribs=True)
+        probas = xgb_model.predict_proba(X[test_index])
+        assert pred_contribs.shape[1] == probas.shape[1] * (X.shape[1] + 1)
 
         check_pred(preds, labels)
         check_pred(preds2, labels)
@@ -126,6 +133,9 @@ def test_boston_housing_regression():
         preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
         preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
+
+        pred_contribs = xgb_model.predict(X[test_index], pred_contribs=True)
+        assert np.isclose(np.sum(pred_contribs, axis=1), preds).all()
 
         assert mean_squared_error(preds, labels) < 25
         assert mean_squared_error(preds2, labels) < 350

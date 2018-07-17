@@ -346,7 +346,8 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None):
+    def predict(self, data, output_margin=False, ntree_limit=None,
+                pred_leaf=False, pred_contribs=False, approx_contribs=False):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
         # get ntree_limit to use - if none specified, default to
@@ -355,7 +356,10 @@ class XGBModel(XGBModelBase):
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
-                                          ntree_limit=ntree_limit)
+                                          ntree_limit=ntree_limit,
+                                          pred_leaf=pred_leaf,
+                                          pred_contribs=pred_contribs,
+                                          approx_contribs=approx_contribs)
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -582,7 +586,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None):
+    def predict(self, data, output_margin=False, ntree_limit=None,
+                pred_leaf=False, pred_contribs=False, approx_contribs=False):
         """
         Predict with `data`.
         NOTE: This function is not thread safe.
@@ -605,17 +610,24 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
-        class_probs = self.get_booster().predict(test_dmatrix,
-                                                 output_margin=output_margin,
-                                                 ntree_limit=ntree_limit)
-        if len(class_probs.shape) > 1:
-            column_indexes = np.argmax(class_probs, axis=1)
-        else:
-            column_indexes = np.repeat(0, class_probs.shape[0])
-            column_indexes[class_probs > 0.5] = 1
-        return self._le.inverse_transform(column_indexes)
+        preds = self.get_booster().predict(test_dmatrix,
+                                           output_margin=output_margin,
+                                           ntree_limit=ntree_limit,
+                                           pred_leaf=pred_leaf,
+                                           pred_contribs=pred_contribs,
+                                           approx_contribs=approx_contribs)
+        if not pred_leaf and not pred_contribs and not approx_contribs:
+            if len(preds.shape) > 1:
+                column_indexes = np.argmax(preds, axis=1)
+            else:
+                column_indexes = np.repeat(0, preds.shape[0])
+                column_indexes[preds > 0.5] = 1
+            preds = self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, ntree_limit=None):
+        return preds
+
+    def predict_proba(self, data, output_margin=False, ntree_limit=None,
+                      pred_leaf=False, pred_contribs=False, approx_contribs=False):
         """
         Predict the probability of each `data` example being of a given class.
         NOTE: This function is not thread safe.
@@ -637,14 +649,19 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
-        class_probs = self.get_booster().predict(test_dmatrix,
-                                                 ntree_limit=ntree_limit)
-        if self.objective == "multi:softprob":
-            return class_probs
-        else:
-            classone_probs = class_probs
-            classzero_probs = 1.0 - classone_probs
-            return np.vstack((classzero_probs, classone_probs)).transpose()
+        preds = self.get_booster().predict(test_dmatrix,
+                                           output_margin=output_margin,
+                                           ntree_limit=ntree_limit,
+                                           pred_leaf=pred_leaf,
+                                           pred_contribs=pred_contribs,
+                                           approx_contribs=approx_contribs)
+        if not pred_leaf and not pred_contribs and not approx_contribs:
+            if self.objective == "binary:logistic":
+                classone_probs = preds
+                classzero_probs = 1.0 - classone_probs
+                preds = np.vstack((classzero_probs, classone_probs)).transpose()
+
+        return preds
 
     def evals_result(self):
         """Return the evaluation results.

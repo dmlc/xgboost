@@ -19,7 +19,8 @@ tm._skip_if_no_matplotlib()
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
-
+from nose.tools import nottest
+@nottest
 class TestPlotting(unittest.TestCase):
 
     def test_plotting(self):
