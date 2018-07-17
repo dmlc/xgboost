@@ -17,6 +17,8 @@ Contents
 
   build
   get_started
+  parameter
+  tutorials/index
   python/index
   python/python_api
   R-package/index
@@ -24,5 +26,4 @@ Contents
   julia/index
   cli/index
   gpu/index
-  how_to/index
-  tutorials/index
+  contribute
