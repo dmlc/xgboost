@@ -18,6 +18,7 @@
 #include "./data.h"
 #include "./objective.h"
 #include "./feature_map.h"
+#include "./model_visitor.h"
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
@@ -140,6 +141,13 @@ class GradientBooster {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) const = 0;
+
+  /*!
+   * \brief Allow model access via visitor interface.
+   * \param v  visitor for this class
+   */
+  virtual void Accept(ModelVisitor& v) = 0;
+
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster

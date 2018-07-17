@@ -16,6 +16,7 @@
 #include "./gbm.h"
 #include "./metric.h"
 #include "./objective.h"
+#include "./model_visitor.h"
 
 namespace xgboost {
 /*!
@@ -177,6 +178,16 @@ class Learner : public rabit::Serializable {
    * \return Created learner.
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
+
+  /*!
+   * \brief Allow model access via visitor interface.
+   * \param v  visitor for this class
+   */
+  void Accept(ModelVisitor& v) {
+       v.Visit(*this);
+       // Also visit the booster
+      gbm_->Accept(v);
+  }
 
  protected:
   /*! \brief internal base score of the model */

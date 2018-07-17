@@ -5,6 +5,7 @@
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/model_visitor.h>
 #include <vector>
 #include <string>
 #include <cstring>
@@ -107,6 +108,10 @@ class GBLinearModel {
     std::vector<std::string> v;
     v.push_back(fo.str());
     return v;
+  }
+
+  void Accept(ModelVisitor& v) {
+      v.Visit(*this);
   }
 };
 }  // namespace gbm

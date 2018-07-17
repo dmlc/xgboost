@@ -83,6 +83,11 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"yes\": " << tree[nid].LeftChild()
                << ", \"no\": " << tree[nid].RightChild()
                << ", \"missing\": " << tree[nid].DefaultChild();
+          } else if (format == "mojo") {
+            fo << nid << ":[" << fmap.Name(split_index) << "<" << cond
+               << "] yes=" << tree[nid].LeftChild()
+               << ",no=" << tree[nid].RightChild()
+               << ",missing=" << tree[nid].DefaultChild();
           } else {
             fo << nid << ":[" << fmap.Name(split_index) << "<"
                << int(cond + 1.0)
@@ -159,6 +164,8 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
+  if (format == "mojo")
+    fo.precision(20);
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }

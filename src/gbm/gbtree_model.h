@@ -5,6 +5,7 @@
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
+#include <xgboost/model_visitor.h>
 #include <utility>
 #include <string>
 #include <vector>
@@ -111,6 +112,23 @@ struct GBTreeModel {
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) const {
     std::vector<std::string> dump;
+    if (format == "mojo") {
+      std::stringstream fo("");
+      fo.precision(20);
+      fo << "Version 0.1.0\n"
+         << "num_output_group: " << param.num_output_group << "\n"
+         << "base_margin: " << base_margin << "\n";
+      if (param.num_output_group > 1) {
+        fo << "tree_info: [";
+        for (size_t i = 0; i < tree_info.size(); ++i) {
+          if (i != 0) fo << ",";
+          fo << tree_info[i];
+        }
+        fo << "]\n";
+      }
+      fo << "\n";
+      dump.push_back(fo.str());
+    }
     for (const auto & tree : trees) {
       dump.push_back(tree->DumpModel(fmap, with_stats, format));
     }
@@ -123,6 +141,10 @@ struct GBTreeModel {
       tree_info.push_back(bst_group);
     }
     param.num_trees += static_cast<int>(new_trees.size());
+  }
+
+  void Accept(ModelVisitor &v) {
+      v.Visit(*this);
   }
 
   // base margin

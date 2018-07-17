@@ -10,6 +10,7 @@
 #include <xgboost/gbm.h>
 #include <xgboost/logging.h>
 #include <xgboost/linear_updater.h>
+#include <xgboost/model_visitor.h>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -193,6 +194,12 @@ class GBLinear : public GradientBooster {
                                      bool with_stats,
                                      std::string format) const override {
     return model_.DumpModel(fmap, with_stats, format);
+  }
+
+  void Accept(ModelVisitor& v) override {
+    v.Visit(*this);
+    // This is forcing visit of model which is inherent part of this object
+    model_.Accept(v);
   }
 
  protected:

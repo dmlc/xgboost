@@ -622,5 +622,5 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                             bst_ulong *out_len,
                                             const char ***out_fi_array,
                                             int nthread);
-                                            
+
 #endif  // XGBOOST_C_API_H_
