@@ -40,13 +40,15 @@ class HingeObj : public ObjFunction {
       auto y = info.labels_[i] * 2.0 - 1.0;
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
-      bst_float g;
+      bst_float g, h;
       if (p * y < 1.0) {
-        g = -y;
+        g = -y * w;
+        h = w;
       } else {
         g = 0.0;
+        h = std::numeric_limits<bst_float>::min();
       }
-      gpair[i] = GradientPair(g * w, w);
+      gpair[i] = GradientPair(g, h);
     }
   }
 
