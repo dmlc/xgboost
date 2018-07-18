@@ -22,7 +22,7 @@ Contents
   Python package <python/index>
   R package <R-package/index>
   JVM package <jvm/index>
-  Julia package <julia/index>
-  CLI interface <cli/index>
+  Julia package <julia>
+  CLI interface <cli>
   GPU support <gpu/index>
   contribute
