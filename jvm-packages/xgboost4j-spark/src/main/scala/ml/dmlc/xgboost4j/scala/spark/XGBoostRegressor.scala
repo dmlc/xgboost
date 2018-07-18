@@ -23,6 +23,7 @@ import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.TaskContext
@@ -135,6 +136,10 @@ class XGBoostRegressor (
   def setTrainTestRatio(value: Double): this.type = set(trainTestRatio, value)
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
+
+  def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
+
+  def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
