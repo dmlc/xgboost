@@ -60,8 +60,7 @@ train = as.matrix(x)
 # Fit model with interaction constraints
 bst = xgboost(data = train, label = y, max_depth = 4,
               eta = 0.1, nthread = 2, nrounds = 1000,
-              int_constraints = list(c('V1','V2'),c('V3','V4','V5')),
-              split_evaluator = 'interaction')
+              int_constraints = list(c('V1','V2'),c('V3','V4','V5')))
 
 temp <- xgb.model.dt.tree(colnames(train), bst)
 temp.int <- treeInteractions(temp, 4)  # limited interactions
@@ -72,3 +71,24 @@ bst2 = xgboost(data = train, label = y, max_depth = 4,
 
 temp <- xgb.model.dt.tree(colnames(train), bst2)
 temp.int2 <- treeInteractions(temp, 4)  # much more interactions
+
+# Fit model with both interaction and monotonicity constraints
+bst3 = xgboost(data = train, label = y, max_depth = 4,
+               eta = 0.1, nthread = 2, nrounds = 1000,
+               int_constraints = list(c('V1','V2'),c('V3','V4','V5')),
+               monotone_constraints = c(-1,0,0,0,0,0,0,0,0,0))
+
+temp <- xgb.model.dt.tree(colnames(train), bst)
+temp.int <- treeInteractions(temp, 4)  # limited interactions
+
+x1 <- sort(unique(x[['V1']]))
+for (i in 1:length(x1)){
+  temp <- copy(x[, -c('V1')])
+  temp[['V1']] <- x1[i]
+  temp <- temp[, paste0('V',1:10), with=F]
+  pred <- predict(bst3, as.matrix(temp))
+  
+  # Should not print out anything due to monotonic constraints
+  if (i > 1) if (any(pred > prev_pred)) print(i)
+  prev_pred <- pred 
+}

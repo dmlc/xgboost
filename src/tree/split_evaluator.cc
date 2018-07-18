@@ -309,44 +309,47 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
 struct InteractionConstraintParams
     : public dmlc::Parameter<InteractionConstraintParams> {
   std::vector<bst_int> int_constraints;
-  bst_int nint_constraints;
-  float reg_lambda;
-  float reg_gamma;
-
+  int nint_constraints;
+  
   DMLC_DECLARE_PARAMETER(InteractionConstraintParams) {
-    DMLC_DECLARE_FIELD(reg_lambda)
-      .set_lower_bound(0.0)
-      .set_default(1.0)
-      .describe("L2 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(reg_gamma)
-      .set_lower_bound(0.0f)
-      .set_default(0.0f)
-      .describe("Cost incurred by adding a new leaf node to the tree");
     DMLC_DECLARE_FIELD(int_constraints)
-      .set_default(std::vector<bst_int>())
-      .describe("Constraints for interactions representing permitted interactions");
+        .set_default(std::vector<int>())
+        .describe("Constraints for interaction representing permitted interactions");
     DMLC_DECLARE_FIELD(nint_constraints)
-      .set_default(0)
-      .describe("Number of specified interactions in int_constraints vector");
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_gamma, gamma);
+        .set_default(0)
+        .describe("Number of specified interactions in int_constraints vector");
   }
 };
 
 DMLC_REGISTER_PARAMETER(InteractionConstraintParams);
 
-/*! \brief Enforces interaction constraints on tree features.*/
+/*! \brief Enforces that the tree is monotonically increasing/decreasing with respect to a user specified set of
+      features.
+*/
 class InteractionConstraint final : public SplitEvaluator {
  public:
+  explicit InteractionConstraint(std::unique_ptr<SplitEvaluator> inner) {
+    if (!inner) {
+      LOG(FATAL) << "InteractionConstraint must be given an inner evaluator";
+    }
+    inner_ = std::move(inner);
+  }
+
   void Init(const std::vector<std::pair<std::string, std::string> >& args)
       override {
+    inner_->Init(args);
     params_.InitAllowUnknown(args);
     Reset();
   }
 
   void Reset() override {
     // Number of features on the data, implied by the relative size of int_constraints vector and nint_constraints
-    bst_uint nfeatures = params_.int_constraints.size() / params_.nint_constraints;
+    bst_uint nfeatures;
+    if (params_.int_constraints.size() == 0){
+      nfeatures = 1;
+    } else {
+      nfeatures = params_.int_constraints.size() / params_.nint_constraints;
+    }
 
     // Initialise interaction constraints record with all variables permitted for the first node
     int_cont_.clear();
@@ -359,22 +362,11 @@ class InteractionConstraint final : public SplitEvaluator {
 
   SplitEvaluator* GetHostClone() const override {
     if (params_.int_constraints.size() == 0) {
-      // No interaction constraints specified, make a RidgePenalty evaluator
-      using std::pair;
-      using std::string;
-      using std::to_string;
-      using std::vector;
-      auto c = new RidgePenalty();
-      vector<pair<string, string> > args;
-      args.emplace_back(
-        pair<string, string>("reg_lambda", to_string(params_.reg_lambda)));
-      args.emplace_back(
-        pair<string, string>("reg_gamma", to_string(params_.reg_gamma)));
-      c->Init(args);
-      c->Reset();
-      return c;
+      // No interaction constraints specified, just return a clone of inner
+      return inner_->GetHostClone();
     } else {
-      auto c = new InteractionConstraint();
+      auto c = new InteractionConstraint(
+        std::unique_ptr<SplitEvaluator>(inner_->GetHostClone()));
       c->params_ = this->params_;
       c->Reset();
       return c;
@@ -382,27 +374,30 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   bst_float ComputeSplitScore(bst_uint nodeid,
-                              bst_uint featureid,
-                              const GradStats& left,
-                              const GradStats& right) const override {
+                             bst_uint featureid,
+                             const GradStats& left_stats,
+                             const GradStats& right_stats,
+                             bst_float left_weight,
+                             bst_float right_weight) const override {
     // Return negative infinity score if feature is not permitted by interaction constraints
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
     bst_uint constraint_int = GetIntConstraint(featureid, nodeid);
     if (constraint_int == 0) return -infinity;
 
-    // parentID is not needed for this split evaluator. Just use 0.
-    return ComputeScore(0, left) + ComputeScore(0, right);
+    // Otherwise, get score from inner evaluator
+    bst_float score = inner_->ComputeSplitScore(
+      nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
+    return score;
   }
 
-  bst_float ComputeScore(bst_uint parentID, const GradStats& stats)
+  bst_float ComputeScore(bst_uint parentID, const GradStats& stats, bst_float weight)
       const override {
-    return (stats.sum_grad * stats.sum_grad)
-        / (stats.sum_hess + params_.reg_lambda) - params_.reg_gamma;
+    return inner_->ComputeScore(parentID, stats, weight);
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    return -stats.sum_grad / (stats.sum_hess + params_.reg_lambda);
+    return inner_->ComputeWeight(parentID, stats);
   }
 
   void AddSplit(bst_uint nodeid,
@@ -411,6 +406,7 @@ class InteractionConstraint final : public SplitEvaluator {
                 bst_uint featureid,
                 bst_float leftweight,
                 bst_float rightweight) override {
+    inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
     bst_uint nfeatures = params_.int_constraints.size() / params_.nint_constraints;
     bst_uint newsize = std::max(leftid, rightid) + 1;
 
@@ -452,6 +448,7 @@ class InteractionConstraint final : public SplitEvaluator {
 
  private:
   InteractionConstraintParams params_;
+  std::unique_ptr<SplitEvaluator> inner_;
   // Record of interaction constraints: (Per Feature) x (Per Node)
   std::vector< std::vector<bst_uint> > int_cont_;
   // Record of feature ids in previous splits: (Per Node) x (Number of Previous Splits)
@@ -468,8 +465,8 @@ class InteractionConstraint final : public SplitEvaluator {
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(InteractionConstraint, "interaction")
 .describe("Enforces interaction constraints on tree features")
-.set_body([]() {
-    return new InteractionConstraint();
+.set_body([](std::unique_ptr<SplitEvaluator> inner) {
+    return new InteractionConstraint(std::move(inner));
   });
 
 }  // namespace tree

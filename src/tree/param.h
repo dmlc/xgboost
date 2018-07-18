@@ -204,7 +204,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Number of rows in a GPU batch, used for finding quantiles on GPU; "
                   "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
     DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net,monotonic")
+        .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
