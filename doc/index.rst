@@ -19,11 +19,10 @@ Contents
   get_started
   parameter
   tutorials/index
-  python/index
-  python/python_api
-  R-package/index
-  jvm/index
-  julia/index
-  cli/index
-  gpu/index
+  Python package <python/index>
+  R package <R-package/index>
+  JVM package <jvm/index>
+  Julia package <julia/index>
+  CLI interface <cli/index>
+  GPU support <gpu/index>
   contribute
