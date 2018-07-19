@@ -34,57 +34,57 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
 * To load a libsvm text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
 
-.. code-block:: python
+  .. code-block:: python
 
-  dtrain = xgb.DMatrix('train.svm.txt')
-  dtest = xgb.DMatrix('test.svm.buffer')
+    dtrain = xgb.DMatrix('train.svm.txt')
+    dtest = xgb.DMatrix('test.svm.buffer')
 
 * To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
 
-.. code-block:: python
+  .. code-block:: python
 
-  # label_column specifies the index of the column containing the true label
-  dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-  dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
+    # label_column specifies the index of the column containing the true label
+    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
+    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
 
-(Note that XGBoost does not support categorical features; if your data contains
-categorical features, load it as a numpy array first and then perform
-`one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.)
+  (Note that XGBoost does not support categorical features; if your data contains
+  categorical features, load it as a NumPy array first and then perform
+  `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.)
 
-* To load a numpy array into :py:class:`DMatrix <xgboost.DMatrix>`:
+* To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
-.. code-block:: python
+  .. code-block:: python
 
-  data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
-  label = np.random.randint(2, size=5)  # binary target
-  dtrain = xgb.DMatrix(data, label=label)
+    data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
+    label = np.random.randint(2, size=5)  # binary target
+    dtrain = xgb.DMatrix(data, label=label)
 
-* To load a scpiy.sparse array into :py:class:`DMatrix <xgboost.DMatrix>`:
+* To load a :py:mod:`scipy.sparse` array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
-.. code-block:: python
+  .. code-block:: python
 
-  csr = scipy.sparse.csr_matrix((dat, (row, col)))
-  dtrain = xgb.DMatrix(csr)
+    csr = scipy.sparse.csr_matrix((dat, (row, col)))
+    dtrain = xgb.DMatrix(csr)
 
 * Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file will make loading faster:
 
-.. code-block:: python
+  .. code-block:: python
 
-  dtrain = xgb.DMatrix('train.svm.txt')
-  dtrain.save_binary('train.buffer')
+    dtrain = xgb.DMatrix('train.svm.txt')
+    dtrain.save_binary('train.buffer')
 
 * Missing values can be replaced by a default value in the :py:class:`DMatrix <xgboost.DMatrix>` constructor:
 
-.. code-block:: python
+  .. code-block:: python
 
-  dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
+    dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
 
 * Weights can be set when needed:
 
-.. code-block:: python
+  .. code-block:: python
 
-  w = np.random.rand(5, 1)
-  dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
+    w = np.random.rand(5, 1)
+    dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
 
 Setting Parameters
 ------------------
@@ -92,27 +92,27 @@ XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters <
 
 * Booster parameters
 
-.. code-block:: python
+  .. code-block:: python
 
-  param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
-  param['nthread'] = 4
-  param['eval_metric'] = 'auc'
+    param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+    param['nthread'] = 4
+    param['eval_metric'] = 'auc'
 
 * You can also specify multiple eval metrics:
 
-.. code-block:: python
+  .. code-block:: python
 
-  param['eval_metric'] = ['auc', 'ams@0']
+    param['eval_metric'] = ['auc', 'ams@0']
 
-  # alternatively:
-  # plst = param.items()
-  # plst += [('eval_metric', 'ams@0')]
+    # alternatively:
+    # plst = param.items()
+    # plst += [('eval_metric', 'ams@0')]
 
 * Specify validations set to watch performance
 
-.. code-block:: python
+  .. code-block:: python
 
-  evallist = [(dtest, 'eval'), (dtrain, 'train')]
+    evallist = [(dtest, 'eval'), (dtrain, 'train')]
 
 Training
 --------

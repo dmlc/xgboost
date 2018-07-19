@@ -7,7 +7,7 @@ In this tutorial, we use YARN as an example since this is a widely used solution
 
 .. note:: XGBoost on Spark
 
-  If you are preprocessing training data with Spark, you may want to look at :doc:`XGBoost4J-Spark </jvm/xgboost4j_full_integration>`, which supports distributed training on Resilient Distributed Dataset (RDD).
+  If you are preprocessing training data with Spark, you may want to look at `XGBoost4J-Spark <https://xgboost.ai/2016/10/26/a-full-integration-of-xgboost-and-spark.html>`_, which supports distributed training on Resilient Distributed Dataset (RDD).
 
 ************
 Prerequisite

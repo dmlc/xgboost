@@ -162,7 +162,7 @@ latex_documents = [
    author, 'manual'),
 ]
 
-intersphinx_mapping = {'python': ('https://docs.python.org/3.4', None),
+intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None),
                        'numpy': ('http://docs.scipy.org/doc/numpy/', None),
                        'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
                        'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),

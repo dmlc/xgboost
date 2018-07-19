@@ -159,6 +159,7 @@ After installing `Git for Windows <https://git-for-windows.github.io/>`_, you sh
 In MinGW, ``make`` command comes with the name ``mingw32-make``. You can add the following line into the ``.bashrc`` file:
 
 .. code-block:: bash
+
   alias make='mingw32-make'
 
 (On 64-bit Windows, you should get `MinGW64 <https://sourceforge.net/projects/mingw-w64/>`_ instead.) Make sure

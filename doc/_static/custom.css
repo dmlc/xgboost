@@ -9,3 +9,15 @@ div.literal-block-wrapper.container {
 .red {
   color: red;
 }
+
+table {
+  border: 0;
+}
+
+td, th {
+  padding: 1px 8px 1px 5px;
+  border-top: 0;
+  border-bottom: 1px solid #aaa;
+  border-left: 0;
+  border-right: 0;
+}

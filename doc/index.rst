@@ -19,6 +19,7 @@ Contents
   get_started
   parameter
   tutorials/index
+  faq
   Python package <python/index>
   R package <R-package/index>
   JVM package <jvm/index>

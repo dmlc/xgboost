@@ -29,11 +29,11 @@ Submit Pull Request
 
 * Before submit, please rebase your code on the most recent version of master, you can do it by
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  git remote add upstream https://github.com/dmlc/xgboost
-  git fetch upstream
-  git rebase upstream/master
+    git remote add upstream https://github.com/dmlc/xgboost
+    git fetch upstream
+    git rebase upstream/master
 
 * If you have multiple small commits,
   it might be good to merge them together(use git rebase then squash) into more meaningful groups.
@@ -49,31 +49,34 @@ Git Workflow Howtos
 How to resolve conflict with master
 ===================================
 - First rebase to most recent master
-.. code-block:: bash
 
-  # The first two steps can be skipped after you do it once.
-  git remote add upstream https://github.com/dmlc/xgboost
-  git fetch upstream
-  git rebase upstream/master
+  .. code-block:: bash
+
+    # The first two steps can be skipped after you do it once.
+    git remote add upstream https://github.com/dmlc/xgboost
+    git fetch upstream
+    git rebase upstream/master
 
 - The git may show some conflicts it cannot merge, say ``conflicted.py``.
 
   - Manually modify the file to resolve the conflict.
   - After you resolved the conflict, mark it as resolved by
 
-  .. code-block:: bash
+    .. code-block:: bash
 
-    git add conflicted.py
+      git add conflicted.py
 
 - Then you can continue rebase by
-.. code-block:: bash
 
-  git rebase --continue
+  .. code-block:: bash
+
+    git rebase --continue
 
 - Finally push to your fork, you may need to force push here.
-.. code-block:: bash
 
-  git push --force
+  .. code-block:: bash
+
+    git push --force
 
 How to combine multiple commits into one
 ========================================
@@ -81,22 +84,24 @@ Sometimes we want to combine multiple commits, especially when later commits are
 to create a PR with set of meaningful commits. You can do it by following steps.
 
 - Before doing so, configure the default editor of git if you haven't done so before.
-.. code-block:: bash
 
-  git config core.editor the-editor-you-like
+  .. code-block:: bash
+
+    git config core.editor the-editor-you-like
 
 - Assume we want to merge last 3 commits, type the following commands
-.. code-block:: bash
 
-  git rebase -i HEAD~3
+  .. code-block:: bash
+
+    git rebase -i HEAD~3
 
 - It will pop up an text editor. Set the first commit as ``pick``, and change later ones to ``squash``.
 - After you saved the file, it will pop up another text editor to ask you modify the combined commit message.
 - Push the changes to your fork, you need to force push.
-.. code-block:: bash
 
-  git push --force
+  .. code-block:: bash
 
+    git push --force
 
 What is the consequence of force push
 =====================================
@@ -151,9 +156,9 @@ Code Style
 
 - You can check the style of the code by typing the following command at root folder.
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  make rcpplint
+    make rcpplint
 
 - When needed, you can disable the linter warning of certain line with ```// NOLINT(*)``` comments.
 - We use `roxygen <https://cran.r-project.org/web/packages/roxygen2/vignettes/roxygen2.html>`_ for documenting the R package.
@@ -170,9 +175,9 @@ The following steps are followed to add a new Rmarkdown vignettes:
 - Clone the `dmlc/web-data <https://github.com/dmlc/web-data>`_ repo to folder ``doc``.
 - Now type the following command on ``doc/R-package``:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  make the-markdown-to-make.md
+    make the-markdown-to-make.md
 
 - This will generate the markdown, as well as the figures in ``doc/web-data/xgboost/knitr``.
 - Modify the ``doc/R-package/index.md`` to point to the generated markdown.
@@ -183,9 +188,9 @@ The following steps are followed to add a new Rmarkdown vignettes:
 - Create PR for both the markdown  and ``dmlc/web-data``.
 - You can also build the document locally by typing the following command at the ``doc`` directory:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  make html
+    make html
 
 The reason we do this is to avoid exploded repo size due to generated images.
 
