@@ -56,13 +56,6 @@ private[spark] trait LearningTaskParams extends Params {
   final def getEvalMetric: String = $(evalMetric)
 
   /**
-    * group data specify each group sizes for ranking task. To correspond to partition of
-    * training data, it is nested.
-    */
-  final val groupData = new GroupDataParam(this, "groupData", "group data specify each group " +
-    "size for ranking task. To correspond to partition of training data, it is nested.")
-
-  /**
    * Fraction of training points to use for testing.
    */
   final val trainTestRatio = new DoubleParam(this, "trainTestRatio",
@@ -82,7 +75,7 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getNumEarlyStoppingRounds: Int = $(numEarlyStoppingRounds)
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5, groupData -> null,
+  setDefault(objective -> "reg:linear", baseScore -> 0.5,
     trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
 }
 
