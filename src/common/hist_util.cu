@@ -114,9 +114,9 @@ struct GPUSketcher {
     thrust::device_vector<char> tmp_storage_;
 
     DeviceShard(int device, bst_uint row_begin, bst_uint row_end,
-                const tree::TrainParam& param) :
+                tree::TrainParam param) :
       device_(device), row_begin_(row_begin), row_end_(row_end),
-      n_rows_(row_end - row_begin), param_(param) {
+      n_rows_(row_end - row_begin), param_(std::move(param)) {
     }
 
     void Init(const SparsePage& row_batch, const MetaInfo& info) {
@@ -371,7 +371,7 @@ struct GPUSketcher {
     hmat->Init(&sketches, param_.max_bin);
   }
 
-  GPUSketcher(const tree::TrainParam& param, size_t n_rows) : param_(param) {
+  GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
     devices_ = GPUSet::Range(param_.gpu_id, dh::NDevices(param_.n_gpus, n_rows));
   }
 

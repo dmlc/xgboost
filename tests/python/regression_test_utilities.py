@@ -21,7 +21,7 @@ class Dataset:
         self.objective = objective
         self.metric = metric
         if has_weights:
-            self.X, self.y, self.w = get_dataset();
+            self.X, self.y, self.w = get_dataset()
         else:
             self.X, self.y = get_dataset()
             self.w = None
@@ -53,6 +53,7 @@ def get_sparse():
     X = sparse.csr_matrix(X)
     return X, y
 
+
 def get_sparse_weights():
     rng = np.random.RandomState(199)
     n = 10000
@@ -61,6 +62,7 @@ def get_sparse_weights():
     X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
     w = np.array([rng.uniform(1, 10) for i in range(n)])
     return X, y, w
+
 
 def train_dataset(dataset, param_in, num_rounds=10, scale_features=False):
     param = param_in.copy()

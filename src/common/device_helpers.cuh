@@ -171,19 +171,23 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
 // index of the first element in cuts greater than v, or n if none;
 // cuts are ordered, and binary search is used
 DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
-  if (n == 0)
+  if (n == 0) {
     return 0;
-  if (cuts[n - 1] <= v)
+	}
+  if (cuts[n - 1] <= v) {
     return n;
-  if (cuts[0] > v)
+	}
+  if (cuts[0] > v) {
     return 0;
+	}
   int left = 0, right = n - 1;
   while (right - left > 1) {
     int middle = left + (right - left) / 2;
-    if (cuts[middle] > v)
+    if (cuts[middle] > v) {
       right = middle;
-    else
+    } else {
       left = middle;
+		}
   }
   return right;
 }
