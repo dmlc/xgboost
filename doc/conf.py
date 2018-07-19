@@ -185,12 +185,4 @@ def generate_doxygen_xml(app):
     run_doxygen('..')
 
 def setup(app):
-  # urlretrieve got moved in Python 3.x
-  try:
-    from urllib import urlretrieve
-  except ImportError:
-    from urllib.request import urlretrieve
-  urlretrieve('https://code.jquery.com/jquery-2.2.4.min.js',
-              '_static/jquery.js')
-  app.add_javascript('jquery.js')
   app.add_stylesheet('custom.css')
