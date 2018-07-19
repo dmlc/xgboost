@@ -17,13 +17,14 @@ Contents
 
   build
   get_started
-  parameter
   tutorials/index
   faq
+  XGBoost User Forum <https://discuss.xgboost.ai>
+  GPU support <gpu/index>
+  parameter
   Python package <python/index>
   R package <R-package/index>
   JVM package <jvm/index>
   Julia package <julia>
   CLI interface <cli>
-  GPU support <gpu/index>
   contribute
