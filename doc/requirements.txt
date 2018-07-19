@@ -1,2 +1,3 @@
 sphinx
 mock
+guzzle_sphinx_theme
