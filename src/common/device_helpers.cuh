@@ -168,8 +168,15 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
-// index of the first element in cuts greater than v, or n if none;
-// cuts are ordered, and binary search is used
+/*! 
+ * \brief Find the strict upper bound for an element in a sorted array
+ *  using binary search.
+ * \param cuts pointer to the first element of the sorted array
+ * \param n length of the sorted array
+ * \param v value for which to find the upper bound
+ * \return the smallest index i such that v < cuts[i], or n if v is greater or equal
+ *  than all elements of the array
+*/
 DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
   if (n == 0) {
     return 0;
