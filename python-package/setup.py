@@ -18,11 +18,12 @@ exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpat
 
 LIB_PATH = []
 for libfile in libpath['find_lib_path']():
-  try:
-    relpath = os.path.relpath(libfile, CURRENT_DIR)
-    LIB_PATH.append(relpath)
-  except ValueError:
-    continue
+    try:
+        relpath = os.path.relpath(libfile, CURRENT_DIR)
+        LIB_PATH.append(relpath)
+        break  # need only one
+    except ValueError:
+        continue
 
 print("Install libxgboost from: %s" % LIB_PATH)
 # Please use setup_pip.py for generating and deploying pip installation
