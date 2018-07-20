@@ -1,8 +1,5 @@
 /*!
- * Copyright 2017 by Contributors
- * \file hist_util.cu
- * \brief Finding quantiles ("sketching") on the GPU
- * \author Andy Adinets
+ * Copyright 2018 XGBoost contributors
  */
 
 #include "./hist_util.h"
@@ -205,146 +202,146 @@ struct GPUSketcher {
       tmp_storage_.resize(tmp_size);
     }
 
-		void FindColumnCuts(size_t batch_nrows, size_t icol) {
-			size_t tmp_size = tmp_storage_.size();
-			// filter out NaNs in feature values
-			auto fvalues_begin = fvalues_.data() + icol * gpu_batch_nrows_;
-			cub::DeviceSelect::If
-				(tmp_storage_.data().get(), tmp_size, fvalues_begin,
-				 fvalues_cur_.data(), num_elements_.begin(), batch_nrows, IsNotNaN());
-			size_t nfvalues_cur = 0;
-			thrust::copy_n(num_elements_.begin(), 1, &nfvalues_cur);
+    void FindColumnCuts(size_t batch_nrows, size_t icol) {
+      size_t tmp_size = tmp_storage_.size();
+      // filter out NaNs in feature values
+      auto fvalues_begin = fvalues_.data() + icol * gpu_batch_nrows_;
+      cub::DeviceSelect::If
+        (tmp_storage_.data().get(), tmp_size, fvalues_begin,
+         fvalues_cur_.data(), num_elements_.begin(), batch_nrows, IsNotNaN());
+      size_t nfvalues_cur = 0;
+      thrust::copy_n(num_elements_.begin(), 1, &nfvalues_cur);
 
-			// compute cumulative weights using a prefix scan
-			if (has_weights_) {
-				// filter out NaNs in weights;
-				// since cub::DeviceSelect::If performs stable filtering,
-				// the weights are stored in the correct positions
-				auto feature_weights_begin = feature_weights_.data() +
-					icol * gpu_batch_nrows_;
-				cub::DeviceSelect::If
-					(tmp_storage_.data().get(), tmp_size, feature_weights_begin,
-					 weights_.data().get(), num_elements_.begin(), batch_nrows, IsNotNaN());
+      // compute cumulative weights using a prefix scan
+      if (has_weights_) {
+        // filter out NaNs in weights;
+        // since cub::DeviceSelect::If performs stable filtering,
+        // the weights are stored in the correct positions
+        auto feature_weights_begin = feature_weights_.data() +
+          icol * gpu_batch_nrows_;
+        cub::DeviceSelect::If
+          (tmp_storage_.data().get(), tmp_size, feature_weights_begin,
+           weights_.data().get(), num_elements_.begin(), batch_nrows, IsNotNaN());
 
-				// sort the values and weights
-				cub::DeviceRadixSort::SortPairs
-					(tmp_storage_.data().get(), tmp_size, fvalues_cur_.data().get(),
-					 fvalues_begin.get(), weights_.data().get(), weights2_.data().get(),
-					 nfvalues_cur);
+        // sort the values and weights
+        cub::DeviceRadixSort::SortPairs
+          (tmp_storage_.data().get(), tmp_size, fvalues_cur_.data().get(),
+           fvalues_begin.get(), weights_.data().get(), weights2_.data().get(),
+           nfvalues_cur);
 
-				// sum the weights to get cumulative weight values
-				cub::DeviceScan::InclusiveSum
-					(tmp_storage_.data().get(), tmp_size, weights2_.begin(),
-					 weights_.begin(), nfvalues_cur);
-			} else {
-				// sort the batch values
-				cub::DeviceRadixSort::SortKeys
-					(tmp_storage_.data().get(), tmp_size,
-					 fvalues_cur_.data().get(), fvalues_begin.get(), nfvalues_cur);
+        // sum the weights to get cumulative weight values
+        cub::DeviceScan::InclusiveSum
+          (tmp_storage_.data().get(), tmp_size, weights2_.begin(),
+           weights_.begin(), nfvalues_cur);
+      } else {
+        // sort the batch values
+        cub::DeviceRadixSort::SortKeys
+          (tmp_storage_.data().get(), tmp_size,
+           fvalues_cur_.data().get(), fvalues_begin.get(), nfvalues_cur);
 
-				// fill in cumulative weights with counting iterator
-				thrust::copy_n(thrust::make_counting_iterator(1), nfvalues_cur,
-											 weights_.begin());
-			}
+        // fill in cumulative weights with counting iterator
+        thrust::copy_n(thrust::make_counting_iterator(1), nfvalues_cur,
+                       weights_.begin());
+      }
 
-			// remove repeated items and sum the weights across them;
-			// non-negative weights are assumed
-			cub::DeviceReduce::ReduceByKey
-				(tmp_storage_.data().get(), tmp_size, fvalues_begin,
-				 fvalues_cur_.begin(), weights_.begin(), weights2_.begin(),
-				 num_elements_.begin(), thrust::maximum<bst_float>(), nfvalues_cur);
-			size_t n_unique = 0;
-			thrust::copy_n(num_elements_.begin(), 1, &n_unique);
+      // remove repeated items and sum the weights across them;
+      // non-negative weights are assumed
+      cub::DeviceReduce::ReduceByKey
+        (tmp_storage_.data().get(), tmp_size, fvalues_begin,
+         fvalues_cur_.begin(), weights_.begin(), weights2_.begin(),
+         num_elements_.begin(), thrust::maximum<bst_float>(), nfvalues_cur);
+      size_t n_unique = 0;
+      thrust::copy_n(num_elements_.begin(), 1, &n_unique);
 
-			// extract cuts
-			n_cuts_cur_[icol] = std::min(n_cuts_, n_unique);
-			// if less elements than cuts: copy all elements with their weights
-			if (n_cuts_ > n_unique) {
-				auto weights2_iter = weights2_.begin();
-				auto fvalues_iter = fvalues_cur_.begin();
-				auto cuts_iter = cuts_d_.begin() + icol * n_cuts_;
-				dh::LaunchN(device_, n_unique, [=]__device__(size_t i) {
-						bst_float rmax = weights2_iter[i];
-						bst_float rmin = i > 0 ? weights2_iter[i - 1] : 0;
-						cuts_iter[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_iter[i]);
-					});
-			} else if (n_cuts_cur_[icol] > 0) {
-				// if more elements than cuts: use binary search on cumulative weights
-				int block = 256;
-				find_cuts_k<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
-					(cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
-					 weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
-				dh::safe_cuda(cudaGetLastError());
-			}
-		}
+      // extract cuts
+      n_cuts_cur_[icol] = std::min(n_cuts_, n_unique);
+      // if less elements than cuts: copy all elements with their weights
+      if (n_cuts_ > n_unique) {
+        auto weights2_iter = weights2_.begin();
+        auto fvalues_iter = fvalues_cur_.begin();
+        auto cuts_iter = cuts_d_.begin() + icol * n_cuts_;
+        dh::LaunchN(device_, n_unique, [=]__device__(size_t i) {
+            bst_float rmax = weights2_iter[i];
+            bst_float rmin = i > 0 ? weights2_iter[i - 1] : 0;
+            cuts_iter[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_iter[i]);
+          });
+      } else if (n_cuts_cur_[icol] > 0) {
+        // if more elements than cuts: use binary search on cumulative weights
+        int block = 256;
+        find_cuts_k<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
+          (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
+           weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
+        dh::safe_cuda(cudaGetLastError());
+      }
+    }
 
-		void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
-										 size_t gpu_batch) {
-			// compute start and end indices
-			size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
-			size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
-																			static_cast<size_t>(n_rows_));
-			size_t batch_nrows = batch_row_end - batch_row_begin;
-			size_t n_entries =
-				row_batch.offset[row_begin_ + batch_row_end] -
-				row_batch.offset[row_begin_ + batch_row_begin];
-			// copy the batch to the GPU
-			dh::safe_cuda
-				(cudaMemcpy(entries_.data().get(),
-										&row_batch.data[row_batch.offset[row_begin_ + batch_row_begin]],
-										n_entries * sizeof(Entry), cudaMemcpyDefault));
-			// copy the weights if necessary
-			if (has_weights_) {
-				dh::safe_cuda
-					(cudaMemcpy(weights_.data().get(),
-											info.weights_.data() + row_begin_ + batch_row_begin,
-											batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
-			}
+    void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
+                     size_t gpu_batch) {
+      // compute start and end indices
+      size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
+      size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
+                                      static_cast<size_t>(n_rows_));
+      size_t batch_nrows = batch_row_end - batch_row_begin;
+      size_t n_entries =
+        row_batch.offset[row_begin_ + batch_row_end] -
+        row_batch.offset[row_begin_ + batch_row_begin];
+      // copy the batch to the GPU
+      dh::safe_cuda
+        (cudaMemcpy(entries_.data().get(),
+                    &row_batch.data[row_batch.offset[row_begin_ + batch_row_begin]],
+                    n_entries * sizeof(Entry), cudaMemcpyDefault));
+      // copy the weights if necessary
+      if (has_weights_) {
+        dh::safe_cuda
+          (cudaMemcpy(weights_.data().get(),
+                      info.weights_.data() + row_begin_ + batch_row_begin,
+                      batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
+      }
 
-			// unpack the features; also unpack weights if present
-			thrust::fill(fvalues_.begin(), fvalues_.end(), NAN);
-			thrust::fill(feature_weights_.begin(), feature_weights_.end(), NAN);
+      // unpack the features; also unpack weights if present
+      thrust::fill(fvalues_.begin(), fvalues_.end(), NAN);
+      thrust::fill(feature_weights_.begin(), feature_weights_.end(), NAN);
 
-			dim3 block3(64, 4, 1);
-			dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
-								 dh::DivRoundUp(num_cols_, block3.y), 1);
-			unpack_features_k<<<grid3, block3>>>
-				(fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
-				 row_ptrs_.data().get() + batch_row_begin,
-				 has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
-				 gpu_batch_nrows_, num_cols_,
-				 row_batch.offset[row_begin_ + batch_row_begin], batch_nrows);
-			dh::safe_cuda(cudaGetLastError());
-			dh::safe_cuda(cudaDeviceSynchronize());
+      dim3 block3(64, 4, 1);
+      dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
+                 dh::DivRoundUp(num_cols_, block3.y), 1);
+      unpack_features_k<<<grid3, block3>>>
+        (fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
+         row_ptrs_.data().get() + batch_row_begin,
+         has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
+         gpu_batch_nrows_, num_cols_,
+         row_batch.offset[row_begin_ + batch_row_begin], batch_nrows);
+      dh::safe_cuda(cudaGetLastError());
+      dh::safe_cuda(cudaDeviceSynchronize());
 
-			for (int icol = 0; icol < num_cols_; ++icol) {
-				FindColumnCuts(batch_nrows, icol);		
-			}
+      for (int icol = 0; icol < num_cols_; ++icol) {
+        FindColumnCuts(batch_nrows, icol);
+      }
 
-			dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaDeviceSynchronize());
 
-			// add cuts into sketches
-			thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
-			for (int icol = 0; icol < num_cols_; ++icol) {
-				summaries_[icol].MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
-				sketches_[icol].PushSummary(summaries_[icol]);
-			}
-		}
+      // add cuts into sketches
+      thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
+      for (int icol = 0; icol < num_cols_; ++icol) {
+        summaries_[icol].MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
+        sketches_[icol].PushSummary(summaries_[icol]);
+      }
+    }
 
-		void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
-			// copy rows to the device
-			dh::safe_cuda(cudaSetDevice(device_));
-			row_ptrs_.resize(n_rows_ + 1);
-			thrust::copy(&row_batch.offset[row_begin_], &row_batch.offset[row_end_ + 1],
-									 row_ptrs_.begin());
+    void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
+      // copy rows to the device
+      dh::safe_cuda(cudaSetDevice(device_));
+      row_ptrs_.resize(n_rows_ + 1);
+      thrust::copy(&row_batch.offset[row_begin_], &row_batch.offset[row_end_ + 1],
+                   row_ptrs_.begin());
 
-			size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
+      size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
 
-			for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
-				SketchBatch(row_batch, info, gpu_batch);
-			}
-		}
-	};
+      for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
+        SketchBatch(row_batch, info, gpu_batch);
+      }
+    }
+  };
 
   void Sketch(const SparsePage& batch, const MetaInfo& info, HistCutMatrix* hmat) {
     // partition input matrix into row segments
