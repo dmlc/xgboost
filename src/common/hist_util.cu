@@ -41,7 +41,7 @@ __global__ void find_cuts_k
     bst_float rank = cum_weights[nsamples - 1] / static_cast<float>(ncuts - 1)
       * static_cast<float>(icut);
     // -1 is used because cum_weights is an inclusive sum
-    isample = dh::UpperBound(cum_weights, nsamples, rank) - 1;
+    isample = dh::UpperBound(cum_weights, nsamples, rank);
     isample = max(0, min(isample, nsamples - 1));
   }
   // repeated values will be filtered out on the CPU
