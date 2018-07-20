@@ -120,9 +120,10 @@ def _load_lib():
     pathBackup = os.environ['PATH']
     for lib_path in lib_paths:
         try:
-            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path) # needed when the lib is compiled with non-system-available dependencies
+            # needed when the lib is linked with non-system-available dependencies
+            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
             lib = ctypes.cdll.LoadLibrary(lib_path)
-        except:
+        except OSError:
             continue
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
