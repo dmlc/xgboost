@@ -357,7 +357,7 @@ struct DeviceShard {
 
     auto counting = thrust::make_counting_iterator(size_t(0));
     using TransformT = thrust::transform_iterator<decltype(get_size),
-                                                  decltype(counting), size_t>;
+      decltype(counting), size_t>;
     TransformT row_size_iter = TransformT(counting, get_size);
     row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows, 0,
                                 thrust::maximum<size_t>());
@@ -664,8 +664,10 @@ struct DeviceShard {
 
     CalcWeightTrainParam param_d(param);
 
-    thrust::copy(node_sum_gradients.begin(), node_sum_gradients.end(),
-                 node_sum_gradients_d.tbegin());
+    dh::safe_cuda(cudaMemcpy(node_sum_gradients_d.Data(),
+                             node_sum_gradients.data(),
+                             sizeof(GradientPair) * node_sum_gradients.size(),
+                             cudaMemcpyHostToDevice));
     auto d_position = position.Current();
     auto d_ridx = ridx.Current();
     auto d_node_sum_gradients = node_sum_gradients_d.Data();
@@ -794,6 +796,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void AllReduceHist(int nidx) {
+    reducer_.GroupStart();
     for (auto& shard : shards_) {
       auto d_node_hist = shard->hist.GetHistPtr(nidx);
       reducer_.AllReduceSum(
@@ -802,6 +805,7 @@ class GPUHistMaker : public TreeUpdater {
           reinterpret_cast<GradientPairSumT::ValueT*>(d_node_hist),
           n_bins_ * (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
     }
+    reducer_.GroupEnd();
 
     reducer_.Synchronize();
   }

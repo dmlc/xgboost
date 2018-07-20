@@ -16,12 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.TaskContext
@@ -135,6 +137,10 @@ class XGBoostRegressor (
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
 
+  def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
+
+  def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
+
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -225,8 +231,14 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  /**
+   * Single instance prediction.
+   * Note: The performance is not ideal, use it carefully!
+   */
   override def predict(features: Vector): Double = {
-    throw new Exception("XGBoost-Spark does not support online prediction")
+    import DataUtils._
+    val dm = new DMatrix(Iterator(features.asXGB))
+    _booster.predict(data = dm)(0)(0)
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {

@@ -752,10 +752,10 @@ class FastHistMaker: public TreeUpdater {
       // calculating the weights
       {
         bst_uint parentid = tree[nid].Parent();
-        snode_[nid].root_gain = static_cast<float>(
-            spliteval_->ComputeScore(parentid, snode_[nid].stats));
         snode_[nid].weight = static_cast<float>(
             spliteval_->ComputeWeight(parentid, snode_[nid].stats));
+        snode_[nid].root_gain = static_cast<float>(
+            spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
       }
     }
 
