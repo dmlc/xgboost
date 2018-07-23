@@ -434,9 +434,10 @@ class CQHistMaker: public HistMaker<TStats> {
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
         // start enumeration
-        const auto nsize = static_cast<bst_omp_uint>(batch.Size());
+        const auto nsize = static_cast<bst_omp_uint>(work_set_.size());
         #pragma omp parallel for schedule(dynamic, 1)
-        for (bst_omp_uint fid = 0; fid < nsize; ++fid) {
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          int fid = work_set_[i];
           int offset = feat2workindex_[fid];
           if (offset >= 0) {
             this->UpdateSketchCol(gpair, batch[fid], tree,
