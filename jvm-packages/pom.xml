@@ -123,6 +123,9 @@
         </profile>
         <profile>
             <id>assembly</id>
+            <activation>
+              <activeByDefault>true</activeByDefault>
+            </activation>
             <build>
                 <plugins>
                     <plugin>
