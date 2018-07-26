@@ -110,7 +110,56 @@ To train a XGBoost model for classification, we need to claim a XGBoostClassifie
           setLabelCol("classIndex")
 ```  
 
+The available parameters for training a XGBoost model can be found in [here](https://xgboost.readthedocs.io/en/latest/parameter.html).
+In XGBoost4J-Spark, we support not only the default set of parameters but also the camel-case-variance of these parameters to keep consistent
+with Spark's MLLIB parameters. Specifically, each parameter in [here](https://xgboost.readthedocs.io/en/latest/parameter.html) has its 
+equivalent form in XGBoost4J-Spark with camel case. For example, to set max_depth for each tree, you can pass parameter just like what we
+ do in the above code snippet, or you can do it through setters in XGBoostClassifer:
+ 
+ ```scala
+     val xgbClassifier1 = new XGBoostClassifier().
+       setFeaturesCol("features").
+       setLabelCol("classIndex")
+     xgbClassifier1.setMaxDeltaStep(2)
+ ```
 
+After we set XGBoostClassifier parameters and feature/label column, we can build a transformer, XGBoostClassificationModel, and apply
+transformation to the DataFrame containing training set, i.e. xgbInput. 
+
+```scala
+    val xgbClassificationModel = xgbClassifier.fit(xgbInput)
+    val results = xgbClassificationModel.transform(xgbInput)
+```
+
+Now, we get a DataFrame, result, containing margin, probability for each class and the prediction for each instance
+
+```scala
++-----------------+----------+--------------------+--------------------+----------+
+|         features|classIndex|       rawPrediction|         probability|prediction|
++-----------------+----------+--------------------+--------------------+----------+
+|[5.1,3.5,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[4.9,3.0,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.7,3.2,1.3,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[4.6,3.1,1.5,0.2]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
+|[5.0,3.6,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[5.4,3.9,1.7,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[4.6,3.4,1.4,0.3]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[5.0,3.4,1.5,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[4.4,2.9,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.9,3.1,1.5,0.1]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
+|[5.4,3.7,1.5,0.2]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[4.8,3.4,1.6,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[4.8,3.0,1.4,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.3,3.0,1.1,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[5.8,4.0,1.2,0.2]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.7,4.4,1.5,0.4]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.4,3.9,1.3,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[5.1,3.5,1.4,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[5.7,3.8,1.7,0.3]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.1,3.8,1.5,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
++-----------------+----------+--------------------+--------------------+----------+
+
+``` 
 
 ### Current Version of Gang Scheduling
 
