@@ -33,10 +33,14 @@ class TestSHAP(unittest.TestCase):
         scores2 = bst.get_score(importance_type='weight')
         scores3 = bst.get_score(importance_type='cover')
         scores4 = bst.get_score(importance_type='gain')
+        scores5 = bst.get_score(importance_type='total_cover')
+        scores6 = bst.get_score(importance_type='total_gain')
         assert len(scores1) == len(features)
         assert len(scores2) == len(features)
         assert len(scores3) == len(features)
         assert len(scores4) == len(features)
+        assert len(scores5) == len(features)
+        assert len(scores6) == len(features)
 
         # check backwards compatibility of get_fscore
         fscores = bst.get_fscore()
