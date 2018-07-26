@@ -161,11 +161,63 @@ Now, we get a DataFrame, result, containing margin, probability for each class a
 
 ``` 
 
-### Current Version of Gang Scheduling
+### Parallel/Distributed Training
 
-based on spark even listener
+One of the most important parameters we set for XGBoostClassifier is "num_workers" (or "numWorkers").
+This parameter controls how many parallel workers we want to have when training a XGBoostClassificationModel.
+
+In XGBoost4J-Spark, each XGBoost worker is wrapped by a Spark task. By default, we allocate a core per each XGBoost worker.
+Therefore, the OpenMP optimization within each XGBoost worker does not take effect and the parallelization of training is achieved
+ by running multiple workers (i.e. Spark tasks) at the same time. 
+ 
+ If you do want OpenMP optimization, you have to 
+ 
+ 1. set `nthread` to a value larger than 1 when creating XGBoostClassifier/XGBoostRegressor
+ 
+ 2. set `spark.task.cpus` in Spark to the same value as `nthread`
+ 
+### Run XGBoost4J-Spark in Production
+
+XGBoost4J-Spark has attracted a lot of users from industry and is deployed in many production environments. We also include many features
+enabling running XGBoost4J-Spark in production smoothly.
+ 
+#### Gang Scheduling
+
+XGBoost uses [AllReduce](http://mpitutorial.com/tutorials/mpi-reduce-and-allreduce/)
+ to synchronize the stats of each worker. Therefore XGBoost4J-Spark requires that all of `nthread * numWorkers` cores
+  should be available before the training runs.
+  
+However, in production environment where many users share the same cluster, it's hard to guarantee that your XGBoost4J-Spark can get
+all requested resources for every run. By default, the communication layer in XGBoost will block the whole application when it requires more
+cores to be available. This process usually brings unnecessary resource waste as it keeps the ready resources and try to claim more.
+ Additionally, this usually happens silently and does not bring the attention of users.
+ 
+ XGBoost4J-Spark allows the user to setup a timeout threshold for claiming resources from the cluster. If the application cannot get
+ enough resources within this time period, the application would fail instead of wasting resources for hanging long. To enable this feature,
+ you can set with XGBoostClassifier:
+ 
+ ```scala
+ xgbClassifier.setTimeoutRequestWorkers()
+ ```
+ 
+ or pass in `timeout_request_workers` in xgbParamMap when building XGBoostClassifier
+ 
+ ```scala
+    val xgbParam = Map("eta" -> 0.1f,
+       "max_depth" -> 2,
+       "objective" -> "multi:softprob",
+       "num_class" -> 3,
+       "num_round" -> 100,
+       "num_workers" -> 2,
+       "timeout_request_workers" -> 60000L)
+    val xgbClassifier = new XGBoostClassifier(xgbParam).
+        setFeaturesCol("features").
+        setLabelCol("classIndex")
+ ```
 
 ### Checkpoint Support
+
+
 
 ## Prediction
 
