@@ -348,7 +348,8 @@ struct DeviceShard {
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_idx));
     row_ptrs.resize(n_rows + 1);
-    thrust::copy(&row_batch.offset[row_begin_idx], &row_batch.offset[row_end_idx + 1],
+    thrust::copy(row_batch.offset.data() + row_begin_idx,
+                 row_batch.offset.data() + row_end_idx + 1,
                  row_ptrs.begin());
     auto row_iter = row_ptrs.begin();
     auto get_size = [=] __device__(size_t row) {

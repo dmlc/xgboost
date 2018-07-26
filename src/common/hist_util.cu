@@ -332,7 +332,8 @@ struct GPUSketcher {
       // copy rows to the device
       dh::safe_cuda(cudaSetDevice(device_));
       row_ptrs_.resize(n_rows_ + 1);
-      thrust::copy(&row_batch.offset[row_begin_], &row_batch.offset[row_end_ + 1],
+      thrust::copy(row_batch.offset.data() + row_begin_,
+                   row_batch.offset.data() + row_end_ + 1,
                    row_ptrs_.begin());
 
       size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
