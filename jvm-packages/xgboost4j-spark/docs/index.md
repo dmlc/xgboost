@@ -4,7 +4,41 @@
 
 # Build an Application with XGBoost4J-Spark
 
-(based on maven build), step by step (structure of program)
+To build a Spark application with XGBoost4J-Spark, you first need to refer to the dependency in maven_central, 
+
+You can add the following dependency in your pom file.
+
+```xml
+<dependency>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost4j-spark</artifactId>
+    <version>latest_version_num</version>
+</dependency>
+```
+
+For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
+
+We also publish some functionalities which would be included in the coming release in the form of snapshot version. To access 
+these functionalities, you can refer the dependency to snapshot artifacts. We publish snapshot version in github-based repo, so 
+you first need to add the following repo in pom.xml:
+
+```xml
+<repository>
+  <id>GitHub Repo</id>
+  <name>GitHub Repo</name>
+  <url>https://raw.githubusercontent.com/CodingCat/xgboost/maven-repo/</url>
+</repository>
+``` 
+
+and then refer to the snapshot dependency by adding:
+
+```xml
+<dependency>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost4j</artifactId>
+    <version>next_version_num-SNAPSHOT</version>
+</dependency>
+```
 
 ## Data Preparation
 
@@ -215,9 +249,38 @@ cores to be available. This process usually brings unnecessary resource waste as
         setLabelCol("classIndex")
  ```
 
-### Checkpoint Support
+#### Checkpoint During Training
 
+Transient Failures are commonly seen in production environment. To simplify the design of XGBoost,
+ we stop training if any of the distributed workers fail.  Additionally, to efficiently recover failed training, we support
+ checkpoint mechanism to facilitate failure recovery.
+ 
+ To enable this feature, you can set how many iterations we build each checkpoint with `setCheckpointInterval` and
+ the path store checkpointPath with `setCheckpointPath`:
+ 
+  ```scala
+      xgbClassifier.setCheckpointInterval(2)
+      xgbClassifier.setCheckpointPath("/checkpoint_path")
+  ```
+  
+  an equivalent way is to pass in parameters in XGBoostClassifier's constructor:
+  
+  ```scala
+      val xgbParam = Map("eta" -> 0.1f,
+         "max_depth" -> 2,
+         "objective" -> "multi:softprob",
+         "num_class" -> 3,
+         "num_round" -> 100,
+         "num_workers" -> 2,
+         "checkpoint_path" -> "/checkpoints",
+         "checkpoint_interval" -> 2)
+      val xgbClassifier = new XGBoostClassifier(xgbParam).
+          setFeaturesCol("features").
+          setLabelCol("classIndex")
+   ```
 
+If the training failed during these 100 rounds, the next run of training would start by reading the latest checkpoint file 
+in `/checkpoints` and start from the iteration when the checkpoint was built until to next failure or the specified 100 rounds.
 
 ## Prediction
 
