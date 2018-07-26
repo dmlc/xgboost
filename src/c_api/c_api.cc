@@ -759,7 +759,7 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixGetGroup(const DMatrixHandle handle,
                               const unsigned** out_group,
-                              bst_ulong* out_len) {
+                              xgboost::bst_ulong* out_len) {
   std::vector<unsigned>& group = XGBAPIThreadLocalStore::Get()->ret_vec_uint;
   group.resize(0);
 
@@ -773,7 +773,7 @@ XGB_DLL int XGDMatrixGetGroup(const DMatrixHandle handle,
     group.push_back(info.group_ptr_[i + 1] - info.group_ptr_[i]);
   }
   *out_group = dmlc::BeginPtr(group);
-  *out_len = static_cast<bst_ulong>(group.size());
+  *out_len = static_cast<xgboost::bst_ulong>(group.size());
   API_END();
 }
 
