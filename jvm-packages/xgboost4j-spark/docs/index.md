@@ -1,7 +1,13 @@
 # XGBoost4J-Spark
 
-(3 - 4 sentences intro)
-
+XGBoost4J-Spark is a project aiming to seamlessly integrate XGBoost and Spark's MLLIB framework. With the integration,
+ user can not only using the highly performant algorithm implementation of XGBoost, but also it leverages the existing tools for user to 
+ easily work on:
+ 
+ * Feature Engineering: feature extraction, transformation, dimensionality reduction, and selection
+ * Pipelines: constructing, evaluating, and tuning ML Pipelines
+ * Persistence: persist and load machine learning models and even whole Pipelines
+ 
 # Build an Application with XGBoost4J-Spark
 
 To build a Spark application with XGBoost4J-Spark, you first need to refer to the dependency in maven_central, 
