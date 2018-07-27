@@ -18,16 +18,16 @@ libxgboostgpu:
 libxgboostcpu:
 	git submodule init && git submodule update dmlc-core && git submodule update rabit
 libxgboostp2nccl:
-    pip install -r requirements_runtime.txt
-    pip install -r requirements_build.txt
+	pip install -r requirements_runtime.txt
+	pip install -r requirements_build.txt
 	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
 libxgboostp2nonccl:
-    pip install -r requirements_runtime.txt
-    pip install -r requirements_build.txt
+	pip install -r requirements_runtime.txt
+	pip install -r requirements_build.txt
 	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
 libxgboostp2cpu-only:
-    pip install -r requirements_runtime.txt
-    pip install -r requirements_build.txt
+	pip install -r requirements_runtime.txt
+	pip install -r requirements_build.txt
 	mkdir -p build && cd build && cmake .. -DUSE_CUDA=OFF -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
 libxgboostp3:
 	cd python-package && rm -rf dist && python setup.py sdist bdist_wheel
