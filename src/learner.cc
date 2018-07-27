@@ -23,7 +23,7 @@
 
 namespace {
 
-const char* MAX_DELTA_STEP_DEFAULT_VALUE = "0.7";
+const char* kMaxDeltaStepDefaultValue = "0.7";
 
 }  // anonymous namespace
 
@@ -227,7 +227,7 @@ class LearnerImpl : public Learner {
 
     if (cfg_.count("max_delta_step") == 0 && cfg_.count("objective") != 0 &&
         cfg_["objective"] == "count:poisson") {
-      cfg_["max_delta_step"] = MAX_DELTA_STEP_DEFAULT_VALUE;
+      cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
 
     ConfigureUpdaters();
@@ -356,7 +356,7 @@ class LearnerImpl : public Learner {
         // recover value of max_delta_step from extra attributes
         auto it2 = attributes_.find("count_poisson_max_delta_step");
         const std::string max_delta_step
-          = (it2 != attributes_.end()) ? it2->second : MAX_DELTA_STEP_DEFAULT_VALUE;
+          = (it2 != attributes_.end()) ? it2->second : kMaxDeltaStepDefaultValue;
         fo->Write(max_delta_step);
       }
     }
