@@ -25,7 +25,7 @@ namespace {
 
 const char* MAX_DELTA_STEP_DEFAULT_VALUE = "0.7";
 
-}  // namespace anonymous
+}  // anonymous namespace
 
 namespace xgboost {
 // implementation of base learner.
