@@ -52,6 +52,10 @@ def assert_classification_result(results):
 
 
 class TestLinear(unittest.TestCase):
+
+    datasets = ["Boston", "Digits", "Cancer", "Sparse regression",
+                "Boston External Memory"]
+
     def test_coordinate(self):
         tm._skip_if_no_sklearn()
         variable_param = {'booster': ['gblinear'], 'updater': ['coord_descent'], 'eta': [0.5],
@@ -60,7 +64,7 @@ class TestLinear(unittest.TestCase):
                           'feature_selector': ['cyclic', 'shuffle', 'greedy', 'thrifty']
                           }
         for param in parameter_combinations(variable_param):
-            results = run_suite(param, 200, None, scale_features=True)
+            results = run_suite(param, 200, self.datasets, scale_features=True)
             assert_regression_result(results, 1e-2)
             assert_classification_result(results)
 
@@ -72,6 +76,6 @@ class TestLinear(unittest.TestCase):
                           'feature_selector': ['cyclic', 'shuffle']
                           }
         for param in parameter_combinations(variable_param):
-            results = run_suite(param, 200, None, True)
+            results = run_suite(param, 200, self.datasets, True)
             assert_regression_result(results, 1e-2)
             assert_classification_result(results)

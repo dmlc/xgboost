@@ -12,8 +12,11 @@
 #include <vector>
 #include "row_set.h"
 #include "../tree/fast_hist_param.h"
+#include "../tree/param.h"
+#include "./quantile.h"
 
 namespace xgboost {
+
 namespace common {
 
 using tree::FastHistParam;
@@ -77,11 +80,20 @@ struct HistCutMatrix {
     return {dmlc::BeginPtr(cut) + row_ptr[fid],
                        row_ptr[fid + 1] - row_ptr[fid]};
   }
+
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
   void Init(DMatrix* p_fmat, uint32_t max_num_bins);
+
+  void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 };
 
+/*! \brief Builds the cut matrix on the GPU */
+void DeviceSketch
+  (const SparsePage& batch, const MetaInfo& info,
+   const tree::TrainParam& param, HistCutMatrix* hmat);
 
 /*!
  * \brief A single row in global histogram index.
