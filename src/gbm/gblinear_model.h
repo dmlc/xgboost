@@ -36,10 +36,12 @@ struct GBLinearModelParam : public dmlc::Parameter<GBLinearModelParam> {
 // model for linear booster
 class GBLinearModel {
  public:
+  explicit GBLinearModel(bst_float base_margin) : base_margin(base_margin) {}
   // parameter
   GBLinearModelParam param;
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
+  bst_float base_margin;
   // initialize the model parameter
   inline void LazyInitModel() {
     if (!weight.empty()) return;

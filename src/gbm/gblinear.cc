@@ -53,6 +53,8 @@ class GBLinear : public GradientBooster {
   explicit GBLinear(const std::vector<std::shared_ptr<DMatrix> > &cache,
                     bst_float base_margin)
       : base_margin_(base_margin),
+        model_(base_margin),
+        previous_model_(base_margin),
         sum_instance_weight_(0),
         sum_weight_complete_(false),
         is_converged_(false) {
