@@ -20,7 +20,7 @@ def non_increasing(L, tolerance):
 # Check result is always decreasing and final accuracy is within tolerance
 def assert_accuracy(res, tree_method, comparison_tree_method, tolerance, param):
     assert non_increasing(res[tree_method], tolerance)
-    assert np.allclose(res[tree_method][-1], res[comparison_tree_method][-1], 1e-3, 1e-2)
+    assert np.allclose(res[tree_method][-1], res[comparison_tree_method][-1], 1e-2, 1e-1)
 
 
 def train_boston(param_in, comparison_tree_method):
