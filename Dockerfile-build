@@ -76,13 +76,13 @@ RUN \
     /root/.pyenv/bin/pyenv global 3.6.1 && \
     pip install setuptools --no-cache-dir
 
-COPY requirements_buildonly.txt requirements_buildonly.txt
+COPY requirements_build.txt requirements_build.txt
 COPY requirements_runtime.txt requirements_runtime.txt
 RUN \
     eval "$(/root/.pyenv/bin/pyenv init -)" && \
     /root/.pyenv/bin/pyenv global 3.6.1 && \
     pip install setuptools && \
-    pip install -r requirements_buildonly.txt && \
+    pip install -r requirements_build.txt && \
     pip install -r requirements_runtime.txt && \
     chmod 777 / && \
     chmod -R 777 /root  && \

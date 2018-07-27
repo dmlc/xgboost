@@ -25,7 +25,7 @@ for libfile in libpath['find_lib_path']():
     except ValueError:
         continue
 
-print("Install libxgboost from: %s" % LIB_PATH)
+#print("Install libxgboost from: %s" % LIB_PATH)
 # Please use setup_pip.py for generating and deploying pip installation
 # detailed instruction in setup_pip.py
 
