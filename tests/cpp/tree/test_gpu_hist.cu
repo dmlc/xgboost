@@ -30,8 +30,9 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
-  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
-  shard.Init(hmat, batch);
+  DeviceShard shard(0, 0, 0, rows, p);
+  shard.InitRowPtrs(batch);
+  shard.InitCompressedData(hmat, batch);
   CHECK(!iter->Next());
 
   ASSERT_LT(shard.row_stride, columns);
@@ -72,8 +73,9 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
 
-  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
-  shard.Init(hmat, batch);
+  DeviceShard shard(0, 0, 0, rows, p);
+  shard.InitRowPtrs(batch);
+  shard.InitCompressedData(hmat, batch);
   CHECK(!iter->Next());
 
   ASSERT_EQ(shard.row_stride, columns);

@@ -11,11 +11,10 @@ from regression_test_utilities import run_suite, parameter_combinations, \
 def assert_gpu_results(cpu_results, gpu_results):
     for cpu_res, gpu_res in zip(cpu_results, gpu_results):
         # Check final eval result roughly equivalent
-        assert np.allclose(cpu_res["eval"][-1], gpu_res["eval"][-1], 1e-3, 1e-2)
+        assert np.allclose(cpu_res["eval"][-1], gpu_res["eval"][-1], 1e-2, 1e-2)
 
-
-datasets = ["Boston", "Cancer", "Digits", "Sparse regression"]
-
+datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
+            "Sparse regression with weights"]
 
 class TestGPU(unittest.TestCase):
     def test_gpu_exact(self):
