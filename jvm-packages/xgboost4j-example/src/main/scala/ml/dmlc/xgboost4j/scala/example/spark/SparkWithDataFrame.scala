@@ -47,7 +47,7 @@ object SparkWithDataFrame {
       "max_depth" -> 2,
       "objective" -> "binary:logistic",
       "num_round" -> numRound,
-      "nWorkers" -> args(1).toInt).toMap
+      "num_workers" -> args(1).toInt).toMap
     val xgboostModel = new XGBoostClassifier(paramMap).fit(trainDF)
     // xgboost-spark appends the column containing prediction results
     xgboostModel.transform(testDF).show()

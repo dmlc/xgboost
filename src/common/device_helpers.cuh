@@ -163,11 +163,41 @@ inline void CheckComputeCapability() {
   }
 }
 
-
+  
 DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
+/*! 
+ * \brief Find the strict upper bound for an element in a sorted array
+ *  using binary search.
+ * \param cuts pointer to the first element of the sorted array
+ * \param n length of the sorted array
+ * \param v value for which to find the upper bound
+ * \return the smallest index i such that v < cuts[i], or n if v is greater or equal
+ *  than all elements of the array
+*/
+DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
+  if (n == 0) {
+    return 0;
+	}
+  if (cuts[n - 1] <= v) {
+    return n;
+	}
+  if (cuts[0] > v) {
+    return 0;
+	}
+  int left = 0, right = n - 1;
+  while (right - left > 1) {
+    int middle = left + (right - left) / 2;
+    if (cuts[middle] > v) {
+      right = middle;
+    } else {
+      left = middle;
+		}
+  }
+  return right;
+}
 
 /*
  * Range iterator
@@ -251,6 +281,18 @@ template <typename T1, typename T2>
 T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(ceil(static_cast<double>(a) / b));
 }
+
+inline void RowSegments(size_t n_rows, size_t n_devices, std::vector<size_t>* segments) {
+  segments->push_back(0);
+  size_t row_begin = 0;
+  size_t shard_size = DivRoundUp(n_rows, n_devices);
+  for (size_t d_idx = 0; d_idx < n_devices; ++d_idx) {
+    size_t row_end = std::min(row_begin + shard_size, n_rows);
+    segments->push_back(row_end);
+    row_begin = row_end;
+  }
+}
+
 
 template <typename L>
 __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
