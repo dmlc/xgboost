@@ -18,6 +18,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 
 * `Documents`_
 * `Testcases`_
+* `Sanitizers`_
 * `Examples`_
 * `Core Library`_
 * `Python Package`_
@@ -120,6 +121,46 @@ Testcases
 *********
 * All the testcases are in `tests <https://github.com/dmlc/xgboost/tree/master/tests>`_.
 * We use python nose for python test cases.
+
+**********
+Sanitizers
+**********
+
+By default, sanitizers are bundled in GCC and Clang/LLVM. One can enable
+sanitizers with GCC >= 4.8 or LLVM >= 3.1, But some distributions might package
+sanitizers separately.  Here is a list of supported sanitizers with
+corresponding library names:
+
+- Address sanitizer: libasan
+- Leak sanitizer:    liblsan
+- Thread sanitizer:  libtsan
+
+Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.
+
+How to build XGBoost with sanitizers
+====================================
+One can build XGBoost with sanitizer support by specifying -DUSE_SANITIZER=ON.
+By default, address sanitizer and leak sanitizer are used when you turn the
+USE_SANITIZER flag on.  You can always change the default by providing a
+semicolon separated list of sanitizers to ENABLED_SANITIZERS.  Note that thread
+sanitizer is not compatible with the other two sanitizers.
+
+  .. code-block:: bash
+
+    cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak" /path/to/xgboost
+
+How to use sanitizers with CUDA support
+=======================================
+Runing XGBoost on CUDA with address sanitizer (asan) will raise memory error.
+To use asan with CUDA correctly, you need to configure asan via ASAN_OPTIONS
+environment variable:
+
+  .. code-block:: bash
+
+    ASAN_OPTIONS=protect_shadow_gap=0 ../testxgboost
+
+For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
+
 
 ********
 Examples
