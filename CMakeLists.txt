@@ -53,6 +53,10 @@ if(USE_AVX)
   add_definitions(-DXGBOOST_USE_AVX)
 endif()
 
+# dmlc-core
+add_subdirectory(dmlc-core)
+set(LINK_LIBRARIES dmlc rabit)
+
 # enable custom logging
 add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
 
@@ -107,12 +111,6 @@ if(MINGW OR R_LIB)
 else()
   add_library(rabit STATIC ${RABIT_SOURCES})
 endif()
-
-
-# dmlc-core
-add_subdirectory(dmlc-core)
-set(LINK_LIBRARIES dmlc rabit)
-
 
 if(USE_CUDA)
   find_package(CUDA 8.0 REQUIRED)
