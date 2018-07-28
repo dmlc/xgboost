@@ -192,25 +192,28 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
   return -1;
 }
 
+/**
+ * Data storage for node histograms on device. Automatically expands.
+ *
+ * @author Rory
+ * @date 28/07/2018
+ */
+
 struct DeviceHistogram {
-  dh::BulkAllocator<dh::MemoryType::kDevice> ba;
-  dh::DVec<GradientPairSumT> data;
+  std::map<int, size_t>
+      nidx_map;  // Map nidx to starting index of its histogram
+  thrust::device_vector<GradientPairSumT> data;
   int n_bins;
-  void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
-    this->n_bins = n_bins;
-    ba.Allocate(device_idx, silent, &data, size_t(max_nodes) * size_t(n_bins));
-  }
+  void Init(int n_bins) { this->n_bins = n_bins; }
 
-  void Reset() { data.Fill(GradientPairSumT()); }
-  GradientPairSumT* GetHistPtr(int nidx) { return data.Data() + nidx * n_bins; }
-
-  void PrintNidx(int nidx) const {
-    auto h_data = data.AsVector();
-    std::cout << "nidx " << nidx << ":\n";
-    for (int i = n_bins * nidx; i < n_bins * (nidx + 1); i++) {
-      std::cout << h_data[i] << " ";
+  void Reset() { thrust::fill(data.begin(), data.end(), GradientPairSumT()); }
+  GradientPairSumT* GetHistPtr(int nidx) {
+    if (nidx_map.find(nidx) == nidx_map.end()) {
+      // Append new node histogram
+      nidx_map[nidx] = data.size();
+      data.resize(data.size() + n_bins, GradientPairSumT());
     }
-    std::cout << "\n";
+    return data.data().get() + nidx_map[nidx];
   }
 };
 
@@ -457,7 +460,7 @@ struct DeviceShard {
     can_use_smem_atomics = histogram_size <= max_smem;
 
     // Init histogram
-    hist.Init(device_idx, max_nodes, hmat.row_ptr.back(), param.silent);
+    hist.Init(hmat.row_ptr.back());
 
     dh::safe_cuda(cudaMallocHost(&tmp_pinned, sizeof(int64_t)));
   }
