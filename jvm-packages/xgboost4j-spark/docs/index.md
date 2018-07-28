@@ -166,41 +166,6 @@ equivalent form in XGBoost4J-Spark with camel case. For example, to set max_dept
 After we set XGBoostClassifier parameters and feature/label column, we can build a transformer, XGBoostClassificationModel, and apply
 transformation to the DataFrame containing training set, i.e. xgbInput. 
 
-```scala
-    val xgbClassificationModel = xgbClassifier.fit(xgbInput)
-    val results = xgbClassificationModel.transform(xgbInput)
-```
-
-Now, we get a DataFrame, result, containing margin, probability for each class and the prediction for each instance
-
-```scala
-+-----------------+----------+--------------------+--------------------+----------+
-|         features|classIndex|       rawPrediction|         probability|prediction|
-+-----------------+----------+--------------------+--------------------+----------+
-|[5.1,3.5,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
-|[4.9,3.0,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
-|[4.7,3.2,1.3,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
-|[4.6,3.1,1.5,0.2]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
-|[5.0,3.6,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
-|[5.4,3.9,1.7,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
-|[4.6,3.4,1.4,0.3]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
-|[5.0,3.4,1.5,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
-|[4.4,2.9,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
-|[4.9,3.1,1.5,0.1]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
-|[5.4,3.7,1.5,0.2]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
-|[4.8,3.4,1.6,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
-|[4.8,3.0,1.4,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
-|[4.3,3.0,1.1,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
-|[5.8,4.0,1.2,0.2]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
-|[5.7,4.4,1.5,0.4]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
-|[5.4,3.9,1.3,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
-|[5.1,3.5,1.4,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
-|[5.7,3.8,1.7,0.3]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
-|[5.1,3.8,1.5,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
-+-----------------+----------+--------------------+--------------------+----------+
-
-``` 
-
 ### Parallel/Distributed Training
 
 One of the most important parameters we set for XGBoostClassifier is "num_workers" (or "numWorkers").
@@ -290,16 +255,205 @@ in `/checkpoints` and start from the iteration when the checkpoint was built unt
 
 ## Prediction
 
-Highlight the recommended way (batching prediction)
+XGBoost4j-Spark supports two way for model serving: batch prediction and single instance prediction.
 
-briefly talk about single-instance prediction
+### Batch prediction
+
+When we get a model, either `XGBoostClassificationModel` or `XGBoostRegressionModel`, it takes a DataFrame, read the column containing feature vectors,
+predict for each feature vector, and output a new DataFrame with the following columns by default:
+
+* `XGBoostClassificationModel` will output raw predictions for each possible label(`rawPredictionCol`),
+ the probability of each possible label(`probabilityCol`), and the predicted label(`predictionCol`).
+* `XGBoostRegressionModel` will output predicted label(`predictionCol`).
+
+```scala
+    val xgbClassificationModel = xgbClassifier.fit(xgbInput)
+    val results = xgbClassificationModel.transform(xgbInput)
+```
+
+Now, we get a DataFrame, result containing margin, probability for each class and the prediction for each instance
+
+```scala
++-----------------+----------+--------------------+--------------------+----------+
+|         features|classIndex|       rawPrediction|         probability|prediction|
++-----------------+----------+--------------------+--------------------+----------+
+|[5.1,3.5,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[4.9,3.0,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.7,3.2,1.3,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[4.6,3.1,1.5,0.2]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
+|[5.0,3.6,1.4,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[5.4,3.9,1.7,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[4.6,3.4,1.4,0.3]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[5.0,3.4,1.5,0.2]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[4.4,2.9,1.4,0.2]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.9,3.1,1.5,0.1]|       0.0|[3.45569849014282...|[0.99636095762252...|       0.0|
+|[5.4,3.7,1.5,0.2]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[4.8,3.4,1.6,0.2]|       0.0|[3.45569849014282...|[0.99643349647521...|       0.0|
+|[4.8,3.0,1.4,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[4.3,3.0,1.1,0.1]|       0.0|[3.45569849014282...|[0.99618089199066...|       0.0|
+|[5.8,4.0,1.2,0.2]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.7,4.4,1.5,0.4]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.4,3.9,1.3,0.4]|       0.0|[3.45569849014282...|[0.99428516626358...|       0.0|
+|[5.1,3.5,1.4,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
+|[5.7,3.8,1.7,0.3]|       0.0|[3.45569849014282...|[0.97809928655624...|       0.0|
+|[5.1,3.8,1.5,0.3]|       0.0|[3.45569849014282...|[0.99579632282257...|       0.0|
++-----------------+----------+--------------------+--------------------+----------+
+
+``` 
+
+### Single instance prediction
+
+`XGBoostClassificationModel` or `XGBoostRegressionModel` support make prediction on single instance as well.
+It accepts a single Vector as feature, and output the predicted double label.
+However, this function's performance is not ideal, use it carefully!
+
+```scala
+    val features = xgbInput.head().getAs[Vector]("features")
+    val result = xgbClassificationModel.predict(features)
+```
 
 ## Model Persistence 
 
-(also talk about how to train a model in Spark and use it in python environment) 
+### Model and pipeline persistence
+
+A data scientist produces an ML model and hands it over to an engineering team for deployment in a production environment.
+So it's important to support model persistence.
+
+XGBoost4j-Spark supports save/load `XGBoostClassifier`/`XGBoostClassificationModel` and `XGBoostRegressor`/`XGBoostRegressionModel`,
+it also support save/load a ML pipeline which includes these estimators and models.
+
+We can save the XGBoostClassificationModel to file system:
+
+```scala
+    val xgbClassificationModelPath = "/tmp/xgbClassificationModel"
+    xgbClassificationModel.write.overwrite().save(xgbClassificationModelPath)
+```
+
+and then loading the model in another session:
+
+```scala
+    import ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel
+    
+    val xgbClassificationModel2 = XGBoostClassificationModel.load(xgbClassificationModelPath)
+    xgbClassificationModel2.transform(xgbInput)
+```
+
+With regards to ML pipeline save and load, please refer the next section.
+
+### Export to local
+
+After we train a model with XGBoost4j-Spark on massive dataset, sometimes we want to do model serving in single machine
+or integrate it with other single node libraries for further processing. XGBoost4j-Spark supports export model to local by:
+
+```scala
+    val nativeModelPath = "/tmp/nativeModel"
+    xgbClassificationModel.nativeBooster.saveModel(nativeModelPath)
+```
+
+Then we can load this model with single node Python XGBoost:
+
+```python
+    import xgboost as xgb
+    bst = xgb.Booster({'nthread': 4})
+    bst.load_model(nativeModelPath)
+```
 
 # Building a ML Pipeline with XGBoost4J-Spark
 
+## Basic ML Pipeline
+
+Spark ML pipeline can combine multiple algorithms or functions into a single pipeline.
+It covers from feature extraction/transformation/selection to model training/prediction.
+XGBoost4j-Spark makes it feasible to embed XGBoost into such a pipeline seamlessly.
+The following example shows how to build such a pipeline consisting of Spark MLlib feature transformer
+and XGBoostClassifier estimator.
+
+We still use [Iris](https://archive.ics.uci.edu/ml/datasets/iris) dataset and the ```rawInput``` DataFrame.
+First we need to split the dataset into training and test dataset.
+
+```scala
+    val Array(training, test) = rawInput.randomSplit(Array(0.8, 0.2), 123)
+```
+
+The we build the ML `Pipeline` which includes 4 stages:
+* Assemble all features into a single vector column.
+* From string label to indexed double label.
+* Use `XGBoostClassifier` to train classification model.
+* Convert indexed double label back to original string label.
+
+And start to run this `Pipeline` and get a `PipelineModel`:
+
+```scala
+    import org.apache.spark.ml.feature._
+    import org.apache.spark.ml.Pipeline
+    
+    val assembler = new VectorAssembler()
+        .setInputCols(Array("sepal length", "sepal width", "petal length", "petal width"))
+        .setOutputCol("features")
+    val labelIndexer = new StringIndexer()
+        .setInputCol("species")
+        .setOutputCol("label")
+        .fit(training)
+    val booster = new XGBoostClassifier(
+        Map("eta" -> 0.1f,
+            "max_depth" -> 2,
+            "objective" -> "multi:softprob",
+            "num_class" -> 3,
+            "num_round" -> 100,
+            "num_workers" -> 2
+        )
+    )
+    val labelConverter = new IndexToString()
+        .setInputCol("prediction")
+        .setOutputCol("realLabel")
+        .setLabels(labelIndexer.labels)
+
+    val pipeline = new Pipeline()
+        .setStages(Array(assembler, labelIndexer, booster, labelConverter))
+    val model = pipeline.fit(training)
+```
+
+After we get the PipelineModel, we can make prediction on the test dataset and evaluate the model accuracy.
+
+```scala
+    import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+    
+    val prediction = model.transform(test)
+    val evaluator = new MulticlassClassificationEvaluator()
+    val accuracy = evaluator.evaluate(prediction)
+```
+
+## Pipeline with Hyper-parameter Tunning
+
+The most critical operation to maximize the power of XGBoost is to select the optimal parameters for the model.
+Tuning parameters manually is a tedious and labor-consuming process. With the latest version of XGBoost4J-Spark,
+we can utilize the Spark model selecting tool to automate this process. 
+
+The following example shows the code snippet utilizing `CrossValidation` and `MulticlassClassificationEvaluator`
+to search the optimal combination of two XGBoost parameters, [`max_depth` and `eta`](https://github.com/dmlc/xgboost/blob/master/doc/parameter.md).
+The model producing the maximum accuracy defined by `MulticlassClassificationEvaluator` is selected and used to generate the prediction for the test set.
+
+```scala
+    import org.apache.spark.ml.tuning._
+    import org.apache.spark.ml.PipelineModel
+    import ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel
+    
+    val paramGrid = new ParamGridBuilder()
+        .addGrid(booster.maxDepth, Array(3, 8))
+        .addGrid(booster.eta, Array(0.2, 0.6))
+        .build()
+    val cv = new CrossValidator()
+        .setEstimator(pipeline)
+        .setEvaluator(evaluator)
+        .setEstimatorParamMaps(paramGrid)
+        .setNumFolds(3)
+
+    val cvModel = cv.fit(training)
+
+    val bestModel = cvModel.bestModel.asInstanceOf[PipelineModel].stages(2)
+        .asInstanceOf[XGBoostClassificationModel] 
+    bestModel.extractParamMap()
+```
 
 
 
