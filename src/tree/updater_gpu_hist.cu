@@ -193,10 +193,12 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
 }
 
 /**
- * Data storage for node histograms on device. Automatically expands.
+ * \struct  DeviceHistogram
  *
- * @author Rory
- * @date 28/07/2018
+ * \summary Data storage for node histograms on device. Automatically expands.
+ *
+ * \author  Rory
+ * \date    28/07/2018
  */
 
 struct DeviceHistogram {
