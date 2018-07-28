@@ -309,35 +309,23 @@ The we build the ML `Pipeline` which includes 4 stages:
 * Use `XGBoostClassifier` to train classification model.
 * Convert indexed double label back to original string label.
 
-And start to run this `Pipeline` and get a `PipelineModel`:
+We have shown the first three steps in the earlier sections, and the last step is finished with a new Transformer IndexToString: 
+
+```scala
+	val labelConverter = new IndexToString()
+        .setInputCol("prediction")
+        .setOutputCol("realLabel")
+        .setLabels(stringIndexer.labels)
+```
+
+We need to organize these steps as a `Pipeline` in Spark ML framework and evaluate the whole pipeline to get a `PipelineModel`:
 
 ```scala
     import org.apache.spark.ml.feature._
     import org.apache.spark.ml.Pipeline
     
-    val assembler = new VectorAssembler()
-        .setInputCols(Array("sepal length", "sepal width", "petal length", "petal width"))
-        .setOutputCol("features")
-    val labelIndexer = new StringIndexer()
-        .setInputCol("species")
-        .setOutputCol("label")
-        .fit(training)
-    val booster = new XGBoostClassifier(
-        Map("eta" -> 0.1f,
-            "max_depth" -> 2,
-            "objective" -> "multi:softprob",
-            "num_class" -> 3,
-            "num_round" -> 100,
-            "num_workers" -> 2
-        )
-    )
-    val labelConverter = new IndexToString()
-        .setInputCol("prediction")
-        .setOutputCol("realLabel")
-        .setLabels(labelIndexer.labels)
-
     val pipeline = new Pipeline()
-        .setStages(Array(assembler, labelIndexer, booster, labelConverter))
+        .setStages(Array(assembler, stringIndexer, booster, labelConverter))
     val model = pipeline.fit(training)
 ```
 
@@ -353,9 +341,7 @@ After we get the PipelineModel, we can make prediction on the test dataset and e
 
 ## Pipeline with Hyper-parameter Tunning
 
-The most critical operation to maximize the power of XGBoost is to select the optimal parameters for the model.
-Tuning parameters manually is a tedious and labor-consuming process. With the latest version of XGBoost4J-Spark,
-we can utilize the Spark model selecting tool to automate this process. 
+The most critical operation to maximize the power of XGBoost is to select the optimal parameters for the model. Tuning parameters manually is a tedious and labor-consuming process. With the latest version of XGBoost4J-Spark, we can utilize the Spark model selecting tool to automate this process. 
 
 The following example shows the code snippet utilizing `CrossValidation` and `MulticlassClassificationEvaluator`
 to search the optimal combination of two XGBoost parameters, [`max_depth` and `eta`](https://github.com/dmlc/xgboost/blob/master/doc/parameter.md).
@@ -386,13 +372,18 @@ The model producing the maximum accuracy defined by `MulticlassClassificationEva
 # Run XGBoost4J-Spark in Production
 
 
+XGBoost4J-Spark is one of the most important steps to bring XGBoost to production environment easier. In this section, we introduce three key features to run XGBoost4J-Spark in production.
+
 ## Parallel/Distributed Training
 
-One of the most important parameters we set for XGBoostClassifier is "num_workers" (or "numWorkers").
+The massive size of training dataset is one of the most significant characteristics in production environment. To ensure that training in XGBoost scales with the data size, XGBoost4J-Spark bridges the distributed/parallel processing framework of Spark and the parallel/distributed training mechanism of XGBoost. 
+
+In XGBoost4J-Spark, each XGBoost worker is wrapped by a Spark task and the training dataset in Spark's memory space is fed to XGBoost workers in a transparent approach to the user.
+
+In the code snippet where we build XGBoostClassifier, we set parameter "num_workers" (or "numWorkers").
 This parameter controls how many parallel workers we want to have when training a XGBoostClassificationModel.
 
-In XGBoost4J-Spark, each XGBoost worker is wrapped by a Spark task. By default, we allocate a core per each XGBoost worker.
-Therefore, the OpenMP optimization within each XGBoost worker does not take effect and the parallelization of training is achieved
+ By default, we allocate a core per each XGBoost worker. Therefore, the OpenMP optimization within each XGBoost worker does not take effect and the parallelization of training is achieved
  by running multiple workers (i.e. Spark tasks) at the same time. 
  
  If you do want OpenMP optimization, you have to 
@@ -400,29 +391,18 @@ Therefore, the OpenMP optimization within each XGBoost worker does not take effe
  1. set `nthread` to a value larger than 1 when creating XGBoostClassifier/XGBoostRegressor
  
  2. set `spark.task.cpus` in Spark to the same value as `nthread`
- 
-
-
-XGBoost4J-Spark has attracted a lot of users from industry and is deployed in many production environments. We also include many features
-enabling running XGBoost4J-Spark in production smoothly.
- 
+  
 ## Gang Scheduling
 
 XGBoost uses [AllReduce](http://mpitutorial.com/tutorials/mpi-reduce-and-allreduce/)
- to synchronize the stats of each worker. Therefore XGBoost4J-Spark requires that all of `nthread * numWorkers` cores
-  should be available before the training runs.
+algorithm to synchronize the stats, e.g. histogram values, of each worker during training. Therefore XGBoost4J-Spark requires that all of `nthread * numWorkers` cores should be available before the training runs.
   
-However, in production environment where many users share the same cluster, it's hard to guarantee that your XGBoost4J-Spark can get
-all requested resources for every run. By default, the communication layer in XGBoost will block the whole application when it requires more
-cores to be available. This process usually brings unnecessary resource waste as it keeps the ready resources and try to claim more.
- Additionally, this usually happens silently and does not bring the attention of users.
+In the production environment where many users share the same cluster, it's hard to guarantee that your XGBoost4J-Spark application can get all requested resources for every run. By default, the communication layer in XGBoost will block the whole application when it requires more resources to be available. This process usually brings unnecessary resource waste as it keeps the ready resources and try to claim more. Additionally, this usually happens silently and does not bring the attention of users.
  
- XGBoost4J-Spark allows the user to setup a timeout threshold for claiming resources from the cluster. If the application cannot get
- enough resources within this time period, the application would fail instead of wasting resources for hanging long. To enable this feature,
- you can set with XGBoostClassifier:
+XGBoost4J-Spark allows the user to setup a timeout threshold for claiming resources from the cluster. If the application cannot get enough resources within this time period, the application would fail instead of wasting resources for hanging long. To enable this feature, you can set with XGBoostClassifier/XGBoostRegressor:
  
  ```scala
- xgbClassifier.setTimeoutRequestWorkers()
+ xgbClassifier.setTimeoutRequestWorkers(60000L)
  ```
  
  or pass in `timeout_request_workers` in xgbParamMap when building XGBoostClassifier
@@ -439,15 +419,16 @@ cores to be available. This process usually brings unnecessary resource waste as
         setFeaturesCol("features").
         setLabelCol("classIndex")
  ```
+ 
+If XGBoost4J-Spark cannot get enough resources for running two XGBoost workers, the application would fail. Users can have external mechanism to monitor the status of application and get notified for such case.
 
 ## Checkpoint During Training
 
-Transient Failures are commonly seen in production environment. To simplify the design of XGBoost,
- we stop training if any of the distributed workers fail.  Additionally, to efficiently recover failed training, we support
- checkpoint mechanism to facilitate failure recovery.
+Transient failures are also commonly seen in production environment. To simplify the design of XGBoost,
+ we stop training if any of the distributed workers fail. However, if the training fails after having been through a long time, it would be a great resource waste on failing.
  
- To enable this feature, you can set how many iterations we build each checkpoint with `setCheckpointInterval` and
- the path store checkpointPath with `setCheckpointPath`:
+ 
+We support creating checkpoint during training to facilitate more efficient failure recovery. To enable this feature, you can set how many iterations we build each checkpoint with `setCheckpointInterval` and the path store checkpointPath with `setCheckpointPath`:
  
   ```scala
       xgbClassifier.setCheckpointInterval(2)
@@ -463,14 +444,13 @@ Transient Failures are commonly seen in production environment. To simplify the 
          "num_class" -> 3,
          "num_round" -> 100,
          "num_workers" -> 2,
-         "checkpoint_path" -> "/checkpoints",
+         "checkpoint_path" -> "/checkpoints_path",
          "checkpoint_interval" -> 2)
       val xgbClassifier = new XGBoostClassifier(xgbParam).
           setFeaturesCol("features").
           setLabelCol("classIndex")
    ```
 
-If the training failed during these 100 rounds, the next run of training would start by reading the latest checkpoint file 
-in `/checkpoints` and start from the iteration when the checkpoint was built until to next failure or the specified 100 rounds.
+If the training failed during these 100 rounds, the next run of training would start by reading the latest checkpoint file in `/checkpoints_path` and start from the iteration when the checkpoint was built until to next failure or the specified 100 rounds.
 
 
