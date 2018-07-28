@@ -206,13 +206,34 @@ struct DeviceHistogram {
       nidx_map;  // Map nidx to starting index of its histogram
   thrust::device_vector<GradientPairSumT> data;
   int n_bins;
-  void Init(int n_bins) { this->n_bins = n_bins; }
+  int device_idx;
+  void Init(int device_idx, int n_bins) {
+    this->n_bins = n_bins;
+    this->device_idx = device_idx;
+  }
 
-  void Reset() { thrust::fill(data.begin(), data.end(), GradientPairSumT()); }
+  void Reset() {
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    thrust::fill(data.begin(), data.end(), GradientPairSumT());
+  }
+
+  /**
+   * \summary   Return pointer to histogram memory for a given node. Be aware that this function
+   *            may reallocate the underlying memory, invalidating previous pointers.
+   *
+   * \author    Rory
+   * \date  28/07/2018
+   *
+   * \param nidx    Tree node index.
+   *
+   * \return    hist pointer.
+   */
+
   GradientPairSumT* GetHistPtr(int nidx) {
     if (nidx_map.find(nidx) == nidx_map.end()) {
       // Append new node histogram
       nidx_map[nidx] = data.size();
+      dh::safe_cuda(cudaSetDevice(device_idx));
       data.resize(data.size() + n_bins, GradientPairSumT());
     }
     return data.data().get() + nidx_map[nidx];
@@ -462,7 +483,7 @@ struct DeviceShard {
     can_use_smem_atomics = histogram_size <= max_smem;
 
     // Init histogram
-    hist.Init(hmat.row_ptr.back());
+    hist.Init(device_idx, hmat.row_ptr.back());
 
     dh::safe_cuda(cudaMallocHost(&tmp_pinned, sizeof(int64_t)));
   }
@@ -564,6 +585,10 @@ struct DeviceShard {
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
                         int nidx_subtraction) {
+    // Make sure histograms are already allocated
+    hist.GetHistPtr(nidx_parent);
+    hist.GetHistPtr(nidx_histogram);
+    hist.GetHistPtr(nidx_subtraction);
     auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
     auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
@@ -729,8 +754,9 @@ class GPUHistMaker : public TreeUpdater {
       for (size_t i = 0; i < trees.size(); ++i) {
         this->UpdateTree(gpair, dmat, trees[i]);
       }
+      dh::safe_cuda(cudaGetLastError());
     } catch (const std::exception& e) {
-      LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
+      LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
     }
     param_.learning_rate = lr;
     monitor_.Stop("Update", device_list_);
