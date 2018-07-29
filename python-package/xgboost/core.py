@@ -744,7 +744,7 @@ class DMatrix(object):
                     feature_names = [feature_names]
             except TypeError:
                 feature_names = [feature_names]
-   
+
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
             if len(feature_names) != self.num_col():
