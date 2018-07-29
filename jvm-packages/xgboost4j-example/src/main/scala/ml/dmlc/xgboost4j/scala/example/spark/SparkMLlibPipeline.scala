@@ -25,6 +25,8 @@ import org.apache.spark.sql.types._
 
 import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassifier, XGBoostClassificationModel}
 
+// this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
+
 object SparkMLlibPipeline {
 
   def main(args: Array[String]): Unit = {
@@ -49,7 +51,7 @@ object SparkMLlibPipeline {
       StructField("sepal width", DoubleType, true),
       StructField("petal length", DoubleType, true),
       StructField("petal width", DoubleType, true),
-      StructField("species", StringType, true)))
+      StructField("class", StringType, true)))
 
     val rawInput = spark.read.schema(schema).csv(inputPath)
 
@@ -65,8 +67,8 @@ object SparkMLlibPipeline {
       .setInputCols(Array("sepal length", "sepal width", "petal length", "petal width"))
       .setOutputCol("features")
     val labelIndexer = new StringIndexer()
-      .setInputCol("species")
-      .setOutputCol("label")
+      .setInputCol("class")
+      .setOutputCol("classIndex")
       .fit(training)
     val booster = new XGBoostClassifier(
       Map("eta" -> 0.1f,
