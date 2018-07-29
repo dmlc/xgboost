@@ -211,7 +211,7 @@ Additional parameters for Dart Booster (``booster=dart``)
 
   - range: [0.0, 1.0]
 
-Parameters for Linear Booster (``booster=gbtree``)
+Parameters for Linear Booster (``booster=gblinear``)
 ==================================================
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
