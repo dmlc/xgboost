@@ -18,11 +18,20 @@ package org.apache.spark
 
 import org.scalatest.FunSuite
 import _root_.ml.dmlc.xgboost4j.scala.spark.PerTest
+
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SparkSession
 
 class SparkParallelismTrackerSuite extends FunSuite with PerTest {
 
   val numParallelism: Int = Runtime.getRuntime.availableProcessors()
+
+  override protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
+    .master("local[*]")
+    .appName("XGBoostSuite")
+    .config("spark.ui.enabled", true)
+    .config("spark.driver.memory", "512m")
+    .config("spark.task.cpus", 1)
 
   test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
