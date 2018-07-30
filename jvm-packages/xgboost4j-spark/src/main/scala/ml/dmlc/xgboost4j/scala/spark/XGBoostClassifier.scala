@@ -25,8 +25,8 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
@@ -39,9 +39,11 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.json4s.DefaultFormats
 
+import org.apache.spark.broadcast.Broadcast
+
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
   with BoosterParams with HasWeightCol with HasBaseMarginCol with HasNumClass with ParamMapFuncs
-  with HasLeafPredictionCol
+  with HasLeafPredictionCol with HasContribPredictionCol
 
 class XGBoostClassifier (
     override val uid: String,
@@ -288,21 +290,17 @@ class XGBoostClassificationModel private[ml](
             null
           }
         }
-
         val dm = new DMatrix(
           XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
           cacheInfo)
         try {
-          val rawPredictionItr = {
-            bBooster.value.predict(dm, outPutMargin = true).map(Row(_)).iterator
-          }
-          val probabilityItr = {
-            bBooster.value.predict(dm, outPutMargin = false).map(Row(_)).iterator
-          }
+          val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
+            producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
           rowItr1.zip(rawPredictionItr).zip(probabilityItr).map {
             case ((originals: Row, rawPrediction: Row), probability: Row) =>
-              Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq)
+              Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq ++
+                predLeafItr.toSeq ++ predContribItr.toSeq)
           }
         } finally {
           dm.delete()
@@ -314,7 +312,49 @@ class XGBoostClassificationModel private[ml](
 
     bBooster.unpersist(blocking = false)
 
-    dataset.sparkSession.createDataFrame(rdd, schema)
+    dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+  }
+
+  private def generateResultSchema(fixedSchema: StructType): StructType = {
+    var resultSchema = fixedSchema
+    if (isDefined(leafPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    if (isDefined(contribPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    resultSchema
+  }
+
+  private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+      Array[Iterator[Row]] = {
+    val rawPredictionItr = {
+      broadcastBooster.value.predict(dm, outPutMargin = true, $(treeLimit)).
+        map(Row(_)).iterator
+    }
+    val probabilityItr = {
+      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).
+        map(Row(_)).iterator
+    }
+    val predLeafItr = {
+      if (isDefined(leafPredictionCol)) {
+        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    val predContribItr = {
+      if (isDefined(contribPredictionCol)) {
+        broadcastBooster.value.predictContrib(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {

@@ -160,7 +160,7 @@ private[spark] trait GeneralParams extends Params {
 
 trait HasLeafPredictionCol extends Params {
   /**
-   * Param for initial prediction (aka base margin) column name.
+   * Param for leaf prediction column name.
    * @group param
    */
   final val leafPredictionCol: Param[String] = new Param[String](this, "leafPredictionCol",
@@ -168,6 +168,18 @@ trait HasLeafPredictionCol extends Params {
 
   /** @group getParam */
   final def getLeafPredictionCol: String = $(leafPredictionCol)
+}
+
+trait HasContribPredictionCol extends Params {
+  /**
+   * Param for contribution prediction column name.
+   * @group param
+   */
+  final val contribPredictionCol: Param[String] = new Param[String](this, "contribPredictionCol",
+    "name of the predictContrib results")
+
+  /** @group getParam */
+  final def getContribPredictionCol: String = $(contribPredictionCol)
 }
 
 trait HasBaseMarginCol extends Params {
