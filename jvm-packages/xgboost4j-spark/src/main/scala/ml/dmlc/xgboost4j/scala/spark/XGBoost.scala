@@ -223,8 +223,7 @@ object XGBoost extends Serializable {
         val tracker = startTracker(nWorkers, trackerConf)
         try {
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers,
-            nWorkers * sc.getConf.getInt("spark.task.cpus", 1))
+          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
             tracker.getWorkerEnvs, checkpointRound, obj, eval, useExternalMemory, missing,
             prevBooster)
