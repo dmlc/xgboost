@@ -76,7 +76,7 @@ public class XGBoost {
           Map<String, DMatrix> watches,
           IObjective obj,
           IEvaluation eval) throws XGBoostError {
-    return train(dtrain, params, round, watches, null, obj, eval, 0);
+    return train(dtrain, params, round, watches, null, obj, new IEvaluation[]{eval}, 0);
   }
 
   /**
@@ -105,7 +105,7 @@ public class XGBoost {
           IObjective obj,
           IEvaluation eval,
           int earlyStoppingRound) throws XGBoostError {
-    return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
+    return train(dtrain, params, round, watches, metrics, obj, new IEvaluation[]{eval}, earlyStoppingRound, null);
   }
 
   /**
@@ -134,14 +134,28 @@ public class XGBoost {
           float[][] metrics,
           IObjective obj,
           IEvaluation eval,
-          int earlyStoppingRound,
-          Booster booster) throws XGBoostError {
+	  int earlyStoppingRound,
+	  Booster booster) throws XGBoostError {
+      return train(dtrain, params, round, watches, metrics, obj, new IEvaluation[]{eval}, earlyStoppingRound, booster);
+  }
+
+  public static BoosterResults trainWithResults(
+      DMatrix dtrain,
+      Map<String, Object> params,
+      int round,
+      Map<String, DMatrix> watches,
+      float[][] metrics,
+      IObjective obj,
+      IEvaluation[] evals,
+      int earlyStoppingRound,
+      Booster booster) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
     DMatrix[] evalMats;
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
+    List<String> logLines = new ArrayList<String>();
 
     for (Map.Entry<String, DMatrix> evalEntry : watches.entrySet()) {
       names.add(evalEntry.getKey());
@@ -187,11 +201,16 @@ public class XGBoost {
       //evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
-        String evalInfo;
-        if (eval != null) {
-          evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
+        String evalInfo = "";
+        if (evals != null && evals.length > 1) {
+          for (int i = 0; i < evals.length; i++) {
+            String evalLine = booster.evalSet(evalMats, evalNames, evals[i]);
+            evalInfo = evalInfo + " " + evalLine;
+          }
+          logLines.add(evalInfo);
         } else {
           evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
+          logLines.add(evalInfo);
         }
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
@@ -207,14 +226,42 @@ public class XGBoost {
           Rabit.trackerPrint(String.format(
                   "early stopping after %d decreasing rounds", earlyStoppingRound));
           break;
-        }
+	}
+	
         if (Rabit.getRank() == 0) {
           Rabit.trackerPrint(evalInfo + '\n');
         }
       }
       booster.saveRabitCheckpoint();
     }
-    return booster;
+    BoosterResults results = new BoosterResults(booster,
+        logLines.toArray(new String[logLines.size()]));
+    return results;
+  }
+
+  /**
+   * Train a booster with given parameters.
+   *
+   * @param dtrain Data to be trained.
+   * @param params Booster params.
+   * @param round  Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *               performance on the validation set.
+   * @param obj    customized objective (set to null if not used)
+   * @param eval   customized evaluation (set to null if not used)
+   * @return trained booster
+   * @throws XGBoostError native error
+   */
+  public static Booster train(
+      DMatrix dtrain,
+      Map<String, Object> params,
+      int round,
+      Map<String, DMatrix> watches,
+      IObjective obj,
+      IEvaluation[] evals) throws XGBoostError {
+
+    BoosterResults results = trainWithResults(dtrain, params, round, watches, obj, evals);
+    return results.getBooster();
   }
 
   /**
