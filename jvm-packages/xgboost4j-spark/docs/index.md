@@ -36,8 +36,8 @@ We also publish some functionalities which would be included in the coming relea
 
 ```xml
 <repository>
-  <id>GitHub Repo</id>
-  <name>GitHub Repo</name>
+  <id>XGBoost4J-Spark Snapshot Repo</id>
+  <name>XGBoost4J-Spark Snapshot Repo</name>
   <url>https://raw.githubusercontent.com/CodingCat/xgboost/maven-repo/</url>
 </repository>
 ``` 
@@ -92,11 +92,11 @@ Spark also contains many built-in readers for other format. The latest version o
 
 To make Iris dataset be recognizable to XGBoost, we need to 
 
-1. Transform String-typed label, i.e. "class", to Integer-typed label.
+1. Transform String-typed label, i.e. "class", to Double-typed label.
 
-2. Assemble the feature columns as a vector to build XGBoost's internal data representation, DMatrix.
+2. Assemble the feature columns as a vector to fit to the data interface of Spark ML framework.
 
-To convert String-typed label to Integer, we can use Spark's built-in feature transformer StringIndexer.
+To convert String-typed label to Double, we can use Spark's built-in feature transformer StringIndexer.
 
 ```scala
     import org.apache.spark.ml.feature.StringIndexer
@@ -110,11 +110,11 @@ To convert String-typed label to Integer, we can use Spark's built-in feature tr
 With a newly created StringIndexer instance:
 
 1. we set input column, i.e. the column containing String-typed label
-2. we set output column, i.e. the column to contain the Integer-typed label.
+2. we set output column, i.e. the column to contain the Double-typed label.
 3. Then we `fit` StringIndex with our input DataFrame, 'rawInput', so that Spark internals can get information like total number of distinct values, etc. 
 
 Now we have a StringIndexer which is ready to be applied to our input DataFrame. To execute the transformation logic of StringIndexer, we `transform` the input DataFrame, 'rawInput' and to keep a concise DataFrame, 
-we drop the column `class` and only keeps the feature columns and the transformed Integer-typed label column (in the last line of the above code snippet).
+we drop the column `class` and only keeps the feature columns and the transformed Double-typed label column (in the last line of the above code snippet).
 
 `fit` and `transform` are two key operations in MLLIB. Basically, `fit` produces a "transformer", e.g. StringIndexer, and each transformer applies `transform` method on DataFrame to add new column(s) containing transformed features/labels or prediction results, etc. To understand more about `fit` and `transform`, You can find more details in [here](http://spark.apache.org/docs/latest/ml-pipeline.html#pipeline-components).
       
@@ -130,7 +130,7 @@ Similarly, we can use another transformer, 'VectorAssembler', to assemble featur
 ```
 
 Now, we have a DataFrame containing only two columns, "features" which contains vector-represented
-"sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Integer-typed
+"sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
       
@@ -162,7 +162,7 @@ equivalent form in XGBoost4J-Spark with camel case. For example, to set max_dept
      val xgbClassifier = new XGBoostClassifier().
        setFeaturesCol("features").
        setLabelCol("classIndex")
-     xgbClassifier.setMaxDeltaStep(2)
+     xgbClassifier.setMaxDepth(2)
  ```
 
 After we set XGBoostClassifier parameters and feature/label column, we can build a transformer, XGBoostClassificationModel by fitting XGBoostClassifier with the input DataFrame. This `fit` operation is essentially the training process and the generated model can then be used in Prediction.
