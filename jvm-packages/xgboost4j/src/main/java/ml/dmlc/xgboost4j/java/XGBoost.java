@@ -204,7 +204,7 @@ public class XGBoost {
         String evalInfo = "";
         if (evals != null && evals.length > 1) {
           for (int i = 0; i < evals.length; i++) {
-            String evalLine = booster.evalSet(evalMats, evalNames, evals[i]);
+	          String evalLine = booster.evalSet(evalMats, evalNames, evals[i], metricsOut);
             evalInfo = evalInfo + " " + evalLine;
           }
           logLines.add(evalInfo);
