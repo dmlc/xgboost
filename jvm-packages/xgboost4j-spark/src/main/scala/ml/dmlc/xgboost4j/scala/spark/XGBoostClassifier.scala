@@ -41,6 +41,7 @@ import org.json4s.DefaultFormats
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
   with BoosterParams with HasWeightCol with HasBaseMarginCol with HasNumClass with ParamMapFuncs
+  with HasLeafPredictionCol
 
 class XGBoostClassifier (
     override val uid: String,
@@ -329,11 +330,11 @@ class XGBoostClassificationModel private[ml](
     var outputData = transformInternal(dataset)
     var numColsOutput = 0
 
-    val rawPredictionUDF = udf { (rawPrediction: mutable.WrappedArray[Float]) =>
+    val rawPredictionUDF = udf { rawPrediction: mutable.WrappedArray[Float] =>
       Vectors.dense(rawPrediction.map(_.toDouble).toArray)
     }
 
-    val probabilityUDF = udf { (probability: mutable.WrappedArray[Float]) =>
+    val probabilityUDF = udf { probability: mutable.WrappedArray[Float] =>
       if (numClasses == 2) {
         Vectors.dense(Array(1 - probability(0), probability(0)).map(_.toDouble))
       } else {
@@ -341,7 +342,7 @@ class XGBoostClassificationModel private[ml](
       }
     }
 
-    val predictUDF = udf { (probability: mutable.WrappedArray[Float]) =>
+    val predictUDF = udf { probability: mutable.WrappedArray[Float] =>
       // From XGBoost probability to MLlib prediction
       val probabilities = if (numClasses == 2) {
         Array(1 - probability(0), probability(0)).map(_.toDouble)

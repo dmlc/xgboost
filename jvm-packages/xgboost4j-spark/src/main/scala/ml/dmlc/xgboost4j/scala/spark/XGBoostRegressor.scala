@@ -42,7 +42,7 @@ import scala.collection.mutable
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
   with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs
+  with ParamMapFuncs with HasLeafPredictionCol
 
 class XGBoostRegressor (
     override val uid: String,
