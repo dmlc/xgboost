@@ -55,11 +55,11 @@ object TrackerConf {
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def removeMissingValues(
-      denseLabeledPoints: Iterator[XGBLabeledPoint],
+  private[spark] def removeMissingValues(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      denseLabeledPoints.map { labeledPoint =>
+      xgbLabelPoints.map { labeledPoint =>
         val indicesBuilder = new mutable.ArrayBuilder.ofInt()
         val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
         for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
@@ -69,7 +69,7 @@ object XGBoost extends Serializable {
         labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
-      denseLabeledPoints
+      xgbLabelPoints
     }
   }
 

@@ -272,7 +272,7 @@ class XGBoostClassificationModel private[ml](
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.rdd.mapPartitions { rowIterator =>
+    val rdd = dataset.asInstanceOf[Dataset[Vector]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
@@ -288,7 +288,9 @@ class XGBoostClassificationModel private[ml](
           }
         }
 
-        val dm = new DMatrix(featuresIterator.map(_.asXGB), cacheInfo)
+        val dm = new DMatrix(
+          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          cacheInfo)
         try {
           val rawPredictionItr = {
             bBooster.value.predict(dm, outPutMargin = true).map(Row(_)).iterator
