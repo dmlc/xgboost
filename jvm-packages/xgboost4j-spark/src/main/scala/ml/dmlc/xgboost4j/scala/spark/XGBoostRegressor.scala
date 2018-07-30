@@ -24,8 +24,8 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
-
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param.shared.HasWeightCol
@@ -37,12 +37,13 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
-
 import scala.collection.mutable
+
+import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
   with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs with HasLeafPredictionCol
+  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
 
 class XGBoostRegressor (
     override val uid: String,
@@ -270,13 +271,13 @@ class XGBoostRegressionModel private[ml] (
           XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
           cacheInfo)
         try {
-          val originalPredictionItr = {
-            bBooster.value.predict(dm).map(Row(_)).iterator
-          }
+          val Array(originalPredictionItr, predLeafItr, predContribItr) =
+            producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
           rowItr1.zip(originalPredictionItr).map {
             case (originals: Row, originalPrediction: Row) =>
-              Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq)
+              Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq ++ predLeafItr.toSeq ++
+                predContribItr.toSeq)
           }
         } finally {
           dm.delete()
@@ -288,7 +289,44 @@ class XGBoostRegressionModel private[ml] (
 
     bBooster.unpersist(blocking = false)
 
-    dataset.sparkSession.createDataFrame(rdd, schema)
+    dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+  }
+
+  private def generateResultSchema(fixedSchema: StructType): StructType = {
+    var resultSchema = fixedSchema
+    if (isDefined(leafPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    if (isDefined(contribPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    resultSchema
+  }
+
+  private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+      Array[Iterator[Row]] = {
+    val originalPredictionItr = {
+      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
+    }
+    val predLeafItr = {
+      if (isDefined(leafPredictionCol)) {
+        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    val predContribItr = {
+      if (isDefined(contribPredictionCol)) {
+        broadcastBooster.value.predictContrib(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    Array(originalPredictionItr, predLeafItr, predContribItr)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
