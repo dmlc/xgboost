@@ -65,7 +65,8 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
     sc.getConf.set("spark.task.cpus", "2")
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
-    val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
+    val tracker = new SparkParallelismTracker(sc, 1000,
+      nWorkers * sc.getConf.getInt("spark.task.cpus", 1))
     intercept[IllegalStateException] {
       tracker.execute {
         rdd.map { i =>
