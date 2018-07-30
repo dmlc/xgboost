@@ -241,7 +241,7 @@ class XGBoostClassificationModel private[ml](
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(Iterator(features.asXGB))
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
     val probability = _booster.predict(data = dm)(0)
     if (numClasses == 2) {
       math.round(probability(0))
@@ -272,12 +272,12 @@ class XGBoostClassificationModel private[ml](
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.rdd.mapPartitions { rowIterator =>
+    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
         val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](
+        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -288,7 +288,9 @@ class XGBoostClassificationModel private[ml](
           }
         }
 
-        val dm = new DMatrix(featuresIterator.map(_.asXGB), cacheInfo)
+        val dm = new DMatrix(
+          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          cacheInfo)
         try {
           val rawPredictionItr = {
             bBooster.value.predict(dm, outPutMargin = true).map(Row(_)).iterator
