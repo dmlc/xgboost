@@ -65,7 +65,7 @@ class HingeObj : public ObjFunction {
 };
 
 XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
-.describe("Hinge loss.")
+.describe("Hinge loss. Expected labels to be in [0,1f]")
 .set_body([]() { return new HingeObj(); });
 
 }  // namespace obj
