@@ -584,13 +584,6 @@ class BulkAllocator {
     d_ptr_.push_back(ptr);
     size_.push_back(size);
     device_idx_.push_back(device_idx);
-
-    if (!silent) {
-      const int mb_size = 1048576;
-      LOG(CONSOLE) << "Allocated " << size / mb_size << "MB on [" << device_idx
-                   << "] " << DeviceName(device_idx) << ", "
-                   << AvailableMemory(device_idx) / mb_size << "MB remaining.";
-    }
   }
 };
 

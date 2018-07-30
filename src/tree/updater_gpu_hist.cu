@@ -192,25 +192,51 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
   return -1;
 }
 
+/**
+ * \struct  DeviceHistogram
+ *
+ * \summary Data storage for node histograms on device. Automatically expands.
+ *
+ * \author  Rory
+ * \date    28/07/2018
+ */
+
 struct DeviceHistogram {
-  dh::BulkAllocator<dh::MemoryType::kDevice> ba;
-  dh::DVec<GradientPairSumT> data;
+  std::map<int, size_t>
+      nidx_map;  // Map nidx to starting index of its histogram
+  thrust::device_vector<GradientPairSumT> data;
   int n_bins;
-  void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
+  int device_idx;
+  void Init(int device_idx, int n_bins) {
     this->n_bins = n_bins;
-    ba.Allocate(device_idx, silent, &data, size_t(max_nodes) * size_t(n_bins));
+    this->device_idx = device_idx;
   }
 
-  void Reset() { data.Fill(GradientPairSumT()); }
-  GradientPairSumT* GetHistPtr(int nidx) { return data.Data() + nidx * n_bins; }
+  void Reset() {
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    thrust::fill(data.begin(), data.end(), GradientPairSumT());
+  }
 
-  void PrintNidx(int nidx) const {
-    auto h_data = data.AsVector();
-    std::cout << "nidx " << nidx << ":\n";
-    for (int i = n_bins * nidx; i < n_bins * (nidx + 1); i++) {
-      std::cout << h_data[i] << " ";
+  /**
+   * \summary   Return pointer to histogram memory for a given node. Be aware that this function
+   *            may reallocate the underlying memory, invalidating previous pointers.
+   *
+   * \author    Rory
+   * \date  28/07/2018
+   *
+   * \param nidx    Tree node index.
+   *
+   * \return    hist pointer.
+   */
+
+  GradientPairSumT* GetHistPtr(int nidx) {
+    if (nidx_map.find(nidx) == nidx_map.end()) {
+      // Append new node histogram
+      nidx_map[nidx] = data.size();
+      dh::safe_cuda(cudaSetDevice(device_idx));
+      data.resize(data.size() + n_bins, GradientPairSumT());
     }
-    std::cout << "\n";
+    return data.data().get() + nidx_map[nidx];
   }
 };
 
@@ -457,7 +483,7 @@ struct DeviceShard {
     can_use_smem_atomics = histogram_size <= max_smem;
 
     // Init histogram
-    hist.Init(device_idx, max_nodes, hmat.row_ptr.back(), param.silent);
+    hist.Init(device_idx, hmat.row_ptr.back());
 
     dh::safe_cuda(cudaMallocHost(&tmp_pinned, sizeof(int64_t)));
   }
@@ -559,6 +585,10 @@ struct DeviceShard {
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
                         int nidx_subtraction) {
+    // Make sure histograms are already allocated
+    hist.GetHistPtr(nidx_parent);
+    hist.GetHistPtr(nidx_histogram);
+    hist.GetHistPtr(nidx_subtraction);
     auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
     auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
@@ -724,8 +754,9 @@ class GPUHistMaker : public TreeUpdater {
       for (size_t i = 0; i < trees.size(); ++i) {
         this->UpdateTree(gpair, dmat, trees[i]);
       }
+      dh::safe_cuda(cudaGetLastError());
     } catch (const std::exception& e) {
-      LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
+      LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
     }
     param_.learning_rate = lr;
     monitor_.Stop("Update", device_list_);

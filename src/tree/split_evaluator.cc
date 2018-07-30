@@ -142,11 +142,12 @@ class ElasticNet final : public SplitEvaluator {
 
   inline double ThresholdL1(double g) const {
     if (g > params_.reg_alpha) {
-      g = g - params_.reg_alpha;
+      return g - params_.reg_alpha;
     } else if (g < -params_.reg_alpha) {
-      g = g + params_.reg_alpha;
+      return g + params_.reg_alpha;
+    } else {
+      return 0.0;
     }
-    return g;
   }
 };
 
