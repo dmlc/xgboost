@@ -33,7 +33,7 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     super.afterAll()
-    sc.getConf.set("spark.task.cpus", "1")
+    sc.conf.set("spark.task.cpus", "1")
   }
 
   test("tracker should not affect execution result when timeout is not larger than 0") {
@@ -62,7 +62,7 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
 
   test("tracker should throw exception if parallelism is not sufficient with" +
     " spark.task.cpus larger than 1") {
-    sc.getConf.set("spark.task.cpus", "2")
+    sc.conf.set("spark.task.cpus", "2")
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000,
