@@ -241,7 +241,7 @@ class XGBoostClassificationModel private[ml](
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(Iterator(features.asXGB))
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
     val probability = _booster.predict(data = dm)(0)
     if (numClasses == 2) {
       math.round(probability(0))

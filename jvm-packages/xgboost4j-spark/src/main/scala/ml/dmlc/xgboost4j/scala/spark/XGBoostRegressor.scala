@@ -237,7 +237,7 @@ class XGBoostRegressionModel private[ml] (
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(Iterator(features.asXGB))
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
     _booster.predict(data = dm)(0)(0)
   }
 
