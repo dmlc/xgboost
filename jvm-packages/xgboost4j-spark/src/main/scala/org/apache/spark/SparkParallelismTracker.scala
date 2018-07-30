@@ -76,7 +76,7 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    val listener = new TaskFailedListener;
+    val listener = new TaskFailedListener
     sc.addSparkListener(listener)
     try {
       body

@@ -28,10 +28,15 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
       .setMaster("local[*]")
       .setAppName("XGBoostSuite")
     sc = new SparkContext(conf)
-    numParallelism = sc.defaultParallelism
+    numParallelism = Runtime.getRuntime.availableProcessors()
   }
 
-  test("tracker should not affect execution result") {
+  override def afterAll(): Unit = {
+    super.afterAll()
+    sc.getConf.set("spark.task.cpus", "1")
+  }
+
+  test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 10000, nWorkers)
@@ -42,6 +47,23 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
 
   test("tracker should throw exception if parallelism is not sufficient") {
     val nWorkers = numParallelism * 3
+    val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
+    val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
+    intercept[IllegalStateException] {
+      tracker.execute {
+        rdd.map { i =>
+          // Test interruption
+          Thread.sleep(Long.MaxValue)
+          i
+        }.sum()
+      }
+    }
+  }
+
+  test("tracker should throw exception if parallelism is not sufficient with" +
+    " spark.task.cpus larger than 1") {
+    sc.getConf.set("spark.task.cpus", "2")
+    val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
     intercept[IllegalStateException] {
