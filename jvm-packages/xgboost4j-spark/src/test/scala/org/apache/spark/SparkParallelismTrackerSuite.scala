@@ -16,25 +16,13 @@
 
 package org.apache.spark
 
+import org.scalatest.FunSuite
+import _root_.ml.dmlc.xgboost4j.scala.spark.PerTest
 import org.apache.spark.rdd.RDD
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
-  var sc: SparkContext = _
-  var numParallelism: Int = _
+class SparkParallelismTrackerSuite extends FunSuite with PerTest {
 
-  override def beforeAll(): Unit = {
-    val conf: SparkConf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("XGBoostSuite")
-    sc = new SparkContext(conf)
-    numParallelism = Runtime.getRuntime.availableProcessors()
-  }
-
-  override def afterAll(): Unit = {
-    super.afterAll()
-    sc.conf.set("spark.task.cpus", "1")
-  }
+  val numParallelism: Int = Runtime.getRuntime.availableProcessors()
 
   test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
