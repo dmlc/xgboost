@@ -8,9 +8,9 @@ set_default_configuration_release()
 msvc_use_static_runtime()
 
 # Options
-option(USE_CUDA  "Build with GPU acceleration") 
-option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF) 
-option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA") 
+option(USE_CUDA  "Build with GPU acceleration")
+option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF)
+option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -89,7 +89,7 @@ include_directories (
     ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
-file(GLOB_RECURSE SOURCES 
+file(GLOB_RECURSE SOURCES
     src/*.cc
     src/*.h
     include/*.h
@@ -127,7 +127,7 @@ if(USE_CUDA)
   cmake_minimum_required(VERSION 3.5)
 
   add_definitions(-DXGBOOST_USE_CUDA)
-  
+
   include_directories(cub)
 
   if(USE_NCCL)
@@ -146,12 +146,12 @@ if(USE_CUDA)
   endif()
 
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
-  
+
   if(USE_NCCL)
     link_directories(${NCCL_LIBRARY})
     target_link_libraries(gpuxgboost ${NCCL_LIB_NAME})
   endif()
-  list(APPEND LINK_LIBRARIES gpuxgboost) 
+  list(APPEND LINK_LIBRARIES gpuxgboost)
 endif()
 
 
@@ -232,12 +232,12 @@ endif()
 
 # Test
 if(GOOGLE_TEST)
-  find_package(GTest REQUIRED)
   enable_testing()
+  find_package(GTest REQUIRED)
 
   file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
-  include_directories(${GTEST_INCLUDE_DIR})
+  include_directories(${GTEST_INCLUDE_DIRS})
 
   if(USE_CUDA)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
