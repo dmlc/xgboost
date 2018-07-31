@@ -29,5 +29,5 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ]; the
 fi
 
 if [ ${TASK} == "distributed_test" ]; then
-    pip install --user kubernetes
+    pip install --user kubernetes numpy scipy
 fi
