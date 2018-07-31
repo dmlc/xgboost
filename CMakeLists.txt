@@ -14,9 +14,10 @@ option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
-option(USE_SANITIZER "Use santizer flags" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+option(USE_SANITIZER "Use santizer flags" OFF)
+option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak and thread.")
