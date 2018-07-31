@@ -147,3 +147,9 @@ if [ ${TASK} == "cpp_test" ]; then
     echo "GTEST_PATH="${CACHE_PREFIX} >> config.mk
     make cover
 fi
+
+if [ ${TASK} == "distributed_test" ]; then
+    set -e
+    cd tests/distributed
+    ./runtests.sh
+fi
