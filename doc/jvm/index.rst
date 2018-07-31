@@ -138,6 +138,7 @@ Contents
 .. toctree::
 
   Java Overview Tutorial <java_intro>
+  XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
   XGBoost4J Java API <http://dmlc.ml/docs/javadocs/index.html>
   XGBoost4J Scala API <http://dmlc.ml/docs/scaladocs/xgboost4j/index.html>
