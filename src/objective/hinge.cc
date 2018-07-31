@@ -4,7 +4,6 @@
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
-#include <dmlc/omp.h>
 #include <xgboost/objective.h>
 #include "../common/math.h"
 
