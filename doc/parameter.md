@@ -113,6 +113,15 @@ Parameters for Tree Booster
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
     - 'cpu_predictor': Multicore CPU prediction algorithm.
     - 'gpu_predictor': Prediction using GPU. Default for 'gpu_exact' and 'gpu_hist' tree method.
+* optimizer, [default=None]
+  - The type of update step optimization to use.
+    - 'momentum_optimizer': Classical heavy ball momentum, adds a weighted accumilated gradient to each step.
+    - 'nesterov_optimizer': Nesterovs accelerated gradient, adds the weighted accumilated gradient first to smooth updates.
+* momentum, [default=0]
+  - This is only used if 'optimizer' is not None.
+  - The weight applied to the accumilated gradient at each update step. 
+  - Higher values result in larger update steps, so 'eta' should be tuned accordingly.
+  - range(0, 1)
 
 Additional parameters for Dart Booster
 --------------------------------------
