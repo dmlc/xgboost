@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
 
-import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError, , BoosterResults, IEvaluation}
+import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError, BoosterResults, IEvaluation}
 import scala.collection.JavaConverters._
 
 /**
@@ -121,8 +121,6 @@ object XGBoost {
       eval: IEvaluation = null
       earlyStoppingRound: Int = 0,
       booster: Booster = null): Booster = {
-): Booster = {
-
     val xgboostResults = trainWithResults(dtrain, params, round, watches, obj, Array(eval), earlyStoppingRound, booster)
     if (booster == null) {
       new Booster(xgboostResults.getBooster())
