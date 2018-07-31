@@ -78,10 +78,9 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map(),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      evals: Array[IEvaluation] = null
+      evals: Array[IEvaluation] = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null): Booster = {
-): Booster = {
 
     val xgboostResults = trainWithResults(dtrain, params, round, watches, obj, evals, earlyStoppingRound, booster)
     if (booster == null) {
