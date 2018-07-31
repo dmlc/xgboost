@@ -133,7 +133,7 @@ struct Entry {
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
-   * \param fvalue THe feature value.
+   * \param fvalue The feature value.
    */
   Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
   /*! \brief reversely compare feature values */
