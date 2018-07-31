@@ -150,6 +150,7 @@ fi
 
 if [ ${TASK} == "distributed_test" ]; then
     set -e
+    make all || exit -1
     cd tests/distributed
     ./runtests.sh
 fi
