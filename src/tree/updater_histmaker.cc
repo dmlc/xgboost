@@ -725,9 +725,10 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int offset = this->feat2workindex_[this->work_set_[i]];
+          int fid = work_set_[i];
+          int offset = this->feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[i], info, tree,
+            this->UpdateHistCol(gpair, batch[fid], info, tree,
                                 fset, offset,
                                 &this->thread_hist_[omp_get_thread_num()]);
           }
