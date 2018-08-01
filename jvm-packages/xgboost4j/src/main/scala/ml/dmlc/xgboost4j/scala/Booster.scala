@@ -125,8 +125,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    * @return predict result
    */
   @throws(classOf[XGBoostError])
-  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0)
-      : Array[Array[Float]] = {
+  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0):
+      Array[Array[Float]] = {
     booster.predict(data.jDMatrix, outPutMargin, treeLimit)
   }
 
