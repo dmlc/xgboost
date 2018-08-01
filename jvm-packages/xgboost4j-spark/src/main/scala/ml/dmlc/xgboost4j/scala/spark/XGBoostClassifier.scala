@@ -142,6 +142,12 @@ class XGBoostClassifier (
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
+  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
+
+  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
+
+  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
+
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -297,11 +303,8 @@ class XGBoostClassificationModel private[ml](
           val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
             producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
-          rowItr1.zip(rawPredictionItr).zip(probabilityItr).map {
-            case ((originals: Row, rawPrediction: Row), probability: Row) =>
-              Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq ++
-                predLeafItr.toSeq ++ predContribItr.toSeq)
-          }
+          produceResultIterator(rowItr1, rawPredictionItr, probabilityItr, predLeafItr,
+            predContribItr)
         } finally {
           dm.delete()
         }
@@ -313,6 +316,38 @@ class XGBoostClassificationModel private[ml](
     bBooster.unpersist(blocking = false)
 
     dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+  }
+
+  private def produceResultIterator(
+      originalRowItr: Iterator[Row],
+      rawPredictionItr: Iterator[Row],
+      probabilityItr: Iterator[Row],
+      predLeafItr: Iterator[Row],
+      predContribItr: Iterator[Row]): Iterator[Row] = {
+    // the following implementation is to be improved
+    if (isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+      originalRowItr.zip(rawPredictionItr).zip(probabilityItr).zip(predLeafItr).zip(predContribItr).
+        map { case ((((originals: Row, rawPrediction: Row), probability: Row), leaves: Row),
+        contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq ++ leaves.toSeq ++
+            contribs.toSeq)
+      }
+    } else if (isDefined(leafPredictionCol) && !isDefined(contribPredictionCol)) {
+      originalRowItr.zip(rawPredictionItr).zip(probabilityItr).zip(predLeafItr).
+        map { case (((originals: Row, rawPrediction: Row), probability: Row), leaves: Row) =>
+          Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq ++ leaves.toSeq)
+        }
+    } else if (!isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+      originalRowItr.zip(rawPredictionItr).zip(probabilityItr).zip(predContribItr).
+        map { case (((originals: Row, rawPrediction: Row), probability: Row), contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq ++ contribs.toSeq)
+        }
+    } else {
+      originalRowItr.zip(rawPredictionItr).zip(probabilityItr).map {
+        case ((originals: Row, rawPrediction: Row), probability: Row) =>
+          Row.fromSeq(originals.toSeq ++ rawPrediction.toSeq ++ probability.toSeq)
+      }
+    }
   }
 
   private def generateResultSchema(fixedSchema: StructType): StructType = {
@@ -340,16 +375,14 @@ class XGBoostClassificationModel private[ml](
     }
     val predLeafItr = {
       if (isDefined(leafPredictionCol)) {
-        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).
-          map(Row(_)).iterator
+        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }
     }
     val predContribItr = {
       if (isDefined(contribPredictionCol)) {
-        broadcastBooster.value.predictContrib(dm, $(treeLimit)).
-          map(Row(_)).iterator
+        broadcastBooster.value.predictContrib(dm, $(treeLimit)).map(Row(_)).iterator
       } else {
         Iterator()
       }

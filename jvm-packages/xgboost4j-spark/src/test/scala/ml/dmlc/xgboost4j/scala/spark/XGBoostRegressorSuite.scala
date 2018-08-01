@@ -120,4 +120,45 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val first = prediction.head.getAs[Double]("prediction")
     prediction.foreach(x => assert(math.abs(x.getAs[Double]("prediction") - first) <= 0.01f))
   }
+
+  test("test predictionLeaf") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+
+    val xgb = new XGBoostRegressor(paramMap)
+    xgb.setLeafPredictionCol("predictLeaf")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(testDF)
+    resultDF.columns.contains("predictLeaf")
+  }
+
+  test("test predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+
+    val xgb = new XGBoostRegressor(paramMap)
+    xgb.setContribPredictionCol("predictContrib")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(testDF)
+    resultDF.columns.contains("predictContrib")
+  }
+
+  test("test predictionLeaf and predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+
+    val xgb = new XGBoostRegressor(paramMap)
+    xgb.setLeafPredictionCol("predictLeaf")
+    xgb.setContribPredictionCol("predictContrib")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(testDF)
+    resultDF.columns.contains("predictLeaf")
+    resultDF.columns.contains("predictContrib")
+  }
 }

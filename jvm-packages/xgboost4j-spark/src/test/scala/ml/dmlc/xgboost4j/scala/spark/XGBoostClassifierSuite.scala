@@ -211,4 +211,45 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(testObjectiveHistory.length === 5)
     assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
   }
+
+  test("test predictionLeaf") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.setLeafPredictionCol("predictLeaf")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(buildDataFrame(Classification.test))
+    resultDF.columns.contains("predictLeaf")
+  }
+
+  test("test predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.setContribPredictionCol("predictContrib")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(buildDataFrame(Classification.test))
+    resultDF.columns.contains("predictContrib")
+  }
+
+  test("test predictionLeaf and predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.setLeafPredictionCol("predictLeaf")
+    xgb.setContribPredictionCol("predictContrib")
+    val model = xgb.fit(training)
+    val resultDF = model.transform(buildDataFrame(Classification.test))
+    resultDF.columns.contains("predictLeaf")
+    resultDF.columns.contains("predictContrib")
+  }
 }
