@@ -126,12 +126,13 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
-
+    val groundTruth = testDF.count()
     val xgb = new XGBoostRegressor(paramMap)
-    xgb.setLeafPredictionCol("predictLeaf")
     val model = xgb.fit(training)
+    model.setLeafPredictionCol("predictLeaf")
     val resultDF = model.transform(testDF)
-    resultDF.columns.contains("predictLeaf")
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
   }
 
   test("test predictionContrib") {
@@ -139,12 +140,13 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
-
+    val groundTruth = testDF.count()
     val xgb = new XGBoostRegressor(paramMap)
-    xgb.setContribPredictionCol("predictContrib")
     val model = xgb.fit(training)
+    model.setContribPredictionCol("predictContrib")
     val resultDF = model.transform(testDF)
-    resultDF.columns.contains("predictContrib")
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictContrib"))
   }
 
   test("test predictionLeaf and predictionContrib") {
@@ -152,13 +154,14 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
-
+    val groundTruth = testDF.count()
     val xgb = new XGBoostRegressor(paramMap)
-    xgb.setLeafPredictionCol("predictLeaf")
-    xgb.setContribPredictionCol("predictContrib")
     val model = xgb.fit(training)
+    model.setLeafPredictionCol("predictLeaf")
+    model.setContribPredictionCol("predictContrib")
     val resultDF = model.transform(testDF)
-    resultDF.columns.contains("predictLeaf")
-    resultDF.columns.contains("predictContrib")
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
+    assert(resultDF.columns.contains("predictContrib"))
   }
 }

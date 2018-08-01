@@ -142,12 +142,6 @@ class XGBoostRegressor (
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
-  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
-
-  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
-
-  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
-
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -238,6 +232,12 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
+
+  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
+
+  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
+
   /**
    * Single instance prediction.
    * Note: The performance is not ideal, use it carefully!
@@ -280,11 +280,7 @@ class XGBoostRegressionModel private[ml] (
           val Array(originalPredictionItr, predLeafItr, predContribItr) =
             producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
-          rowItr1.zip(originalPredictionItr).map {
-            case (originals: Row, originalPrediction: Row) =>
-              Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq ++ predLeafItr.toSeq ++
-                predContribItr.toSeq)
-          }
+          produceResultIterator(rowItr1, originalPredictionItr, predLeafItr, predContribItr)
         } finally {
           dm.delete()
         }
@@ -292,10 +288,37 @@ class XGBoostRegressionModel private[ml] (
         Iterator[Row]()
       }
     }
-
     bBooster.unpersist(blocking = false)
-
     dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+  }
+
+  private def produceResultIterator(
+      originalRowItr: Iterator[Row],
+      predictionItr: Iterator[Row],
+      predLeafItr: Iterator[Row],
+      predContribItr: Iterator[Row]): Iterator[Row] = {
+    // the following implementation is to be improved
+    if (isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+      originalRowItr.zip(predictionItr).zip(predLeafItr).zip(predContribItr).
+        map { case (((originals: Row, prediction: Row), leaves: Row), contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq ++ contribs.toSeq)
+        }
+    } else if (isDefined(leafPredictionCol) && !isDefined(contribPredictionCol)) {
+      originalRowItr.zip(predictionItr).zip(predLeafItr).
+        map { case ((originals: Row, prediction: Row), leaves: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq)
+        }
+    } else if (!isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+      originalRowItr.zip(predictionItr).zip(predContribItr).
+        map { case ((originals: Row, prediction: Row), contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ contribs.toSeq)
+        }
+    } else {
+      originalRowItr.zip(predictionItr).map {
+        case (originals: Row, originalPrediction: Row) =>
+          Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq)
+      }
+    }
   }
 
   private def generateResultSchema(fixedSchema: StructType): StructType = {

@@ -142,12 +142,6 @@ class XGBoostClassifier (
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
-  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
-
-  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
-
-  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
-
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -243,6 +237,12 @@ class XGBoostClassificationModel private[ml](
     trainingSummary = Some(summary)
     this
   }
+
+  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
+
+  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
+
+  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
   /**
    * Single instance prediction.
