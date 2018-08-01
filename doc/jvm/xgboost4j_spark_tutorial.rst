@@ -292,11 +292,11 @@ When interacting with other language bindings, XGBoost also supports saving-mode
 
 However, if you build with USE_HDFS, etc. you have to ensure that the involved shared object file, e.g. libhdfs.so, is put in the LIBRARY_PATH of your cluster. To avoid the complicated cluster environment configuration, we recommend the following steps to pass models with HDFS, S3, etc. (taking HDFS as an example)
 
-* create a new file with **val outputStream = fs.create("hdfs_path")**
+* create a new file with **val outputStream = fs.create("hdfs_path")** where fs is an instance of org.apache.hadoop.fs.FileSystem class in Hadoop.
 
 * pass the returned OutputStream in the first step to **xgbClassificationModel.nativeBooster.saveModel(outputStream)**
 
-* download file in other languages from HDFS and load with the pre-built (without the requirement of libhdfs.so) version of XGBoost:
+* download file in other languages from HDFS and load with the pre-built (without the requirement of libhdfs.so) version of XGBoost (where download_from_hdfs is a helper function implemented by the user):
 
 .. code-block:: python
 
