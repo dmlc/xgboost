@@ -217,12 +217,14 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
       "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Classification.train)
-
+    val test = buildDataFrame(Classification.test)
+    val groundTruth = test.count()
     val xgb = new XGBoostClassifier(paramMap)
-    xgb.setLeafPredictionCol("predictLeaf")
     val model = xgb.fit(training)
-    val resultDF = model.transform(buildDataFrame(Classification.test))
-    resultDF.columns.contains("predictLeaf")
+    model.setLeafPredictionCol("predictLeaf")
+    val resultDF = model.transform(test)
+    assert(resultDF.count == groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
   }
 
   test("test predictionContrib") {
@@ -230,12 +232,14 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
       "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Classification.train)
-
+    val test = buildDataFrame(Classification.test)
+    val groundTruth = test.count()
     val xgb = new XGBoostClassifier(paramMap)
-    xgb.setContribPredictionCol("predictContrib")
     val model = xgb.fit(training)
+    model.setContribPredictionCol("predictContrib")
     val resultDF = model.transform(buildDataFrame(Classification.test))
-    resultDF.columns.contains("predictContrib")
+    assert(resultDF.count == groundTruth)
+    assert(resultDF.columns.contains("predictContrib"))
   }
 
   test("test predictionLeaf and predictionContrib") {
@@ -243,13 +247,15 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
       "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Classification.train)
-
+    val test = buildDataFrame(Classification.test)
+    val groundTruth = test.count()
     val xgb = new XGBoostClassifier(paramMap)
-    xgb.setLeafPredictionCol("predictLeaf")
-    xgb.setContribPredictionCol("predictContrib")
     val model = xgb.fit(training)
+    model.setLeafPredictionCol("predictLeaf")
+    model.setContribPredictionCol("predictContrib")
     val resultDF = model.transform(buildDataFrame(Classification.test))
-    resultDF.columns.contains("predictLeaf")
-    resultDF.columns.contains("predictContrib")
+    assert(resultDF.count == groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
+    assert(resultDF.columns.contains("predictContrib"))
   }
 }
