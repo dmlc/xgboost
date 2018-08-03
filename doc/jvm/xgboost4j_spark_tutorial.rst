@@ -329,7 +329,7 @@ Then we can load this model with single node Python XGBoost:
 
     spark.read.format("libsvm").load("trainingset_libsvm")
 
-  Spark assumes that the dataset is using 1-based indexing (feature indices staring with 1). However, when you do prediction with other bindings of XGBoost (e.g. Python API of XGBoost), XGBoost assumes that the dataset is using 0-based indexing (feature indices starting with 0). It creates a pitfall for the users who train model with Spark but predict with the dataset in the same format in other bindings of XGBoost. The solution is to transform the dataset to 0-based indexing before you predict with, for example, Python API.
+  Spark assumes that the dataset is using 1-based indexing (feature indices staring with 1). However, when you do prediction with other bindings of XGBoost (e.g. Python API of XGBoost), XGBoost assumes that the dataset is using 0-based indexing (feature indices starting with 0) by default. It creates a pitfall for the users who train model with Spark but predict with the dataset in the same format in other bindings of XGBoost. The solution is to transform the dataset to 0-based indexing before you predict with, for example, Python API, or you load "?indexing_mode=1" in your file path when loading with , e.g. **xgb.DMatrix(test.libsvm?indexing_mode=1)**.
 
 *******************************************
 Building a ML Pipeline with XGBoost4J-Spark
