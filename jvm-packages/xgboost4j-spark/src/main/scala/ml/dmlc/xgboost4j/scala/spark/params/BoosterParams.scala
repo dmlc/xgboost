@@ -20,7 +20,7 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
-private[spark] trait BoosterParams extends Params {
+trait BoosterParams extends Params {
 
   /**
    * step size shrinkage used in update to prevents overfitting. After each boosting step, we
@@ -237,13 +237,18 @@ private[spark] trait BoosterParams extends Params {
 
   final def getLambdaBias: Double = $(lambdaBias)
 
+  final val treeLimit = new IntParam(this, name = "treeLimit",
+    doc = "number of trees used in the prediction; defaults to 0 (use all trees).")
+
+  final def getTreeLimit: Double = $(lambdaBias)
+
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
     growPolicy -> "depthwise", maxBins -> 16,
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
-    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0)
+    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
 }
 
 private[spark] object BoosterParams {

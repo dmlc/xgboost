@@ -53,6 +53,7 @@ clean:
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	cp -rf jvm/api_docs $(BUILDDIR)/html/jvm/
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 

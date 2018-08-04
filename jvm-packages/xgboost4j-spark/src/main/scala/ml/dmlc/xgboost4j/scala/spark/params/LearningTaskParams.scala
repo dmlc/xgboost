@@ -20,7 +20,7 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param._
 
-private[spark] trait LearningTaskParams extends Params {
+trait LearningTaskParams extends Params {
 
   /**
    * Specify the learning task and the corresponding learning objective.

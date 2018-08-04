@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
-private[spark] trait GeneralParams extends Params {
+trait GeneralParams extends Params {
 
   /**
    * The number of rounds for boosting
@@ -156,6 +156,30 @@ private[spark] trait GeneralParams extends Params {
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
     checkpointPath -> "", checkpointInterval -> -1
   )
+}
+
+trait HasLeafPredictionCol extends Params {
+  /**
+   * Param for leaf prediction column name.
+   * @group param
+   */
+  final val leafPredictionCol: Param[String] = new Param[String](this, "leafPredictionCol",
+    "name of the predictLeaf results")
+
+  /** @group getParam */
+  final def getLeafPredictionCol: String = $(leafPredictionCol)
+}
+
+trait HasContribPredictionCol extends Params {
+  /**
+   * Param for contribution prediction column name.
+   * @group param
+   */
+  final val contribPredictionCol: Param[String] = new Param[String](this, "contribPredictionCol",
+    "name of the predictContrib results")
+
+  /** @group getParam */
+  final def getContribPredictionCol: String = $(contribPredictionCol)
 }
 
 trait HasBaseMarginCol extends Params {

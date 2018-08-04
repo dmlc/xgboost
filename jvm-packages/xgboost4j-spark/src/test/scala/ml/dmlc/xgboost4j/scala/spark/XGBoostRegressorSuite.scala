@@ -120,4 +120,48 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val first = prediction.head.getAs[Double]("prediction")
     prediction.foreach(x => assert(math.abs(x.getAs[Double]("prediction") - first) <= 0.01f))
   }
+
+  test("test predictionLeaf") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val groundTruth = testDF.count()
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(training)
+    model.setLeafPredictionCol("predictLeaf")
+    val resultDF = model.transform(testDF)
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
+  }
+
+  test("test predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val groundTruth = testDF.count()
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(training)
+    model.setContribPredictionCol("predictContrib")
+    val resultDF = model.transform(testDF)
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("test predictionLeaf and predictionContrib") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val groundTruth = testDF.count()
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(training)
+    model.setLeafPredictionCol("predictLeaf")
+    model.setContribPredictionCol("predictContrib")
+    val resultDF = model.transform(testDF)
+    assert(resultDF.count === groundTruth)
+    assert(resultDF.columns.contains("predictLeaf"))
+    assert(resultDF.columns.contains("predictContrib"))
+  }
 }
