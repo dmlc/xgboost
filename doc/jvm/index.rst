@@ -150,7 +150,7 @@ Contents
   java_intro
   XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
-  XGBoost4J Java API <http://dmlc.ml/docs/javadocs/index.html>
-  XGBoost4J Scala API <http://dmlc.ml/docs/scaladocs/xgboost4j/index.html>
-  XGBoost4J-Spark Scala API <http://dmlc.ml/docs/scaladocs/xgboost4j-spark/index.html>
-  XGBoost4J-Flink Scala API <http://dmlc.ml/docs/scaladocs/xgboost4j-flink/index.html>
+  XGBoost4J Java API <jvm/api_docs/xgboost4j_java/index.html>
+  XGBoost4J Scala API <jvm/api_docs/xgboost4j_scala/index.html>
+  XGBoost4J-Spark Scala API <jvm/api_docs/xgboost4j_spark_scala/index.html>
+  XGBoost4J-Flink Scala API <jvm/api_docs/xgboost4j_flink_scala/index.html>
