@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
-private[spark] trait GeneralParams extends Params {
+trait GeneralParams extends Params {
 
   /**
    * The number of rounds for boosting

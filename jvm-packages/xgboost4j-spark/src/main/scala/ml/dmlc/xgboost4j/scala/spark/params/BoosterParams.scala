@@ -20,7 +20,7 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
-private[spark] trait BoosterParams extends Params {
+trait BoosterParams extends Params {
 
   /**
    * step size shrinkage used in update to prevents overfitting. After each boosting step, we
