@@ -1,0 +1,367 @@
+<!DOCTYPE html >
+<html>
+        <head>
+          <title>spark - xgboost4j-spark 0.80-SNAPSHOT API - ml.dmlc.xgboost4j.scala.spark</title>
+          <meta name="description" content="spark - xgboost4j - spark 0.80 - SNAPSHOT API - ml.dmlc.xgboost4j.scala.spark" />
+          <meta name="keywords" content="spark xgboost4j spark 0.80 SNAPSHOT API ml.dmlc.xgboost4j.scala.spark" />
+          <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+          
+      <link href="../../../../../lib/template.css" media="screen" type="text/css" rel="stylesheet" />
+      <link href="../../../../../lib/diagrams.css" media="screen" type="text/css" rel="stylesheet" id="diagrams-css" />
+      <script type="text/javascript" src="../../../../../lib/jquery.js" id="jquery-js"></script>
+      <script type="text/javascript" src="../../../../../lib/jquery-ui.js"></script>
+      <script type="text/javascript" src="../../../../../lib/template.js"></script>
+      <script type="text/javascript" src="../../../../../lib/tools.tooltip.js"></script>
+      
+      <script type="text/javascript">
+         if(top === self) {
+            var url = '../../../../../index.html';
+            var hash = 'ml.dmlc.xgboost4j.scala.spark.package';
+            var anchor = window.location.hash;
+            var anchor_opt = '';
+            if (anchor.length >= 1)
+              anchor_opt = '@' + anchor.substring(1);
+            window.location.href = url + '#' + hash + anchor_opt;
+         }
+   	  </script>
+    
+        </head>
+        <body class="value">
+      <div id="definition">
+        <img alt="Package" src="../../../../../lib/package_big.png" />
+        <p id="owner"><a href="../../../../package.html" class="extype" name="ml">ml</a>.<a href="../../../package.html" class="extype" name="ml.dmlc">dmlc</a>.<a href="../../package.html" class="extype" name="ml.dmlc.xgboost4j">xgboost4j</a>.<a href="../package.html" class="extype" name="ml.dmlc.xgboost4j.scala">scala</a></p>
+        <h1>spark</h1><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      </div>
+
+      <h4 id="signature" class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">package</span>
+      </span>
+      <span class="symbol">
+        <span class="name">spark</span>
+      </span>
+      </h4>
+      
+          <div id="comment" class="fullcommenttop"></div>
+        
+
+      <div id="mbrsel">
+        <div id="textfilter"><span class="pre"></span><span class="input"><input id="mbrsel-input" type="text" accesskey="/" /></span><span class="post"></span></div>
+        
+        
+        <div id="visbl">
+            <span class="filtertype">Visibility</span>
+            <ol><li class="public in"><span>Public</span></li><li class="all out"><span>All</span></li></ol>
+          </div>
+      </div>
+
+      <div id="template">
+        <div id="allMembers">
+        
+
+        <div id="types" class="types members">
+              <h3>Type Members</h3>
+              <ol><li name="ml.dmlc.xgboost4j.scala.spark.TrackerConf" visbl="pub" data-isabs="false" fullComment="yes" group="Ungrouped">
+      <a id="TrackerConfextendsProductwithSerializable"></a>
+      <a id="TrackerConf:TrackerConf"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">case class</span>
+      </span>
+      <span class="symbol">
+        <a href="TrackerConf.html"><span class="name">TrackerConf</span></a><span class="params">(<span name="workerConnectionTimeout">workerConnectionTimeout: <span class="extype" name="scala.Long">Long</span></span>, <span name="trackerImpl">trackerImpl: <span class="extype" name="scala.Predef.String">String</span></span>)</span><span class="result"> extends <span class="extype" name="scala.Product">Product</span> with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@TrackerConfextendsProductwithSerializable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      <p class="shortcomment cmt">Rabit tracker configurations.</p><div class="fullcomment"><div class="comment cmt"><p>Rabit tracker configurations.
+</p></div><dl class="paramcmts block"><dt class="param">workerConnectionTimeout</dt><dd class="cmt"><p>The timeout for all workers to connect to the tracker.
+                               Set timeout length to zero to disable timeout.
+                               Use a finite, non-zero timeout value to prevent tracker from
+                               hanging indefinitely (in milliseconds)
+                               (supported by &quot;scala&quot; implementation only.)</p></dd><dt class="param">trackerImpl</dt><dd class="cmt"><p>Choice between &quot;python&quot; or &quot;scala&quot;. The former utilizes the Java wrapper of
+                   the Python Rabit tracker (in dmlc_core), whereas the latter is implemented
+                   in Scala without Python components, and with full support of timeouts.
+                   The Scala implementation is currently experimental, use at your own risk.</p></dd></dl></div>
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostClassificationModelextendsProbabilisticClassificationModel[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel]withXGBoostClassifierParamswithMLWritablewithSerializable"></a>
+      <a id="XGBoostClassificationModel:XGBoostClassificationModel"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">class</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostClassificationModel.html"><span class="name">XGBoostClassificationModel</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.classification.ProbabilisticClassificationModel">ProbabilisticClassificationModel</span>[<span class="extype" name="org.apache.spark.ml.linalg.Vector">Vector</span>, <a href="XGBoostClassificationModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel">XGBoostClassificationModel</a>] with <span class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifierParams">XGBoostClassifierParams</span> with <span class="extype" name="org.apache.spark.ml.util.MLWritable">MLWritable</span> with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostClassificationModelextendsProbabilisticClassificationModel[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel]withXGBoostClassifierParamswithMLWritablewithSerializable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostClassifierextendsProbabilisticClassifier[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier,ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel]withXGBoostClassifierParamswithDefaultParamsWritable"></a>
+      <a id="XGBoostClassifier:XGBoostClassifier"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">class</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostClassifier.html"><span class="name">XGBoostClassifier</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.classification.ProbabilisticClassifier">ProbabilisticClassifier</span>[<span class="extype" name="org.apache.spark.ml.linalg.Vector">Vector</span>, <a href="XGBoostClassifier.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier">XGBoostClassifier</a>, <a href="XGBoostClassificationModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel">XGBoostClassificationModel</a>] with <span class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifierParams">XGBoostClassifierParams</span> with <span class="extype" name="org.apache.spark.ml.util.DefaultParamsWritable">DefaultParamsWritable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostClassifierextendsProbabilisticClassifier[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier,ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel]withXGBoostClassifierParamswithDefaultParamsWritable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostRegressionModelextendsPredictionModel[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel]withXGBoostRegressorParamswithMLWritablewithSerializable"></a>
+      <a id="XGBoostRegressionModel:XGBoostRegressionModel"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">class</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostRegressionModel.html"><span class="name">XGBoostRegressionModel</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.PredictionModel">PredictionModel</span>[<span class="extype" name="org.apache.spark.ml.linalg.Vector">Vector</span>, <a href="XGBoostRegressionModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel">XGBoostRegressionModel</a>] with <span class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressorParams">XGBoostRegressorParams</span> with <span class="extype" name="org.apache.spark.ml.util.MLWritable">MLWritable</span> with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostRegressionModelextendsPredictionModel[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel]withXGBoostRegressorParamswithMLWritablewithSerializable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostRegressorextendsPredictor[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel]withXGBoostRegressorParamswithDefaultParamsWritable"></a>
+      <a id="XGBoostRegressor:XGBoostRegressor"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">class</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostRegressor.html"><span class="name">XGBoostRegressor</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.Predictor">Predictor</span>[<span class="extype" name="org.apache.spark.ml.linalg.Vector">Vector</span>, <a href="XGBoostRegressor.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor">XGBoostRegressor</a>, <a href="XGBoostRegressionModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel">XGBoostRegressionModel</a>] with <span class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressorParams">XGBoostRegressorParams</span> with <span class="extype" name="org.apache.spark.ml.util.DefaultParamsWritable">DefaultParamsWritable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostRegressorextendsPredictor[org.apache.spark.ml.linalg.Vector,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor,ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel]withXGBoostRegressorParamswithDefaultParamsWritable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostTrainingSummary" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostTrainingSummaryextendsSerializable"></a>
+      <a id="XGBoostTrainingSummary:XGBoostTrainingSummary"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">class</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostTrainingSummary.html"><span class="name">XGBoostTrainingSummary</span></a><span class="result"> extends <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostTrainingSummaryextendsSerializable" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li></ol>
+            </div>
+
+        
+
+        <div id="values" class="values members">
+              <h3>Value Members</h3>
+              <ol><li name="ml.dmlc.xgboost4j.scala.spark.CheckpointManager" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="CheckpointManager"></a>
+      <a id="CheckpointManager:CheckpointManager"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="CheckpointManager$.html"><span class="name">CheckpointManager</span></a>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@CheckpointManager" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.DataUtils" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="DataUtils"></a>
+      <a id="DataUtils:DataUtils"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="DataUtils$.html"><span class="name">DataUtils</span></a><span class="result"> extends <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@DataUtils" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.TrackerConf" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="TrackerConf"></a>
+      <a id="TrackerConf:TrackerConf"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="TrackerConf$.html"><span class="name">TrackerConf</span></a><span class="result"> extends <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@TrackerConf" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoost" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoost"></a>
+      <a id="XGBoost:XGBoost"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoost$.html"><span class="name">XGBoost</span></a><span class="result"> extends <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoost" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostClassificationModel"></a>
+      <a id="XGBoostClassificationModel:XGBoostClassificationModel"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostClassificationModel$.html"><span class="name">XGBoostClassificationModel</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.util.MLReadable">MLReadable</span>[<a href="XGBoostClassificationModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassificationModel">XGBoostClassificationModel</a>] with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostClassificationModel" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostClassifier"></a>
+      <a id="XGBoostClassifier:XGBoostClassifier"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostClassifier$.html"><span class="name">XGBoostClassifier</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.util.DefaultParamsReadable">DefaultParamsReadable</span>[<a href="XGBoostClassifier.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier">XGBoostClassifier</a>] with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostClassifier" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostRegressionModel"></a>
+      <a id="XGBoostRegressionModel:XGBoostRegressionModel"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostRegressionModel$.html"><span class="name">XGBoostRegressionModel</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.util.MLReadable">MLReadable</span>[<a href="XGBoostRegressionModel.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressionModel">XGBoostRegressionModel</a>] with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostRegressionModel" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="XGBoostRegressor"></a>
+      <a id="XGBoostRegressor:XGBoostRegressor"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">object</span>
+      </span>
+      <span class="symbol">
+        <a href="XGBoostRegressor$.html"><span class="name">XGBoostRegressor</span></a><span class="result"> extends <span class="extype" name="org.apache.spark.ml.util.DefaultParamsReadable">DefaultParamsReadable</span>[<a href="XGBoostRegressor.html" class="extype" name="ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor">XGBoostRegressor</a>] with <span class="extype" name="scala.Serializable">Serializable</span></span>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@XGBoostRegressor" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li><li name="ml.dmlc.xgboost4j.scala.spark.params" visbl="pub" data-isabs="false" fullComment="no" group="Ungrouped">
+      <a id="params"></a>
+      <a id="params:params"></a>
+      <h4 class="signature">
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">package</span>
+      </span>
+      <span class="symbol">
+        <a href="params/package.html"><span class="name">params</span></a>
+      </span>
+      </h4><span class="permalink">
+      <a href="../../../../../index.html#ml.dmlc.xgboost4j.scala.spark.package@params" title="Permalink" target="_top">
+        <img src="../../../../../lib/permalink.png" alt="Permalink" />
+      </a>
+    </span>
+      
+    </li></ol>
+            </div>
+
+        
+
+        
+        </div>
+
+        <div id="inheritedMembers">
+        
+        
+        </div>
+
+        <div id="groupedMembers">
+        <div class="group" name="Ungrouped">
+              <h3>Ungrouped</h3>
+              
+            </div>
+        </div>
+
+      </div>
+
+      <div id="tooltip"></div>
+
+      <div id="footer">  </div>
+
+
+    </body>
+      </html>
