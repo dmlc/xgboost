@@ -332,7 +332,12 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   mat.info.num_row_ = mat.page_.offset.size() - 1;
   if (num_row > 0) {
     CHECK_LE(mat.info.num_row_, num_row);
+    // provision for empty rows at the bottom of matrix
+    for (uint64_t i = mat.info.num_row_; i < static_cast<uint64_t>(num_row); ++i) {
+      mat.page_.offset.push_back(mat.page_.offset.back());
+    }
     mat.info.num_row_ = num_row;
+    CHECK_EQ(mat.info.num_row_, mat.page_.offset.size() - 1);  // sanity check
   }
   mat.info.num_col_ = ncol;
   mat.info.num_nonzero_ = nelem;
