@@ -719,7 +719,7 @@ class XGBRanker(XGBModel):
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             instance weights on the i-th validation set.
-        eval_group : list of lists, optional
+        eval_group : list of arrays, optional
             A list that contains the group information corresponds to each 
             (X, y) pair in eval_set
         eval_metric : str, callable, optional
@@ -747,14 +747,29 @@ class XGBRanker(XGBModel):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
+        # check if group information is provided
+        if group is None:
+            raise ValueError("group is required for ranking task")
 
+        if eval_set is not None:
+            if eval_group is None:
+                raise ValueError("eval_group is required if eval_set is not None")
+            elif len(eval_group) != len(eval_set):
+                raise ValueError("length of eval_group should match that of eval_set")
+            elif any(group is None for group in eval_group):
+                raise ValueError("group is required for all eval datasets for ranking tast")
 
         def _dmat_init(group, **params):
             ret = DMatrix(**params)
             ret.set_group(group)
             return ret
 
-        train_dmatrix = _dmat_init(group, data=X, label=y, weight=sample_weight, missing=self.missing)
+        if sample_weight is not None:
+            train_dmatrix = _dmat_init(group, data=X, label=y, weight=sample_weight, 
+                                       missing=self.missing, nthread=self.n_jobs)
+        else:
+            train_dmatrix = _dmat_init(group, data=X, label=y, 
+                                       missing=self.missing, nthread=self.n_jobs)
 
         evals_result = {}
 
@@ -765,7 +780,7 @@ class XGBRanker(XGBModel):
                                 missing=self.missing, weight=sample_weight_eval_set[i],
                                 nthread=self.n_jobs) for i in range(len(eval_set))]
             nevals = len(evals)
-            eval_names = ["validation_{}".format(i) for i in range(nevals)]
+            eval_names = ["eval_{}".format(i) for i in range(nevals)]
             evals = list(zip(evals, eval_names))
         else:
             evals = ()
@@ -808,11 +823,12 @@ class XGBRanker(XGBModel):
 
         return self
 
-    def predict(self, X, output_margin=False, ntree_limit=0):
+    def predict(self, data, output_margin=False, ntree_limit=0):
 
-        test_dmatrix = DMatrix(X, missing=self.missing)
-        # test_dmatrix.set_group(sizes)
-        rank_values = self.get_booster().predict(test_dmatrix,
-                                                 output_margin=output_margin,
-                                                 ntree_limit=ntree_limit)
-        return rank_values
+        test_dmatrix = DMatrix(data, missing=self.missing)
+        if ntree_limit is None:
+            ntree_limit = getattr(self, "best_ntree_limit", 0)
+
+        return self.get_booster().predict(test_dmatrix,
+                                          output_margin=output_margin,
+                                          ntree_limit=ntree_limit)
