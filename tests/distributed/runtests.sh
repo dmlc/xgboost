@@ -5,4 +5,5 @@ PYTHONPATH=../../python-package/ ../../dmlc-core/tracker/dmlc-submit  --cluster=
   python test_basic.py
 
 echo "====== 2. Regression test for issue #3402 ======"
-../../dmlc-core/tracker/dmlc-submit --log-level DEBUG --cluster=local --num-workers=2 --worker-cores=1 ../../xgboost issue3402-example.conf
+PYTHONPATH=../../python-package/ ../../dmlc-core/tracker/dmlc-submit  --cluster=local --num-workers=2 --worker-cores=1\
+  python test_issue3402.py
