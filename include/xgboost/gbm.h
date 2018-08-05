@@ -76,11 +76,14 @@ class GradientBooster {
    * \brief generate predictions for given feature matrix
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
+   * \param dropout whether dropout should be applied to prediction
+   *   This option is only meaningful if booster='dart'; otherwise ignored.
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictBatch(DMatrix* dmat,
                             HostDeviceVector<bst_float>* out_preds,
+                            bool dropout = true,
                             unsigned ntree_limit = 0) = 0;
   /*!
    * \brief online prediction function, predict score for one instance at a time
