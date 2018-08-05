@@ -118,13 +118,13 @@ class DeviceShard {
         return e1.index < e2.index;
       };
       auto column_begin =
-          std::lower_bound(col.data, col.data + col.length,
+          std::lower_bound(col.data(), col.data() + col.size(),
                            Entry(row_begin, 0.0f), cmp);
       auto column_end =
-          std::upper_bound(col.data, col.data + col.length,
+          std::upper_bound(col.data(), col.data() + col.size(),
                            Entry(row_end, 0.0f), cmp);
       column_segments.push_back(
-          std::make_pair(column_begin - col.data, column_end - col.data));
+          std::make_pair(column_begin - col.data(), column_end - col.data()));
       row_ptr_.push_back(row_ptr_.back() + column_end - column_begin);
     }
     ba_.Allocate(device_idx, param.silent, &data_, row_ptr_.back(), &gpair_,
@@ -134,7 +134,7 @@ class DeviceShard {
       auto col = batch[fidx];
       auto seg = column_segments[fidx];
       dh::safe_cuda(cudaMemcpy(
-          data_.Data() + row_ptr_[fidx], col.data + seg.first,
+          data_.Data() + row_ptr_[fidx], col.data() + seg.first,
           sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
     // Rescale indices with respect to current shard

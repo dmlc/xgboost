@@ -45,7 +45,7 @@ class SimpleDMatrix : public DMatrix {
 
   size_t GetColSize(size_t cidx) const override {
     auto& batch = *col_iter_.column_page_;
-    return batch[cidx].length;
+    return batch[cidx].size();
   }
 
   float GetColDensity(size_t cidx) const override {

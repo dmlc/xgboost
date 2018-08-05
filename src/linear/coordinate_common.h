@@ -69,7 +69,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
   while (iter->Next()) {
     auto &batch = iter->Value();
     auto col = batch[fidx];
-    const auto ndata = static_cast<bst_omp_uint>(col.length);
+    const auto ndata = static_cast<bst_omp_uint>(col.size());
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       const bst_float v = col[j].fvalue;
       auto &p = gpair[col[j].index * num_group + group_idx];
@@ -100,7 +100,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
   while (iter->Next()) {
     auto &batch = iter->Value();
     auto col = batch[fidx];
-    const auto ndata = static_cast<bst_omp_uint>(col.length);
+    const auto ndata = static_cast<bst_omp_uint>(col.size());
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       const bst_float v = col[j].fvalue;
@@ -159,7 +159,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
     auto &batch = iter->Value();
     auto col = batch[fidx];
     // update grad value
-    const auto num_row = static_cast<bst_omp_uint>(col.length);
+    const auto num_row = static_cast<bst_omp_uint>(col.size());
 #pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < num_row; ++j) {
       GradientPair &p = (*in_gpair)[col[j].index * num_group + group_idx];
@@ -331,7 +331,7 @@ class GreedyFeatureSelector : public FeatureSelector {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
-        const bst_uint ndata = col.length;
+        const bst_uint ndata = col.size();
         auto &sums = gpair_sums_[group_idx * nfeat + i];
         for (bst_uint j = 0u; j < ndata; ++j) {
           const bst_float v = col[j].fvalue;
@@ -399,7 +399,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
-        const bst_uint ndata = col.length;
+        const bst_uint ndata = col.size();
         for (bst_uint gid = 0u; gid < ngroup; ++gid) {
           auto &sums = gpair_sums_[gid * nfeat + i];
           for (bst_uint j = 0u; j < ndata; ++j) {

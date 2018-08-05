@@ -197,7 +197,6 @@ TEST(Span, FromOther) {
   }
 }
 
-// FIXME: More tests.
 TEST(Span, FromArray) {
   float arr[16];
   InitializeRange(arr, arr + 16);
