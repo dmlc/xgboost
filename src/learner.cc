@@ -469,7 +469,7 @@ class LearnerImpl : public Learner {
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data, &out_preds->HostVector(), ntree_limit);
     } else {
-      this->PredictRaw(data, out_preds, false, ntree_limit);
+      this->PredictRaw(data, out_preds, ntree_limit);
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
@@ -560,16 +560,14 @@ class LearnerImpl : public Learner {
    * \brief get un-transformed prediction
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
-   * \param dropout whether dropout should be applied to prediction.
-   *   This option is only meaningful if booster='dart'; otherwise ignored.
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    */
   inline void PredictRaw(DMatrix* data, HostDeviceVector<bst_float>* out_preds,
-                         bool dropout = true, unsigned ntree_limit = 0) const {
+                         unsigned ntree_limit = 0) const {
     CHECK(gbm_ != nullptr)
         << "Predict must happen after Load or InitModel";
-    gbm_->PredictBatch(data, out_preds, dropout, ntree_limit);
+    gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
 
   // model parameter
