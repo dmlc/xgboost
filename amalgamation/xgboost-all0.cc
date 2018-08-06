@@ -20,6 +20,7 @@
 #include "../src/objective/regression_obj.cc"
 #include "../src/objective/multiclass_obj.cc"
 #include "../src/objective/rank_obj.cc"
+#include "../src/objective/hinge.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
