@@ -298,17 +298,20 @@ class XGBoostRegressionModel private[ml] (
       predLeafItr: Iterator[Row],
       predContribItr: Iterator[Row]): Iterator[Row] = {
     // the following implementation is to be improved
-    if (isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+    if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
+      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
       originalRowItr.zip(predictionItr).zip(predLeafItr).zip(predContribItr).
         map { case (((originals: Row, prediction: Row), leaves: Row), contribs: Row) =>
           Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq ++ contribs.toSeq)
         }
-    } else if (isDefined(leafPredictionCol) && !isDefined(contribPredictionCol)) {
+    } else if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
+      (!isDefined(contribPredictionCol) || $(contribPredictionCol).isEmpty)) {
       originalRowItr.zip(predictionItr).zip(predLeafItr).
         map { case ((originals: Row, prediction: Row), leaves: Row) =>
           Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq)
         }
-    } else if (!isDefined(leafPredictionCol) && isDefined(contribPredictionCol)) {
+    } else if ((!isDefined(leafPredictionCol) || $(leafPredictionCol).isEmpty) &&
+      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
       originalRowItr.zip(predictionItr).zip(predContribItr).
         map { case ((originals: Row, prediction: Row), contribs: Row) =>
           Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ contribs.toSeq)

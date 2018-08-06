@@ -227,6 +227,19 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(resultDF.columns.contains("predictLeaf"))
   }
 
+  test("test predictionLeaf with empty column name") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+    val test = buildDataFrame(Classification.test)
+    val xgb = new XGBoostClassifier(paramMap)
+    val model = xgb.fit(training)
+    model.setLeafPredictionCol("")
+    val resultDF = model.transform(test)
+    assert(!resultDF.columns.contains("predictLeaf"))
+  }
+
   test("test predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
@@ -240,6 +253,19 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val resultDF = model.transform(buildDataFrame(Classification.test))
     assert(resultDF.count == groundTruth)
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("test predictionContrib with empty column name") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+    val test = buildDataFrame(Classification.test)
+    val xgb = new XGBoostClassifier(paramMap)
+    val model = xgb.fit(training)
+    model.setContribPredictionCol("")
+    val resultDF = model.transform(test)
+    assert(!resultDF.columns.contains("predictContrib"))
   }
 
   test("test predictionLeaf and predictionContrib") {
