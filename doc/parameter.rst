@@ -12,6 +12,10 @@ Before running XGBoost, we must set three types of parameters: general parameter
 
   In R-package, you can use ``.`` (dot) to replace underscore in the parameters, for example, you can use ``max.depth`` to indicate ``max_depth``. The underscore parameters are also valid in R.
 
+.. contents::
+  :backlinks: none
+  :local:
+
 ******************
 General Parameters
 ******************
@@ -172,6 +176,18 @@ Parameters for Tree Booster
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
+
+.. note:: Using ``predict()`` with DART booster
+
+  If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
+  some of the trees will be evaluated. This will produce incorrect results if ``data`` is
+  not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+  a nonzero value, e.g.
+
+  .. code-block:: python
+
+    preds = bst.predict(dtest, ntree_limit=num_round)
+
 * ``sample_type`` [default= ``uniform``]
 
   - Type of sampling algorithm.
@@ -212,7 +228,7 @@ Additional parameters for Dart Booster (``booster=dart``)
   - range: [0.0, 1.0]
 
 Parameters for Linear Booster (``booster=gblinear``)
-==================================================
+====================================================
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
