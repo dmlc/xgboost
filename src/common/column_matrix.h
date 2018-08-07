@@ -35,16 +35,13 @@ switch(dtype) {                                             \
 #include <limits>
 #include <vector>
 #include "hist_util.h"
-#include "../tree/fast_hist_param.h"
 
 
 namespace xgboost {
 namespace common {
 
-using tree::FastHistParam;
-
 /*! \brief indicator of data type used for storing bin id's in a column. */
-enum DataType {
+enum BinIdxStorageType {
   uint8 = 1,
   uint16 = 2,
   uint32 = 4
@@ -58,14 +55,37 @@ enum ColumnType {
 
 /*! \brief a column storage, to be used with ApplySplit. Note that each
     bin id is stored as index[i] + index_base. */
-template<typename T>
+template <typename T>
 class Column {
  public:
-  ColumnType type;
-  const T* index;
-  uint32_t index_base;
-  const size_t* row_ind;
-  size_t len;
+  Column(ColumnType type, const T* index, uint32_t index_base,
+         const size_t* row_ind, size_t len)
+      : type_(type),
+        index_(index),
+        index_base_(index_base),
+        row_ind_(row_ind),
+        len_(len) {}
+  size_t Size() const { return len_; }
+  T GetGlobalBinIdx(size_t idx) const { return index_base_ + index_[idx]; }
+  T GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
+  // column.GetFeatureBinIdx(idx) + column.GetBaseIdx(idx) ==
+  // column.GetGlobalBinIdx(idx)
+  uint32_t GetBaseIdx() const { return index_base_; }
+  ColumnType GetType() const { return type_; }
+  size_t GetRowIdx(size_t idx) const {
+    return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];
+  }
+  bool IsMissing(size_t idx) const {
+    return index_[idx] == std::numeric_limits<T>::max();
+  }
+  const size_t* GetRowData() const { return row_ind_; }
+
+ private:
+  ColumnType type_;
+  const T* index_;
+  uint32_t index_base_;
+  const size_t* row_ind_;
+  const size_t len_;
 };
 
 /*! \brief a collection of columns, with support for construction from
@@ -79,13 +99,13 @@ class ColumnMatrix {
 
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
-                   const FastHistParam& param) {
-    this->dtype = static_cast<DataType>(param.colmat_dtype);
+                BinIdxStorageType storage_type, double  sparse_threshold) {
+    this->dtype = storage_type;
     /* if dtype is smaller than uint32_t, multiple bin_id's will be stored in each
        slot of internal buffer. */
     packing_factor_ = sizeof(uint32_t) / static_cast<size_t>(this->dtype);
 
-    const auto nfeature = static_cast<bst_uint>(gmat.cut->row_ptr.size() - 1);
+    const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
     // identify type of each column
@@ -98,14 +118,14 @@ class ColumnMatrix {
       max_val = static_cast<uint32_t>(std::numeric_limits<DType>::max());
     });
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
-      CHECK_LE(gmat.cut->row_ptr[fid + 1] - gmat.cut->row_ptr[fid], max_val);
+      CHECK_LE(gmat.cut.row_ptr[fid + 1] - gmat.cut.row_ptr[fid], max_val);
     }
 
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
       if (static_cast<double>(feature_counts_[fid])
-                 < param.sparse_threshold * nrow) {
+                 < sparse_threshold * nrow) {
         type_[fid] = kSparseColumn;
       } else {
         type_[fid] = kDenseColumn;
@@ -138,7 +158,7 @@ class ColumnMatrix {
     // store least bin id for each feature
     index_base_.resize(nfeature);
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
-      index_base_[fid] = gmat.cut->row_ptr[fid];
+      index_base_[fid] = gmat.cut.row_ptr[fid];
     }
 
     // pre-fill index_ for dense columns
@@ -167,7 +187,7 @@ class ColumnMatrix {
       size_t fid = 0;
       for (size_t i = ibegin; i < iend; ++i) {
         const uint32_t bin_id = gmat.index[i];
-        while (bin_id >= gmat.cut->row_ptr[fid + 1]) {
+        while (bin_id >= gmat.cut.row_ptr[fid + 1]) {
           ++fid;
         }
         if (type_[fid] == kDenseColumn) {
@@ -193,28 +213,24 @@ class ColumnMatrix {
 
   /* Fetch an individual column. This code should be used with XGBOOST_TYPE_SWITCH
      to determine type of bin id's */
-  template<typename T>
+  template <typename T>
   inline Column<T> GetColumn(unsigned fid) const {
-    const bool valid_type = std::is_same<T, uint32_t>::value
-                          || std::is_same<T, uint16_t>::value
-                          || std::is_same<T, uint8_t>::value;
+    const bool valid_type = std::is_same<T, uint32_t>::value ||
+                            std::is_same<T, uint16_t>::value ||
+                            std::is_same<T, uint8_t>::value;
     CHECK(valid_type);
 
-    Column<T> c;
-
-    c.type = type_[fid];
     const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
     const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
-    c.index = reinterpret_cast<const T*>(&index_[block_offset]) + elem_offset;
-    c.index_base = index_base_[fid];
-    c.row_ind = &row_ind_[boundary_[fid].row_ind_begin];
-    c.len = boundary_[fid].index_end - boundary_[fid].index_begin;
-
+    Column<T> c(type_[fid],
+                reinterpret_cast<const T*>(&index_[block_offset]) + elem_offset,
+                index_base_[fid], &row_ind_[boundary_[fid].row_ind_begin],
+                boundary_[fid].index_end - boundary_[fid].index_begin);
     return c;
   }
 
  public:
-  DataType dtype;
+  BinIdxStorageType dtype;
 
  private:
   struct ColumnBoundary {
