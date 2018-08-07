@@ -193,7 +193,9 @@ struct XGBAPIThreadLocalEntry {
   std::vector<std::string> ret_vec_str;
   /*! \brief result holder for returning string pointers */
   std::vector<const char *> ret_vec_charp;
-  /*! \brief returning float vector. */
+  /*! \brief result holder for returning unsigned int vector. */
+  std::vector<unsigned> ret_vec_uint;
+  /*! \brief result holder for returning float vector. */
   std::vector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
@@ -759,6 +761,26 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
   for (uint64_t i = 0; i < len; ++i) {
     info.group_ptr_[i + 1] = info.group_ptr_[i] + group[i];
   }
+  API_END();
+}
+
+XGB_DLL int XGDMatrixGetGroup(const DMatrixHandle handle,
+                              const unsigned** out_group,
+                              xgboost::bst_ulong* out_len) {
+  std::vector<unsigned>& group = XGBAPIThreadLocalStore::Get()->ret_vec_uint;
+  group.resize(0);
+
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto* pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
+  const MetaInfo& info = pmat->get()->Info();
+
+  const size_t len = info.group_ptr_.size();
+  for (size_t i = 0; i < len; ++i) {
+    group.push_back(info.group_ptr_[i + 1] - info.group_ptr_[i]);
+  }
+  *out_group = dmlc::BeginPtr(group);
+  *out_len = static_cast<xgboost::bst_ulong>(group.size());
   API_END();
 }
 

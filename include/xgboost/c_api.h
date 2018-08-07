@@ -295,15 +295,29 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const unsigned *array,
                                  bst_ulong len);
 /*!
- * \brief set label of the training matrix
+ * \brief set group info of a data matrix
  * \param handle a instance of data matrix
- * \param group pointer to group size
- * \param len length of array
+ * \param group array of group sizes, where group[i] represents the number of
+ *              instances in i-th group
+ * \param len length of array, should be equal to number of groups
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
-                              const unsigned *group,
+                              const unsigned* group,
                               bst_ulong len);
+
+/*!
+ * \brief get group info of a data matrix
+ * \param handle a instance of data matrix
+ * \param out_group used to store array of group sizes, where group[i] would
+ *                  represent the number of instances in i-th group
+ * \param out_len used to set length of out_group, i.e. number of groups
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixGetGroup(const DMatrixHandle handle,
+                              const unsigned** out_group,
+                              bst_ulong* out_len);
+
 /*!
  * \brief get float info vector from matrix
  * \param handle a instance of data matrix
