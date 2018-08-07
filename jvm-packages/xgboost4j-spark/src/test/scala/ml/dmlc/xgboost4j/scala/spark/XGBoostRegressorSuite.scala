@@ -135,6 +135,18 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     assert(resultDF.columns.contains("predictLeaf"))
   }
 
+  test("test predictionLeaf with empty column name") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(training)
+    model.setLeafPredictionCol("")
+    val resultDF = model.transform(testDF)
+    assert(!resultDF.columns.contains("predictLeaf"))
+  }
+
   test("test predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
@@ -147,6 +159,18 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val resultDF = model.transform(testDF)
     assert(resultDF.count === groundTruth)
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("test predictionContrib with empty column name") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(training)
+    model.setContribPredictionCol("predictContrib")
+    val resultDF = model.transform(testDF)
+    assert(!resultDF.columns.contains("predictContrib"))
   }
 
   test("test predictionLeaf and predictionContrib") {
