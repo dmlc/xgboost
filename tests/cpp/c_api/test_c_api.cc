@@ -63,3 +63,13 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     delete dmat;
   }
 }
+
+TEST(c_api, XGDMatrixExposeGroup) {
+  DMatrixHandle handle;
+  unsigned set_groups[3] = {1, 2, 3};
+  xgboost::bst_ulong len = 3;
+  XGDMatrixSetGroup(handle, set_groups, len);
+  unsigned * get_groups[3];
+  XGDMatrixGetGroup(handle, get_groups, len);
+  ASSERT_EQ(get_groups, *get_groups)
+}
