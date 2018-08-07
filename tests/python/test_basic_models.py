@@ -48,6 +48,13 @@ class TestModels(unittest.TestCase):
         preds2 = bst2.predict(dtest2, ntree_limit=num_round)
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
+        # regression test for issues #3485, #3540
+        for _ in range(10):
+            bst3 = xgb.Booster(params=param, model_file='xgb.model.dart')
+            dtest3 = xgb.DMatrix('dtest.buffer')
+            preds3 = bst3.predict(dtest3)
+            # assert they are the same
+            assert np.sum(np.abs(preds3 - preds)) == 0, 'preds3 = {}, preds = {}'.format(preds3, preds)
 
         # check whether sample_type and normalize_type work
         num_round = 50

@@ -211,7 +211,7 @@ Additional parameters for Dart Booster (``booster=dart``)
 
   - range: [0.0, 1.0]
 
-Parameters for Linear Booster (``booster=gbtree``)
+Parameters for Linear Booster (``booster=gblinear``)
 ==================================================
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
@@ -248,6 +248,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``reg:logistic``: logistic regression
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
+  - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
   - ``gpu:reg:linear``, ``gpu:reg:logistic``, ``gpu:binary:logistic``, ``gpu:binary:logitraw``: versions
     of the corresponding objective functions evaluated on the GPU; note that like the GPU histogram algorithm,
     they can only be used when the entire training session uses the same dataset

@@ -8,14 +8,18 @@ set_default_configuration_release()
 msvc_use_static_runtime()
 
 # Options
-option(USE_CUDA  "Build with GPU acceleration") 
-option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF) 
-option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA") 
+option(USE_CUDA  "Build with GPU acceleration")
+option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF)
+option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
+option(USE_SANITIZER "Use santizer flags" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
+  "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
+address, leak and thread.")
 
 # Deprecation warning
 if(PLUGIN_UPDATER_GPU)
@@ -43,6 +47,12 @@ if(WIN32 AND MINGW)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
 endif()
 
+# Sanitizer
+if(USE_SANITIZER)
+  include(cmake/Sanitizer.cmake)
+  enable_sanitizers("${ENABLED_SANITIZERS}")
+endif(USE_SANITIZER)
+
 # AVX
 if(USE_AVX)
   if(MSVC)
@@ -52,6 +62,10 @@ if(USE_AVX)
   endif()
   add_definitions(-DXGBOOST_USE_AVX)
 endif()
+
+# dmlc-core
+add_subdirectory(dmlc-core)
+set(LINK_LIBRARIES dmlc rabit)
 
 # enable custom logging
 add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
@@ -75,7 +89,7 @@ include_directories (
     ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
-file(GLOB_RECURSE SOURCES 
+file(GLOB_RECURSE SOURCES
     src/*.cc
     src/*.h
     include/*.h
@@ -108,18 +122,12 @@ else()
   add_library(rabit STATIC ${RABIT_SOURCES})
 endif()
 
-
-# dmlc-core
-add_subdirectory(dmlc-core)
-set(LINK_LIBRARIES dmlc rabit)
-
-
 if(USE_CUDA)
   find_package(CUDA 8.0 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
 
   add_definitions(-DXGBOOST_USE_CUDA)
-  
+
   include_directories(cub)
 
   if(USE_NCCL)
@@ -138,12 +146,12 @@ if(USE_CUDA)
   endif()
 
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
-  
+
   if(USE_NCCL)
     link_directories(${NCCL_LIBRARY})
     target_link_libraries(gpuxgboost ${NCCL_LIB_NAME})
   endif()
-  list(APPEND LINK_LIBRARIES gpuxgboost) 
+  list(APPEND LINK_LIBRARIES gpuxgboost)
 endif()
 
 
@@ -224,12 +232,12 @@ endif()
 
 # Test
 if(GOOGLE_TEST)
-  find_package(GTest REQUIRED)
   enable_testing()
+  find_package(GTest REQUIRED)
 
   file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
-  include_directories(${GTEST_INCLUDE_DIR})
+  include_directories(${GTEST_INCLUDE_DIRS})
 
   if(USE_CUDA)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")

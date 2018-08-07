@@ -217,6 +217,7 @@ class GBTree : public GradientBooster {
 
   void PredictBatch(DMatrix* p_fmat,
                HostDeviceVector<bst_float>* out_preds,
+               bool dropout,
                unsigned ntree_limit) override {
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
@@ -361,8 +362,11 @@ class Dart : public GBTree {
   // predict the leaf scores with dropout if ntree_limit = 0
   void PredictBatch(DMatrix* p_fmat,
                     HostDeviceVector<bst_float>* out_preds,
+                    bool dropout,
                     unsigned ntree_limit) override {
-    DropTrees(ntree_limit);
+    if (dropout) {
+      DropTrees(ntree_limit);
+    }
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 

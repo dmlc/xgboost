@@ -7,7 +7,7 @@ This document contains frequently asked questions about XGBoost.
 **********************
 How to tune parameters
 **********************
-See :doc:`Parameter Tunning Guide </tutorials/param_tuning>`.
+See :doc:`Parameter Tuning Guide </tutorials/param_tuning>`.
 
 ************************
 Description on the model

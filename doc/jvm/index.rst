@@ -56,6 +56,13 @@ For sbt, please add the repository and dependency in build.sbt as following:
 
   "ml.dmlc" % "xgboost4j" % "latest_source_version_num"
 
+If you want to use XGBoost4J-Spark, replace ``xgboost4j`` with ``xgboost4j-spark``.
+
+.. note:: Spark 2.0 Required
+
+  After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running ``mvn package``, and you can specify the version of spark with ``mvn -Dspark.version=2.0.0 package``.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like ``spark.version``, ``scala.version``, and ``scala.binary.version``. Users also need to change the implementation by replacing ``SparkSession`` with ``SQLContext`` and the type of API parameters from ``Dataset[_]`` to ``Dataframe``)
+
+
 Installation from maven repo
 ============================
 
@@ -76,9 +83,11 @@ Access release version
 
   "ml.dmlc" % "xgboost4j" % "latest_version_num"
 
+This will checkout the latest stable version from the Maven Central.
+
 For the latest release version number, please check `here <https://github.com/dmlc/xgboost/releases>`_.
 
-if you want to use XGBoost4J-Spark, you just need to replace ``xgboost4j`` with ``xgboost4j-spark``.
+if you want to use XGBoost4J-Spark, replace ``xgboost4j`` with ``xgboost4j-spark``.
 
 Access SNAPSHOT version
 -----------------------
@@ -117,9 +126,9 @@ Then add dependency as following:
 
 For the latest release version number, please check `here <https://github.com/CodingCat/xgboost/tree/maven-repo/ml/dmlc/xgboost4j>`_.
 
-if you want to use XGBoost4J-Spark, you just need to replace ``xgboost4j`` with ``xgboost4j-spark``.
+.. note:: Windows not supported by published JARs
 
-After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running ``mvn package``, and you can specify the version of spark with ``mvn -Dspark.version=2.0.0 package``.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like ``spark.version``, ``scala.version``, and ``scala.binary.version``. Users also need to change the implementation by replacing ``SparkSession`` with ``SQLContext`` and the type of API parameters from ``Dataset[_]`` to ``Dataframe``)
+  The published JARs from the Maven Central and GitHub currently only supports Linux and MacOS. Windows users should consider building XGBoost4J / XGBoost4J-Spark from the source. Alternatively, checkout pre-built JARs from `criteo-forks/xgboost-jars <https://github.com/criteo-forks/xgboost-jars>`_.
 
 Enabling OpenMP for Mac OS
 --------------------------
@@ -136,8 +145,10 @@ Contents
 ********
 
 .. toctree::
+  :maxdepth: 2
 
-  Java Overview Tutorial <java_intro>
+  java_intro
+  XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
   XGBoost4J Java API <http://dmlc.ml/docs/javadocs/index.html>
   XGBoost4J Scala API <http://dmlc.ml/docs/scaladocs/xgboost4j/index.html>

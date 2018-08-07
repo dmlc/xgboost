@@ -1,28 +1,28 @@
-##################
-XGBoost4J Java API
-##################
+##############################
+Getting Started with XGBoost4J
+##############################
 This tutorial introduces Java API for XGBoost.
 
 **************
 Data Interface
 **************
-Like the XGBoost python module, XGBoost4J uses ``DMatrix`` to handle data,
-libsvm txt format file, sparse matrix in CSR/CSC format, and dense matrix is
+Like the XGBoost python module, XGBoost4J uses DMatrix to handle data,
+LIBSVM txt format file, sparse matrix in CSR/CSC format, and dense matrix is
 supported.
 
-* The first step is to import ``DMatrix``:
+* The first step is to import DMatrix:
 
   .. code-block:: java
 
-    import org.dmlc.xgboost4j.DMatrix;
+    import org.dmlc.xgboost4j.java.DMatrix;
 
-* Use ``DMatrix`` constructor to load data from a libsvm text format file:
+* Use DMatrix constructor to load data from a libsvm text format file:
 
   .. code-block:: java
 
     DMatrix dmat = new DMatrix("train.svm.txt");
 
-* Pass arrays to ``DMatrix`` constructor to load from sparse matrix.
+* Pass arrays to DMatrix constructor to load from sparse matrix.
 
   Suppose we have a sparse matrix
   
@@ -78,47 +78,31 @@ supported.
 ******************
 Setting Parameters
 ******************
-* In XGBoost4J any ``Iterable<Entry<String, Object>>`` object could be used as parameters.
+To set parameters, parameters are specified as a Map:
 
-* To set parameters, for non-multiple value params, you can simply use entrySet of an Map:
+.. code-block:: java
 
-  .. code-block:: java
-
-    Map<String, Object> paramMap = new HashMap<>() {
-      {
-        put("eta", 1.0);
-        put("max_depth", 2);
-        put("silent", 1);
-        put("objective", "binary:logistic");
-        put("eval_metric", "logloss");
-      }
-    };
-    Iterable<Entry<String, Object>> params = paramMap.entrySet();
-
-* for the situation that multiple values with same param key, List<Entry<String, Object>> would be a good choice, e.g. :
-
-  .. code-block:: java
-
-    List<Entry<String, Object>> params = new ArrayList<Entry<String, Object>>() {
-        {
-            add(new SimpleEntry<String, Object>("eta", 1.0));
-            add(new SimpleEntry<String, Object>("max_depth", 2.0));
-            add(new SimpleEntry<String, Object>("silent", 1));
-            add(new SimpleEntry<String, Object>("objective", "binary:logistic"));
-        }
-    };
+  Map<String, Object> params = new HashMap<>() {
+    {
+      put("eta", 1.0);
+      put("max_depth", 2);
+      put("silent", 1);
+      put("objective", "binary:logistic");
+      put("eval_metric", "logloss");
+    }
+  };
 
 **************
 Training Model
 **************
 With parameters and data, you are able to train a booster model.
 
-* Import ``Trainer`` and ``Booster``:
+* Import Booster and XGBoost:
 
   .. code-block:: java
 
-    import org.dmlc.xgboost4j.Booster;
-    import org.dmlc.xgboost4j.util.Trainer;
+    import org.dmlc.xgboost4j.java.Booster;
+    import org.dmlc.xgboost4j.java.XGBoost;
 
 * Training
 
@@ -126,13 +110,13 @@ With parameters and data, you are able to train a booster model.
 
     DMatrix trainMat = new DMatrix("train.svm.txt");
     DMatrix validMat = new DMatrix("valid.svm.txt");
-    //specify a watchList to see the performance
-    //any Iterable<Entry<String, DMatrix>> object could be used as watchList
-    List<Entry<String, DMatrix>> watchs =  new ArrayList<>();
-    watchs.add(new SimpleEntry<>("train", trainMat));
-    watchs.add(new SimpleEntry<>("test", testMat));
-    int round = 2;
-    Booster booster = Trainer.train(params, trainMat, round, watchs, null, null);
+    // Specify a watchList to see the performance
+    // Any Iterable<Entry<String, DMatrix>> object could be used as watchList
+    List<Entry<String, DMatrix>> watches = new ArrayList<>();
+    watches.add(new SimpleEntry<>("train", trainMat));
+    watches.add(new SimpleEntry<>("test", testMat));
+    int nround = 2;
+    Booster booster = XGBoost.train(trainMat, params, nround, watches, null, null);
 
 * Saving model
 
@@ -142,25 +126,19 @@ With parameters and data, you are able to train a booster model.
 
     booster.saveModel("model.bin");
 
-* Dump Model and Feature Map
+* Generaing model dump with feature map
 
   .. code-block:: java
 
-    booster.dumpModel("modelInfo.txt", false)
-    //dump with featureMap
-    booster.dumpModel("modelInfo.txt", "featureMap.txt", false)
+    String[] model_dump = booster.getModelDump(null, false)
+    // dump with feature map
+    String[] model_dump_with_feature_map = booster.getModelDump("featureMap.txt", false)
 
 * Load a model
 
   .. code-block:: java
 
-    Params param = new Params() {
-      {
-        put("silent", 1);
-        put("nthread", 6);
-      }
-    };
-    Booster booster = new Booster(param, "model.bin");
+    Booster booster = Booster.loadModel("model.bin");
 
 **********
 Prediction
@@ -170,8 +148,8 @@ After training and loading a model, you can use it to make prediction for other 
 .. code-block:: java
 
   DMatrix dtest = new DMatrix("test.svm.txt");
-  //predict
+  // predict
   float[][] predicts = booster.predict(dtest);
-  //predict leaf
-  float[][] leafPredicts = booster.predict(dtest, 0, true);
+  // predict leaf
+  float[][] leafPredicts = booster.predictLeaf(dtest, 0);
 
