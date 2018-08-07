@@ -168,7 +168,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val testDF = buildDataFrame(Regression.test)
     val xgb = new XGBoostRegressor(paramMap)
     val model = xgb.fit(training)
-    model.setContribPredictionCol("predictContrib")
+    model.setContribPredictionCol("")
     val resultDF = model.transform(testDF)
     assert(!resultDF.columns.contains("predictContrib"))
   }
