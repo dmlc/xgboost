@@ -43,7 +43,8 @@ RUN \
     python3.6-dev \
     python3-pip \
     python3-setuptools \
-    python3-wheel && \
+    python3-wheel \
+    cmake && \
   update-alternatives --install /usr/bin/python python /usr/bin/python3.6 100 && \
   python -m pip install --upgrade pip && \
   apt-get clean && \
