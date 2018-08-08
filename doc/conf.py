@@ -22,7 +22,7 @@ import guzzle_sphinx_theme
 
 git_branch = str(git('rev-parse', '--abbrev-ref', 'HEAD')).rstrip('\n')
 filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch))
-call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir tmp; cd tmp; tar xvf {}'.format(filename))
+call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
