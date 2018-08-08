@@ -19,7 +19,7 @@ However, such complicated model requires more data to fit.
 Most of parameters in XGBoost are about bias variance tradeoff. The best model
 should trade the model complexity with its predictive power carefully.
 :doc:`Parameters Documentation </parameter>` will tell you whether each parameter
-ill make the model more conservative or not. This can be used to help you
+will make the model more conservative or not. This can be used to help you
 turn the knob between complicated model and simple model.
 
 *******************
@@ -27,16 +27,16 @@ Control Overfitting
 *******************
 When you observe high training accuracy, but low test accuracy, it is likely that you encountered overfitting problem.
 
-There are in general two ways that you can control overfitting in XGBoost
+There are in general two ways that you can control overfitting in XGBoost:
 
-* The first way is to directly control model complexity
+* The first way is to directly control model complexity.
 
-  - This include ``max_depth``, ``min_child_weight`` and ``gamma``
+  - This includes ``max_depth``, ``min_child_weight`` and ``gamma``.
 
-* The second way is to add randomness to make training robust to noise
+* The second way is to add randomness to make training robust to noise.
 
-  - This include ``subsample`` and ``colsample_bytree``.
-  - You can also reduce stepsize ``eta``. Rremember to increase ``num_round`` when you do so.
+  - This includes ``subsample`` and ``colsample_bytree``.
+  - You can also reduce stepsize ``eta``. Remember to increase ``num_round`` when you do so.
 
 *************************
 Handle Imbalanced Dataset
