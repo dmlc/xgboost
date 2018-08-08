@@ -57,7 +57,7 @@
               <executions>
                   <execution>
                       <id>native</id>
-                      <phase>generate-sources</phase>
+                      <phase>compile</phase>
                       <goals>
                           <goal>exec</goal>
                       </goals>
