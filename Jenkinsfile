@@ -34,16 +34,6 @@ pipeline {
                 milestone label: 'Sources ready', ordinal: 1
             }
         }
-        stage('Build & Test') {
-            steps {
-                script {
-                    parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
-                        def buildName = getBuildName(c)
-                        buildFactory(buildName, c)
-                    })
-                }
-            }
-        }
         stage('Build doc') {
             agent any
             steps {
@@ -75,6 +65,16 @@ pipeline {
                     } else {                      // This is a pull request
                         echo 'Skipping doc build step for pull request'
                     }
+                }
+            }
+        }
+        stage('Build & Test') {
+            steps {
+                script {
+                    parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
+                        def buildName = getBuildName(c)
+                        buildFactory(buildName, c)
+                    })
                 }
             }
         }
