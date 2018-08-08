@@ -514,19 +514,6 @@ class FastHistMaker: public TreeUpdater {
                            const HistCollection& hist,
                            const DMatrix& fmat,
                            RegTree* p_tree) {
-      XGBOOST_TYPE_SWITCH(column_matrix.dtype, {
-        ApplySplitSpecialize<DType>(nid, gmat, column_matrix, hist, fmat,
-                                    p_tree);
-      });
-    }
-
-    template <typename T>
-    inline void ApplySplitSpecialize(int nid,
-                            const GHistIndexMatrix& gmat,
-                            const ColumnMatrix& column_matrix,
-                            const HistCollection& hist,
-                            const DMatrix& fmat,
-                            RegTree* p_tree) {
       // TODO(hcho3): support feature sampling by levels
 
       /* 1. Create child nodes */
@@ -565,7 +552,7 @@ class FastHistMaker: public TreeUpdater {
 
       const auto& rowset = row_set_collection_[nid];
 
-      Column<T> column = column_matrix.GetColumn<T>(fid);
+      Column column = column_matrix.GetColumn(fid);
       if (column.GetType() == xgboost::common::kDenseColumn) {
         ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
           default_left);
@@ -578,11 +565,10 @@ class FastHistMaker: public TreeUpdater {
         nid, row_split_tloc_, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild());
     }
 
-    template<typename T>
     inline void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    const Column<T>& column,
+                                    const Column& column,
                                     bst_int split_cond,
                                     bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
@@ -596,7 +582,7 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[tid].left;
         auto& right = row_split_tloc[tid].right;
         size_t rid[kUnroll];
-        T rbin[kUnroll];
+        uint32_t rbin[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
           rid[k] = rowset.begin[i + k];
         }
@@ -604,7 +590,7 @@ class FastHistMaker: public TreeUpdater {
           rbin[k] = column.GetFeatureBinIdx(rid[k]);
         }
         for (int k = 0; k < kUnroll; ++k) {                      // NOLINT
-          if (rbin[k] == std::numeric_limits<T>::max()) {  // missing value
+          if (rbin[k] == std::numeric_limits<uint32_t>::max()) {  // missing value
             if (default_left) {
               left.push_back(rid[k]);
             } else {
@@ -623,8 +609,8 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[nthread_-1].left;
         auto& right = row_split_tloc[nthread_-1].right;
         const size_t rid = rowset.begin[i];
-        const T rbin = column.GetFeatureBinIdx(rid);
-        if (rbin == std::numeric_limits<T>::max()) {  // missing value
+        const uint32_t rbin = column.GetFeatureBinIdx(rid);
+        if (rbin == std::numeric_limits<uint32_t>::max()) {  // missing value
           if (default_left) {
             left.push_back(rid);
           } else {
@@ -640,11 +626,10 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
-    template<typename T>
     inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    const Column<T>& column,
+                                    const Column& column,
                                     bst_uint lower_bound,
                                     bst_uint upper_bound,
                                     bst_int split_cond,
@@ -676,7 +661,7 @@ class FastHistMaker: public TreeUpdater {
                 ++cursor;
               }
               if (cursor < column.Size() && column.GetRowIdx(cursor) == rid) {
-                const T rbin = column.GetFeatureBinIdx(cursor);
+                const uint32_t rbin = column.GetFeatureBinIdx(cursor);
                 if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
                   left.push_back(rid);
                 } else {

@@ -172,14 +172,13 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   }
 }
 
-template <typename T>
 static size_t GetConflictCount(const std::vector<bool>& mark,
-                               const Column<T>& column,
+                               const Column& column,
                                size_t max_cnt) {
   size_t ret = 0;
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
-      if (column.GetFeatureBinIdx(i) != std::numeric_limits<T>::max() && mark[i]) {
+      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max() && mark[i]) {
         ++ret;
         if (ret > max_cnt) {
           return max_cnt + 1;
@@ -199,13 +198,12 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
   return ret;
 }
 
-template <typename T>
 inline void
-MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
+MarkUsed(std::vector<bool>* p_mark, const Column& column) {
   std::vector<bool>& mark = *p_mark;
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
-      if (column.GetFeatureBinIdx(i) != std::numeric_limits<T>::max()) {
+      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max()) {
         mark[i] = true;
       }
     }
@@ -216,13 +214,12 @@ MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
   }
 }
 
-template <typename T>
 inline std::vector<std::vector<unsigned>>
-FindGroups_(const std::vector<unsigned>& feature_list,
-            const std::vector<size_t>& feature_nnz,
-            const ColumnMatrix& colmat,
-            size_t nrow,
-            const FastHistParam& param) {
+FindGroups(const std::vector<unsigned>& feature_list,
+           const std::vector<size_t>& feature_nnz,
+           const ColumnMatrix& colmat,
+           size_t nrow,
+           const FastHistParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
            member features.
@@ -236,7 +233,7 @@ FindGroups_(const std::vector<unsigned>& feature_list,
     = static_cast<size_t>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
-    const Column<T>& column = colmat.GetColumn<T>(fid);
+    const Column& column = colmat.GetColumn(fid);
 
     const size_t cur_fid_nnz = feature_nnz[fid];
     bool need_new_group = true;
@@ -279,18 +276,6 @@ FindGroups_(const std::vector<unsigned>& feature_list,
   }
 
   return groups;
-}
-
-inline std::vector<std::vector<unsigned>>
-FindGroups(const std::vector<unsigned>& feature_list,
-           const std::vector<size_t>& feature_nnz,
-           const ColumnMatrix& colmat,
-           size_t nrow,
-           const FastHistParam& param) {
-  XGBOOST_TYPE_SWITCH(colmat.dtype, {
-    return FindGroups_<DType>(feature_list, feature_nnz, colmat, nrow, param);
-  });
-  return std::vector<std::vector<unsigned>>();  // to avoid warning message
 }
 
 inline std::vector<std::vector<unsigned>>
