@@ -76,7 +76,7 @@ public class XGBoost {
           Map<String, DMatrix> watches,
           IObjective obj,
           IEvaluation eval) throws XGBoostError {
-    return train(dtrain, params, round, watches, null, obj, new IEvaluation[]{eval}, 0);
+    return train(dtrain, params, round, watches, null, obj, eval, 0);
   }
 
   /**
@@ -106,7 +106,7 @@ public class XGBoost {
           IEvaluation eval,
           int earlyStoppingRound) throws XGBoostError {
     return train(dtrain, params, round, watches, metrics, obj,
-                 new IEvaluation[]{eval}, earlyStoppingRound, null);
+                 eval, earlyStoppingRound, null);
   }
 
   /**
@@ -137,8 +137,13 @@ public class XGBoost {
           IEvaluation eval,
           int earlyStoppingRound,
           Booster booster) throws XGBoostError {
-    return train(dtrain, params, round, watches, metrics, obj,
-                 new IEvaluation[]{eval}, earlyStoppingRound, booster);
+    if(eval != null) {
+      return trainWithMultipleEvals(dtrain, params, round, watches, metrics, obj,
+                                    new IEvaluation[]{eval}, earlyStoppingRound, booster);
+    } else {
+      return trainWithMultipleEvals(dtrain, params, round, watches, metrics, obj,
+                                    null, earlyStoppingRound, booster);
+    }
   }
 
   public static BoosterResults trainWithResults(
@@ -204,7 +209,7 @@ public class XGBoost {
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo = "";
-        if (evals != null && evals.length > 1) {
+        if (evals != null && evals.length > 0) {
           for (int i = 0; i < evals.length; i++) {
             String evalLine = booster.evalSet(evalMats, evalNames, evals[i], metricsOut);
             evalInfo = evalInfo + " " + evalLine;
@@ -251,18 +256,25 @@ public class XGBoost {
    *               performance on the validation set.
    * @param obj    customized objective (set to null if not used)
    * @param eval   customized evaluation (set to null if not used)
+   * @param earlyStoppingRound if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           increases in any evaluation metric.
    * @return trained booster
    * @throws XGBoostError native error
    */
-  public static Booster train(
+  public static Booster trainWithMultipleEvals(
       DMatrix dtrain,
       Map<String, Object> params,
       int round,
       Map<String, DMatrix> watches,
+      float[][] metrics,
       IObjective obj,
-      IEvaluation[] evals) throws XGBoostError {
+      IEvaluation[] evals,
+      int earlyStoppingRound,
+      Booster booster) throws XGBoostError {
 
-    BoosterResults results = trainWithResults(dtrain, params, round, watches, obj, evals);
+    BoosterResults results = trainWithResults(dtrain, params, round, watches, metrics,
+                                              obj, evals, earlyStoppingRound, booster);
     return results.getBooster();
   }
 

@@ -83,7 +83,7 @@ object XGBoost {
     *                           after a specified number of consecutive
     *                           increases in any evaluation metric.
     * @param obj     customized objective
-    * @param eval    customized evaluation or evaluations
+    * @param eval    customized evaluation
     * @param booster train from scratch if set to null; train from an existing booster if not null.
     * @return The trained booster.
     */
@@ -95,18 +95,67 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map(),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      eval: Either[IEvaluation, Array[IEvaluation]] = null,
+      eval: IEvaluation = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null
   ): Booster = {
     val evals: Array[IEvaluation] = {
-      eval match {
-        case single: IEvaluation => Array(eval)
-        case multiple: Array[IEvaluation] => eval
-        case _ => null
+      if (eval != null) {
+        Array(eval)
+      } else {
+        null
       }
     }
 
+    val xgboostResults = trainWithResults(
+      dtrain,
+      params,
+      round,
+      watches,
+      metrics,
+      obj,
+      evals,
+      earlyStoppingRound,
+      booster
+    )
+    if (booster == null) {
+      new Booster(xgboostResults.getBooster())
+    } else {
+      // Avoid creating a new SBooster with the same JBooster
+      booster
+    }
+  }
+
+    /**
+    * Train a booster given parameters.
+    *
+    * @param dtrain  Data to be trained.
+    * @param params  Parameters.
+    * @param round   Number of boosting iterations.
+    * @param watches a group of items to be evaluated during training, this allows user to watch
+    *                performance on the validation set.
+    * @param metrics array containing the evaluation metrics for each matrix in watches for each
+    *                iteration
+    * @param earlyStoppingRound if non-zero, training would be stopped
+    *                           after a specified number of consecutive
+    *                           increases in any evaluation metric.
+    * @param obj     customized objective
+    * @param evals   customized evaluations
+    * @param booster train from scratch if set to null; train from an existing booster if not null.
+    * @return The trained booster.
+    */
+  @throws(classOf[XGBoostError])
+  def trainWithMultipleEvals(
+      dtrain: DMatrix,
+      params: Map[String, Any],
+      round: Int,
+      watches: Map[String, DMatrix] = Map[String, DMatrix](),
+      metrics: Array[Array[Float]] = null,
+      obj: ObjectiveTrait = null,
+      evals: Array[IEvaluation] = null,
+      earlyStoppingRound: Int = 0,
+      booster: Booster = null
+  ): Booster = {
     val xgboostResults = trainWithResults(
       dtrain,
       params,
