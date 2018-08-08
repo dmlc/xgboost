@@ -49,6 +49,7 @@ pipeline {
             steps {
                 script {
                     def commit_id = "${GIT_COMMIT}"
+                    def branch_name = "${GIT_LOCAL_BRANCH}"
                     echo 'Building doc...'
                     dir ('jvm-packages') {
                         sh 'mvn install -DskipTests'
@@ -66,15 +67,18 @@ pipeline {
                         }
                         sh 'rm -rfv tmp/'
                     }
+                    if (branch_name == "master") {
+                        branch_name = "latest"
+                    }
+                    if (env.CHANGE_ID == null) {  // This is a branch
+                        echo 'Deploying doc...'
+                        withAWS(credentials:'AKIAIWGLM5NN3C2PEZMA') {
+                            s3Upload file: "jvm-packages/${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                        }
+                    } else {                      // This is a pull request
+                        echo 'Skipping doc deploy step for pull request'
+                    }
                 }
-            }
-        }
-        stage('Deploy doc') {
-            when {
-                expression { env.CHANGE_ID == null }
-            }
-            steps {
-                echo 'Deploying doc...'
             }
         }
     }
