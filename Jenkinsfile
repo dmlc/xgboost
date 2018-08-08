@@ -44,6 +44,39 @@ pipeline {
                 }
             }
         }
+        stage('Build doc') {
+            agent any
+            steps {
+                script {
+                    def commit_id = "${GIT_COMMIT}"
+                    echo 'Building doc...'
+                    dir ('jvm-packages') {
+                        sh 'mvn install -DskipTests'
+                        sh 'mvn scala:doc -DskipTests'
+                        sh 'mvn javadoc:javadoc -DskipTests'
+                        sh 'mkdir tmp'
+                        sh 'mkdir tmp/scaladocs'
+                        sh 'cp -rv xgboost4j/target/site/apidocs/ ./tmp/javadocs/'
+                        sh 'cp -rv xgboost4j/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j/'
+                        sh 'cp -rv xgboost4j-spark/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j-spark/'
+                        sh 'cp -rv xgboost4j-flink/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j-flink/'
+                        dir ('tmp') {
+                           sh "tar cvjf ${commit_id}.tar.bz2 javadocs/ scaladocs/"
+                           archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
+                        }
+                        sh 'rm -rfv tmp/'
+                    }
+                }
+            }
+        }
+        stage('Deploy doc') {
+            when {
+                expression { env.CHANGE_ID == null }
+            }
+            steps {
+                echo 'Deploying doc...'
+            }
+        }
     }
 }
 
