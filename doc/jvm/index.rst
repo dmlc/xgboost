@@ -58,10 +58,9 @@ For sbt, please add the repository and dependency in build.sbt as following:
 
 If you want to use XGBoost4J-Spark, replace ``xgboost4j`` with ``xgboost4j-spark``.
 
-.. note:: Spark 2.0 Required
+.. note:: XGBoost4J-Spark requires Spark 2.3+
 
-  After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running ``mvn package``, and you can specify the version of spark with ``mvn -Dspark.version=2.0.0 package``.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like ``spark.version``, ``scala.version``, and ``scala.binary.version``. Users also need to change the implementation by replacing ``SparkSession`` with ``SQLContext`` and the type of API parameters from ``Dataset[_]`` to ``Dataframe``)
-
+  XGBoost4J-Spark now requires Spark 2.3+. Latest versions of XGBoost4J-Spark uses facilities of `org.apache.spark.ml.param.shared` extensively to provide for a tight integration with Spark MLLIB framework, and these facilities are not fully available on earlier versions of Spark.
 
 Installation from maven repo
 ============================
