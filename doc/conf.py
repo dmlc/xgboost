@@ -16,12 +16,15 @@ from sh.contrib import git
 import urllib.request
 from recommonmark.parser import CommonMarkParser
 import sys
+import re
 import os, subprocess
 import shlex
 import guzzle_sphinx_theme
 
-git_branch = str(git('rev-parse', '--abbrev-ref', 'HEAD')).rstrip('\n')
-filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch))
+git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
+git_branch = [x for x in git_branch if 'HEAD' not in x]
+print('git_branch = {}'.format(git_branch[0]))
+filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch[0]))
 call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
 
 # If extensions (or modules to document with autodoc) are in another directory,
