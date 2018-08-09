@@ -16,12 +16,6 @@
 namespace xgboost {
 namespace common {
 
-/*! \brief indicator of data type used for storing bin id's in a column. */
-enum BinIdxStorageType {
-  uint8 = 1,
-  uint16 = 2,
-  uint32 = 4
-};
 
 /*! \brief column type */
 enum ColumnType {
@@ -74,7 +68,7 @@ class ColumnMatrix {
 
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
-                BinIdxStorageType storage_type, double  sparse_threshold) {
+                double  sparse_threshold) {
     const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 

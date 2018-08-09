@@ -70,9 +70,7 @@ class FastHistMaker: public TreeUpdater {
     if (is_gmat_initialized_ == false) {
       double tstart = dmlc::GetTime();
       gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-      column_matrix_.Init(
-          gmat_, static_cast<common::BinIdxStorageType>(fhparam_.colmat_dtype),
-          fhparam_.sparse_threshold);
+      column_matrix_.Init(gmat_, fhparam_.sparse_threshold);
       if (fhparam_.enable_feature_grouping > 0) {
         gmatb_.Init(gmat_, column_matrix_, fhparam_);
       }
