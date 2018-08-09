@@ -69,10 +69,8 @@ class FastHistMaker: public TreeUpdater {
     GradStats::CheckInfo(dmat->Info());
     if (is_gmat_initialized_ == false) {
       double tstart = dmlc::GetTime();
-      hmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-      gmat_.cut = &hmat_;
-      gmat_.Init(dmat);
-      column_matrix_.Init(gmat_, fhparam_);
+      gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
+      column_matrix_.Init(gmat_, fhparam_.sparse_threshold);
       if (fhparam_.enable_feature_grouping > 0) {
         gmatb_.Init(gmat_, column_matrix_, fhparam_);
       }
@@ -112,8 +110,6 @@ class FastHistMaker: public TreeUpdater {
   // training parameter
   TrainParam param_;
   FastHistParam fhparam_;
-  // data sketch
-  HistCutMatrix hmat_;
   // quantized data matrix
   GHistIndexMatrix gmat_;
   // (optional) data matrix with feature grouping
@@ -376,7 +372,7 @@ class FastHistMaker: public TreeUpdater {
         // clear local prediction cache
         leaf_value_cache_.clear();
         // initialize histogram collection
-        uint32_t nbins = gmat.cut->row_ptr.back();
+        uint32_t nbins = gmat.cut.row_ptr.back();
         hist_.Init(nbins);
 
         // initialize histogram builder
@@ -413,7 +409,7 @@ class FastHistMaker: public TreeUpdater {
         const size_t ncol = info.num_col_;
         const size_t nnz = info.num_nonzero_;
         // number of discrete bins for feature 0
-        const uint32_t nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
+        const uint32_t nbins_f0 = gmat.cut.row_ptr[1] - gmat.cut.row_ptr[0];
         if (nrow * ncol == nnz) {
           // dense data with zero-based indexing
           data_layout_ = kDenseDataZeroBased;
@@ -454,7 +450,7 @@ class FastHistMaker: public TreeUpdater {
            choose the column that has a least positive number of discrete bins.
            For dense data (with no missing value),
               the sum of gradient histogram is equal to snode[nid] */
-        const std::vector<uint32_t>& row_ptr = gmat.cut->row_ptr;
+        const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
         const auto nfeature = static_cast<bst_uint>(row_ptr.size() - 1);
         uint32_t min_nbins_per_feature = 0;
         for (bst_uint i = 0; i < nfeature; ++i) {
@@ -516,19 +512,6 @@ class FastHistMaker: public TreeUpdater {
                            const HistCollection& hist,
                            const DMatrix& fmat,
                            RegTree* p_tree) {
-      XGBOOST_TYPE_SWITCH(column_matrix.dtype, {
-        ApplySplitSpecialize<DType>(nid, gmat, column_matrix, hist, fmat,
-                                    p_tree);
-      });
-    }
-
-    template <typename T>
-    inline void ApplySplitSpecialize(int nid,
-                            const GHistIndexMatrix& gmat,
-                            const ColumnMatrix& column_matrix,
-                            const HistCollection& hist,
-                            const DMatrix& fmat,
-                            RegTree* p_tree) {
       // TODO(hcho3): support feature sampling by levels
 
       /* 1. Create child nodes */
@@ -552,23 +535,23 @@ class FastHistMaker: public TreeUpdater {
       const bool default_left = (*p_tree)[nid].DefaultLeft();
       const bst_uint fid = (*p_tree)[nid].SplitIndex();
       const bst_float split_pt = (*p_tree)[nid].SplitCond();
-      const uint32_t lower_bound = gmat.cut->row_ptr[fid];
-      const uint32_t upper_bound = gmat.cut->row_ptr[fid + 1];
+      const uint32_t lower_bound = gmat.cut.row_ptr[fid];
+      const uint32_t upper_bound = gmat.cut.row_ptr[fid + 1];
       int32_t split_cond = -1;
       // convert floating-point split_pt into corresponding bin_id
       // split_cond = -1 indicates that split_pt is less than all known cut points
       CHECK_LT(upper_bound,
         static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
       for (uint32_t i = lower_bound; i < upper_bound; ++i) {
-        if (split_pt == gmat.cut->cut[i]) {
+        if (split_pt == gmat.cut.cut[i]) {
           split_cond = static_cast<int32_t>(i);
         }
       }
 
       const auto& rowset = row_set_collection_[nid];
 
-      Column<T> column = column_matrix.GetColumn<T>(fid);
-      if (column.type == xgboost::common::kDenseColumn) {
+      Column column = column_matrix.GetColumn(fid);
+      if (column.GetType() == xgboost::common::kDenseColumn) {
         ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
           default_left);
       } else {
@@ -580,11 +563,10 @@ class FastHistMaker: public TreeUpdater {
         nid, row_split_tloc_, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild());
     }
 
-    template<typename T>
     inline void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    const Column<T>& column,
+                                    const Column& column,
                                     bst_int split_cond,
                                     bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
@@ -598,24 +580,22 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[tid].left;
         auto& right = row_split_tloc[tid].right;
         size_t rid[kUnroll];
-        T rbin[kUnroll];
+        uint32_t rbin[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
           rid[k] = rowset.begin[i + k];
         }
         for (int k = 0; k < kUnroll; ++k) {
-          rbin[k] = column.index[rid[k]];
+          rbin[k] = column.GetFeatureBinIdx(rid[k]);
         }
         for (int k = 0; k < kUnroll; ++k) {                      // NOLINT
-          if (rbin[k] == std::numeric_limits<T>::max()) {  // missing value
+          if (rbin[k] == std::numeric_limits<uint32_t>::max()) {  // missing value
             if (default_left) {
               left.push_back(rid[k]);
             } else {
               right.push_back(rid[k]);
             }
           } else {
-            CHECK_LT(rbin[k] + column.index_base,
-              static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-            if (static_cast<int32_t>(rbin[k] + column.index_base) <= split_cond) {
+            if (static_cast<int32_t>(rbin[k] + column.GetBaseIdx()) <= split_cond) {
               left.push_back(rid[k]);
             } else {
               right.push_back(rid[k]);
@@ -627,17 +607,15 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[nthread_-1].left;
         auto& right = row_split_tloc[nthread_-1].right;
         const size_t rid = rowset.begin[i];
-        const T rbin = column.index[rid];
-        if (rbin == std::numeric_limits<T>::max()) {  // missing value
+        const uint32_t rbin = column.GetFeatureBinIdx(rid);
+        if (rbin == std::numeric_limits<uint32_t>::max()) {  // missing value
           if (default_left) {
             left.push_back(rid);
           } else {
             right.push_back(rid);
           }
         } else {
-          CHECK_LT(rbin + column.index_base,
-            static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-          if (static_cast<int32_t>(rbin + column.index_base) <= split_cond) {
+          if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
             left.push_back(rid);
           } else {
             right.push_back(rid);
@@ -646,11 +624,10 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
-    template<typename T>
     inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    const Column<T>& column,
+                                    const Column& column,
                                     bst_uint lower_bound,
                                     bst_uint upper_bound,
                                     bst_int split_cond,
@@ -665,27 +642,25 @@ class FastHistMaker: public TreeUpdater {
         const size_t iend = (tid + 1) * nrows / nthread_;
         if (ibegin < iend) {  // ensure that [ibegin, iend) is nonempty range
           // search first nonzero row with index >= rowset[ibegin]
-          const size_t* p = std::lower_bound(column.row_ind,
-                                             column.row_ind + column.len,
+          const size_t* p = std::lower_bound(column.GetRowData(),
+                                             column.GetRowData() + column.Size(),
                                              rowset.begin[ibegin]);
 
           auto& left = row_split_tloc[tid].left;
           auto& right = row_split_tloc[tid].right;
-          if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
-            size_t cursor = p - column.row_ind;
+          if (p != column.GetRowData() + column.Size() && *p <= rowset.begin[iend - 1]) {
+            size_t cursor = p - column.GetRowData();
 
             for (size_t i = ibegin; i < iend; ++i) {
               const size_t rid = rowset.begin[i];
-              while (cursor < column.len
-                     && column.row_ind[cursor] < rid
-                     && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
+              while (cursor < column.Size()
+                     && column.GetRowIdx(cursor) < rid
+                     && column.GetRowIdx(cursor) <= rowset.begin[iend - 1]) {
                 ++cursor;
               }
-              if (cursor < column.len && column.row_ind[cursor] == rid) {
-                const T rbin = column.index[cursor];
-                CHECK_LT(rbin + column.index_base,
-                  static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-                if (static_cast<int32_t>(rbin + column.index_base) <= split_cond) {
+              if (cursor < column.Size() && column.GetRowIdx(cursor) == rid) {
+                const uint32_t rbin = column.GetFeatureBinIdx(cursor);
+                if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
                   left.push_back(rid);
                 } else {
                   right.push_back(rid);
@@ -733,7 +708,7 @@ class FastHistMaker: public TreeUpdater {
              For dense data (with no missing value),
                 the sum of gradient histogram is equal to snode[nid] */
           GHistRow hist = hist_[nid];
-          const std::vector<uint32_t>& row_ptr = gmat.cut->row_ptr;
+          const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
 
           const uint32_t ibegin = row_ptr[fid_least_bins_];
           const uint32_t iend = row_ptr[fid_least_bins_ + 1];
@@ -771,8 +746,8 @@ class FastHistMaker: public TreeUpdater {
       CHECK(d_step == +1 || d_step == -1);
 
       // aliases
-      const std::vector<uint32_t>& cut_ptr = gmat.cut->row_ptr;
-      const std::vector<bst_float>& cut_val = gmat.cut->cut;
+      const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
+      const std::vector<bst_float>& cut_val = gmat.cut.cut;
 
       // statistics on both sides of split
       GradStats c(param_);
@@ -821,7 +796,7 @@ class FastHistMaker: public TreeUpdater {
                   snode.root_gain);
               if (i == imin) {
                 // for leftmost bin, left bound is the smallest feature value
-                split_pt = gmat.cut->min_val[fid];
+                split_pt = gmat.cut.min_val[fid];
               } else {
                 split_pt = cut_val[i - 1];
               }
