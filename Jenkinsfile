@@ -9,7 +9,7 @@ dockerRun = 'tests/ci_build/ci_build.sh'
 def buildMatrix = [
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
-    [ "enabled": false,  "os" : "linux", "withGpu": false, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": ""  ],
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
 ]
 
 pipeline {
@@ -143,7 +143,7 @@ def cmakeOptions(conf) {
 }
 
 def getBuildName(conf) {
-    def gpuLabel = conf['withGpu'] ? "_cuda" + conf['cudaVersion'] : "_cpu"
+    def gpuLabel = conf['withGpu'] ? ("_cuda" + conf['cudaVersion'] + (conf['withNccl'] ? "_nccl" : "_nonccl")) : "_cpu"
     def ompLabel = conf['withOmp'] ? "_omp" : ""
     def pyLabel = "_py${conf['pythonVersion']}"
     return "${conf['os']}${gpuLabel}${ompLabel}${pyLabel}"
