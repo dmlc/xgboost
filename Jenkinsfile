@@ -43,24 +43,12 @@ pipeline {
                         def branch_name = "${GIT_LOCAL_BRANCH}"
                         echo 'Building doc...'
                         dir ('jvm-packages') {
-                            sh 'mvn install -DskipTests'
-                            sh 'mvn scala:doc -DskipTests'
-                            sh 'mvn javadoc:javadoc -DskipTests'
-                            sh 'mkdir tmp'
-                            sh 'mkdir tmp/scaladocs'
-                            sh 'cp -rv xgboost4j/target/site/apidocs/ ./tmp/javadocs/'
-                            sh 'cp -rv xgboost4j/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j/'
-                            sh 'cp -rv xgboost4j-spark/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j-spark/'
-                            sh 'cp -rv xgboost4j-flink/target/site/scaladocs/ ./tmp/scaladocs/xgboost4j-flink/'
-                            dir ('tmp') {
-                               sh "tar cvjf ${commit_id}.tar.bz2 javadocs/ scaladocs/"
-                               archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
-                               echo 'Deploying doc...'
-                               withAWS(credentials:'xgboost-doc-bucket') {
-                                   s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
-                               }
+                            sh "bash ./build_doc.sh ${commit_id}"
+                            archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
+                            echo 'Deploying doc...'
+                            withAWS(credentials:'xgboost-doc-bucket') {
+                                s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
                             }
-                            sh 'rm -rfv tmp/'
                         }
                     } else {                      // This is a pull request
                         echo 'Skipping doc build step for pull request'
