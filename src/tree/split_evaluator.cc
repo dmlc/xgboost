@@ -310,7 +310,7 @@ struct InteractionConstraintParams
     : public dmlc::Parameter<InteractionConstraintParams> {
   std::vector<bst_int> int_constraints;
   int nint_constraints;
-  
+
   DMLC_DECLARE_PARAMETER(InteractionConstraintParams) {
     DMLC_DECLARE_FIELD(int_constraints)
         .set_default(std::vector<int>())
@@ -343,9 +343,9 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   void Reset() override {
-    // Number of features on the data, implied by the relative size of int_constraints vector and nint_constraints
+    // Nfeatures based on the relative size of int_constraints and nint_constraints
     bst_uint nfeatures;
-    if (params_.int_constraints.size() == 0){
+    if (params_.int_constraints.size() == 0) {
       nfeatures = 1;
     } else {
       nfeatures = params_.int_constraints.size() / params_.nint_constraints;
@@ -421,26 +421,28 @@ class InteractionConstraint final : public SplitEvaluator {
     for (bst_uint i = 0; i < nfeatures; ++i) int_cont_[i].resize(newsize, 0);
 
     // Permit features used in previous splits
-    for (bst_uint i = 0; i < feature_splits.size(); ++i){
+    for (bst_uint i = 0; i < feature_splits.size(); ++i) {
       int_cont_[feature_splits[i]][leftid] = 1;
       int_cont_[feature_splits[i]][rightid] = 1;
     }
 
     // Loop across specified interactions in constraints
-    for (bst_int i = 0; i < params_.nint_constraints; i++){
+    for (bst_int i = 0; i < params_.nint_constraints; i++) {
       bst_uint flag = 1;  // flags whether the specified interaction is still relevant
 
       // Test relevance of specified interaction by checking all previous features are included
-      for (bst_uint j = 0; j < feature_splits.size(); j++){
+      for (bst_uint j = 0; j < feature_splits.size(); j++) {
         bst_uint checkvar = feature_splits[j];
         if (params_.int_constraints[nfeatures*i + checkvar] == 0) flag = 0;
       }
 
       // If interaction is still relevant, permit all other features in the interaction
-      if (flag == 1) for (bst_uint k = 0; k < nfeatures; k ++){
-        if (params_.int_constraints[nfeatures*i + k] != 0){
-          int_cont_[k][leftid] = 1;
-          int_cont_[k][rightid] = 1;
+      if (flag == 1) {
+        for (bst_uint k = 0; k < nfeatures; k ++) {
+          if (params_.int_constraints[nfeatures*i + k] != 0) {
+            int_cont_[k][leftid] = 1;
+            int_cont_[k][rightid] = 1;
+          }
         }
       }
     }
