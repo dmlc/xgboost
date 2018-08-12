@@ -189,6 +189,8 @@ After the build process successfully ends, you will find a ``xgboost.dll`` libra
 
 Unofficial windows binaries and instructions on how to use them are hosted on `Guido Tapia's blog <http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/>`_.
 
+.. _build_gpu_support:
+
 Building with GPU support
 =========================
 XGBoost can be built with GPU support for both Linux and Windows using CMake. GPU support works with the Python package as well as the CLI version. See `Installing R package with GPU support`_ for special instructions for R.
