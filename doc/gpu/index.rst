@@ -8,7 +8,7 @@ To install GPU support, checkout the :doc:`/build`.
 *********************************************
 CUDA Accelerated Tree Construction Algorithms
 *********************************************
-This plugin adds GPU accelerated tree construction and prediction algorithms to XGBoost.
+Tree construction (training) and prediction can be accelerated with CUDA-capable GPUs.
 
 Usage
 =====
@@ -59,7 +59,11 @@ The device ordinal can be selected using the ``gpu_id`` parameter, which default
 
 Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the gpu device order is ``mod(gpu_id + i) % n_visible_devices`` for ``i=0`` to ``n_gpus-1``.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
 
-This plugin currently works with the CLI, python and R - see :doc:`/build` for details.
+.. note:: Enabling multi-GPU training
+
+  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.
+
+The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
 
 .. code-block:: python
   :caption: Python example
