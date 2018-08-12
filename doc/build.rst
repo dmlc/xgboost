@@ -4,15 +4,17 @@ Installation Guide
 
 .. note:: Pre-built binary wheel for Python
 
-  If you are planning to use Python on a Linux system, consider installing XGBoost from a pre-built binary wheel. The wheel is available from Python Package Index (PyPI). You may download and install it by running
+  If you are planning to use Python, consider installing XGBoost from a pre-built binary wheel, available from Python Package Index (PyPI). You may download and install it by running
 
   .. code-block:: bash
 
-    # Ensure that you are downloading xgboost-{version}-py2.py3-none-manylinux1_x86_64.whl
+    # Ensure that you are downloading one of the following:
+    #   * xgboost-{version}-py2.py3-none-manylinux1_x86_64.whl
+    #   * xgboost-{version}-py2.py3-none-win_amd64.whl
     pip3 install xgboost
 
-  * This package will support GPU algorithms (`gpu_exact`, `gpu_hist`) on machines with NVIDIA GPUs.
-  * Currently, PyPI has a binary wheel only for 64-bit Linux.
+  * The binary wheel will support GPU algorithms (`gpu_exact`, `gpu_hist`) on machines with NVIDIA GPUs. **However, it will not support multi-GPU training; only single GPU will be used.** To enable multi-GPU training, download and install the binary wheel from `this page <https://s3-us-west-2.amazonaws.com/xgboost-wheels/list.html>`_.
+  * Currently, we provide binary wheels for 64-bit Linux and Windows.
 
 ****************************
 Building XGBoost from source
@@ -193,7 +195,7 @@ XGBoost can be built with GPU support for both Linux and Windows using CMake. GP
 
 An up-to-date version of the CUDA toolkit is required.
 
-From the command line on Linux starting from the xgboost directory:
+From the command line on Linux starting from the XGBoost directory:
 
 .. code-block:: bash
 
@@ -202,9 +204,16 @@ From the command line on Linux starting from the xgboost directory:
   cmake .. -DUSE_CUDA=ON
   make -j
 
-.. note:: Windows requirements for GPU build
+.. note:: Enabling multi-GPU training
 
-  Only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line.
+  By default, multi-GPU training is disabled and only a single GPU will be used. To enable multi-GPU training, set the option ``USE_NCCL=ON``. Multi-GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **multi-GPU training is available only for Linux**.
+
+  .. code-block:: bash
+
+    mkdir build
+    cd build
+    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON
+    make -j
 
 On Windows, see what options for generators you have for CMake, and choose one with ``[arch]`` replaced with Win64:
 

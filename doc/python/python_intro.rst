@@ -25,7 +25,8 @@ The XGBoost python module is able to load data from:
 - LibSVM text format file
 - Comma-separated values (CSV) file
 - NumPy 2D array
-- SciPy 2D sparse array, and
+- SciPy 2D sparse array
+- Pandas data frame, and
 - XGBoost binary buffer file.
 
 (See :doc:`/tutorials/input_format` for detailed description of text input format.)
@@ -65,6 +66,14 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
     csr = scipy.sparse.csr_matrix((dat, (row, col)))
     dtrain = xgb.DMatrix(csr)
+
+* To load a Pandas data frame into :py:class:`DMatrix <xgboost.DMatrix>`:
+
+  .. code-block:: python
+
+    data = pandas.DataFrame(np.arange(12).reshape((4,3)), columns=['a', 'b', 'c'])
+    label = pandas.DataFrame(np.random.randint(2, size=4))
+    dtrain = xgb.DMatrix(data, label=label)
 
 * Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file will make loading faster:
 
