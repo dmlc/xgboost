@@ -5,9 +5,9 @@ This is a step-by-step tutorial on how to setup and run distributed `XGBoost <ht
 on an AWS EC2 cluster. Distributed XGBoost runs on various platforms such as MPI, SGE and Hadoop YARN.
 In this tutorial, we use YARN as an example since this is a widely used solution for distributed computing.
 
-.. note:: XGBoost on Spark
+.. note:: XGBoost with Spark
 
-  If you are preprocessing training data with Spark, you may want to look at `XGBoost4J-Spark <https://xgboost.ai/2016/10/26/a-full-integration-of-xgboost-and-spark.html>`_, which supports distributed training on Resilient Distributed Dataset (RDD).
+  If you are preprocessing training data with Spark, consider using :doc:`XGBoost4J-Spark </jvm/xgboost4j_spark_tutorial>`.
 
 ************
 Prerequisite
