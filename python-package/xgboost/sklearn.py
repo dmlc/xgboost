@@ -684,22 +684,22 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 class XGBRanker(XGBModel):
     __doc__ = """Implementation of sklearn API for XGBoost Ranking
            """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
-    
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, 
+
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="rank:pairwise", booster='gbtree',
                  n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs): 
-        
+                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+
         super(XGBRanker, self).__init__(max_depth, learning_rate,
                                         n_estimators, silent, objective, booster,
-                                        n_jobs, nthread, gamma, min_child_weight, max_delta_step, 
+                                        n_jobs, nthread, gamma, min_child_weight, max_delta_step,
                                         subsample, colsample_bytree, colsample_bylevel,
                                         reg_alpha, reg_lambda, scale_pos_weight,
                                         base_score, random_state, seed, missing)
 
-    def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None, eval_group=None, 
+    def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None, eval_group=None,
             eval_metric=None, early_stopping_rounds=None, verbose=False, xgb_model=None):
         """
         Fit the gradient boosting model
@@ -720,7 +720,7 @@ class XGBRanker(XGBModel):
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             instance weights on the i-th validation set.
         eval_group : list of arrays, optional
-            A list that contains the group information corresponds to each 
+            A list that contains the group information corresponds to each
             (X, y) pair in eval_set
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
@@ -765,10 +765,10 @@ class XGBRanker(XGBModel):
             return ret
 
         if sample_weight is not None:
-            train_dmatrix = _dmat_init(group, data=X, label=y, weight=sample_weight, 
+            train_dmatrix = _dmat_init(group, data=X, label=y, weight=sample_weight,
                                        missing=self.missing, nthread=self.n_jobs)
         else:
-            train_dmatrix = _dmat_init(group, data=X, label=y, 
+            train_dmatrix = _dmat_init(group, data=X, label=y,
                                        missing=self.missing, nthread=self.n_jobs)
 
         evals_result = {}
@@ -784,7 +784,7 @@ class XGBRanker(XGBModel):
             evals = list(zip(evals, eval_names))
         else:
             evals = ()
-        
+
         params = self.get_xgb_params()
 
         if callable(self.objective):
@@ -801,10 +801,9 @@ class XGBRanker(XGBModel):
             else:
                 params.update({'eval_metric': eval_metric})
 
-
-        self._Booster = train(params, train_dmatrix, 
+        self._Booster = train(params, train_dmatrix,
                               self.n_estimators,
-                              early_stopping_rounds=early_stopping_rounds, evals=evals, 
+                              early_stopping_rounds=early_stopping_rounds, evals=evals,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model)
 
