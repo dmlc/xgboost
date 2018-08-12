@@ -347,7 +347,7 @@ class CQHistMaker: public HistMaker<TStats> {
       auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
         #pragma omp parallel for schedule(dynamic, 1)
@@ -429,7 +429,7 @@ class CQHistMaker: public HistMaker<TStats> {
       auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
@@ -717,7 +717,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
       auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 
@@ -775,7 +775,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
     auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel convert to column major format
       common::ParallelGroupBuilder<Entry>
           builder(&col_ptr_, &col_data_, &thread_col_ptr_);

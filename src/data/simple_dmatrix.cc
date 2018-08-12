@@ -67,7 +67,7 @@ void SimpleDMatrix::MakeOneBatch(SparsePage* pcol, bool sorted) {
 
   iter->BeforeFirst();
   while (iter->Next()) {
-     auto batch = iter->Value();
+     auto &batch = iter->Value();
     #pragma omp parallel for schedule(static)
     for (long i = 0; i < static_cast<long>(batch.Size()); ++i) { // NOLINT(*)
       int tid = omp_get_thread_num();

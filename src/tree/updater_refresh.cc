@@ -60,7 +60,7 @@ class TreeRefresher: public TreeUpdater {
        auto *iter = p_fmat->RowIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-         auto batch = iter->Value();
+         auto &batch = iter->Value();
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(static)
