@@ -64,21 +64,23 @@ struct DeviceMatrix {
     iter->BeforeFirst();
     size_t data_offset = 0;
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto& batch = iter->Value();
       auto& offset_vec = batch.offset.HostVector();
       auto& data_vec = batch.data.HostVector();
       // Copy row ptr
-      thrust::copy(offset_vec.data(), offset_vec.data() + batch.Size() + 1,
-                   row_ptr.tbegin() + batch.base_rowid);
+      dh::safe_cuda(cudaMemcpy(
+          row_ptr.Data() + batch.base_rowid, offset_vec.data(),
+          sizeof(size_t) * offset_vec.size(), cudaMemcpyHostToDevice));
       if (batch.base_rowid > 0) {
         auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
         auto end_itr = begin_itr + batch.Size() + 1;
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
+      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, data_vec.data(),
+                               sizeof(Entry) * data_vec.size(),
+                               cudaMemcpyHostToDevice));
       // Copy data
-      thrust::copy(data_vec.begin(), data_vec.end(),
-                   data.tbegin() + data_offset);
-      data_offset += batch.data.Size();
+      data_offset += data_vec.size();
     }
   }
 };
@@ -303,13 +305,17 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     nodes.resize(h_nodes.size());
-    thrust::copy(h_nodes.begin(), h_nodes.end(), nodes.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(nodes), h_nodes.data(),
+                             sizeof(DevicePredictionNode) * h_nodes.size(),
+                             cudaMemcpyHostToDevice));
     tree_segments.resize(h_tree_segments.size());
-    thrust::copy(h_tree_segments.begin(), h_tree_segments.end(),
-                 tree_segments.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(tree_segments), h_tree_segments.data(),
+                             sizeof(size_t) * h_tree_segments.size(),
+                             cudaMemcpyHostToDevice));
     tree_group.resize(model.tree_info.size());
-    thrust::copy(model.tree_info.begin(), model.tree_info.end(),
-                 tree_group.begin());
+    dh::safe_cuda(cudaMemcpy(dh::Raw(tree_group), model.tree_info.data(),
+                             sizeof(int) * model.tree_info.size(),
+                             cudaMemcpyHostToDevice));
 
     device_matrix->predictions.resize(out_preds->Size());
     auto& predictions = device_matrix->predictions;

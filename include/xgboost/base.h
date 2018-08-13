@@ -69,7 +69,7 @@
 /*!
  * \brief Tag function as usable by device
  */
-#ifdef __NVCC__
+#if defined (__CUDA__) || defined(__NVCC__)
 #define XGBOOST_DEVICE __host__ __device__
 #else
 #define XGBOOST_DEVICE

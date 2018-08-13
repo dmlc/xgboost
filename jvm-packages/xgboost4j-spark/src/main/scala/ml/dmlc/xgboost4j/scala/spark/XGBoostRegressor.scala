@@ -16,14 +16,16 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
-
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.hadoop.fs.Path
+
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param.shared.HasWeightCol
@@ -35,12 +37,13 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
-
 import scala.collection.mutable
+
+import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
   with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs
+  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
 
 class XGBoostRegressor (
     override val uid: String,
@@ -83,9 +86,6 @@ class XGBoostRegressor (
   def setCheckpointInterval(value: Int): this.type = set(checkpointInterval, value)
 
   def setSeed(value: Long): this.type = set(seed, value)
-
-  // setters for booster params
-  def setBooster(value: String): this.type = set(booster, value)
 
   def setEta(value: Double): this.type = set(eta, value)
 
@@ -137,6 +137,10 @@ class XGBoostRegressor (
   def setTrainTestRatio(value: Double): this.type = set(trainTestRatio, value)
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
+
+  def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
+
+  def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
@@ -228,8 +232,20 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
+
+  def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
+
+  def setTreeLimit(value: Int): this.type = set(treeLimit, value)
+
+  /**
+   * Single instance prediction.
+   * Note: The performance is not ideal, use it carefully!
+   */
   override def predict(features: Vector): Double = {
-    throw new Exception("XGBoost-Spark does not support online prediction")
+    import DataUtils._
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
+    _booster.predict(data = dm)(0)(0)
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
@@ -241,12 +257,12 @@ class XGBoostRegressionModel private[ml] (
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.rdd.mapPartitions { rowIterator =>
+    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
         val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](
+        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -257,16 +273,14 @@ class XGBoostRegressionModel private[ml] (
           }
         }
 
-        val dm = new DMatrix(featuresIterator.map(_.asXGB), cacheInfo)
+        val dm = new DMatrix(
+          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          cacheInfo)
         try {
-          val originalPredictionItr = {
-            bBooster.value.predict(dm).map(Row(_)).iterator
-          }
+          val Array(originalPredictionItr, predLeafItr, predContribItr) =
+            producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
-          rowItr1.zip(originalPredictionItr).map {
-            case (originals: Row, originalPrediction: Row) =>
-              Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq)
-          }
+          produceResultIterator(rowItr1, originalPredictionItr, predLeafItr, predContribItr)
         } finally {
           dm.delete()
         }
@@ -274,10 +288,77 @@ class XGBoostRegressionModel private[ml] (
         Iterator[Row]()
       }
     }
-
     bBooster.unpersist(blocking = false)
+    dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+  }
 
-    dataset.sparkSession.createDataFrame(rdd, schema)
+  private def produceResultIterator(
+      originalRowItr: Iterator[Row],
+      predictionItr: Iterator[Row],
+      predLeafItr: Iterator[Row],
+      predContribItr: Iterator[Row]): Iterator[Row] = {
+    // the following implementation is to be improved
+    if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
+      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
+      originalRowItr.zip(predictionItr).zip(predLeafItr).zip(predContribItr).
+        map { case (((originals: Row, prediction: Row), leaves: Row), contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq ++ contribs.toSeq)
+        }
+    } else if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
+      (!isDefined(contribPredictionCol) || $(contribPredictionCol).isEmpty)) {
+      originalRowItr.zip(predictionItr).zip(predLeafItr).
+        map { case ((originals: Row, prediction: Row), leaves: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq)
+        }
+    } else if ((!isDefined(leafPredictionCol) || $(leafPredictionCol).isEmpty) &&
+      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
+      originalRowItr.zip(predictionItr).zip(predContribItr).
+        map { case ((originals: Row, prediction: Row), contribs: Row) =>
+          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ contribs.toSeq)
+        }
+    } else {
+      originalRowItr.zip(predictionItr).map {
+        case (originals: Row, originalPrediction: Row) =>
+          Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq)
+      }
+    }
+  }
+
+  private def generateResultSchema(fixedSchema: StructType): StructType = {
+    var resultSchema = fixedSchema
+    if (isDefined(leafPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    if (isDefined(contribPredictionCol)) {
+      resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
+        ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    resultSchema
+  }
+
+  private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+      Array[Iterator[Row]] = {
+    val originalPredictionItr = {
+      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
+    }
+    val predLeafItr = {
+      if (isDefined(leafPredictionCol)) {
+        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    val predContribItr = {
+      if (isDefined(contribPredictionCol)) {
+        broadcastBooster.value.predictContrib(dm, $(treeLimit)).
+          map(Row(_)).iterator
+      } else {
+        Iterator()
+      }
+    }
+    Array(originalPredictionItr, predLeafItr, predContribItr)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {

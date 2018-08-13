@@ -125,16 +125,17 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf release-1.7.0.zip
 
     # Build/test without AVX
+    rm -rf build
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=../gtest/
+    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/
     make
     cd ..
     ./testxgboost
     rm -rf build
-    
+
     # Build/test with AVX
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON -DGTEST_ROOT=../gtest/
+    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON -DGTEST_ROOT=$PWD/../gtest/
     make
     cd ..
     ./testxgboost
@@ -146,4 +147,11 @@ if [ ${TASK} == "cpp_test" ]; then
     echo "TEST_COVER=1" >> config.mk
     echo "GTEST_PATH="${CACHE_PREFIX} >> config.mk
     make cover
+fi
+
+if [ ${TASK} == "distributed_test" ]; then
+    set -e
+    make all || exit -1
+    cd tests/distributed
+    ./runtests.sh
 fi

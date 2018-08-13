@@ -100,13 +100,35 @@ def from_cstr_to_pystr(data, length):
     return res
 
 
+def _log_callback(msg):
+    """Redirect logs from native library into Python console"""
+    print("{0:s}".format(py_str(msg)))
+
+
+def _get_log_callback_func():
+    """Wrap log_callback() method in ctypes callback type"""
+    # pylint: disable=invalid-name
+    CALLBACK = ctypes.CFUNCTYPE(None, ctypes.c_char_p)
+    return CALLBACK(_log_callback)
+
+
 def _load_lib():
     """Load xgboost Library."""
-    lib_path = find_lib_path()
-    if len(lib_path) == 0:
+    lib_paths = find_lib_path()
+    if len(lib_paths) == 0:
         return None
-    lib = ctypes.cdll.LoadLibrary(lib_path[0])
+    pathBackup = os.environ['PATH']
+    for lib_path in lib_paths:
+        try:
+            # needed when the lib is linked with non-system-available dependencies
+            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
+            lib = ctypes.cdll.LoadLibrary(lib_path)
+        except OSError:
+            continue
     lib.XGBGetLastError.restype = ctypes.c_char_p
+    lib.callback = _get_log_callback_func()
+    if lib.XGBRegisterLogCallback(lib.callback) != 0:
+        raise XGBoostError(lib.XGBGetLastError())
     return lib
 
 
@@ -132,8 +154,15 @@ def _check_call(ret):
 def ctypes2numpy(cptr, length, dtype):
     """Convert a ctypes pointer array to a numpy array.
     """
-    if not isinstance(cptr, ctypes.POINTER(ctypes.c_float)):
-        raise RuntimeError('expected float pointer')
+    NUMPY_TO_CTYPES_MAPPING = {
+        np.float32: ctypes.c_float,
+        np.uint32: ctypes.c_uint,
+    }
+    if dtype not in NUMPY_TO_CTYPES_MAPPING:
+        raise RuntimeError('Supported types: {}'.format(NUMPY_TO_CTYPES_MAPPING.keys()))
+    ctype = NUMPY_TO_CTYPES_MAPPING[dtype]
+    if not isinstance(cptr, ctypes.POINTER(ctype)):
+        raise RuntimeError('expected {} pointer'.format(ctype))
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError('memmove failed')
@@ -486,7 +515,7 @@ class DMatrix(object):
         Returns
         -------
         info : array
-            a numpy array of float information of the data
+            a numpy array of unsigned integer information of the data
         """
         length = c_bst_ulong()
         ret = ctypes.POINTER(ctypes.c_uint)()
@@ -737,8 +766,14 @@ class DMatrix(object):
         """
         if feature_names is not None:
             # validate feature name
-            if not isinstance(feature_names, list):
-                feature_names = list(feature_names)
+            try:
+                if not isinstance(feature_names, str):
+                    feature_names = [n for n in iter(feature_names)]
+                else:
+                    feature_names = [feature_names]
+            except TypeError:
+                feature_names = [feature_names]
+
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
             if len(feature_names) != self.num_col():
@@ -767,7 +802,6 @@ class DMatrix(object):
             Labels for features. None will reset existing feature names
         """
         if feature_types is not None:
-
             if self._feature_names is None:
                 msg = 'Unable to set feature types before setting names'
                 raise ValueError(msg)
@@ -776,8 +810,14 @@ class DMatrix(object):
                 # single string will be applied to all columns
                 feature_types = [feature_types] * self.num_col()
 
-            if not isinstance(feature_types, list):
-                feature_types = list(feature_types)
+            try:
+                if not isinstance(feature_types, str):
+                    feature_types = [n for n in iter(feature_types)]
+                else:
+                    feature_types = [feature_types]
+            except TypeError:
+                feature_types = [feature_types]
+
             if len(feature_types) != self.num_col():
                 msg = 'feature_types must have the same length as data'
                 raise ValueError(msg)
@@ -1080,10 +1120,22 @@ class Booster(object):
         """
         Predict with data.
 
-        NOTE: This function is not thread safe.
-              For each booster object, predict can only be called from one thread.
-              If you want to run prediction using multiple thread, call bst.copy() to make copies
-              of model object and then call predict
+        .. note:: This function is not thread safe.
+
+          For each booster object, predict can only be called from one thread.
+          If you want to run prediction using multiple thread, call ``bst.copy()`` to make copies
+          of model object and then call ``predict()``.
+
+        .. note:: Using ``predict()`` with DART booster
+
+          If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
+          some of the trees will be evaluated. This will produce incorrect results if ``data`` is
+          not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+          a nonzero value, e.g.
+
+          .. code-block:: python
+
+            preds = bst.predict(dtest, ntree_limit=num_round)
 
         Parameters
         ----------
@@ -1307,17 +1359,23 @@ class Booster(object):
         """Get feature importance of each feature.
         Importance type can be defined as:
             'weight' - the number of times a feature is used to split the data across all trees.
-            'gain' - the average gain of the feature when it is used in trees
-            'cover' - the average coverage of the feature when it is used in trees
+            'gain' - the average gain across all splits the feature is used in.
+            'cover' - the average coverage across all splits the feature is used in.
+            'total_gain' - the total gain across all splits the feature is used in.
+            'total_cover' - the total coverage across all splits the feature is used in.
 
         Parameters
         ----------
         fmap: str (optional)
-           The name of feature map file
+           The name of feature map file.
+        importance_type: str, default 'weight'
+            One of the importance types defined above.
         """
 
-        if importance_type not in ['weight', 'gain', 'cover']:
-            msg = "importance_type mismatch, got '{}', expected 'weight', 'gain', or 'cover'"
+        allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
+        if importance_type not in allowed_importance_types:
+            msg = ("importance_type mismatch, got '{}', expected one of " +
+                   repr(allowed_importance_types))
             raise ValueError(msg.format(importance_type))
 
         # if it's weight, then omap stores the number of missing values
@@ -1346,6 +1404,14 @@ class Booster(object):
             return fmap
 
         else:
+            average_over_splits = True
+            if importance_type == 'total_gain':
+                importance_type = 'gain'
+                average_over_splits = False
+            elif importance_type == 'total_cover':
+                importance_type = 'cover'
+                average_over_splits = False
+
             trees = self.get_dump(fmap, with_stats=True)
 
             importance_type += '='
@@ -1377,8 +1443,9 @@ class Booster(object):
                         gmap[fid] += g
 
             # calculate average value (gain/cover) for each feature
-            for fid in gmap:
-                gmap[fid] = gmap[fid] / fmap[fid]
+            if average_over_splits:
+                for fid in gmap:
+                    gmap[fid] = gmap[fid] / fmap[fid]
 
             return gmap
 

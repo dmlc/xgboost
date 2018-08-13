@@ -55,11 +55,11 @@ object TrackerConf {
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def removeMissingValues(
-      denseLabeledPoints: Iterator[XGBLabeledPoint],
+  private[spark] def removeMissingValues(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      denseLabeledPoints.map { labeledPoint =>
+      xgbLabelPoints.map { labeledPoint =>
         val indicesBuilder = new mutable.ArrayBuilder.ofInt()
         val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
         for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
@@ -69,7 +69,7 @@ object XGBoost extends Serializable {
         labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
-      denseLabeledPoints
+      xgbLabelPoints
     }
   }
 
@@ -222,8 +222,8 @@ object XGBoost extends Serializable {
       checkpointRound: Int =>
         val tracker = startTracker(nWorkers, trackerConf)
         try {
-          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
             tracker.getWorkerEnvs, checkpointRound, obj, eval, useExternalMemory, missing,
             prevBooster)

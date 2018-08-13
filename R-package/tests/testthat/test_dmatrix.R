@@ -77,6 +77,18 @@ test_that("xgb.DMatrix: slice, dim", {
   expect_equal(getinfo(dsub1, 'label'), getinfo(dsub2, 'label'))
 })
 
+test_that("xgb.DMatrix: slice, trailing empty rows", {
+  data(agaricus.train, package='xgboost')
+  train_data <- agaricus.train$data
+  train_label <- agaricus.train$label
+  dtrain <- xgb.DMatrix(data=train_data, label=train_label)
+  slice(dtrain, 6513L)
+  train_data[6513, ] <- 0
+  dtrain <- xgb.DMatrix(data=train_data, label=train_label)
+  slice(dtrain, 6513L)
+  expect_equal(nrow(dtrain), 6513)
+})
+
 test_that("xgb.DMatrix: colnames", {
   dtest <- xgb.DMatrix(test_data, label=test_label)
   expect_equal(colnames(dtest), colnames(test_data))

@@ -89,8 +89,12 @@ be found in the [examples package](https://github.com/dmlc/xgboost/tree/master/j
 
 **NOTE on LIBSVM Format**: 
 
-* Use *1-based* ascending indexes for the LIBSVM format in distributed training mode
+There is an inconsistent issue between XGBoost4J-Spark and other language bindings of XGBoost. 
 
-    * Spark does the internal conversion, and does not accept formats that are 0-based
+When users use Spark to load trainingset/testset in LibSVM format with the following code snippet:
 
-* Whereas, use *0-based* indexes format when predicting in normal mode - for instance, while using the saved model in the Python package
+```scala
+spark.read.format("libsvm").load("trainingset_libsvm")
+```
+
+Spark assumes that the dataset is 1-based indexed. However, when you do prediction with other bindings of XGBoost (e.g. Python API of XGBoost), XGBoost assumes that the dataset is 0-based indexed. It creates a pitfall for the users who train model with Spark but predict with the dataset in the same format in other bindings of XGBoost.

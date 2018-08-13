@@ -243,10 +243,10 @@ class ColMaker: public TreeUpdater {
       // calculating the weights
       for (int nid : qexpand) {
         bst_uint parentid = tree[nid].Parent();
-        snode_[nid].root_gain = static_cast<float>(
-            spliteval_->ComputeScore(parentid, snode_[nid].stats));
         snode_[nid].weight = static_cast<float>(
             spliteval_->ComputeWeight(parentid, snode_[nid].stats));
+        snode_[nid].root_gain = static_cast<float>(
+            spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
       }
     }
     /*! \brief update queue expand add in new leaves */
@@ -731,7 +731,7 @@ class ColMaker: public TreeUpdater {
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);
@@ -862,7 +862,7 @@ class DistColMaker : public ColMaker {
       }
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);

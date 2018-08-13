@@ -3,6 +3,58 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.80 (2018.08.13)
+* **JVM packages received a major upgrade**: To consolidate the APIs and improve the user experience, we refactored the design of XGBoost4J-Spark in a significant manner. (#3387)
+  - Consolidated APIs: It is now much easier to integrate XGBoost models into a Spark ML pipeline. Users can control behaviors like output leaf prediction results by setting corresponding column names. Training is now more consistent with other Estimators in Spark MLLIB: there is now one single method `fit()` to train decision trees.
+  - Better user experience: we refactored the parameters relevant modules in XGBoost4J-Spark to provide both camel-case (Spark ML style) and underscore (XGBoost style) parameters
+  - A brand-new tutorial is [available](https://xgboost.readthedocs.io/en/release_0.80/jvm/xgboost4j_spark_tutorial.html) for XGBoost4J-Spark.
+  - Latest API documentation is now hosted at https://xgboost.readthedocs.io/.
+* XGBoost documentation now keeps track of multiple versions:
+  - Latest master: https://xgboost.readthedocs.io/en/latest
+  - 0.80 stable: https://xgboost.readthedocs.io/en/release_0.80
+  - 0.72 stable: https://xgboost.readthedocs.io/en/release_0.72
+* Ranking task now uses instance weights (#3379)
+* Fix inaccurate decimal parsing (#3546)
+* New functionality
+  - Query ID column support in LIBSVM data files (#2749). This is convenient for performing ranking task in distributed setting.
+  - Hinge loss for binary classification (`binary:hinge`) (#3477)
+  - Ability to specify delimiter and instance weight column for CSV files (#3546)
+  - Ability to use 1-based indexing instead of 0-based (#3546)
+* GPU support
+  - Quantile sketch, binning, and index compression are now performed on GPU, eliminating PCIe transfer for 'gpu_hist' algorithm (#3319, #3393)
+  - Upgrade to NCCL2 for multi-GPU training (#3404).
+  - Use shared memory atomics for faster training (#3384).
+  - Dynamically allocate GPU memory, to prevent large allocations for deep trees (#3519)
+  - Fix memory copy bug for large files (#3472)
+* Python package
+  - Importing data from Python datatable (#3272)
+  - Pre-built binary wheels available for 64-bit Linux and Windows (#3424, #3443)
+  - Add new importance measures 'total_gain', 'total_cover' (#3498)
+  - Sklearn API now supports saving and loading models (#3192)
+  - Arbitrary cross validation fold indices (#3353)
+  - `predict()` function in Sklearn API uses `best_ntree_limit` if available, to make early stopping easier to use (#3445)
+  - Informational messages are now directed to Python's `print()` rather than standard output (#3438). This way, messages appear inside Jupyter notebooks.
+* R package
+  - Oracle Solaris support, per CRAN policy (#3372)
+* JVM packages
+  - Single-instance prediction (#3464)
+  - Pre-built JARs are now available from Maven Central (#3401)
+  - Add NULL pointer check (#3021)
+  - Consider `spark.task.cpus` when controlling parallelism (#3530)
+  - Handle missing values in prediction (#3529)
+  - Eliminate outputs of `System.out` (#3572)
+* Refactored C++ DMatrix class for simplicity and de-duplication (#3301)
+* Refactored C++ histogram facilities (#3564)
+* Refactored constraints / regularization mechanism for split finding (#3335, #3429). Users may specify an elastic net (L2 + L1 regularization) on leaf weights as well as monotonic constraints on test nodes. The refactor will be useful for a future addition of feature interaction constraints.
+* Statically link `libstdc++` for MinGW32 (#3430)
+* Enable loading from `group`, `base_margin` and `weight` (see [here](http://xgboost.readthedocs.io/en/latest/tutorials/input_format.html#auxiliary-files-for-additional-information)) for Python, R, and JVM packages (#3431)
+* Fix model saving for `count:possion` so that `max_delta_step` doesn't get truncated (#3515)
+* Fix loading of sparse CSC matrix (#3553)
+* Fix incorrect handling of `base_score` parameter for Tweedie regression (#3295)
+
+## v0.72.1 (2018.07.08)
+This version is only applicable for the Python package. The content is identical to that of v0.72.
+
 ## v0.72 (2018.06.01)
 * Starting with this release, we plan to make a new release every two months. See #3252 for more details.
 * Fix a pathological behavior (near-zero second-order gradients) in multiclass objective (#3304)

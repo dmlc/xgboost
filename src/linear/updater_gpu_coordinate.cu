@@ -132,9 +132,10 @@ class DeviceShard {
 
     for (int fidx = 0; fidx < batch.Size(); fidx++) {
       auto col = batch[fidx];
-      thrust::copy(col.data + column_segments[fidx].first,
-                   col.data + column_segments[fidx].second,
-                   data_.tbegin() + row_ptr_[fidx]);
+      auto seg = column_segments[fidx];
+      dh::safe_cuda(cudaMemcpy(
+          data_.Data() + row_ptr_[fidx], col.data + seg.first,
+          sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
     // Rescale indices with respect to current shard
     RescaleIndices(ridx_begin_, &data_);
@@ -236,7 +237,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
     iter->Next();
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
 
     shards.resize(n_devices);
     // Create device shards

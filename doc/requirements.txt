@@ -1,3 +1,5 @@
-sphinx==1.5.6
-commonmark==0.5.4
+sphinx
 mock
+guzzle_sphinx_theme
+breathe
+sh>=1.12.14

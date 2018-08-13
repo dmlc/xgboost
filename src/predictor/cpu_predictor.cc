@@ -131,10 +131,25 @@ class CPUPredictor : public Predictor {
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
-    if (base_margin.size() != 0) {
+    if (base_margin.size() == n) {
       CHECK_EQ(out_preds->Size(), n);
       std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
     } else {
+      if (!base_margin.empty()) {
+        std::ostringstream oss;
+        oss << "Warning: Ignoring the base margin, since it has incorrect length. "
+            << "The base margin must be an array of length ";
+        if (model.param.num_output_group > 1) {
+          oss << "[num_class] * [number of data points], i.e. "
+              << model.param.num_output_group << " * " << info.num_row_
+              << " = " << n << ". ";
+        } else {
+          oss << "[number of data points], i.e. " << info.num_row_ << ". ";
+        }
+        oss << "Instead, all data points will use "
+            << "base_score = " << model.base_margin;
+        LOG(INFO) << oss.str();
+      }
       std::fill(out_preds_h.begin(), out_preds_h.end(), model.base_margin);
     }
   }
@@ -221,7 +236,7 @@ class CPUPredictor : public Predictor {
     auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
@@ -270,7 +285,7 @@ class CPUPredictor : public Predictor {
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)

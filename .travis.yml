@@ -26,6 +26,8 @@ env:
     - TASK=cmake_test
     # c++ test
     - TASK=cpp_test
+    # distributed test
+    - TASK=distributed_test
 
 matrix:
   exclude:
@@ -39,6 +41,8 @@ matrix:
       env: TASK=python_lightweight_test
     - os: osx
       env: TASK=cpp_test
+    - os: osx
+      env: TASK=distributed_test
 
 # dependent apt packages
 addons:

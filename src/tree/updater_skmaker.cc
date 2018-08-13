@@ -147,7 +147,7 @@ class SketchMaker: public BaseMaker {
     auto iter = p_fmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // start enumeration
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)

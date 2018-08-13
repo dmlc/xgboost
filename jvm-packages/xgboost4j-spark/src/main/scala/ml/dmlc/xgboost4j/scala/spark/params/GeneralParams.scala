@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import com.google.common.base.CaseFormat
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
+
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
@@ -157,6 +158,30 @@ private[spark] trait GeneralParams extends Params {
   )
 }
 
+trait HasLeafPredictionCol extends Params {
+  /**
+   * Param for leaf prediction column name.
+   * @group param
+   */
+  final val leafPredictionCol: Param[String] = new Param[String](this, "leafPredictionCol",
+    "name of the predictLeaf results")
+
+  /** @group getParam */
+  final def getLeafPredictionCol: String = $(leafPredictionCol)
+}
+
+trait HasContribPredictionCol extends Params {
+  /**
+   * Param for contribution prediction column name.
+   * @group param
+   */
+  final val contribPredictionCol: Param[String] = new Param[String](this, "contribPredictionCol",
+    "name of the predictContrib results")
+
+  /** @group getParam */
+  final def getContribPredictionCol: String = $(contribPredictionCol)
+}
+
 trait HasBaseMarginCol extends Params {
 
   /**
@@ -198,6 +223,12 @@ private[spark] trait ParamMapFuncs extends Params {
 
   def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
+      if ((paramName == "booster" && paramValue != "gbtree") ||
+        (paramName == "updater" && paramValue != "grow_colmaker,prune")) {
+        throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
+          s" XGBoost-Spark only supports gbtree as booster type" +
+          " and grow_colmaker,prune as the updater type")
+      }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name) match {
         case None =>

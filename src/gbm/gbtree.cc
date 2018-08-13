@@ -442,7 +442,7 @@ class Dart : public GBTree {
     auto* self = static_cast<Derived*>(this);
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel over local batch
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
