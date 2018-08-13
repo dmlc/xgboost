@@ -2,3 +2,4 @@ sphinx
 mock
 guzzle_sphinx_theme
 breathe
+sh>=1.12.14

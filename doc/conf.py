@@ -12,11 +12,21 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 from subprocess import call
+from sh.contrib import git
+import urllib.request
 from recommonmark.parser import CommonMarkParser
 import sys
+import re
 import os, subprocess
 import shlex
 import guzzle_sphinx_theme
+
+git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
+git_branch = [x for x in git_branch if 'HEAD' not in x]
+print('git_branch = {}'.format(git_branch[0]))
+filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch[0]))
+call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -94,6 +104,7 @@ autoclass_content = 'both'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = ['_build']
+html_extra_path = ['./tmp']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
