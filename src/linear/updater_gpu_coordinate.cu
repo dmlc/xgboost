@@ -237,7 +237,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
     iter->Next();
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
 
     shards.resize(n_devices);
     // Create device shards

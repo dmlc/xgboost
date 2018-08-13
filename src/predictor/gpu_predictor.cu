@@ -64,7 +64,7 @@ struct DeviceMatrix {
     iter->BeforeFirst();
     size_t data_offset = 0;
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // Copy row ptr
       dh::safe_cuda(cudaMemcpy(
           row_ptr.Data() + batch.base_rowid, batch.offset.data(),

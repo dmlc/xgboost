@@ -36,7 +36,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   auto iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
-     auto batch = iter->Value();
+     auto &batch = iter->Value();
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
@@ -137,7 +137,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   iter->BeforeFirst();
   row_ptr.push_back(0);
   while (iter->Next()) {
-     auto batch = iter->Value();
+     auto &batch = iter->Value();
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
       row_ptr.push_back(batch[i].length + row_ptr.back());

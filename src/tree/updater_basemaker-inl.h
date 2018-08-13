@@ -46,7 +46,7 @@ class BaseMaker: public TreeUpdater {
       auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
            auto c = batch[fid];
           if (c.length != 0) {
@@ -305,7 +305,7 @@ class BaseMaker: public TreeUpdater {
     this->GetSplitSet(nodes, tree, &fsplits);
     auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       for (auto fid : fsplits) {
         auto col = batch[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.length);

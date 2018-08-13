@@ -81,7 +81,7 @@ class ShotgunUpdater : public LinearUpdater {
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
      auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
