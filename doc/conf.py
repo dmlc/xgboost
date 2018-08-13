@@ -146,7 +146,7 @@ extensions.append("guzzle_sphinx_theme")
 # Guzzle theme options (see theme.conf for more information)
 html_theme_options = {
     # Set the name of the project to appear in the sidebar
-    "project_nav_name": "XGBoost"
+    "project_nav_name": "XGBoost (0.72)"
 }
 
 html_sidebars = {
