@@ -682,6 +682,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 
 class XGBRanker(XGBModel):
+    # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     __doc__ = """Implementation of sklearn API for XGBoost Ranking
            """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
@@ -699,8 +700,10 @@ class XGBRanker(XGBModel):
                                         reg_alpha, reg_lambda, scale_pos_weight,
                                         base_score, random_state, seed, missing)
 
-    def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None, eval_group=None,
-            eval_metric=None, early_stopping_rounds=None, verbose=False, xgb_model=None):
+    def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
+            eval_group=None, eval_metric=None, early_stopping_rounds=None,
+            verbose=False, xgb_model=None):
+        # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit the gradient boosting model
         Parameters
