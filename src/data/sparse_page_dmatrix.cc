@@ -185,7 +185,7 @@ void SparsePageDMatrix::InitColAccess(
 
     while (true) {
       if (batch_ptr != batch_top) {
-         auto batch = iter->Value();
+         auto &batch = iter->Value();
         CHECK_EQ(batch_top, batch.Size());
         for (size_t i = batch_ptr; i < batch_top; ++i) {
           auto ridx = static_cast<bst_uint>(batch.base_rowid + i);

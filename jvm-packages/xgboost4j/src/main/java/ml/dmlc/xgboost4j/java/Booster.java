@@ -531,13 +531,11 @@ public class Booster implements Serializable, KryoSerializable {
     try {
       byte[] serObj = this.toByteArray();
       int serObjSize = serObj.length;
-      System.out.println("==== serialized obj size " + serObjSize);
       output.writeInt(serObjSize);
       output.writeInt(version);
       output.write(serObj);
     } catch (XGBoostError ex) {
-      ex.printStackTrace();
-      logger.error(ex.getMessage());
+      logger.error(ex.getMessage(), ex);
     }
   }
 
@@ -547,13 +545,11 @@ public class Booster implements Serializable, KryoSerializable {
       this.init(null);
       int serObjSize = input.readInt();
       this.version = input.readInt();
-      System.out.println("==== the size of the object: " + serObjSize);
       byte[] bytes = new byte[serObjSize];
       input.readBytes(bytes);
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
-      ex.printStackTrace();
-      logger.error(ex.getMessage());
+      logger.error(ex.getMessage(), ex);
     }
   }
 }

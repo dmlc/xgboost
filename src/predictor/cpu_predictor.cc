@@ -236,7 +236,7 @@ class CPUPredictor : public Predictor {
     auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
@@ -285,7 +285,7 @@ class CPUPredictor : public Predictor {
     const std::vector<bst_float>& base_margin = info.base_margin_;
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)

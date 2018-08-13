@@ -666,7 +666,7 @@ class GPUMaker : public TreeUpdater {
     auto iter = dmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       for (int i = 0; i < batch.Size(); i++) {
         auto col = batch[i];
         for (const Entry* it = col.data; it != col.data + col.length;

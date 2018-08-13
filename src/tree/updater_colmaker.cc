@@ -731,7 +731,7 @@ class ColMaker: public TreeUpdater {
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);
@@ -862,7 +862,7 @@ class DistColMaker : public ColMaker {
       }
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.length);

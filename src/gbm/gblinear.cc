@@ -106,7 +106,6 @@ class GBLinear : public GradientBooster {
 
   void PredictBatch(DMatrix *p_fmat,
                     HostDeviceVector<bst_float> *out_preds,
-                    bool dropout,
                     unsigned ntree_limit) override {
     monitor_.Start("PredictBatch");
     CHECK_EQ(ntree_limit, 0U)
@@ -159,7 +158,7 @@ class GBLinear : public GradientBooster {
      auto iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-       auto batch = iter->Value();
+       auto &batch = iter->Value();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(static)
@@ -217,7 +216,7 @@ class GBLinear : public GradientBooster {
     const int ngroup = model_.param.num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
     while (iter->Next()) {
-       auto batch = iter->Value();
+       auto &batch = iter->Value();
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch

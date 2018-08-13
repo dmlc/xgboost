@@ -61,6 +61,10 @@ and then refer to the snapshot dependency by adding:
       <version>next_version_num-SNAPSHOT</version>
   </dependency>
 
+.. note:: XGBoost4J-Spark requires Spark 2.3+
+
+  XGBoost4J-Spark now requires Spark 2.3+. Latest versions of XGBoost4J-Spark uses facilities of `org.apache.spark.ml.param.shared` extensively to provide for a tight integration with Spark MLLIB framework, and these facilities are not fully available on earlier versions of Spark.
+
 Data Preparation
 ================
 

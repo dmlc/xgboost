@@ -67,7 +67,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
   double sum_grad = 0.0, sum_hess = 0.0;
   auto iter = p_fmat->ColIterator();
   while (iter->Next()) {
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.length);
     for (bst_omp_uint j = 0; j < ndata; ++j) {
@@ -98,7 +98,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
   double sum_grad = 0.0, sum_hess = 0.0;
   auto iter = p_fmat->ColIterator();
   while (iter->Next()) {
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.length);
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
@@ -156,7 +156,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
   if (dw == 0.0f) return;
   auto iter = p_fmat->ColIterator();
   while (iter->Next()) {
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
     auto col = batch[fidx];
     // update grad value
     const auto num_row = static_cast<bst_omp_uint>(col.length);
@@ -327,7 +327,7 @@ class GreedyFeatureSelector : public FeatureSelector {
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
     auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
@@ -394,7 +394,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
     auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // column-parallel is usually faster than row-parallel
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {

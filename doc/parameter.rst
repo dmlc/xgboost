@@ -12,6 +12,10 @@ Before running XGBoost, we must set three types of parameters: general parameter
 
   In R-package, you can use ``.`` (dot) to replace underscore in the parameters, for example, you can use ``max.depth`` to indicate ``max_depth``. The underscore parameters are also valid in R.
 
+.. contents::
+  :backlinks: none
+  :local:
+
 ******************
 General Parameters
 ******************
@@ -172,6 +176,18 @@ Parameters for Tree Booster
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
+
+.. note:: Using ``predict()`` with DART booster
+
+  If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
+  some of the trees will be evaluated. This will produce incorrect results if ``data`` is
+  not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+  a nonzero value, e.g.
+
+  .. code-block:: python
+
+    preds = bst.predict(dtest, ntree_limit=num_round)
+
 * ``sample_type`` [default= ``uniform``]
 
   - Type of sampling algorithm.
@@ -212,7 +228,7 @@ Additional parameters for Dart Booster (``booster=dart``)
   - range: [0.0, 1.0]
 
 Parameters for Linear Booster (``booster=gblinear``)
-==================================================
+====================================================
 * ``lambda`` [default=0, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
@@ -281,7 +297,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - ``merror``: Multiclass classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``.
-    - ``mlogloss``: `Multiclass logloss <https://www.kaggle.com/wiki/LogLoss>`_.
+    - ``mlogloss``: `Multiclass logloss <http://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html>`_.
     - ``auc``: `Area under the curve <http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve>`_
     - ``ndcg``: `Normalized Discounted Cumulative Gain <http://en.wikipedia.org/wiki/NDCG>`_
     - ``map``: `Mean average precision <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_
