@@ -269,7 +269,7 @@ class ColMaker: public TreeUpdater {
                                   const std::vector<GradientPair> &gpair) {
       // TODO(tqchen): double check stats order.
       const MetaInfo& info = fmat.Info();
-      const bool ind = col.length != 0 && col.data[0].fvalue == col.data[col.length - 1].fvalue;
+      const bool ind = col.size() != 0 && col[0].fvalue == col[col.size() - 1].fvalue;
       bool need_forward = param_.NeedForwardSearch(fmat.GetColDensity(fid), ind);
       bool need_backward = param_.NeedBackwardSearch(fmat.GetColDensity(fid), ind);
       const std::vector<int> &qexpand = qexpand_;
@@ -281,8 +281,8 @@ class ColMaker: public TreeUpdater {
         for (int j : qexpand) {
           temp[j].stats.Clear();
         }
-        bst_uint step = (col.length + this->nthread_ - 1) / this->nthread_;
-        bst_uint end = std::min(col.length, step * (tid + 1));
+        bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
+        bst_uint end = std::min(static_cast<bst_uint>(col.size()), step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
           const int nid = position_[ridx];
@@ -363,8 +363,8 @@ class ColMaker: public TreeUpdater {
         GradStats c(param_), cright(param_);
         const int tid = omp_get_thread_num();
         std::vector<ThreadEntry> &temp = stemp_[tid];
-        bst_uint step = (col.length + this->nthread_ - 1) / this->nthread_;
-        bst_uint end = std::min(col.length, step * (tid + 1));
+        bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
+        bst_uint end = std::min(static_cast<bst_uint>(col.size()), step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
           const int nid = position_[ridx];
@@ -620,13 +620,13 @@ class ColMaker: public TreeUpdater {
           int fid = feat_set[i];
           const int tid = omp_get_thread_num();
           auto c = batch[fid];
-          const bool ind = c.length != 0 && c.data[0].fvalue == c.data[c.length - 1].fvalue;
+          const bool ind = c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
           if (param_.NeedForwardSearch(fmat.GetColDensity(fid), ind)) {
-            this->EnumerateSplit(c.data, c.data + c.length, +1,
+            this->EnumerateSplit(c.data(), c.data() + c.size(), +1,
                                  fid, gpair, info, stemp_[tid]);
           }
           if (param_.NeedBackwardSearch(fmat.GetColDensity(fid), ind)) {
-            this->EnumerateSplit(c.data + c.length - 1, c.data - 1, -1,
+            this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
                                  fid, gpair, info, stemp_[tid]);
           }
         }
@@ -734,7 +734,7 @@ class ColMaker: public TreeUpdater {
         auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
-          const auto ndata = static_cast<bst_omp_uint>(col.length);
+          const auto ndata = static_cast<bst_omp_uint>(col.size());
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
@@ -865,7 +865,7 @@ class DistColMaker : public ColMaker {
         auto &batch = iter->Value();
         for (auto fid : fsplits) {
           auto col = batch[fid];
-          const auto ndata = static_cast<bst_omp_uint>(col.length);
+          const auto ndata = static_cast<bst_omp_uint>(col.size());
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;

@@ -574,14 +574,14 @@ inline void RegTree::FVec::Init(size_t size) {
 }
 
 inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.length; ++i) {
+  for (bst_uint i = 0; i < inst.size(); ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].fvalue = inst[i].fvalue;
   }
 }
 
 inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.length; ++i) {
+  for (bst_uint i = 0; i < inst.size(); ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].flag = -1;
   }

@@ -496,13 +496,13 @@ class CQHistMaker: public HistMaker<TStats> {
   }
 
   inline void UpdateHistCol(const std::vector<GradientPair> &gpair,
-                            const SparsePage::Inst &c,
+                            const SparsePage::Inst &col,
                             const MetaInfo &info,
                             const RegTree &tree,
                             const std::vector<bst_uint> &fset,
                             bst_uint fid_offset,
                             std::vector<HistEntry> *p_temp) {
-    if (c.length == 0) return;
+    if (col.size() == 0) return;
     // initialize sbuilder for use
     std::vector<HistEntry> &hbuilder = *p_temp;
     hbuilder.resize(tree.param.num_nodes);
@@ -514,46 +514,46 @@ class CQHistMaker: public HistMaker<TStats> {
     }
     if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
       constexpr bst_uint kBuffer = 32;
-      bst_uint align_length = c.length / kBuffer * kBuffer;
+      bst_uint align_length = col.size() / kBuffer * kBuffer;
       int buf_position[kBuffer];
       GradientPair buf_gpair[kBuffer];
       for (bst_uint j = 0; j < align_length; j += kBuffer) {
         for (bst_uint i = 0; i < kBuffer; ++i) {
-          bst_uint ridx = c[j + i].index;
+          bst_uint ridx = col[j + i].index;
           buf_position[i] = this->position_[ridx];
           buf_gpair[i] = gpair[ridx];
         }
         for (bst_uint i = 0; i < kBuffer; ++i) {
           const int nid = buf_position[i];
           if (nid >= 0) {
-            hbuilder[nid].Add(c[j + i].fvalue, buf_gpair[i]);
+            hbuilder[nid].Add(col[j + i].fvalue, buf_gpair[i]);
           }
         }
       }
-      for (bst_uint j = align_length; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+      for (bst_uint j = align_length; j < col.size(); ++j) {
+        const bst_uint ridx = col[j].index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          hbuilder[nid].Add(c[j].fvalue, gpair[ridx]);
+          hbuilder[nid].Add(col[j].fvalue, gpair[ridx]);
         }
       }
     } else {
-      for (bst_uint j = 0; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+      for (const auto& c : col) {
+        const bst_uint ridx = c.index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          hbuilder[nid].Add(c[j].fvalue, gpair, info, ridx);
+          hbuilder[nid].Add(c.fvalue, gpair, info, ridx);
         }
       }
     }
   }
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const SparsePage::Inst &c,
+                              const SparsePage::Inst &col,
                               const RegTree &tree,
                               size_t work_set_size,
                               bst_uint offset,
                               std::vector<BaseMaker::SketchEntry> *p_temp) {
-    if (c.length == 0) return;
+    if (col.size() == 0) return;
     // initialize sbuilder for use
     std::vector<BaseMaker::SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes);
@@ -565,18 +565,18 @@ class CQHistMaker: public HistMaker<TStats> {
     }
 
     // first pass, get sum of weight, TODO, optimization to skip first pass
-    for (bst_uint j = 0; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+    for (const auto& c : col) {
+        const bst_uint ridx = c.index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-        sbuilder[nid].sum_total += gpair[ridx].GetHess();
+          sbuilder[nid].sum_total += gpair[ridx].GetHess();
       }
     }
     // if only one value, no need to do second pass
-    if (c[0].fvalue  == c[c.length-1].fvalue) {
+    if (col[0].fvalue  == col[col.size()-1].fvalue) {
       for (size_t i = 0; i < this->qexpand_.size(); ++i) {
         const int nid = this->qexpand_[i];
-        sbuilder[nid].sketch->Push(c[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
+        sbuilder[nid].sketch->Push(col[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
       }
       return;
     }
@@ -589,35 +589,35 @@ class CQHistMaker: public HistMaker<TStats> {
     // second pass, build the sketch
     if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
       constexpr bst_uint kBuffer = 32;
-      bst_uint align_length = c.length / kBuffer * kBuffer;
+      bst_uint align_length = col.size() / kBuffer * kBuffer;
       int buf_position[kBuffer];
       bst_float buf_hess[kBuffer];
       for (bst_uint j = 0; j < align_length; j += kBuffer) {
         for (bst_uint i = 0; i < kBuffer; ++i) {
-          bst_uint ridx = c[j + i].index;
+          bst_uint ridx = col[j + i].index;
           buf_position[i] = this->position_[ridx];
           buf_hess[i] = gpair[ridx].GetHess();
         }
         for (bst_uint i = 0; i < kBuffer; ++i) {
           const int nid = buf_position[i];
           if (nid >= 0) {
-            sbuilder[nid].Push(c[j + i].fvalue, buf_hess[i], max_size);
+            sbuilder[nid].Push(col[j + i].fvalue, buf_hess[i], max_size);
           }
         }
       }
-      for (bst_uint j = align_length; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+      for (bst_uint j = align_length; j < col.size(); ++j) {
+        const bst_uint ridx = col[j].index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
+          sbuilder[nid].Push(col[j].fvalue, gpair[ridx].GetHess(), max_size);
         }
       }
     } else {
-      for (bst_uint j = 0; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+      for (const auto& c : col) {
+        const bst_uint ridx = c.index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
+          sbuilder[nid].Push(c.fvalue, gpair[ridx].GetHess(), max_size);
         }
       }
     }
@@ -794,8 +794,8 @@ class QuantileHistMaker: public HistMaker<TStats> {
           if (this->node2workindex_[nid] < 0) {
             this->position_[ridx] = ~nid;
           } else {
-            for (bst_uint j = 0; j < inst.length; ++j) {
-              builder.AddBudget(inst[j].index, omp_get_thread_num());
+            for (auto& ins : inst) {
+              builder.AddBudget(ins.index, omp_get_thread_num());
             }
           }
         }
@@ -807,9 +807,9 @@ class QuantileHistMaker: public HistMaker<TStats> {
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          for (bst_uint j = 0; j < inst.length; ++j) {
-            builder.Push(inst[j].index,
-                         Entry(nid, inst[j].fvalue),
+          for (auto& ins : inst) {
+            builder.Push(ins.index,
+                         Entry(nid, ins.fvalue),
                          omp_get_thread_num());
           }
         }

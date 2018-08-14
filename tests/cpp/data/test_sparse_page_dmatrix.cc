@@ -40,7 +40,7 @@ TEST(SparsePageDMatrix, RowAccess) {
   row_iter->BeforeFirst();
   row_iter->Next();
   auto first_row = row_iter->Value()[0];
-  ASSERT_EQ(first_row.length, 3);
+  ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);
   row_iter = nullptr;

@@ -12,6 +12,7 @@
 #include <memory>
 #include <vector>
 
+#include "../common/span.h"
 #include "../common/device_helpers.cuh"
 #include "../common/host_device_vector.h"
 #include "./regression_loss.h"
@@ -44,8 +45,8 @@ struct GPURegLossParam : public dmlc::Parameter<GPURegLossParam> {
 // GPU kernel for gradient computation
 template<typename Loss>
 __global__ void get_gradient_k
-(GradientPair *__restrict__ out_gpair,  unsigned int *__restrict__ label_correct,
- const float * __restrict__ preds, const float * __restrict__ labels,
+(common::Span<GradientPair> out_gpair,  common::Span<unsigned int> label_correct,
+ common::Span<const float> preds, common::Span<const float> labels,
  const float * __restrict__ weights, int n, float scale_pos_weight) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i >= n)
@@ -56,14 +57,14 @@ __global__ void get_gradient_k
   if (label == 1.0f)
     w *= scale_pos_weight;
   if (!Loss::CheckLabel(label))
-    atomicAnd(label_correct, 0);
+    atomicAnd(label_correct.data(), 0);
   out_gpair[i] = GradientPair
     (Loss::FirstOrderGradient(p, label) * w, Loss::SecondOrderGradient(p, label) * w);
 }
 
 // GPU kernel for predicate transformation
 template<typename Loss>
-__global__ void pred_transform_k(float * __restrict__ preds, int n) {
+__global__ void pred_transform_k(common::Span<float> preds, int n) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i >= n)
     return;
@@ -144,8 +145,8 @@ class GPURegLossObj : public ObjFunction {
       size_t n = preds->DeviceSize(d);
       if (n > 0) {
         get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>
-          (out_gpair->DevicePointer(d), label_correct_.DevicePointer(d),
-           preds->DevicePointer(d), labels_.DevicePointer(d),
+          (out_gpair->DeviceSpan(d), label_correct_.DeviceSpan(d),
+           preds->DeviceSpan(d), labels_.DeviceSpan(d),
            info.weights_.size() > 0 ? weights_.DevicePointer(d) : nullptr,
            n, param_.scale_pos_weight);
         dh::safe_cuda(cudaGetLastError());
@@ -180,7 +181,8 @@ class GPURegLossObj : public ObjFunction {
       const int block = 256;
       size_t n = preds->DeviceSize(d);
       if (n > 0) {
-        pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(preds->DevicePointer(d), n);
+        pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(
+            preds->DeviceSpan(d), n);
         dh::safe_cuda(cudaGetLastError());
       }
       dh::safe_cuda(cudaDeviceSynchronize());

@@ -48,9 +48,9 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
           size_t ridx = batch.base_rowid + i;
           SparsePage::Inst inst = batch[i];
-          for (bst_uint j = 0; j < inst.length; ++j) {
-            if (inst[j].index >= begin && inst[j].index < end) {
-              sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
+          for (auto& ins : inst) {
+            if (ins.index >= begin && ins.index < end) {
+              sketchs[ins.index].Push(ins.fvalue, info.GetWeight(ridx));
             }
           }
         }
@@ -140,7 +140,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
      auto &batch = iter->Value();
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
-      row_ptr.push_back(batch[i].length + row_ptr.back());
+      row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
 
@@ -154,9 +154,11 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
       SparsePage::Inst inst = batch[i];
-      CHECK_EQ(ibegin + inst.length, iend);
-      for (bst_uint j = 0; j < inst.length; ++j) {
+
+      CHECK_EQ(ibegin + inst.size(), iend);
+      for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
+
         index[ibegin + j] = idx;
         ++hit_count_tloc_[tid * nbins + idx];
       }
