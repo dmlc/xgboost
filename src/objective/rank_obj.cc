@@ -38,12 +38,12 @@ class LambdaRankObj : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(HostDeviceVector<bst_float>* preds,
+  void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_EQ(preds->Size(), info.labels_.Size()) << "label size predict size not match";
-    auto& preds_h = preds->HostVector();
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "label size predict size not match";
+    const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     std::vector<GradientPair>& gpair = out_gpair->HostVector();
     // quick consistency when group is not available

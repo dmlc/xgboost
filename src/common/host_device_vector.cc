@@ -70,7 +70,9 @@ template <typename T>
 GPUSet HostDeviceVector<T>::Devices() const { return GPUSet::Empty(); }
 
 template <typename T>
-const GPUDistribution& HostDeviceVector<T>::Distribution() const { return impl_->distribution_; }
+const GPUDistribution& HostDeviceVector<T>::Distribution() const {
+  return impl_->distribution_;
+}
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return nullptr; }
@@ -80,11 +82,15 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
   return common::Span<T>();
 }
 
+const T* HostDeviceVector<T>::ConstDevicePointer(int device) { return nullptr; }
+
 template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->data_h_; }
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::HostVector() const { return impl_->data_h_; }
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
+  return impl_->data_h_;
+}
 
 template <typename T>
 void HostDeviceVector<T>::Resize(size_t new_size, T v) {
@@ -121,7 +127,7 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
-void Reshard(const GPUDistribution& distribution) { }
+void Reshard(const GPUDistribution& distribution) const { }
 
 template <typename T>
 void HostDeviceVector<T>::Reshard(GPUSet devices) const { }

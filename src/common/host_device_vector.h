@@ -184,10 +184,12 @@ class HostDeviceVector {
   const GPUDistribution& Distribution() const;
   common::Span<T> DeviceSpan(int device);
   T* DevicePointer(int device);
-  const T* DevicePointer(int device) const;
+  const T* ConstDevicePointer(int device) const;
+  const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
 
   T* HostPointer() { return HostVector().data(); }
-  const T* HostPointer() const { return HostVector().data(); }
+  const T* ConstHostPointer() const { return ConstHostVector().data(); }
+  const T* HostPointer() const { return ConstHostPointer(); }
 
   size_t DeviceStart(int device) const;
   size_t DeviceSize(int device) const;
@@ -197,11 +199,15 @@ class HostDeviceVector {
 #ifdef __CUDACC__
   thrust::device_ptr<T> tbegin(int device);  // NOLINT
   thrust::device_ptr<T> tend(int device);  // NOLINT
-  thrust::device_ptr<const T> tbegin(int device) const;  // NOLINT
-  thrust::device_ptr<const T> tend(int device) const;  // NOLINT
+  thrust::device_ptr<const T> tcbegin(int device) const;  // NOLINT
+  thrust::device_ptr<const T> tcend(int device) const;  // NOLINT
+  thrust::device_ptr<const T> tbegin(int device) const {  // NOLINT
+    return tcbegin(device);
+  }
+  thrust::device_ptr<const T> tend(int device) const { return tcend(device); }  // NOLINT
 
-  void ScatterFrom(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
-  void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end);
+  void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end);
+  void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) const;
 #endif
 
   void Fill(T v);
@@ -210,8 +216,10 @@ class HostDeviceVector {
   void Copy(std::initializer_list<T> other);
 
   std::vector<T>& HostVector();
-  const std::vector<T>& HostVector() const;
-  void Reshard(const GPUDistribution& distribution);
+  const std::vector<T>& ConstHostVector() const;
+  const std::vector<T>& HostVector() const {return ConstHostVector(); }
+  
+  void Reshard(const GPUDistribution& distribution) const;
   void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());
 

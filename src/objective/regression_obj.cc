@@ -38,14 +38,14 @@ class RegLossObj : public ObjFunction {
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(HostDeviceVector<bst_float> *preds, const MetaInfo &info,
+  void GetGradient(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
                    int iter, HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "labels are not correctly provided"
-        << "preds.size=" << preds->Size()
+        << "preds.size=" << preds.Size()
         << ", label.size=" << info.labels_.Size();
-    auto& preds_h = preds->HostVector();
+    const auto& preds_h = preds.HostVector();
     const auto& labels = info.labels_.HostVector();
     const auto& weights = info.weights_.HostVector();
 
@@ -142,14 +142,14 @@ class PoissonRegression : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
-    out_gpair->Resize(preds->Size());
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
+    out_gpair->Resize(preds.Size());
     auto& gpair = out_gpair->HostVector();
     const auto& labels = info.labels_.HostVector();
     // check if label in range
@@ -204,13 +204,13 @@ class CoxRegression : public ObjFunction {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {}
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
     const std::vector<size_t> &label_order = info.LabelAbsSort();
@@ -293,13 +293,13 @@ class GammaRegression : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
     const auto& labels = info.labels_.HostVector();
@@ -361,20 +361,20 @@ class TweedieRegression : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
-    out_gpair->Resize(preds->Size());
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
+    out_gpair->Resize(preds.Size());
     auto& gpair = out_gpair->HostVector();
     const auto& labels = info.labels_.HostVector();
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
-    const omp_ulong ndata = static_cast<omp_ulong>(preds->Size()); // NOLINT(*)
+    const omp_ulong ndata = static_cast<omp_ulong>(preds.Size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds_h[i];

@@ -147,8 +147,8 @@ void SparsePageDMatrix::InitColAccess(
     builder(&offset_vec, &data_vec);
     builder.InitBudget(info.num_col_, nthread);
     bst_omp_uint ndata = static_cast<bst_uint>(prow.Size());
-    auto& prow_offset_vec = prow.offset.HostVector();
-    auto& prow_data_vec = prow.data.HostVector();
+    const auto& prow_offset_vec = prow.offset.HostVector();
+    const auto& prow_data_vec = prow.data.HostVector();
     #pragma omp parallel for schedule(static) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
@@ -237,7 +237,7 @@ void SparsePageDMatrix::InitColAccess(
     size_t tick_expected = kStep;
 
     while (make_next_col(page.get())) {
-      auto& page_offset_vec = page->offset.HostVector();
+      const auto& page_offset_vec = page->offset.ConstHostVector();
       for (size_t i = 0; i < page->Size(); ++i) {
         col_size_[i] += page_offset_vec[i + 1] - page_offset_vec[i];
       }

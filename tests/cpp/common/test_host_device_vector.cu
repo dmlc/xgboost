@@ -52,13 +52,15 @@ void CheckDevice(HostDeviceVector<unsigned int> *v,
   for (int i = 0; i < n_devices; ++i) {
     ASSERT_EQ(v->DeviceSize(i), sizes.at(i));
     dh::safe_cuda(cudaSetDevice(i));
+    ASSERT_TRUE(thrust::equal(v->tcbegin(i), v->tcend(i),
+                              thrust::make_counting_iterator(first + starts[i])));
     ASSERT_TRUE(thrust::equal(v->tbegin(i), v->tend(i),
                               thrust::make_counting_iterator(first + starts[i])));
   }
 }
 
-void CheckHost(HostDeviceVector<unsigned int> *v) {
-  const std::vector<unsigned int> data_h = v->HostVector();
+void CheckHost(HostDeviceVector<unsigned int> *v, bool rw) {
+  const std::vector<unsigned int>& data_h = rw ? v->HostVector() : v->ConstHostVector();
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
   }
@@ -72,7 +74,8 @@ void TestHostDeviceVector
   CheckDevice(&v, starts, sizes, 0);
   PlusOne(&v);
   CheckDevice(&v, starts, sizes, 1);
-  CheckHost(&v);
+  CheckHost(&v, false);
+  CheckHost(&v, true);
 }
 
 TEST(HostDeviceVector, TestBlock) {

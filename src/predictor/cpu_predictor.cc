@@ -112,7 +112,7 @@ class CPUPredictor : public Predictor {
         ntree_limit * model.param.num_output_group >= model.trees.size()) {
       auto it = cache_.find(dmat);
       if (it != cache_.end()) {
-        HostDeviceVector<bst_float>& y = it->second.predictions;
+        const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           out_preds->Resize(y.Size());
           std::copy(y.HostVector().begin(), y.HostVector().end(),
@@ -128,7 +128,7 @@ class CPUPredictor : public Predictor {
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
     size_t n = model.param.num_output_group * info.num_row_;
-    const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
+    const auto& base_margin = info.base_margin_.HostVector();
     out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
     if (base_margin.size() == n) {
@@ -282,7 +282,7 @@ class CPUPredictor : public Predictor {
     }
     // start collecting the contributions
     auto iter = p_fmat->RowIterator();
-    const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
+    const auto& base_margin = info.base_margin_.HostVector();
     iter->BeforeFirst();
     while (iter->Next()) {
       auto &batch = iter->Value();

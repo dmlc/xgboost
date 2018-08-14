@@ -65,9 +65,9 @@ struct DeviceMatrix {
     iter->BeforeFirst();
     size_t data_offset = 0;
     while (iter->Next()) {
-      auto batch = iter->Value();
-      auto& offset_vec = batch.offset.HostVector();
-      auto& data_vec = batch.data.HostVector();
+      const auto& batch = iter->Value();
+      const auto& offset_vec = batch.offset.HostVector();
+      const auto& data_vec = batch.data.HostVector();
       // Copy row ptr
       thrust::copy(offset_vec.data(), offset_vec.data() + batch.Size() + 1,
                    row_ptr.tbegin() + batch.base_rowid);

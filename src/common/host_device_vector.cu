@@ -179,7 +179,7 @@ struct HostDeviceVectorImpl {
     return tbegin(device) + DeviceSize(device);
   }
 
-  void ScatterFrom(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+  void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end) {
     CHECK_EQ(end - begin, Size());
     if (on_h_) {
       dh::safe_cuda(cudaMemcpy(data_h_.data(), begin.get(),
@@ -367,6 +367,10 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
   return impl_->DeviceSpan(device);
 }
 
+const T* HostDeviceVector<T>::ConstDevicePointer(int device) const {
+  return impl_->DevicePointer(device);
+}
+
 template <typename T>
 size_t HostDeviceVector<T>::DeviceStart(int device) { return impl_->DeviceStart(device); }
 
@@ -385,7 +389,7 @@ thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {  // NOLINT
 }
 
 template <typename T>
-thrust::device_ptr<const T> HostDeviceVector<T>::tbegin(int device) const {  // NOLINT
+thrust::device_ptr<const T> HostDeviceVector<T>::tcbegin(int device) const {  // NOLINT
   return thrust::device_ptr<const T>(impl_->tbegin(device));
 }
 
@@ -395,19 +399,19 @@ thrust::device_ptr<T> HostDeviceVector<T>::tend(int device) {  // NOLINT
 }
 
 template <typename T>
-thrust::device_ptr<const T> HostDeviceVector<T>::tend(int device) const {  // NOLINT
+thrust::device_ptr<const T> HostDeviceVector<T>::tcend(int device) const {  // NOLINT
   return thrust::device_ptr<const T>(impl_->tend(device));
 }
 
 template <typename T>
 void HostDeviceVector<T>::ScatterFrom
-(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end) {
   impl_->ScatterFrom(begin, end);
 }
 
 template <typename T>
 void HostDeviceVector<T>::GatherTo
-(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) const {
   impl_->GatherTo(begin, end);
 }
 
@@ -435,7 +439,7 @@ template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->HostVector(); }
 
 template <typename T>
-const std::vector<T>& HostDeviceVector<T>::HostVector() const {
+const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
   return impl_->HostVector();
 }
 
@@ -445,7 +449,7 @@ void HostDeviceVector<T>::Reshard(GPUSet new_devices) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) {
+void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) const {
   impl_->Reshard(distribution);
 }
 
