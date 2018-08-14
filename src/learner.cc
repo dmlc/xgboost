@@ -381,7 +381,7 @@ class LearnerImpl : public Learner {
     this->PredictRaw(train, &preds_);
     monitor_.Stop("PredictRaw");
     monitor_.Start("GetGradient");
-    obj_->GetGradient(&preds_, train->Info(), iter, &gpair_);
+    obj_->GetGradient(preds_, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
@@ -411,7 +411,8 @@ class LearnerImpl : public Learner {
       obj_->EvalTransform(&preds_);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(preds_.HostVector(), data_sets[i]->Info(), tparam_.dsplit == 2);
+           << ev->Eval(preds_.ConstHostVector(), data_sets[i]->Info(),
+                       tparam_.dsplit == 2);
       }
     }
 
@@ -454,7 +455,8 @@ class LearnerImpl : public Learner {
     this->PredictRaw(data, &preds_);
     obj_->EvalTransform(&preds_);
     return std::make_pair(metric,
-                          ev->Eval(preds_.HostVector(), data->Info(), tparam_.dsplit == 2));
+                          ev->Eval(preds_.ConstHostVector(), data->Info(),
+                                   tparam_.dsplit == 2));
   }
 
   void Predict(DMatrix* data, bool output_margin,

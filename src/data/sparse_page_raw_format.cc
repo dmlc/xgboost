@@ -80,8 +80,8 @@ class SparsePageRawFormat : public SparsePageFormat {
   }
 
   void Write(const SparsePage& page, dmlc::Stream* fo) override {
-    auto& offset_vec = page.offset.HostVector();
-    auto& data_vec = page.data.HostVector();
+    const auto& offset_vec = page.offset.HostVector();
+    const auto& data_vec = page.data.HostVector();
     CHECK(page.offset.Size() != 0 && offset_vec[0] == 0);
     CHECK_EQ(offset_vec.back(), page.data.Size());
     fo->Write(offset_vec);

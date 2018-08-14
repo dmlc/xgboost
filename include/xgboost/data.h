@@ -228,8 +228,8 @@ class SparsePage {
   inline void Push(const SparsePage &batch) {
     auto& data_vec = data.HostVector();
     auto& offset_vec = offset.HostVector();
-    auto& batch_offset_vec = batch.offset.HostVector();
-    auto& batch_data_vec = batch.data.HostVector();
+    const auto& batch_offset_vec = batch.offset.HostVector();
+    const auto& batch_data_vec = batch.data.HostVector();
     size_t top = offset_vec.back();
     data_vec.resize(top + batch.data.Size());
     std::memcpy(dmlc::BeginPtr(data_vec) + top,

@@ -41,7 +41,7 @@ class ColMaker: public TreeUpdater {
       Builder builder(
         param_,
         std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()));
-      builder.Update(gpair->HostVector(), dmat, tree);
+      builder.Update(gpair->ConstHostVector(), dmat, tree);
     }
     param_.learning_rate = lr;
   }
@@ -804,7 +804,7 @@ class DistColMaker : public ColMaker {
       param_,
       std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()));
     // build the tree
-    builder.Update(gpair->HostVector(), dmat, trees[0]);
+    builder.Update(gpair->ConstHostVector(), dmat, trees[0]);
     //// prune the tree, note that pruner will sync the tree
     pruner_->Update(gpair, dmat, trees);
     // update position after the tree is pruned

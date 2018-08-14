@@ -30,7 +30,7 @@ class SketchMaker: public BaseMaker {
     param_.learning_rate = lr / trees.size();
     // build tree
     for (auto tree : trees) {
-      this->Update(gpair->HostVector(), p_fmat, tree);
+      this->Update(gpair->ConstHostVector(), p_fmat, tree);
     }
     param_.learning_rate = lr;
   }

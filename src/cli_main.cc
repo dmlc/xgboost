@@ -332,7 +332,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (bst_float p : preds.HostVector()) {
+  for (bst_float p : preds.ConstHostVector()) {
     os << std::setprecision(std::numeric_limits<bst_float>::max_digits10 + 2)
        << p << '\n';
   }

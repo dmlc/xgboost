@@ -91,16 +91,16 @@ class GPURegLossObj : public ObjFunction {
     label_correct_.Resize(devices_.Size());
   }
 
-  void GetGradient(HostDeviceVector<float>* preds,
+  void GetGradient(const HostDeviceVector<float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels_.Size())
       << "labels are not correctly provided"
-      << "preds.size=" << preds->Size() << ", label.size=" << info.labels_.Size();
-    size_t ndata = preds->Size();
-    preds->Reshard(devices_);
+      << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
+    size_t ndata = preds.Size();
+    preds.Reshard(devices_);
     info.labels_.Reshard(devices_);
     info.weights_.Reshard(devices_);
     out_gpair->Reshard(devices_);
@@ -109,7 +109,7 @@ class GPURegLossObj : public ObjFunction {
   }
 
  private:
-  void GetGradientDevice(HostDeviceVector<float>* preds,
+  void GetGradientDevice(const HostDeviceVector<float>& preds,
                          const MetaInfo &info,
                          int iter,
                          HostDeviceVector<GradientPair>* out_gpair) {
@@ -121,11 +121,11 @@ class GPURegLossObj : public ObjFunction {
       int d = devices_[i];
       dh::safe_cuda(cudaSetDevice(d));
       const int block = 256;
-      size_t n = preds->DeviceSize(d);
+      size_t n = preds.DeviceSize(d);
       if (n > 0) {
         get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>
           (out_gpair->DevicePointer(d), label_correct_.DevicePointer(d),
-           preds->DevicePointer(d), info.labels_.DevicePointer(d),
+           preds.DevicePointer(d), info.labels_.DevicePointer(d),
            info.weights_.Size() > 0 ? info.weights_.DevicePointer(d) : nullptr,
            n, param_.scale_pos_weight);
         dh::safe_cuda(cudaGetLastError());

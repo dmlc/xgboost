@@ -695,9 +695,9 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   CHECK(iter->Next());
 
   const auto& batch = iter->Value();
-  const auto& src_labels = src.info.labels_.HostVector();
-  const auto& src_weights = src.info.weights_.HostVector();
-  const auto& src_base_margin = src.info.base_margin_.HostVector();
+  const auto& src_labels = src.info.labels_.ConstHostVector();
+  const auto& src_weights = src.info.weights_.ConstHostVector();
+  const auto& src_base_margin = src.info.base_margin_.ConstHostVector();
   auto& ret_labels = ret.info.labels_.HostVector();
   auto& ret_weights = ret.info.weights_.HostVector();
   auto& ret_base_margin = ret.info.base_margin_.HostVector();

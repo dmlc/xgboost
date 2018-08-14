@@ -63,13 +63,14 @@ class ShotgunUpdater : public LinearUpdater {
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    std::vector<GradientPair> &gpair = in_gpair->HostVector();
+    auto &gpair = in_gpair->HostVector();
     param_.DenormalizePenalties(sum_instance_weight);
     const int ngroup = model->param.num_output_group;
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {
-      auto grad = GetBiasGradientParallel(gid, ngroup, in_gpair->HostVector(), p_fmat);
+      auto grad = GetBiasGradientParallel(gid, ngroup,
+                                          in_gpair->ConstHostVector(), p_fmat);
       auto dbias = static_cast<bst_float>(param_.learning_rate *
                                CoordinateDeltaBias(grad.first, grad.second));
       model->bias()[gid] += dbias;
@@ -77,7 +78,7 @@ class ShotgunUpdater : public LinearUpdater {
     }
 
     // lock-free parallel updates of weights
-    selector_->Setup(*model, in_gpair->HostVector(), p_fmat,
+    selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
      auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
@@ -85,15 +86,16 @@ class ShotgunUpdater : public LinearUpdater {
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
-        int ii = selector_->NextFeature(i, *model, 0, in_gpair->HostVector(), p_fmat,
-                                       param_.reg_alpha_denorm, param_.reg_lambda_denorm);
+        int ii = selector_->NextFeature
+          (i, *model, 0, in_gpair->ConstHostVector(), p_fmat, param_.reg_alpha_denorm,
+           param_.reg_lambda_denorm);
         if (ii < 0) continue;
         const bst_uint fid = ii;
         auto col = batch[ii];
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (bst_uint j = 0; j < col.length; ++j) {
-            GradientPair &p = gpair[col[j].index * ngroup + gid];
+            const GradientPair &p = gpair[col[j].index * ngroup + gid];
             if (p.GetHess() < 0.0f) continue;
             const bst_float v = col[j].fvalue;
             sum_grad += p.GetGrad() * v;

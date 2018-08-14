@@ -21,16 +21,16 @@ class HingeObj : public ObjFunction {
     // This objective does not take any parameters
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "labels are not correctly provided"
-        << "preds.size=" << preds->Size()
+        << "preds.size=" << preds.Size()
         << ", label.size=" << info.labels_.Size();
-    auto& preds_h = preds->HostVector();
+    const auto& preds_h = preds.HostVector();
     const auto& labels_h = info.labels_.HostVector();
     const auto& weights_h = info.weights_.HostVector();
 

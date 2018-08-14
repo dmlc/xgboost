@@ -35,14 +35,14 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(HostDeviceVector<bst_float>* preds,
+  void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK(preds->Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
+    CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match";
-    std::vector<bst_float>& preds_h = preds->HostVector();
+    const std::vector<bst_float>& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     std::vector<GradientPair>& gpair = out_gpair->HostVector();
     const int nclass = param_.num_class;
