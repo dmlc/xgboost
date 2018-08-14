@@ -31,8 +31,8 @@
 
 #include <xgboost/logging.h>  // CHECK
 
-#include <cinttypes>    // int64_t
-#include <type_traits>  // remove_cv_t
+#include <cinttypes>          // int64_t
+#include <type_traits>
 
 /*!
  * The version number 1910 is picked up from GSL.
@@ -237,9 +237,9 @@ class SpanIterator {
 /*!
  * The extent E of the span returned by subspan is determined as follows:
  *
- *   - If Count is not std::dynamic_extent, Count;
- *   - Otherwise, if Extent is not std::dynamic_extent, Extent - Offset;
- *   - Otherwise, std::dynamic_extent.
+ *   - If Count is not dynamic_extent, Count;
+ *   - Otherwise, if Extent is not dynamic_extent, Extent - Offset;
+ *   - Otherwise, dynamic_extent.
  */
 template <detail::ptrdiff_t Extent,
           detail::ptrdiff_t Offset,
@@ -269,7 +269,7 @@ struct IsAllowedElementTypeConversion : public std::integral_constant<
 template <class T>
 struct IsSpanOracle : std::false_type {};
 
-template <class T, std::ptrdiff_t Extent>
+template <class T, detail::ptrdiff_t Extent>
 struct IsSpanOracle<Span<T, Extent>> : std::true_type {};
 
 template <class T>
@@ -434,7 +434,7 @@ class Span {
   XGBOOST_DEVICE Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
                                                 data_(_cont.data()) {}
 
-  template <class U, ptrdiff_t OtherExtent,
+  template <class U, detail::ptrdiff_t OtherExtent,
             class = typename std::enable_if<
               detail::IsAllowedElementTypeConversion<U, T>::value &&
               detail::IsAllowedExtentConversion<OtherExtent, Extent>::value>>
@@ -456,7 +456,7 @@ class Span {
     return {this, 0};
   }
 
-  XGBOOST_DEVICE constexpr iterator end() const __span_noexcept {   // NOLINT
+  XGBOOST_DEVICE constexpr iterator end() const __span_noexcept {    // NOLINT
     return {this, size()};
   }
 
@@ -464,7 +464,7 @@ class Span {
     return {this, 0};
   }
 
-  XGBOOST_DEVICE constexpr const_iterator cend() const __span_noexcept {   // NOLINT
+  XGBOOST_DEVICE constexpr const_iterator cend() const __span_noexcept {    // NOLINT
     return {this, size()};
   }
 
@@ -538,8 +538,8 @@ class Span {
    * If Count is std::dynamic_extent, r.size() == this->size() - Offset;
    * Otherwise r.size() == Count.
    */
-  template < detail::ptrdiff_t Offset,
-             detail::ptrdiff_t Count = dynamic_extent >
+  template <detail::ptrdiff_t Offset,
+            detail::ptrdiff_t Count = dynamic_extent>
   XGBOOST_DEVICE auto subspan() const ->                   // NOLINT
       Span<element_type,
            detail::ExtentValue<Extent, Offset, Count>::value> {
