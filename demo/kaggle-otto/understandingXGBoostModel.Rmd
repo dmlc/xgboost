@@ -121,19 +121,19 @@ param <- list("objective" = "multi:softprob",
               "eval_metric" = "mlogloss",
               "num_class" = numberOfClasses)
 
-cv.nround <- 5
+cv.nrounds <- 5
 cv.nfold <- 3
 
 bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
-                nfold = cv.nfold, nrounds = cv.nround)
+                nfold = cv.nfold, nrounds = cv.nrounds)
 ```
 > As we can see the error rate is low on the test dataset (for a 5mn trained model).
 
 Finally, we are ready to train the real model!!!
 
 ```{r modelTraining}
-nround = 50
-bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nround)
+nrounds = 50
+bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nrounds)
 ```
 
 Model understanding
@@ -142,7 +142,7 @@ Model understanding
 Feature importance
 ------------------
 
-So far, we have built a model made of **`r nround`** trees.
+So far, we have built a model made of **`r nrounds`** trees.
 
 To build a tree, the dataset is divided recursively several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **Otto** products).
 

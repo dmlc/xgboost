@@ -23,13 +23,13 @@ param <- list("objective" = "multi:softprob",
               "nthread" = 8)
 
 # Run Cross Validation
-cv.nround = 50
+cv.nrounds = 50
 bst.cv = xgb.cv(param=param, data = x[trind,], label = y, 
-                nfold = 3, nrounds=cv.nround)
+                nfold = 3, nrounds=cv.nrounds)
 
 # Train the model
-nround = 50
-bst = xgboost(param=param, data = x[trind,], label = y, nrounds=nround)
+nrounds = 50
+bst = xgboost(param=param, data = x[trind,], label = y, nrounds=nrounds)
 
 # Make prediction
 pred = predict(bst,x[teind,])
