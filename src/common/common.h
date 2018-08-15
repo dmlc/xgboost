@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2018 by Contributors
  * \file common.h
  * \brief Common utilities
  */
@@ -19,6 +19,13 @@
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
+
+#define WITH_CUDA() true
+
+#else
+
+#define WITH_CUDA() false
+
 #endif
 
 namespace dh {
@@ -29,11 +36,11 @@ namespace dh {
 #define safe_cuda(ans) ThrowOnCudaError((ans), __FILE__, __LINE__)
 
 inline cudaError_t ThrowOnCudaError(cudaError_t code, const char *file,
-                                       int line) {
+                                    int line) {
   if (code != cudaSuccess) {
-    throw thrust::system_error(code, thrust::cuda_category(),
-                               std::string{file} + "(" +  // NOLINT
-                               std::to_string(line) + ")");
+    LOG(FATAL) << thrust::system_error(code, thrust::cuda_category(),
+                                       std::string{file} + ": " +  // NOLINT
+                                       std::to_string(line)).what();
   }
   return code;
 }
@@ -70,13 +77,13 @@ inline std::string ToString(const T& data) {
  */
 class Range {
  public:
+  using DifferenceType = int64_t;
+
   class Iterator {
     friend class Range;
 
    public:
-    using DifferenceType = int64_t;
-
-    XGBOOST_DEVICE int64_t operator*() const { return i_; }
+    XGBOOST_DEVICE DifferenceType operator*() const { return i_; }
     XGBOOST_DEVICE const Iterator &operator++() {
       i_ += step_;
       return *this;
@@ -97,8 +104,8 @@ class Range {
     XGBOOST_DEVICE void Step(DifferenceType s) { step_ = s; }
 
    protected:
-    XGBOOST_DEVICE explicit Iterator(int64_t start) : i_(start) {}
-    XGBOOST_DEVICE explicit Iterator(int64_t start, int step) :
+    XGBOOST_DEVICE explicit Iterator(DifferenceType start) : i_(start) {}
+    XGBOOST_DEVICE explicit Iterator(DifferenceType start, DifferenceType step) :
         i_{start}, step_{step} {}
 
    public:
@@ -109,9 +116,10 @@ class Range {
   XGBOOST_DEVICE Iterator begin() const { return begin_; }  // NOLINT
   XGBOOST_DEVICE Iterator end() const { return end_; }      // NOLINT
 
-  XGBOOST_DEVICE Range(int64_t begin, int64_t end)
+  XGBOOST_DEVICE Range(DifferenceType begin, DifferenceType end)
       : begin_(begin), end_(end) {}
-  XGBOOST_DEVICE Range(int64_t begin, int64_t end, Iterator::DifferenceType step)
+  XGBOOST_DEVICE Range(DifferenceType begin, DifferenceType end,
+                       DifferenceType step)
       : begin_(begin, step), end_(end) {}
 
   XGBOOST_DEVICE bool operator==(const Range& other) const {
@@ -121,9 +129,7 @@ class Range {
     return !(*this == other);
   }
 
-  XGBOOST_DEVICE void Step(Iterator::DifferenceType s) { begin_.Step(s); }
-
-  XGBOOST_DEVICE Iterator::DifferenceType GetStep() const { return begin_.step_; }
+  XGBOOST_DEVICE void Step(DifferenceType s) { begin_.Step(s); }
 
  private:
   Iterator begin_;
