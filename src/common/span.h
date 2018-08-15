@@ -104,10 +104,10 @@ constexpr detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
 
 enum class byte : unsigned char {};  // NOLINT
 
-namespace detail {
-
-template <class ElementType, detail::ptrdiff_t Extent = dynamic_extent>
+template <class ElementType, detail::ptrdiff_t Extent>
 class Span;
+
+namespace detail {
 
 template <typename SpanType, bool IsConst>
 class SpanIterator {

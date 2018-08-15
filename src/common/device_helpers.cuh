@@ -20,6 +20,9 @@
 #include <string>
 #include <vector>
 
+#include "common.h"
+#include "gpu_set.h"
+
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
 #endif
@@ -111,7 +114,7 @@ inline void CheckComputeCapability() {
     std::ostringstream oss;
     oss << "CUDA Capability Major/Minor version number: " << prop.major << "."
         << prop.minor << " is insufficient.  Need >=3.5";
-    int failed = prop.major < 3 || prop.major == 3 && prop.minor < 5;
+    int failed = prop.major < 3 || (prop.major == 3 && prop.minor < 5);
     if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
   }
 }
