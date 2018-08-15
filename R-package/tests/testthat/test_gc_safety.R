@@ -9,7 +9,7 @@ test_that("train and prediction when gctorture is on", {
   test <- agaricus.test
   gctorture(TRUE)
   bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
-  eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+  eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
   pred <- predict(bst, test$data)
   gctorture(FALSE)
 })

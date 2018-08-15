@@ -222,7 +222,7 @@ The code below is very usual. For more information, you can look at the document
 
 ```r
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
-               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
+               eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
 ```
 
 ```
@@ -244,7 +244,7 @@ A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitti
 
 > Here you can see the numbers decrease until line 7 and then increase.
 >
-> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nround = 4`. I will let things like that because I don't really care for the purpose of this example :-)
+> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nrounds = 4`. I will let things like that because I don't really care for the purpose of this example :-)
 
 Feature importance
 ------------------
@@ -448,7 +448,7 @@ train <- agaricus.train
 test <- agaricus.test
 
 #Random Forest™ - 1000 trees
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nround = 1, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nrounds = 1, objective = "binary:logistic")
 ```
 
 ```
@@ -457,7 +457,7 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parall
 
 ```r
 #Boosting - 3 rounds
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nround = 3, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nrounds = 3, objective = "binary:logistic")
 ```
 
 ```
