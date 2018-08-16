@@ -33,12 +33,12 @@ class MyLogistic : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    out_gpair->Resize(preds->Size());
-    std::vector<bst_float>& preds_h = preds->HostVector();
+    out_gpair->Resize(preds.Size());
+    const std::vector<bst_float>& preds_h = preds.HostVector();
     std::vector<GradientPair>& out_gpair_h = out_gpair->HostVector();
     const std::vector<bst_float>& labels_h = info.labels_.HostVector();
     for (size_t i = 0; i < preds_h.size(); ++i) {

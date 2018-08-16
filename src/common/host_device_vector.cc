@@ -78,11 +78,17 @@ template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return nullptr; }
 
 template <typename T>
+<<<<<<< HEAD
 common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
   return common::Span<T>();
 }
 
 const T* HostDeviceVector<T>::ConstDevicePointer(int device) { return nullptr; }
+=======
+const T* HostDeviceVector<T>::ConstDevicePointer(int device) const {
+  return nullptr;
+}
+>>>>>>> Added read-only state for HostDeviceVector sync.
 
 template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->data_h_; }
@@ -127,7 +133,17 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
-void Reshard(const GPUDistribution& distribution) const { }
+bool HostDeviceVector<T>::HostCanAccess(GPUAccess access) const {
+  return true;
+}
+
+template <typename T>
+bool HostDeviceVector<T>::DeviceCanAccess(int device, GPUAccess access) const {
+  return false;
+}
+
+template <typename T>
+void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) const { }
 
 template <typename T>
 void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
