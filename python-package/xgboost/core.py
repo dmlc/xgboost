@@ -479,7 +479,7 @@ class DMatrix(object):
             nthread))
 
     def __del__(self):
-        if self.handle is not None:
+        if hasattr(self, "handle") and self.handle is not None:
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 
