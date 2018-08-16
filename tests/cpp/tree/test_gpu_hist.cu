@@ -19,11 +19,11 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   int max_bins = 4;
   auto dmat = CreateDMatrix(rows, columns, 0.9f);
   common::GHistIndexMatrix gmat;
-  gmat.Init(dmat.get(),max_bins);
+  gmat.Init((*dmat).get(),max_bins);
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
@@ -50,6 +50,8 @@ TEST(gpu_hist_experimental, TestSparseShard) {
       ASSERT_EQ(gidx[i * shard.row_stride + row_offset], shard.null_gidx_value);
     }
   }
+
+  delete dmat;
 }
 
 TEST(gpu_hist_experimental, TestDenseShard) {
@@ -58,11 +60,11 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   int max_bins = 4;
   auto dmat = CreateDMatrix(rows, columns, 0);
   common::GHistIndexMatrix gmat;
-  gmat.Init(dmat.get(),max_bins);
+  gmat.Init((*dmat).get(),max_bins);
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
@@ -82,6 +84,8 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   for (int i = 0; i < gmat.index.size(); i++) {
     ASSERT_EQ(gidx[i], gmat.index[i]);
   }
+
+  delete dmat;
 }
 
 }  // namespace tree

@@ -11,6 +11,7 @@ TEST(Metric, RMSE) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0.6403f, 0.001f);
+  delete metric;
 }
 
 TEST(Metric, MAE) {
@@ -21,6 +22,7 @@ TEST(Metric, MAE) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0.5f, 0.001f);
+  delete metric;
 }
 
 TEST(Metric, LogLoss) {
@@ -31,6 +33,7 @@ TEST(Metric, LogLoss) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               1.2039f, 0.001f);
+  delete metric;
 }
 
 TEST(Metric, Error) {
@@ -56,6 +59,7 @@ TEST(Metric, Error) {
                             {0.1f, 0.2f, 0.1f, 0.2f},
                             {  0,   0,   1,   1}),
               0.5f, 0.001f);
+  delete metric;
 }
 
 TEST(Metric, PoissionNegLogLik) {
@@ -66,4 +70,5 @@ TEST(Metric, PoissionNegLogLik) {
                             {0.1f, 0.2f, 0.1f, 0.2f},
                             {  0,   0,   1,   1}),
               1.1280f, 0.001f);
+  delete metric;
 }

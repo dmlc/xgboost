@@ -64,6 +64,8 @@ TEST(MetaInfo, SaveLoadBinary) {
   EXPECT_EQ(inforead.num_row_, info.num_row_);
 
   std::remove(tmp_file.c_str());
+
+  delete fs;
 }
 
 TEST(MetaInfo, LoadQid) {

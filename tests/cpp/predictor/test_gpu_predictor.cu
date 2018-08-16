@@ -35,8 +35,8 @@ TEST(gpu_predictor, Test) {
   // Test predict batch
   HostDeviceVector<float> gpu_out_predictions;
   HostDeviceVector<float> cpu_out_predictions;
-  gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
-  cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
+  gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
+  cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
   std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
   std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
   float abs_tolerance = 0.001;
@@ -45,7 +45,7 @@ TEST(gpu_predictor, Test) {
               abs_tolerance);
   }
   // Test predict instance
-  auto batch = dmat->RowIterator()->Value();
+  auto batch = (*dmat)->RowIterator()->Value();
   for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> gpu_instance_out_predictions;
     std::vector<float> cpu_instance_out_predictions;
@@ -59,8 +59,8 @@ TEST(gpu_predictor, Test) {
   // Test predict leaf
   std::vector<float> gpu_leaf_out_predictions;
   std::vector<float> cpu_leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat.get(), &cpu_leaf_out_predictions, model);
-  gpu_predictor->PredictLeaf(dmat.get(), &gpu_leaf_out_predictions, model);
+  cpu_predictor->PredictLeaf((*dmat).get(), &cpu_leaf_out_predictions, model);
+  gpu_predictor->PredictLeaf((*dmat).get(), &gpu_leaf_out_predictions, model);
   for (int i = 0; i < gpu_leaf_out_predictions.size(); i++) {
     ASSERT_EQ(gpu_leaf_out_predictions[i], cpu_leaf_out_predictions[i]);
   }
@@ -68,11 +68,13 @@ TEST(gpu_predictor, Test) {
   // Test predict contribution
   std::vector<float> gpu_out_contribution;
   std::vector<float> cpu_out_contribution;
-  cpu_predictor->PredictContribution(dmat.get(), &cpu_out_contribution, model);
-  gpu_predictor->PredictContribution(dmat.get(), &gpu_out_contribution, model);
+  cpu_predictor->PredictContribution((*dmat).get(), &cpu_out_contribution, model);
+  gpu_predictor->PredictContribution((*dmat).get(), &gpu_out_contribution, model);
   for (int i = 0; i < gpu_out_contribution.size(); i++) {
     ASSERT_EQ(gpu_out_contribution[i], cpu_out_contribution[i]);
   }
+
+  delete dmat;
 }
 }  // namespace predictor
 }  // namespace xgboost
