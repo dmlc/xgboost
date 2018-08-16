@@ -150,6 +150,15 @@ class GPUDistribution {
   std::vector<size_t> offsets_;
 };
 
+enum GPUAccess {
+  kNone, kRead,
+  // write implies read
+  kWrite
+};
+
+inline GPUAccess operator-(GPUAccess a, GPUAccess b) {
+  return static_cast<GPUAccess>(static_cast<int>(a) - static_cast<int>(b));
+}
 
 /**
  * @file host_device_vector.h
@@ -212,7 +221,7 @@ class HostDeviceVector {
   size_t Size() const;
   GPUSet Devices() const;
   const GPUDistribution& Distribution() const;
-  
+
   T* DevicePointer(int device);
   const T* ConstDevicePointer(int device) const;
   const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
@@ -248,7 +257,10 @@ class HostDeviceVector {
   std::vector<T>& HostVector();
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
-  
+
+  bool HostCanAccess(GPUAccess access) const;
+  bool DeviceCanAccess(int device, GPUAccess access) const;
+
   void Reshard(const GPUDistribution& distribution) const;
   void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());
