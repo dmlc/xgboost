@@ -1305,7 +1305,7 @@ class Booster(object):
             fout.write('[\n')
             for i in range(len(ret)):
                 fout.write(ret[i])
-                if i < len(ret)-1:
+                if i < len(ret) - 1:
                     fout.write(",\n")
             fout.write('\n]')
         else:
