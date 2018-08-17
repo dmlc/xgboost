@@ -102,7 +102,7 @@ After training, we can use the output model to get the prediction of the test da
 For binary classification, the output predictions are probability confidence scores in [0,1], corresponds to the probability of the label to be positive.
 
 #### Dump Model
-This is a preliminary feature, so far only tree model support text dump. XGBoost can display the tree models in text files and we can scan the model in an easy way:
+This is a preliminary feature, so only tree models support text dump. XGBoost can display the tree models in text or JSON files, and we can scan the model in an easy way:
 ```
 ../../xgboost mushroom.conf task=dump model_in=0002.model name_dump=dump.raw.txt
 ../../xgboost mushroom.conf task=dump model_in=0002.model fmap=featmap.txt name_dump=dump.nice.txt

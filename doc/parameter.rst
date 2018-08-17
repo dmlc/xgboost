@@ -361,6 +361,10 @@ The following parameters are only used in the console version of XGBoost
 
   - Feature map, used for dumping model
 
+* ``dump_format`` [default= ``text``] options: ``text``, ``json``
+
+  - Format of model dump file
+
 * ``name_dump`` [default= ``dump.txt``]
 
   - Name of model dump file

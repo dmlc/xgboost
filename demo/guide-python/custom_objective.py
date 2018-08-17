@@ -33,10 +33,10 @@ def logregobj(preds, dtrain):
 # Take this in mind when you use the customization, and maybe you need write customized evaluation function
 def evalerror(preds, dtrain):
     labels = dtrain.get_label()
-    # return a pair metric_name, result
+    # return a pair metric_name, result. The metric name must not contain a colon (:)
     # since preds are margin(before logistic transformation, cutoff at 0)
     return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
 
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
-bst = xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
+bst = xgb.train(param, dtrain, num_round, watchlist, obj=logregobj, feval=evalerror)
