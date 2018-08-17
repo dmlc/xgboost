@@ -178,11 +178,11 @@ We will train decision tree model using the following parameters:
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max.deph = 2`: the trees won't be deep, because our case is very simple ;
 * `nthread = 2`: the number of cpu threads we are going to use;
-* `nround = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
+* `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 
 ```r
-bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 ```
@@ -200,7 +200,7 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 
 
 ```r
-bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 ```
@@ -215,7 +215,7 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 ```r
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
-bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 ```
@@ -232,13 +232,13 @@ One of the simplest way to see the training progress is to set the `verbose` opt
 
 ```r
 # verbose = 0, no message
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 0)
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
 ```
 
 
 ```r
 # verbose = 1, print evaluation metric
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 1)
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 1)
 ```
 
 ```
@@ -249,7 +249,7 @@ bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, o
 
 ```r
 # verbose = 2, also print information about tree
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 2)
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 2)
 ```
 
 ```
@@ -372,7 +372,7 @@ For the purpose of this example, we use `watchlist` parameter. It is a list of `
 ```r
 watchlist <- list(train=dtrain, test=dtest)
 
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
 ```
@@ -380,7 +380,7 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchli
 ## [1]	train-error:0.022263	test-error:0.021726
 ```
 
-**XGBoost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
+**XGBoost** has computed at each round the same average error metric than seen above (we set `nrounds` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
@@ -390,7 +390,7 @@ For a better understanding of the learning progression, you may want to have som
 
 
 ```r
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
 ```
@@ -407,7 +407,7 @@ Until now, all the learnings we have performed were based on boosting trees. **X
 
 
 ```r
-bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
 ```
@@ -445,7 +445,7 @@ dtrain2 <- xgb.DMatrix("dtrain.buffer")
 ```
 
 ```r
-bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
+bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
 ```

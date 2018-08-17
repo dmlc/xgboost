@@ -60,8 +60,8 @@ void SimpleDMatrix::MakeOneBatch(SparsePage* pcol, bool sorted) {
     for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
       int tid = omp_get_thread_num();
       auto inst = batch[i];
-      for (bst_uint j = 0; j < inst.length; ++j) {
-        builder.AddBudget(inst[j].index, tid);
+      for (auto& ins : inst) {
+        builder.AddBudget(ins.index, tid);
       }
     }
   }
@@ -74,11 +74,11 @@ void SimpleDMatrix::MakeOneBatch(SparsePage* pcol, bool sorted) {
     for (long i = 0; i < static_cast<long>(batch.Size()); ++i) { // NOLINT(*)
       int tid = omp_get_thread_num();
       auto inst = batch[i];
-      for (bst_uint j = 0; j < inst.length; ++j) {
-        builder.Push(
-            inst[j].index,
-            Entry(static_cast<bst_uint>(batch.base_rowid + i), inst[j].fvalue),
-            tid);
+      for (auto& ins : inst) {
+        builder.Push(ins.index,
+                     Entry(static_cast<bst_uint>(batch.base_rowid + i),
+                           ins.fvalue),
+                     tid);
       }
     }
   }

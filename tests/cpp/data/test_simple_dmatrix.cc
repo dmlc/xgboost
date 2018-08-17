@@ -31,7 +31,7 @@ TEST(SimpleDMatrix, RowAccess) {
   row_iter->BeforeFirst();
   row_iter->Next();
   auto first_row = row_iter->Value()[0];
-  ASSERT_EQ(first_row.length, 3);
+  ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);
   row_iter = nullptr;
@@ -70,7 +70,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
     EXPECT_EQ(col_iter->Value().Size(), dmat->Info().num_col_)
       << "Expected batch size = number of cells as #batches is 1.";
     for (int i = 0; i < static_cast<int>(col_iter->Value().Size()); ++i) {
-      EXPECT_EQ(col_iter->Value()[i].length, dmat->GetColSize(i))
+      EXPECT_EQ(col_iter->Value()[i].size(), dmat->GetColSize(i))
         << "Expected length of each colbatch = colsize as #batches is 1.";
     }
   }

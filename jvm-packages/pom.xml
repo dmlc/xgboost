@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm</artifactId>
-    <version>0.80</version>
+    <version>0.81-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -23,6 +23,11 @@
             <email>codingcat@apache.org</email>
         </developer>
     </developers>
+    <scm>
+        <connection>scm:git:git:/github.com/dmlc/xgboost.git</connection>
+        <developerConnection>scm:git:ssh://github.com/dmlc/xgboost.git</developerConnection>
+        <url>https://github.com/dmlc/xgboost</url>
+    </scm>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

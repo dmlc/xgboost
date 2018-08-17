@@ -11,6 +11,8 @@
 #include <initializer_list>
 #include <vector>
 
+#include "span.h"
+
 // only include thrust-related files if host_device_vector.h
 // is included from a .cu file
 #ifdef __CUDACC__
@@ -225,6 +227,10 @@ class HostDeviceVector {
   T* DevicePointer(int device);
   const T* ConstDevicePointer(int device) const;
   const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
+
+  common::Span<T> DeviceSpan(int device);
+  common::Span<const T> ConstDeviceSpan(int device) const;
+  common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
 
   T* HostPointer() { return HostVector().data(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }

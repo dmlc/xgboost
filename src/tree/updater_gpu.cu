@@ -669,7 +669,7 @@ class GPUMaker : public TreeUpdater {
       auto &batch = iter->Value();
       for (int i = 0; i < batch.Size(); i++) {
         auto col = batch[i];
-        for (const Entry* it = col.data; it != col.data + col.length;
+        for (const Entry* it = col.data(); it != col.data() + col.size();
              it++) {
           int inst_id = static_cast<int>(it->index);
           fval->push_back(it->fvalue);

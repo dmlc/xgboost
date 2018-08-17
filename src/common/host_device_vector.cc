@@ -83,6 +83,16 @@ const T* HostDeviceVector<T>::ConstDevicePointer(int device) const {
 }
 
 template <typename T>
+common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
+  return common::Span<T>();
+}
+
+template <typename T>
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(int device) const {
+  return common::Span<const T>();
+}
+
+template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->data_h_; }
 
 template <typename T>

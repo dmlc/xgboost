@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include "./base.h"
+#include "../../src/common/span.h"
 
 #include "../../src/common/host_device_vector.h"
 
@@ -135,7 +136,7 @@ struct Entry {
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
-   * \param fvalue THe feature value.
+   * \param fvalue The feature value.
    */
   Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
   /*! \brief reversely compare feature values */
@@ -157,27 +158,16 @@ class SparsePage {
   HostDeviceVector<Entry> data;
 
   size_t base_rowid;
+
   /*! \brief an instance of sparse vector in the batch */
-  struct Inst {
-    /*! \brief pointer to the elements*/
-    const Entry *data{nullptr};
-    /*! \brief length of the instance */
-    bst_uint length{0};
-    /*! \brief constructor */
-    Inst()  = default;
-    Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
-    /*! \brief get i-th pair in the sparse vector*/
-    inline const Entry& operator[](size_t i) const {
-      return data[i];
-    }
-  };
+  using Inst = common::Span<Entry const>;
 
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
     const auto& data_vec = data.HostVector();
     const auto& offset_vec = offset.HostVector();
     return {data_vec.data() + offset_vec[i],
-            static_cast<bst_uint>(offset_vec[i + 1] - offset_vec[i])};
+            static_cast<Inst::index_type>(offset_vec[i + 1] - offset_vec[i])};
   }
 
   /*! \brief constructor */
@@ -248,12 +238,12 @@ class SparsePage {
   inline void Push(const Inst &inst) {
     auto& data_vec = data.HostVector();
     auto& offset_vec = offset.HostVector();
-    offset_vec.push_back(offset_vec.back() + inst.length);
-    size_t begin = data.Size();
-    data_vec.resize(begin + inst.length);
-    if (inst.length != 0) {
-      std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data,
-                  sizeof(Entry) * inst.length);
+    offset_vec.push_back(offset_vec.back() + inst.size());
+    size_t begin = data_vec.size();
+    data_vec.resize(begin + inst.size());
+    if (inst.size() != 0) {
+      std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data(),
+                  sizeof(Entry) * inst.size());
     }
   }
 
@@ -342,7 +332,7 @@ class DMatrix {
    * \brief check if column access is supported, if not, initialize column access.
    * \param max_row_perbatch auxiliary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
-   * \param sorted If column features should be in sorted order           
+   * \param sorted If column features should be in sorted order
    * \return Number of column blocks in the column access.
    */
   virtual void InitColAccess(size_t max_row_perbatch, bool sorted) = 0;

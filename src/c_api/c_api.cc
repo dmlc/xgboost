@@ -708,9 +708,10 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     const int ridx = idxset[i];
     auto inst = batch[ridx];
     CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.Size());
-    data_vec.insert(data_vec.end(), inst.data, inst.data + inst.length);
-    offset_vec.push_back(offset_vec.back() + inst.length);
-    ret.info.num_nonzero_ += inst.length;
+    data_vec.insert(data_vec.end(), inst.data(),
+                    inst.data() + inst.size());
+    offset_vec.push_back(offset_vec.back() + inst.size());
+    ret.info.num_nonzero_ += inst.size();
 
     if (src_labels.size() != 0) {
       ret_labels.push_back(src_labels[ridx]);

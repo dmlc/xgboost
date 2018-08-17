@@ -251,11 +251,11 @@ class XGBoostClassificationModel private[ml](
   override def predict(features: Vector): Double = {
     import DataUtils._
     val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
-    val probability = _booster.predict(data = dm)(0)
+    val probability = _booster.predict(data = dm)(0).map(_.toDouble)
     if (numClasses == 2) {
       math.round(probability(0))
     } else {
-      Vectors.dense(probability.map(_.toDouble)).argmax
+      probability2prediction(Vectors.dense(probability))
     }
   }
 
@@ -411,20 +411,15 @@ class XGBoostClassificationModel private[ml](
     }
 
     val probabilityUDF = udf { probability: mutable.WrappedArray[Float] =>
-      if (numClasses == 2) {
-        Vectors.dense(Array(1 - probability(0), probability(0)).map(_.toDouble))
-      } else {
-        Vectors.dense(probability.map(_.toDouble).toArray)
-      }
+      val prob = probability.map(_.toDouble).toArray
+      val probabilities = if (numClasses == 2) Array(1.0 - prob(0), prob(0)) else prob
+      Vectors.dense(probabilities)
     }
 
     val predictUDF = udf { probability: mutable.WrappedArray[Float] =>
       // From XGBoost probability to MLlib prediction
-      val probabilities = if (numClasses == 2) {
-        Array(1 - probability(0), probability(0)).map(_.toDouble)
-      } else {
-        probability.map(_.toDouble).toArray
-      }
+      val prob = probability.map(_.toDouble).toArray
+      val probabilities = if (numClasses == 2) Array(1.0 - prob(0), prob(0)) else prob
       probability2prediction(Vectors.dense(probabilities))
     }
 

@@ -1,11 +1,16 @@
+/*!
+ * Copyright 2018 XGBoost contributors
+ */
+
+#include <gtest/gtest.h>
 #include <thrust/equal.h>
 #include <thrust/iterator/counting_iterator.h>
 
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/host_device_vector.h"
-#include "gtest/gtest.h"
 
 namespace xgboost {
+namespace common {
 
 void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
                      HostDeviceVector<unsigned int> *v) {
@@ -141,4 +146,16 @@ TEST(HostDeviceVector, TestExplicit) {
   TestHostDeviceVector(n, distribution, starts, sizes);
 }
 
+TEST(HostDeviceVector, Span) {
+  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  vec.Reshard(GPUSet{0, 1});
+  auto span = vec.DeviceSpan(0);
+  ASSERT_EQ(vec.Size(), span.size());
+  ASSERT_EQ(vec.DevicePointer(0), span.data());
+  auto const_span = vec.ConstDeviceSpan(0);
+  ASSERT_EQ(vec.Size(), span.size());
+  ASSERT_EQ(vec.ConstDevicePointer(0), span.data());
 }
+
+}  // namespace common
+}  // namespace xgboost
