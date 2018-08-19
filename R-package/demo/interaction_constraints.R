@@ -78,8 +78,8 @@ bst3 = xgboost(data = train, label = y, max_depth = 4,
                int_constraints = list(c('V1','V2'),c('V3','V4','V5')),
                monotone_constraints = c(-1,0,0,0,0,0,0,0,0,0))
 
-temp <- xgb.model.dt.tree(colnames(train), bst)
-temp.int <- treeInteractions(temp, 4)  # limited interactions
+temp <- xgb.model.dt.tree(colnames(train), bst3)
+temp.int3 <- treeInteractions(temp, 4)  # limited interactions
 
 x1 <- sort(unique(x[['V1']]))
 for (i in 1:length(x1)){

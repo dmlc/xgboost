@@ -421,9 +421,9 @@ class InteractionConstraint final : public SplitEvaluator {
     for (bst_uint i = 0; i < nfeatures; ++i) int_cont_[i].resize(newsize, 0);
 
     // Permit features used in previous splits
-    for (bst_uint i = 0; i < feature_splits.size(); ++i) {
-      int_cont_[feature_splits[i]][leftid] = 1;
-      int_cont_[feature_splits[i]][rightid] = 1;
+    for (bst_uint fid : feature_splits) {
+      int_cont_[fid][leftid] = 1;
+      int_cont_[fid][rightid] = 1;
     }
 
     // Loop across specified interactions in constraints
@@ -431,9 +431,10 @@ class InteractionConstraint final : public SplitEvaluator {
       bst_uint flag = 1;  // flags whether the specified interaction is still relevant
 
       // Test relevance of specified interaction by checking all previous features are included
-      for (bst_uint j = 0; j < feature_splits.size(); j++) {
-        bst_uint checkvar = feature_splits[j];
-        if (params_.int_constraints[nfeatures*i + checkvar] == 0) flag = 0;
+      for (bst_uint checkvar : feature_splits) {
+        if (params_.int_constraints[nfeatures*i + checkvar] == 0) {
+          flag = 0;
+        }
       }
 
       // If interaction is still relevant, permit all other features in the interaction
@@ -451,7 +452,7 @@ class InteractionConstraint final : public SplitEvaluator {
  private:
   InteractionConstraintParams params_;
   std::unique_ptr<SplitEvaluator> inner_;
-  // Record of interaction constraints: (Per Feature) x (Per Node)
+  // int_cont_[fid][nid] indicates whether feature fid is allowed in node nid
   std::vector< std::vector<bst_uint> > int_cont_;
   // Record of feature ids in previous splits: (Per Node) x (Number of Previous Splits)
   std::vector< std::vector<bst_uint> > splits_;
