@@ -107,8 +107,8 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
   return metric->Eval(preds, info, false);
 }
 
-std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
-                                                float sparsity, int seed) {
+std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
+                                                 float sparsity, int seed) {
   const float missing_value = -1;
   std::vector<float> test_data(rows * columns);
   std::mt19937 gen(seed);
@@ -124,5 +124,5 @@ std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
   DMatrixHandle handle;
   XGDMatrixCreateFromMat(test_data.data(), rows, columns, missing_value,
                          &handle);
-  return *static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }

@@ -17,4 +17,6 @@ TEST(Objective, HingeObj) {
                    {  eps,  1.0f, 1.0f, 1.0f,  1.0f,  1.0f,  1.0f, eps });
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  delete obj;
 }

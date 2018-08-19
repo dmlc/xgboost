@@ -59,6 +59,6 @@ xgboost::bst_float GetMetricEval(
  * \return  The new d matrix.
  */
 
-std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
-                                                float sparsity, int seed = 0);
+std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
+                                                 float sparsity, int seed = 0);
 #endif

@@ -22,7 +22,7 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   DMatrixHandle dmat_handle;
   XGDMatrixCreateFromMat(test_data.data(), nrows, 1, -1,
                          &dmat_handle);
-  auto dmat = *static_cast<std::shared_ptr<xgboost::DMatrix> *>(dmat_handle);
+  auto dmat = static_cast<std::shared_ptr<xgboost::DMatrix> *>(dmat_handle);
 
   // parameters for finding quantiles
   tree::TrainParam p;
@@ -34,15 +34,15 @@ TEST(gpu_hist_util, TestDeviceSketch) {
 
   // find quantiles on the CPU
   HistCutMatrix hmat_cpu;
-  hmat_cpu.Init(dmat.get(), p.max_bin);
+  hmat_cpu.Init((*dmat).get(), p.max_bin);
 
   // find the cuts on the GPU
-  dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
   HistCutMatrix hmat_gpu;
-  DeviceSketch(batch, dmat->Info(), p, &hmat_gpu);
+  DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu);
   CHECK(!iter->Next());
 
   // compare the cuts
@@ -54,6 +54,8 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   for (int i = 0; i < hmat_gpu.cut.size(); ++i) {
     ASSERT_LT(fabs(hmat_cpu.cut[i] - hmat_gpu.cut[i]), eps * nrows);
   }
+
+  delete dmat;
 }
 
 }  // namespace common

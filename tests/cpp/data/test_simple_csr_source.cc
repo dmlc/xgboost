@@ -29,4 +29,7 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   EXPECT_EQ(first_row[2].index, first_row_read[2].index);
   EXPECT_EQ(first_row[2].fvalue, first_row_read[2].fvalue);
   row_iter = nullptr; row_iter_read = nullptr;
+
+  delete dmat;
+  delete dmat_read;
 }

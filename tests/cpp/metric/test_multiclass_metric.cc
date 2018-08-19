@@ -13,6 +13,8 @@ TEST(Metric, MultiClassError) {
                             {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}),
               0.666f, 0.001f);
+
+  delete metric;
 }
 
 TEST(Metric, MultiClassLogLoss) {
@@ -25,4 +27,6 @@ TEST(Metric, MultiClassLogLoss) {
                             {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}),
               2.302f, 0.001f);
+
+  delete metric;
 }
