@@ -101,7 +101,7 @@ class XGBModel(XGBModelBase):
         None, defaults to np.nan.
     **kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
-        be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md.
+        be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
         Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
         will result in a TypeError.
         Note:
@@ -259,7 +259,7 @@ class XGBModel(XGBModelBase):
             instance weights on the i-th validation set.
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.md. If callable, a custom evaluation metric. The call
+            doc/parameter.rst. If callable, a custom evaluation metric. The call
             signature is func(y_predicted, y_true) where y_true will be a
             DMatrix object such that you may need to call the get_label
             method. It must return a str, value pair where the str is a name
@@ -465,7 +465,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             instance weights on the i-th validation set.
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.md. If callable, a custom evaluation metric. The call
+            doc/parameter.rst. If callable, a custom evaluation metric. The call
             signature is func(y_predicted, y_true) where y_true will be a
             DMatrix object such that you may need to call the get_label
             method. It must return a str, value pair where the str is a name
@@ -683,8 +683,84 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 class XGBRanker(XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
-    __doc__ = """Implementation of sklearn API for XGBoost Ranking
-           """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+    """Implementation of the Scikit-Learn API for XGBoost Ranking.
+
+        Parameters
+        ----------
+        max_depth : int
+            Maximum tree depth for base learners.
+        learning_rate : float
+            Boosting learning rate (xgb's "eta")
+        n_estimators : int
+            Number of boosted trees to fit.
+        silent : boolean
+            Whether to print messages while running boosting.
+        objective : string
+            Specify the learning task and the corresponding learning objective.
+            Only "rank:pairwise" is supported currently.
+        booster: string
+            Specify which booster to use: gbtree, gblinear or dart.
+        nthread : int
+            Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+        n_jobs : int
+            Number of parallel threads used to run xgboost.  (replaces nthread)
+        gamma : float
+            Minimum loss reduction required to make a further partition on a leaf node of the tree.
+        min_child_weight : int
+            Minimum sum of instance weight(hessian) needed in a child.
+        max_delta_step : int
+            Maximum delta step we allow each tree's weight estimation to be.
+        subsample : float
+            Subsample ratio of the training instance.
+        colsample_bytree : float
+            Subsample ratio of columns when constructing each tree.
+        colsample_bylevel : float
+            Subsample ratio of columns for each split, in each level.
+        reg_alpha : float (xgb's alpha)
+            L1 regularization term on weights
+        reg_lambda : float (xgb's lambda)
+            L2 regularization term on weights
+        scale_pos_weight : float
+            Balancing of positive and negative weights.
+        base_score:
+            The initial prediction score of all instances, global bias.
+        seed : int
+            Random number seed.  (Deprecated, please use random_state)
+        random_state : int
+            Random number seed.  (replaces seed)
+        missing : float, optional
+            Value in the data which needs to be present as a missing value. If
+            None, defaults to np.nan.
+        **kwargs : dict, optional
+            Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
+            be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
+            Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
+            will result in a TypeError.
+            Note:
+                **kwargs is unsupported by Sklearn.  We do not guarantee that parameters passed via
+                this argument will interact properly with Sklearn.
+
+        Note
+        ----
+        A custom objective function is currently not supported by XGBRanker.
+
+        Group information is required for ranking tasks. Before fitting the model, your data need to
+        be sorted by group. When fitting the model, you need to provide an additional array that
+        contains the size of each group.
+
+        For example, if your original data look like:
+
+        |   qid |   label   |   features    |
+        |   1   |   0       |   x_1         |
+        |   1   |   1       |   x_2         |
+        |   1   |   0       |   x_3         |
+        |   2   |   0       |   x_4         |
+        |   2   |   1       |   x_5         |
+        |   2   |   1       |   x_6         |
+        |   2   |   1       |   x_7         |
+
+        then your group array should be [3, 4].
+        """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="rank:pairwise", booster='gbtree',
@@ -699,6 +775,10 @@ class XGBRanker(XGBModel):
                                         subsample, colsample_bytree, colsample_bylevel,
                                         reg_alpha, reg_lambda, scale_pos_weight,
                                         base_score, random_state, seed, missing)
+        if callable(self.objective):
+            raise ValueError("custom objective function not supported by XGBRanker")
+        elif self.objective != "rank:pairwise":
+            raise ValueError("please use XGBRanker for ranking task")
 
     def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None, early_stopping_rounds=None,
@@ -706,14 +786,15 @@ class XGBRanker(XGBModel):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit the gradient boosting model
+
         Parameters
         ----------
         X : array_like
-            Feature matrix with the first feature containing a group indicator
+            Feature matrix
         y : array_like
             Labels
         group : array_like
-            instance weights
+            group size of training data
         sample_weight : array_like
             instance weights
         eval_set : list, optional
@@ -723,11 +804,11 @@ class XGBRanker(XGBModel):
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             instance weights on the i-th validation set.
         eval_group : list of arrays, optional
-            A list that contains the group information corresponds to each
+            A list that contains the group size corresponds to each
             (X, y) pair in eval_set
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.md. If callable, a custom evaluation metric. The call
+            doc/parameter.rst. If callable, a custom evaluation metric. The call
             signature is func(y_predicted, y_true) where y_true will be a
             DMatrix object such that you may need to call the get_label
             method. It must return a str, value pair where the str is a name
@@ -760,7 +841,7 @@ class XGBRanker(XGBModel):
             elif len(eval_group) != len(eval_set):
                 raise ValueError("length of eval_group should match that of eval_set")
             elif any(group is None for group in eval_group):
-                raise ValueError("group is required for all eval datasets for ranking tast")
+                raise ValueError("group is required for all eval datasets for ranking task")
 
         def _dmat_init(group, **params):
             ret = DMatrix(**params)
@@ -790,13 +871,6 @@ class XGBRanker(XGBModel):
 
         params = self.get_xgb_params()
 
-        if callable(self.objective):
-            obj = _objective_decorator(self.objective)
-            # Dummy, Not used when custom objective is given
-            params["objective"] = "rank:pairwise"
-        else:
-            obj = None
-
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
@@ -807,7 +881,7 @@ class XGBRanker(XGBModel):
         self._Booster = train(params, train_dmatrix,
                               self.n_estimators,
                               early_stopping_rounds=early_stopping_rounds, evals=evals,
-                              evals_result=evals_result, obj=obj, feval=feval,
+                              evals_result=evals_result, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model)
 
         self.objective = params["objective"]
