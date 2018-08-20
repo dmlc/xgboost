@@ -68,8 +68,10 @@ class GPUDistribution {
     : devices_(devices), granularity_(1), overlap_(0) {}
 
  private:
-  GPUDistribution(GPUSet devices, int granularity, int overlap, std::vector<size_t> offsets)
-    : devices_(devices), granularity_(granularity), overlap_(overlap), offsets_(offsets) {}
+  GPUDistribution(GPUSet devices, int granularity, int overlap,
+                  std::vector<size_t> offsets)
+    : devices_(devices), granularity_(granularity), overlap_(overlap),
+    offsets_(std::move(offsets)) {}
 
  public:
   static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }

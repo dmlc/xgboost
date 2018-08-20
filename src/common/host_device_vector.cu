@@ -6,6 +6,7 @@
 #include <thrust/fill.h>
 #include <xgboost/data.h>
 #include <algorithm>
+#include <cstdint>
 #include <mutex>
 #include "./device_helpers.cuh"
 
@@ -44,7 +45,7 @@ struct HostDeviceVectorImpl {
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
-      device_ = device;
+      device_ = device % dh::NVisibleDevices();
       index_ = vec_->distribution_.devices_.Index(device);
       LazyResize(vec_->Size());
       perm_d_ = vec_->perm_h_.Complementary();
@@ -543,8 +544,8 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<uint32_t>;
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
+template class HostDeviceVector<uint64_t>;
 
 }  // namespace xgboost

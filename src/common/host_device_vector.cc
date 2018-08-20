@@ -7,7 +7,7 @@
 
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-
+#include <cstdint>
 #include <utility>
 #include "./host_device_vector.h"
 
@@ -153,9 +153,9 @@ void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<uint32_t>;
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
+template class HostDeviceVector<uint64_t>;
 
 }  // namespace xgboost
 
