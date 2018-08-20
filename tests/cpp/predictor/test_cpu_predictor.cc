@@ -25,14 +25,14 @@ TEST(cpu_predictor, Test) {
 
   // Test predict batch
   HostDeviceVector<float> out_predictions;
-  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  cpu_predictor->PredictBatch((*dmat).get(), &out_predictions, model, 0);
   std::vector<float>& out_predictions_h = out_predictions.HostVector();
   for (int i = 0; i < out_predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
   // Test predict instance
-  auto batch = dmat->RowIterator()->Value();
+  auto batch = (*dmat)->RowIterator()->Value();
   for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
@@ -41,22 +41,24 @@ TEST(cpu_predictor, Test) {
 
   // Test predict leaf
   std::vector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  cpu_predictor->PredictLeaf((*dmat).get(), &leaf_out_predictions, model);
   for (int i = 0; i < leaf_out_predictions.size(); i++) {
     ASSERT_EQ(leaf_out_predictions[i], 0);
   }
 
   // Test predict contribution
   std::vector<float> out_contribution;
-  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model);
   for (int i = 0; i < out_contribution.size(); i++) {
     ASSERT_EQ(out_contribution[i], 1.5);
   }
 
   // Test predict contribution (approximate method)
-  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model, true);
+  cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model, true);
   for (int i = 0; i < out_contribution.size(); i++) {
     ASSERT_EQ(out_contribution[i], 1.5);
   }
+
+  delete dmat;
 }
 }  // namespace xgboost

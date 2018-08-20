@@ -17,6 +17,8 @@ TEST(Metric, AMS) {
   metric = xgboost::Metric::Create("ams@0");
   ASSERT_STREQ(metric->Name(), "ams@0");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
+
+  delete metric;
 }
 
 TEST(Metric, AUC) {
@@ -29,6 +31,8 @@ TEST(Metric, AUC) {
               0.5f, 0.001f);
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
+
+  delete metric;
 }
 
 TEST(Metric, AUCPR) {
@@ -50,6 +54,8 @@ TEST(Metric, AUCPR) {
               0.2769199f, 0.001f);
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
+
+  delete metric;
 }
 
 TEST(Metric, Precision) {
@@ -74,6 +80,8 @@ TEST(Metric, Precision) {
               0.5f, 0.001f);
 
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
+
+  delete metric;
 }
 
 TEST(Metric, NDCG) {
@@ -114,6 +122,8 @@ TEST(Metric, NDCG) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0.3868f, 0.001f);
+
+  delete metric;
 }
 
 TEST(Metric, MAP) {
@@ -139,4 +149,5 @@ TEST(Metric, MAP) {
                             {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0.25f, 0.001f);
+  delete metric;
 }

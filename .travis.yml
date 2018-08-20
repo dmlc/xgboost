@@ -28,6 +28,8 @@ env:
     - TASK=cpp_test
     # distributed test
     - TASK=distributed_test
+    # address sanitizer test
+    - TASK=sanitizer_test
 
 matrix:
   exclude:
@@ -43,6 +45,8 @@ matrix:
       env: TASK=cpp_test
     - os: osx
       env: TASK=distributed_test
+    - os: osx
+      env: TASK=sanitizer_test
 
 # dependent apt packages
 addons:
@@ -62,6 +66,8 @@ addons:
       - graphviz
       - gcc-4.8
       - g++-4.8
+      - gcc-7
+      - g++-7
 
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh

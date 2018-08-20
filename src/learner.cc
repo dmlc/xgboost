@@ -92,6 +92,8 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   int nthread;
   // flag to print out detailed breakdown of runtime
   int debug_verbose;
+  // flag to disable default metric
+  int disable_default_eval_metric;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -128,6 +130,9 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("flag to print out detailed breakdown of runtime");
+    DMLC_DECLARE_FIELD(disable_default_eval_metric)
+        .set_default(0)
+        .describe("flag to disable default metric. Set to >0 to disable");
   }
 };
 
@@ -403,7 +408,7 @@ class LearnerImpl : public Learner {
     monitor_.Start("EvalOneIter");
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
-    if (metrics_.size() == 0) {
+    if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {

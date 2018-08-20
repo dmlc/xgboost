@@ -21,6 +21,8 @@ TEST(SparsePageDMatrix, MetaInfo) {
   // Clean up of external memory files
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());
+
+  delete dmat;
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
@@ -48,6 +50,8 @@ TEST(SparsePageDMatrix, RowAccess) {
   // Clean up of external memory files
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());
+
+  delete dmat;
 }
 
 TEST(SparsePageDMatrix, ColAccess) {
@@ -84,4 +88,6 @@ TEST(SparsePageDMatrix, ColAccess) {
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.col.page").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());
+
+  delete dmat;
 }

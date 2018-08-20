@@ -17,6 +17,8 @@ TEST(Objective, GPULinearRegressionGPair) {
                    {1,   1,   1,   1,    1,    1,    1, 1});
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  delete obj;
 }
 
 TEST(Objective, GPULogisticRegressionGPair) {
@@ -29,6 +31,8 @@ TEST(Objective, GPULogisticRegressionGPair) {
                    {   1,    1,    1,    1,    1,     1,     1,     1},
                    { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+
+  delete obj;
 }
 
 TEST(Objective, GPULogisticRegressionBasic) {
@@ -55,6 +59,8 @@ TEST(Objective, GPULogisticRegressionBasic) {
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
+
+  delete obj;
 }
 
 TEST(Objective, GPULogisticRawGPair) {
@@ -67,4 +73,6 @@ TEST(Objective, GPULogisticRawGPair) {
                    {   1,    1,    1,    1,    1,     1,     1,     1},
                    { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+
+  delete obj;
 }

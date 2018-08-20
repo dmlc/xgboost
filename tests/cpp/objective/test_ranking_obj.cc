@@ -25,4 +25,6 @@ TEST(Objective, PairwiseRankingGPair) {
                    {0.9975f, 0.9975f, 0.9975f, 0.9975f});
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  delete obj;
 }
