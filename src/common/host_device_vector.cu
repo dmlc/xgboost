@@ -6,6 +6,7 @@
 #include <thrust/fill.h>
 #include <xgboost/data.h>
 #include <algorithm>
+#include <cstdint>
 #include <mutex>
 #include "./device_helpers.cuh"
 
@@ -44,7 +45,7 @@ struct HostDeviceVectorImpl {
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
-      device_ = device;
+      device_ = device % dh::NVisibleDevices();
       index_ = vec_->distribution_.devices_.Index(device);
       LazyResize(vec_->Size());
       perm_d_ = vec_->perm_h_.Complementary();
@@ -83,15 +84,10 @@ struct HostDeviceVectorImpl {
 
     void LazySyncHost(GPUAccess access) {
       dh::safe_cuda(cudaSetDevice(device_));
-<<<<<<< HEAD
       dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
                                data_.data().get(),  proper_size_ * sizeof(T),
                                cudaMemcpyDeviceToHost));
-      on_d_ = false;
-=======
-      thrust::copy_n(data_.begin(), proper_size_, vec_->data_h_.begin() + start_);
       perm_d_.DenyComplementary(access);
->>>>>>> Added read-only state for HostDeviceVector sync.
     }
 
     void LazyResize(size_t new_size) {
@@ -260,15 +256,10 @@ struct HostDeviceVectorImpl {
 
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
     CHECK_EQ(end - begin, Size());
-<<<<<<< HEAD
-    if (on_h_) {
+    if (perm_h_.CanWrite()) {
       dh::safe_cuda(cudaMemcpy(begin.get(), data_h_.data(),
                                data_h_.size() * sizeof(T),
                                cudaMemcpyHostToDevice));
-=======
-    if (perm_h_.CanWrite()) {
-      thrust::copy(data_h_.begin(), data_h_.end(), begin);
->>>>>>> Added read-only state for HostDeviceVector sync.
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }
@@ -562,9 +553,13 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
+<<<<<<< HEAD
 template class HostDeviceVector<unsigned int>;
 template class HostDeviceVector<int>;
+=======
+template class HostDeviceVector<uint32_t>;
+>>>>>>> Fixed linter and test errors.
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
+template class HostDeviceVector<uint64_t>;
 
 }  // namespace xgboost

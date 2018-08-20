@@ -36,8 +36,10 @@ class GPUDistribution {
     : devices_(devices), granularity_(1), overlap_(0) {}
 
  private:
-  GPUDistribution(GPUSet devices, int granularity, int overlap, std::vector<size_t> offsets)
-    : devices_(devices), granularity_(granularity), overlap_(overlap), offsets_(offsets) {}
+  GPUDistribution(GPUSet devices, int granularity, int overlap,
+                  std::vector<size_t> offsets)
+    : devices_(devices), granularity_(granularity), overlap_(overlap),
+    offsets_(std::move(offsets)) {}
 
  public:
   static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }
@@ -191,11 +193,7 @@ class HostDeviceVector {
   size_t Size() const;
   GPUSet Devices() const;
   const GPUDistribution& Distribution() const;
-<<<<<<< HEAD
   common::Span<T> DeviceSpan(int device);
-=======
-
->>>>>>> Added read-only state for HostDeviceVector sync.
   T* DevicePointer(int device);
   const T* ConstDevicePointer(int device) const;
   const T* DevicePointer(int device) const { return ConstDevicePointer(device); }

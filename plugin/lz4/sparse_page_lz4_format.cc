@@ -177,15 +177,17 @@ class SparsePageLZ4Format : public SparsePageFormat {
   }
 
   bool Read(SparsePage* page, dmlc::SeekStream* fi) override {
-    if (!fi->Read(&(page->offset))) return false;
-    CHECK_NE(page->offset.size(), 0) << "Invalid SparsePage file";
+    auto& offset_vec = page->offset.HostVector();
+    auto& data_vec = page->data.HostVector();
+    if (!fi->Read(&(offset_vec))) return false;
+    CHECK_NE(offset_vec.size(), 0) << "Invalid SparsePage file";
     this->LoadIndexValue(fi);
 
-    page->data.resize(page->offset.back());
+    data_vec.resize(offset_vec.back());
     CHECK_EQ(index_.data.size(), value_.data.size());
-    CHECK_EQ(index_.data.size(), page->data.size());
-    for (size_t i = 0; i < page->data.size(); ++i) {
-      page->data[i] = Entry(index_.data[i] + min_index_, value_.data[i]);
+    CHECK_EQ(index_.data.size(), data_vec.size());
+    for (size_t i = 0; i < data_vec.size(); ++i) {
+      data_vec[i] = Entry(index_.data[i] + min_index_, value_.data[i]);
     }
     return true;
   }
@@ -195,24 +197,25 @@ class SparsePageLZ4Format : public SparsePageFormat {
             const std::vector<bst_uint>& sorted_index_set) override {
     if (!fi->Read(&disk_offset_)) return false;
     this->LoadIndexValue(fi);
-
-    page->offset.clear();
-    page->offset.push_back(0);
+    auto& offset_vec = page->offset.HostVector();
+    auto& data_vec = page->data.HostVector();
+    offset_vec.clear();
+    offset_vec.push_back(0);
     for (bst_uint cid : sorted_index_set) {
-      page->offset.push_back(
-          page->offset.back() + disk_offset_[cid + 1] - disk_offset_[cid]);
+      offset_vec.push_back(
+          offset_vec.back() + disk_offset_[cid + 1] - disk_offset_[cid]);
     }
-    page->data.resize(page->offset.back());
+    data_vec.resize(offset_vec.back());
     CHECK_EQ(index_.data.size(), value_.data.size());
     CHECK_EQ(index_.data.size(), disk_offset_.back());
 
     for (size_t i = 0; i < sorted_index_set.size(); ++i) {
       bst_uint cid = sorted_index_set[i];
-      size_t dst_begin = page->offset[i];
+      size_t dst_begin = offset_vec[i];
       size_t src_begin = disk_offset_[cid];
       size_t num = disk_offset_[cid + 1] - disk_offset_[cid];
       for (size_t j = 0; j < num; ++j) {
-        page->data[dst_begin + j] = Entry(
+        data_vec[dst_begin + j] = Entry(
             index_.data[src_begin + j] + min_index_, value_.data[src_begin + j]);
       }
     }
@@ -220,22 +223,24 @@ class SparsePageLZ4Format : public SparsePageFormat {
   }
 
   void Write(const SparsePage& page, dmlc::Stream* fo) override {
-    CHECK(page.offset.size() != 0 && page.offset[0] == 0);
-    CHECK_EQ(page.offset.back(), page.data.size());
-    fo->Write(page.offset);
+    const auto& offset_vec = page.offset.HostVector();
+    const auto& data_vec = page.data.HostVector();
+    CHECK(offset_vec.size() != 0 && offset_vec[0] == 0);
+    CHECK_EQ(offset_vec.back(), data_vec.size());
+    fo->Write(offset_vec);
     min_index_ = page.base_rowid;
     fo->Write(&min_index_, sizeof(min_index_));
-    index_.data.resize(page.data.size());
-    value_.data.resize(page.data.size());
+    index_.data.resize(data_vec.size());
+    value_.data.resize(data_vec.size());
 
-    for (size_t i = 0; i < page.data.size(); ++i) {
-      bst_uint idx = page.data[i].index - min_index_;
+    for (size_t i = 0; i < data_vec.size(); ++i) {
+      bst_uint idx = data_vec[i].index - min_index_;
       CHECK_LE(idx, static_cast<bst_uint>(std::numeric_limits<StorageIndex>::max()))
           << "The storage index is chosen to limited to smaller equal than "
           << std::numeric_limits<StorageIndex>::max()
           << "min_index=" << min_index_;
       index_.data[i] = static_cast<StorageIndex>(idx);
-      value_.data[i] = page.data[i].fvalue;
+      value_.data[i] = data_vec[i].fvalue;
     }
 
     index_.InitCompressChunks(kChunkSize, kMaxChunk);
@@ -259,7 +264,7 @@ class SparsePageLZ4Format : public SparsePageFormat {
     raw_bytes_value_ += value_.RawBytes();
     encoded_bytes_index_ += index_.EncodedBytes();
     encoded_bytes_value_ += value_.EncodedBytes();
-    raw_bytes_ += page.offset.size() * sizeof(size_t);
+    raw_bytes_ += offset_vec.size() * sizeof(size_t);
   }
 
   inline void LoadIndexValue(dmlc::SeekStream* fi) {

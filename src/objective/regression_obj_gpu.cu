@@ -120,7 +120,7 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d));
+      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
       const int block = 256;
       size_t n = preds.DeviceSize(d);
       if (n > 0) {
@@ -157,7 +157,7 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d));
+      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
       const int block = 256;
       size_t n = preds->DeviceSize(d);
       if (n > 0) {
