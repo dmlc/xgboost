@@ -322,10 +322,6 @@ Command Line Parameters
 ***********************
 The following parameters are only used in the console version of XGBoost
 
-* ``use_buffer`` [default=1]
-
-  - Whether to create a binary buffer from text input. Doing so normally will speed up loading times
-
 * ``num_round``
 
   - The number of rounds for boosting

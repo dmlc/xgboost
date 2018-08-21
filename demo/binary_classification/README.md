@@ -80,12 +80,6 @@ booster = gblinear
 # L2 regularization term on weights, default 0
 lambda = 0.01
 # L1 regularization term on weights, default 0
-If ```agaricus.txt.test.buffer``` exists, and automatically loads from binary buffer if possible, this can speedup training process when you do training many times. You can disable it by setting ```use_buffer=0```.
-  - Buffer file can also be used as standalone input, i.e if buffer file exists, but original agaricus.txt.test was removed, xgboost will still run
-* Deviation from LibSVM input format: xgboost is compatible with LibSVM format, with the following minor differences:
-  - xgboost allows feature index starts from 0
-  - for binary classification, the label is 1 for positive, 0 for negative, instead of +1,-1
-  - the feature indices in each line *do not* need to be sorted
 alpha = 0.01
 # L2 regularization term on bias, default 0
 lambda_bias = 0.01
