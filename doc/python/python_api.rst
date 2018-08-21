@@ -29,6 +29,7 @@ Scikit-Learn API
 .. automodule:: xgboost.sklearn
 .. autoclass:: xgboost.XGBRegressor
     :members:
+    :inherited-members:
     :show-inheritance:
 .. autoclass:: xgboost.XGBClassifier
     :members:
