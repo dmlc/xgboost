@@ -2,6 +2,10 @@ Python API Reference
 ====================
 This page gives the Python API reference of xgboost, please also refer to Python Package Introduction for more information about python package.
 
+.. contents::
+  :backlinks: none
+  :local:
+
 Core Data Structure
 -------------------
 .. automodule:: xgboost.core
