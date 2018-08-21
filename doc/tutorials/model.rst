@@ -223,7 +223,7 @@ In this equation, :math:`w_j` are independent with respect to each other, the fo
   w_j^\ast &= -\frac{G_j}{H_j+\lambda}\\
   \text{obj}^\ast &= -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
 
-The last equation measures *how good* a tree structure :math:`$q(x)` is.
+The last equation measures *how good* a tree structure :math:`q(x)` is.
 
 .. image:: https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/struct_score.png
   :width: 100%
