@@ -33,6 +33,9 @@ Scikit-Learn API
 .. autoclass:: xgboost.XGBClassifier
     :members:
     :show-inheritance:
+.. autoclass:: xgboost.XGBRanker
+    :members:
+    :show-inheritance:
 
 Plotting API
 ------------
