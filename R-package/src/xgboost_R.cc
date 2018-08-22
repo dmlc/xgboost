@@ -184,14 +184,22 @@ SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
   SEXP ret;
   R_API_BEGIN();
   bst_ulong olen;
-  const float *res;
-  CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle),
-                                   CHAR(asChar(field)),
-                                 &olen,
-                                 &res));
-  ret = PROTECT(allocVector(REALSXP, olen));
-  for (size_t i = 0; i < olen; ++i) {
-    REAL(ret)[i] = res[i];
+  const char *name = CHAR(asChar(field));
+  if (!strcmp("group", name)) {
+    const unsigned* res;
+    CHECK_CALL(XGDMatrixGetGroup(R_ExternalPtrAddr(handle), &res, &olen));
+    ret = PROTECT(allocVector(INTSXP, olen));
+    for (size_t i = 0; i < olen; ++i) {
+      INTEGER(ret)[i] = res[i];
+    }
+  } else {
+    const float *res;
+    CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle),
+                                     name, &olen, &res));
+    ret = PROTECT(allocVector(REALSXP, olen));
+    for (size_t i = 0; i < olen; ++i) {
+      REAL(ret)[i] = res[i];
+    }
   }
   R_API_END();
   UNPROTECT(1);
