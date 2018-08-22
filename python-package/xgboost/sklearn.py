@@ -107,8 +107,8 @@ class XGBModel(XGBModelBase):
 
         .. note:: \*\*kwargs unsupported by scikit-learn
 
-            \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters passed via
-            this argument will interact properly with scikit-learn.
+            \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
+            passed via this argument will interact properly with scikit-learn.
 
     Note
     ----
@@ -468,7 +468,7 @@ class XGBModel(XGBModelBase):
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
-      + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+        + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=0.1,
                  n_estimators=100, silent=True,
@@ -732,7 +732,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     __doc__ = "Implementation of the scikit-learn API for XGBoost regression.\n\n"\
-      + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+        + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
 
 class XGBRanker(XGBModel):
@@ -788,13 +788,13 @@ class XGBRanker(XGBModel):
         \*\*kwargs : dict, optional
             Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
             be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
-            Attempting to set a parameter via the constructor args and \*\*kwargs dict simultaneously
-            will result in a TypeError.
+            Attempting to set a parameter via the constructor args and \*\*kwargs dict
+            simultaneously will result in a TypeError.
 
             .. note:: \*\*kwargs unsupported by scikit-learn
 
-                \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters passed via
-                this argument will interact properly with scikit-learn.
+                \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
+                passed via this argument will interact properly with scikit-learn.
 
         Note
         ----
