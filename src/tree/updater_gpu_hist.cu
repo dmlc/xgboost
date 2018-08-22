@@ -728,7 +728,7 @@ class GPUHistMaker : public TreeUpdater {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
     n_devices_ = param_.n_gpus;
-    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevicesAll(param_.n_gpus));
+    devices_ = GPUSet::All(param_.n_gpus).Normalised(param_.gpu_id);
 
     dh::CheckComputeCapability();
 
@@ -743,7 +743,7 @@ class GPUHistMaker : public TreeUpdater {
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
-    monitor_.Start("Update", device_list_);
+    monitor_.Start("Update", devices_);
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -759,17 +759,17 @@ class GPUHistMaker : public TreeUpdater {
       LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
     }
     param_.learning_rate = lr;
-    monitor_.Stop("Update", device_list_);
+    monitor_.Stop("Update", devices_);
   }
 
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
 
-    int n_devices = dh::NDevices(param_.n_gpus, info_->num_row_);
+    int n_devices = GPUSet::All(param_.n_gpus, info_->num_row_).Size();
 
     device_list_.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      int device_idx = (param_.gpu_id + d_idx) % dh::NVisibleDevices();
+      int device_idx = GPUSet::GetDeviceIdx(param_.gpu_id + d_idx);
       device_list_[d_idx] = device_idx;
     }
 
@@ -792,16 +792,16 @@ class GPUHistMaker : public TreeUpdater {
         shard->InitRowPtrs(batch);
       });
 
-    monitor_.Start("Quantiles", device_list_);
+    monitor_.Start("Quantiles", devices_);
     common::DeviceSketch(batch, *info_, param_, &hmat_);
     n_bins_ = hmat_.row_ptr.back();
-    monitor_.Stop("Quantiles", device_list_);
+    monitor_.Stop("Quantiles", devices_);
 
-    monitor_.Start("BinningCompression", device_list_);
+    monitor_.Start("BinningCompression", devices_);
     dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
         shard->InitCompressedData(hmat_, batch);
       });
-    monitor_.Stop("BinningCompression", device_list_);
+    monitor_.Stop("BinningCompression", devices_);
 
     CHECK(!iter->Next()) << "External memory not supported";
 
@@ -811,20 +811,20 @@ class GPUHistMaker : public TreeUpdater {
 
   void InitData(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
                 const RegTree& tree) {
-    monitor_.Start("InitDataOnce", device_list_);
+    monitor_.Start("InitDataOnce", devices_);
     if (!initialised_) {
       this->InitDataOnce(dmat);
     }
-    monitor_.Stop("InitDataOnce", device_list_);
+    monitor_.Stop("InitDataOnce", devices_);
 
     column_sampler_.Init(info_->num_col_, param_);
 
     // Copy gpair & reset memory
-    monitor_.Start("InitDataReset", device_list_);
+    monitor_.Start("InitDataReset", devices_);
 
     gpair->Reshard(devices_);
     dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {shard->Reset(gpair); });
-    monitor_.Stop("InitDataReset", device_list_);
+    monitor_.Stop("InitDataReset", devices_);
   }
 
   void AllReduceHist(int nidx) {
@@ -1036,12 +1036,12 @@ class GPUHistMaker : public TreeUpdater {
                   RegTree* p_tree) {
     auto& tree = *p_tree;
 
-    monitor_.Start("InitData", device_list_);
+    monitor_.Start("InitData", devices_);
     this->InitData(gpair, p_fmat, *p_tree);
-    monitor_.Stop("InitData", device_list_);
-    monitor_.Start("InitRoot", device_list_);
+    monitor_.Stop("InitData", devices_);
+    monitor_.Start("InitRoot", devices_);
     this->InitRoot(p_tree);
-    monitor_.Stop("InitRoot", device_list_);
+    monitor_.Stop("InitRoot", devices_);
 
     auto timestamp = qexpand_->size();
     auto num_leaves = 1;
@@ -1051,9 +1051,9 @@ class GPUHistMaker : public TreeUpdater {
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
       // std::cout << candidate;
-      monitor_.Start("ApplySplit", device_list_);
+      monitor_.Start("ApplySplit", devices_);
       this->ApplySplit(candidate, p_tree);
-      monitor_.Stop("ApplySplit", device_list_);
+      monitor_.Stop("ApplySplit", devices_);
       num_leaves++;
 
       auto left_child_nidx = tree[candidate.nid].LeftChild();
@@ -1062,12 +1062,12 @@ class GPUHistMaker : public TreeUpdater {
       // Only create child entries if needed
       if (ExpandEntry::ChildIsValid(param_, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
-        monitor_.Start("BuildHist", device_list_);
+        monitor_.Start("BuildHist", devices_);
         this->BuildHistLeftRight(candidate.nid, left_child_nidx,
                                  right_child_nidx);
-        monitor_.Stop("BuildHist", device_list_);
+        monitor_.Stop("BuildHist", devices_);
 
-        monitor_.Start("EvaluateSplits", device_list_);
+        monitor_.Start("EvaluateSplits", devices_);
         auto splits =
             this->EvaluateSplits({left_child_nidx, right_child_nidx}, p_tree);
         qexpand_->push(ExpandEntry(left_child_nidx,
@@ -1076,21 +1076,21 @@ class GPUHistMaker : public TreeUpdater {
         qexpand_->push(ExpandEntry(right_child_nidx,
                                    tree.GetDepth(right_child_nidx), splits[1],
                                    timestamp++));
-        monitor_.Stop("EvaluateSplits", device_list_);
+        monitor_.Stop("EvaluateSplits", devices_);
       }
     }
   }
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
-    monitor_.Start("UpdatePredictionCache", device_list_);
+    monitor_.Start("UpdatePredictionCache", devices_);
     if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
       return false;
     p_out_preds->Reshard(devices_);
     dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
         shard->UpdatePredictionCache(p_out_preds->DevicePointer(shard->device_idx));
       });
-    monitor_.Stop("UpdatePredictionCache", device_list_);
+    monitor_.Stop("UpdatePredictionCache", devices_);
     return true;
   }
 
