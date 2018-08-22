@@ -336,6 +336,39 @@ class XGBModel(XGBModelBase):
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=None):
+        """
+        Predict with `data`.
+
+        .. note:: This function is not thread safe.
+
+          For each booster object, predict can only be called from one thread.
+          If you want to run prediction using multiple thread, call ``xgb.copy()`` to make copies
+          of model object and then call ``predict()``.
+
+        .. note:: Using ``predict()`` with DART booster
+
+          If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
+          some of the trees will be evaluated. This will produce incorrect results if ``data`` is
+          not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+          a nonzero value, e.g.
+
+          .. code-block:: python
+
+            preds = bst.predict(dtest, ntree_limit=num_round)
+
+        Parameters
+        ----------
+        data : DMatrix
+            The dmatrix storing the input.
+        output_margin : bool
+            Whether to output the raw untransformed margin value.
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
+            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+        Returns
+        -------
+        prediction : numpy array
+        """
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
         # get ntree_limit to use - if none specified, default to
@@ -908,3 +941,5 @@ class XGBRanker(XGBModel):
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
+
+    predict.__doc__ = XGBModel.predict.__doc__
