@@ -796,7 +796,8 @@ XGB_DLL int XGDMatrixGetGroup(const DMatrixHandle handle,
   auto* pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
   const MetaInfo& info = pmat->get()->Info();
 
-  const size_t len = info.group_ptr_.size();
+  size_t len = info.group_ptr_.size();
+  if (len > 0u) len -= 1;
   for (size_t i = 0; i < len; ++i) {
     group.push_back(info.group_ptr_[i + 1] - info.group_ptr_[i]);
   }

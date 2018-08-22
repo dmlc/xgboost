@@ -3,6 +3,8 @@
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
 
+#include "../helpers.h"
+
 TEST(c_api, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
@@ -65,12 +67,22 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
 }
 
 TEST(c_api, XGDMatrixExposeGroup) {
-  DMatrixHandle handle;
-  unsigned set_groups[3] = {1, 2, 3};
+  std::string tmp_file = CreateBigTestData(6*3);
+  DMatrixHandle handle = new std::shared_ptr<xgboost::DMatrix>(
+    xgboost::DMatrix::Load(tmp_file, true, false));
+  std::remove(tmp_file.c_str());
+
+  bst_ulong get_len;
+  const unsigned*  get_groups;
+  XGDMatrixGetGroup(handle, &get_groups, &get_len);
+  ASSERT_EQ(0u, get_len);
+
+  const unsigned set_groups[3] = {1, 2, 3};
   xgboost::bst_ulong len = 3;
-  bst_ulong get_len = 3;
   XGDMatrixSetGroup(handle, set_groups, len);
-  const unsigned * get_groups[3];
-  XGDMatrixGetGroup(handle, get_groups, get_len);
-  ASSERT_EQ(set_groups, *get_groups);
+  XGDMatrixGetGroup(handle, &get_groups, &get_len);
+  ASSERT_EQ(len, get_len);
+  for (int i = 0; i < get_len; i++) {
+    ASSERT_EQ(set_groups[i], get_groups[i]);
+  }
 }
