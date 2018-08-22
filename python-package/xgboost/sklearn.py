@@ -99,14 +99,16 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
-    **kwargs : dict, optional
+    \*\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
-        Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
+        Attempting to set a parameter via the constructor args and \*\*kwargs dict simultaneously
         will result in a TypeError.
-        Note:
-            **kwargs is unsupported by Sklearn.  We do not guarantee that parameters passed via
-            this argument will interact properly with Sklearn.
+
+        .. note:: \*\*kwargs unsupported by scikit-learn
+
+            \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters passed via
+            this argument will interact properly with scikit-learn.
 
     Note
     ----
@@ -217,6 +219,7 @@ class XGBModel(XGBModelBase):
     def save_model(self, fname):
         """
         Save the model to a file.
+
         Parameters
         ----------
         fname : string
@@ -227,6 +230,7 @@ class XGBModel(XGBModelBase):
     def load_model(self, fname):
         """
         Load the model from a file.
+
         Parameters
         ----------
         fname : string or a memory buffer
@@ -405,10 +409,10 @@ class XGBModel(XGBModelBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If eval_set is passed to the `fit` function, you can call evals_result() to
-        get evaluation results for all passed eval_sets. When eval_metric is also
-        passed to the `fit` function, the evals_result will contain the eval_metrics
-        passed to the `fit` function
+        If ``eval_set`` is passed to the `fit` function, you can call ``evals_result()`` to
+        get evaluation results for all passed eval_sets. When ``eval_metric`` is also
+        passed to the ``fit`` function, the ``evals_result`` will contain the ``eval_metrics``
+        passed to the ``fit`` function
 
         Returns
         -------
@@ -416,20 +420,26 @@ class XGBModel(XGBModelBase):
 
         Example
         -------
-        param_dist = {'objective':'binary:logistic', 'n_estimators':2}
 
-        clf = xgb.XGBModel(**param_dist)
+        .. code-block:: python
 
-        clf.fit(X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)],
-                eval_metric='logloss',
-                verbose=True)
+            param_dist = {'objective':'binary:logistic', 'n_estimators':2}
 
-        evals_result = clf.evals_result()
+            clf = xgb.XGBModel(**param_dist)
+
+            clf.fit(X_train, y_train,
+                    eval_set=[(X_train, y_train), (X_test, y_test)],
+                    eval_metric='logloss',
+                    verbose=True)
+
+            evals_result = clf.evals_result()
 
         The variable evals_result will contain:
-        {'validation_0': {'logloss': ['0.604835', '0.531479']},
-         'validation_1': {'logloss': ['0.41965', '0.17686']}}
+
+        .. code-block:: none
+
+            {'validation_0': {'logloss': ['0.604835', '0.531479']},
+            'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
         if self.evals_result_:
             evals_result = self.evals_result_
@@ -441,9 +451,11 @@ class XGBModel(XGBModelBase):
     @property
     def feature_importances_(self):
         """
+        Feature importances property
+
         Returns
         -------
-        feature_importances_ : array of shape = [n_features]
+        feature_importances_ : array of shape ``[n_features]``
 
         """
         b = self.get_booster()
@@ -455,9 +467,8 @@ class XGBModel(XGBModelBase):
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
-    __doc__ = """Implementation of the scikit-learn API for XGBoost classification.
-
-    """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+    __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
+      + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=0.1,
                  n_estimators=100, silent=True,
@@ -643,10 +654,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def predict_proba(self, data, ntree_limit=None):
         """
         Predict the probability of each `data` example being of a given class.
-        NOTE: This function is not thread safe.
-              For each booster object, predict can only be called from one thread.
-              If you want to run prediction using multiple thread, call xgb.copy() to make copies
-              of model object and then call predict
+
+        .. note:: This function is not thread safe
+
+            For each booster object, predict can only be called from one thread.
+            If you want to run prediction using multiple thread, call ``xgb.copy()`` to make copies
+            of model object and then call predict
+
         Parameters
         ----------
         data : DMatrix
@@ -654,6 +668,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+
         Returns
         -------
         prediction : numpy array
@@ -685,20 +700,26 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Example
         -------
-        param_dist = {'objective':'binary:logistic', 'n_estimators':2}
 
-        clf = xgb.XGBClassifier(**param_dist)
+        .. code-block:: python
 
-        clf.fit(X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)],
-                eval_metric='logloss',
-                verbose=True)
+            param_dist = {'objective':'binary:logistic', 'n_estimators':2}
 
-        evals_result = clf.evals_result()
+            clf = xgb.XGBClassifier(**param_dist)
 
-        The variable evals_result will contain:
-        {'validation_0': {'logloss': ['0.604835', '0.531479']},
-         'validation_1': {'logloss': ['0.41965', '0.17686']}}
+            clf.fit(X_train, y_train,
+                    eval_set=[(X_train, y_train), (X_test, y_test)],
+                    eval_metric='logloss',
+                    verbose=True)
+
+            evals_result = clf.evals_result()
+
+        The variable ``evals_result`` will contain
+
+        .. code-block:: none
+
+            {'validation_0': {'logloss': ['0.604835', '0.531479']},
+            'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
         if self.evals_result_:
             evals_result = self.evals_result_
@@ -710,8 +731,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
-    __doc__ = """Implementation of the scikit-learn API for XGBoost regression.
-    """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+    __doc__ = "Implementation of the scikit-learn API for XGBoost regression.\n\n"\
+      + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
 
 class XGBRanker(XGBModel):
@@ -764,14 +785,16 @@ class XGBRanker(XGBModel):
         missing : float, optional
             Value in the data which needs to be present as a missing value. If
             None, defaults to np.nan.
-        **kwargs : dict, optional
+        \*\*kwargs : dict, optional
             Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
             be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
-            Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
+            Attempting to set a parameter via the constructor args and \*\*kwargs dict simultaneously
             will result in a TypeError.
-            Note:
-                **kwargs is unsupported by Sklearn.  We do not guarantee that parameters passed via
-                this argument will interact properly with Sklearn.
+
+            .. note:: \*\*kwargs unsupported by scikit-learn
+
+                \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters passed via
+                this argument will interact properly with scikit-learn.
 
         Note
         ----
@@ -783,16 +806,25 @@ class XGBRanker(XGBModel):
 
         For example, if your original data look like:
 
+        +-------+-----------+---------------+
         |   qid |   label   |   features    |
+        +-------+-----------+---------------+
         |   1   |   0       |   x_1         |
+        +-------+-----------+---------------+
         |   1   |   1       |   x_2         |
+        +-------+-----------+---------------+
         |   1   |   0       |   x_3         |
+        +-------+-----------+---------------+
         |   2   |   0       |   x_4         |
+        +-------+-----------+---------------+
         |   2   |   1       |   x_5         |
+        +-------+-----------+---------------+
         |   2   |   1       |   x_6         |
+        +-------+-----------+---------------+
         |   2   |   1       |   x_7         |
+        +-------+-----------+---------------+
 
-        then your group array should be [3, 4].
+        then your group array should be ``[3, 4]``.
         """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
