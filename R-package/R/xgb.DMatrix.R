@@ -159,9 +159,10 @@ dimnames.xgb.DMatrix <- function(x) {
 #' The \code{name} field can be one of the following:
 #' 
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
-#'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{label}: label Xgboost learn from;
+#'     \item \code{weight}: to do instance weighting;
+#'     \item \code{base_margin}: base margin is the base marginal prediction Xgboost will boost from;
+#'     \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective);
 #'     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
 #'     
 #' }
@@ -187,9 +188,9 @@ getinfo <- function(object, ...) UseMethod("getinfo")
 getinfo.xgb.DMatrix <- function(object, name, ...) {
   if (typeof(name) != "character" ||
       length(name) != 1 ||
-      !name %in% c('label', 'weight', 'base_margin', 'nrow')) {
+      !name %in% c('label', 'weight', 'group', 'base_margin', 'nrow')) {
     stop("getinfo: name must be one of the following\n",
-         "    'label', 'weight', 'base_margin', 'nrow'")
+         "    'label', 'weight', 'group', 'base_margin', 'nrow'")
   }
   if (name != "nrow"){
     ret <- .Call(XGDMatrixGetInfo_R, object, name)
@@ -214,9 +215,9 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' The \code{name} field can be one of the following:
 #' 
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
-#'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{label}: label Xgboost learn from;
+#'     \item \code{weight}: to do instance weighting;
+#'     \item \code{base_margin}: base margin is the base marginal prediction Xgboost will boost from;
 #'     \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
 #' }
 #' 

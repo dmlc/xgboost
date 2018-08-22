@@ -52,12 +52,17 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
   
   expect_true(length(getinfo(dtest, 'weight')) == 0)
   expect_true(length(getinfo(dtest, 'base_margin')) == 0)
+  expect_true(length(getinfo(dtest, 'group')) == 0)
 
   expect_true(setinfo(dtest, 'weight', test_label))
   expect_true(setinfo(dtest, 'base_margin', test_label))
   expect_true(setinfo(dtest, 'group', c(50,50)))
   expect_error(setinfo(dtest, 'group', test_label))
-  
+
+  expect_equal(test_label, getinfo(dtest, 'weight'))
+  expect_equal(test_label, getinfo(dtest, 'base_margin'))
+  expect_equal(c(50,50), getinfo(dtest, 'group'))
+
   # providing character values will give a warning
   expect_warning( setinfo(dtest, 'weight', rep('a', nrow(test_data))) )
   
