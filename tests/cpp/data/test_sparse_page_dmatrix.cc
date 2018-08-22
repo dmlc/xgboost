@@ -69,23 +69,12 @@ TEST(SparsePageDMatrix, ColAccess) {
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
   }
-
-  // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetColumnBatches()) {
-    EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
-    EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
-    EXPECT_EQ(col_batch[1].size(), 1);
-  }
-
-  EXPECT_TRUE(FileExists(tmp_file + ".cache"));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.sorted.col.page"));
+  EXPECT_EQ(num_col_batch, dmat->Info().num_row_)
+    << "Expected num batches to be same as num_rows as max_row_perbatch is 1";
+  col_iter = nullptr;
+  delete dmat;
 
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());
-  std::remove((tmp_file + ".cache.col.page").c_str());
-  std::remove((tmp_file + ".cache.sorted.col.page").c_str());
-
-  delete dmat;
+  std::remove((tmp_file + ".cache.col.meta").c_str());
 }

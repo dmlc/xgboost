@@ -62,6 +62,7 @@ TEST(MetaInfo, SaveLoadBinary) {
   EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
   EXPECT_EQ(inforead.num_col_, info.num_col_);
   EXPECT_EQ(inforead.num_row_, info.num_row_);
+  delete fs;
 
   std::remove(tmp_file.c_str());
 
