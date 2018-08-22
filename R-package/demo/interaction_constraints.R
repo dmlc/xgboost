@@ -60,7 +60,7 @@ train = as.matrix(x)
 # Fit model with interaction constraints
 bst = xgboost(data = train, label = y, max_depth = 4,
               eta = 0.1, nthread = 2, nrounds = 1000,
-              int_constraints = list(c('V1','V2'),c('V3','V4','V5')))
+              interaction_constraints = list(c('V1','V2'),c('V3','V4','V5')))
 
 temp <- xgb.model.dt.tree(colnames(train), bst)
 temp.int <- treeInteractions(temp, 4)  # limited interactions
@@ -75,7 +75,7 @@ temp.int2 <- treeInteractions(temp, 4)  # much more interactions
 # Fit model with both interaction and monotonicity constraints
 bst3 = xgboost(data = train, label = y, max_depth = 4,
                eta = 0.1, nthread = 2, nrounds = 1000,
-               int_constraints = list(c('V1','V2'),c('V3','V4','V5')),
+               interaction_constraints = list(c('V1','V2'),c('V3','V4','V5')),
                monotone_constraints = c(-1,0,0,0,0,0,0,0,0,0))
 
 temp <- xgb.model.dt.tree(colnames(train), bst3)

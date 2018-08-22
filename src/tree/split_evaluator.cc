@@ -4,8 +4,11 @@
  * \brief Contains implementations of different split evaluators.
  */
 #include "split_evaluator.h"
+#include <dmlc/json.h>
 #include <dmlc/registry.h>
 #include <algorithm>
+#include <unordered_set>
+#include <vector>
 #include <limits>
 #include <string>
 #include <sstream>
@@ -308,16 +311,15 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
 */
 struct InteractionConstraintParams
     : public dmlc::Parameter<InteractionConstraintParams> {
-  std::vector<bst_int> int_constraints;
-  int nint_constraints;
+  std::string interaction_constraints;
+  bst_uint num_feature;
 
   DMLC_DECLARE_PARAMETER(InteractionConstraintParams) {
-    DMLC_DECLARE_FIELD(int_constraints)
-        .set_default(std::vector<int>())
+    DMLC_DECLARE_FIELD(interaction_constraints)
+        .set_default("NULL")
         .describe("Constraints for interaction representing permitted interactions");
-    DMLC_DECLARE_FIELD(nint_constraints)
-        .set_default(0)
-        .describe("Number of specified interactions in int_constraints vector");
+    DMLC_DECLARE_FIELD(num_feature)
+        .describe("Number of total features used");
   }
 };
 
@@ -343,25 +345,43 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   void Reset() override {
-    // Nfeatures based on the relative size of int_constraints and nint_constraints
-    bst_uint nfeatures;
-    if (params_.int_constraints.size() == 0) {
-      nfeatures = 1;
-    } else {
-      nfeatures = params_.int_constraints.size() / params_.nint_constraints;
+    // Parse interaction constraints
+    {
+      if (params_.interaction_constraints == "NULL") {
+        // no constraint supplied: any feature can interact with any feature
+        interaction_constraints_.emplace_back();
+        interaction_constraints_[0].reserve(params_.num_feature);
+        for (bst_uint i = 0; i < params_.num_feature; ++i) {
+          interaction_constraints_[0].insert(i);
+        }
+      } else {
+        std::istringstream iss(params_.interaction_constraints);
+        dmlc::JSONReader reader(&iss);
+        // Read std::vector<std::vector<bst_uint>> first and then
+        //   convert to std::vector<std::unordered_set<bst_uint>>
+        std::vector<std::vector<bst_uint>> tmp;
+        reader.Read(&tmp);
+        for (const auto& e : tmp) {
+          interaction_constraints_.emplace_back(e.begin(), e.end());
+        }
+      }
     }
 
     // Initialise interaction constraints record with all variables permitted for the first node
     int_cont_.clear();
-    int_cont_.resize(nfeatures, std::vector<bst_uint>(1, 1));
+    int_cont_.resize(1, std::unordered_set<bst_uint>());
+    int_cont_[0].reserve(params_.num_feature);
+    for (bst_uint i = 0; i < params_.num_feature; ++i) {
+      int_cont_[0].insert(i);
+    }
 
     // Initialise splits record
     splits_.clear();
-    splits_.resize(1, std::vector<bst_uint>());
+    splits_.resize(1, std::unordered_set<bst_uint>());
   }
 
   SplitEvaluator* GetHostClone() const override {
-    if (params_.int_constraints.size() == 0) {
+    if (params_.interaction_constraints == "NULL") {
       // No interaction constraints specified, just return a clone of inner
       return inner_->GetHostClone();
     } else {
@@ -374,15 +394,16 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   bst_float ComputeSplitScore(bst_uint nodeid,
-                             bst_uint featureid,
-                             const GradStats& left_stats,
-                             const GradStats& right_stats,
-                             bst_float left_weight,
-                             bst_float right_weight) const override {
+                              bst_uint featureid,
+                              const GradStats& left_stats,
+                              const GradStats& right_stats,
+                              bst_float left_weight,
+                              bst_float right_weight) const override {
     // Return negative infinity score if feature is not permitted by interaction constraints
     bst_float infinity = std::numeric_limits<bst_float>::infinity();
-    bst_uint constraint_int = GetIntConstraint(featureid, nodeid);
-    if (constraint_int == 0) return -infinity;
+    if (!CheckInteractionConstraint(featureid, nodeid)) {
+      return -infinity;
+    }
 
     // Otherwise, get score from inner evaluator
     bst_float score = inner_->ComputeSplitScore(
@@ -407,43 +428,41 @@ class InteractionConstraint final : public SplitEvaluator {
                 bst_float leftweight,
                 bst_float rightweight) override {
     inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
-    bst_uint nfeatures = params_.int_constraints.size() / params_.nint_constraints;
     bst_uint newsize = std::max(leftid, rightid) + 1;
 
     // Record previous splits for child nodes
-    std::vector<bst_uint> feature_splits = splits_[nodeid];  // previous features of current node
-    feature_splits.resize(feature_splits.size() + 1, featureid);  // add feature of current node
+    std::unordered_set<bst_uint> feature_splits = splits_[nodeid];  // previous features of current node
+    feature_splits.insert(featureid);  // add feature of current node
     splits_.resize(newsize);
     splits_[leftid] = feature_splits;
     splits_[rightid] = feature_splits;
 
     // Resize constraints record, initialise all features to be not permitted for new nodes
-    for (bst_uint i = 0; i < nfeatures; ++i) int_cont_[i].resize(newsize, 0);
+    int_cont_.resize(newsize, std::unordered_set<bst_uint>());
 
     // Permit features used in previous splits
     for (bst_uint fid : feature_splits) {
-      int_cont_[fid][leftid] = 1;
-      int_cont_[fid][rightid] = 1;
+      int_cont_[leftid].insert(fid);
+      int_cont_[rightid].insert(fid);
     }
 
     // Loop across specified interactions in constraints
-    for (bst_int i = 0; i < params_.nint_constraints; i++) {
+    for (size_t i = 0; i < interaction_constraints_.size(); i++) {
       bst_uint flag = 1;  // flags whether the specified interaction is still relevant
 
       // Test relevance of specified interaction by checking all previous features are included
       for (bst_uint checkvar : feature_splits) {
-        if (params_.int_constraints[nfeatures*i + checkvar] == 0) {
+        if (interaction_constraints_[i].count(checkvar) == 0) {
           flag = 0;
+          break;  // interaction is not relevant due to unmet constraint
         }
       }
 
       // If interaction is still relevant, permit all other features in the interaction
       if (flag == 1) {
-        for (bst_uint k = 0; k < nfeatures; k ++) {
-          if (params_.int_constraints[nfeatures*i + k] != 0) {
-            int_cont_[k][leftid] = 1;
-            int_cont_[k][rightid] = 1;
-          }
+        for (bst_uint k : interaction_constraints_[i]) {
+          int_cont_[leftid].insert(k);
+          int_cont_[rightid].insert(k);
         }
       }
     }
@@ -452,17 +471,21 @@ class InteractionConstraint final : public SplitEvaluator {
  private:
   InteractionConstraintParams params_;
   std::unique_ptr<SplitEvaluator> inner_;
-  // int_cont_[fid][nid] indicates whether feature fid is allowed in node nid
-  std::vector< std::vector<bst_uint> > int_cont_;
-  // Record of feature ids in previous splits: (Per Node) x (Number of Previous Splits)
-  std::vector< std::vector<bst_uint> > splits_;
+  // interaction_constraints_[constraint_id] contains a single interaction
+  //   constraint, which specifies a group of feature IDs that can interact
+  //   with each other
+  std::vector< std::unordered_set<bst_uint> > interaction_constraints_;
+  // int_cont_[nid] contains the set of all feature IDs that are allowed to
+  //   be used for a split at node nid
+  std::vector< std::unordered_set<bst_uint> > int_cont_;
+  // splits_[nid] contains the set of all feature IDs that have been used for
+  //   splits in node nid and its parents
+  std::vector< std::unordered_set<bst_uint> > splits_;
 
-  inline bst_uint GetIntConstraint(bst_uint featureid, bst_uint nodeid) const {
-    if (featureid < int_cont_.size()) {
-      return int_cont_[featureid][nodeid];
-    } else {
-      return 1;
-    }
+  // Check interaction constraints. Returns true if a given feature ID is
+  //   permissible in a given node; returns false otherwise
+  inline bool CheckInteractionConstraint(bst_uint featureid, bst_uint nodeid) const {
+    return (int_cont_[nodeid].count(featureid) > 0);
   }
 };
 

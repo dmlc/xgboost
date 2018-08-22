@@ -73,10 +73,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
-  // structure to record interaction constraints
-  std::vector<int> int_constraints;
-  // number of specified interactions in interaction constraints
-  int nint_constraints;
   // gpu to use for single gpu algorithms
   int gpu_id;
   // number of GPUs to use
@@ -184,12 +180,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");
-    DMLC_DECLARE_FIELD(int_constraints)
-        .set_default(std::vector<int>())
-        .describe("Constraints for interaction representing permitted interactions");
-    DMLC_DECLARE_FIELD(nint_constraints)
-        .set_default(0)
-        .describe("Number of specified interactions in int_constraints vector");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
         .set_default(0)

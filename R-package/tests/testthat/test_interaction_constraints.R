@@ -13,7 +13,7 @@ colnames(train) <- c('x1','x2','x3')
 test_that("interaction constraints for regression", {
   bst <- xgboost(data = train, label = y, max_depth = 3,
                  eta = 0.1, nthread = 2, nrounds = 100, verbose = 0,
-                 int_constraints = list(c('x1','x2')))
+                 interaction_constraints = list(c('x1','x2')))
   
 	preds <- lapply(c(1,2,3), function(x){
 		tmat <- matrix(c(x1,x2,rep(x,1000)), ncol=3)
