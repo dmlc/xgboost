@@ -65,8 +65,6 @@ TEST(MetaInfo, SaveLoadBinary) {
   delete fs;
 
   std::remove(tmp_file.c_str());
-
-  delete fs;
 }
 
 TEST(MetaInfo, LoadQid) {

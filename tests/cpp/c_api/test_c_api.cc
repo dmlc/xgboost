@@ -73,7 +73,7 @@ TEST(c_api, XGDMatrixExposeGroup) {
   std::remove(tmp_file.c_str());
 
   bst_ulong get_len;
-  const unsigned*  get_groups;
+  const unsigned* get_groups;
   XGDMatrixGetGroup(handle, &get_groups, &get_len);
   ASSERT_EQ(0u, get_len);
 
