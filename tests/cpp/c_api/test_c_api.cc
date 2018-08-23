@@ -85,4 +85,5 @@ TEST(c_api, XGDMatrixExposeGroup) {
   for (int i = 0; i < get_len; i++) {
     ASSERT_EQ(set_groups[i], get_groups[i]);
   }
+  XGDMatrixFree(handle);
 }
