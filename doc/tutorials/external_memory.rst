@@ -13,6 +13,10 @@ The external memory version takes in the following filename format:
 The ``filename`` is the normal path to libsvm file you want to load in, and ``cacheprefix`` is a
 path to a cache file that XGBoost will use for external memory cache.
 
+.. note:: External memory is not available with GPU algorithms
+
+  External memory is not available when ``tree_method`` is set to ``gpu_exact`` or ``gpu_hist``.
+
 The following code was extracted from `demo/guide-python/external_memory.py <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/external_memory.py>`_:
 
 .. code-block:: python
