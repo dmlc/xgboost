@@ -398,15 +398,6 @@ class TreeModel {
   inline int NumExtraNodes() const {
     return param.num_nodes - param.num_roots - param.num_deleted;
   }
-  /*! \brief return all parent features used in splits */
-  inline std::vector<unsigned> ParentSplits(int nid) const {
-    std::vector<unsigned> csplits;
-    while (!nodes_[nid].is_root()) {
-      nid = nodes_[nid].parent();
-      csplits.push_back(nodes_[nid].split_index());
-    }
-    return csplits;
-  }
 };
 
 /*! \brief node statistics used in regression tree */

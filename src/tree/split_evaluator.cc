@@ -431,7 +431,7 @@ class InteractionConstraint final : public SplitEvaluator {
     bst_uint newsize = std::max(leftid, rightid) + 1;
 
     // Record previous splits for child nodes
-    std::unordered_set<bst_uint> feature_splits = splits_[nodeid];  // previous features of current node
+    std::unordered_set<bst_uint> feature_splits = splits_[nodeid];  // fid history of current node
     feature_splits.insert(featureid);  // add feature of current node
     splits_.resize(newsize);
     splits_[leftid] = feature_splits;
