@@ -5,6 +5,12 @@ XGBoost GPU Support
 This page contains information about GPU algorithms supported in XGBoost.
 To install GPU support, checkout the :doc:`/build`.
 
+.. note:: CUDA 8.0, Compute Capability 3.5 required
+
+  The GPU algorithms in XGBoost require a graphics card with compute capability 3.5 or higher, with
+  CUDA toolkits 8.0 or later.
+  (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
+
 *********************************************
 CUDA Accelerated Tree Construction Algorithms
 *********************************************
