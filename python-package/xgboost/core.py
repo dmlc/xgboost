@@ -1376,11 +1376,12 @@ class Booster(object):
     def get_score(self, fmap='', importance_type='weight'):
         """Get feature importance of each feature.
         Importance type can be defined as:
-            'weight' - the number of times a feature is used to split the data across all trees.
-            'gain' - the average gain across all splits the feature is used in.
-            'cover' - the average coverage across all splits the feature is used in.
-            'total_gain' - the total gain across all splits the feature is used in.
-            'total_cover' - the total coverage across all splits the feature is used in.
+
+        * 'weight': the number of times a feature is used to split the data across all trees.
+        * 'gain': the average gain across all splits the feature is used in.
+        * 'cover': the average coverage across all splits the feature is used in.
+        * 'total_gain': the total gain across all splits the feature is used in.
+        * 'total_cover': the total coverage across all splits the feature is used in.
 
         Parameters
         ----------
@@ -1496,6 +1497,7 @@ class Booster(object):
 
     def get_split_value_histogram(self, feature, fmap='', bins=None, as_pandas=True):
         """Get split value histogram of a feature
+
         Parameters
         ----------
         feature: str
@@ -1506,7 +1508,7 @@ class Booster(object):
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.
-        as_pandas : bool, default True
+        as_pandas: bool, default True
             Return pd.DataFrame when pandas is installed.
             If False or pandas is not installed, return numpy ndarray.
 

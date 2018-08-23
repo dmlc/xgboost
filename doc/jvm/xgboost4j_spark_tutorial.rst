@@ -274,7 +274,7 @@ and then loading the model in another session:
 With regards to ML pipeline save and load, please refer the next section.
 
 Interact with Other Bindings of XGBoost
-------------------------------------
+---------------------------------------
 After we train a model with XGBoost4j-Spark on massive dataset, sometimes we want to do model serving in single machine or integrate it with other single node libraries for further processing. XGBoost4j-Spark supports export model to local by:
 
 .. code-block:: scala
