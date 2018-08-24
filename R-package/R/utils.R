@@ -262,8 +262,8 @@ xgb.createFolds <- function(y, k = 10)
       ## add enough random integers to get  length(seqVector) == numInClass[i]
       if (numInClass[i] %% k > 0) seqVector <- c(seqVector, sample.int(k, numInClass[i] %% k))
       ## shuffle the integers for fold assignment and assign to this classes's data
-      ## x[sample.int(length(x))] is used to handle the case of length(x) == 1
-      foldVector[y == dimnames(numInClass)$y[i]] <- x[sample.int(length(x))]
+      ## seqVector[sample.int(length(seqVector))] is used to handle length(seqVector) == 1
+      foldVector[y == dimnames(numInClass)$y[i]] <- seqVector[sample.int(length(seqVector))]
     }
   } else {
     foldVector <- seq(along = y)
