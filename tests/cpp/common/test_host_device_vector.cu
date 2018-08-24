@@ -18,7 +18,7 @@ TEST(HostDeviceVector, Span) {
 }
 
 void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
-                     HostDeviceVector<unsigned int> *v) {
+                     HostDeviceVector<int> *v) {
   // create the vector
   GPUSet devices = distribution.Devices();
   v->Reshard(distribution);
@@ -37,7 +37,7 @@ void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kRead));
 
   // fill in the data on the host
-  std::vector<unsigned int>& data_h = v->HostVector();
+  std::vector<int>& data_h = v->HostVector();
   // ensure that the host has full access, while the devices have none
   ASSERT_TRUE(v->HostCanAccess(GPUAccess::kRead));
   ASSERT_TRUE(v->HostCanAccess(GPUAccess::kWrite));
@@ -49,7 +49,7 @@ void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
   std::copy_n(thrust::make_counting_iterator(0), n, data_h.begin());
 }
 
-void PlusOne(HostDeviceVector<unsigned int> *v) {
+void PlusOne(HostDeviceVector<int> *v) {
   int n_devices = v->Devices().Size();
   for (int i = 0; i < n_devices; ++i) {
     dh::safe_cuda(cudaSetDevice(i % dh::NVisibleDevices()));
@@ -58,7 +58,7 @@ void PlusOne(HostDeviceVector<unsigned int> *v) {
   }
 }
 
-void CheckDevice(HostDeviceVector<unsigned int> *v,
+void CheckDevice(HostDeviceVector<int> *v,
                  const std::vector<size_t>& starts,
                  const std::vector<size_t>& sizes,
                  unsigned int first, GPUAccess access) {
@@ -86,8 +86,8 @@ void CheckDevice(HostDeviceVector<unsigned int> *v,
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
 }
 
-void CheckHost(HostDeviceVector<unsigned int> *v, GPUAccess access) {
-  const std::vector<unsigned int>& data_h = access == GPUAccess::kWrite ?
+void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
+  const std::vector<int>& data_h = access == GPUAccess::kWrite ?
     v->HostVector() : v->ConstHostVector();
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
@@ -105,7 +105,7 @@ void CheckHost(HostDeviceVector<unsigned int> *v, GPUAccess access) {
 void TestHostDeviceVector
 (size_t n, const GPUDistribution& distribution,
  const std::vector<size_t>& starts, const std::vector<size_t>& sizes) {
-  HostDeviceVector<unsigned int> v;
+  HostDeviceVector<int> v;
   InitHostDeviceVector(n, distribution, &v);
   CheckDevice(&v, starts, sizes, 0, GPUAccess::kRead);
   PlusOne(&v);

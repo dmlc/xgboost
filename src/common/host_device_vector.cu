@@ -115,22 +115,13 @@ struct HostDeviceVectorImpl {
       size_t size_h = vec_->data_h_.size();
       LazyResize(size_h);
       dh::safe_cuda(cudaSetDevice(device_));
-<<<<<<< HEAD
       dh::safe_cuda(
           cudaMemcpy(data_.data().get(), vec_->data_h_.data() + start_,
                      data_.size() * sizeof(T), cudaMemcpyHostToDevice));
-      on_d_ = true;
-      // this may cause a race condition if LazySyncDevice() is called
-      // from multiple threads in parallel;
-      // however, the race condition is benign, and will not cause problems
-      vec_->on_h_ = false;
-=======
-      thrust::copy_n(vec_->data_h_.begin() + start_, data_.size(), data_.begin());
       perm_d_.Grant(access);
 
       std::lock_guard<std::mutex> lock(vec_->mutex_);
       vec_->perm_h_.DenyComplementary(access);
->>>>>>> Added read-only state for HostDeviceVector sync.
       vec_->size_d_ = size_h;
     }
 
@@ -554,12 +545,16 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 <<<<<<< HEAD
+<<<<<<< HEAD
 template class HostDeviceVector<unsigned int>;
 template class HostDeviceVector<int>;
 =======
 template class HostDeviceVector<uint32_t>;
 >>>>>>> Fixed linter and test errors.
+=======
+template class HostDeviceVector<int>;
+>>>>>>> Fixed explicit template instantiation errors for HostDeviceVector.
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<uint64_t>;
+template class HostDeviceVector<size_t>;
 
 }  // namespace xgboost

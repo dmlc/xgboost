@@ -145,14 +145,10 @@ void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-<<<<<<< HEAD
-template class HostDeviceVector<unsigned int>;
 template class HostDeviceVector<int>;
-=======
 template class HostDeviceVector<uint32_t>;
->>>>>>> Fixed linter and test errors.
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<uint64_t>;
+template class HostDeviceVector<size_t>;
 
 }  // namespace xgboost
 
