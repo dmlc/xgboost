@@ -45,7 +45,7 @@ struct GPURegLossParam : public dmlc::Parameter<GPURegLossParam> {
 // GPU kernel for gradient computation
 template<typename Loss>
 __global__ void get_gradient_k
-(common::Span<GradientPair> out_gpair,  common::Span<unsigned int> label_correct,
+(common::Span<GradientPair> out_gpair, common::Span<int> label_correct,
  common::Span<const float> preds, common::Span<const float> labels,
  const float * __restrict__ weights, int n, float scale_pos_weight) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -75,7 +75,7 @@ __global__ void pred_transform_k(common::Span<float> preds, int n) {
 template<typename Loss>
 class GPURegLossObj : public ObjFunction {
  protected:
-  HostDeviceVector<unsigned int> label_correct_;
+  HostDeviceVector<int> label_correct_;
 
   // allocate device data for n elements, do nothing if memory is allocated already
   void LazyResize() {
@@ -135,7 +135,7 @@ class GPURegLossObj : public ObjFunction {
     }
 
     // copy "label correct" flags back to host
-    std::vector<unsigned int>& label_correct_h = label_correct_.HostVector();
+    std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (int i = 0; i < devices_.Size(); ++i) {
       if (label_correct_h[i] == 0)
         LOG(FATAL) << Loss::LabelErrorMsg();
