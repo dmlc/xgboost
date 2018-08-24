@@ -204,7 +204,8 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
 struct DeviceHistogram {
   std::map<int, size_t>
       nidx_map;  // Map nidx to starting index of its histogram
-  thrust::device_vector<GradientPairSumT> data;
+  GradientPairSumT* data;
+  size_t data_size;
   int n_bins;
   int device_idx;
   void Init(int device_idx, int n_bins) {
@@ -212,9 +213,22 @@ struct DeviceHistogram {
     this->device_idx = device_idx;
   }
 
+  void ResizeData(size_t new_size) {
+    if (new_size <= data_size) return;
+    GradientPairSumT* tmp;
+    dh::safe_cuda(cudaMalloc(&tmp, new_size * sizeof(GradientPairSumT)));
+    dh::safe_cuda(cudaMemcpy(tmp, data, data_size * sizeof(GradientPairSumT),
+                             cudaMemcpyDeviceToDevice));
+    dh::safe_cuda(cudaMemset(
+        tmp + data_size, 0, (new_size - data_size) * sizeof(GradientPairSumT)));
+    dh::safe_cuda(cudaFree(data));
+    data = tmp;
+    data_size = new_size;
+  }
+
   void Reset() {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    thrust::fill(data.begin(), data.end(), GradientPairSumT());
+    thrust::fill(data, data + data_size, GradientPairSumT());
   }
 
   /**
@@ -232,11 +246,11 @@ struct DeviceHistogram {
   GradientPairSumT* GetHistPtr(int nidx) {
     if (nidx_map.find(nidx) == nidx_map.end()) {
       // Append new node histogram
-      nidx_map[nidx] = data.size();
+      nidx_map[nidx] = data_size;
       dh::safe_cuda(cudaSetDevice(device_idx));
-      data.resize(data.size() + n_bins, GradientPairSumT());
+      this->ResizeData(data_size + n_bins);
     }
-    return data.data().get() + nidx_map[nidx];
+    return data + nidx_map[nidx];
   }
 };
 
