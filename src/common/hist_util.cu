@@ -45,7 +45,7 @@ __global__ void find_cuts_k
     isample = max(0, min(isample, nsamples - 1));
   }
   // repeated values will be filtered out on the CPU
-  bst_float rmin = isample > 0 ? cum_weights[isample - 1] : 0.0f;
+  bst_float rmin = isample > 0 ? cum_weights[isample - 1] : 0;
   bst_float rmax = cum_weights[isample];
   cuts[icut] = WXQSketch::Entry(rmin, rmax, rmax - rmin, data[isample]);
 }
@@ -257,13 +257,13 @@ struct GPUSketcher {
       n_cuts_cur_[icol] = std::min(n_cuts_, n_unique);
       // if less elements than cuts: copy all elements with their weights
       if (n_cuts_ > n_unique) {
-        auto weights2_iter = weights2_.begin();
-        auto fvalues_iter = fvalues_cur_.begin();
-        auto cuts_iter = cuts_d_.begin() + icol * n_cuts_;
+        float* weights2_ptr = weights2_.data().get();
+        float* fvalues_ptr = fvalues_cur_.data().get();
+        WXQSketch::Entry* cuts_ptr = cuts_d_.data().get() + icol * n_cuts_;
         dh::LaunchN(device_, n_unique, [=]__device__(size_t i) {
-            bst_float rmax = weights2_iter[i];
-            bst_float rmin = i > 0 ? weights2_iter[i - 1] : 0.0f;
-            cuts_iter[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_iter[i]);
+            bst_float rmax = weights2_ptr[i];
+            bst_float rmin = i > 0 ? weights2_ptr[i - 1] : 0;
+            cuts_ptr[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_ptr[i]);
           });
       } else if (n_cuts_cur_[icol] > 0) {
         // if more elements than cuts: use binary search on cumulative weights
