@@ -927,6 +927,7 @@ class GPUHistMaker : public TreeUpdater {
     auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
 
     // Use streams to process nodes concurrently
+    monitor_.Start("GPU evaluate");
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto nidx = nidx_set[i];
       DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param_);
@@ -945,6 +946,8 @@ class GPUHistMaker : public TreeUpdater {
         cudaMemcpy(candidate_splits.data(), shard->temp_memory.d_temp_storage,
                    sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
                    cudaMemcpyDeviceToHost));
+    monitor_.Stop("GPU evaluate");
+    monitor_.Start("CPU evaluate");
 
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto nidx = nidx_set[i];
@@ -953,11 +956,12 @@ class GPUHistMaker : public TreeUpdater {
         auto& candidate = candidate_splits[i * columns + fidx];
         if (column_sampler_.ColumnUsed(candidate.findex,
                                       p_tree->GetDepth(nidx))) {
-          nidx_best.Update(candidate_splits[i * columns + fidx], param_);
+          nidx_best.Update(candidate, param_);
         }
       }
       best_splits[i] = nidx_best;
     }
+    monitor_.Stop("CPU evaluate");
     return std::move(best_splits);
   }
 

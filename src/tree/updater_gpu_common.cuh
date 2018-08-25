@@ -384,6 +384,7 @@ inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsamp
 }
 
 inline std::vector<int> ColSample(std::vector<int> features, float colsample) {
+  if (colsample == 1.0f)return features;
   CHECK_GT(features.size(), 0);
   int n = std::max(1, static_cast<int>(colsample * features.size()));
 
@@ -405,6 +406,8 @@ inline std::vector<int> ColSample(std::vector<int> features, float colsample) {
 class ColumnSampler {
   std::vector<int> feature_set_tree_;
   std::map<int, std::vector<int>> feature_set_level_;
+  std::map<int, std::vector<bool>> feature_used_level_;
+  std::vector<bool> feature_used_tree_;
   TrainParam param_;
 
  public:
@@ -423,6 +426,12 @@ class ColumnSampler {
     feature_set_tree_.resize(num_col);
     std::iota(feature_set_tree_.begin(), feature_set_tree_.end(), 0);
     feature_set_tree_ = ColSample(feature_set_tree_, param.colsample_bytree);
+
+    feature_used_tree_.resize(num_col);
+    for(auto &fidx:feature_set_tree_)
+    {
+      feature_used_tree_[fidx] = true;
+    }
   }
 
   /**
@@ -434,6 +443,8 @@ class ColumnSampler {
   void Reset() {
     feature_set_tree_.clear();
     feature_set_level_.clear();
+    feature_used_tree_.clear();
+    feature_used_level_.clear();
   }
 
   /**
@@ -448,13 +459,26 @@ class ColumnSampler {
    */
 
   bool ColumnUsed(int column, int depth) {
-    if (feature_set_level_.count(depth) == 0) {
-      feature_set_level_[depth] =
-          ColSample(feature_set_tree_, param_.colsample_bylevel);
-    }
+    if (column < 0) return false;
 
-    return std::binary_search(feature_set_level_[depth].begin(),
-                              feature_set_level_[depth].end(), column);
+    if (param_.colsample_bylevel == 1.0f && param_.colsample_bytree == 1.0f) {
+      // No sampling, always return true
+      return true;
+    } else if (param_.colsample_bylevel == 1.0f) {
+      // Only tree sampling
+      return feature_used_tree_[column];
+    } else if (feature_set_level_.count(depth) == 0) {
+      // Level sampling, level does not yet exist so generate it
+      feature_set_level_[depth] = ColSample(feature_set_tree_, param_.colsample_bylevel);
+      auto& level_features = feature_set_level_[depth];
+      feature_used_level_[depth] = std::vector<bool>(feature_used_tree_.size());
+      auto& level_features_used = feature_used_level_[depth];
+      for (auto& fidx : level_features) {
+        level_features_used[fidx] = true;
+      }
+    }
+    // Level sampling
+    return feature_used_level_[depth][column];
   }
 };
 
