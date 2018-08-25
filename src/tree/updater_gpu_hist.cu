@@ -204,8 +204,8 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
 struct DeviceHistogram {
   std::map<int, size_t>
       nidx_map;  // Map nidx to starting index of its histogram
-  GradientPairSumT* data;
-  size_t data_size;
+  thrust::device_vector<GradientPairSumT::ValueT> data;
+  const size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
   int n_bins;
   int device_idx;
   void Init(int device_idx, int n_bins) {
@@ -213,44 +213,45 @@ struct DeviceHistogram {
     this->device_idx = device_idx;
   }
 
-  void ResizeData(size_t new_size) {
-    if (new_size <= data_size) return;
-    GradientPairSumT* tmp;
-    dh::safe_cuda(cudaMalloc(&tmp, new_size * sizeof(GradientPairSumT)));
-    dh::safe_cuda(cudaMemcpy(tmp, data, data_size * sizeof(GradientPairSumT),
-                             cudaMemcpyDeviceToDevice));
-    dh::safe_cuda(cudaMemset(
-        tmp + data_size, 0, (new_size - data_size) * sizeof(GradientPairSumT)));
-    dh::safe_cuda(cudaFree(data));
-    data = tmp;
-    data_size = new_size;
-  }
-
   void Reset() {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    thrust::fill(data, data + data_size, GradientPairSumT());
+    data.resize(0);
+    nidx_map.clear();
+  }
+
+  bool HistogramExists(int nidx)
+  {
+    return nidx_map.find(nidx) != nidx_map.end();
+  }
+
+  void AllocateHistogram(int nidx) {
+    if (HistogramExists(nidx)) return;
+
+    if (data.size() > kStopGrowingSize) {
+      // Recycle histogram memory
+      auto old_entry = *nidx_map.begin();
+      nidx_map.erase(old_entry.first);
+      dh::safe_cuda(cudaMemset(data.data().get() + old_entry.second, 0,
+                               n_bins * sizeof(GradientPairSumT)));
+      nidx_map[nidx] = old_entry.second;
+    } else {
+      // Append new node histogram
+      nidx_map[nidx] = data.size();
+      dh::safe_cuda(cudaSetDevice(device_idx));
+      data.resize(data.size() + (n_bins * 2));
+    }
   }
 
   /**
-   * \summary   Return pointer to histogram memory for a given node. Be aware that this function
-   *            may reallocate the underlying memory, invalidating previous pointers.
-   *
-   * \author    Rory
-   * \date  28/07/2018
-   *
+   * \summary   Return pointer to histogram memory for a given node. 
    * \param nidx    Tree node index.
-   *
    * \return    hist pointer.
    */
 
   GradientPairSumT* GetHistPtr(int nidx) {
-    if (nidx_map.find(nidx) == nidx_map.end()) {
-      // Append new node histogram
-      nidx_map[nidx] = data_size;
-      dh::safe_cuda(cudaSetDevice(device_idx));
-      this->ResizeData(data_size + n_bins);
-    }
-    return data + nidx_map[nidx];
+    CHECK(this->HistogramExists(nidx));
+    auto ptr = data.data().get() + nidx_map[nidx];
+    return reinterpret_cast<GradientPairSumT*>(ptr);
   }
 };
 
@@ -590,6 +591,7 @@ struct DeviceShard {
   }
 
   void BuildHist(int nidx) {
+    hist.AllocateHistogram(nidx);
     if (can_use_smem_atomics) {
       BuildHistUsingSharedMem(nidx);
     } else {
@@ -599,10 +601,6 @@ struct DeviceShard {
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
                         int nidx_subtraction) {
-    // Make sure histograms are already allocated
-    hist.GetHistPtr(nidx_parent);
-    hist.GetHistPtr(nidx_histogram);
-    hist.GetHistPtr(nidx_subtraction);
     auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
     auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
@@ -611,6 +609,14 @@ struct DeviceShard {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
+  }
+
+  bool CanDoSubtractionTrick(int nidx_parent, int nidx_histogram,
+                        int nidx_subtraction)
+  {
+    // Make sure histograms are already allocated
+    hist.AllocateHistogram(nidx_subtraction);
+    return hist.HistogramExists(nidx_histogram) && hist.HistogramExists(nidx_parent);
   }
 
   __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
@@ -874,16 +880,34 @@ class GPUHistMaker : public TreeUpdater {
       subtraction_trick_nidx = nidx_left;
     }
 
+    // Build histogram for node with the smallest number of training examples
     dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
         shard->BuildHist(build_hist_nidx);
       });
 
     this->AllReduceHist(build_hist_nidx);
 
-    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+    // Check whether we can use the subtraction trick to calculate the other
+    bool do_subtraction_trick = true;
+    for(auto & shard:shards_)
+    {
+      do_subtraction_trick &= shard->CanDoSubtractionTrick(nidx_parent, build_hist_nidx, subtraction_trick_nidx);
+    }
+
+    if (do_subtraction_trick) {
+      // Calculate other histogram using subtraction trick
+      dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
         shard->SubtractionTrick(nidx_parent, build_hist_nidx,
-                               subtraction_trick_nidx);
+                                subtraction_trick_nidx);
       });
+    } else {
+      // Calculate other histogram manually
+      dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->BuildHist(subtraction_trick_nidx);
+      });
+
+      this->AllReduceHist(subtraction_trick_nidx);
+    }
   }
 
   // Returns best loss
@@ -1127,8 +1151,8 @@ class GPUHistMaker : public TreeUpdater {
 
     static bool ChildIsValid(const TrainParam& param, int depth,
                              int num_leaves) {
-      if (param.max_depth > 0 && depth == param.max_depth) return false;
-      if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
+      if (param.max_depth > 0 && depth >= param.max_depth) return false;
+      if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
       return true;
     }
 
