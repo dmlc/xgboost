@@ -407,5 +407,6 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<int>;
 
 }  // namespace xgboost

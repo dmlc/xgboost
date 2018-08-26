@@ -7,12 +7,14 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <random>
-#include <limits>
-#include <algorithm>
-#include <numeric>
 #include <xgboost/logging.h>
+#include <algorithm>
+#include <vector>
+#include <limits>
 #include <map>
+#include <numeric>
+#include <random>
+#include "host_device_vector.h"
 
 namespace xgboost {
 namespace common {
@@ -79,10 +81,10 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  */
 
 class ColumnSampler {
-  std::vector<int> feature_set_tree_;
-  std::map<int, std::vector<int>> feature_set_level_;
-  float colsample_bylevel{1.0f};
-  float colsample_bytree{1.0f};
+  HostDeviceVector<int> feature_set_tree_;
+  std::map<int, HostDeviceVector<int>> feature_set_level_;
+  float colsample_bylevel_{1.0f};
+  float colsample_bytree_{1.0f};
 
   std::vector<int> ColSample(std::vector<int> features, float colsample) const {
     if (colsample == 1.0f) return features;
@@ -97,43 +99,45 @@ class ColumnSampler {
   }
 
  public:
-
   /**
    * \brief Initialise this object before use.
-   * \param num_col           Number of cols.
-   * \param colsample_bylevel The parameter.
-   * \param colsample_bytree  The colsample bytree.
+   *
+   * \param num_col
+   * \param colsample_bylevel
+   * \param colsample_bytree
+   * \param skip_index_0      (Optional) True to skip index 0.
    */
-
-  void Init(int64_t num_col, float colsample_bylevel, float colsample_bytree, bool skip_index_0 = false) {
-    this->colsample_bylevel = colsample_bylevel;
-    this->colsample_bytree = colsample_bytree;
+  void Init(int64_t num_col, float colsample_bylevel, float colsample_bytree,
+            bool skip_index_0 = false) {
+    this->colsample_bylevel_ = colsample_bylevel;
+    this->colsample_bytree_ = colsample_bytree;
     this->Reset();
 
     int begin_idx = skip_index_0 ? 1 : 0;
-    feature_set_tree_.resize(num_col - begin_idx);
+    auto& feature_set_h = feature_set_tree_.HostVector();
+    feature_set_h.resize(num_col - begin_idx);
 
-    std::iota(feature_set_tree_.begin(), feature_set_tree_.end(), begin_idx);
-    feature_set_tree_ = ColSample(feature_set_tree_,  this->colsample_bytree);
+    std::iota(feature_set_h.begin(), feature_set_h.end(), begin_idx);
+    feature_set_h = ColSample(feature_set_h, this->colsample_bytree_);
   }
 
   /**
    * \brief Resets this object.
    */
   void Reset() {
-    feature_set_tree_.clear();
+    feature_set_tree_.HostVector().clear();
     feature_set_level_.clear();
   }
 
-  const std::vector<int>& GetFeatureSet(int depth) {
-    if (this->colsample_bylevel == 1.0f) {
+  HostDeviceVector<int>& GetFeatureSet(int depth) {
+    if (this->colsample_bylevel_ == 1.0f) {
       return feature_set_tree_;
     }
 
     if (feature_set_level_.count(depth) == 0) {
       // Level sampling, level does not yet exist so generate it
-      feature_set_level_[depth] =
-          ColSample(feature_set_tree_, this->colsample_bylevel);
+      auto& level = feature_set_level_[depth].HostVector();
+      level = ColSample(feature_set_tree_.HostVector(), this->colsample_bylevel_);
     }
     // Level sampling
     return feature_set_level_[depth];

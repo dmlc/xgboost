@@ -124,7 +124,7 @@ __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
 template <int BLOCK_THREADS>
 __global__ void evaluate_split_kernel(
     const GradientPairSumT* d_hist, int nidx, uint64_t n_features,
-    DeviceNodeStats nodes, const int* d_feature_segments,
+    int* feature_set, DeviceNodeStats nodes, const int* d_feature_segments,
     const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
     GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split,
     ValueConstraint value_constraint, int* d_monotonic_constraints) {
@@ -151,7 +151,7 @@ __global__ void evaluate_split_kernel(
 
   __syncthreads();
 
-  auto fidx = blockIdx.x;
+  auto fidx = feature_set[blockIdx.x];
   auto constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
       fidx, d_hist, d_feature_segments, d_fidx_min_map[fidx], d_gidx_fvalue_map,
@@ -219,8 +219,7 @@ struct DeviceHistogram {
     nidx_map.clear();
   }
 
-  bool HistogramExists(int nidx)
-  {
+  bool HistogramExists(int nidx) {
     return nidx_map.find(nidx) != nidx_map.end();
   }
 
@@ -612,11 +611,11 @@ struct DeviceShard {
   }
 
   bool CanDoSubtractionTrick(int nidx_parent, int nidx_histogram,
-                        int nidx_subtraction)
-  {
+                             int nidx_subtraction) {
     // Make sure histograms are already allocated
     hist.AllocateHistogram(nidx_subtraction);
-    return hist.HistogramExists(nidx_histogram) && hist.HistogramExists(nidx_parent);
+    return hist.HistogramExists(nidx_histogram) &&
+           hist.HistogramExists(nidx_parent);
   }
 
   __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
@@ -889,9 +888,9 @@ class GPUHistMaker : public TreeUpdater {
 
     // Check whether we can use the subtraction trick to calculate the other
     bool do_subtraction_trick = true;
-    for(auto & shard:shards_)
-    {
-      do_subtraction_trick &= shard->CanDoSubtractionTrick(nidx_parent, build_hist_nidx, subtraction_trick_nidx);
+    for (auto& shard : shards_) {
+      do_subtraction_trick &= shard->CanDoSubtractionTrick(
+          nidx_parent, build_hist_nidx, subtraction_trick_nidx);
     }
 
     if (do_subtraction_trick) {
@@ -915,8 +914,6 @@ class GPUHistMaker : public TreeUpdater {
       const std::vector<int>& nidx_set, RegTree* p_tree) {
     auto columns = info_->num_col_;
     std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    //std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() *
-                                                       //columns);
     DeviceSplitCandidate* candidate_splits;
     dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
       columns * sizeof(DeviceSplitCandidate)));
@@ -930,15 +927,19 @@ class GPUHistMaker : public TreeUpdater {
     auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
 
     // Use streams to process nodes concurrently
-    monitor_.Start("GPU evaluate");
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto nidx = nidx_set[i];
       DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param_);
+      auto depth = p_tree->GetDepth(nidx);
+
+      auto& feature_set = column_sampler_.GetFeatureSet(depth);
+      feature_set.Reshard(GPUSet(shard->device_idx, 1));
 
       const int BLOCK_THREADS = 256;
       evaluate_split_kernel<BLOCK_THREADS>
-          <<<uint32_t(columns), BLOCK_THREADS, 0, streams[i]>>>(
-              shard->hist.GetHistPtr(nidx), nidx, info_->num_col_, node,
+          <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0, streams[i]>>>(
+              shard->hist.GetHistPtr(nidx), nidx, info_->num_col_,
+              feature_set.DevicePointer(shard->device_idx), node,
               shard->feature_segments.Data(), shard->min_fvalue.Data(),
               shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
               d_split + i * columns, node_value_constraints_[nidx],
@@ -950,16 +951,16 @@ class GPUHistMaker : public TreeUpdater {
         cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
                    sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
                    cudaMemcpyDeviceToHost));
-    monitor_.Stop("GPU evaluate");
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto depth = p_tree->GetDepth(nidx_set[i]);
       DeviceSplitCandidate nidx_best;
-      for (auto fidx : column_sampler_.GetFeatureSet(depth)) {
+      for (auto fidx : column_sampler_.GetFeatureSet(depth).HostVector()) {
         auto& candidate = candidate_splits[i * columns + fidx];
         nidx_best.Update(candidate, param_);
       }
       best_splits[i] = nidx_best;
     }
+    dh::safe_cuda(cudaFreeHost(candidate_splits));
     return std::move(best_splits);
   }
 
