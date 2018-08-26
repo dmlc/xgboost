@@ -15,7 +15,7 @@
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 
 #else
-XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
+HOST_DEV_INLINE double atomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull =
       (unsigned long long int*)address;                   // NOLINT
   unsigned long long int old = *address_as_ull, assumed;  // NOLINT
@@ -37,16 +37,16 @@ namespace xgboost {
 namespace tree {
 
 // Atomic add function for double precision gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPair& gpair) {
+DEV_INLINE void AtomicAddGpair(GradientPairPrecise* dest,
+                               const GradientPair& gpair) {
   auto dst_ptr = reinterpret_cast<double*>(dest);
 
   atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
   atomicAdd(dst_ptr + 1, static_cast<double>(gpair.GetHess()));
 }
 // used by shared-memory atomics code
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPairPrecise& gpair) {
+DEV_INLINE void AtomicAddGpair(GradientPairPrecise* dest,
+                               const GradientPairPrecise& gpair) {
   auto dst_ptr = reinterpret_cast<double*>(dest);
 
   atomicAdd(dst_ptr, gpair.GetGrad());
@@ -54,8 +54,8 @@ __device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
 }
 
 // For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
-                                               const GradientPair& gpair) {
+DEV_INLINE void AtomicAddGpair(GradientPairInteger* dest,
+                               const GradientPair& gpair) {
   auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
   GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
   auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
@@ -72,10 +72,10 @@ __device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
  */
 
 inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
-  auto* ptr = reinterpret_cast<const float*>(gpair.data());
-  float abs_max =
+  auto* ptr = reinterpret_cast<const bst_float*>(gpair.data());
+  bst_float abs_max =
       std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
-                      [=](float a, float b) { return max(abs(a), abs(b)); });
+                      [=](bst_float a, bst_float b) { return max(abs(a), abs(b)); });
 
   CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
       << "Labels are too large for this algorithm. Rescale to less than 2^16.";
@@ -83,15 +83,15 @@ inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
 
 struct GPUTrainingParam {
   // minimum amount of hessian(weight) allowed in a child
-  float min_child_weight;
+  bst_float min_child_weight;
   // L2 regularization factor
-  float reg_lambda;
+  bst_float reg_lambda;
   // L1 regularization factor
-  float reg_alpha;
+  bst_float reg_alpha;
   // maximum delta update we can add in weight estimation
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
-  float max_delta_step;
+  bst_float max_delta_step;
 
   GPUTrainingParam() = default;
 
@@ -119,9 +119,9 @@ enum DefaultDirection {
 };
 
 struct DeviceSplitCandidate {
-  float loss_chg;
+  bst_float loss_chg;
   DefaultDirection dir;
-  float fvalue;
+  bst_float fvalue;
   int findex;
   GradientPair left_sum;
   GradientPair right_sum;
@@ -139,11 +139,11 @@ struct DeviceSplitCandidate {
     }
   }
 
-  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
-                         float fvalue_in, int findex_in,
-                         GradientPair left_sum_in,
-                         GradientPair right_sum_in,
-                         const GPUTrainingParam& param) {
+  XGBOOST_DEVICE void Update(bst_float loss_chg_in, DefaultDirection dir_in,
+                             float fvalue_in, int findex_in,
+                             GradientPair left_sum_in,
+                             GradientPair right_sum_in,
+                             const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&
         right_sum_in.GetHess() >= param.min_child_weight) {
@@ -160,13 +160,13 @@ struct DeviceSplitCandidate {
 
 struct DeviceNodeStats {
   GradientPair sum_gradients;
-  float root_gain;
-  float weight;
+  bst_float root_gain;
+  bst_float weight;
 
   /** default direction for missing values */
   DefaultDirection dir;
   /** threshold value for comparison */
-  float fvalue;
+  bst_float fvalue;
   GradientPair left_sum;
   GradientPair right_sum;
   /** \brief The feature index. */
@@ -199,7 +199,7 @@ struct DeviceNodeStats {
         CalcWeight(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
   }
 
-  HOST_DEV_INLINE void SetSplit(float fvalue, int fidx, DefaultDirection dir,
+  HOST_DEV_INLINE void SetSplit(bst_float fvalue, int fidx, DefaultDirection dir,
                                 GradientPair left_sum, GradientPair right_sum) {
     this->fvalue = fvalue;
     this->fidx = fidx;
@@ -236,27 +236,27 @@ struct SumCallbackOp {
 };
 
 template <typename GradientPairT>
-XGBOOST_DEVICE inline float DeviceCalcLossChange(const GPUTrainingParam& param,
-                                             const GradientPairT& left,
-                                             const GradientPairT& parent_sum,
-                                             const float& parent_gain) {
+XGBOOST_DEVICE inline bst_float DeviceCalcLossChange(const GPUTrainingParam& param,
+                                                     const GradientPairT& left,
+                                                     const GradientPairT& parent_sum,
+                                                     const bst_float& parent_gain) {
   GradientPairT right = parent_sum - left;
-  float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
-  float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
+  bst_float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
+  bst_float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
   return left_gain + right_gain - parent_gain;
 }
 
 // Without constraints
 template <typename GradientPairT>
-XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
-                                         const GradientPairT& missing,
-                                         const GradientPairT& parent_sum,
-                                         const float& parent_gain,
-                                         const GPUTrainingParam& param,
-                                         bool& missing_left_out) {  // NOLINT
-  float missing_left_loss =
+XGBOOST_DEVICE bst_float inline LossChangeMissing(const GradientPairT& scan,
+                                                  const GradientPairT& missing,
+                                                  const GradientPairT& parent_sum,
+                                                  const float& parent_gain,
+                                                  const GPUTrainingParam& param,
+                                                  bool& missing_left_out) {  // NOLINT
+  bst_float missing_left_loss =
       DeviceCalcLossChange(param, scan + missing, parent_sum, parent_gain);
-  float missing_right_loss =
+  bst_float missing_right_loss =
       DeviceCalcLossChange(param, scan, parent_sum, parent_gain);
 
   if (missing_left_loss >= missing_right_loss) {
@@ -270,15 +270,15 @@ XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
 
 // With constraints
 template <typename GradientPairT>
-XGBOOST_DEVICE float inline LossChangeMissing(
+XGBOOST_DEVICE bst_float inline LossChangeMissing(
     const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
-    const float& parent_gain, const GPUTrainingParam& param, int constraint,
+    const bst_float& parent_gain, const GPUTrainingParam& param, int constraint,
     const ValueConstraint& value_constraint,
     bool& missing_left_out) {  // NOLINT
-  float missing_left_gain = value_constraint.CalcSplitGain(
+  bst_float missing_left_gain = value_constraint.CalcSplitGain(
       param, constraint, GradStats(scan + missing),
       GradStats(parent_sum - (scan + missing)));
-  float missing_right_gain = value_constraint.CalcSplitGain(
+  bst_float missing_right_gain = value_constraint.CalcSplitGain(
       param, constraint, GradStats(scan), GradStats(parent_sum - scan));
 
   if (missing_left_gain >= missing_right_gain) {
@@ -349,24 +349,24 @@ inline void Dense2SparseTree(RegTree* p_tree,
  */
 
 struct BernoulliRng {
-  float p;
+  bst_float p;
   uint32_t seed;
 
-  XGBOOST_DEVICE BernoulliRng(float p, size_t seed_) : p(p) {
+  XGBOOST_DEVICE BernoulliRng(bst_float p, size_t seed_) : p(p) {
     seed = static_cast<uint32_t>(seed_);
   }
 
   XGBOOST_DEVICE bool operator()(const int i) const {
     thrust::default_random_engine rng(seed);
-    thrust::uniform_real_distribution<float> dist;
+    thrust::uniform_real_distribution<bst_float> dist;
     rng.discard(i);
     return dist(rng) <= p;
   }
 };
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsample,
-                            int offset = 0) {
+inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, bst_float subsample,
+                                  int offset = 0) {
   if (subsample == 1.0) {
     return;
   }
@@ -382,6 +382,80 @@ inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsamp
     }
   });
 }
+
+inline std::vector<int> ColSample(std::vector<int> features, bst_float colsample) {
+  CHECK_GT(features.size(), 0);
+  int n = std::max(1, static_cast<int>(colsample * features.size()));
+
+  std::shuffle(features.begin(), features.end(), common::GlobalRandom());
+  features.resize(n);
+  std::sort(features.begin(), features.end());
+
+  return features;
+}
+
+/**
+ * \class ColumnSampler
+ *
+ * \brief Handles selection of columns due to colsample_bytree and
+ * colsample_bylevel parameters. Should be initialised the before tree
+ * construction and to reset When tree construction is completed.
+ */
+class ColumnSampler {
+  std::vector<int> feature_set_tree_;
+  std::map<int, std::vector<int>> feature_set_level_;
+  TrainParam param_;
+
+ public:
+  /**
+   * \fn  void Init(int64_t num_col, const TrainParam& param)
+   *
+   * \brief Initialise this object before use.
+   *
+   * \param num_col Number of cols.
+   * \param param   The parameter.
+   */
+
+  void Init(int64_t num_col, const TrainParam& param) {
+    this->Reset();
+    this->param_ = param;
+    feature_set_tree_.resize(num_col);
+    std::iota(feature_set_tree_.begin(), feature_set_tree_.end(), 0);
+    feature_set_tree_ = ColSample(feature_set_tree_, param.colsample_bytree);
+  }
+
+  /**
+   * \fn  void Reset()
+   *
+   * \brief Resets this object.
+   */
+
+  void Reset() {
+    feature_set_tree_.clear();
+    feature_set_level_.clear();
+  }
+
+  /**
+   * \fn  bool ColumnUsed(int column, int depth)
+   *
+   * \brief Whether the current column should be considered as a split.
+   *
+   * \param column  The column index.
+   * \param depth   The current tree depth.
+   *
+   * \return  True if it should be used, false if it should not be used.
+   */
+
+  bool ColumnUsed(int column, int depth) {
+    if (feature_set_level_.count(depth) == 0) {
+      feature_set_level_[depth] =
+          ColSample(feature_set_tree_, param_.colsample_bylevel);
+    }
+
+    return std::binary_search(feature_set_level_[depth].begin(),
+                              feature_set_level_[depth].end(), column);
+  }
+};
 
 }  // namespace tree
 }  // namespace xgboost

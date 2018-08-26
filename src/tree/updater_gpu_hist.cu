@@ -56,8 +56,8 @@ __device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
 template <int BLOCK_THREADS, typename ReduceT, typename scan_t,
           typename max_ReduceT, typename TempStorageT>
 __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
-                                const int* feature_segments, float min_fvalue,
-                                const float* gidx_fvalue_map,
+                                const int* feature_segments, bst_float min_fvalue,
+                                const bst_float* gidx_fvalue_map,
                                 DeviceSplitCandidate* best_split,
                                 const DeviceNodeStats& node,
                                 const GPUTrainingParam& param,
@@ -84,8 +84,8 @@ __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
     GradientPairSumT missing = parent_sum - feature_sum;
 
     bool missing_left = true;
-    const float null_gain = -FLT_MAX;
-    float gain = null_gain;
+    const bst_float null_gain = -FLT_MAX;
+    bst_float gain = null_gain;
     if (thread_active) {
       gain = LossChangeMissing(bin, missing, parent_sum, node.root_gain, param,
                               constraint, value_constraint, missing_left);
@@ -94,11 +94,11 @@ __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
     __syncthreads();
 
     // Find thread with best gain
-    cub::KeyValuePair<int, float> tuple(threadIdx.x, gain);
-    cub::KeyValuePair<int, float> best =
+    cub::KeyValuePair<int, bst_float> tuple(threadIdx.x, gain);
+    cub::KeyValuePair<int, bst_float> best =
         max_ReduceT(temp_storage->max_reduce).Reduce(tuple, cub::ArgMax());
 
-    __shared__ cub::KeyValuePair<int, float> block_max;
+    __shared__ cub::KeyValuePair<int, bst_float> block_max;
     if (threadIdx.x == 0) {
       block_max = best;
     }
@@ -108,7 +108,7 @@ __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
     // Best thread updates split
     if (threadIdx.x == block_max.key) {
       int gidx = scan_begin + threadIdx.x;
-      float fvalue =
+      bst_float fvalue =
           gidx == gidx_begin ? min_fvalue : gidx_fvalue_map[gidx - 1];
 
       GradientPairSumT left = missing_left ? bin + missing : bin;
@@ -128,7 +128,7 @@ __global__ void evaluate_split_kernel(
     const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
     GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split,
     ValueConstraint value_constraint, int* d_monotonic_constraints) {
-  typedef cub::KeyValuePair<int, float> ArgMaxT;
+  typedef cub::KeyValuePair<int, bst_float> ArgMaxT;
   typedef cub::BlockScan<GradientPairSumT, BLOCK_THREADS, cub::BLOCK_SCAN_WARP_SCANS>
       BlockScanT;
   typedef cub::BlockReduce<ArgMaxT, BLOCK_THREADS> MaxReduceT;
@@ -255,11 +255,11 @@ struct DeviceHistogram {
 };
 
 struct CalcWeightTrainParam {
-  float min_child_weight;
-  float reg_alpha;
-  float reg_lambda;
-  float max_delta_step;
-  float learning_rate;
+  bst_float min_child_weight;
+  bst_float reg_alpha;
+  bst_float reg_lambda;
+  bst_float max_delta_step;
+  bst_float learning_rate;
   XGBOOST_DEVICE explicit CalcWeightTrainParam(const TrainParam& p)
       : min_child_weight(p.min_child_weight),
         reg_alpha(p.reg_alpha),
@@ -272,7 +272,7 @@ __global__ void compress_bin_ellpack_k
 (common::CompressedBufferWriter wr, common::CompressedByteT* __restrict__ buffer,
  const size_t* __restrict__ row_ptrs,
  const Entry* __restrict__ entries,
- const float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
+ const bst_float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
  size_t base_row, size_t n_rows, size_t row_ptr_begin, size_t row_stride,
  unsigned int null_gidx_value) {
   size_t irow = threadIdx.x + size_t(blockIdx.x) * blockDim.x;
@@ -284,8 +284,8 @@ __global__ void compress_bin_ellpack_k
   if (ifeature < row_size) {
     Entry entry = entries[row_ptrs[irow] - row_ptr_begin + ifeature];
     int feature = entry.index;
-    float fvalue = entry.fvalue;
-    const float *feature_cuts = &cuts[cut_rows[feature]];
+    bst_float fvalue = entry.fvalue;
+    const bst_float *feature_cuts = &cuts[cut_rows[feature]];
     int ncuts = cut_rows[feature + 1] - cut_rows[feature];
     bin = dh::UpperBound(feature_cuts, ncuts, fvalue);
     if (bin >= ncuts)
@@ -345,8 +345,8 @@ struct DeviceShard {
   dh::DVec2<int> position;
   std::vector<Segment> ridx_segments;
   dh::DVec<int> feature_segments;
-  dh::DVec<float> gidx_fvalue_map;
-  dh::DVec<float> min_fvalue;
+  dh::DVec<bst_float> gidx_fvalue_map;
+  dh::DVec<bst_float> min_fvalue;
   dh::DVec<int> monotone_constraints;
   dh::DVec<bst_float> prediction_cache;
   std::vector<GradientPair> node_sum_gradients;
@@ -412,7 +412,7 @@ struct DeviceShard {
 
     // copy cuts to the GPU
     dh::safe_cuda(cudaSetDevice(device_idx));
-    thrust::device_vector<float> cuts_d(hmat.cut);
+    thrust::device_vector<bst_float> cuts_d(hmat.cut);
     thrust::device_vector<size_t> cut_row_ptrs_d(hmat.row_ptr);
 
     // allocate compressed bin data
@@ -771,7 +771,7 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Start("Update", devices_);
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
-    float lr = param_.learning_rate;
+    bst_float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
     ValueConstraint::Init(&param_, dmat->Info().num_col_);
     // build tree
@@ -1173,14 +1173,14 @@ class GPUHistMaker : public TreeUpdater {
     }
   };
 
-  inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
+  static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
     if (lhs.depth == rhs.depth) {
       return lhs.timestamp > rhs.timestamp;  // favor small timestamp
     } else {
       return lhs.depth > rhs.depth;  // favor small depth
     }
   }
-  inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
+  static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
     if (lhs.split.loss_chg == rhs.split.loss_chg) {
       return lhs.timestamp > rhs.timestamp;  // favor small timestamp
     } else {
