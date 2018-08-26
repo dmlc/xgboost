@@ -837,7 +837,7 @@ class GPUHistMaker : public TreeUpdater {
     }
     monitor_.Stop("InitDataOnce", device_list_);
 
-    column_sampler_.Init(info_->num_col_, param_);
+    column_sampler_.Init(info_->num_col_, param_.colsample_bylevel, param_.colsample_bytree);
 
     // Copy gpair & reset memory
     monitor_.Start("InitDataReset", device_list_);
@@ -915,8 +915,11 @@ class GPUHistMaker : public TreeUpdater {
       const std::vector<int>& nidx_set, RegTree* p_tree) {
     auto columns = info_->num_col_;
     std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() *
-                                                       columns);
+    //std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() *
+                                                       //columns);
+    DeviceSplitCandidate* candidate_splits;
+    dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
+      columns * sizeof(DeviceSplitCandidate)));
     // Use first device
     auto& shard = shards_.front();
     dh::safe_cuda(cudaSetDevice(shard->device_idx));
@@ -942,26 +945,21 @@ class GPUHistMaker : public TreeUpdater {
               shard->monotone_constraints.Data());
     }
 
+    dh::safe_cuda(cudaDeviceSynchronize());
     dh::safe_cuda(
-        cudaMemcpy(candidate_splits.data(), shard->temp_memory.d_temp_storage,
+        cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
                    sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
                    cudaMemcpyDeviceToHost));
     monitor_.Stop("GPU evaluate");
-    monitor_.Start("CPU evaluate");
-
     for (auto i = 0; i < nidx_set.size(); i++) {
-      auto nidx = nidx_set[i];
+      auto depth = p_tree->GetDepth(nidx_set[i]);
       DeviceSplitCandidate nidx_best;
-      for (auto fidx = 0; fidx < columns; fidx++) {
+      for (auto fidx : column_sampler_.GetFeatureSet(depth)) {
         auto& candidate = candidate_splits[i * columns + fidx];
-        if (column_sampler_.ColumnUsed(candidate.findex,
-                                      p_tree->GetDepth(nidx))) {
-          nidx_best.Update(candidate, param_);
-        }
+        nidx_best.Update(candidate, param_);
       }
       best_splits[i] = nidx_best;
     }
-    monitor_.Stop("CPU evaluate");
     return std::move(best_splits);
   }
 
@@ -1194,7 +1192,7 @@ class GPUHistMaker : public TreeUpdater {
   int n_bins_;
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;
-  ColumnSampler column_sampler_;
+  common::ColumnSampler column_sampler_;
   typedef std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
                               std::function<bool(ExpandEntry, ExpandEntry)>>
       ExpandQueue;
