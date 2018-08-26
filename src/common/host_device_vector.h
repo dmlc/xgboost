@@ -11,6 +11,7 @@
 #include <initializer_list>
 #include <vector>
 
+#include "gpu_set.h"
 #include "span.h"
 
 // only include thrust-related files if host_device_vector.h
@@ -22,40 +23,6 @@
 namespace xgboost {
 
 template <typename T> struct HostDeviceVectorImpl;
-
-// set of devices across which HostDeviceVector can be distributed;
-// currently implemented as a range, but can be changed later to something else,
-// e.g. a bitset
-class GPUSet {
- public:
-  explicit GPUSet(int start = 0, int ndevices = 0)
-    : start_(start), ndevices_(ndevices) {}
-  static GPUSet Empty() { return GPUSet(); }
-  static GPUSet Range(int start, int ndevices) { return GPUSet(start, ndevices); }
-  int Size() const { return ndevices_; }
-  int operator[](int index) const {
-    CHECK(index >= 0 && index < ndevices_);
-    return start_ + index;
-  }
-  bool IsEmpty() const { return ndevices_ <= 0; }
-  int Index(int device) const {
-    CHECK(device >= start_ && device < start_ + ndevices_);
-    return device - start_;
-  }
-  bool Contains(int device) const {
-    return start_ <= device && device < start_ + ndevices_;
-  }
-  friend bool operator==(GPUSet a, GPUSet b) {
-    return a.start_ == b.start_ && a.ndevices_ == b.ndevices_;
-  }
-  friend bool operator!=(GPUSet a, GPUSet b) {
-    return a.start_ != b.start_ || a.ndevices_ != b.ndevices_;
-  }
-
- private:
-  int start_, ndevices_;
-};
-
 
 /**
  * @file host_device_vector.h

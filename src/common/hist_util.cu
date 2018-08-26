@@ -271,7 +271,7 @@ struct GPUSketcher {
         find_cuts_k<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
           (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
            weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
-        dh::safe_cuda(cudaGetLastError());
+        dh::safe_cuda(cudaGetLastError());  // NOLINT
       }
     }
 
@@ -311,14 +311,14 @@ struct GPUSketcher {
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
          gpu_batch_nrows_, num_cols_,
          row_batch.offset[row_begin_ + batch_row_begin], batch_nrows);
-      dh::safe_cuda(cudaGetLastError());
-      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaGetLastError());       // NOLINT
+      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       for (int icol = 0; icol < num_cols_; ++icol) {
         FindColumnCuts(batch_nrows, icol);
       }
 
-      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
@@ -379,7 +379,7 @@ struct GPUSketcher {
   }
 
   GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevices(param_.n_gpus, n_rows));
+    devices_ = GPUSet::All(param_.n_gpus, n_rows).Normalised(param_.gpu_id);
   }
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;

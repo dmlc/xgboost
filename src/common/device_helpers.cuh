@@ -7,6 +7,10 @@
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
+
+#include "common.h"
+#include "gpu_set.h"
+
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -27,25 +31,6 @@ namespace dh {
 
 #define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
 #define DEV_INLINE __device__ __forceinline__
-
-/*
- * Error handling  functions
- */
-
-#define safe_cuda(ans) ThrowOnCudaError((ans), __FILE__, __LINE__)
-
-inline cudaError_t ThrowOnCudaError(cudaError_t code, const char *file,
-                                       int line) {
-  if (code != cudaSuccess) {
-    std::stringstream ss;
-    ss << file << "(" << line << ")";
-    std::string file_and_line;
-    ss >> file_and_line;
-    throw thrust::system_error(code, thrust::cuda_category(), file_and_line);
-  }
-
-  return code;
-}
 
 #ifdef XGBOOST_USE_NCCL
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
@@ -73,45 +58,20 @@ const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
-inline int NVisibleDevices() {
-  int n_visgpus = 0;
-
-  dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-
-  return n_visgpus;
-}
-
-inline int NDevicesAll(int n_gpus) {
-  int n_devices_visible = dh::NVisibleDevices();
-  int n_devices = n_gpus < 0 ? n_devices_visible : n_gpus;
-  return (n_devices);
-}
-inline int NDevices(int n_gpus, int num_rows) {
-  int n_devices = dh::NDevicesAll(n_gpus);
-  // fix-up device number to be limited by number of rows
-  n_devices = n_devices > num_rows ? num_rows : n_devices;
-  return (n_devices);
-}
-
 // if n_devices=-1, then use all visible devices
-inline void SynchronizeNDevices(int n_devices, std::vector<int> dList) {
-  for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-    int device_idx = dList[d_idx];
-    safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaDeviceSynchronize());
-  }
-}
-inline void SynchronizeAll() {
-  for (int device_idx = 0; device_idx < NVisibleDevices(); device_idx++) {
-    safe_cuda(cudaSetDevice(device_idx));
+inline void SynchronizeNDevices(xgboost::GPUSet devices) {
+  devices = devices.IsEmpty() ? xgboost::GPUSet::AllVisible() : devices;
+  for (auto const d : devices.Unnormalised()) {
+    safe_cuda(cudaSetDevice(d));
     safe_cuda(cudaDeviceSynchronize());
   }
 }
 
-inline std::string DeviceName(int device_idx) {
-  cudaDeviceProp prop;
-  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
-  return std::string(prop.name);
+inline void SynchronizeAll() {
+  for (int device_idx : xgboost::GPUSet::AllVisible()) {
+    safe_cuda(cudaSetDevice(device_idx));
+    safe_cuda(cudaDeviceSynchronize());
+  }
 }
 
 inline size_t AvailableMemory(int device_idx) {
@@ -144,15 +104,8 @@ inline size_t MaxSharedMemory(int device_idx) {
   return prop.sharedMemPerBlock;
 }
 
-// ensure gpu_id is correct, so not dependent upon user knowing details
-inline int GetDeviceIdx(int gpu_id) {
-  // protect against overrun for gpu_id
-  return (std::abs(gpu_id) + 0) % dh::NVisibleDevices();
-}
-
 inline void CheckComputeCapability() {
-  int n_devices = NVisibleDevices();
-  for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+  for (int d_idx : xgboost::GPUSet::AllVisible()) {
     cudaDeviceProp prop;
     safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
     std::ostringstream oss;
@@ -163,12 +116,11 @@ inline void CheckComputeCapability() {
   }
 }
 
-  
 DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
-/*! 
+/*!
  * \brief Find the strict upper bound for an element in a sorted array
  *  using binary search.
  * \param cuts pointer to the first element of the sorted array
@@ -199,67 +151,18 @@ DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
   return right;
 }
 
-/*
- * Range iterator
- */
-
-class Range {
- public:
-  class Iterator {
-    friend class Range;
-
-   public:
-    XGBOOST_DEVICE int64_t operator*() const { return i_; }
-    XGBOOST_DEVICE const Iterator &operator++() {
-      i_ += step_;
-      return *this;
-    }
-    XGBOOST_DEVICE Iterator operator++(int) {
-      Iterator copy(*this);
-      i_ += step_;
-      return copy;
-    }
-
-    XGBOOST_DEVICE bool operator==(const Iterator &other) const {
-      return i_ >= other.i_;
-    }
-    XGBOOST_DEVICE bool operator!=(const Iterator &other) const {
-      return i_ < other.i_;
-    }
-
-    XGBOOST_DEVICE void Step(int s) { step_ = s; }
-
-   protected:
-    XGBOOST_DEVICE explicit Iterator(int64_t start) : i_(start) {}
-
-   public:
-    uint64_t i_;
-    int step_ = 1;
-  };
-
-  XGBOOST_DEVICE Iterator begin() const { return begin_; }  // NOLINT
-  XGBOOST_DEVICE Iterator end() const { return end_; }      // NOLINT
-  XGBOOST_DEVICE Range(int64_t begin, int64_t end)
-      : begin_(begin), end_(end) {}
-  XGBOOST_DEVICE void Step(int s) { begin_.Step(s); }
-
- private:
-  Iterator begin_;
-  Iterator end_;
-};
-
 template <typename T>
-__device__ Range GridStrideRange(T begin, T end) {
+__device__ xgboost::common::Range GridStrideRange(T begin, T end) {
   begin += blockDim.x * blockIdx.x + threadIdx.x;
-  Range r(begin, end);
+  xgboost::common::Range r(begin, end);
   r.Step(gridDim.x * blockDim.x);
   return r;
 }
 
 template <typename T>
-__device__ Range BlockStrideRange(T begin, T end) {
+__device__ xgboost::common::Range BlockStrideRange(T begin, T end) {
   begin += threadIdx.x;
-  Range r(begin, end);
+  xgboost::common::Range r(begin, end);
   r.Step(blockDim.x);
   return r;
 }
@@ -557,7 +460,7 @@ class BulkAllocator {
   BulkAllocator(BulkAllocator<MemoryT>&&) = delete;
   void operator=(const BulkAllocator<MemoryT>&) = delete;
   void operator=(BulkAllocator<MemoryT>&&) = delete;
-  
+
   ~BulkAllocator() {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
       if (!(d_ptr_[i] == nullptr)) {
