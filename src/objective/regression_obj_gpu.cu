@@ -14,7 +14,7 @@
 
 #include "../common/span.h"
 #include "../common/transform.h"
-#include "../common/gpu_set.h"
+#include "../common/common.h"
 #include "../common/host_device_vector.h"
 #include "./regression_loss.h"
 

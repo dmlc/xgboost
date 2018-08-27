@@ -11,7 +11,7 @@
 #include <initializer_list>
 #include <vector>
 
-#include "gpu_set.h"
+#include "common.h"
 #include "span.h"
 
 // only include thrust-related files if host_device_vector.h

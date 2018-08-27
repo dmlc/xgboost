@@ -188,7 +188,7 @@ struct SegTransform {
   template <typename Functor, typename... T>
   void LaunchRangeCUDA(Functor _func, Range _range, GPUSet _devices,
                        HostDeviceVector<T>*... _vectors) {
-#pragma omp parallel for schedule(static, 1) if (_devices.Size() > 1)
+// #pragma omp parallel for schedule(static, 1) if (_devices.Size() > 1)
     for (omp_ulong i = 0; i < _devices.Size(); ++i) {
       int d = GPUSet::GetDeviceIdx(_devices[i]);
       dh::safe_cuda(cudaSetDevice(d));

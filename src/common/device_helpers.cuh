@@ -9,7 +9,6 @@
 #include <xgboost/logging.h>
 
 #include "common.h"
-#include "gpu_set.h"
 
 #include <algorithm>
 #include <chrono>
@@ -21,7 +20,6 @@
 #include <vector>
 
 #include "common.h"
-#include "gpu_set.h"
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
