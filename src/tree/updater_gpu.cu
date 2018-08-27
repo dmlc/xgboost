@@ -763,7 +763,8 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUMaker, "grow_gpu")
 }  // namespace tree
 
 int gpu_double_fast_compute_capable() {
-  int n_devices = dh::NVisibleDevices();
+  int n_devices = 0;
+  dh::safe_cuda(cudaGetDeviceCount(&n_devices));
   for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
     cudaDeviceProp prop;
     dh::safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
