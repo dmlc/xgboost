@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -91,6 +93,36 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
         assert(math.abs(p1 - p2) <= 0.01f)
     }
+  }
+
+  test("XGBoost-Spark XGBoostRegressor CrossValidator output should result in an estimator") {
+    val trainingDF = buildDataFrame(Regression.train)
+    val testDF = buildDataFrame(Regression.test)
+    val round = 5
+
+    val paramMap = Map(
+     "eta" -> "1",
+     "silent" -> "1",
+     "objective" -> "reg:linear",
+     "num_round" -> round,
+     "num_workers" -> numWorkers)
+
+    val model = new XGBoostRegressor(paramMap)
+    val metric = new RegressionEvaluator().setMetricName("rmse")
+
+    val paramGrid = new ParamGridBuilder().
+     addGrid(model.maxDepth, Array(2, 6)).
+     build()
+
+    val cv = new CrossValidator()
+     .setEstimator(model)
+     .setEvaluator(metric)
+     .setEstimatorParamMaps(paramGrid)
+     .setNumFolds(2)
+
+    val cvModel = cv.fit(trainingDF)
+    val prediction = cvModel.bestModel.transform(testDF).select("prediction").collect()
+    assert(prediction.count === testDF.count)
   }
 
   test("ranking: use group data") {
