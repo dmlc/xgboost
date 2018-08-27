@@ -402,7 +402,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
 void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
-                             const std::vector<bst_uint>& feat_set,
                              GHistRow hist) {
   data_.resize(nbins_ * nthread_, GHistEntry());
   std::fill(data_.begin(), data_.end(), GHistEntry());
@@ -461,7 +460,6 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
 void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
                                   const RowSetCollection::Elem row_indices,
                                   const GHistIndexBlockMatrix& gmatb,
-                                  const std::vector<bst_uint>& feat_set,
                                   GHistRow hist) {
   constexpr int kUnroll = 8;  // loop unrolling factor
   const size_t nblock = gmatb.GetNumBlock();
