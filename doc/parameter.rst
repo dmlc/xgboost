@@ -31,6 +31,10 @@ General Parameters
 
   - Number of parallel threads used to run XGBoost
 
+* ``disable_default_eval_metric`` [default=0]
+
+  - Flag to disable default metric. Set to >0 to disable.
+
 * ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
 
   - Size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step.
@@ -318,10 +322,6 @@ Command Line Parameters
 ***********************
 The following parameters are only used in the console version of XGBoost
 
-* ``use_buffer`` [default=1]
-
-  - Whether to create a binary buffer from text input. Doing so normally will speed up loading times
-
 * ``num_round``
 
   - The number of rounds for boosting
@@ -360,6 +360,10 @@ The following parameters are only used in the console version of XGBoost
 * ``fmap``
 
   - Feature map, used for dumping model
+
+* ``dump_format`` [default= ``text``] options: ``text``, ``json``
+
+  - Format of model dump file
 
 * ``name_dump`` [default= ``dump.txt``]
 

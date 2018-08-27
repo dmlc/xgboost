@@ -1283,36 +1283,54 @@ class Booster(object):
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
-    def dump_model(self, fout, fmap='', with_stats=False):
+    def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """
-        Dump model into a text file.
+        Dump model into a text or JSON file.
 
         Parameters
         ----------
-        foout : string
+        fout : string
             Output file name.
         fmap : string, optional
             Name of the file containing feature map names.
-        with_stats : bool (optional)
+        with_stats : bool, optional
             Controls whether the split statistics are output.
+        dump_format : string, optional
+            Format of model dump file. Can be 'text' or 'json'.
         """
         if isinstance(fout, STRING_TYPES):
             fout = open(fout, 'w')
             need_close = True
         else:
             need_close = False
-        ret = self.get_dump(fmap, with_stats)
-        for i in range(len(ret)):
-            fout.write('booster[{}]:\n'.format(i))
-            fout.write(ret[i])
+        ret = self.get_dump(fmap, with_stats, dump_format)
+        if dump_format == 'json':
+            fout.write('[\n')
+            for i in range(len(ret)):
+                fout.write(ret[i])
+                if i < len(ret) - 1:
+                    fout.write(",\n")
+            fout.write('\n]')
+        else:
+            for i in range(len(ret)):
+                fout.write('booster[{}]:\n'.format(i))
+                fout.write(ret[i])
         if need_close:
             fout.close()
 
     def get_dump(self, fmap='', with_stats=False, dump_format="text"):
         """
-        Returns the dump the model as a list of strings.
-        """
+        Returns the model dump as a list of strings.
 
+        Parameters
+        ----------
+        fmap : string, optional
+            Name of the file containing feature map names.
+        with_stats : bool, optional
+            Controls whether the split statistics are output.
+        dump_format : string, optional
+            Format of model dump. Can be 'text' or 'json'.
+        """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
@@ -1361,11 +1379,12 @@ class Booster(object):
     def get_score(self, fmap='', importance_type='weight'):
         """Get feature importance of each feature.
         Importance type can be defined as:
-            'weight' - the number of times a feature is used to split the data across all trees.
-            'gain' - the average gain across all splits the feature is used in.
-            'cover' - the average coverage across all splits the feature is used in.
-            'total_gain' - the total gain across all splits the feature is used in.
-            'total_cover' - the total coverage across all splits the feature is used in.
+
+        * 'weight': the number of times a feature is used to split the data across all trees.
+        * 'gain': the average gain across all splits the feature is used in.
+        * 'cover': the average coverage across all splits the feature is used in.
+        * 'total_gain': the total gain across all splits the feature is used in.
+        * 'total_cover': the total coverage across all splits the feature is used in.
 
         Parameters
         ----------
@@ -1481,6 +1500,7 @@ class Booster(object):
 
     def get_split_value_histogram(self, feature, fmap='', bins=None, as_pandas=True):
         """Get split value histogram of a feature
+
         Parameters
         ----------
         feature: str
@@ -1491,7 +1511,7 @@ class Booster(object):
             The maximum number of bins.
             Number of bins equals number of unique split values n_unique,
             if bins == None or bins > n_unique.
-        as_pandas : bool, default True
+        as_pandas: bool, default True
             Return pd.DataFrame when pandas is installed.
             If False or pandas is not installed, return numpy ndarray.
 

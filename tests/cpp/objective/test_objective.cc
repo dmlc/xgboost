@@ -4,6 +4,8 @@
 #include "../helpers.h"
 
 TEST(Objective, UnknownFunction) {
-  EXPECT_ANY_THROW(xgboost::ObjFunction::Create("unknown_name"));
-  EXPECT_NO_THROW(xgboost::ObjFunction::Create("reg:linear"));
+  xgboost::ObjFunction* obj;
+  EXPECT_ANY_THROW(obj = xgboost::ObjFunction::Create("unknown_name"));
+  EXPECT_NO_THROW(obj = xgboost::ObjFunction::Create("reg:linear"));
+  delete obj;
 }

@@ -54,6 +54,11 @@ template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return nullptr; }
 
 template <typename T>
+common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
+  return common::Span<T>();
+}
+
+template <typename T>
 std::vector<T>& HostDeviceVector<T>::HostVector() { return impl_->data_h_; }
 
 template <typename T>
@@ -97,6 +102,7 @@ void HostDeviceVector<T>::Reshard(GPUSet devices) { }
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<int>;
 
 }  // namespace xgboost
 

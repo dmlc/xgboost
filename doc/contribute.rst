@@ -149,6 +149,14 @@ sanitizer is not compatible with the other two sanitizers.
 
     cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak" /path/to/xgboost
 
+By default, CMake will search regular system paths for sanitizers, you can also
+supply a specified SANITIZER_PATH.
+
+  .. code-block:: bash
+
+    cmake -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak" \
+    -DSANITIZER_PATH=/path/to/sanitizers /path/to/xgboost
+
 How to use sanitizers with CUDA support
 =======================================
 Runing XGBoost on CUDA with address sanitizer (asan) will raise memory error.

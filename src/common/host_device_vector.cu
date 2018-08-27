@@ -77,7 +77,9 @@ struct HostDeviceVectorImpl {
 
     void LazySyncHost() {
       dh::safe_cuda(cudaSetDevice(device_));
-      thrust::copy(data_.begin(), data_.end(), vec_->data_h_.begin() + start_);
+      dh::safe_cuda(
+          cudaMemcpy(vec_->data_h_.data(), data_.data().get() + start_,
+                     data_.size() * sizeof(T), cudaMemcpyDeviceToHost));
       on_d_ = false;
     }
 
@@ -90,8 +92,9 @@ struct HostDeviceVectorImpl {
       size_t size_d = ShardSize(size_h, ndevices, index_);
       dh::safe_cuda(cudaSetDevice(device_));
       data_.resize(size_d);
-      thrust::copy(vec_->data_h_.begin() + start_,
-                   vec_->data_h_.begin() + start_ + size_d, data_.begin());
+      dh::safe_cuda(cudaMemcpy(data_.data().get(),
+                               vec_->data_h_.data() + start_,
+                               size_d * sizeof(T), cudaMemcpyHostToDevice));
       on_d_ = true;
       // this may cause a race condition if LazySyncDevice() is called
       // from multiple threads in parallel;
@@ -156,6 +159,13 @@ struct HostDeviceVectorImpl {
     return shards_[devices_.Index(device)].data_.data().get();
   }
 
+  common::Span<T> DeviceSpan(int device) {
+    CHECK(devices_.Contains(device));
+    LazySyncDevice(device);
+    return { shards_[devices_.Index(device)].data_.data().get(),
+             static_cast<typename common::Span<T>::index_type>(Size()) };
+  }
+
   size_t DeviceSize(int device) {
     CHECK(devices_.Contains(device));
     LazySyncDevice(device);
@@ -179,18 +189,22 @@ struct HostDeviceVectorImpl {
   void ScatterFrom(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
     CHECK_EQ(end - begin, Size());
     if (on_h_) {
-      thrust::copy(begin, end, data_h_.begin());
+      dh::safe_cuda(cudaMemcpy(data_h_.data(), begin.get(),
+                               (end - begin) * sizeof(T),
+                               cudaMemcpyDeviceToHost));
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
-          shard.ScatterFrom(begin.get());
-        });
+        shard.ScatterFrom(begin.get());
+      });
     }
   }
 
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
     CHECK_EQ(end - begin, Size());
     if (on_h_) {
-      thrust::copy(data_h_.begin(), data_h_.end(), begin);
+      dh::safe_cuda(cudaMemcpy(begin.get(), data_h_.data(),
+                               data_h_.size() * sizeof(T),
+                               cudaMemcpyHostToDevice));
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }
@@ -324,6 +338,11 @@ template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return impl_->DevicePointer(device); }
 
 template <typename T>
+common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
+  return impl_->DeviceSpan(device);
+}
+
+template <typename T>
 size_t HostDeviceVector<T>::DeviceStart(int device) { return impl_->DeviceStart(device); }
 
 template <typename T>
@@ -388,5 +407,6 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<int>;
 
 }  // namespace xgboost

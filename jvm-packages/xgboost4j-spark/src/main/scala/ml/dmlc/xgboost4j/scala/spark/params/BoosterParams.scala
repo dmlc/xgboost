@@ -240,7 +240,7 @@ private[spark] trait BoosterParams extends Params {
   final val treeLimit = new IntParam(this, name = "treeLimit",
     doc = "number of trees used in the prediction; defaults to 0 (use all trees).")
 
-  final def getTreeLimit: Double = $(treeLimit)
+  final def getTreeLimit: Int = $(treeLimit)
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,

@@ -52,9 +52,9 @@
 #' dtest <- xgb.DMatrix(data = agaricus.test$data, label = agaricus.test$label)
 #'
 #' param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
-#' nround = 4
+#' nrounds = 4
 #'
-#' bst = xgb.train(params = param, data = dtrain, nrounds = nround, nthread = 2)
+#' bst = xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
 #' 
 #' # Model accuracy without new features
 #' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /
@@ -68,7 +68,7 @@
 #' new.dtrain <- xgb.DMatrix(data = new.features.train, label = agaricus.train$label)
 #' new.dtest <- xgb.DMatrix(data = new.features.test, label = agaricus.test$label)
 #' watchlist <- list(train = new.dtrain)
-#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nround, nthread = 2)
+#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
 #' 
 #' # Model accuracy with new features
 #' accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /

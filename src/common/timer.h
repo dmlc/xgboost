@@ -7,7 +7,8 @@
 #include <iostream>
 #include <map>
 #include <string>
-#include <vector>
+
+#include "gpu_set.h"
 
 namespace xgboost {
 namespace common {
@@ -66,21 +67,21 @@ struct Monitor {
     this->label = label;
   }
   void Start(const std::string &name) { timer_map[name].Start(); }
-  void Start(const std::string &name, std::vector<int> dList) {
+  void Start(const std::string &name, GPUSet devices) {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::SynchronizeNDevices(dList.size(), dList);
+      dh::SynchronizeNDevices(devices);
 #endif
     }
     timer_map[name].Start();
   }
   void Stop(const std::string &name) { timer_map[name].Stop(); }
-  void Stop(const std::string &name, std::vector<int> dList) {
+  void Stop(const std::string &name, GPUSet devices) {
     if (debug_verbose) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-      dh::SynchronizeNDevices(dList.size(), dList);
+      dh::SynchronizeNDevices(devices);
 #endif
     }
     timer_map[name].Stop();
