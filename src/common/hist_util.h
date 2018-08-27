@@ -266,13 +266,11 @@ class GHistBuilder {
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
-                 const std::vector<bst_uint>& feat_set,
                  GHistRow hist);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
                       const GHistIndexBlockMatrix& gmatb,
-                      const std::vector<bst_uint>& feat_set,
                       GHistRow hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);

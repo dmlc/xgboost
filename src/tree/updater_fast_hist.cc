@@ -170,7 +170,6 @@ class FastHistMaker: public TreeUpdater {
 
       tstart = dmlc::GetTime();
       this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-      std::vector<bst_uint> feat_set = feat_index_;
       time_init_data = dmlc::GetTime() - tstart;
 
       // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
@@ -179,7 +178,7 @@ class FastHistMaker: public TreeUpdater {
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, feat_set, hist_[nid]);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid]);
         time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
@@ -187,7 +186,7 @@ class FastHistMaker: public TreeUpdater {
         time_init_new_node += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
-        this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree, feat_set);
+        this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
         time_evaluate_split += dmlc::GetTime() - tstart;
         qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
                                    snode_[nid].best.loss_chg,
@@ -214,10 +213,10 @@ class FastHistMaker: public TreeUpdater {
           hist_.AddHistRow(cleft);
           hist_.AddHistRow(cright);
           if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-            BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, feat_set, hist_[cleft]);
+            BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
             SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
           } else {
-            BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, feat_set, hist_[cright]);
+            BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
             SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
           time_build_hist += dmlc::GetTime() - tstart;
@@ -231,8 +230,8 @@ class FastHistMaker: public TreeUpdater {
           time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
-          this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree, feat_set);
-          this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree, feat_set);
+          this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
+          this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
           time_evaluate_split += dmlc::GetTime() - tstart;
 
           qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
@@ -296,12 +295,11 @@ class FastHistMaker: public TreeUpdater {
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
-                          const std::vector<bst_uint>& feat_set,
                           GHistRow hist) {
       if (fhparam_.enable_feature_grouping > 0) {
-        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, feat_set, hist);
+        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, feat_set, hist);
+        hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
     }
 
@@ -427,23 +425,13 @@ class FastHistMaker: public TreeUpdater {
         // store a pointer to training data
         p_last_fmat_ = &fmat;
         // initialize feature index
-        auto ncol = static_cast<bst_uint>(info.num_col_);
-        feat_index_.clear();
         if (data_layout_ == kDenseDataOneBased) {
-          for (bst_uint i = 1; i < ncol; ++i) {
-            feat_index_.push_back(i);
-          }
+          column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
+                               param_.colsample_bytree, true);
         } else {
-          for (bst_uint i = 0; i < ncol; ++i) {
-            feat_index_.push_back(i);
-          }
+          column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
+                               param_.colsample_bytree, false);
         }
-        bst_uint n = std::max(static_cast<bst_uint>(1),
-                              static_cast<bst_uint>(param_.colsample_bytree * feat_index_.size()));
-        std::shuffle(feat_index_.begin(), feat_index_.end(), common::GlobalRandom());
-        CHECK_GT(param_.colsample_bytree, 0U)
-            << "colsample_bytree cannot be zero.";
-        feat_index_.resize(n);
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         /* specialized code for dense data:
@@ -481,11 +469,11 @@ class FastHistMaker: public TreeUpdater {
                               const GHistIndexMatrix& gmat,
                               const HistCollection& hist,
                               const DMatrix& fmat,
-                              const RegTree& tree,
-                              const std::vector<bst_uint>& feat_set) {
+                              const RegTree& tree) {
       // start enumeration
       const MetaInfo& info = fmat.Info();
-      const auto nfeature = static_cast<bst_uint>(feat_set.size());
+      const auto& feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid)).HostVector();
+      const auto nfeature = static_cast<bst_uint>(feature_set.size());
       const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
       best_split_tloc_.resize(nthread);
       #pragma omp parallel for schedule(static) num_threads(nthread)
@@ -494,7 +482,7 @@ class FastHistMaker: public TreeUpdater {
       }
       #pragma omp parallel for schedule(dynamic) num_threads(nthread)
       for (bst_omp_uint i = 0; i < nfeature; ++i) {
-        const bst_uint fid = feat_set[i];
+        const bst_uint fid = feature_set[i];
         const unsigned tid = omp_get_thread_num();
         this->EnumerateSplit(-1, gmat, hist[nid], snode_[nid], info,
           &best_split_tloc_[tid], fid, nid);
@@ -837,8 +825,7 @@ class FastHistMaker: public TreeUpdater {
     const FastHistParam& fhparam_;
     // number of omp thread used during training
     int nthread_;
-    // Per feature: shuffle index of each feature index
-    std::vector<bst_uint> feat_index_;
+    common::ColumnSampler column_sampler_;
     // the internal row sets
     RowSetCollection row_set_collection_;
     // the temp space for split

@@ -173,19 +173,8 @@ class ColMaker: public TreeUpdater {
         }
       }
       {
-        // initialize feature index
-        auto ncol = static_cast<unsigned>(fmat.Info().num_col_);
-        for (unsigned i = 0; i < ncol; ++i) {
-          if (fmat.GetColSize(i) != 0) {
-            feat_index_.push_back(i);
-          }
-        }
-        unsigned n = std::max(static_cast<unsigned>(1),
-                              static_cast<unsigned>(param_.colsample_bytree * feat_index_.size()));
-        std::shuffle(feat_index_.begin(), feat_index_.end(), common::GlobalRandom());
-        CHECK_GT(param_.colsample_bytree, 0U)
-            << "colsample_bytree cannot be zero.";
-        feat_index_.resize(n);
+        column_sampler_.Init(fmat.Info().num_col_, param_.colsample_bylevel,
+                             param_.colsample_bytree);
       }
       {
         // setup temp space for each thread
@@ -601,7 +590,7 @@ class ColMaker: public TreeUpdater {
 
     // update the solution candidate
     virtual void UpdateSolution(const SparsePage &batch,
-                                const std::vector<bst_uint> &feat_set,
+                                const std::vector<int> &feat_set,
                                 const std::vector<GradientPair> &gpair,
                                 const DMatrix &fmat) {
       const MetaInfo& info = fmat.Info();
@@ -643,15 +632,7 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      std::vector<bst_uint> feat_set = feat_index_;
-      if (param_.colsample_bylevel != 1.0f) {
-        std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
-        unsigned n = std::max(static_cast<unsigned>(1),
-                              static_cast<unsigned>(param_.colsample_bylevel * feat_index_.size()));
-        CHECK_GT(param_.colsample_bylevel, 0U)
-            << "colsample_bylevel cannot be zero.";
-        feat_set.resize(n);
-      }
+      const std::vector<int> &feat_set = column_sampler_.GetFeatureSet(depth).HostVector();
       auto iter = p_fmat->ColIterator();
       while (iter->Next()) {
         this->UpdateSolution(iter->Value(), feat_set, gpair, *p_fmat);
@@ -770,8 +751,7 @@ class ColMaker: public TreeUpdater {
     const TrainParam& param_;
     // number of omp thread used during training
     const int nthread_;
-    // Per feature: shuffle index of each feature index
-    std::vector<bst_uint> feat_index_;
+    common::ColumnSampler column_sampler_;
     // Instance Data: current node position in the tree of each instance
     std::vector<int> position_;
     // PerThread x PerTreeNode: statistics for per thread construction
