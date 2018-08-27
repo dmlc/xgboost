@@ -19,6 +19,7 @@
 #include "../common/hist_util.h"
 #include "../common/host_device_vector.h"
 #include "../common/timer.h"
+#include "../common/common.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
@@ -803,10 +804,19 @@ class GPUHistMaker : public TreeUpdater {
 
     reducer_.Init(device_list_);
 
+<<<<<<< HEAD
     dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
     iter->BeforeFirst();
     CHECK(iter->Next()) << "Empty batches are not supported";
     const SparsePage& batch = iter->Value();
+=======
+    // Partition input matrix into row segments
+    std::vector<size_t> row_segments;
+    dh::RowSegments(info_->num_row_, n_devices, &row_segments);
+
+    auto batch_iter = dmat->GetRowBatches().begin();
+    const SparsePage& batch = *batch_iter;
+>>>>>>> DMatrix refactor 2
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -828,8 +838,8 @@ class GPUHistMaker : public TreeUpdater {
         shard->InitCompressedData(hmat_, batch);
       });
     monitor_.Stop("BinningCompression", dist_.Devices());
-
-    CHECK(!iter->Next()) << "External memory not supported";
+    ++batch_iter;
+    CHECK(batch_iter.AtEnd()) << "External memory not supported";
 
     p_last_fmat_ = dmat;
     initialised_ = true;

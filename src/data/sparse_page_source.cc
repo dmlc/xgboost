@@ -211,10 +211,8 @@ void SparsePageSource::Create(DMatrix* src,
     MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    auto iter = src->RowIterator();
-
-    while (iter->Next()) {
-      page->Push(iter->Value());
+    for (const auto &batch : src->GetRowBatches()) {
+      page->Push(batch);
       if (page->MemCostBytes() >= kPageSize) {
         bytes_write += page->MemCostBytes();
         writer.PushWrite(std::move(page));

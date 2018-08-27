@@ -23,14 +23,10 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const SparsePage& batch = iter->Value();
+  const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   DeviceShard shard(0, 0, 0, rows, p);
   shard.InitRowPtrs(batch);
   shard.InitCompressedData(gmat.cut, batch);
-  CHECK(!iter->Next());
 
   ASSERT_LT(shard.row_stride, columns);
 
@@ -64,15 +60,10 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const SparsePage& batch = iter->Value();
-
+  const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   DeviceShard shard(0, 0, 0, rows, p);
   shard.InitRowPtrs(batch);
   shard.InitCompressedData(gmat.cut, batch);
-  CHECK(!iter->Next());
 
   ASSERT_EQ(shard.row_stride, columns);
 

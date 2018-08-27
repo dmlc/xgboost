@@ -492,36 +492,6 @@ class LearnerImpl : public Learner {
       return;
     }
 
-    monitor_.Start("LazyInitDMatrix");
-    if (!p_train->HaveColAccess(true)) {
-      auto ncol = static_cast<int>(p_train->Info().num_col_);
-      std::vector<bool> enabled(ncol, true);
-      // set max row per batch to limited value
-      // in distributed mode, use safe choice otherwise
-      size_t max_row_perbatch = tparam_.max_row_perbatch;
-      const auto safe_max_row = static_cast<size_t>(32ul << 10ul);
-
-      if (tparam_.tree_method == 0 && p_train->Info().num_row_ >= (4UL << 20UL)) {
-        LOG(CONSOLE)
-            << "Tree method is automatically selected to be \'approx\'"
-            << " for faster speed."
-            << " to use old behavior(exact greedy algorithm on single machine),"
-            << " set tree_method to \'exact\'";
-        max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
-      }
-
-      if (tparam_.tree_method == 1) {
-        LOG(CONSOLE) << "Tree method is selected to be \'approx\'";
-        max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
-      }
-
-      if (tparam_.test_flag == "block" || tparam_.dsplit == 2) {
-        max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
-      }
-      // initialize column access
-      p_train->InitColAccess(max_row_perbatch, true);
-    }
-
     if (!p_train->SingleColBlock() && cfg_.count("updater") == 0) {
       if (tparam_.tree_method == 2) {
         LOG(CONSOLE) << "tree method is set to be 'exact',"
@@ -533,7 +503,6 @@ class LearnerImpl : public Learner {
         gbm_->Configure(cfg_.begin(), cfg_.end());
       }
     }
-    monitor_.Stop("LazyInitDMatrix");
   }
 
   // return whether model is already initialized.

@@ -37,13 +37,9 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   hmat_cpu.Init((*dmat).get(), p.max_bin);
 
   // find the cuts on the GPU
-  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const SparsePage& batch = iter->Value();
+  const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   HistCutMatrix hmat_gpu;
   DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu);
-  CHECK(!iter->Next());
 
   // compare the cuts
   double eps = 1e-2;

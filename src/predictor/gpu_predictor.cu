@@ -61,11 +61,8 @@ struct DeviceMatrix {
     const auto& info = dmat->Info();
     ba.Allocate(device_idx, silent, &row_ptr, info.num_row_ + 1, &data,
                 info.num_nonzero_);
-    auto iter = dmat->RowIterator();
-    iter->BeforeFirst();
     size_t data_offset = 0;
-    while (iter->Next()) {
-      const auto& batch = iter->Value();
+    for (const auto &batch : dmat->GetRowBatches()) {
       const auto& offset_vec = batch.offset.HostVector();
       const auto& data_vec = batch.data.HostVector();
       // Copy row ptr
