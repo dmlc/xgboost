@@ -145,7 +145,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val xgb = new XGBoostClassifier(xgbParamMap)
     assert(xgb.getEta === 1.0)
     assert(xgb.getObjective === "binary:logistic")
-    assert(xgb.getObjectiveType === "classification"
+    assert(xgb.getObjectiveType === "classification")
     // from spark to xgboost params
     val xgbCopy = xgb.copy(ParamMap.empty)
     assert(xgbCopy.MLlib2XGBoostParams("eta").toString.toDouble === 1.0)
