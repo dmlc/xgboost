@@ -122,7 +122,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
     val cvModel = cv.fit(trainingDF)
     val prediction = cvModel.bestModel.transform(testDF).select("prediction").collect()
-    assert(prediction.count === testDF.count)
+    assert(prediction.length === testDF.count)
   }
 
   test("ranking: use group data") {
