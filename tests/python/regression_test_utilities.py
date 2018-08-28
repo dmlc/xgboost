@@ -53,11 +53,14 @@ def get_sparse():
     X = sparse.csr_matrix(X)
     return X, y
 
+
 def get_sparse_weights():
-    return get_weights_regression(1, 10);
+    return get_weights_regression(1, 10)
+
 
 def get_small_weights():
-    return get_weights_regression(1e-6, 1e-5);
+    return get_weights_regression(1e-6, 1e-5)
+
 
 def get_weights_regression(min_weight, max_weight):
     rng = np.random.RandomState(199)
