@@ -55,12 +55,20 @@ def get_sparse():
 
 
 def get_sparse_weights():
+    return get_weights_regression(1, 10)
+
+
+def get_small_weights():
+    return get_weights_regression(1e-6, 1e-5)
+
+
+def get_weights_regression(min_weight, max_weight):
     rng = np.random.RandomState(199)
     n = 10000
     sparsity = 0.25
     X, y = datasets.make_regression(n, random_state=rng)
     X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
-    w = np.array([rng.uniform(1, 10) for i in range(n)])
+    w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
     return X, y, w
 
 
@@ -129,6 +137,8 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
         Dataset("Cancer", get_cancer, "binary:logistic", "error"),
         Dataset("Sparse regression", get_sparse, "reg:linear", "rmse"),
         Dataset("Sparse regression with weights", get_sparse_weights,
+                "reg:linear", "rmse", has_weights=True),
+        Dataset("Small weights regression", get_small_weights,
                 "reg:linear", "rmse", has_weights=True),
         Dataset("Boston External Memory", get_boston, "reg:linear", "rmse",
                 use_external_memory=True)

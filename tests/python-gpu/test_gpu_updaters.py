@@ -14,7 +14,7 @@ def assert_gpu_results(cpu_results, gpu_results):
         assert np.allclose(cpu_res["eval"][-1], gpu_res["eval"][-1], 1e-2, 1e-2)
 
 datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
-            "Sparse regression with weights"]
+            "Sparse regression with weights", "Small weights regression"]
 
 class TestGPU(unittest.TestCase):
     def test_gpu_exact(self):
