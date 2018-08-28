@@ -13,7 +13,12 @@ TEST(Objective, LinearRegressionGPair) {
                    {1,   1,   1,   1,    1,    1,    1, 1},
                    {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
                    {1,   1,   1,   1,    1,    1,    1, 1});
-
+  CheckObjFunction(obj,
+                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
+                   {0,   0,   0,   0,    1,    1,    1, 1},
+                   {},  // empty weight
+                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
+                   {1,   1,   1,   1,    1,    1,    1, 1});
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 
   delete obj;
@@ -24,11 +29,11 @@ TEST(Objective, LogisticRegressionGPair) {
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1},
-                   {   0,    0,    0,    0,    1,     1,     1,     1},
-                   {   1,    1,    1,    1,    1,     1,     1,     1},
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
+                   {   0,    0,    0,    0,    1,     1,     1,     1}, // labels
+                   {   1,    1,    1,    1,    1,     1,     1,     1}, // weights
+                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f}, // out_grad
+                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
 
   delete obj;
 }

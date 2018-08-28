@@ -46,6 +46,12 @@ xgboost::bst_float GetMetricEval(
   std::vector<xgboost::bst_float> labels,
   std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float> ());
 
+namespace xgboost {
+bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
+            std::vector<xgboost::bst_float>::const_iterator _end1,
+            std::vector<xgboost::bst_float>::const_iterator _beg2);
+}
+
 /**
  * \fn  std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns, float sparsity, int seed);
  *

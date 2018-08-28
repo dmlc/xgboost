@@ -6,7 +6,7 @@
 #include "../helpers.h"
 
 TEST(Objective, GPULinearRegressionGPair) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("gpu:reg:linear");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:linear");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -15,14 +15,19 @@ TEST(Objective, GPULinearRegressionGPair) {
                    {1,   1,   1,   1,    1,    1,    1, 1},
                    {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
                    {1,   1,   1,   1,    1,    1,    1, 1});
-
+  CheckObjFunction(obj,
+                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
+                   {0,   0,   0,   0,    1,    1,    1, 1},
+                   {},  // empty weight.
+                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
+                   {1,   1,   1,   1,    1,    1,    1, 1});
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 
   delete obj;
 }
 
 TEST(Objective, GPULogisticRegressionGPair) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("gpu:reg:logistic");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:logistic");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -36,7 +41,7 @@ TEST(Objective, GPULogisticRegressionGPair) {
 }
 
 TEST(Objective, GPULogisticRegressionBasic) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("gpu:reg:logistic");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:logistic");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
 
@@ -64,7 +69,7 @@ TEST(Objective, GPULogisticRegressionBasic) {
 }
 
 TEST(Objective, GPULogisticRawGPair) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("gpu:binary:logitraw");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:logitraw");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
   CheckObjFunction(obj,
