@@ -102,8 +102,8 @@ class GPURegLossObj : public ObjFunction {
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";
-    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevicesAll(param_.n_gpus));
+    // CHECK(param_.n_gpus != 0) << "Must have at least one device";
+    devices_ = GPUSet::All(param_.n_gpus).Normalised(param_.gpu_id);
   }
 
   void GetGradient(HostDeviceVector<float>* preds,

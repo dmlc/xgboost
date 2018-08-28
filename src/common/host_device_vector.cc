@@ -102,6 +102,7 @@ void HostDeviceVector<T>::Reshard(GPUSet devices) { }
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<unsigned int>;
+template class HostDeviceVector<int>;
 
 }  // namespace xgboost
 
