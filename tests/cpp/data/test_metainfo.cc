@@ -103,22 +103,32 @@ TEST(MetaInfo, LoadQid) {
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60
   };
   const std::vector<xgboost::Entry> expected_data{
-    {1, 1}, {2, 1}, {3, 0}, {4, 0.2}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.1}, {5, 1},
-    {1, 0}, {2, 1}, {3, 0}, {4, 0.4}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.3}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.2}, {5, 0},
-    {1, 1}, {2, 0}, {3, 1}, {4, 0.4}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.1}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.2}, {5, 0},
-    {1, 0}, {2, 0}, {3, 1}, {4, 0.1}, {5, 1},
-    {1, 1}, {2, 1}, {3, 0}, {4, 0.3}, {5, 0},
-    {1, 1}, {2, 0}, {3, 0}, {4, 0.4}, {5, 1},
-    {1, 0}, {2, 1}, {3, 1}, {4, 0.5}, {5, 0}
-  };
-  for (const auto &batch : dmat->GetRowBatches()) {
-    CHECK_EQ(batch.base_rowid, 0);
-    CHECK(batch.offset == expected_offset);
-    CHECK(batch.data == expected_data);
-  }
+      xgboost::Entry(1, 1),   xgboost::Entry(2, 1),   xgboost::Entry(3, 0),
+      xgboost::Entry(4, 0.2), xgboost::Entry(5, 0),   xgboost::Entry(1, 0),
+      xgboost::Entry(2, 0),   xgboost::Entry(3, 1),   xgboost::Entry(4, 0.1),
+      xgboost::Entry(5, 1),   xgboost::Entry(1, 0),   xgboost::Entry(2, 1),
+      xgboost::Entry(3, 0),   xgboost::Entry(4, 0.4), xgboost::Entry(5, 0),
+      xgboost::Entry(1, 0),   xgboost::Entry(2, 0),   xgboost::Entry(3, 1),
+      xgboost::Entry(4, 0.3), xgboost::Entry(5, 0),   xgboost::Entry(1, 0),
+      xgboost::Entry(2, 0),   xgboost::Entry(3, 1),   xgboost::Entry(4, 0.2),
+      xgboost::Entry(5, 0),   xgboost::Entry(1, 1),   xgboost::Entry(2, 0),
+      xgboost::Entry(3, 1),   xgboost::Entry(4, 0.4), xgboost::Entry(5, 0),
+      xgboost::Entry(1, 0),   xgboost::Entry(2, 0),   xgboost::Entry(3, 1),
+      xgboost::Entry(4, 0.1), xgboost::Entry(5, 0),   xgboost::Entry(1, 0),
+      xgboost::Entry(2, 0),   xgboost::Entry(3, 1),   xgboost::Entry(4, 0.2),
+      xgboost::Entry(5, 0),   xgboost::Entry(1, 0),   xgboost::Entry(2, 0),
+      xgboost::Entry(3, 1),   xgboost::Entry(4, 0.1), xgboost::Entry(5, 1),
+      xgboost::Entry(1, 1),   xgboost::Entry(2, 1),   xgboost::Entry(3, 0),
+      xgboost::Entry(4, 0.3), xgboost::Entry(5, 0),   xgboost::Entry(1, 1),
+      xgboost::Entry(2, 0),   xgboost::Entry(3, 0),   xgboost::Entry(4, 0.4),
+      xgboost::Entry(5, 1),   xgboost::Entry(1, 0),   xgboost::Entry(2, 1),
+      xgboost::Entry(3, 1),   xgboost::Entry(4, 0.5), {5, 0}};
+  dmlc::DataIter<xgboost::SparsePage>* iter = dmat->RowIterator();
+  iter->BeforeFirst();
+  CHECK(iter->Next());
+  const xgboost::SparsePage& batch = iter->Value();
+  CHECK_EQ(batch.base_rowid, 0);
+  CHECK(batch.offset == expected_offset);
+  CHECK(batch.data == expected_data);
+  CHECK(!iter->Next());
 }
