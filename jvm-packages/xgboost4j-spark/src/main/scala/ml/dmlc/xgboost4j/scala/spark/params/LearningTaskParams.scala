@@ -34,6 +34,17 @@ private[spark] trait LearningTaskParams extends Params {
   final def getObjective: String = $(objective)
 
   /**
+   * Specify the learning objective type required for custom objective and eval.
+   * options: regression, classification. default: regression
+   */
+  final val obj_type = new Param[String](this, "obj_type", "objective type for training," +
+    s" options: {${LearningTaskParams.supportedObjectiveType.mkString(",")}",
+    (value: String) => LearningTaskParams.supportedObjectiveType.contains(value))
+
+  final def getObjectiveType: String = $(obj_type)
+
+
+  /**
    * the initial prediction score of all instances, global bias. default=0.5
    */
   final val baseScore = new DoubleParam(this, "baseScore", "the initial prediction score of all" +
@@ -83,6 +94,8 @@ private[spark] object LearningTaskParams {
   val supportedObjective = HashSet("reg:linear", "reg:logistic", "binary:logistic",
     "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
     "reg:gamma", "reg:tweedie")
+
+  val supportedObjectiveType = HashSet("regression", "classification")
 
   val supportedEvalMetrics = HashSet("rmse", "mae", "logloss", "error", "merror", "mlogloss",
     "auc", "aucpr", "ndcg", "map", "gamma-deviance")
