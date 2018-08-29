@@ -70,6 +70,12 @@
 
 namespace xgboost {
 
+#ifdef __CUDACC__
+// Sets a function to call instead of cudaSetDevice();
+// only added for testing
+void SetCudaSetDeviceHandler(void (*handler)(int));
+#endif
+
 template <typename T> struct HostDeviceVectorImpl;
 
 // Distribution for the HostDeviceVector; it specifies such aspects as the devices it is

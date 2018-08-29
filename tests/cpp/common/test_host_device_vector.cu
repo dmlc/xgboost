@@ -12,6 +12,13 @@
 namespace xgboost {
 namespace common {
 
+void SetDevice(int device) {
+  int n_devices;
+  dh::safe_cuda(cudaGetDeviceCount(&n_devices));
+  device %= n_devices;
+  dh::safe_cuda(cudaSetDevice(device));
+}
+
 void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
                      HostDeviceVector<int> *v) {
   // create the vector
@@ -47,7 +54,7 @@ void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
 void PlusOne(HostDeviceVector<int> *v) {
   int n_devices = v->Devices().Size();
   for (int i = 0; i < n_devices; ++i) {
-    dh::safe_cuda(cudaSetDevice(i));
+    SetDevice(i);
     thrust::transform(v->tbegin(i), v->tend(i), v->tbegin(i),
                       [=]__device__(unsigned int a){ return a + 1; });
   }
@@ -61,7 +68,7 @@ void CheckDevice(HostDeviceVector<int> *v,
   ASSERT_EQ(v->Devices().Size(), n_devices);
   for (int i = 0; i < n_devices; ++i) {
     ASSERT_EQ(v->DeviceSize(i), sizes.at(i));
-    dh::safe_cuda(cudaSetDevice(i));
+    SetDevice(i);
     ASSERT_TRUE(thrust::equal(v->tcbegin(i), v->tcend(i),
                               thrust::make_counting_iterator(first + starts[i])));
     ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));
@@ -71,7 +78,7 @@ void CheckDevice(HostDeviceVector<int> *v,
   ASSERT_EQ(v->HostCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
   for (int i = 0; i < n_devices; ++i) {
-    dh::safe_cuda(cudaSetDevice(i));
+    SetDevice(i);
     ASSERT_TRUE(thrust::equal(v->tbegin(i), v->tend(i),
                               thrust::make_counting_iterator(first + starts[i])));
     ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));
@@ -100,6 +107,7 @@ void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
 void TestHostDeviceVector
 (size_t n, const GPUDistribution& distribution,
  const std::vector<size_t>& starts, const std::vector<size_t>& sizes) {
+  SetCudaSetDeviceHandler(SetDevice);
   HostDeviceVector<int> v;
   InitHostDeviceVector(n, distribution, &v);
   CheckDevice(&v, starts, sizes, 0, GPUAccess::kRead);
@@ -107,6 +115,7 @@ void TestHostDeviceVector
   CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
   CheckHost(&v, GPUAccess::kWrite);
+  SetCudaSetDeviceHandler(nullptr);
 }
 
 TEST(HostDeviceVector, TestBlock) {

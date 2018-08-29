@@ -543,8 +543,7 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.Size());
-    int dh_device_idx = normalised_device_idx + param.gpu_id;
-    this->gpair.copy(dh_gpair->tcbegin(dh_device_idx), dh_gpair->tcend(dh_device_idx));
+    this->gpair.copy(dh_gpair->tcbegin(device_idx), dh_gpair->tcend(device_idx));
     SubsampleGradientPair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }

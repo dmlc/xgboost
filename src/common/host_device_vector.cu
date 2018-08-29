@@ -13,6 +13,13 @@
 
 namespace xgboost {
 
+// the handler to call instead of cudaSetDevice; only used for testing
+static void (*cudaSetDeviceHandler)(int) = nullptr;  // NOLINT
+
+void SetCudaSetDeviceHandler(void (*handler)(int)) {
+  cudaSetDeviceHandler = handler;
+}
+
 // wrapper over access with useful methods
 class Permissions {
   GPUAccess access_;
@@ -54,14 +61,14 @@ struct HostDeviceVectorImpl {
     void ScatterFrom(const T* begin) {
       // TODO(canonizer): avoid full copy of host data
       LazySyncDevice(GPUAccess::kWrite);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       dh::safe_cuda(cudaMemcpy(data_.data().get(), begin + start_,
                                data_.size() * sizeof(T), cudaMemcpyDefault));
     }
 
     void GatherTo(thrust::device_ptr<T> begin) {
       LazySyncDevice(GPUAccess::kRead);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       dh::safe_cuda(cudaMemcpy(begin.get() + start_, data_.data().get(),
                                proper_size_ * sizeof(T), cudaMemcpyDefault));
     }
@@ -69,7 +76,7 @@ struct HostDeviceVectorImpl {
     void Fill(T v) {
       // TODO(canonizer): avoid full copy of host data
       LazySyncDevice(GPUAccess::kWrite);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       thrust::fill(data_.begin(), data_.end(), v);
     }
 
@@ -77,13 +84,13 @@ struct HostDeviceVectorImpl {
       // TODO(canonizer): avoid full copy of host data for this (but not for other)
       LazySyncDevice(GPUAccess::kWrite);
       other->LazySyncDevice(GPUAccess::kRead);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       dh::safe_cuda(cudaMemcpy(data_.data().get(), other->data_.data().get(),
                                data_.size() * sizeof(T), cudaMemcpyDefault));
     }
 
     void LazySyncHost(GPUAccess access) {
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
                                data_.data().get(),  proper_size_ * sizeof(T),
                                cudaMemcpyDeviceToHost));
@@ -97,7 +104,7 @@ struct HostDeviceVectorImpl {
       start_ = vec_->distribution_.ShardStart(new_size, index_);
       proper_size_ = vec_->distribution_.ShardProperSize(new_size, index_);
       size_t size_d = vec_->distribution_.ShardSize(new_size, index_);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       data_.resize(size_d);
       cached_size_ = new_size;
     }
@@ -114,7 +121,7 @@ struct HostDeviceVectorImpl {
       // data is on the host
       size_t size_h = vec_->data_h_.size();
       LazyResize(size_h);
-      dh::safe_cuda(cudaSetDevice(device_));
+      SetDevice();
       dh::safe_cuda(
           cudaMemcpy(data_.data().get(), vec_->data_h_.data() + start_,
                      data_.size() * sizeof(T), cudaMemcpyHostToDevice));
@@ -123,6 +130,14 @@ struct HostDeviceVectorImpl {
       std::lock_guard<std::mutex> lock(vec_->mutex_);
       vec_->perm_h_.DenyComplementary(access);
       vec_->size_d_ = size_h;
+    }
+
+    void SetDevice() {
+      if (cudaSetDeviceHandler == nullptr) {
+        dh::safe_cuda(cudaSetDevice(device_));
+      } else {
+        (*cudaSetDeviceHandler)(device_);
+      }
     }
 
     int index_;
