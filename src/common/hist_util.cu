@@ -257,13 +257,13 @@ struct GPUSketcher {
       n_cuts_cur_[icol] = std::min(n_cuts_, n_unique);
       // if less elements than cuts: copy all elements with their weights
       if (n_cuts_ > n_unique) {
-        auto weights2_iter = weights2_.begin();
-        auto fvalues_iter = fvalues_cur_.begin();
-        auto cuts_iter = cuts_d_.begin() + icol * n_cuts_;
+        float* weights2_ptr = weights2_.data().get();
+        float* fvalues_ptr = fvalues_cur_.data().get();
+        WXQSketch::Entry* cuts_ptr = cuts_d_.data().get() + icol * n_cuts_;
         dh::LaunchN(device_, n_unique, [=]__device__(size_t i) {
-            bst_float rmax = weights2_iter[i];
-            bst_float rmin = i > 0 ? weights2_iter[i - 1] : 0;
-            cuts_iter[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_iter[i]);
+            bst_float rmax = weights2_ptr[i];
+            bst_float rmin = i > 0 ? weights2_ptr[i - 1] : 0;
+            cuts_ptr[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_ptr[i]);
           });
       } else if (n_cuts_cur_[icol] > 0) {
         // if more elements than cuts: use binary search on cumulative weights
@@ -271,7 +271,7 @@ struct GPUSketcher {
         find_cuts_k<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
           (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
            weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
-        dh::safe_cuda(cudaGetLastError());
+        dh::safe_cuda(cudaGetLastError());  // NOLINT
       }
     }
 
@@ -315,14 +315,14 @@ struct GPUSketcher {
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
          gpu_batch_nrows_, num_cols_,
          offset_vec[row_begin_ + batch_row_begin], batch_nrows);
-      dh::safe_cuda(cudaGetLastError());
-      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaGetLastError());       // NOLINT
+      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       for (int icol = 0; icol < num_cols_; ++icol) {
         FindColumnCuts(batch_nrows, icol);
       }
 
-      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
@@ -338,8 +338,7 @@ struct GPUSketcher {
       const auto& offset_vec = row_batch.offset.HostVector();
       row_ptrs_.resize(n_rows_ + 1);
       thrust::copy(offset_vec.data() + row_begin_,
-                   offset_vec.data() + row_end_ + 1,
-                   row_ptrs_.begin());
+                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
       size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
       for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
         SketchBatch(row_batch, info, gpu_batch);
@@ -382,7 +381,7 @@ struct GPUSketcher {
   }
 
   GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevices(param_.n_gpus, n_rows));
+    devices_ = GPUSet::All(param_.n_gpus, n_rows).Normalised(param_.gpu_id);
   }
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;

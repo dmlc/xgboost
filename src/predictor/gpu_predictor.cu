@@ -11,6 +11,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 #include <memory>
+#include "../common/gpu_set.h"
 #include "../common/device_helpers.cuh"
 #include "../common/host_device_vector.h"
 
@@ -80,7 +81,7 @@ struct DeviceMatrix {
                                sizeof(Entry) * data_vec.size(),
                                cudaMemcpyHostToDevice));
       // Copy data
-      data_offset += data_vec.size();
+      data_offset += batch.data.Size();
     }
   }
 };
@@ -466,7 +467,7 @@ class GPUPredictor : public xgboost::Predictor {
     Predictor::Init(cfg, cache);
     cpu_predictor->Init(cfg, cache);
     param.InitAllowUnknown(cfg);
-    devices = GPUSet::Range(param.gpu_id, dh::NDevicesAll(param.n_gpus));
+    devices = GPUSet::All(param.n_gpus).Normalised(param.gpu_id);
     max_shared_memory_bytes = dh::MaxSharedMemory(param.gpu_id);
   }
 

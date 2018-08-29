@@ -45,7 +45,7 @@ struct HostDeviceVectorImpl {
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
-      device_ = device % dh::NVisibleDevices();
+      device_ = device;
       index_ = vec_->distribution_.devices_.Index(device);
       LazyResize(vec_->Size());
       perm_d_ = vec_->perm_h_.Complementary();
@@ -84,7 +84,9 @@ struct HostDeviceVectorImpl {
 
     void LazySyncHost(GPUAccess access) {
       dh::safe_cuda(cudaSetDevice(device_));
-      thrust::copy_n(data_.begin(), proper_size_, vec_->data_h_.begin() + start_);
+      dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
+                               data_.data().get(),  proper_size_ * sizeof(T),
+                               cudaMemcpyDeviceToHost));
       perm_d_.DenyComplementary(access);
     }
 
@@ -113,7 +115,9 @@ struct HostDeviceVectorImpl {
       size_t size_h = vec_->data_h_.size();
       LazyResize(size_h);
       dh::safe_cuda(cudaSetDevice(device_));
-      thrust::copy_n(vec_->data_h_.begin() + start_, data_.size(), data_.begin());
+      dh::safe_cuda(
+          cudaMemcpy(data_.data().get(), vec_->data_h_.data() + start_,
+                     data_.size() * sizeof(T), cudaMemcpyHostToDevice));
       perm_d_.Grant(access);
 
       std::lock_guard<std::mutex> lock(vec_->mutex_);
@@ -192,16 +196,16 @@ struct HostDeviceVectorImpl {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
-    return { shards_[devices.Index(device)].data_.data().get(),
-             static_cast<typename common::Span<T>::index_type>(Size()) };
+    return {shards_[devices.Index(device)].data_.data().get(),
+            static_cast<typename common::Span<T>::index_type>(Size())};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return { shards_[devices.Index(device)].data_.data().get(),
-             static_cast<typename common::Span<const T>::index_type>(Size()) };
+    return {shards_[devices.Index(device)].data_.data().get(),
+      static_cast<typename common::Span<const T>::index_type>(Size())};
   }
 
   size_t DeviceSize(int device) {
@@ -235,18 +239,22 @@ struct HostDeviceVectorImpl {
   void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end) {
     CHECK_EQ(end - begin, Size());
     if (perm_h_.CanWrite()) {
-      thrust::copy(begin, end, data_h_.begin());
+      dh::safe_cuda(cudaMemcpy(data_h_.data(), begin.get(),
+                               (end - begin) * sizeof(T),
+                               cudaMemcpyDeviceToHost));
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
-          shard.ScatterFrom(begin.get());
-        });
+        shard.ScatterFrom(begin.get());
+      });
     }
   }
 
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
     CHECK_EQ(end - begin, Size());
     if (perm_h_.CanWrite()) {
-      thrust::copy(data_h_.begin(), data_h_.end(), begin);
+      dh::safe_cuda(cudaMemcpy(begin.get(), data_h_.data(),
+                               data_h_.size() * sizeof(T),
+                               cudaMemcpyHostToDevice));
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }

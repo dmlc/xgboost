@@ -87,7 +87,7 @@ class GPURegLossObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
-    devices_ = GPUSet::Range(param_.gpu_id, dh::NDevicesAll(param_.n_gpus));
+    devices_ = GPUSet::All(param_.n_gpus).Normalised(param_.gpu_id);
     label_correct_.Reshard(devices_);
     label_correct_.Resize(devices_.Size());
   }
@@ -120,7 +120,7 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
+      dh::safe_cuda(cudaSetDevice(d));
       const int block = 256;
       size_t n = preds.DeviceSize(d);
       if (n > 0) {
@@ -157,7 +157,7 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
+      dh::safe_cuda(cudaSetDevice(d));
       const int block = 256;
       size_t n = preds->DeviceSize(d);
       if (n > 0) {

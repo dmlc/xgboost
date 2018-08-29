@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/inner_product.h>
 #include <xgboost/linear_updater.h>
+#include "../common/gpu_set.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "coordinate_common.h"
@@ -214,14 +215,14 @@ class GPUCoordinateUpdater : public LinearUpdater {
   void LazyInitShards(DMatrix *p_fmat,
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;
-    int n_devices = dh::NDevices(param.n_gpus, p_fmat->Info().num_row_);
+    int n_devices = GPUSet::All(param.n_gpus, p_fmat->Info().num_row_).Size();
     bst_uint row_begin = 0;
     bst_uint shard_size =
         std::ceil(static_cast<double>(p_fmat->Info().num_row_) / n_devices);
 
     device_list.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      int device_idx = (param.gpu_id + d_idx) % dh::NVisibleDevices();
+      int device_idx = GPUSet::GetDeviceIdx(param.gpu_id + d_idx);
       device_list[d_idx] = device_idx;
     }
     // Partition input matrix into row segments

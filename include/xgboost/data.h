@@ -239,6 +239,7 @@ class SparsePage {
     auto& data_vec = data.HostVector();
     auto& offset_vec = offset.HostVector();
     offset_vec.push_back(offset_vec.back() + inst.size());
+
     size_t begin = data_vec.size();
     data_vec.resize(begin + inst.size());
     if (inst.size() != 0) {
@@ -249,8 +250,6 @@ class SparsePage {
 
   size_t Size() { return offset.Size() - 1; }
 };
-
-
 
 /*!
  * \brief This is data structure that user can pass to DMatrix::Create
