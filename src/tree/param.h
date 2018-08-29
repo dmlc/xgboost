@@ -78,7 +78,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int n_gpus;
   // the criteria to use for ranking splits
   std::string split_evaluator;
-
   // ------ From cpu quantile histogram -------.
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
@@ -95,6 +94,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // will be considered. If set to zero, ALL existing groups will be examined
   unsigned max_search_group;
 
+  // whether to use nccl one-process-per-gpu type initialization
+  bool distributed_dask;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -202,7 +203,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
-
     // ------ From cpu quantile histogram -------.
     DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
         .describe("percentage threshold for treating a feature as sparse");
@@ -219,7 +219,12 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
                   "groups before creating a new group for that feature; to save time, "
                   "only up to (max_search_group) of existing groups will be "
                   "considered. If set to zero, ALL existing groups will be examined.");
-
+    // enable one process per gpu
+    DMLC_DECLARE_FIELD(distributed_dask)
+        .set_default(false)
+        .describe("EXP Param: Enable this when launching distributed gpu-xgboost "
+                  "through the dask scheduler. This assumes that rabit also has "
+                  "been initialized!");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);

@@ -20,6 +20,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/host_device_vector.h"
+#include "../common/sync.h"
 #include "../common/timer.h"
 #include "../common/span.h"
 #include "param.h"
@@ -971,7 +972,7 @@ class GPUHistMakerSpecialised{
       device_list_[index] = device_id;
     }
 
-    reducer_.Init(device_list_);
+    reducer_.Init(device_list_, param_.distributed_dask);
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
