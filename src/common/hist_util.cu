@@ -118,7 +118,7 @@ struct GPUSketcher {
 
     void Init(const SparsePage& row_batch, const MetaInfo& info) {
       num_cols_ = info.num_col_;
-      has_weights_ = info.weights_.size() > 0;
+      has_weights_ = info.weights_.Size() > 0;
 
       // find the batch size
       if (param_.gpu_batch_nrows == 0) {
@@ -282,19 +282,23 @@ struct GPUSketcher {
       size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
                                       static_cast<size_t>(n_rows_));
       size_t batch_nrows = batch_row_end - batch_row_begin;
-      size_t n_entries =
-        row_batch.offset[row_begin_ + batch_row_end] -
-        row_batch.offset[row_begin_ + batch_row_begin];
+
+      const auto& offset_vec = row_batch.offset.HostVector();
+      const auto& data_vec = row_batch.data.HostVector();
+
+      size_t n_entries = offset_vec[row_begin_ + batch_row_end] -
+        offset_vec[row_begin_ + batch_row_begin];
       // copy the batch to the GPU
-      dh::safe_cuda
-        (cudaMemcpy(entries_.data().get(),
-                    &row_batch.data[row_batch.offset[row_begin_ + batch_row_begin]],
-                    n_entries * sizeof(Entry), cudaMemcpyDefault));
+      dh::safe_cuda(
+          cudaMemcpy(entries_.data().get(),
+                     data_vec.data() + offset_vec[row_begin_ + batch_row_begin],
+                     n_entries * sizeof(Entry), cudaMemcpyDefault));
       // copy the weights if necessary
       if (has_weights_) {
+        const auto& weights_vec = info.weights_.HostVector();
         dh::safe_cuda
           (cudaMemcpy(weights_.data().get(),
-                      info.weights_.data() + row_begin_ + batch_row_begin,
+                      weights_vec.data() + row_begin_ + batch_row_begin,
                       batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
 
@@ -310,7 +314,7 @@ struct GPUSketcher {
          row_ptrs_.data().get() + batch_row_begin,
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
          gpu_batch_nrows_, num_cols_,
-         row_batch.offset[row_begin_ + batch_row_begin], batch_nrows);
+         offset_vec[row_begin_ + batch_row_begin], batch_nrows);
       dh::safe_cuda(cudaGetLastError());       // NOLINT
       dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
@@ -331,10 +335,10 @@ struct GPUSketcher {
     void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
       // copy rows to the device
       dh::safe_cuda(cudaSetDevice(device_));
+      const auto& offset_vec = row_batch.offset.HostVector();
       row_ptrs_.resize(n_rows_ + 1);
-      thrust::copy(row_batch.offset.data() + row_begin_,
-                   row_batch.offset.data() + row_end_ + 1,
-                   row_ptrs_.begin());
+      thrust::copy(offset_vec.data() + row_begin_,
+                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
 
       size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
 

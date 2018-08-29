@@ -45,7 +45,7 @@ struct HostDeviceVectorImpl {
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
-      device_ = device % dh::NVisibleDevices();
+      device_ = device;
       index_ = vec_->distribution_.devices_.Index(device);
       LazyResize(vec_->Size());
       perm_d_ = vec_->perm_h_.Complementary();
@@ -193,10 +193,19 @@ struct HostDeviceVectorImpl {
   }
 
   common::Span<T> DeviceSpan(int device) {
-    CHECK(devices_.Contains(device));
-    LazySyncDevice(device);
-    return { shards_[devices_.Index(device)].data_.data().get(),
-             static_cast<typename common::Span<T>::index_type>(Size()) };
+    GPUSet devices = distribution_.devices_;
+    CHECK(devices.Contains(device));
+    LazySyncDevice(device, GPUAccess::kWrite);
+    return {shards_[devices.Index(device)].data_.data().get(),
+            static_cast<typename common::Span<T>::index_type>(Size())};
+  }
+
+  common::Span<const T> ConstDeviceSpan(int device) {
+    GPUSet devices = distribution_.devices_;
+    CHECK(devices.Contains(device));
+    LazySyncDevice(device, GPUAccess::kRead);
+    return{ shards_[devices.Index(device)].data_.data().get(),
+      static_cast<typename common::Span<const T>::index_type>(Size()) };
   }
 
   size_t DeviceSize(int device) {
@@ -229,15 +238,10 @@ struct HostDeviceVectorImpl {
 
   void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end) {
     CHECK_EQ(end - begin, Size());
-<<<<<<< HEAD
-    if (on_h_) {
+    if (perm_h_.CanWrite()) {
       dh::safe_cuda(cudaMemcpy(data_h_.data(), begin.get(),
                                (end - begin) * sizeof(T),
                                cudaMemcpyDeviceToHost));
-=======
-    if (perm_h_.CanWrite()) {
-      thrust::copy(begin, end, data_h_.begin());
->>>>>>> Added read-only state for HostDeviceVector sync.
     } else {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
         shard.ScatterFrom(begin.get());
@@ -440,15 +444,19 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
   return impl_->DeviceSpan(device);
 }
 
+template <typename T>
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(int device) const {
+  return impl_->ConstDeviceSpan(device);
+}
+
+template <typename T>
 const T* HostDeviceVector<T>::ConstDevicePointer(int device) const {
   return impl_->ConstDevicePointer(device);
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::DeviceStart(int device) { return impl_->DeviceStart(device); }
-
-const T* HostDeviceVector<T>::DevicePointer(int device) const {
-  return impl_->DevicePointer(device);
+size_t HostDeviceVector<T>::DeviceStart(int device) const {
+  return impl_->DeviceStart(device);
 }
 
 template <typename T>
@@ -544,16 +552,8 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-<<<<<<< HEAD
-<<<<<<< HEAD
-template class HostDeviceVector<unsigned int>;
 template class HostDeviceVector<int>;
-=======
 template class HostDeviceVector<uint32_t>;
->>>>>>> Fixed linter and test errors.
-=======
-template class HostDeviceVector<int>;
->>>>>>> Fixed explicit template instantiation errors for HostDeviceVector.
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<size_t>;
 

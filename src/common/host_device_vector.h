@@ -194,6 +194,8 @@ class HostDeviceVector {
   GPUSet Devices() const;
   const GPUDistribution& Distribution() const;
   common::Span<T> DeviceSpan(int device);
+  common::Span<const T> ConstDeviceSpan(int device) const;
+  common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
   T* DevicePointer(int device);
   const T* ConstDevicePointer(int device) const;
   const T* DevicePointer(int device) const { return ConstDevicePointer(device); }

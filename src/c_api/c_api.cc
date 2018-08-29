@@ -338,10 +338,10 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
     CHECK_LE(mat.info.num_row_, num_row);
     // provision for empty rows at the bottom of matrix
     for (uint64_t i = mat.info.num_row_; i < static_cast<uint64_t>(num_row); ++i) {
-      mat.page_.offset.push_back(mat.page_.offset.back());
+      offset_vec.push_back(offset_vec.back());
     }
     mat.info.num_row_ = num_row;
-    CHECK_EQ(mat.info.num_row_, mat.page_.offset.size() - 1);  // sanity check
+    CHECK_EQ(mat.info.num_row_, offset_vec.size() - 1);  // sanity check
   }
   mat.info.num_col_ = ncol;
   mat.info.num_nonzero_ = nelem;
@@ -707,9 +707,9 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     const int ridx = idxset[i];
     auto inst = batch[ridx];
     CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.Size());
-    ret.page_.data.insert(ret.page_.data.end(), inst.data(),
+    data_vec.insert(data_vec.end(), inst.data(),
                           inst.data() + inst.size());
-    ret.page_.offset.push_back(ret.page_.offset.back() + inst.size());
+    offset_vec.push_back(offset_vec.back() + inst.size());
     ret.info.num_nonzero_ += inst.size();
 
     if (src_labels.size() != 0) {

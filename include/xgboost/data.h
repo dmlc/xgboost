@@ -236,30 +236,19 @@ class SparsePage {
    *  \param inst an instance row
    */
   inline void Push(const Inst &inst) {
-<<<<<<< HEAD
-    offset.push_back(offset.back() + inst.size());
-    size_t begin = data.size();
-    data.resize(begin + inst.size());
-    if (inst.size() != 0) {
-      std::memcpy(dmlc::BeginPtr(data) + begin, inst.data(),
-                  sizeof(Entry) * inst.size());
-=======
     auto& data_vec = data.HostVector();
     auto& offset_vec = offset.HostVector();
-    offset_vec.push_back(offset_vec.back() + inst.length);
+    offset_vec.push_back(offset_vec.back() + inst.size());
     size_t begin = data.Size();
-    data_vec.resize(begin + inst.length);
-    if (inst.length != 0) {
-      std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data,
-                  sizeof(Entry) * inst.length);
->>>>>>> Replaced std::vector with HostDeviceVector in MetaInfo and SparsePage.
+    data_vec.resize(begin + inst.size());
+    if (inst.size() != 0) {
+      std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data(),
+                  sizeof(Entry) * inst.size());
     }
   }
 
   size_t Size() { return offset.Size() - 1; }
 };
-
-
 
 /*!
  * \brief This is data structure that user can pass to DMatrix::Create

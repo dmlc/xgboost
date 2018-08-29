@@ -387,11 +387,7 @@ struct DeviceShard {
 
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    thrust::device_vector<float> cuts_d(hmat.cut);
-    thrust::device_vector<size_t> cut_row_ptrs_d(hmat.row_ptr);
-
     auto& offset_vec = row_batch.offset.HostVector();
-    auto& data_vec = row_batch.data.HostVector();
     // find the maximum row size
     thrust::device_vector<size_t> row_ptr_d(
         &offset_vec[row_begin_idx], &offset_vec[row_end_idx + 1]);
@@ -436,6 +432,9 @@ struct DeviceShard {
     size_t gpu_batch_nrows = std::min
       (dh::TotalMemory(device_idx) / (16 * row_stride * sizeof(Entry)),
        static_cast<size_t>(n_rows));
+
+    const auto& offset_vec = row_batch.offset.HostVector();
+    const auto& data_vec = row_batch.data.HostVector();
 
     thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
 

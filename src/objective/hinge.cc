@@ -38,7 +38,7 @@ class HingeObj : public ObjFunction {
     auto& gpair = out_gpair->HostVector();
 
     for (size_t i = 0; i < preds_h.size(); ++i) {
-      auto y = info.labels_[i] * 2.0 - 1.0;
+      auto y = labels_h[i] * 2.0 - 1.0;
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
       bst_float g, h;

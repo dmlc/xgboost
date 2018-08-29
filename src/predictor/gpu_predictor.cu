@@ -76,8 +76,8 @@ struct DeviceMatrix {
         auto end_itr = begin_itr + batch.Size() + 1;
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
-      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, batch.data.data(),
-                               sizeof(Entry) * batch.data.size(),
+      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, data_vec.data(),
+                               sizeof(Entry) * data_vec.size(),
                                cudaMemcpyHostToDevice));
       // Copy data
       data_offset += batch.data.Size();

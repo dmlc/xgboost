@@ -52,7 +52,7 @@ void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
 void PlusOne(HostDeviceVector<int> *v) {
   int n_devices = v->Devices().Size();
   for (int i = 0; i < n_devices; ++i) {
-    dh::safe_cuda(cudaSetDevice(i % dh::NVisibleDevices()));
+    dh::safe_cuda(cudaSetDevice(i));
     thrust::transform(v->tbegin(i), v->tend(i), v->tbegin(i),
                       [=]__device__(unsigned int a){ return a + 1; });
   }
@@ -66,7 +66,7 @@ void CheckDevice(HostDeviceVector<int> *v,
   ASSERT_EQ(v->Devices().Size(), n_devices);
   for (int i = 0; i < n_devices; ++i) {
     ASSERT_EQ(v->DeviceSize(i), sizes.at(i));
-    dh::safe_cuda(cudaSetDevice(i % dh::NVisibleDevices()));
+    dh::safe_cuda(cudaSetDevice(i));
     ASSERT_TRUE(thrust::equal(v->tcbegin(i), v->tcend(i),
                               thrust::make_counting_iterator(first + starts[i])));
     ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));
@@ -76,7 +76,7 @@ void CheckDevice(HostDeviceVector<int> *v,
   ASSERT_EQ(v->HostCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
   for (int i = 0; i < n_devices; ++i) {
-    dh::safe_cuda(cudaSetDevice(i % dh::NVisibleDevices()));
+    dh::safe_cuda(cudaSetDevice(i));
     ASSERT_TRUE(thrust::equal(v->tbegin(i), v->tend(i),
                               thrust::make_counting_iterator(first + starts[i])));
     ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));

@@ -120,14 +120,14 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
+      dh::safe_cuda(cudaSetDevice(d));
       const int block = 256;
       size_t n = preds.DeviceSize(d);
       if (n > 0) {
         get_gradient_k<Loss><<<dh::DivRoundUp(n, block), block>>>(
             out_gpair->DeviceSpan(d), label_correct_.DeviceSpan(d),
-            preds->DeviceSpan(d), labels_.DeviceSpan(d),
-            info.weights_.Size() > 0 ? weights_.DevicePointer(d) : nullptr, n,
+            preds.ConstDeviceSpan(d), info.labels_.ConstDeviceSpan(d),
+            info.weights_.Size() > 0 ? info.weights_.DevicePointer(d) : nullptr, n,
             param_.scale_pos_weight);
         dh::safe_cuda(cudaGetLastError());
       }
@@ -157,17 +157,12 @@ class GPURegLossObj : public ObjFunction {
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int i = 0; i < devices_.Size(); ++i) {
       int d = devices_[i];
-      dh::safe_cuda(cudaSetDevice(d % dh::NVisibleDevices()));
+      dh::safe_cuda(cudaSetDevice(d));
       const int block = 256;
       size_t n = preds->DeviceSize(d);
       if (n > 0) {
-<<<<<<< HEAD
         pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>(
             preds->DeviceSpan(d), n);
-=======
-        pred_transform_k<Loss><<<dh::DivRoundUp(n, block), block>>>
-          (preds->DevicePointer(d), n);
->>>>>>> Replaced std::vector with HostDeviceVector in MetaInfo and SparsePage.
         dh::safe_cuda(cudaGetLastError());
       }
       dh::safe_cuda(cudaDeviceSynchronize());
