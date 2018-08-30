@@ -18,7 +18,7 @@ def loadfmap( fname ):
             if it.strip() == '':
                 continue
             k , v = it.split('=')
-            fmap[ idx ][ v ] = len(nmap) + 1
+            fmap[ idx ][ v ] = len(nmap)
             nmap[ len(nmap) ] = ftype+'='+k
     return fmap, nmap
 
