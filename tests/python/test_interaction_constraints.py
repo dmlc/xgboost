@@ -6,14 +6,16 @@ import unittest
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
+
 class TestInteractionConstraints(unittest.TestCase):
 
     def test_interaction_constraints(self):
         x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x2 = np.random.normal(loc=1.0, scale=1.0, size=1000)
-        x3 = np.random.choice([1,2,3], size=1000, replace=True)
-        y = x1 + x2 + x3 + x1*x2*x3 + np.random.normal(loc=0.001, scale=1.0, size=1000) + 3 * np.sin(x1)
-        X = np.column_stack((x1,x2,x3))
+        x3 = np.random.choice([1, 2, 3], size=1000, replace=True)
+        y = x1 + x2 + x3 + x1 * x2 * x3 \
+            + np.random.normal(loc=0.001, scale=1.0, size=1000) + 3 * np.sin(x1)
+        X = np.column_stack((x1, x2, x3))
         dtrain = xgboost.DMatrix(X, label=y)
 
         params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'silent': 1,
@@ -22,7 +24,7 @@ class TestInteractionConstraints(unittest.TestCase):
         bst = xgboost.train(params, dtrain, num_boost_round, evals=[(dtrain, 'train')])
 
         def f(x):
-            tmat = xgboost.DMatrix(np.column_stack((x1,x2,np.repeat(x, 1000))))
+            tmat = xgboost.DMatrix(np.column_stack((x1, x2, np.repeat(x, 1000))))
             return bst.predict(tmat)
         preds = [f(x) for x in [1, 2, 3]]
 

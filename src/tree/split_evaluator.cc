@@ -447,12 +447,12 @@ class InteractionConstraint final : public SplitEvaluator {
     }
 
     // Loop across specified interactions in constraints
-    for (size_t i = 0; i < interaction_constraints_.size(); i++) {
+    for (const auto& constraint : interaction_constraints_) {
       bst_uint flag = 1;  // flags whether the specified interaction is still relevant
 
       // Test relevance of specified interaction by checking all previous features are included
       for (bst_uint checkvar : feature_splits) {
-        if (interaction_constraints_[i].count(checkvar) == 0) {
+        if (constraint.count(checkvar) == 0) {
           flag = 0;
           break;  // interaction is not relevant due to unmet constraint
         }
@@ -460,7 +460,7 @@ class InteractionConstraint final : public SplitEvaluator {
 
       // If interaction is still relevant, permit all other features in the interaction
       if (flag == 1) {
-        for (bst_uint k : interaction_constraints_[i]) {
+        for (bst_uint k : constraint) {
           int_cont_[leftid].insert(k);
           int_cont_[rightid].insert(k);
         }
