@@ -339,7 +339,7 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None):
+    def predict(self, data, output_margin=False, ntree_limit=None, validate_features=True):
         """
         Predict with `data`.
 
@@ -369,6 +369,9 @@ class XGBModel(XGBModelBase):
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+        validate_features : bool
+            When this is True, validate that the Booster's and data's feature_names are identical.
+            Otherwise, it is assumed that the feature_names are the same.
         Returns
         -------
         prediction : numpy array
@@ -381,7 +384,8 @@ class XGBModel(XGBModelBase):
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
-                                          ntree_limit=ntree_limit)
+                                          ntree_limit=ntree_limit,
+                                          validate_features=validate_features)
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -604,7 +608,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None):
+    def predict(self, data, output_margin=False, ntree_limit=None, validate_features=True):
         """
         Predict with `data`.
 
@@ -634,6 +638,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+        validate_features : bool
+            When this is True, validate that the Booster's and data's feature_names are identical.
+            Otherwise, it is assumed that the feature_names are the same.
         Returns
         -------
         prediction : numpy array
@@ -643,7 +650,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
-                                                 ntree_limit=ntree_limit)
+                                                 ntree_limit=ntree_limit,
+                                                 validate_features=validate_features)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -651,7 +659,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, ntree_limit=None):
+    def predict_proba(self, data, ntree_limit=None, validate_features=True):
         """
         Predict the probability of each `data` example being of a given class.
 
@@ -668,6 +676,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+        validate_features : bool
+            When this is True, validate that the Booster's and data's feature_names are identical.
+            Otherwise, it is assumed that the feature_names are the same.
 
         Returns
         -------
@@ -678,7 +689,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
-                                                 ntree_limit=ntree_limit)
+                                                 ntree_limit=ntree_limit,
+                                                 validate_features=validate_features)
         if self.objective == "multi:softprob":
             return class_probs
         else:
@@ -964,7 +976,7 @@ class XGBRanker(XGBModel):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, output_margin=False, ntree_limit=0, validate_features=True):
 
         test_dmatrix = DMatrix(data, missing=self.missing)
         if ntree_limit is None:
@@ -972,6 +984,7 @@ class XGBRanker(XGBModel):
 
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
-                                          ntree_limit=ntree_limit)
+                                          ntree_limit=ntree_limit,
+                                          validate_features=validate_features)
 
     predict.__doc__ = XGBModel.predict.__doc__
