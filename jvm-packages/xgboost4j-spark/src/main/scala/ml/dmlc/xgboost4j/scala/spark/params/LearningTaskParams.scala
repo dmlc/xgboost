@@ -38,8 +38,8 @@ private[spark] trait LearningTaskParams extends Params {
    * Corresponding type will be assigned if custom objective is defined
    * options: regression, classification. default: null
    */
-  final val obj_type = new Param[String](this, "obj_type", "objective type for training," +
-    s" options: {${LearningTaskParams.supportedObjectiveType.mkString(",")}",
+  final val obj_type = new Param[String](this, "obj_type", "objective type used for " +
+    s"training, options: {${LearningTaskParams.supportedObjectiveType.mkString(",")}",
     (value: String) => LearningTaskParams.supportedObjectiveType.contains(value))
 
   final def getObjectiveType: String = $(obj_type)

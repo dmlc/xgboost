@@ -140,7 +140,8 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   }
 
   test("XGBoost and Spark parameters synchronize correctly") {
-    val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic", "obj_type" -> "classification")
+    val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic",
+      "obj_type" -> "classification")
     // from xgboost params to spark params
     val xgb = new XGBoostClassifier(xgbParamMap)
     assert(xgb.getEta === 1.0)
