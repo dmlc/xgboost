@@ -291,7 +291,7 @@ def test_sklearn_api_gblinear():
     preds = classifier.predict(te_d)
     labels = te_l
     err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
-    assert err < 0.2
+    assert err < 0.5
 
 
 def test_sklearn_plotting():
