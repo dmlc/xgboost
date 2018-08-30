@@ -129,10 +129,12 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     while (src->Next()) {
       const dmlc::RowBlock<uint32_t>& batch = src->Value();
       if (batch.label != nullptr) {
-        info.labels_.insert(info.labels_.end(), batch.label, batch.label + batch.size);
+        auto& labels = info.labels_.HostVector();
+        labels.insert(labels.end(), batch.label, batch.label + batch.size);
       }
       if (batch.weight != nullptr) {
-        info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
+        auto& weights = info.weights_.HostVector();
+        weights.insert(weights.end(), batch.weight, batch.weight + batch.size);
       }
       if (batch.qid != nullptr) {
         info.qids_.insert(info.qids_.end(), batch.qid, batch.qid + batch.size);
@@ -175,7 +177,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
       }
     }
 
-    if (page->data.size() != 0) {
+    if (page->data.Size() != 0) {
       writer.PushWrite(std::move(page));
     }
 
@@ -224,7 +226,7 @@ void SparsePageSource::Create(DMatrix* src,
                      << (bytes_write >> 20UL) << " written";
       }
     }
-    if (page->data.size() != 0) {
+    if (page->data.Size() != 0) {
       writer.PushWrite(std::move(page));
     }
 

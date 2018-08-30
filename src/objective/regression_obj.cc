@@ -38,16 +38,18 @@ class RegLossObj : public ObjFunction {
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(HostDeviceVector<bst_float> *preds, const MetaInfo &info,
+  void GetGradient(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
                    int iter, HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size())
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "labels are not correctly provided"
-        << "preds.size=" << preds->Size()
-        << ", label.size=" << info.labels_.size();
-    auto& preds_h = preds->HostVector();
+        << "preds.size=" << preds.Size()
+        << ", label.size=" << info.labels_.Size();
+    const auto& preds_h = preds.HostVector();
+    const auto& labels = info.labels_.HostVector();
+    const auto& weights = info.weights_.HostVector();
 
-    this->LazyCheckLabels(info.labels_);
+    this->LazyCheckLabels(labels);
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
     const auto n = static_cast<omp_ulong>(preds_h.size());
@@ -57,10 +59,10 @@ class RegLossObj : public ObjFunction {
     const omp_ulong remainder = n % 8;
 #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < n - remainder; i += 8) {
-      avx::Float8 y(&info.labels_[i]);
+      avx::Float8 y(&labels[i]);
       avx::Float8 p = Loss::PredTransform(avx::Float8(&preds_h[i]));
-      avx::Float8 w = info.weights_.empty() ? avx::Float8(1.0f)
-                                           : avx::Float8(&info.weights_[i]);
+      avx::Float8 w = weights.empty() ? avx::Float8(1.0f)
+        : avx::Float8(&weights[i]);
       // Adjust weight
       w += y * (scale * w - w);
       avx::Float8 grad = Loss::FirstOrderGradient(p, y);
@@ -68,7 +70,7 @@ class RegLossObj : public ObjFunction {
       avx::StoreGpair(gpair_ptr + i, grad * w, hess * w);
     }
     for (omp_ulong i = n - remainder; i < n; ++i) {
-      auto y = info.labels_[i];
+      auto y = labels[i];
       bst_float p = Loss::PredTransform(preds_h[i]);
       bst_float w = info.GetWeight(i);
       w += y * ((param_.scale_pos_weight * w) - w);
@@ -140,15 +142,16 @@ class PoissonRegression : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
-    out_gpair->Resize(preds->Size());
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
+    out_gpair->Resize(preds.Size());
     auto& gpair = out_gpair->HostVector();
+    const auto& labels = info.labels_.HostVector();
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
@@ -157,7 +160,7 @@ class PoissonRegression : public ObjFunction {
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
-      bst_float y = info.labels_[i];
+      bst_float y = labels[i];
       if (y >= 0.0f) {
         gpair[i] = GradientPair((std::exp(p) - y) * w,
                              std::exp(p + param_.max_delta_step) * w);
@@ -201,13 +204,13 @@ class CoxRegression : public ObjFunction {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {}
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
     const std::vector<size_t> &label_order = info.LabelAbsSort();
@@ -221,6 +224,7 @@ class CoxRegression : public ObjFunction {
     }
 
     // start calculating grad and hess
+    const auto& labels = info.labels_.HostVector();
     double r_k = 0;
     double s_k = 0;
     double last_exp_p = 0.0;
@@ -231,7 +235,7 @@ class CoxRegression : public ObjFunction {
       const double p = preds_h[ind];
       const double exp_p = std::exp(p);
       const double w = info.GetWeight(ind);
-      const double y = info.labels_[ind];
+      const double y = labels[ind];
       const double abs_y = std::abs(y);
 
       // only update the denominator after we move forward in time (labels are sorted)
@@ -289,15 +293,16 @@ class GammaRegression : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
+    const auto& labels = info.labels_.HostVector();
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
@@ -306,7 +311,7 @@ class GammaRegression : public ObjFunction {
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
-      bst_float y = info.labels_[i];
+      bst_float y = labels[i];
       if (y >= 0.0f) {
         gpair[i] = GradientPair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
       } else {
@@ -356,24 +361,25 @@ class TweedieRegression : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size()) << "labels are not correctly provided";
-    auto& preds_h = preds->HostVector();
-    out_gpair->Resize(preds->Size());
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
+    const auto& preds_h = preds.HostVector();
+    out_gpair->Resize(preds.Size());
     auto& gpair = out_gpair->HostVector();
+    const auto& labels = info.labels_.HostVector();
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
-    const omp_ulong ndata = static_cast<omp_ulong>(preds->Size()); // NOLINT(*)
+    const omp_ulong ndata = static_cast<omp_ulong>(preds.Size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds_h[i];
       bst_float w = info.GetWeight(i);
-      bst_float y = info.labels_[i];
+      bst_float y = labels[i];
       float rho = param_.tweedie_variance_power;
       if (y >= 0.0f) {
         bst_float grad = -y * std::exp((1 - rho) * p) + std::exp((2 - rho) * p);

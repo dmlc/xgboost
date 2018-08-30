@@ -13,7 +13,7 @@ TEST(SimpleDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_row_, 2);
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
-  EXPECT_EQ(dmat->Info().labels_.size(), dmat->Info().num_row_);
+  EXPECT_EQ(dmat->Info().labels_.Size(), dmat->Info().num_row_);
 
   delete dmat;
 }
