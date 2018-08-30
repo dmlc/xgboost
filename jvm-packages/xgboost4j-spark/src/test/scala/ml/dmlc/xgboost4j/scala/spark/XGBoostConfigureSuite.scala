@@ -47,4 +47,33 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     val eval = new EvalError()
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
+
+  /*
+  test("Check for Spark encryption over-the-wire") {
+    val originalSslConfOpt = ss.conf.getOption("spark.ssl.enabled")
+    ss.conf.set("spark.ssl.enabled", true)
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 2, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+
+    withClue("xgboost-spark should throw an exception when spark.ssl.enabled = true but " +
+      "spark.xgboost.ignoreSsl != true") {
+      intercept[RuntimeException] {
+        new XGBoostClassifier(paramMap).fit(training)
+      }
+    }
+
+    ss.conf.set("spark.xgboost.ignoreSsl", true)
+    new XGBoostClassifier(paramMap).fit(training)
+
+    originalSslConfOpt match {
+      case None =>
+        ss.conf.unset("spark.ssl.enabled")
+      case Some(originalSslConf) =>
+        ss.conf.set("spark.ssl.enabled", originalSslConf)
+    }
+    ss.conf.unset("spark.xgboost.ignoreSsl")
+  }
+  */
 }
