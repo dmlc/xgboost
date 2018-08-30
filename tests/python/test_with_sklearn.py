@@ -53,9 +53,13 @@ def test_multiclass_classification():
     except:
         from sklearn.model_selection import KFold
 
-    def check_pred(preds, labels):
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+    def check_pred(preds, labels, output_margin):
+        if output_margin:
+            err = sum(1 for i in range(len(preds))
+                      if preds[i].argmax() != labels[i]) / float(len(preds))
+        else:
+            err = sum(1 for i in range(len(preds))
+                      if preds[i] != labels[i]) / float(len(preds))
         assert err < 0.4
 
     iris = load_iris()
@@ -71,10 +75,10 @@ def test_multiclass_classification():
         preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
 
-        check_pred(preds, labels)
-        check_pred(preds2, labels)
-        check_pred(preds3, labels)
-        check_pred(preds4, labels)
+        check_pred(preds, labels, output_margin=False)
+        check_pred(preds2, labels, output_margin=True)
+        check_pred(preds3, labels, output_margin=True)
+        check_pred(preds4, labels, output_margin=False)
 
 
 def test_ranking():
