@@ -195,8 +195,8 @@ class GBTree : public GradientBooster {
           << "must have exactly ngroup*nrow gpairs";
       // TODO(canonizer): perform this on GPU if HostDeviceVector has device set.
       HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
-                                      GradientPair(), in_gpair->Devices());
-      std::vector<GradientPair>& gpair_h = in_gpair->HostVector();
+                                      GradientPair(), in_gpair->Distribution());
+      const auto& gpair_h = in_gpair->ConstHostVector();
       auto nsize = static_cast<bst_omp_uint>(tmp.Size());
       for (int gid = 0; gid < ngroup; ++gid) {
         std::vector<GradientPair>& tmp_h = tmp.HostVector();
@@ -402,7 +402,8 @@ class Dart : public GBTree {
 
     if (init_out_preds) {
       size_t n = num_group * p_fmat->Info().num_row_;
-      const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_;
+      const auto& base_margin =
+        p_fmat->Info().base_margin_.ConstHostVector();
       out_preds->resize(n);
       if (base_margin.size() != 0) {
         CHECK_EQ(out_preds->size(), n);

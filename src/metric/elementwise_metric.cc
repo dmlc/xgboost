@@ -24,16 +24,18 @@ struct EvalEWiseBase : public Metric {
   bst_float Eval(const std::vector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) const override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels_.size())
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    const auto ndata = static_cast<omp_ulong>(info.labels_.size());
+    const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
     double sum = 0.0, wsum = 0.0;
+    const auto& labels = info.labels_.HostVector();
+    const auto& weights = info.weights_.HostVector();
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
-      const bst_float wt = info.GetWeight(i);
-      sum += static_cast<const Derived*>(this)->EvalRow(info.labels_[i], preds[i]) * wt;
+      const bst_float wt = weights.size() > 0 ? weights[i] : 1.0f;
+      sum += static_cast<const Derived*>(this)->EvalRow(labels[i], preds[i]) * wt;
       wsum += wt;
     }
     double dat[2]; dat[0] = sum, dat[1] = wsum;

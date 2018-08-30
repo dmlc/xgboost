@@ -259,7 +259,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     monitor.Start("UpdateGpair");
     // Update gpair
     dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
-      shard->UpdateGpair(in_gpair->HostVector(), model->param);
+      shard->UpdateGpair(in_gpair->ConstHostVector(), model->param);
     });
     monitor.Stop("UpdateGpair");
 
@@ -267,7 +267,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     this->UpdateBias(p_fmat, model);
     monitor.Stop("UpdateBias");
     // prepare for updating the weights
-    selector->Setup(*model, in_gpair->HostVector(), p_fmat,
+    selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                     param.reg_alpha_denorm, param.reg_lambda_denorm,
                     param.top_k);
     monitor.Start("UpdateFeature");
@@ -275,7 +275,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
          ++group_idx) {
       for (auto i = 0U; i < model->param.num_feature; i++) {
         auto fidx = selector->NextFeature(
-            i, *model, group_idx, in_gpair->HostVector(), p_fmat,
+            i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
             param.reg_alpha_denorm, param.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), model);

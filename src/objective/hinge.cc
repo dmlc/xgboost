@@ -21,24 +21,26 @@ class HingeObj : public ObjFunction {
     // This objective does not take any parameters
   }
 
-  void GetGradient(HostDeviceVector<bst_float> *preds,
+  void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair> *out_gpair) override {
-    CHECK_NE(info.labels_.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds->Size(), info.labels_.size())
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "labels are not correctly provided"
-        << "preds.size=" << preds->Size()
-        << ", label.size=" << info.labels_.size();
-    auto& preds_h = preds->HostVector();
+        << "preds.size=" << preds.Size()
+        << ", label.size=" << info.labels_.Size();
+    const auto& preds_h = preds.HostVector();
+    const auto& labels_h = info.labels_.HostVector();
+    const auto& weights_h = info.weights_.HostVector();
 
     out_gpair->Resize(preds_h.size());
     auto& gpair = out_gpair->HostVector();
 
     for (size_t i = 0; i < preds_h.size(); ++i) {
-      auto y = info.labels_[i] * 2.0 - 1.0;
+      auto y = labels_h[i] * 2.0 - 1.0;
       bst_float p = preds_h[i];
-      bst_float w = info.GetWeight(i);
+      bst_float w = weights_h.size() > 0 ? weights_h[i] : 1.0f;
       bst_float g, h;
       if (p * y < 1.0) {
         g = -y * w;
