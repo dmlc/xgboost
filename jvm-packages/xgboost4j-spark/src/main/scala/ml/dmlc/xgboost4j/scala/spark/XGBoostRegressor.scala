@@ -160,7 +160,7 @@ class XGBoostRegressor (
       set(evalMetric, setupDefaultEvalMetric())
     }
 
-    if (isDefined(customObj) && $(customObj).nonEmpty) {
+    if (isDefined(customObj) && $(customObj) != null) {
       set(obj_type, "regression")
     }
 
