@@ -155,6 +155,29 @@ TEST(HostDeviceVector, TestExplicit) {
   TestHostDeviceVector(n, distribution, starts, sizes);
 }
 
+TEST(HostDeviceVector, TestCopy) {
+  size_t n = 1001;
+  int n_devices = 2;
+  auto distribution = GPUDistribution::Block(GPUSet::Range(0, n_devices));
+  std::vector<size_t> starts{0, 501};
+  std::vector<size_t> sizes{501, 500};
+  SetCudaSetDeviceHandler(SetDevice);
+  
+  HostDeviceVector<int> v;
+  {
+    // a separate scope to ensure that v1 is gone before further checks
+    HostDeviceVector<int> v1;
+    InitHostDeviceVector(n, distribution, &v1);
+    v = v1;
+  }
+  CheckDevice(&v, starts, sizes, 0, GPUAccess::kRead);
+  PlusOne(&v);
+  CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
+  CheckHost(&v, GPUAccess::kRead);
+  CheckHost(&v, GPUAccess::kWrite);
+  SetCudaSetDeviceHandler(nullptr);
+}
+
 TEST(HostDeviceVector, Span) {
   HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
   vec.Reshard(GPUSet{0, 1});
