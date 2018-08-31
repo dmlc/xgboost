@@ -652,6 +652,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit,
                                                  validate_features=validate_features)
+        if output_margin:
+            # If output_margin is active, simply return the scores
+            return class_probs
+
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
