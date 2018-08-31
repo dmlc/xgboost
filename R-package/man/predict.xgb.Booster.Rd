@@ -7,7 +7,8 @@
 \usage{
 \method{predict}{xgb.Booster}(object, newdata, missing = NA,
   outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  predcontrib = FALSE, approxcontrib = FALSE, reshape = FALSE, ...)
+  predcontrib = FALSE, approxcontrib = FALSE,
+  predinteraction = FALSE, reshape = FALSE, ...)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }
@@ -26,14 +27,17 @@ logistic regression would result in predictions for log-odds instead of probabil
 \item{ntreelimit}{limit the number of model's trees or boosting iterations used in prediction (see Details).
 It will use all the trees by default (\code{NULL} value).}
 
-\item{predleaf}{whether predict leaf index instead.}
+\item{predleaf}{whether predict leaf index.}
 
-\item{predcontrib}{whether to return feature contributions to individual predictions instead (see Details).}
+\item{predcontrib}{whether to return feature contributions to individual predictions (see Details).}
 
 \item{approxcontrib}{whether to use a fast approximation for feature contributions (see Details).}
 
+\item{predinteraction}{whether to return contributions of feature interactions to individual predictions (see Details).}
+
 \item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several
-prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.}
+prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
+or predinteraction flags is TRUE.}
 
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }
@@ -51,6 +55,14 @@ When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is
 For a multiclass case, a list of \code{num_class} elements is returned, where each element is
 such a matrix. The contribution values are on the scale of untransformed margin
 (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
+
+When \code{predinteraction = TRUE} and it is not a multiclass setting, the output is a 3d array with
+dimensions \code{c(nrow, num_features + 1, num_features + 1)}. The off-diagonal (in the last two dimensions)
+elements represent different features interaction contributions. The array is symmetric WRT the last
+two dimensions. The "+ 1" columns corresponds to bias. Summing this array along the last dimension should
+produce practically the same result as predict with \code{predcontrib = TRUE}.
+For a multiclass case, a list of \code{num_class} elements is returned, where each element is
+such an array.
 }
 \description{
 Predicted values based on either xgboost model or model handle object.
@@ -76,6 +88,11 @@ values (Lundberg 2017) that sum to the difference between the expected output
 of the model and the current prediction (where the hessian weights are used to compute the expectations).
 Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
 in \url{http://blog.datadive.net/interpreting-random-forests/}.
+
+With \code{predinteraction = TRUE}, SHAP values of contributions of interaction of each pair of features
+are computed. Note that this operation might be rather expensive in terms of compute and memory.
+Since it quadratically depends on the number of features, it is recommended to perfom selection
+of the most important features first. See below about the format of the returned results.
 }
 \examples{
 ## binary classification:
