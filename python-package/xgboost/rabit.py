@@ -5,10 +5,15 @@
 from __future__ import absolute_import
 import sys
 import ctypes
+import threading
+import warnings
 import numpy as np
 
 from .core import _LIB, c_str, STRING_TYPES
 from .compat import pickle
+
+_local = threading.local()
+_local.initialized = False
 
 
 def _init_rabit():
@@ -22,10 +27,17 @@ def _init_rabit():
 
 def init(args=None):
     """Initialize the rabit library with arguments"""
+    if getattr(_local, 'initialized', False):
+        warnings.warn(
+            "rabit has already been initialized on thread {}.".format(
+                threading.current_thread().ident)
+        )
+        return
     if args is None:
         args = []
     arr = (ctypes.c_char_p * len(args))()
     arr[:] = args
+    _local.initialized = True
     _LIB.RabitInit(len(arr), arr)
 
 
