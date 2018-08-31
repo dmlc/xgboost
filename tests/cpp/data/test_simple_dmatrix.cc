@@ -58,4 +58,5 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
         << "Expected batch size = number of cells as #batches is 1.";
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
+  delete dmat;
 }

@@ -21,7 +21,7 @@ class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
                              std::string cache_info)
-      : source_(std::move(source)), cache_info_(std::move(cache_info)) {}
+      : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
 
   MetaInfo& Info() override;
 
@@ -43,14 +43,14 @@ class SparsePageDMatrix : public DMatrix {
   /*! \brief Maximum number of rows per batch. */
   static const size_t kMaxRowPerBatch = 64UL << 10UL;
 
-  // source data pointer.
-  std::unique_ptr<DataSource> source_;
-  SparsePage tmp_column_batch_;
+  // source data pointers.
+  std::unique_ptr<DataSource> row_source_;
+  std::unique_ptr<SparsePageSource> column_source_;
+  std::unique_ptr<SparsePageSource> sorted_column_source_;
   // the cache prefix
   std::string cache_info_;
   // Store column densities to avoid recalculating
   std::vector<float> col_density_;
-  RowSet buffered_rowset_;
 };
 }  // namespace data
 }  // namespace xgboost
