@@ -316,8 +316,10 @@ struct InteractionConstraintParams
 
   DMLC_DECLARE_PARAMETER(InteractionConstraintParams) {
     DMLC_DECLARE_FIELD(interaction_constraints)
-        .set_default("NULL")
-        .describe("Constraints for interaction representing permitted interactions");
+        .set_default("")
+        .describe("Constraints for interaction representing permitted interactions."
+                  "The constraints must be specified in the form [[0, 1], [2, 3, 4]]"
+                  "See tutorial for more information");
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of total features used");
   }
@@ -345,26 +347,19 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   void Reset() override {
+    if (params_.interaction_constraints.empty()) {
+      return;  // short-circuit if no constraint is specified
+    }
+
     // Parse interaction constraints
-    {
-      if (params_.interaction_constraints == "NULL") {
-        // no constraint supplied: any feature can interact with any feature
-        interaction_constraints_.emplace_back();
-        interaction_constraints_[0].reserve(params_.num_feature);
-        for (bst_uint i = 0; i < params_.num_feature; ++i) {
-          interaction_constraints_[0].insert(i);
-        }
-      } else {
-        std::istringstream iss(params_.interaction_constraints);
-        dmlc::JSONReader reader(&iss);
-        // Read std::vector<std::vector<bst_uint>> first and then
-        //   convert to std::vector<std::unordered_set<bst_uint>>
-        std::vector<std::vector<bst_uint>> tmp;
-        reader.Read(&tmp);
-        for (const auto& e : tmp) {
-          interaction_constraints_.emplace_back(e.begin(), e.end());
-        }
-      }
+    std::istringstream iss(params_.interaction_constraints);
+    dmlc::JSONReader reader(&iss);
+    // Read std::vector<std::vector<bst_uint>> first and then
+    //   convert to std::vector<std::unordered_set<bst_uint>>
+    std::vector<std::vector<bst_uint>> tmp;
+    reader.Read(&tmp);
+    for (const auto& e : tmp) {
+      interaction_constraints_.emplace_back(e.begin(), e.end());
     }
 
     // Initialise interaction constraints record with all variables permitted for the first node
@@ -381,7 +376,7 @@ class InteractionConstraint final : public SplitEvaluator {
   }
 
   SplitEvaluator* GetHostClone() const override {
-    if (params_.interaction_constraints == "NULL") {
+    if (params_.interaction_constraints.empty()) {
       // No interaction constraints specified, just return a clone of inner
       return inner_->GetHostClone();
     } else {
@@ -400,9 +395,8 @@ class InteractionConstraint final : public SplitEvaluator {
                               bst_float left_weight,
                               bst_float right_weight) const override {
     // Return negative infinity score if feature is not permitted by interaction constraints
-    bst_float infinity = std::numeric_limits<bst_float>::infinity();
     if (!CheckInteractionConstraint(featureid, nodeid)) {
-      return -infinity;
+      return -std::numeric_limits<bst_float>::infinity();
     }
 
     // Otherwise, get score from inner evaluator
@@ -428,6 +422,10 @@ class InteractionConstraint final : public SplitEvaluator {
                 bst_float leftweight,
                 bst_float rightweight) override {
     inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
+
+    if (params_.interaction_constraints.empty()) {
+      return;  // short-circuit if no constraint is specified
+    }
     bst_uint newsize = std::max(leftid, rightid) + 1;
 
     // Record previous splits for child nodes
@@ -485,6 +483,9 @@ class InteractionConstraint final : public SplitEvaluator {
   // Check interaction constraints. Returns true if a given feature ID is
   //   permissible in a given node; returns false otherwise
   inline bool CheckInteractionConstraint(bst_uint featureid, bst_uint nodeid) const {
+    if (params_.interaction_constraints.empty()) {
+      return true;  // short-circuit if no constraint is specified
+    }
     return (int_cont_[nodeid].count(featureid) > 0);
   }
 };
