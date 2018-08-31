@@ -5,15 +5,17 @@
 \alias{xgboost}
 \title{eXtreme Gradient Boosting Training}
 \usage{
-xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
-  feval = NULL, verbose = 1, print_every_n = 1L,
+xgb.train(params = list(), data, nrounds, watchlist = list(),
+  obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
   early_stopping_rounds = NULL, maximize = NULL, save_period = NULL,
-  save_name = "xgboost.model", xgb_model = NULL, callbacks = list(), ...)
+  save_name = "xgboost.model", xgb_model = NULL, callbacks = list(),
+  ...)
 
 xgboost(data = NULL, label = NULL, missing = NA, weight = NULL,
   params = list(), nrounds, verbose = 1, print_every_n = 1L,
   early_stopping_rounds = NULL, maximize = NULL, save_period = NULL,
-  save_name = "xgboost.model", xgb_model = NULL, callbacks = list(), ...)
+  save_name = "xgboost.model", xgb_model = NULL, callbacks = list(),
+  ...)
 }
 \arguments{
 \item{params}{the list of parameters. 
