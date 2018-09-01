@@ -27,7 +27,7 @@ NVL <- function(x, val) {
 
 # Merges booster params with whatever is provided in ...
 # plus runs some checks
-check.booster.params <- function(params, column_names, ...) {
+check.booster.params <- function(params, ...) {
   if (typeof(params) != "list") 
     stop("params must be a list")
   
@@ -74,8 +74,9 @@ check.booster.params <- function(params, column_names, ...) {
         params[['monotone_constraints']] = vec2str
   }
   
-  # interaction constraints parser
-  if (!is.null(params[['interaction_constraints']])){
+  # interaction constraints parser (convert from list of column indices to string)
+  if (!is.null(params[['interaction_constraints']]) && 
+      typeof(params[['interaction_constraints']]) != "character"){
     # check input class
     if (class(params[['interaction_constraints']]) != 'list') stop('interaction_constraints should be class list')
     if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric','integer'))) {
