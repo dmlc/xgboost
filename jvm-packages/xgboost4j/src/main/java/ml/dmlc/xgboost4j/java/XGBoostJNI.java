@@ -77,6 +77,8 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixSetGroup(long handle, int[] group);
 
+  public final static native int XGDMatrixGetGroup(long handle, int[][] group);
+
   public final static native int XGDMatrixGetFloatInfo(long handle, String field, float[][] info);
 
   public final static native int XGDMatrixGetUIntInfo(long handle, String filed, int[][] info);
