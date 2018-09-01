@@ -203,6 +203,18 @@ public class DMatrix {
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetGroup(handle, group));
   }
 
+  /**
+   * Get group sizes of DMatrix (used for ranking)
+   *
+   * @return group info in the original format
+   * @throws XGBoostError native error
+   */
+  public int[] getGroup() throws XGBoostError {
+    int[][] groups = new int[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetGroup(handle, groups));
+    return groups[0];
+  }
+
   private float[] getFloatInfo(String field) throws XGBoostError {
     float[][] infos = new float[1][];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetFloatInfo(handle, field, infos));

@@ -368,6 +368,26 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetGroup
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetGroup
+ * Signature: (J[I)V
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetGroup
+  (JNIEnv * jenv, jclass jcls, jlong jhandle, jobjectArray jout) {
+  DMatrixHandle handle = (DMatrixHandle) jhandle;
+  const unsigned int* array;
+  bst_ulong len;
+  int ret = XGDMatrixGetGroup(handle, &array, &len);
+
+  jsize jlen = (jsize) len;
+  jintArray jarray = jenv->NewIntArray(jlen);
+  jenv->SetIntArrayRegion(jarray, 0, jlen, (jint *) array);
+  jenv->SetObjectArrayElement(jout, 0, (jobject) jarray);
+
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixGetFloatInfo
  * Signature: (JLjava/lang/String;)[F
  */

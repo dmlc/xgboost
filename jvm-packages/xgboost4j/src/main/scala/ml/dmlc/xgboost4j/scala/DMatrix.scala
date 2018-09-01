@@ -150,6 +150,16 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * Get group sizes of DMatrix (used for ranking)
+   *
+   * @return group
+   */
+  @throws(classOf[XGBoostError])
+  def getGroup(): Array[Int] = {
+    return jDMatrix.getGroup()
+  }
+
+  /**
    * get label values
    *
    * @return label
