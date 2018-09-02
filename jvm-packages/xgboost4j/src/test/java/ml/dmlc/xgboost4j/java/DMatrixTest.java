@@ -230,8 +230,6 @@ public class DMatrixTest {
     int nrow = 10;
     int ncol = 5;
     float[] data0 = new float[nrow * ncol];
-    //put random nums
-    Random random = new Random();
     for (int i = 0; i < nrow * ncol; i++) {
       data0[i] = 1.0f;
     }

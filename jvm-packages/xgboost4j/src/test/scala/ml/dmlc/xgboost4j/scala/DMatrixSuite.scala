@@ -167,4 +167,52 @@ class DMatrixSuite extends FunSuite {
     assert(dmat0.rowNum === 10)
     assert(dmat0.getLabel.length === 10)
   }
+
+    test("create DMatrix from DenseMatrix") {
+    val nrow = 10
+    val ncol = 5
+    val data0 = new Array[Float](nrow * ncol)
+    // put random nums
+    for (i <- data0.indices) {
+      data0(i) = Random.nextFloat()
+    }
+    // create label
+    val label0 = new Array[Float](nrow)
+    for (i <- label0.indices) {
+      label0(i) = Random.nextFloat()
+    }
+    val dmat0 = new DMatrix(data0, nrow, ncol)
+    dmat0.setLabel(label0)
+    // check
+    assert(dmat0.rowNum === 10)
+    assert(dmat0.getLabel.length === 10)
+    // set weights for each instance
+    val weights = new Array[Float](nrow)
+    for (i <- weights.indices) {
+      weights(i) = Random.nextFloat()
+    }
+    dmat0.setWeight(weights)
+    assert(weights === dmat0.getWeight)
+  }
+
+  test("set and get group information from DMatrix") {
+    val nrow = 10
+    val ncol = 5
+    val data0 = new Array[Float](nrow * ncol)
+    for (i <- data0.indices) {
+        data0(i) = 1.0f
+      }
+    }
+    // create groups
+    val group0 = new Array[Int](nrow)
+    for (i <- label0.indices) {
+      label0(i) = 1
+    }
+
+    val dmat0 = new DMatrix(data0, nrow, ncol, -0.1f)
+    dmat0.setGroup(label0)
+
+    // check
+    assert(dmat0.getGroup === group0)
+  }
 }
