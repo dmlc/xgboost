@@ -233,7 +233,7 @@ public class DMatrixTest {
     //put random nums
     Random random = new Random();
     for (int i = 0; i < nrow * ncol; i++) {
-      data0[i] = 1.0;
+      data0[i] = 1.0f;
     }
 
     //create groups
