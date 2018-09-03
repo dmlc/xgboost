@@ -169,7 +169,7 @@ parameter:
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
 
-**Choice of tree construction algorithm**. To use monotonic constraints, be
-sure to set the ``tree_method`` parameter to either ``exact`` or ``hist``.
-Currently, GPU algorithms (``gpu_hist``, ``gpu_exact``) do not support feature
-interaction constraints.
+**Choice of tree construction algorithm**. To use feature interaction
+constraints, be sure to set the ``tree_method`` parameter to either ``exact``
+or ``hist``. Currently, GPU algorithms (``gpu_hist``, ``gpu_exact``) do not
+support feature interaction constraints.
