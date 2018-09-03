@@ -51,9 +51,9 @@ is the product of interaction between :math:`x_1`, :math:`x_7`, and
     onerror="this.src='../_static/feature_interaction_illustration1.png'; this.onerror=null;">
   </p>
 
-It is often the case that, when many variables are allowed to interact on
-the sole basis of minimizing training loss, the resulting decision tree ends
-up capturing spurious relationship (noise) rather than legitimate relationship
+When the tree depth is larger than one, many variables interact on
+the sole basis of minimizing training loss, and the resulting decision tree may
+capture a spurious relationship (noise) rather than a legitimate relationship
 that generalizes across different datasets. **Feature interaction constraints**
 allow users to decide which variables are allowed to interact and which are not.
 
@@ -73,10 +73,12 @@ A Simple Example
 Feature interaction constraints are expressed in terms of groups of variables
 that are allowed to interact. For example, the constraint
 ``[0, 1]`` indicates that variables :math:`x_0` and :math:`x_1` are allowed to
-interact with each other but with no other variable. Similarly, ``[2, 3, 4]`` indicates
-that :math:`x_2`, :math:`x_3`, and :math:`x_4` are allowed to interact with
-one another but with no other variable. A set of feature interaction constraints is
-expressed as a nested list: ``[[0, 1], [2, 3, 4]]``.
+interact with each other but with no other variable. Similarly, ``[2, 3, 4]``
+indicates that :math:`x_2`, :math:`x_3`, and :math:`x_4` are allowed to
+interact with one another but with no other variable. A set of feature
+interaction constraints is expressed as a nested list, e.g.
+``[[0, 1], [2, 3, 4]]``, where each inner list is a group of indices of features
+that are allowed to interact with each other.
 
 In the following diagram, the left decision tree is in violation of the first
 constraint (``[0, 1]``), whereas the right decision tree complies with both the

@@ -318,7 +318,9 @@ struct InteractionConstraintParams
     DMLC_DECLARE_FIELD(interaction_constraints)
         .set_default("")
         .describe("Constraints for interaction representing permitted interactions."
-                  "The constraints must be specified in the form [[0, 1], [2, 3, 4]]"
+                  "The constraints must be specified in the form of a nest list,"
+                  "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
+                  "indices of features that are allowed to interact with each other."
                   "See tutorial for more information");
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of total features used");
@@ -483,10 +485,9 @@ class InteractionConstraint final : public SplitEvaluator {
   // Check interaction constraints. Returns true if a given feature ID is
   //   permissible in a given node; returns false otherwise
   inline bool CheckInteractionConstraint(bst_uint featureid, bst_uint nodeid) const {
-    if (params_.interaction_constraints.empty()) {
-      return true;  // short-circuit if no constraint is specified
-    }
-    return (int_cont_[nodeid].count(featureid) > 0);
+    // short-circuit if no constraint is specified
+    return (params_.interaction_constraints.empty()
+            || int_cont_[nodeid].count(featureid) > 0);
   }
 };
 
