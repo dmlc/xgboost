@@ -21,13 +21,19 @@ class TestInteractionConstraints(unittest.TestCase):
         params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'silent': 1,
                   'interaction_constraints': '[[0, 1]]'}
         num_boost_round = 100
+        # Fit a model that only allows interaction between x1 and x2
         bst = xgboost.train(params, dtrain, num_boost_round, evals=[(dtrain, 'train')])
 
+        # Set all observations to have the same x3 values then increment
+        #   by the same amount
         def f(x):
             tmat = xgboost.DMatrix(np.column_stack((x1, x2, np.repeat(x, 1000))))
             return bst.predict(tmat)
         preds = [f(x) for x in [1, 2, 3]]
 
+        # Check incrementing x3 has the same effect on all observations
+        #   since x3 is constrained to be independent of x1 and x2
+        #   and all observations start off from the same x3 value
         diff1 = preds[1] - preds[0]
         assert np.all(np.abs(diff1 - diff1[0]) < 1e-4)
         diff2 = preds[2] - preds[1]
