@@ -188,20 +188,17 @@ object XGBoost extends Serializable {
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
-    SparkSession.getActiveSession.conf.getOption("spark.ssl.enabled") match {
-      case Some(sslEnabledString) if sslEnabledString.toBoolean =>
-        SparkSession.getActiveSession.conf.getOption("spark.xgboost.ignoreSsl") match {
-          case Some(xgboostIgnoreSslString) if xgboostIgnoreSslString.toBoolean =>
-            this.logWarning(s"$uid: spark-xgboost is being run without encrypting data in " +
-              s"transit!  Spark Conf spark.ssl.enabled=true was overridden with " +
-              s"spark.xgboost.ignoreSsl=true.")
-          case _ =>
-            throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
-              "in transit, but xgboost-spark uses MPI to send non-encrypted data over the wire.  " +
-              "To override this protection and still use xgboost-spark at your own risk, " +
-              "you can set the SparkSession conf to use spark.xgboost.ignoreSsl=true.")
-        }
-      case _ =>  // ok
+    if (trainingData.context.getConf.getBoolean("spark.ssl.enabled", false)) {
+      if (trainingData.context.getConf.getBoolean("spark.xgboost.ignoreSsl", false)) {
+        this.logWarning(s"$uid: spark-xgboost is being run without encrypting data in " +
+          s"transit!  Spark Conf spark.ssl.enabled=true was overridden with " +
+          s"spark.xgboost.ignoreSsl=true.")
+      } else {
+        throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
+          "in transit, but xgboost-spark uses MPI to send non-encrypted data over the wire.  " +
+          "To override this protection and still use xgboost-spark at your own risk, " +
+          "you can set the SparkSession conf to use spark.xgboost.ignoreSsl=true.")
+      }
     }
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
