@@ -100,7 +100,6 @@ class TrackerConfParam(
   override def jsonDecode(json: String): TrackerConf = {
     implicit val formats = DefaultFormats
     val parsedValue = parse(json)
-    println(parsedValue.children)
     parsedValue.extract[TrackerConf]
   }
 }
