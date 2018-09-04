@@ -48,7 +48,6 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
-  /*
   test("Check for Spark encryption over-the-wire") {
     val originalSslConfOpt = ss.conf.getOption("spark.ssl.enabled")
     ss.conf.set("spark.ssl.enabled", true)
@@ -75,5 +74,4 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     }
     ss.conf.unset("spark.xgboost.ignoreSsl")
   }
-  */
 }
