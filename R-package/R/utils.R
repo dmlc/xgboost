@@ -74,6 +74,19 @@ check.booster.params <- function(params, ...) {
         params[['monotone_constraints']] = vec2str
   }
   
+  # interaction constraints parser (convert from list of column indices to string)
+  if (!is.null(params[['interaction_constraints']]) && 
+      typeof(params[['interaction_constraints']]) != "character"){
+    # check input class
+    if (class(params[['interaction_constraints']]) != 'list') stop('interaction_constraints should be class list')
+    if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric','integer'))) {
+      stop('interaction_constraints should be a list of numeric/integer vectors')
+    }
+
+    # recast parameter as string
+    interaction_constraints <- sapply(params[['interaction_constraints']], function(x) paste0('[', paste(x, collapse=','), ']'))
+    params[['interaction_constraints']] <- paste0('[', paste(interaction_constraints, collapse=','), ']')
+  }
   return(params)
 }
 
