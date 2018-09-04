@@ -82,7 +82,7 @@ Some other examples:
 - ``(1,0)``: An increasing constraint on the first predictor and no constraint on the second.
 - ``(0,-1)``: No constraint on the first predictor and a decreasing constraint on the second.
 
-**Choise of tree construction algorithm**. To use monotonic constraints, be
+**Choice of tree construction algorithm**. To use monotonic constraints, be
 sure to set the ``tree_method`` parameter to one of ``exact``, ``hist``, and
 ``gpu_hist``.
 

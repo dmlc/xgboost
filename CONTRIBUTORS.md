@@ -78,3 +78,5 @@ List of Contributors
 * [Pierre de Sahb](https://github.com/pdesahb)
 * [liuliang01](https://github.com/liuliang01)
   - liuliang01 added support for the qid column for LibSVM input format. This makes ranking task easier in distributed setting.
+* [Andrew Thia](https://github.com/BlueTea88)
+  - Andrew Thia implemented feature interaction constraints
