@@ -136,7 +136,7 @@ class ElasticNet final : public SplitEvaluator {
       const override {
     auto loss = weight * (2.0 * stats.sum_grad + stats.sum_hess * weight
         + params_.reg_lambda * weight)
-        + params_.reg_alpha * std::abs(weight);
+        + 2.0 * params_.reg_alpha * std::abs(weight);
     return -loss;
   }
 
@@ -144,8 +144,7 @@ class ElasticNet final : public SplitEvaluator {
     if (params_.max_delta_step == 0.0f) {
       return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
     } else {
-      bst_float w = ComputeWeight(parentID, stats);
-      return ComputeScore(parentID, stats, w);
+      return ComputeScore(parentID, stats, ComputeWeight(parentID, stats));
     }
   }
 
