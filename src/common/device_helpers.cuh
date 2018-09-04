@@ -872,6 +872,7 @@ class AllReducer {
    */
 
   void Init(const std::vector<int> &device_ordinals, bool opg=false) {
+    use_nccl_opg = opg;
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
