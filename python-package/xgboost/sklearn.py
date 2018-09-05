@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
@@ -17,6 +17,7 @@ from .compat import (SKLEARN_INSTALLED, XGBModelBase,
 
 
 def _check_label_1d(label):
+    """Produce warning if label is not 1D array"""
     label = np.array(label, copy=False, dtype=np.float32)
     if len(label.shape) == 2 and label.shape[1] == 1:
         warnings.warn('A column-vector y was passed when a 1d array was'

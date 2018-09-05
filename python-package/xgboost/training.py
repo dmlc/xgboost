@@ -206,9 +206,11 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     nrow = dtrain.num_row()
     ncol = dtrain.num_col()
     if nrow <= 0:
-        raise ValueError('{} row(s) (shape=({}, {})) while a minimum of 1 is required.'.format(nrow, nrow, ncol))
+        raise ValueError('{} row(s) (shape=({}, {})) while a minimum of 1 is required.'\
+                         .format(nrow, nrow, ncol))
     if ncol <= 0:
-        raise ValueError('{} feature(s) (shape=({}, {})) while a minimum of 1 is required.'.format(ncol, nrow, ncol))
+        raise ValueError('{} feature(s) (shape=({}, {})) while a minimum of 1 is required.'\
+                         .format(ncol, nrow, ncol))
     label = dtrain.get_label()
     if nrow != len(label):
         raise ValueError('Label must have same length as the number of data rows')
