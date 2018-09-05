@@ -38,6 +38,8 @@ class TrackerLogger : public BaseLogger {
   ~TrackerLogger();
 };
 
+// custom logging callback; disabled for R wrapper
+#if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 class LogCallbackRegistry {
  public:
   using Callback = void (*)(const char*);
@@ -52,6 +54,17 @@ class LogCallbackRegistry {
  private:
   Callback log_callback_;
 };
+#else
+class LogCallbackRegistry {
+ public:
+  using Callback = void (*)(const char*);
+  LogCallbackRegistry() {}
+  inline void Register(Callback log_callback) {}
+  inline Callback Get() const {
+    return nullptr;
+  }
+};
+#endif
 
 using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
