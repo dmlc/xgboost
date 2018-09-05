@@ -188,8 +188,17 @@ object XGBoost extends Serializable {
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
-    if (trainingData.context.getConf.getBoolean("spark.ssl.enabled", false)) {
-      if (trainingData.context.getConf.getBoolean("xgboost.spark.ignoreSsl", false)) {
+    val (sparkSslEnabled: Boolean, xgboostSparkIgnoreSsl: Boolean) =
+      SparkSession.getActiveSession match {
+        case Some(ss) =>
+          (ss.conf.getOption("spark.ssl.enabled").getOrElse("false").toBoolean,
+            ss.conf.getOption("xgboost.spark.ignoreSsl").getOrElse("false").toBoolean)
+        case None =>
+          (trainingData.context.getConf.getBoolean("spark.ssl.enabled", false),
+            trainingData.context.getConf.getBoolean("xgboost.spark.ignoreSsl", false))
+      }
+    if (sparkSslEnabled) {
+      if (xgboostSparkIgnoreSsl) {
         logger.warn(s"spark-xgboost is being run without encrypting data in transit!  " +
           s"Spark Conf spark.ssl.enabled=true was overridden with xgboost.spark.ignoreSsl=true.")
       } else {
