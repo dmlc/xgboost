@@ -4,12 +4,12 @@
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
+import warnings
 import collections
 import ctypes
 import os
 import re
 import sys
-
 import numpy as np
 import scipy.sparse
 
@@ -374,11 +374,15 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
+            elif getattr(label, '__array__', None) is not None:
+                self.set_label_npy2d(label.__array__())
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
+            elif getattr(weight, '__array__', None) is not None:
+                self.set_weight_npy2d(weight.__array__())
             else:
                 self.set_weight(weight)
 
@@ -428,7 +432,7 @@ class DMatrix(object):
         and type if memory use is a concern.
         """
         if len(mat.shape) != 2:
-            raise ValueError('Input numpy.ndarray must be 2 dimensional')
+            raise ValueError('Input numpy.ndarray must be 2 dimensional. Reshape your data.')
         # flatten the array by rows and ensure it is float32.
         # we try to avoid data copies if possible (reshape returns a view when possible
         # and we explicitly tell np.array to try and avoid copying)
