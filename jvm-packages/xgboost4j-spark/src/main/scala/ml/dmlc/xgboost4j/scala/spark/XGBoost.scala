@@ -203,7 +203,7 @@ object XGBoost extends Serializable {
           s"Spark Conf spark.ssl.enabled=true was overridden with xgboost.spark.ignoreSsl=true.")
       } else {
         throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
-          "in transit, but xgboost-spark uses MPI to send non-encrypted data over the wire.  " +
+          "in transit, but xgboost-spark sends non-encrypted data over the wire for efficiency. " +
           "To override this protection and still use xgboost-spark at your own risk, " +
           "you can set the SparkSession conf to use xgboost.spark.ignoreSsl=true.")
       }
