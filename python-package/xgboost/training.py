@@ -147,18 +147,24 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         and/or num_class appears in the parameters)
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
+
         Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
-        a parameter containing ('eval_metric': 'logloss')
-        Returns: {'train': {'logloss': ['0.48253', '0.35953']},
-                  'eval': {'logloss': ['0.480385', '0.357756']}}
+        a parameter containing ('eval_metric': 'logloss'), the **evals_result**
+        returns
+
+        .. code-block:: none
+
+            {'train': {'logloss': ['0.48253', '0.35953']},
+             'eval': {'logloss': ['0.480385', '0.357756']}}
+
     verbose_eval : bool or int
         Requires at least one item in evals.
-        If `verbose_eval` is True then the evaluation metric on the validation set is
+        If **verbose_eval** is True then the evaluation metric on the validation set is
         printed at each boosting stage.
-        If `verbose_eval` is an integer then the evaluation metric on the validation set
-        is printed at every given `verbose_eval` boosting stage. The last boosting stage
-        / the boosting stage found by using `early_stopping_rounds` is also printed.
-        Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
+        If **verbose_eval** is an integer then the evaluation metric on the validation set
+        is printed at every given **verbose_eval** boosting stage. The last boosting stage
+        / the boosting stage found by using **early_stopping_rounds** is also printed.
+        Example: with ``verbose_eval=4`` and at least one item in evals, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
     learning_rates: list or function (deprecated - use callback API instead)
         List of learning rate for each boosting round
@@ -341,8 +347,12 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using xgb.callback module.
-        Example: [xgb.callback.reset_learning_rate(custom_rates)]
-     shuffle : bool
+        Example:
+
+        .. code-block:: none
+
+            [xgb.callback.reset_learning_rate(custom_rates)]
+    shuffle : bool
         Shuffle data before creating folds.
 
     Returns
