@@ -25,6 +25,7 @@
 #include "../common/span.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
+#include <unistd.h>
 
 namespace xgboost {
 namespace tree {
@@ -1029,7 +1030,9 @@ class GPUHistMakerSpecialised{
   }
 
   void AllReduceHist(int nidx) {
-	monitor_.Start("AllReduce");
+	  monitor_.Start("AllReduce");
+    dh::safe_cuda(cudaDeviceSynchronize());
+    reducer_.SynchronizeInterProcess();
     reducer_.GroupStart();
     for (auto& shard : shards_) {
       auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
@@ -1120,6 +1123,15 @@ class GPUHistMakerSpecialised{
           tmp_sums[i] = dh::SumReduction(
               shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
         });
+
+    if (param_.distributed_dask) {
+      double g = tmp_sums[0].GetGrad();
+      double h = tmp_sums[0].GetHess();
+      rabit::Allreduce<rabit::op::Sum,double>(&g, 1);
+      rabit::Allreduce<rabit::op::Sum,double>(&h, 1);
+      tmp_sums[0] = GradientPair(g, h);
+    }
+
     GradientPair sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), GradientPair());
 
@@ -1291,6 +1303,9 @@ class GPUHistMakerSpecialised{
                 uint64_t timestamp)
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
+        printf("rank:%d nid=%d depth=%d loss_chg=%lf kRtEps=%lf, left,right=%lf,%lf timestamp=%lu\n",
+               rabit::GetRank(), nid, depth, (double)split.loss_chg, (double)kRtEps,
+               (double)split.left_sum.GetHess(), (double)split.right_sum.GetHess(), timestamp);
       if (split.loss_chg <= kRtEps) return false;
       if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
         return false;
