@@ -189,14 +189,14 @@ object XGBoost extends Serializable {
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
     if (trainingData.context.getConf.getBoolean("spark.ssl.enabled", false)) {
-      if (trainingData.context.getConf.getBoolean("spark.xgboost.ignoreSsl", false)) {
+      if (trainingData.context.getConf.getBoolean("xgboost.spark.ignoreSsl", false)) {
         logger.warn(s"spark-xgboost is being run without encrypting data in transit!  " +
-          s"Spark Conf spark.ssl.enabled=true was overridden with spark.xgboost.ignoreSsl=true.")
+          s"Spark Conf spark.ssl.enabled=true was overridden with xgboost.spark.ignoreSsl=true.")
       } else {
         throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
           "in transit, but xgboost-spark uses MPI to send non-encrypted data over the wire.  " +
           "To override this protection and still use xgboost-spark at your own risk, " +
-          "you can set the SparkSession conf to use spark.xgboost.ignoreSsl=true.")
+          "you can set the SparkSession conf to use xgboost.spark.ignoreSsl=true.")
       }
     }
     if (params.contains("tree_method")) {
