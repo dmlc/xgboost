@@ -65,6 +65,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
         thrown.getMessage.contains("spark.ssl.enabled"))
     }
 
+    // Confirm that this check can be overridden.
     ss.conf.set("xgboost.spark.ignoreSsl", true)
     new XGBoostClassifier(paramMap).fit(training)
 
