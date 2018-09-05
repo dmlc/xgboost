@@ -996,10 +996,22 @@ class Booster(object):
         """
         Predict with data.
 
-        NOTE: This function is not thread safe.
-              For each booster object, predict can only be called from one thread.
-              If you want to run prediction using multiple thread, call bst.copy() to make copies
-              of model object and then call predict
+        .. note:: This function is not thread safe.
+
+          For each booster object, predict can only be called from one thread.
+          If you want to run prediction using multiple thread, call ``bst.copy()`` to make copies
+          of model object and then call ``predict()``.
+
+        .. note:: Using ``predict()`` with DART booster
+
+          If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
+          some of the trees will be evaluated. This will produce incorrect results if ``data`` is
+          not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
+          a nonzero value, e.g.
+
+          .. code-block:: python
+
+            preds = bst.predict(dtest, ntree_limit=num_round)
 
         Parameters
         ----------
