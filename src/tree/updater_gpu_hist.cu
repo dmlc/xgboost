@@ -1111,6 +1111,76 @@ class GPUHistMakerSpecialised{
         node_value_constraints_[nidx]);
   }
 
+  // Returns best loss
+  std::vector<DeviceSplitCandidate> EvaluateSplits(
+      const std::vector<int>& nidx_set, RegTree* p_tree) {
+    auto columns = info_->num_col_;
+    std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
+    DeviceSplitCandidate* candidate_splits;
+    dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
+      columns * sizeof(DeviceSplitCandidate)));
+    // Use first device
+    auto& shard = shards_.front();
+    dh::safe_cuda(cudaSetDevice(shard->device_idx));
+    shard->temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
+                                    nidx_set.size());
+    auto d_split = shard->temp_memory.Pointer<DeviceSplitCandidate>();
+
+    auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
+
+    // Use streams to process nodes concurrently
+    for (auto i = 0; i < nidx_set.size(); i++) {
+      auto nidx = nidx_set[i];
+      DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param_);
+      auto depth = p_tree->GetDepth(nidx);
+
+      auto& feature_set = column_sampler_.GetFeatureSet(depth);
+      feature_set.Reshard(GPUSet(shard->device_idx, 1));
+
+      const int BLOCK_THREADS = 256;
+      evaluate_split_kernel<BLOCK_THREADS>
+          <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0, streams[i]>>>(
+              shard->hist.GetHistPtr(nidx), nidx, info_->num_col_,
+              feature_set.DevicePointer(shard->device_idx), node,
+              shard->feature_segments.Data(), shard->min_fvalue.Data(),
+              shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
+              d_split + i * columns, node_value_constraints_[nidx],
+              shard->monotone_constraints.Data());
+    }
+
+    dh::safe_cuda(cudaDeviceSynchronize());
+    dh::safe_cuda(
+        cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
+                   sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
+                   cudaMemcpyDeviceToHost));
+    for (auto i = 0; i < nidx_set.size(); i++) {
+      auto depth = p_tree->GetDepth(nidx_set[i]);
+      DeviceSplitCandidate nidx_best;
+      for (auto fidx : column_sampler_.GetFeatureSet(depth).HostVector()) {
+        auto& candidate = candidate_splits[i * columns + fidx];
+        nidx_best.Update(candidate, param_);
+      }
+      best_splits[i] = nidx_best;
+    }
+    dh::safe_cuda(cudaFreeHost(candidate_splits));
+    for (size_t i = 0; i < best_splits.size(); ++i) {
+      if (param_.distributed_dask) {
+        auto& split = best_splits[i];
+        double g_left = split.left_sum.GetGrad();
+        double h_left = split.left_sum.GetHess();
+        double g_right = split.right_sum.GetGrad();
+        double h_right = split.right_sum.GetHess();
+        rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+        split.left_sum = GradientPair(g_left, h_left);
+        split.right_sum = GradientPair(g_right, h_right);
+      }
+    }
+    return std::move(best_splits);
+  }
+
   void InitRoot(RegTree* p_tree) {
     constexpr int root_nidx = 0;
     // Sum gradients
@@ -1245,6 +1315,21 @@ class GPUHistMakerSpecialised{
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
 
+      // sync candidate's gradient sums
+      if (param_.distributed_dask) {
+        double g_left = candidate.split.left_sum.GetGrad();
+        double h_left = candidate.split.left_sum.GetHess();
+        double g_right = candidate.split.right_sum.GetGrad();
+        double h_right = candidate.split.right_sum.GetHess();
+        rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+        candidate.split.left_sum = GradientPair(g_left, h_left);
+        candidate.split.right_sum = GradientPair(g_right, h_right);
+      }
+      
+      monitor_.Start("ApplySplit", devices_);
       this->ApplySplit(candidate, p_tree);
       monitor_.Start("UpdatePosition", dist_.Devices());
       this->UpdatePosition(candidate, p_tree);
