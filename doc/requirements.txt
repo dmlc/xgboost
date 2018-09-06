@@ -6,3 +6,4 @@ sh>=1.12.14
 matplotlib>=2.1
 graphviz
 numpy
+scikit-learn
