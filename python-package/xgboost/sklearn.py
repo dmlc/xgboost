@@ -25,6 +25,7 @@ def _check_label_1d(label):
                       '(n_samples, ), for example using ravel().',
                       DataConversionWarning, stacklevel=2)
 
+
 def _objective_decorator(func):
     """Decorate an objective function
 
