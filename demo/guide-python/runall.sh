@@ -1,5 +1,5 @@
 #!/bin/bash
-export PYTHONPATH=PYTHONPATH:../../python-package
+export PYTHONPATH=$PYTHONPATH:../../python-package
 python basic_walkthrough.py
 python custom_objective.py
 python boost_from_prediction.py
