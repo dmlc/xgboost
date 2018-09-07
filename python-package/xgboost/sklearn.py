@@ -1,12 +1,10 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
 import numpy as np
 import warnings
-from sklearn.exceptions import NotFittedError
-from sklearn.exceptions import DataConversionWarning
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
@@ -14,16 +12,6 @@ from .training import train
 # Re-define the classes on .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
-
-
-def _check_label_1d(label):
-    """Produce warning if label is not 1D array"""
-    label = np.array(label, copy=False, dtype=np.float32)
-    if len(label.shape) == 2 and label.shape[1] == 1:
-        warnings.warn('A column-vector y was passed when a 1d array was'
-                      ' expected. Please change the shape of y to '
-                      '(n_samples, ), for example using ravel().',
-                      DataConversionWarning, stacklevel=2)
 
 
 def _objective_decorator(func):
@@ -190,7 +178,7 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if self._Booster is None:
-            raise NotFittedError('need to call fit or load_model beforehand')
+            raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
     def get_params(self, deep=False):
@@ -298,7 +286,6 @@ class XGBModel(XGBModelBase):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
-        _check_label_1d(label=y)
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
                                    missing=self.missing, nthread=self.n_jobs)
@@ -549,7 +536,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
-        _check_label_1d(label=y)
         evals_result = {}
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
@@ -926,7 +912,6 @@ class XGBRanker(XGBModel):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
-        _check_label_1d(label=y)
         # check if group information is provided
         if group is None:
             raise ValueError("group is required for ranking task")
