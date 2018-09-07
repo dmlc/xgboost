@@ -242,7 +242,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -285,6 +285,14 @@ class XGBModel(XGBModelBase):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using xgb.callback module.
+            Example:
+
+            .. code-block:: none
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
@@ -325,7 +333,8 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model)
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         if evals_result:
             for val in evals_result.items():
@@ -492,7 +501,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -535,6 +544,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using xgb.callback module.
+            Example:
+
+            .. code-block:: none
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         evals_result = {}
         self.classes_ = np.unique(y)
@@ -592,7 +609,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=None)
+                              verbose_eval=verbose, xgb_model=None,
+                              callbacks=callbacks)
 
         self.objective = xgb_options["objective"]
         if evals_result:
@@ -863,7 +881,7 @@ class XGBRanker(XGBModel):
 
     def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None, early_stopping_rounds=None,
-            verbose=False, xgb_model=None):
+            verbose=False, xgb_model=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit the gradient boosting model
@@ -911,6 +929,14 @@ class XGBRanker(XGBModel):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using xgb.callback module.
+            Example:
+
+            .. code-block:: none
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         # check if group information is provided
         if group is None:
@@ -963,7 +989,8 @@ class XGBRanker(XGBModel):
                               self.n_estimators,
                               early_stopping_rounds=early_stopping_rounds, evals=evals,
                               evals_result=evals_result, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model)
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         self.objective = params["objective"]
 
