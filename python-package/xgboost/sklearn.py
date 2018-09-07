@@ -69,9 +69,9 @@ class XGBModel(XGBModelBase):
     booster: string
         Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
-        Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+        Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
     n_jobs : int
-        Number of parallel threads used to run xgboost.  (replaces nthread)
+        Number of parallel threads used to run xgboost.  (replaces ``nthread``)
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
@@ -287,10 +287,10 @@ class XGBModel(XGBModelBase):
             loaded before training (allows training continuation).
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
-            It is possible to use predefined callbacks by using xgb.callback module.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
             Example:
 
-            .. code-block:: none
+            .. code-block:: python
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
         """
@@ -422,10 +422,10 @@ class XGBModel(XGBModelBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If ``eval_set`` is passed to the `fit` function, you can call ``evals_result()`` to
-        get evaluation results for all passed eval_sets. When ``eval_metric`` is also
-        passed to the ``fit`` function, the ``evals_result`` will contain the ``eval_metrics``
-        passed to the ``fit`` function
+        If **eval_set** is passed to the `fit` function, you can call
+        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
+        When **eval_metric** is also passed to the `fit` function, the
+        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
 
         Returns
         -------
@@ -447,9 +447,9 @@ class XGBModel(XGBModelBase):
 
             evals_result = clf.evals_result()
 
-        The variable evals_result will contain:
+        The variable **evals_result** will contain:
 
-        .. code-block:: none
+        .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
             'validation_1': {'logloss': ['0.41965', '0.17686']}}
@@ -546,10 +546,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             loaded before training (allows training continuation).
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
-            It is possible to use predefined callbacks by using xgb.callback module.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
             Example:
 
-            .. code-block:: none
+            .. code-block:: python
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
         """
@@ -723,10 +723,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If eval_set is passed to the `fit` function, you can call evals_result() to
-        get evaluation results for all passed eval_sets. When eval_metric is also
-        passed to the `fit` function, the evals_result will contain the eval_metrics
-        passed to the `fit` function
+        If **eval_set** is passed to the `fit` function, you can call
+        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
+        When **eval_metric** is also passed to the `fit` function, the
+        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
 
         Returns
         -------
@@ -748,9 +748,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
             evals_result = clf.evals_result()
 
-        The variable ``evals_result`` will contain
+        The variable **evals_result** will contain
 
-        .. code-block:: none
+        .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
             'validation_1': {'logloss': ['0.41965', '0.17686']}}
@@ -789,9 +789,9 @@ class XGBRanker(XGBModel):
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
         nthread : int
-            Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+            Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
         n_jobs : int
-            Number of parallel threads used to run xgboost.  (replaces nthread)
+            Number of parallel threads used to run xgboost.  (replaces ``nthread``)
         gamma : float
             Minimum loss reduction required to make a further partition on a leaf node of the tree.
         min_child_weight : int
@@ -834,8 +834,12 @@ class XGBRanker(XGBModel):
         ----
         A custom objective function is currently not supported by XGBRanker.
 
-        Group information is required for ranking tasks. Before fitting the model, your data need to
-        be sorted by group. When fitting the model, you need to provide an additional array that
+        Note
+        ----
+        Group information is required for ranking tasks.
+
+        Before fitting the model, your data need to be sorted by group. When
+        fitting the model, you need to provide an additional array that
         contains the size of each group.
 
         For example, if your original data look like:
@@ -931,10 +935,10 @@ class XGBRanker(XGBModel):
             loaded before training (allows training continuation).
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
-            It is possible to use predefined callbacks by using xgb.callback module.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
             Example:
 
-            .. code-block:: none
+            .. code-block:: python
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
         """
