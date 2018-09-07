@@ -1035,7 +1035,7 @@ class GPUHistMakerSpecialised{
   void AllReduceHist(int nidx) {
 	  monitor_.Start("AllReduce");
     dh::safe_cuda(cudaDeviceSynchronize());
-    reducer_.SynchronizeInterProcess();
+    monitor_.Start("SyncHist", devices_);
     DBGPRINTF("rank:%d nidx=%d: AllReduceHist\n", rabit::GetRank(), nidx);
     reducer_.GroupStart();
     for (auto& shard : shards_) {
@@ -1048,7 +1048,7 @@ class GPUHistMakerSpecialised{
                          sizeof(typename GradientSumT::ValueT)));
     }
     reducer_.GroupEnd();
-    reducer_.Synchronize();
+    monitor_.Stop("SyncHist", devices_);
     monitor_.Stop("AllReduce");
   }
 
@@ -1064,6 +1064,7 @@ class GPUHistMakerSpecialised{
       right_node_max_elements = (std::max)(
         right_node_max_elements, shard->ridx_segments[nidx_right].Size());
     }
+    
     if (param_.distributed_dask) {
       rabit::Allreduce<rabit::op::Max,size_t>(&left_node_max_elements, 1);
       rabit::Allreduce<rabit::op::Max,size_t>(&right_node_max_elements, 1);

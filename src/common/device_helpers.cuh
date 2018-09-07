@@ -1036,34 +1036,6 @@ class AllReducer {
     return id;
 #endif
   }
-
-  /**
-   * \fn  void SynchronizeInterProcess()
-   *
-   * \brief InterProcess Synchronization across the entire communication group.
-   */
-  void SynchronizeInterProcess() {
-#ifdef XGBOOST_USE_NCCL
-    if (use_nccl_opg) {
-      int rootRank = 0;
-      rabit::Broadcast((void*)&rootRank, (size_t)sizeof(int), 0);
-    }
-#endif
-  }
-
-  /**
-   * \fn  void Synchronize()
-   *
-   * \brief Synchronizes the entire communication group.
-   */
-  void Synchronize() {
-#ifdef XGBOOST_USE_NCCL
-    for (int i = 0; i < device_ordinals.size(); i++) {
-      dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
-      dh::safe_cuda(cudaStreamSynchronize(streams[i]));
-    }
-#endif
-  }
 };
 
 class SaveCudaContext {
