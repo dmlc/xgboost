@@ -137,34 +137,35 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Whether to maximize feval.
     early_stopping_rounds: int
         Activates early stopping. Validation error needs to decrease at least
-        every <early_stopping_rounds> round(s) to continue training.
-        Requires at least one item in evals.
+        every **early_stopping_rounds** round(s) to continue training.
+        Requires at least one item in **evals**.
         If there's more than one, will use the last.
         Returns the model from the last iteration (not the best one).
         If early stopping occurs, the model will have three additional fields:
-        bst.best_score, bst.best_iteration and bst.best_ntree_limit.
-        (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-        and/or num_class appears in the parameters)
+        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
+        (Use ``bst.best_ntree_limit`` to get the correct value if
+        ``num_parallel_tree`` and/or ``num_class`` appears in the parameters)
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
 
-        Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
-        a parameter containing ('eval_metric': 'logloss'), the **evals_result**
-        returns
+        Example: with a watchlist containing
+        ``[(dtest,'eval'), (dtrain,'train')]`` and
+        a parameter containing ``('eval_metric': 'logloss')``,
+        the **evals_result** returns
 
-        .. code-block:: none
+        .. code-block:: python
 
             {'train': {'logloss': ['0.48253', '0.35953']},
              'eval': {'logloss': ['0.480385', '0.357756']}}
 
     verbose_eval : bool or int
-        Requires at least one item in evals.
+        Requires at least one item in **evals**.
         If **verbose_eval** is True then the evaluation metric on the validation set is
         printed at each boosting stage.
         If **verbose_eval** is an integer then the evaluation metric on the validation set
         is printed at every given **verbose_eval** boosting stage. The last boosting stage
         / the boosting stage found by using **early_stopping_rounds** is also printed.
-        Example: with ``verbose_eval=4`` and at least one item in evals, an evaluation metric
+        Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
     learning_rates: list or function (deprecated - use callback API instead)
         List of learning rate for each boosting round
@@ -175,12 +176,17 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Xgb model to be loaded before training (allows training continuation).
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
-        It is possible to use predefined callbacks by using xgb.callback module.
-        Example: [xgb.callback.reset_learning_rate(custom_rates)]
+        It is possible to use predefined callbacks by using
+        :ref:`Callback API <callback_api>`.
+        Example:
+
+        .. code-block:: python
+
+            [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
-    booster : a trained booster model
+    Booster : a trained booster model
     """
     callbacks = [] if callbacks is None else callbacks
 
@@ -334,7 +340,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     folds : a KFold or StratifiedKFold instance or list of fold indices
         Sklearn KFolds or StratifiedKFolds object.
         Alternatively may explicitly pass sample indices for each fold.
-        For ``n`` folds, ``folds`` should be a length ``n`` list of tuples.
+        For ``n`` folds, **folds** should be a length ``n`` list of tuples.
         Each tuple is ``(in,out)`` where ``in`` is a list of indices to be used
         as the training samples for the ``n`` th fold and ``out`` is a list of
         indices to be used as the testing samples for the ``n`` th fold.
@@ -368,10 +374,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Seed used to generate the folds (passed to numpy.random.seed).
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
-        It is possible to use predefined callbacks by using xgb.callback module.
+        It is possible to use predefined callbacks by using
+        :ref:`Callback API <callback_api>`.
         Example:
 
-        .. code-block:: none
+        .. code-block:: python
 
             [xgb.callback.reset_learning_rate(custom_rates)]
     shuffle : bool
