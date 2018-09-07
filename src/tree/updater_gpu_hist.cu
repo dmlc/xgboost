@@ -1188,11 +1188,8 @@ class GPUHistMakerSpecialised{
         });
 
     if (param_.distributed_dask) {
-      double g = tmp_sums[0].GetGrad();
-      double h = tmp_sums[0].GetHess();
-      rabit::Allreduce<rabit::op::Sum,double>(&g, 1);
-      rabit::Allreduce<rabit::op::Sum,double>(&h, 1);
-      tmp_sums[0] = GradientPair(g, h);
+      // TODO: add an "official" way to reduce GradientPair
+      rabit::Allreduce<rabit::op::Sum>((GradientPair::ValueT*)&tmp_sums[0], 2);
     }
 
     GradientPair sum_gradient =
