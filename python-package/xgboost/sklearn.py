@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
@@ -69,9 +69,9 @@ class XGBModel(XGBModelBase):
     booster: string
         Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
-        Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+        Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
     n_jobs : int
-        Number of parallel threads used to run xgboost.  (replaces nthread)
+        Number of parallel threads used to run xgboost.  (replaces ``nthread``)
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
@@ -242,7 +242,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -285,6 +285,14 @@ class XGBModel(XGBModelBase):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
+            Example:
+
+            .. code-block:: python
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
@@ -325,7 +333,8 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model)
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         if evals_result:
             for val in evals_result.items():
@@ -413,10 +422,10 @@ class XGBModel(XGBModelBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If ``eval_set`` is passed to the `fit` function, you can call ``evals_result()`` to
-        get evaluation results for all passed eval_sets. When ``eval_metric`` is also
-        passed to the ``fit`` function, the ``evals_result`` will contain the ``eval_metrics``
-        passed to the ``fit`` function
+        If **eval_set** is passed to the `fit` function, you can call
+        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
+        When **eval_metric** is also passed to the `fit` function, the
+        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
 
         Returns
         -------
@@ -438,9 +447,9 @@ class XGBModel(XGBModelBase):
 
             evals_result = clf.evals_result()
 
-        The variable evals_result will contain:
+        The variable **evals_result** will contain:
 
-        .. code-block:: none
+        .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
             'validation_1': {'logloss': ['0.41965', '0.17686']}}
@@ -492,7 +501,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -535,6 +544,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
+            Example:
+
+            .. code-block:: python
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         evals_result = {}
         self.classes_ = np.unique(y)
@@ -592,7 +609,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=None)
+                              verbose_eval=verbose, xgb_model=None,
+                              callbacks=callbacks)
 
         self.objective = xgb_options["objective"]
         if evals_result:
@@ -705,10 +723,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If eval_set is passed to the `fit` function, you can call evals_result() to
-        get evaluation results for all passed eval_sets. When eval_metric is also
-        passed to the `fit` function, the evals_result will contain the eval_metrics
-        passed to the `fit` function
+        If **eval_set** is passed to the `fit` function, you can call
+        ``evals_result()`` to get evaluation results for all passed **eval_sets**.
+        When **eval_metric** is also passed to the `fit` function, the
+        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
 
         Returns
         -------
@@ -730,9 +748,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
             evals_result = clf.evals_result()
 
-        The variable ``evals_result`` will contain
+        The variable **evals_result** will contain
 
-        .. code-block:: none
+        .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
             'validation_1': {'logloss': ['0.41965', '0.17686']}}
@@ -771,9 +789,9 @@ class XGBRanker(XGBModel):
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
         nthread : int
-            Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+            Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
         n_jobs : int
-            Number of parallel threads used to run xgboost.  (replaces nthread)
+            Number of parallel threads used to run xgboost.  (replaces ``nthread``)
         gamma : float
             Minimum loss reduction required to make a further partition on a leaf node of the tree.
         min_child_weight : int
@@ -816,8 +834,12 @@ class XGBRanker(XGBModel):
         ----
         A custom objective function is currently not supported by XGBRanker.
 
-        Group information is required for ranking tasks. Before fitting the model, your data need to
-        be sorted by group. When fitting the model, you need to provide an additional array that
+        Note
+        ----
+        Group information is required for ranking tasks.
+
+        Before fitting the model, your data need to be sorted by group. When
+        fitting the model, you need to provide an additional array that
         contains the size of each group.
 
         For example, if your original data look like:
@@ -863,7 +885,7 @@ class XGBRanker(XGBModel):
 
     def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None, early_stopping_rounds=None,
-            verbose=False, xgb_model=None):
+            verbose=False, xgb_model=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit the gradient boosting model
@@ -911,6 +933,14 @@ class XGBRanker(XGBModel):
         xgb_model : str
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using :ref:`callback_api`.
+            Example:
+
+            .. code-block:: python
+
+                [xgb.callback.reset_learning_rate(custom_rates)]
         """
         # check if group information is provided
         if group is None:
@@ -963,7 +993,8 @@ class XGBRanker(XGBModel):
                               self.n_estimators,
                               early_stopping_rounds=early_stopping_rounds, evals=evals,
                               evals_result=evals_result, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model)
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         self.objective = params["objective"]
 
