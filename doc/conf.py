@@ -41,7 +41,7 @@ sys.path.insert(0, curr_path)
 
 # -- mock out modules
 import mock
-MOCK_MODULES = ['scipy', 'scipy.sparse', 'pandas']
+MOCK_MODULES = ['scipy', 'scipy.sparse', 'sklearn', 'pandas']
 for mod_name in MOCK_MODULES:
   sys.modules[mod_name] = mock.Mock()
 
