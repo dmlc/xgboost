@@ -61,3 +61,25 @@ TEST(sumReduce, Test) {
   auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
+
+TEST(DeviceHelpers, BulkAllocator) {
+  dh::BulkAllocatorTemp ba;
+  auto devices = xgboost::GPUSet::AllVisible();
+  if (devices.IsEmpty()) {
+    LOG(WARNING) << "Empty devices.";
+    return;
+  }
+  xgboost::common::Span<int> span_i;
+  xgboost::common::Span<float> span_f;
+  xgboost::common::Span<double> span_d;
+  ba.Allocate(0, &span_i, 16, &span_f, 32, &span_d, 64);
+
+  ASSERT_TRUE(span_i.data());
+  ASSERT_EQ(span_i.size(), 16);
+
+  ASSERT_TRUE(span_f.data());
+  ASSERT_EQ(span_f.size(), 32);
+
+  ASSERT_TRUE(span_d.data());
+  ASSERT_EQ(span_d.size(), 64);
+}

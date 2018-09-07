@@ -613,13 +613,13 @@ class FastHistMaker: public TreeUpdater {
     }
 
     inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
-                                    const GHistIndexMatrix& gmat,
-                                    std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    const Column& column,
-                                    bst_uint lower_bound,
-                                    bst_uint upper_bound,
-                                    bst_int split_cond,
-                                    bool default_left) {
+                                     const GHistIndexMatrix& gmat,
+                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                                     const Column& column,
+                                     bst_uint lower_bound,
+                                     bst_uint upper_bound,
+                                     bst_int split_cond,
+                                     bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const size_t nrows = rowset.end - rowset.begin;
 
@@ -745,9 +745,9 @@ class FastHistMaker: public TreeUpdater {
 
       // bin boundaries
       CHECK_LE(cut_ptr[fid],
-        static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+               static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
       CHECK_LE(cut_ptr[fid + 1],
-        static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+               static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
       // imin: index (offset) of the minimum value for feature fid
       //       need this for backward enumeration
       const auto imin = static_cast<int32_t>(cut_ptr[fid]);

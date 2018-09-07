@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <limits>
 #include "../common/device_helpers.cuh"
 #include "../common/random.h"
 #include "param.h"
@@ -127,11 +128,12 @@ struct DeviceSplitCandidate {
   GradientPair right_sum;
 
   XGBOOST_DEVICE DeviceSplitCandidate()
-      : loss_chg(-FLT_MAX), dir(kLeftDir), fvalue(0), findex(-1) {}
+      : loss_chg(-std::numeric_limits<bst_float>::max()), dir(kLeftDir),
+      fvalue(0), findex(-1) {}
 
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
-                                  const ParamT& param) {
+                             const ParamT& param) {
     if (other.loss_chg > loss_chg &&
         other.left_sum.GetHess() >= param.min_child_weight &&
         other.right_sum.GetHess() >= param.min_child_weight) {

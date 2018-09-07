@@ -10,6 +10,7 @@
 
 #include "common.h"
 #include "gpu_set.h"
+#include "span.h"
 
 #include <algorithm>
 #include <chrono>
@@ -28,6 +29,9 @@
 #define TIMERS
 
 namespace dh {
+
+/*! \brief Threads per block based on heuristic. */
+constexpr size_t kBlockThreads = 256;
 
 #define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
 #define DEV_INLINE __device__ __forceinline__
@@ -111,7 +115,7 @@ inline void CheckComputeCapability() {
     std::ostringstream oss;
     oss << "CUDA Capability Major/Minor version number: " << prop.major << "."
         << prop.minor << " is insufficient.  Need >=3.5";
-    int failed = prop.major < 3 || prop.major == 3 && prop.minor < 5;
+    int failed = prop.major < 3 || (prop.major == 3 && prop.minor < 5);
     if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
   }
 }
@@ -382,6 +386,33 @@ class DVec2 {
   T *other() { return buff_.Alternate(); }
 };
 
+template <typename T>
+class DoubleBuffer {
+ private:
+  Span<T> s1_, s2_;
+  cub::DoubleBuffer<T> buff_;
+  int device_idx_;
+
+ public:
+  DoubleBuffer() : buff_{}, device_idx_{-1} {}
+  size_t Size() const { return s1_.size(); }
+  int DeviceIdx() const { return device_idx_; }
+  bool Empty() const { return s1_.size() == 0 || s2_.size() == 0; }
+
+  cub::DoubleBuffer<T> &buff() { return buff_; }
+
+  xgboost::common::Span<T> &S1() { return s1_; }
+  xgboost::common::Span<T> &S2() { return s2_; }
+
+  T *Current() { return buff_.Current(); }
+
+  xgboost::common::Span<T> &CurrentSpan() {
+    return buff_.selector == 0 ? S1() : S2();
+  }
+
+  T *Other() { return buff_.Alternate(); }
+};
+
 template <MemoryType MemoryT>
 class BulkAllocator {
   std::vector<char *> d_ptr_;
@@ -420,7 +451,7 @@ class BulkAllocator {
     AllocateDVec(device_idx, ptr, args...);
   }
 
-  char *AllocateDevice(int device_idx, size_t bytes, MemoryType t) {
+  char *AllocateDevice(int device_idx, size_t bytes) {
     char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaMalloc(&ptr, bytes));
@@ -438,7 +469,7 @@ class BulkAllocator {
 
   template <typename T>
   void AllocateDVec(int device_idx, char *ptr, DVec2<T> *first_vec,
-                     size_t first_size) {
+                    size_t first_size) {
     first_vec->ExternalAllocate(
         device_idx, static_cast<void *>(ptr),
         static_cast<void *>(ptr + AlignRoundUp(first_size * sizeof(T))),
@@ -454,7 +485,7 @@ class BulkAllocator {
   }
 
  public:
-   BulkAllocator() = default;
+  BulkAllocator() = default;
   // prevent accidental copying, moving or assignment of this object
   BulkAllocator(const BulkAllocator<MemoryT>&) = delete;
   BulkAllocator(BulkAllocator<MemoryT>&&) = delete;
@@ -480,13 +511,82 @@ class BulkAllocator {
   void Allocate(int device_idx, bool silent, Args... args) {
     size_t size = GetSizeBytes(args...);
 
-    char *ptr = AllocateDevice(device_idx, size, MemoryT);
+    char *ptr = AllocateDevice(device_idx, size);
 
     AllocateDVec(device_idx, ptr, args...);
 
     d_ptr_.push_back(ptr);
     size_.push_back(size);
     device_idx_.push_back(device_idx);
+  }
+};
+
+class BulkAllocatorTemp {
+  using Byte = xgboost::common::byte;
+  using index_type = xgboost::common::detail::ptrdiff_t;
+
+  std::vector<Byte *> d_ptr_;
+  std::vector<index_type> size_;
+  std::vector<int> device_idx_;
+
+  template <typename T>
+  xgboost::common::Span<T> SpanFromByte(xgboost::common::Span<Byte> span) const {
+    return {reinterpret_cast<T*>(span.data()),
+          static_cast<index_type>(span.size() / sizeof(T))};
+  }
+
+  template <typename T>
+  void AllocateSpan(int device_idx, xgboost::common::Span<Byte> buffer,
+                    xgboost::common::Span<T> *span, index_type size) {
+    *span = SpanFromByte<T>(buffer.first(size * sizeof(T)));
+  }
+  template <typename Head, typename... Args>
+  void AllocateSpan(int device_idx, xgboost::common::Span<Byte> buffer,
+                    xgboost::common::Span<Head> *span, index_type size,
+                    Args... args) {
+    AllocateSpan<Head>(device_idx, buffer, span, size);
+    *span = SpanFromByte<Head>(buffer.first(size * sizeof(Head)));
+    AllocateSpan(device_idx, buffer.last(buffer.size() - size * sizeof(Head)),
+                 args...);
+  }
+
+  template <typename T>
+  index_type GetSizeBytes(xgboost::common::Span<T> *span, index_type size) {
+    return size * sizeof(T);
+  }
+  template <typename Head, typename... Args>
+  index_type GetSizeBytes(xgboost::common::Span<Head> *head, index_type size,
+                          Args... spans) {
+    return size * sizeof(Head) + GetSizeBytes(spans...);
+  }
+
+  Byte *AllocateDevice(int device_idx, size_t size) {
+    Byte *ptr;
+    safe_cuda(cudaSetDevice(device_idx));
+    safe_cuda(cudaMalloc(&ptr, size));
+    return ptr;
+  }
+
+ public:
+  template <typename... Args>
+  void Allocate(int device_idx, Args... args) {
+    index_type size_in_byte = GetSizeBytes(args...);
+    Byte *ptr = AllocateDevice(device_idx, size_in_byte);
+
+    xgboost::common::Span<Byte> buffer {ptr, size_in_byte};
+    AllocateSpan(device_idx, buffer, args...);
+
+    d_ptr_.push_back(ptr);
+    size_.push_back(size_in_byte);
+    device_idx_.push_back(device_idx);
+  }
+  ~BulkAllocatorTemp() {
+    for (size_t i = 0; i < d_ptr_.size(); i++) {
+      if (!d_ptr_[i]) { continue; }
+      safe_cuda(cudaSetDevice(device_idx_[i]));
+      safe_cuda(cudaFree(d_ptr_[i]));
+      d_ptr_[i] = nullptr;
+    }
   }
 };
 
@@ -759,7 +859,8 @@ void SumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
 * @param nVals number of elements in the input array
 */
 template <typename T>
-typename std::iterator_traits<T>::value_type SumReduction(dh::CubMemory &tmp_mem, T in, int nVals) {
+typename std::iterator_traits<T>::value_type SumReduction(
+    dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, in, nVals));

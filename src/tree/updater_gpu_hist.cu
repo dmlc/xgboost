@@ -31,8 +31,8 @@ using GradientPairSumT = GradientPairPrecise;
 
 template <int BLOCK_THREADS, typename ReduceT, typename TempStorageT>
 __device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
-                                     const GradientPairSumT* end,
-                                     TempStorageT* temp_storage) {
+                                          const GradientPairSumT* end,
+                                          TempStorageT* temp_storage) {
   __shared__ cub::Uninitialized<GradientPairSumT> uninitialized_sum;
   GradientPairSumT& shared_sum = uninitialized_sum.Alias();
 
@@ -242,7 +242,7 @@ struct DeviceHistogram {
   }
 
   /**
-   * \summary   Return pointer to histogram memory for a given node. 
+   * \summary   Return pointer to histogram memory for a given node.
    * \param nidx    Tree node index.
    * \return    hist pointer.
    */
@@ -310,13 +310,18 @@ __global__ void sharedMemHistKernel(size_t row_stride,
   }
   __syncthreads();
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
+    // row index relative to shard
     int ridx = d_ridx[idx / row_stride + segment_begin];
-    int gidx = d_gidx[ridx * row_stride + idx % row_stride];
-    if (gidx != null_gidx_value) {
-      AtomicAddGpair(smem_arr + gidx, d_gpair[ridx]);
+    // ridx * row_stride -> the index at current device.
+    // idx % row_stride -> the absolute beginning index at global.
+    // d_gidx[...] gets the value and use it as hist index.
+    int hist_idx = d_gidx[ridx * row_stride + idx % row_stride];
+    if (hist_idx != null_gidx_value) {
+      AtomicAddGpair(smem_arr + hist_idx, d_gpair[ridx]);
     }
   }
   __syncthreads();
+  // write back the histgoram to node.
   for (auto i : dh::BlockStrideRange(0, null_gidx_value)) {
     AtomicAddGpair(d_node_hist + i, smem_arr[i]);
   }
@@ -324,6 +329,7 @@ __global__ void sharedMemHistKernel(size_t row_stride,
 
 // Manage memory for a single GPU
 struct DeviceShard {
+  /* \brief Rows for each device. */
   struct Segment {
     size_t begin;
     size_t end;
@@ -339,18 +345,22 @@ struct DeviceShard {
   int device_idx;
   int normalised_device_idx;  // Device index counting from param.gpu_id
   dh::BulkAllocator<dh::MemoryType::kDevice> ba;
+
+  // @begin devs
   dh::DVec<common::CompressedByteT> gidx_buffer;
   dh::DVec<GradientPair> gpair;
   dh::DVec2<bst_uint> ridx;  // Row index relative to this shard
   dh::DVec2<int> position;
-  std::vector<Segment> ridx_segments;
+  std::vector<Segment> ridx_segments;  // row index segments
   dh::DVec<int> feature_segments;
   dh::DVec<bst_float> gidx_fvalue_map;
   dh::DVec<bst_float> min_fvalue;
   dh::DVec<int> monotone_constraints;
   dh::DVec<bst_float> prediction_cache;
-  std::vector<GradientPair> node_sum_gradients;
   dh::DVec<GradientPair> node_sum_gradients_d;
+  // @end devs
+
+  std::vector<GradientPair> node_sum_gradients;
   thrust::device_vector<size_t> row_ptrs;
   common::CompressedIterator<uint32_t> gidx;
   size_t row_stride;
@@ -362,7 +372,7 @@ struct DeviceShard {
   DeviceHistogram hist;
   TrainParam param;
   bool prediction_cache_initialised;
-  bool can_use_smem_atomics;
+  bool can_use_smem_atomics;  // whether is histogram_size <= max_smem
 
   int64_t* tmp_pinned;  // Small amount of staging memory
 
@@ -394,14 +404,14 @@ struct DeviceShard {
                  row_ptrs.begin());
     auto row_iter = row_ptrs.begin();
     // find the maximum row size
-    auto get_size = [=] __device__(size_t row) {
+    auto GetSize = [=] __device__(size_t row) {
       return row_iter[row + 1] - row_iter[row];
-    }; // NOLINT
+    };
 
     auto counting = thrust::make_counting_iterator(size_t(0));
-    using TransformT = thrust::transform_iterator<decltype(get_size),
-      decltype(counting), size_t>;
-    TransformT row_size_iter = TransformT(counting, get_size);
+    using TransformT = thrust::transform_iterator<decltype(GetSize),
+        decltype(counting), size_t>;
+    TransformT row_size_iter = TransformT(counting, GetSize);
     row_stride = thrust::reduce(row_size_iter, row_size_iter + n_rows, 0,
                                 thrust::maximum<size_t>());
   }
@@ -569,31 +579,33 @@ struct DeviceShard {
   }
 
   void BuildHistUsingSharedMem(int nidx) {
-    auto segment = ridx_segments[nidx];
+    Segment segment = ridx_segments[nidx];
     auto segment_begin = segment.begin;
-    auto d_node_hist = hist.GetHistPtr(nidx);
-    auto d_gidx = gidx;
-    auto d_ridx = ridx.Current();
+    auto d_node_hist = hist.GetHistPtr(nidx);  // hist for current node
+    common::CompressedIterator<uint32_t> d_gidx = gidx;
+    bst_uint* d_ridx = ridx.Current();
     auto d_gpair = gpair.Data();
     auto row_stride = this->row_stride;
-    auto null_gidx_value = this->null_gidx_value;
+    // auto null_gidx_value = this->null_gidx_value;
     auto n_elements = segment.Size() * row_stride;
 
     const size_t smem_size = sizeof(GradientPairSumT) * null_gidx_value;
     const int items_per_thread = 8;
-    const int block_threads = 256;
+    const int tile_size = dh::kBlockThreads * items_per_thread;
     const int grid_size =
-        static_cast<int>(dh::DivRoundUp(n_elements,
-                                        items_per_thread * block_threads));
+        static_cast<int>(dh::DivRoundUp(n_elements, tile_size));
     if (grid_size <= 0) {
       return;
     }
     dh::safe_cuda(cudaSetDevice(device_idx));
-    sharedMemHistKernel<<<grid_size, block_threads, smem_size>>>
+    sharedMemHistKernel<<<grid_size, dh::kBlockThreads, smem_size>>>
         (row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist, d_gpair,
          segment_begin, n_elements);
   }
 
+  /*! \brief Build histogram for node at nidx
+   *  \param nidx Node index
+   */
   void BuildHist(int nidx) {
     hist.AllocateHistogram(nidx);
     if (can_use_smem_atomics) {
@@ -743,9 +755,9 @@ struct DeviceShard {
 };
 
 class GPUHistMaker : public TreeUpdater {
- public:
   struct ExpandEntry;
 
+ public:
   GPUHistMaker() : initialised_(false), p_last_fmat_(nullptr) {}
 
   void Init(
@@ -787,11 +799,25 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Stop("Update", devices_);
   }
 
+  bool UpdatePredictionCache(
+      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
+    monitor_.Start("UpdatePredictionCache", devices_);
+    if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
+      return false;
+    p_out_preds->Reshard(devices_);
+    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+        shard->UpdatePredictionCache(p_out_preds->DevicePointer(shard->device_idx));
+      });
+    monitor_.Stop("UpdatePredictionCache", devices_);
+    return true;
+  }
+
+ private:
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
 
-    int n_devices = GPUSet::All(param_.n_gpus, info_->num_row_).Size();
-
+    // int n_devices = GPUSet::All(param_.n_gpus, info_->num_row_).Size();
+    int n_devices = devices_.Size();
     device_list_.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       int device_idx = GPUSet::GetDeviceIdx(param_.gpu_id + d_idx);
@@ -800,8 +826,8 @@ class GPUHistMaker : public TreeUpdater {
 
     reducer_.Init(device_list_);
 
-    // Partition input matrix into row segments
-    std::vector<size_t> row_segments;
+    std::vector<size_t> row_segments;  // segments offset
+    // Partition input matrix into row segments for each devices
     dh::RowSegments(info_->num_row_, n_devices, &row_segments);
 
     dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
@@ -810,11 +836,13 @@ class GPUHistMaker : public TreeUpdater {
     const SparsePage& batch = iter->Value();
     // Create device shards
     shards_.resize(n_devices);
-    dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
-        shard = std::unique_ptr<DeviceShard>
-          (new DeviceShard(device_list_[i], i,
-                           row_segments[i], row_segments[i + 1], param_));
-        shard->InitRowPtrs(batch);
+    dh::ExecuteIndexShards(
+        &shards_,
+        [&](int i, std::unique_ptr<DeviceShard>& shard) {
+          shard = std::unique_ptr<DeviceShard>
+                  (new DeviceShard(device_list_[i], i,
+                                   row_segments[i], row_segments[i + 1], param_));
+          shard->InitRowPtrs(batch);
       });
 
     monitor_.Start("Quantiles", devices_);
@@ -920,10 +948,13 @@ class GPUHistMaker : public TreeUpdater {
       const std::vector<int>& nidx_set, RegTree* p_tree) {
     auto columns = info_->num_col_;
     std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() * columns);
+    // All candidates
+    std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() *
+                                                       columns);
     // Use first device
     auto& shard = shards_.front();
     dh::safe_cuda(cudaSetDevice(shard->device_idx));
+    // storage for all candidates
     shard->temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
                                     nidx_set.size());
     auto d_split = shard->temp_memory.Pointer<DeviceSplitCandidate>();
@@ -946,7 +977,8 @@ class GPUHistMaker : public TreeUpdater {
               feature_set.DevicePointer(shard->device_idx), node,
               shard->feature_segments.Data(), shard->min_fvalue.Data(),
               shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
-              d_split + i * columns, node_value_constraints_[nidx],
+              d_split + i * columns,  // best split for each feature
+              node_value_constraints_[nidx],
               shard->monotone_constraints.Data());
     }
 
@@ -969,7 +1001,7 @@ class GPUHistMaker : public TreeUpdater {
 
   void InitRoot(RegTree* p_tree) {
     auto root_nidx = 0;
-    // Sum gradients
+    // Sum gradients containing gradient reductions from devices
     std::vector<GradientPair> tmp_sums(shards_.size());
 
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -1076,6 +1108,7 @@ class GPUHistMaker : public TreeUpdater {
     this->UpdatePosition(candidate, p_tree);
   }
 
+  /*! \brief Update a single tree. */
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     auto& tree = *p_tree;
@@ -1090,8 +1123,9 @@ class GPUHistMaker : public TreeUpdater {
     auto timestamp = qexpand_->size();
     auto num_leaves = 1;
 
+    // Iterate through the proposed candidates
     while (!qexpand_->empty()) {
-      auto candidate = qexpand_->top();
+      ExpandEntry candidate = qexpand_->top();
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
       // std::cout << candidate;
@@ -1112,7 +1146,7 @@ class GPUHistMaker : public TreeUpdater {
         monitor_.Stop("BuildHist", devices_);
 
         monitor_.Start("EvaluateSplits", devices_);
-        auto splits =
+        std::vector<DeviceSplitCandidate> splits =
             this->EvaluateSplits({left_child_nidx, right_child_nidx}, p_tree);
         qexpand_->push(ExpandEntry(left_child_nidx,
                                    tree.GetDepth(left_child_nidx), splits[0],
@@ -1123,19 +1157,6 @@ class GPUHistMaker : public TreeUpdater {
         monitor_.Stop("EvaluateSplits", devices_);
       }
     }
-  }
-
-  bool UpdatePredictionCache(
-      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
-    monitor_.Start("UpdatePredictionCache", devices_);
-    if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
-      return false;
-    p_out_preds->Reshard(devices_);
-    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
-        shard->UpdatePredictionCache(p_out_preds->DevicePointer(shard->device_idx));
-      });
-    monitor_.Stop("UpdatePredictionCache", devices_);
-    return true;
   }
 
   struct ExpandEntry {
@@ -1181,7 +1202,7 @@ class GPUHistMaker : public TreeUpdater {
     }
   }
   static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
-    if (lhs.split.loss_chg == rhs.split.loss_chg) {
+    if (lhs.split.loss_chg - rhs.split.loss_chg < kRtEps) {
       return lhs.timestamp > rhs.timestamp;  // favor small timestamp
     } else {
       return lhs.split.loss_chg < rhs.split.loss_chg;  // favor large loss_chg
