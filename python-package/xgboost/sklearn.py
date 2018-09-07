@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
