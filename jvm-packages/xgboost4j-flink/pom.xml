@@ -48,6 +48,11 @@
             <artifactId>flink-ml_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>2.7.3</version>
+        </dependency>
     </dependencies>
 
 </project>
