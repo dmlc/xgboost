@@ -192,7 +192,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
         maximize_score = maximize
         metric_label = env.evaluation_result_list[-1][0]
-        metric = metric_label.split('-', maxsplit=1)[-1]
+        metric = metric_label.split('-', 1)[-1]
 
         if any(metric.startswith(x) for x in maximize_at_n_metrics):
             maximize_score = True
