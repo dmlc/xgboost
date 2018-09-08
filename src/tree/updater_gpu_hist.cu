@@ -747,6 +747,7 @@ class GPUHistMaker : public TreeUpdater {
   struct ExpandEntry;
 
   GPUHistMaker() : initialised_(false), p_last_fmat_(nullptr) {}
+
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param_.InitAllowUnknown(args);
@@ -919,9 +920,7 @@ class GPUHistMaker : public TreeUpdater {
       const std::vector<int>& nidx_set, RegTree* p_tree) {
     auto columns = info_->num_col_;
     std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    DeviceSplitCandidate* candidate_splits;
-    dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
-      columns * sizeof(DeviceSplitCandidate)));
+    std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() * columns);
     // Use first device
     auto& shard = shards_.front();
     dh::safe_cuda(cudaSetDevice(shard->device_idx));
@@ -952,10 +951,10 @@ class GPUHistMaker : public TreeUpdater {
     }
 
     dh::safe_cuda(cudaDeviceSynchronize());
-    dh::safe_cuda(
-        cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
-                   sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
-                   cudaMemcpyDeviceToHost));
+    dh::safe_cuda
+      (cudaMemcpy(candidate_splits.data(), shard->temp_memory.d_temp_storage,
+                  sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
+                  cudaMemcpyDeviceToHost));
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto depth = p_tree->GetDepth(nidx_set[i]);
       DeviceSplitCandidate nidx_best;
@@ -965,7 +964,6 @@ class GPUHistMaker : public TreeUpdater {
       }
       best_splits[i] = nidx_best;
     }
-    dh::safe_cuda(cudaFreeHost(candidate_splits));
     return std::move(best_splits);
   }
 
