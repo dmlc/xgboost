@@ -72,7 +72,7 @@ TEST(BulkAllocator, Independent) {
   dh::DSpan<int> span_i;
   dh::DSpan<float> span_f;
   dh::DSpan<double> span_d;
-  ba.Allocate(0, &span_i, 16, &span_f, 32, &span_d, 64);
+  ba.Allocate(0, &span_i, 16, &span_f, 32, &span_d, 4096);
 
   ASSERT_TRUE(span_i.data());
   ASSERT_EQ(span_i.size(), 16);
@@ -81,7 +81,16 @@ TEST(BulkAllocator, Independent) {
   ASSERT_EQ(span_f.size(), 32);
 
   ASSERT_TRUE(span_d.data());
-  ASSERT_EQ(span_d.size(), 64);
+  ASSERT_EQ(span_d.size(), 4096);
+
+  dh::DSpan<unsigned char> span_c;
+  ba.Allocate(0, &span_c, 1404);
+  ASSERT_EQ(span_c.size(), 1404);
+  span_c.Fill(3);
+  auto vec = span_c.AsVector();
+  for (auto v : vec) {
+    ASSERT_EQ(v, 3);
+  }
 
   dh::DoubleBuffer<int> buf_i;
   dh::DoubleBuffer<float> buf_f;

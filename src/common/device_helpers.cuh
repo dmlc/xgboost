@@ -510,10 +510,43 @@ class DSpan : public xgboost::common::Span<T> {
       device_idx_{other.device_idx_}, Span{other} {}
   DSpan(Span span, int device) : Span{span}, device_idx_{device} {}
 
-  DSpan& operator=(const DSpan& other) {
-    device_idx_ = other.device_idx_;
-    Span::operator=(other);
-    return *this;
+  // DSpan& operator=(const std::vector<T>& vec) {
+  //   std::copy(vec.cbegin(), vec.cend(), this->begin());
+  //   return *this;
+  // }
+
+  void Fill(T value) {
+    // FIXME: Pass a span?
+    T *ptr = Span::data();
+    LaunchN(device_idx_, Span::size(),
+            [=] __device__(size_t idx) {
+              ptr[idx] = value;
+            });
+  }
+
+  template <typename IterT>
+  void copy(IterT begin, IterT end) {
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
+    if (end - begin != Span::size()) {
+      LOG(FATAL) << "Cannot copy assign vector to DVec, sizes are different";
+    }
+    thrust::device_ptr<T> ptr {Span::data()};
+    thrust::copy(begin, end, ptr);
+  }
+  void copy(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+    safe_cuda(cudaSetDevice(device_idx_));
+    CHECK(end - begin != Span::size()) <<
+        "Cannot copy assign vector to dvec, sizes are different";
+    safe_cuda(cudaMemcpy(this->data(), begin.get(), Span::size() * sizeof(T),
+                         cudaMemcpyDefault));
+  }
+
+  std::vector<T> AsVector() const {
+    std::vector<T> h_vector(Span::size());
+    safe_cuda(cudaSetDevice(device_idx_));
+    safe_cuda(cudaMemcpy(h_vector.data(), Span::data(), Span::size_bytes(),
+                         cudaMemcpyDeviceToHost));
+    return h_vector;
   }
   int DeviceIdx() const {
     return device_idx_;
@@ -554,12 +587,12 @@ class DoubleBuffer {
 
   cub::DoubleBuffer<T> &buff() { return buff_; }
 
-  xgboost::common::Span<T> &S1() { return s1_; }
-  xgboost::common::Span<T> &S2() { return s2_; }
+  DSpan<T> &S1() { return s1_; }
+  DSpan<T> &S2() { return s2_; }
 
   T *Current() { return buff_.Current(); }
 
-  xgboost::common::Span<T> &CurrentSpan() {
+  DSpan<T> &CurrentDSpan() {
     return buff_.selector == 0 ? S1() : S2();
   }
 

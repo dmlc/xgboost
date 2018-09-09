@@ -16,7 +16,7 @@
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 
 #else
-HOST_DEV_INLINE double atomicAdd(double* address, double val) {
+DEV_INLINE double atomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull =
       (unsigned long long int*)address;                   // NOLINT
   unsigned long long int old = *address_as_ull, assumed;  // NOLINT
@@ -76,7 +76,9 @@ inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
   auto* ptr = reinterpret_cast<const bst_float*>(gpair.data());
   bst_float abs_max =
       std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
-                      [=](bst_float a, bst_float b) { return max(abs(a), abs(b)); });
+                      [=](bst_float a, bst_float b) {
+                        return std::max(std::abs(a), std::abs(b));
+                      });
 
   CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
       << "Labels are too large for this algorithm. Rescale to less than 2^16.";
@@ -367,20 +369,20 @@ struct BernoulliRng {
 };
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, bst_float subsample,
+inline void SubsampleGradientPair(dh::DSpan<GradientPair> gpair, bst_float subsample,
                                   int offset = 0) {
   if (subsample == 1.0) {
     return;
   }
 
-  dh::DVec<GradientPair>& gpair = *p_gpair;
+  // dh::DVec<GradientPair>& gpair = *p_gpair;
 
-  auto d_gpair = gpair.Data();
+  // auto d_gpair = gpair.data();
   BernoulliRng rng(subsample, common::GlobalRandom()());
 
-  dh::LaunchN(gpair.DeviceIdx(), gpair.Size(), [=] XGBOOST_DEVICE(int i) {
+  dh::LaunchN(gpair.DeviceIdx(), gpair.size(), [=] XGBOOST_DEVICE(int i) {
     if (!rng(i + offset)) {
-      d_gpair[i] = GradientPair();
+      gpair[i] = GradientPair();
     }
   });
 }
