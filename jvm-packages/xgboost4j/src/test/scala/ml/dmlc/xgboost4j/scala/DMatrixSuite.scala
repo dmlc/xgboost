@@ -40,11 +40,11 @@ class DMatrixSuite extends FunSuite {
   test("create DMatrix from CSR") {
     // create Matrix from csr format sparse Matrix and labels
     /**
-     * sparse matrix
-     * 1 0 2 3 0
-     * 4 0 2 3 5
-     * 3 1 2 5 0
-     */
+      * sparse matrix
+      * 1 0 2 3 0
+      * 4 0 2 3 5
+      * 3 1 2 5 0
+      */
     val data = List[Float](1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5).toArray
     val colIndex = List(0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3).toArray
     val rowHeaders = List[Long](0, 3, 7, 11).toArray
@@ -59,11 +59,11 @@ class DMatrixSuite extends FunSuite {
   test("create DMatrix from CSREx") {
     // create Matrix from csr format sparse Matrix and labels
     /**
-     * sparse matrix
-     * 1 0 2 3 0
-     * 4 0 2 3 5
-     * 3 1 2 5 0
-     */
+      * sparse matrix
+      * 1 0 2 3 0
+      * 4 0 2 3 5
+      * 3 1 2 5 0
+      */
     val data = List[Float](1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5).toArray
     val colIndex = List(0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3).toArray
     val rowHeaders = List[Long](0, 3, 7, 11).toArray
@@ -78,13 +78,13 @@ class DMatrixSuite extends FunSuite {
   test("create DMatrix from CSC") {
     // create Matrix from csc format sparse Matrix and labels
     /**
-     * sparse matrix
-     * 1 0 2
-     * 3 0 4
-     * 0 2 3
-     * 5 3 1
-     * 2 5 0
-     */
+      * sparse matrix
+      * 1 0 2
+      * 3 0 4
+      * 0 2 3
+      * 5 3 1
+      * 2 5 0
+      */
     val data = List[Float](1, 3, 5, 2, 2, 3, 5, 2, 4, 3, 1).toArray
     val rowIndex = List(0, 1, 3, 4, 2, 3, 4, 0, 1, 2, 3).toArray
     val colHeaders = List[Long](0, 4, 7, 11).toArray
@@ -99,13 +99,13 @@ class DMatrixSuite extends FunSuite {
   test("create DMatrix from CSCEx") {
     // create Matrix from csc format sparse Matrix and labels
     /**
-     * sparse matrix
-     * 1 0 2
-     * 3 0 4
-     * 0 2 3
-     * 5 3 1
-     * 2 5 0
-     */
+      * sparse matrix
+      * 1 0 2
+      * 3 0 4
+      * 0 2 3
+      * 5 3 1
+      * 2 5 0
+      */
     val data = List[Float](1, 3, 5, 2, 2, 3, 5, 2, 4, 3, 1).toArray
     val rowIndex = List(0, 1, 3, 4, 2, 3, 4, 0, 1, 2, 3).toArray
     val colHeaders = List[Long](0, 4, 7, 11).toArray
@@ -168,7 +168,7 @@ class DMatrixSuite extends FunSuite {
     assert(dmat0.getLabel.length === 10)
   }
 
-    test("create DMatrix from DenseMatrix") {
+  test("create DMatrix from DenseMatrix") {
     val nrow = 10
     val ncol = 5
     val data0 = new Array[Float](nrow * ncol)
@@ -200,8 +200,7 @@ class DMatrixSuite extends FunSuite {
     val ncol = 5
     val data0 = new Array[Float](nrow * ncol)
     for (i <- data0.indices) {
-        data0(i) = 1.0f
-      }
+      data0(i) = 1.0f
     }
     // create groups
     val group0 = new Array[Int](nrow)
