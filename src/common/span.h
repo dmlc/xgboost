@@ -543,7 +543,7 @@ class Span {
   XGBOOST_DEVICE auto subspan() const ->                   // NOLINT
       Span<element_type,
            detail::ExtentValue<Extent, Offset, Count>::value> {
-    SPAN_CHECK(Offset >= 0 && Offset < size());
+    SPAN_CHECK(Offset >= 0 && Offset <= size());
     SPAN_CHECK(Count == dynamic_extent ||
                Count >= 0 && Offset + Count <= size());
 
@@ -553,7 +553,7 @@ class Span {
   XGBOOST_DEVICE Span<element_type, dynamic_extent> subspan(  // NOLINT
       detail::ptrdiff_t _offset,
       detail::ptrdiff_t _count = dynamic_extent) const {
-    SPAN_CHECK(_offset >= 0 && _offset < size());
+    SPAN_CHECK(_offset >= 0 && _offset <= size());
     SPAN_CHECK(_count == dynamic_extent ||
                _count >= 0 && _offset + _count <= size());
 

@@ -395,10 +395,10 @@ TEST(Span, Subspan) {
   ASSERT_EQ(s4.size(), s1.size() - 2);
 
   EXPECT_ANY_THROW(s1.subspan(-1, 0));
-  EXPECT_ANY_THROW(s1.subspan(16, 0));
+  EXPECT_ANY_THROW(s1.subspan(16, 1));
 
   EXPECT_ANY_THROW(s1.subspan<-1>());
-  EXPECT_ANY_THROW(s1.subspan<16>());
+  EXPECT_ANY_THROW(s1.subspan<17>());
 }
 
 TEST(Span, Compare) {
