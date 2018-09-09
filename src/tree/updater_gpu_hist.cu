@@ -348,20 +348,7 @@ struct DeviceShard {
   dh::BulkAllocatorTemp ba;
 
   std::vector<Segment> ridx_segments;  // row index segments
-  // @begin devs
-  // dh::DVec<common::CompressedByteT> gidx_buffer;
-  // dh::DVec<GradientPair> gpair;
-  // dh::DVec2<bst_uint> ridx;  // Row index relative to this shard
-  // dh::DVec2<int> position;
-  // dh::DVec<int> feature_segments;
-  // dh::DVec<bst_float> gidx_fvalue_map;
-  // dh::DVec<bst_float> min_fvalue;
-  // dh::DVec<int> monotone_constraints;
-  // dh::DVec<bst_float> prediction_cache;
-  // dh::DVec<GradientPair> node_sum_gradients_d;
-  // @end devs
 
-  // @begin spans
   dh::DSpan<common::CompressedByteT> gidx_buffer;
   dh::DSpan<GradientPair> gpair;
   dh::DoubleBuffer<bst_uint> ridx;  // Row index relative to this shard
@@ -372,7 +359,6 @@ struct DeviceShard {
   dh::DSpan<int> monotone_constraints;
   dh::DSpan<bst_float> prediction_cache;
   dh::DSpan<GradientPair> node_sum_gradients_d;
-  // #end spans
 
   std::vector<GradientPair> node_sum_gradients;
   thrust::device_vector<size_t> row_ptrs;

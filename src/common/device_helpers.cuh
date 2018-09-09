@@ -495,10 +495,18 @@ class BulkAllocator {
 };
 
 template <typename T>
+class DoubleBuffer;
+class BulkAllocatorTemp;
+
+template <typename T>
 class DSpan : public xgboost::common::Span<T> {
   int device_idx_;
   using Byte = xgboost::common::byte;
 
+  DSpan& operator=(const DSpan& other) = default;
+
+  friend class DoubleBuffer<T>;
+  friend class BulkAllocatorTemp;
  public:
   using Span = xgboost::common::Span<T>;
   using index_type = typename Span::index_type;
@@ -509,11 +517,6 @@ class DSpan : public xgboost::common::Span<T> {
   DSpan(const DSpan& other) :
       device_idx_{other.device_idx_}, Span{other} {}
   DSpan(Span span, int device) : Span{span}, device_idx_{device} {}
-
-  // DSpan& operator=(const std::vector<T>& vec) {
-  //   std::copy(vec.cbegin(), vec.cend(), this->begin());
-  //   return *this;
-  // }
 
   void Fill(T value) {
     // FIXME: Pass a span?
