@@ -386,45 +386,6 @@ class DVec2 {
   T *other() { return buff_.Alternate(); }
 };
 
-template <typename T>
-class DoubleBuffer {
- private:
-  xgboost::common::Span<T> s1_, s2_;
-  cub::DoubleBuffer<T> buff_;
-  int device_idx_;
-
- public:
-  DoubleBuffer() : buff_{}, device_idx_{-1} {}
-  void ExternalAllocate(int device_idx,
-                        xgboost::common::Span<T> s1, xgboost::common::Span<T> s2) {
-    if (!Empty()) {
-      LOG(FATAL) << "Tried to allocate DoubleBuffer but already allocated";
-    }
-    device_idx_ = device_idx;
-    this->s1_ = s1;
-    this->s2_ = s2;
-    buff_.d_buffers[0] = s1.data();
-    buff_.d_buffers[1] = s2.data();
-    buff_.selector = 0;
-  }
-  size_t Size() const { return s1_.size(); }
-  int DeviceIdx() const { return device_idx_; }
-  bool Empty() const { return s1_.size() == 0 || s2_.size() == 0; }
-
-  cub::DoubleBuffer<T> &buff() { return buff_; }
-
-  xgboost::common::Span<T> &S1() { return s1_; }
-  xgboost::common::Span<T> &S2() { return s2_; }
-
-  T *Current() { return buff_.Current(); }
-
-  xgboost::common::Span<T> &CurrentSpan() {
-    return buff_.selector == 0 ? S1() : S2();
-  }
-
-  T *Other() { return buff_.Alternate(); }
-};
-
 template <MemoryType MemoryT>
 class BulkAllocator {
   std::vector<char *> d_ptr_;
@@ -533,6 +494,78 @@ class BulkAllocator {
   }
 };
 
+template <typename T>
+class DSpan : public xgboost::common::Span<T> {
+  int device_idx_;
+  using Byte = xgboost::common::byte;
+
+ public:
+  using Span = xgboost::common::Span<T>;
+  using index_type = typename Span::index_type;
+
+  DSpan() = default;
+  DSpan(T * ptr, index_type size, int device) :
+      Span{ptr, size}, device_idx_{device} {}
+  DSpan(const DSpan& other) :
+      device_idx_{other.device_idx_}, Span{other} {}
+  DSpan(Span span, int device) : Span{span}, device_idx_{device} {}
+
+  DSpan& operator=(const DSpan& other) {
+    device_idx_ = other.device_idx_;
+    Span::operator=(other);
+    return *this;
+  }
+  int DeviceIdx() const {
+    return device_idx_;
+  }
+  DSpan first(index_type count) const {
+    DSpan<T> res {Span::first(count), device_idx_};
+    return res;
+  }
+  DSpan last(index_type count) const {
+    DSpan<T> res {Span::last(count), device_idx_};
+    return res;
+  }
+};
+
+template <typename T>
+class DoubleBuffer {
+ private:
+  DSpan<T> s1_, s2_;
+  cub::DoubleBuffer<T> buff_;
+  int device_idx_;
+
+ public:
+  DoubleBuffer() : buff_{}, device_idx_{-1} {}
+  void ExternalAllocate(int device_idx, DSpan<T> s1, DSpan<T> s2) {
+    if (!Empty()) {
+      LOG(FATAL) << "Tried to allocate DoubleBuffer but already allocated";
+    }
+    device_idx_ = device_idx;
+    this->s1_ = s1;
+    this->s2_ = s2;
+    buff_.d_buffers[0] = s1.data();
+    buff_.d_buffers[1] = s2.data();
+    buff_.selector = 0;
+  }
+  size_t Size() const { return s1_.size(); }
+  int DeviceIdx() const { return device_idx_; }
+  bool Empty() const { return s1_.size() == 0 || s2_.size() == 0; }
+
+  cub::DoubleBuffer<T> &buff() { return buff_; }
+
+  xgboost::common::Span<T> &S1() { return s1_; }
+  xgboost::common::Span<T> &S2() { return s2_; }
+
+  T *Current() { return buff_.Current(); }
+
+  xgboost::common::Span<T> &CurrentSpan() {
+    return buff_.selector == 0 ? S1() : S2();
+  }
+
+  T *Other() { return buff_.Alternate(); }
+};
+
 class BulkAllocatorTemp {
   using Byte = xgboost::common::byte;
   using index_type = xgboost::common::detail::ptrdiff_t;
@@ -542,19 +575,22 @@ class BulkAllocatorTemp {
   std::vector<int> device_idx_;
 
   template <typename T>
-  xgboost::common::Span<T> SpanFromByte(xgboost::common::Span<Byte> span) const {
-    return {reinterpret_cast<T*>(span.data()),
-          static_cast<index_type>(span.size() / sizeof(T))};
+  DSpan<T> SpanFromByte(DSpan<Byte> span) const {
+    DSpan<T> res {
+      {reinterpret_cast<T*>(span.data()),
+            static_cast<index_type>(span.size() / sizeof(T))},
+          span.DeviceIdx()};
+    return res;
   }
 
   template <typename T>
-  void AllocateSpan(int device_idx, xgboost::common::Span<Byte> buffer,
-                    xgboost::common::Span<T> *span, index_type size) {
+  void AllocateSpan(int device_idx, DSpan<Byte> buffer,
+                    DSpan<T> *span, index_type size) {
     *span = SpanFromByte<T>(buffer.first(size * sizeof(T)));
   }
   template <typename Head, typename... Args>
-  void AllocateSpan(int device_idx, xgboost::common::Span<Byte> buffer,
-                    xgboost::common::Span<Head> *span, index_type size,
+  void AllocateSpan(int device_idx, DSpan<Byte> buffer,
+                    DSpan<Head> *span, index_type size,
                     Args... args) {
     AllocateSpan<Head>(device_idx, buffer, span, size);
     *span = SpanFromByte<Head>(buffer.first(size * sizeof(Head)));
@@ -563,8 +599,8 @@ class BulkAllocatorTemp {
   }
 
   template <typename T>
-  xgboost::common::Span<Byte> AllocateSpan(
-      int device_idx, xgboost::common::Span<Byte> mem_pool,
+  DSpan<Byte> AllocateSpan(
+      int device_idx, DSpan<Byte> mem_pool,
       DoubleBuffer<T> *buf, index_type size) {
     auto first = SpanFromByte<T>(mem_pool.first(size * sizeof(T)));
     mem_pool = mem_pool.last(mem_pool.size() - size * sizeof(T));
@@ -574,7 +610,7 @@ class BulkAllocatorTemp {
     return mem_pool;
   }
   template <typename Head, typename... Args>
-  void AllocateSpan(int device_idx, xgboost::common::Span<Byte> mem_pool,
+  void AllocateSpan(int device_idx, DSpan<Byte> mem_pool,
                     DoubleBuffer<Head> *buf, index_type size, Args... args) {
     mem_pool = AllocateSpan<Head>(device_idx, mem_pool, buf, size);
     AllocateSpan(device_idx, mem_pool, args...);
@@ -591,11 +627,11 @@ class BulkAllocatorTemp {
   }
 
   template <typename T>
-  index_type GetSizeBytes(xgboost::common::Span<T> *span, index_type size) {
+  index_type GetSizeBytes(DSpan<T> *span, index_type size) {
     return size * sizeof(T);
   }
   template <typename Head, typename... Args>
-  index_type GetSizeBytes(xgboost::common::Span<Head> *head, index_type size,
+  index_type GetSizeBytes(DSpan<Head> *head, index_type size,
                           Args... spans) {
     return size * sizeof(Head) + GetSizeBytes(spans...);
   }
@@ -613,7 +649,7 @@ class BulkAllocatorTemp {
     index_type size_in_byte = GetSizeBytes(args...);
     Byte *ptr = AllocateDevice(device_idx, size_in_byte);
 
-    xgboost::common::Span<Byte> mem_pool {ptr, size_in_byte};
+    DSpan<Byte> mem_pool {ptr, size_in_byte, device_idx};
     AllocateSpan(device_idx, mem_pool, args...);
 
     d_ptr_.push_back(ptr);
@@ -629,7 +665,6 @@ class BulkAllocatorTemp {
     }
   }
 };
-
 // Keep track of cub library device allocation
 struct CubMemory {
   void *d_temp_storage;

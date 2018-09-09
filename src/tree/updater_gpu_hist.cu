@@ -345,13 +345,14 @@ struct DeviceShard {
   int device_idx;
   int normalised_device_idx;  // Device index counting from param.gpu_id
   dh::BulkAllocator<dh::MemoryType::kDevice> ba;
+  // dh::BulkAllocatorTemp ba;
 
+  std::vector<Segment> ridx_segments;  // row index segments
   // @begin devs
   dh::DVec<common::CompressedByteT> gidx_buffer;
   dh::DVec<GradientPair> gpair;
   dh::DVec2<bst_uint> ridx;  // Row index relative to this shard
   dh::DVec2<int> position;
-  std::vector<Segment> ridx_segments;  // row index segments
   dh::DVec<int> feature_segments;
   dh::DVec<bst_float> gidx_fvalue_map;
   dh::DVec<bst_float> min_fvalue;
@@ -359,6 +360,19 @@ struct DeviceShard {
   dh::DVec<bst_float> prediction_cache;
   dh::DVec<GradientPair> node_sum_gradients_d;
   // @end devs
+
+  // @begin spans
+  // common::Span<common::CompressedByteT> gidx_buffer;
+  // common::Span<GradientPair> gpair;
+  // dh::DoubleBuffer<bst_uint> ridx;  // Row index relative to this shard
+  // dh::DoubleBuffer<int> position;
+  // common::Span<int> feature_segments;
+  // common::Span<bst_float> gidx_fvalue_map;
+  // common::Span<bst_float> min_fvalue;
+  // common::Span<int> monotone_constraints;
+  // common::Span<bst_float> prediction_cache;
+  // common::Span<GradientPair> node_sum_gradients_d;
+  // #end spans
 
   std::vector<GradientPair> node_sum_gradients;
   thrust::device_vector<size_t> row_ptrs;
@@ -553,7 +567,10 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.Size());
-    this->gpair.copy(dh_gpair->tcbegin(device_idx), dh_gpair->tcend(device_idx));
+    // CHECK_EQ(gpair.size() == dh_gpair->Size());
+    // dh::safe_cuda(cudaMemcpy(gpair.data(), dh_gpair.tbegin(device_idx).get(),
+    //                          gpair.size_bytes(), cudaMemcpyDefault));
+    this->gpair.copy(dh_gpair->tbegin(device_idx), dh_gpair->tend(device_idx));
     SubsampleGradientPair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }

@@ -69,9 +69,9 @@ TEST(BulkAllocator, Independent) {
     LOG(WARNING) << "Empty devices.";
     return;
   }
-  xgboost::common::Span<int> span_i;
-  xgboost::common::Span<float> span_f;
-  xgboost::common::Span<double> span_d;
+  dh::DSpan<int> span_i;
+  dh::DSpan<float> span_f;
+  dh::DSpan<double> span_d;
   ba.Allocate(0, &span_i, 16, &span_f, 32, &span_d, 64);
 
   ASSERT_TRUE(span_i.data());
@@ -110,8 +110,8 @@ TEST(BulkAllocator, Mixed){
     return;
   }
 
-  xgboost::common::Span<float> span_f;
-  xgboost::common::Span<double> span_d;
+  dh::DSpan<float> span_f;
+  dh::DSpan<double> span_d;
   ba.Allocate(0, &span_f, 32, &span_d, 64);
 
   dh::DoubleBuffer<float> buf_f;
