@@ -717,6 +717,12 @@ struct CubMemory {
   T *Pointer() {
     return static_cast<T *>(d_temp_storage);
   }
+  template <typename T>
+  xgboost::common::Span<T> GetSpan() const {
+    return {static_cast<T*>(d_temp_storage),
+          static_cast<typename xgboost::common::Span<T>::index_type>(
+              temp_storage_bytes)};
+  }
 
   void Free() {
     if (this->IsAllocated()) {

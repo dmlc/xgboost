@@ -56,8 +56,8 @@ __device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
 template <int BLOCK_THREADS, typename ReduceT, typename scan_t,
           typename max_ReduceT, typename TempStorageT>
 __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
-                                const bst_uint* feature_segments, bst_float min_fvalue,
-                                const bst_float* gidx_fvalue_map,
+                                common::Span<const bst_uint> feature_segments, bst_float min_fvalue,
+                                common::Span<const bst_float> gidx_fvalue_map,
                                 DeviceSplitCandidate* best_split,
                                 const DeviceNodeStats& node,
                                 const GPUTrainingParam& param,
@@ -154,7 +154,7 @@ __global__ void evaluate_split_kernel(
   auto fidx = feature_set[blockIdx.x];
   auto constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
-      fidx, d_hist, d_feature_segments, d_fidx_min_map[fidx], d_gidx_fvalue_map,
+      fidx, d_hist, feature_segments, fidx_min_map[fidx], gidx_fvalue_map,
       &best_split, nodes, gpu_param, &temp_storage, constraint,
       value_constraint);
 
@@ -162,7 +162,7 @@ __global__ void evaluate_split_kernel(
 
   if (threadIdx.x == 0) {
     // Record best loss
-    d_split[fidx] = best_split;
+    split[fidx] = best_split;
   }
 }
 
@@ -961,8 +961,7 @@ class GPUHistMaker : public TreeUpdater {
     // storage for all candidates
     shard->temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
                                     nidx_set.size());
-    auto d_split = shard->temp_memory.Pointer<DeviceSplitCandidate>();
-
+    auto splits = shard->temp_memory.GetSpan<DeviceSplitCandidate>();
     auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
 
     // Use streams to process nodes concurrently
@@ -983,7 +982,7 @@ class GPUHistMaker : public TreeUpdater {
               shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
               d_split + i * columns,  // best split for each feature
               node_value_constraints_[nidx],
-              shard->monotone_constraints.data());
+              shard->monotone_constraints);
     }
 
     dh::safe_cuda(cudaDeviceSynchronize());
