@@ -122,12 +122,13 @@ __device__ void EvaluateFeature(int fidx, common::Span<const GradientPairSumT> h
 }
 
 template <int BLOCK_THREADS>
-__global__ void evaluate_split_kernel(
-    const GradientPairSumT* d_hist, int nidx, uint64_t n_features,
-    int* feature_set, DeviceNodeStats nodes, const int* d_feature_segments,
-    const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
-    GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split,
-    ValueConstraint value_constraint, int* d_monotonic_constraints) {
+__global__ void EvaluateSplitKernel(
+    common::Span<const GradientPairSumT> d_hist, int nidx, uint64_t n_features,
+    common::Span<int> feature_set, DeviceNodeStats nodes,
+    common::Span<const bst_uint> d_feature_segments,
+    common::Span<const bst_float> d_fidx_min_map, common::Span<const bst_float> d_gidx_fvalue_map,
+    GPUTrainingParam gpu_param, common::Span<DeviceSplitCandidate> d_split,
+    ValueConstraint value_constraint, common::Span<int> d_monotonic_constraints) {
   typedef cub::KeyValuePair<int, bst_float> ArgMaxT;
   typedef cub::BlockScan<GradientPairSumT, BLOCK_THREADS, cub::BLOCK_SCAN_WARP_SCANS>
       BlockScanT;
@@ -154,7 +155,7 @@ __global__ void evaluate_split_kernel(
   auto fidx = feature_set[blockIdx.x];
   auto constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
-      fidx, d_hist, feature_segments, fidx_min_map[fidx], gidx_fvalue_map,
+      fidx, d_hist, d_feature_segments, d_fidx_min_map[fidx], d_gidx_fvalue_map,
       &best_split, nodes, gpu_param, &temp_storage, constraint,
       value_constraint);
 
@@ -162,7 +163,7 @@ __global__ void evaluate_split_kernel(
 
   if (threadIdx.x == 0) {
     // Record best loss
-    split[fidx] = best_split;
+    d_split[fidx] = best_split;
   }
 }
 
@@ -253,13 +254,9 @@ struct DeviceHistogram {
    * \return    hist span.
    */
   common::Span<GradientPairSumT> GetHistInst(int nidx) {
-    if (nidx_map.find(nidx) == nidx_map.end()) {
-      // Append new node histogram
-      nidx_map[nidx] = data.size();
-      dh::safe_cuda(cudaSetDevice(device_idx));
-      data.resize(data.size() + n_bins, GradientPairSumT());
-    }
-    return {data.data().get() + nidx_map[nidx], n_bins};
+    CHECK(this->HistogramExists(nidx));
+    auto ptr = data.data().get() + nidx_map[nidx];
+    return {reinterpret_cast<GradientPairSumT*>(ptr), n_bins};
   }
 };
 
@@ -982,15 +979,16 @@ class GPUHistMaker : public TreeUpdater {
 
       auto& feature_set = column_sampler_.GetFeatureSet(depth);
       feature_set.Reshard(GPUSet(shard->device_idx, 1));
+      common::Span<int> d_feature_set = feature_set.DeviceSpan(shard->device_idx);
 
       const int BLOCK_THREADS = 256;
-      evaluate_split_kernel<BLOCK_THREADS>
+      EvaluateSplitKernel<BLOCK_THREADS>
           <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0, streams[i]>>>(
-              shard->hist.GetHistPtr(nidx), nidx, info_->num_col_,
-              feature_set.DevicePointer(shard->device_idx), node,
-              shard->feature_segments.Data(), shard->min_fvalue.Data(),
-              shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
-              d_split + i * columns,  // best split for each feature
+              shard->hist.GetHistInst(nidx), nidx, info_->num_col_,
+              d_feature_set, node,
+              shard->feature_segments, shard->min_fvalue,
+              shard->gidx_fvalue_map, GPUTrainingParam(param_),
+              splits.subspan(i * columns, splits.size()),  // best split for each feature
               node_value_constraints_[nidx],
               shard->monotone_constraints);
     }
