@@ -176,26 +176,23 @@ object XGBoost extends Serializable {
   }
 
   /**
-   * @return A tuple of the booster and the metrics used to build training summary
+   * Check to see if Spark expects SSL encryption (`spark.ssl.enabled` set to true).
+   * If so, throw an exception unless this safety measure has been explicitly overridden
+   * via conf `xgboost.spark.ignoreSsl`.
+   *
+   * @param sc  SparkContext for the training dataset.  When looking for the confs, this method
+   *            first checks for an active SparkSession.  If one is not available, it falls back
+   *            to this SparkContext.
    */
-  @throws(classOf[XGBoostError])
-  private[spark] def trainDistributed(
-      trainingData: RDD[XGBLabeledPoint],
-      params: Map[String, Any],
-      round: Int,
-      nWorkers: Int,
-      obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
-      useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
+  private def validateSparkSslConf(sc: SparkContext): Unit = {
     val (sparkSslEnabled: Boolean, xgboostSparkIgnoreSsl: Boolean) =
       SparkSession.getActiveSession match {
         case Some(ss) =>
           (ss.conf.getOption("spark.ssl.enabled").getOrElse("false").toBoolean,
             ss.conf.getOption("xgboost.spark.ignoreSsl").getOrElse("false").toBoolean)
         case None =>
-          (trainingData.context.getConf.getBoolean("spark.ssl.enabled", false),
-            trainingData.context.getConf.getBoolean("xgboost.spark.ignoreSsl", false))
+          (sc.getConf.getBoolean("spark.ssl.enabled", false),
+            sc.getConf.getBoolean("xgboost.spark.ignoreSsl", false))
       }
     if (sparkSslEnabled) {
       if (xgboostSparkIgnoreSsl) {
@@ -208,6 +205,22 @@ object XGBoost extends Serializable {
           "you can set the SparkSession conf to use xgboost.spark.ignoreSsl=true.")
       }
     }
+  }
+
+  /**
+   * @return A tuple of the booster and the metrics used to build training summary
+   */
+  @throws(classOf[XGBoostError])
+  private[spark] def trainDistributed(
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): (Booster, Map[String, Array[Float]]) = {
+    validateSparkSslConf(trainingData.context)
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
