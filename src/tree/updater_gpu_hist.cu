@@ -30,17 +30,16 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 using GradientPairSumT = GradientPairPrecise;
 
 template <int BLOCK_THREADS, typename ReduceT, typename TempStorageT>
-__device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
-                                          const GradientPairSumT* end,
+__device__ GradientPairSumT ReduceFeature(common::Span<const GradientPairSumT> feat,
                                           TempStorageT* temp_storage) {
   __shared__ cub::Uninitialized<GradientPairSumT> uninitialized_sum;
   GradientPairSumT& shared_sum = uninitialized_sum.Alias();
 
   GradientPairSumT local_sum = GradientPairSumT();
-  for (auto itr = begin; itr < end; itr += BLOCK_THREADS) {
-    bool thread_active = itr + threadIdx.x < end;
+  for (auto iter = feat.begin(); iter < feat.end(); iter += BLOCK_THREADS) {
+    bool thread_active = (iter + threadIdx.x) < feat.end();
     // Scan histogram
-    GradientPairSumT bin = thread_active ? *(itr + threadIdx.x) : GradientPairSumT();
+    GradientPairSumT bin = thread_active ? *(iter + threadIdx.x) : GradientPairSumT();
     local_sum += bin;
   }
   local_sum = ReduceT(temp_storage->sum_reduce).Reduce(local_sum, cub::Sum());
@@ -55,7 +54,7 @@ __device__ GradientPairSumT ReduceFeature(const GradientPairSumT* begin,
 
 template <int BLOCK_THREADS, typename ReduceT, typename scan_t,
           typename max_ReduceT, typename TempStorageT>
-__device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
+__device__ void EvaluateFeature(int fidx, common::Span<const GradientPairSumT> hist,
                                 common::Span<const bst_uint> feature_segments, bst_float min_fvalue,
                                 common::Span<const bst_float> gidx_fvalue_map,
                                 DeviceSplitCandidate* best_split,
@@ -67,7 +66,8 @@ __device__ void EvaluateFeature(int fidx, const GradientPairSumT* hist,
   int gidx_end = feature_segments[fidx + 1];
 
   GradientPairSumT feature_sum = ReduceFeature<BLOCK_THREADS, ReduceT>(
-      hist + gidx_begin, hist + gidx_end, temp_storage);
+      hist.subspan(gidx_begin, gidx_end),
+      temp_storage);
 
   auto prefix_op = SumCallbackOp<GradientPairSumT>();
   for (int scan_begin = gidx_begin; scan_begin < gidx_end;
@@ -242,15 +242,24 @@ struct DeviceHistogram {
   }
 
   /**
-   * \summary   Return pointer to histogram memory for a given node.
+   * \summary   Return span to histogram memory for a given node. Be aware that this function
+   *            may reallocate the underlying memory, invalidating previous pointers.
+   *
+   * \author    Rory
+   * \date  28/07/2018
+   *
    * \param nidx    Tree node index.
-   * \return    hist pointer.
+   *
+   * \return    hist span.
    */
-
-  GradientPairSumT* GetHistPtr(int nidx) {
-    CHECK(this->HistogramExists(nidx));
-    auto ptr = data.data().get() + nidx_map[nidx];
-    return reinterpret_cast<GradientPairSumT*>(ptr);
+  common::Span<GradientPairSumT> GetHistInst(int nidx) {
+    if (nidx_map.find(nidx) == nidx_map.end()) {
+      // Append new node histogram
+      nidx_map[nidx] = data.size();
+      dh::safe_cuda(cudaSetDevice(device_idx));
+      data.resize(data.size() + n_bins, GradientPairSumT());
+    }
+    return {data.data().get() + nidx_map[nidx], n_bins};
   }
 };
 
@@ -270,9 +279,9 @@ struct CalcWeightTrainParam {
 
 __global__ void compress_bin_ellpack_k
 (common::CompressedBufferWriter wr, common::CompressedByteT* __restrict__ buffer,
- const size_t* __restrict__ row_ptrs,
- const Entry* __restrict__ entries,
- const bst_float* __restrict__ cuts, const size_t* __restrict__ cut_rows,
+ common::Span<const size_t> row_ptrs,
+ common::Span<const Entry> entries,
+ common::Span<const bst_float> cuts, common::Span<const size_t> cut_rows,
  size_t base_row, size_t n_rows, size_t row_ptr_begin, size_t row_stride,
  unsigned int null_gidx_value) {
   size_t irow = threadIdx.x + size_t(blockIdx.x) * blockDim.x;
@@ -296,11 +305,11 @@ __global__ void compress_bin_ellpack_k
 }
 
 __global__ void sharedMemHistKernel(size_t row_stride,
-                                    const bst_uint* d_ridx,
+                                    common::Span<const bst_uint> d_ridx,
                                     common::CompressedIterator<uint32_t> d_gidx,
                                     int null_gidx_value,
-                                    GradientPairSumT* d_node_hist,
-                                    const GradientPair* d_gpair,
+                                    common::Span<GradientPairSumT> d_node_hist,
+                                    common::Span<const GradientPair> d_gpair,
                                     size_t segment_begin,
                                     size_t n_elements) {
   extern __shared__ char smem[];
@@ -323,7 +332,7 @@ __global__ void sharedMemHistKernel(size_t row_stride,
   __syncthreads();
   // write back the histgoram to node.
   for (auto i : dh::BlockStrideRange(0, null_gidx_value)) {
-    AtomicAddGpair(d_node_hist + i, smem_arr[i]);
+    AtomicAddGpair(&d_node_hist[i], smem_arr[i]);
   }
 }
 
@@ -470,8 +479,10 @@ struct DeviceShard {
                  dh::DivRoundUp(row_stride, block3.y), 1);
       compress_bin_ellpack_k<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols), gidx_buffer.data(),
-         row_ptrs.data().get() + batch_row_begin,
-         entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
+         common::Span<size_t>{row_ptrs.data().get() + batch_row_begin, static_cast<typename common::Span<size_t>::index_type>(row_ptrs.size() - batch_row_begin)},
+         dh::GetSpan(entries_d),
+         dh::GetSpan(cuts_d),
+         dh::GetSpan(cut_row_ptrs_d),
          batch_row_begin, batch_nrows,
          offset_vec[row_begin_idx + batch_row_begin],
          row_stride, null_gidx_value);
@@ -554,9 +565,6 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.Size());
-    // CHECK_EQ(gpair.size() == dh_gpair->Size());
-    // dh::safe_cuda(cudaMemcpy(gpair.data(), dh_gpair.tbegin(device_idx).get(),
-    //                          gpair.size_bytes(), cudaMemcpyDefault));
     this->gpair.copy(dh_gpair->tbegin(device_idx), dh_gpair->tend(device_idx));
     SubsampleGradientPair(gpair, param.subsample, row_begin_idx);
     hist.Reset();
@@ -564,10 +572,9 @@ struct DeviceShard {
 
   void BuildHistUsingGlobalMem(int nidx) {
     auto segment = ridx_segments[nidx];
-    auto d_node_hist = hist.GetHistPtr(nidx);
+    auto node_hist = hist.GetHistInst(nidx);
     auto d_gidx = gidx;
     auto d_ridx = ridx.Current();
-    auto d_gpair = gpair.data();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
     auto n_elements = segment.Size() * row_stride;
@@ -577,7 +584,7 @@ struct DeviceShard {
       int gidx = d_gidx[ridx * row_stride + idx % row_stride];
 
       if (gidx != null_gidx_value) {
-        AtomicAddGpair(d_node_hist + gidx, d_gpair[ridx]);
+        AtomicAddGpair(&node_hist[gidx], gpair[ridx]);
       }
     });
   }
@@ -585,12 +592,10 @@ struct DeviceShard {
   void BuildHistUsingSharedMem(int nidx) {
     Segment segment = ridx_segments[nidx];
     auto segment_begin = segment.begin;
-    auto d_node_hist = hist.GetHistPtr(nidx);  // hist for current node
+    auto d_node_hist = hist.GetHistInst(nidx);  // hist for current node
     common::CompressedIterator<uint32_t> d_gidx = gidx;
-    bst_uint* d_ridx = ridx.Current();
-    auto d_gpair = gpair.data();
+    common::Span<bst_uint> d_ridx = ridx.CurrentDSpan();
     auto row_stride = this->row_stride;
-    // auto null_gidx_value = this->null_gidx_value;
     auto n_elements = segment.Size() * row_stride;
 
     const size_t smem_size = sizeof(GradientPairSumT) * null_gidx_value;
@@ -603,7 +608,7 @@ struct DeviceShard {
     }
     dh::safe_cuda(cudaSetDevice(device_idx));
     sharedMemHistKernel<<<grid_size, dh::kBlockThreads, smem_size>>>
-        (row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist, d_gpair,
+        (row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist, gpair,
          segment_begin, n_elements);
   }
 
@@ -621,9 +626,14 @@ struct DeviceShard {
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
                         int nidx_subtraction) {
-    auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
-    auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
-    auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
+    // FIXME: Is this really needed?
+    // Make sure histograms are already allocated
+    hist.GetHistInst(nidx_parent);
+    hist.GetHistInst(nidx_histogram);
+    hist.GetHistInst(nidx_subtraction);
+    auto d_node_hist_parent = hist.GetHistInst(nidx_parent);
+    auto d_node_hist_histogram = hist.GetHistInst(nidx_histogram);
+    auto d_node_hist_subtraction = hist.GetHistInst(nidx_subtraction);
 
     dh::LaunchN(device_idx, hist.n_bins, [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
@@ -887,7 +897,7 @@ class GPUHistMaker : public TreeUpdater {
   void AllReduceHist(int nidx) {
     reducer_.GroupStart();
     for (auto& shard : shards_) {
-      auto d_node_hist = shard->hist.GetHistPtr(nidx);
+      auto d_node_hist = shard->hist.GetHistInst(nidx).data();
       reducer_.AllReduceSum(
           shard->normalised_device_idx,
           reinterpret_cast<GradientPairSumT::ValueT*>(d_node_hist),
@@ -1222,8 +1232,7 @@ class GPUHistMaker : public TreeUpdater {
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   common::ColumnSampler column_sampler_;
   typedef std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                              std::function<bool(ExpandEntry, ExpandEntry)>>
-      ExpandQueue;
+    std::function<bool(ExpandEntry, ExpandEntry)>> ExpandQueue;
   std::unique_ptr<ExpandQueue> qexpand_;
   common::Monitor monitor_;
   dh::AllReducer reducer_;

@@ -1239,4 +1239,26 @@ ReduceT ReduceShards(std::vector<T> *shards, FunctionT f) {
   }
   return std::accumulate(sums.begin(), sums.end(), ReduceT());
 }
+
+template <typename T>
+xgboost::common::Span<T> GetSpan(thrust::device_vector<T>& vector) {
+  return xgboost::common::Span<T>{
+    vector.data().get(),
+    static_cast<typename xgboost::common::Span<T>::index_type>(vector.size())};
+}
+template <typename T>
+xgboost::common::Span<T const> GetSpan(const thrust::device_vector<T>& vector) {
+  return xgboost::common::Span<T>{
+    vector.data().get(),
+    static_cast<typename xgboost::common::Span<T>::index_type>(vector.size())};
+}
+template <typename T>
+xgboost::common::Span<T> GetSpan(thrust::device_vector<T>& vector,
+                                 size_t offset) {
+  CHECK(vector.size() - offset >= 0);
+  return xgboost::common::Span<T>{
+    vector.data().get() + offset,
+    static_cast<typename xgboost::common::Span<T>::index_type>(
+        vector.size() - offset)};
+}
 }  // namespace dh
