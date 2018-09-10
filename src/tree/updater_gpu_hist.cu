@@ -568,10 +568,10 @@ struct DeviceShard {
   }
 
   void BuildHistUsingGlobalMem(int nidx) {
-    auto segment = ridx_segments[nidx];
+    auto segment = ridx_segments.at(nidx);
     auto node_hist = hist.GetHistInst(nidx);
     auto d_gidx = gidx;
-    auto d_ridx = ridx.Current();
+    bst_uint *d_ridx = ridx.Current();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
     auto n_elements = segment.Size() * row_stride;
@@ -587,7 +587,7 @@ struct DeviceShard {
   }
 
   void BuildHistUsingSharedMem(int nidx) {
-    Segment segment = ridx_segments[nidx];
+    Segment segment = ridx_segments.at(nidx);
     auto segment_begin = segment.begin;
     auto d_node_hist = hist.GetHistInst(nidx);  // hist for current node
     common::CompressedIterator<uint32_t> d_gidx = gidx;
@@ -661,7 +661,7 @@ struct DeviceShard {
     temp_memory.LazyAllocate(sizeof(int64_t));
     auto d_left_count = temp_memory.Pointer<int64_t>();
     dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(int64_t)));
-    auto segment = ridx_segments[nidx];
+    Segment segment = ridx_segments.at(nidx);
     auto d_ridx = ridx.Current();
     auto d_position = position.Current();
     auto d_gidx = gidx;
@@ -699,9 +699,9 @@ struct DeviceShard {
 
     SortPosition(segment, left_nidx, right_nidx);
     // dh::safe_cuda(cudaStreamSynchronize(stream));
-    ridx_segments[left_nidx] =
+    ridx_segments.at(left_nidx) =
         Segment(segment.begin, segment.begin + left_count);
-    ridx_segments[right_nidx] =
+    ridx_segments.at(right_nidx) =
         Segment(segment.begin + left_count, segment.end);
   }
 
@@ -974,7 +974,7 @@ class GPUHistMaker : public TreeUpdater {
     // Use streams to process nodes concurrently
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto nidx = nidx_set[i];
-      DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param_);
+      DeviceNodeStats node(shard->node_sum_gradients.at(nidx), nidx, param_);
       auto depth = p_tree->GetDepth(nidx);
 
       auto& feature_set = column_sampler_.GetFeatureSet(depth);
@@ -1039,7 +1039,7 @@ class GPUHistMaker : public TreeUpdater {
 
     // Store sum gradients
     for (auto& shard : shards_) {
-      shard->node_sum_gradients[root_nidx] = sum_gradient;
+      shard->node_sum_gradients.at(root_nidx) = sum_gradient;
     }
 
     // Initialise root constraint
@@ -1113,8 +1113,8 @@ class GPUHistMaker : public TreeUpdater {
     tree.Stat(parent.RightChild()).sum_hess = candidate.split.right_sum.GetHess();
     // Store sum gradients
     for (auto& shard : shards_) {
-      shard->node_sum_gradients[parent.LeftChild()] = candidate.split.left_sum;
-      shard->node_sum_gradients[parent.RightChild()] = candidate.split.right_sum;
+      shard->node_sum_gradients.at(parent.LeftChild()) = candidate.split.left_sum;
+      shard->node_sum_gradients.at(parent.RightChild()) = candidate.split.right_sum;
     }
     this->UpdatePosition(candidate, p_tree);
   }
