@@ -118,13 +118,26 @@ def _load_lib():
     if len(lib_paths) == 0:
         return None
     pathBackup = os.environ['PATH']
+    lib_success = False
+    os_error_list = []
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
             os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
             lib = ctypes.cdll.LoadLibrary(lib_path)
-        except OSError:
+            lib_success = True
+        except OSError as e:
+            os_error_list.append(str(e))
             continue
+    if not lib_success:
+        libname = os.path.basename(lib_paths[0])
+        raise XGBoostError(
+            'XGBoost Library ({}) could not be loaded.\n'.format(libname) + \
+            'Likely causes:\n' + \
+            '  * OpenMP runtime is not installed ' + \
+            '(vcomp140.dll for Windows, libgomp.so for UNIX-like OSes)\n' + \
+            '  * You are running 32-bit Python on a 64-bit OS\n' + \
+            'Error message(s): {}\n'.format(os_error_list))
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
