@@ -133,8 +133,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
       .setOutputCol("features")
 
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> "10", "num_workers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala"))
+      "objective" -> "binary:logistic", "num_round" -> "10", "num_workers" -> numWorkers)
     val xgb = new XGBoostClassifier(paramMap)
 
     // Construct MLlib pipeline, save and load
