@@ -78,21 +78,14 @@ def test_multiclass_classification():
         preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
 
-<<<<<<< HEAD
         pred_contribs = xgb_model.predict_proba(X[test_index], pred_contribs=True)
         probas = xgb_model.predict_proba(X[test_index])
         assert pred_contribs.shape[1] == probas.shape[1] * (X.shape[1] + 1)
 
-        check_pred(preds, labels)
-        check_pred(preds2, labels)
-        check_pred(preds3, labels)
-        check_pred(preds4, labels)
-=======
         check_pred(preds, labels, output_margin=False)
         check_pred(preds2, labels, output_margin=True)
         check_pred(preds3, labels, output_margin=True)
         check_pred(preds4, labels, output_margin=False)
->>>>>>> upstream/master
 
 
 def test_ranking():
