@@ -164,7 +164,7 @@ class FastHistMaker: public TreeUpdater {
       double time_evaluate_split = 0;
       double time_apply_split = 0;
 
-      std::vector<GradientPair>& gpair_h = gpair->HostVector();
+      const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
 
       spliteval_->Reset();
 

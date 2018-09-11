@@ -141,15 +141,19 @@ void SparsePageDMatrix::InitColAccess(
     pcol->Clear();
     pcol->base_rowid = buffered_rowset_[begin];
     const int nthread = std::max(omp_get_max_threads(), std::max(omp_get_num_procs() / 2 - 1, 1));
+    auto& offset_vec = pcol->offset.HostVector();
+    auto& data_vec = pcol->data.HostVector();
     common::ParallelGroupBuilder<Entry>
-    builder(&pcol->offset, &pcol->data);
+    builder(&offset_vec, &data_vec);
     builder.InitBudget(info.num_col_, nthread);
     bst_omp_uint ndata = static_cast<bst_uint>(prow.Size());
+    const auto& prow_offset_vec = prow.offset.HostVector();
+    const auto& prow_data_vec = prow.data.HostVector();
     #pragma omp parallel for schedule(static) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
-      for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
-        const  auto e = prow.data[j];
+      for (size_t j = prow_offset_vec[i]; j < prow_offset_vec[i+1]; ++j) {
+        const  auto e = prow_data_vec[j];
         builder.AddBudget(e.index, tid);
       }
     }
@@ -157,8 +161,8 @@ void SparsePageDMatrix::InitColAccess(
     #pragma omp parallel for schedule(static) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
-      for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
-        const Entry &e = prow.data[j];
+      for (size_t j = prow_offset_vec[i]; j < prow_offset_vec[i+1]; ++j) {
+        const Entry &e = prow_data_vec[j];
         builder.Push(e.index,
                      Entry(buffered_rowset_[i + begin], e.fvalue),
                      tid);
@@ -170,9 +174,9 @@ void SparsePageDMatrix::InitColAccess(
       auto ncol = static_cast<bst_omp_uint>(pcol->Size());
 #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
       for (bst_omp_uint i = 0; i < ncol; ++i) {
-        if (pcol->offset[i] < pcol->offset[i + 1]) {
-          std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
-            dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
+        if (offset_vec[i] < offset_vec[i + 1]) {
+          std::sort(dmlc::BeginPtr(data_vec) + offset_vec[i],
+            dmlc::BeginPtr(data_vec) + offset_vec[i + 1],
             Entry::CmpValue);
         }
       }
@@ -233,8 +237,9 @@ void SparsePageDMatrix::InitColAccess(
     size_t tick_expected = kStep;
 
     while (make_next_col(page.get())) {
+      const auto& page_offset_vec = page->offset.ConstHostVector();
       for (size_t i = 0; i < page->Size(); ++i) {
-        col_size_[i] += page->offset[i + 1] - page->offset[i];
+        col_size_[i] += page_offset_vec[i + 1] - page_offset_vec[i];
       }
 
       bytes_write += page->MemCostBytes();

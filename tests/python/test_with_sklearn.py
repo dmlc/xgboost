@@ -56,9 +56,13 @@ def test_multiclass_classification():
     except:
         from sklearn.model_selection import KFold
 
-    def check_pred(preds, labels):
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+    def check_pred(preds, labels, output_margin):
+        if output_margin:
+            err = sum(1 for i in range(len(preds))
+                      if preds[i].argmax() != labels[i]) / float(len(preds))
+        else:
+            err = sum(1 for i in range(len(preds))
+                      if preds[i] != labels[i]) / float(len(preds))
         assert err < 0.4
 
     iris = load_iris()
@@ -74,6 +78,7 @@ def test_multiclass_classification():
         preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
         labels = y[test_index]
 
+<<<<<<< HEAD
         pred_contribs = xgb_model.predict_proba(X[test_index], pred_contribs=True)
         probas = xgb_model.predict_proba(X[test_index])
         assert pred_contribs.shape[1] == probas.shape[1] * (X.shape[1] + 1)
@@ -82,6 +87,12 @@ def test_multiclass_classification():
         check_pred(preds2, labels)
         check_pred(preds3, labels)
         check_pred(preds4, labels)
+=======
+        check_pred(preds, labels, output_margin=False)
+        check_pred(preds2, labels, output_margin=True)
+        check_pred(preds3, labels, output_margin=True)
+        check_pred(preds4, labels, output_margin=False)
+>>>>>>> upstream/master
 
 
 def test_ranking():
@@ -297,7 +308,7 @@ def test_sklearn_api_gblinear():
     preds = classifier.predict(te_d)
     labels = te_l
     err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
-    assert err < 0.2
+    assert err < 0.5
 
 from nose.tools import nottest
 @nottest

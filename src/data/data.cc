@@ -25,12 +25,12 @@ namespace xgboost {
 // implementation of inline functions
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
-  labels_.clear();
+  labels_.HostVector().clear();
   root_index_.clear();
   group_ptr_.clear();
   qids_.clear();
-  weights_.clear();
-  base_margin_.clear();
+  weights_.HostVector().clear();
+  base_margin_.HostVector().clear();
 }
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
@@ -39,12 +39,12 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(&num_row_, sizeof(num_row_));
   fo->Write(&num_col_, sizeof(num_col_));
   fo->Write(&num_nonzero_, sizeof(num_nonzero_));
-  fo->Write(labels_);
+  fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
   fo->Write(qids_);
-  fo->Write(weights_);
+  fo->Write(weights_.HostVector());
   fo->Write(root_index_);
-  fo->Write(base_margin_);
+  fo->Write(base_margin_.HostVector());
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
@@ -55,16 +55,16 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   CHECK(fi->Read(&num_col_, sizeof(num_col_)) == sizeof(num_col_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&num_nonzero_, sizeof(num_nonzero_)) == sizeof(num_nonzero_))
       << "MetaInfo: invalid format";
-  CHECK(fi->Read(&labels_)) <<  "MetaInfo: invalid format";
+  CHECK(fi->Read(&labels_.HostVector())) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
   if (version >= kVersionQidAdded) {
     CHECK(fi->Read(&qids_)) << "MetaInfo: invalid format";
   } else {  // old format doesn't contain qid field
     qids_.clear();
   }
-  CHECK(fi->Read(&weights_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
   CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&base_margin_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&base_margin_.HostVector())) << "MetaInfo: invalid format";
 }
 
 // try to load group information from file, if exists
@@ -121,17 +121,20 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, root_index_.begin()));
   } else if (!std::strcmp(key, "label")) {
-    labels_.resize(num);
+    auto& labels = labels_.HostVector();
+    labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels_.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
   } else if (!std::strcmp(key, "weight")) {
-    weights_.resize(num);
+    auto& weights = weights_.HostVector();
+    weights.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, weights_.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, weights.begin()));
   } else if (!std::strcmp(key, "base_margin")) {
-    base_margin_.resize(num);
+    auto& base_margin = base_margin_.HostVector();
+    base_margin.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, base_margin_.begin()));
+                       std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
   } else if (!std::strcmp(key, "group")) {
     group_ptr_.resize(num + 1);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
@@ -230,12 +233,14 @@ DMatrix* DMatrix::Load(const std::string& uri,
       LOG(CONSOLE) << info.group_ptr_.size() - 1
                    << " groups are loaded from " << fname << ".group";
     }
-    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin_) && !silent) {
-      LOG(CONSOLE) << info.base_margin_.size()
+    if (MetaTryLoadFloatInfo
+        (fname + ".base_margin", &info.base_margin_.HostVector()) && !silent) {
+      LOG(CONSOLE) << info.base_margin_.Size()
                    << " base_margin are loaded from " << fname << ".base_margin";
     }
-    if (MetaTryLoadFloatInfo(fname + ".weight", &info.weights_) && !silent) {
-      LOG(CONSOLE) << info.weights_.size()
+    if (MetaTryLoadFloatInfo
+        (fname + ".weight", &info.weights_.HostVector()) && !silent) {
+      LOG(CONSOLE) << info.weights_.Size()
                    << " weights are loaded from " << fname << ".weight";
     }
   }

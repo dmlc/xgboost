@@ -41,7 +41,7 @@ sys.path.insert(0, curr_path)
 
 # -- mock out modules
 import mock
-MOCK_MODULES = ['numpy', 'scipy', 'scipy.sparse', 'sklearn', 'matplotlib', 'pandas', 'graphviz']
+MOCK_MODULES = ['scipy', 'scipy.sparse', 'sklearn', 'pandas']
 for mod_name in MOCK_MODULES:
   sys.modules[mod_name] = mock.Mock()
 
@@ -62,12 +62,19 @@ release = xgboost.__version__
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
 extensions = [
+    'matplotlib.sphinxext.only_directives',
+    'matplotlib.sphinxext.plot_directive',
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',
     'breathe'
 ]
+
+graphviz_output_format = 'png'
+plot_formats = [('svg', 300), ('png', 100), ('hires.png', 300)]
+plot_html_show_source_link = False
+plot_html_show_formats = False
 
 # Breathe extension variables
 breathe_projects = {"xgboost": "doxyxml/"}

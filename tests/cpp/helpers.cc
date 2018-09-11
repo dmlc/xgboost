@@ -49,9 +49,8 @@ void _CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
-
   xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
-  obj->GetGradient(&in_preds, info, 1, &out_gpair);
+  obj->GetGradient(in_preds, info, 1, &out_gpair);
   std::vector<xgboost::GradientPair>& gpair = out_gpair.HostVector();
 
   ASSERT_EQ(gpair.size(), in_preds.Size());
@@ -73,8 +72,8 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
 
   _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
 }
@@ -88,8 +87,8 @@ void CheckRankingObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> out_hess) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
   _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
@@ -102,8 +101,8 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> weights) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
+  info.labels_.HostVector() = labels;
+  info.weights_.HostVector() = weights;
   return metric->Eval(preds, info, false);
 }
 

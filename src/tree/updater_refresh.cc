@@ -29,7 +29,7 @@ class TreeRefresher: public TreeUpdater {
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     if (trees.size() == 0) return;
-    std::vector<GradientPair> &gpair_h = gpair->HostVector();
+    const std::vector<GradientPair> &gpair_h = gpair->ConstHostVector();
     // number of threads
     // thread temporal space
     std::vector<std::vector<TStats> > stemp;

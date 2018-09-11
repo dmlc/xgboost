@@ -393,11 +393,13 @@ struct DeviceShard {
 
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_idx));
+    const auto& offset_vec = row_batch.offset.HostVector();
     row_ptrs.resize(n_rows + 1);
-    thrust::copy(row_batch.offset.data() + row_begin_idx,
-                 row_batch.offset.data() + row_end_idx + 1,
+    thrust::copy(offset_vec.data() + row_begin_idx,
+                 offset_vec.data() + row_end_idx + 1,
                  row_ptrs.begin());
     auto row_iter = row_ptrs.begin();
+    // find the maximum row size
     auto get_size = [=] __device__(size_t row) {
       return row_iter[row + 1] - row_iter[row];
     }; // NOLINT
@@ -438,9 +440,12 @@ struct DeviceShard {
       (dh::TotalMemory(device_idx) / (16 * row_stride * sizeof(Entry)),
        static_cast<size_t>(n_rows));
 
-    thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
+    const auto& offset_vec = row_batch.offset.HostVector();
+    const auto& data_vec = row_batch.data.HostVector();
 
+    thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
     size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
+
     for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
       size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
@@ -449,12 +454,12 @@ struct DeviceShard {
       }
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries =
-        row_batch.offset[row_begin_idx + batch_row_end] -
-        row_batch.offset[row_begin_idx + batch_row_begin];
+        offset_vec[row_begin_idx + batch_row_end] -
+        offset_vec[row_begin_idx + batch_row_begin];
       dh::safe_cuda
         (cudaMemcpy
          (entries_d.data().get(),
-          &row_batch.data[row_batch.offset[row_begin_idx + batch_row_begin]],
+          data_vec.data() + offset_vec[row_begin_idx + batch_row_begin],
           n_entries * sizeof(Entry), cudaMemcpyDefault));
       dim3 block3(32, 8, 1);
       dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
@@ -464,7 +469,7 @@ struct DeviceShard {
          row_ptrs.data().get() + batch_row_begin,
          entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
          batch_row_begin, batch_nrows,
-         row_batch.offset[row_begin_idx + batch_row_begin],
+         offset_vec[row_begin_idx + batch_row_begin],
          row_stride, null_gidx_value);
 
       dh::safe_cuda(cudaGetLastError());
@@ -544,7 +549,7 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.Size());
-    this->gpair.copy(dh_gpair->tbegin(device_idx), dh_gpair->tend(device_idx));
+    this->gpair.copy(dh_gpair->tcbegin(device_idx), dh_gpair->tcend(device_idx));
     SubsampleGradientPair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }
@@ -748,6 +753,7 @@ class GPUHistMaker : public TreeUpdater {
   struct ExpandEntry;
 
   GPUHistMaker() : initialised_(false), p_last_fmat_(nullptr) {}
+
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param_.InitAllowUnknown(args);
@@ -923,9 +929,7 @@ class GPUHistMaker : public TreeUpdater {
       const std::vector<int>& nidx_set, RegTree* p_tree) {
     auto columns = info_->num_col_;
     std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    DeviceSplitCandidate* candidate_splits;
-    dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
-      columns * sizeof(DeviceSplitCandidate)));
+    std::vector<DeviceSplitCandidate> candidate_splits(nidx_set.size() * columns);
     // Use first device
     auto& shard = shards_.front();
     dh::safe_cuda(cudaSetDevice(shard->device_idx));
@@ -956,10 +960,10 @@ class GPUHistMaker : public TreeUpdater {
     }
 
     dh::safe_cuda(cudaDeviceSynchronize());
-    dh::safe_cuda(
-        cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
-                   sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
-                   cudaMemcpyDeviceToHost));
+    dh::safe_cuda
+      (cudaMemcpy(candidate_splits.data(), shard->temp_memory.d_temp_storage,
+                  sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
+                  cudaMemcpyDeviceToHost));
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto depth = p_tree->GetDepth(nidx_set[i]);
       DeviceSplitCandidate nidx_best;
@@ -969,7 +973,6 @@ class GPUHistMaker : public TreeUpdater {
       }
       best_splits[i] = nidx_best;
     }
-    dh::safe_cuda(cudaFreeHost(candidate_splits));
     return std::move(best_splits);
   }
 

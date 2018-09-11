@@ -32,7 +32,7 @@ def _fmt_metric(value, show_stdv=True):
 def print_evaluation(period=1, show_stdv=True):
     """Create a callback that print evaluation result.
 
-    We print the evaluation results every ``period`` iterations
+    We print the evaluation results every **period** iterations
     and on the first and the last iterations.
 
     Parameters
@@ -60,7 +60,7 @@ def print_evaluation(period=1, show_stdv=True):
 
 
 def record_evaluation(eval_result):
-    """Create a call back that records the evaluation history into eval_result.
+    """Create a call back that records the evaluation history into **eval_result**.
 
     Parameters
     ----------
@@ -109,10 +109,11 @@ def reset_learning_rate(learning_rates):
     learning_rates: list or function
         List of learning rate for each boosting round
         or a customized function that calculates eta in terms of
-        current number of round and the total number of boosting round (e.g. yields
-        learning rate decay)
-        - list l: eta = l[boosting_round]
-        - function f: eta = f(boosting_round, num_boost_round)
+        current number of round and the total number of boosting round (e.g.
+        yields learning rate decay)
+
+        * list ``l``: ``eta = l[boosting_round]``
+        * function ``f``: ``eta = f(boosting_round, num_boost_round)``
 
     Returns
     -------
@@ -150,14 +151,14 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
     """Create a callback that activates early stoppping.
 
     Validation error needs to decrease at least
-    every <stopping_rounds> round(s) to continue training.
-    Requires at least one item in evals.
+    every **stopping_rounds** round(s) to continue training.
+    Requires at least one item in **evals**.
     If there's more than one, will use the last.
     Returns the model from the last iteration (not the best one).
     If early stopping occurs, the model will have three additional fields:
-    bst.best_score, bst.best_iteration and bst.best_ntree_limit.
-    (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-    and/or num_class appears in the parameters)
+    ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
+    (Use ``bst.best_ntree_limit`` to get the correct value if ``num_parallel_tree``
+    and/or ``num_class`` appears in the parameters)
 
     Parameters
     ----------
@@ -193,19 +194,18 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
         maximize_metrics = ('auc', 'map', 'ndcg')
         maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
         maximize_score = maximize
-        metric = env.evaluation_result_list[-1][0]
+        metric_label = env.evaluation_result_list[-1][0]
+        metric = metric_label.split('-', 1)[-1]
 
-        if any(env.evaluation_result_list[-1][0].split('-')[-1].startswith(x)
-               for x in maximize_at_n_metrics):
+        if any(metric.startswith(x) for x in maximize_at_n_metrics):
             maximize_score = True
 
-        if any(env.evaluation_result_list[-1][0].split('-')[-1].split(":")[0] == x
-               for x in maximize_metrics):
+        if any(metric.split(":")[0] == x for x in maximize_metrics):
             maximize_score = True
 
         if verbose and env.rank == 0:
             msg = "Will train until {} hasn't improved in {} rounds.\n"
-            rabit.tracker_print(msg.format(metric, stopping_rounds))
+            rabit.tracker_print(msg.format(metric_label, stopping_rounds))
 
         state['maximize_score'] = maximize_score
         state['best_iteration'] = 0

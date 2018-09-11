@@ -58,28 +58,30 @@ struct DeviceMatrix {
 
   DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    auto info = dmat->Info();
+    const auto& info = dmat->Info();
     ba.Allocate(device_idx, silent, &row_ptr, info.num_row_ + 1, &data,
                 info.num_nonzero_);
     auto iter = dmat->RowIterator();
     iter->BeforeFirst();
     size_t data_offset = 0;
     while (iter->Next()) {
-      auto &batch = iter->Value();
+      const auto& batch = iter->Value();
+      const auto& offset_vec = batch.offset.HostVector();
+      const auto& data_vec = batch.data.HostVector();
       // Copy row ptr
       dh::safe_cuda(cudaMemcpy(
-          row_ptr.Data() + batch.base_rowid, batch.offset.data(),
-          sizeof(size_t) * batch.offset.size(), cudaMemcpyHostToDevice));
+          row_ptr.Data() + batch.base_rowid, offset_vec.data(),
+          sizeof(size_t) * offset_vec.size(), cudaMemcpyHostToDevice));
       if (batch.base_rowid > 0) {
         auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
         auto end_itr = begin_itr + batch.Size() + 1;
         IncrementOffset(begin_itr, end_itr, batch.base_rowid);
       }
-      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, batch.data.data(),
-                               sizeof(Entry) * batch.data.size(),
+      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, data_vec.data(),
+                               sizeof(Entry) * data_vec.size(),
                                cudaMemcpyHostToDevice));
       // Copy data
-      data_offset += batch.data.size();
+      data_offset += batch.data.Size();
     }
   }
 };
@@ -374,10 +376,10 @@ class GPUPredictor : public xgboost::Predictor {
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
     size_t n = model.param.num_output_group * info.num_row_;
-    const std::vector<bst_float>& base_margin = info.base_margin_;
+    const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
     out_preds->Reshard(devices);
     out_preds->Resize(n);
-    if (base_margin.size() != 0) {
+    if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
       out_preds->Copy(base_margin);
     } else {
@@ -391,11 +393,11 @@ class GPUPredictor : public xgboost::Predictor {
         ntree_limit * model.param.num_output_group >= model.trees.size()) {
       auto it = cache_.find(dmat);
       if (it != cache_.end()) {
-        HostDeviceVector<bst_float>& y = it->second.predictions;
+        const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           out_preds->Reshard(devices);
           out_preds->Resize(y.Size());
-          out_preds->Copy(&y);
+          out_preds->Copy(y);
           return true;
         }
       }

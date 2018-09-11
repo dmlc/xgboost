@@ -35,6 +35,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   auto iter = p_fmat->RowIterator();
   iter->BeforeFirst();
+  const auto& weights = info.weights_.HostVector();
   while (iter->Next()) {
      auto &batch = iter->Value();
     #pragma omp parallel num_threads(nthread)
@@ -50,7 +51,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           SparsePage::Inst inst = batch[i];
           for (auto& ins : inst) {
             if (ins.index >= begin && ins.index < end) {
-              sketchs[ins.index].Push(ins.fvalue, info.GetWeight(ridx));
+              sketchs[ins.index].Push(ins.fvalue,
+                                      weights.size() > 0 ? weights[ridx] : 1.0f);
             }
           }
         }

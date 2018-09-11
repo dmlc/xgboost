@@ -44,7 +44,7 @@ class ObjFunction {
    * \param iteration current iteration number.
    * \param out_gpair output of get gradient, saves gradient and second order gradient in
    */
-  virtual void GetGradient(HostDeviceVector<bst_float>* preds,
+  virtual void GetGradient(const HostDeviceVector<bst_float>& preds,
                            const MetaInfo& info,
                            int iteration,
                            HostDeviceVector<GradientPair>* out_gpair) = 0;
