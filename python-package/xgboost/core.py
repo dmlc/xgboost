@@ -132,11 +132,12 @@ def _load_lib():
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
-            'XGBoost Library ({}) could not be loaded.\n'.format(libname) + \
-            'Likely causes:\n' + \
-            '  * OpenMP runtime is not installed ' + \
-            '(vcomp140.dll for Windows, libgomp.so for UNIX-like OSes)\n' + \
-            '  * You are running 32-bit Python on a 64-bit OS\n' + \
+            'XGBoost Library ({}) could not be loaded.\n'.format(libname) +
+            'Likely causes:\n' +
+            '  * OpenMP runtime is not installed ' +
+            '(vcomp140.dll or libgomp-1.dll for Windows, ' +
+            'libgomp.so for UNIX-like OSes)\n' +
+            '  * You are running 32-bit Python on a 64-bit OS\n' +
             'Error message(s): {}\n'.format(os_error_list))
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
