@@ -63,7 +63,10 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
 struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
   bst_float reg_lambda;
   bst_float reg_alpha;
-  bst_float reg_gamma;
+  // maximum delta update we can add in weight estimation
+  // this parameter can be used to stabilize update
+  // default=0 means no constraint on weight delta
+  float max_delta_step;
 
   DMLC_DECLARE_PARAMETER(ElasticNetParams) {
     DMLC_DECLARE_FIELD(reg_lambda)
@@ -74,13 +77,13 @@ struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
       .set_lower_bound(0.0)
       .set_default(0.0)
       .describe("L1 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(reg_gamma)
-      .set_lower_bound(0.0)
-      .set_default(0.0)
-      .describe("Cost incurred by adding a new leaf node to the tree");
+    DMLC_DECLARE_FIELD(max_delta_step)
+      .set_lower_bound(0.0f)
+      .set_default(0.0f)
+      .describe("Maximum delta step we allow each tree's weight estimate to be. "\
+                "If the value is set to 0, it means there is no constraint");
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-    DMLC_DECLARE_ALIAS(reg_gamma, gamma);
   }
 };
 
@@ -127,17 +130,25 @@ class ElasticNet final : public SplitEvaluator {
       const override {
     auto loss = weight * (2.0 * stats.sum_grad + stats.sum_hess * weight
         + params_.reg_lambda * weight)
-        + params_.reg_alpha * std::abs(weight);
+        + 2.0 * params_.reg_alpha * std::abs(weight);
     return -loss;
   }
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats) const {
-    return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
+    if (params_.max_delta_step == 0.0f) {
+      return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
+    } else {
+      return ComputeScore(parentID, stats, ComputeWeight(parentID, stats));
+    }
   }
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    return -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_.reg_lambda);
+    bst_float w = -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_.reg_lambda);
+    if (params_.max_delta_step != 0.0f && std::abs(w) > params_.max_delta_step) {
+      w = std::copysign(params_.max_delta_step, w);
+    }
+    return w;
   }
 
  private:
@@ -155,7 +166,7 @@ class ElasticNet final : public SplitEvaluator {
 };
 
 XGBOOST_REGISTER_SPLIT_EVALUATOR(ElasticNet, "elastic_net")
-.describe("Use an elastic net regulariser and a cost per leaf node")
+.describe("Use an elastic net regulariser")
 .set_body([](std::unique_ptr<SplitEvaluator> inner) {
     return new ElasticNet(std::move(inner));
   });
