@@ -163,7 +163,7 @@ class XGBoostClassifier (
     }
 
     if (isDefined(customObj) && $(customObj) != null) {
-      set(obj_type, "classification")
+      set(objectiveType, "classification")
     }
 
     val _numClasses = getNumClasses(dataset)
