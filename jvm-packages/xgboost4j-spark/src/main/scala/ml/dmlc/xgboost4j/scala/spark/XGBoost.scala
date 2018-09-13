@@ -193,7 +193,7 @@ object XGBoost extends Serializable {
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
-      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+      require(params.get("objective_type").isDefined, "parameter \"objective_type\" is not defined," +
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
     }
