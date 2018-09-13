@@ -161,7 +161,7 @@ class XGBoostRegressor (
     }
 
     if (isDefined(customObj) && $(customObj) != null) {
-      set(obj_type, "regression")
+      set(objectiveType, "regression")
     }
 
     val weight = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
