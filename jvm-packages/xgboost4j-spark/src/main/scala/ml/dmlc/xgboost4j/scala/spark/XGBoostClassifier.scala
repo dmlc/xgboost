@@ -130,7 +130,7 @@ class XGBoostClassifier (
   // setters for learning params
   def setObjective(value: String): this.type = set(objective, value)
 
-  def setObjectiveType(value: String): this.type = set(obj_type, value)
+  def setObjectiveType(value: String): this.type = set(objectiveType, value)
 
   def setBaseScore(value: Double): this.type = set(baseScore, value)
 
