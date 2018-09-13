@@ -42,7 +42,7 @@ private[spark] trait LearningTaskParams extends Params {
     s"training, options: {${LearningTaskParams.supportedObjectiveType.mkString(",")}",
     (value: String) => LearningTaskParams.supportedObjectiveType.contains(value))
 
-  final def getObjectiveType: String = $(obj_type)
+  final def getObjectiveType: String = $(objectiveType)
 
 
   /**
