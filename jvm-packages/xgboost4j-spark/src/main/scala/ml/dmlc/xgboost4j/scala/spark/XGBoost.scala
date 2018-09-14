@@ -379,12 +379,12 @@ private object Watches {
 
     val (trainIter1, trainIter2) = trainPoints.duplicate
     val trainMatrix = new DMatrix(trainIter1, cacheDirName.map(_ + "/train").orNull,
-      params.get("batchSize").map(_.toString.toInt).getOrElse(32<<10))
+      params.get("batch_size").map(_.toString.toInt).getOrElse(32 << 10))
     val trainGroups = buildGroups(trainIter2.map(_.group).toSeq).toArray
     trainMatrix.setGroup(trainGroups)
 
     val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull,
-      params.get("batchSize").map(_.toString.toInt).getOrElse(32<<10))
+      params.get("batch_size").map(_.toString.toInt).getOrElse(32 << 10))
     if (trainTestRatio < 1.0) {
       val testGroups = buildGroups(testPoints.map(_.group)).toArray
       testMatrix.setGroup(testGroups)

@@ -99,6 +99,8 @@ class XGBoostRegressor (
 
   def setSubsample(value: Double): this.type = set(subsample, value)
 
+  def setBatchSize(value: Int): this.type = set(batchSize, value)
+
   def setColsampleBytree(value: Double): this.type = set(colsampleBytree, value)
 
   def setColsampleBylevel(value: Double): this.type = set(colsampleBylevel, value)

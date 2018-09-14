@@ -103,10 +103,12 @@ private[spark] trait BoosterParams extends Params {
     * batch size of training instance. Setting 32 << 10 means XGBoost collect 32k rows at once
     * and construct DMatrix in batch fashion.
     */
-  final val batchsize = new IntParam(this, "batchSize", "DMatrix batch size of the training " +
+  final val batchSize = new IntParam(this, "batchSize", "DMatrix batch size of the training " +
     "insance. Setting it to 32 << 10 means that building a DMatrix in micro batch",
     (value: Int) => value > 0
   )
+
+  final def getBathSize: Int = $(batchSize)
 
   /**
    * subsample ratio of columns when constructing each tree. [default=1] range: (0,1]
@@ -253,7 +255,7 @@ private[spark] trait BoosterParams extends Params {
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
-    growPolicy -> "depthwise", maxBins -> 16, batchsize -> (32 << 10),
+    growPolicy -> "depthwise", maxBins -> 16, batchSize -> (32 << 10),
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
