@@ -36,10 +36,11 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
     *
     * @param dataIter An iterator of LabeledPoint
     * @param cacheInfo  Cache path information, used for external memory setting, null by default.
+    * @param batchSize size of batch
     * @throws XGBoostError native error
     */
-  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String = null) {
-    this(new JDMatrix(dataIter.asJava, cacheInfo))
+  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String = null, batchSize: Int = 32 << 10) {
+    this(new JDMatrix(dataIter.asJava, cacheInfo, batchSize))
   }
 
   /**

@@ -42,9 +42,17 @@ public class DMatrixTest {
       blist.add(p);
       labelall.add(p.label());
     }
-    DMatrix dmat = new DMatrix(blist.iterator(), null);
+
+    DMatrix dmat = new DMatrix(blist.iterator(), null, 32<<10);
     // get label
     float[] labels = dmat.getLabel();
+    for (int i = 0; i < labels.length; ++i) {
+      TestCase.assertTrue(labelall.get(i) == labels[i]);
+    }
+    // test bach iterator
+    dmat = new DMatrix(blist.iterator(), null, 300);
+    // get label
+    labels = dmat.getLabel();
     for (int i = 0; i < labels.length; ++i) {
       TestCase.assertTrue(labelall.get(i) == labels[i]);
     }
