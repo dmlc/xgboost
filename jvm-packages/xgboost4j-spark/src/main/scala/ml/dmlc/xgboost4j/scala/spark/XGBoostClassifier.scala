@@ -130,6 +130,8 @@ class XGBoostClassifier (
   // setters for learning params
   def setObjective(value: String): this.type = set(objective, value)
 
+  def setObjectiveType(value: String): this.type = set(objectiveType, value)
+
   def setBaseScore(value: Double): this.type = set(baseScore, value)
 
   def setEvalMetric(value: String): this.type = set(evalMetric, value)
@@ -158,6 +160,10 @@ class XGBoostClassifier (
 
     if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
       set(evalMetric, setupDefaultEvalMetric())
+    }
+
+    if (isDefined(customObj) && $(customObj) != null) {
+      set(objectiveType, "classification")
     }
 
     val _numClasses = getNumClasses(dataset)

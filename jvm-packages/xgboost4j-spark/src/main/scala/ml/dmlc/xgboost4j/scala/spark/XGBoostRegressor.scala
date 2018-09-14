@@ -130,6 +130,8 @@ class XGBoostRegressor (
   // setters for learning params
   def setObjective(value: String): this.type = set(objective, value)
 
+  def setObjectiveType(value: String): this.type = set(objectiveType, value)
+
   def setBaseScore(value: Double): this.type = set(baseScore, value)
 
   def setEvalMetric(value: String): this.type = set(evalMetric, value)
@@ -156,6 +158,10 @@ class XGBoostRegressor (
 
     if (!isDefined(evalMetric) || $(evalMetric).isEmpty) {
       set(evalMetric, setupDefaultEvalMetric())
+    }
+
+    if (isDefined(customObj) && $(customObj) != null) {
+      set(objectiveType, "regression")
     }
 
     val weight = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
