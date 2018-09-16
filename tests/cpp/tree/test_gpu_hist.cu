@@ -88,5 +88,15 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   delete dmat;
 }
 
+TEST(gpu_hist_experimental, TestBuildHist) {
+  int rows = 100;
+  int columns = 80;
+  int max_bins = 4;
+  TrainParam p;
+  DeviceShard shard(0, 0, 0, rows, p);
+  // shard.BuildHistUsingSharedMem(0);
+  // shard.BuildHistUsingGlobalMem(0);
+}
+
 }  // namespace tree
 }  // namespace xgboost

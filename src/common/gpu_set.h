@@ -76,11 +76,11 @@ class GPUSet {
   }
   /* \brief Counting from gpu_id */
   GPUSet Normalised(int gpu_id) const {
-    return Range(gpu_id, *devices_.end() + gpu_id);
+    return Range(gpu_id, Size());
   }
   /* \brief Counting from 0 */
   GPUSet Unnormalised() const {
-    return Range(0, *devices_.end() - *devices_.begin());
+    return Range(0, Size());
   }
 
   int Size() const {

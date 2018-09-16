@@ -61,3 +61,74 @@ TEST(sumReduce, Test) {
   auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
+
+TEST(BulkAllocator, Independent) {
+  dh::BulkAllocatorTemp ba;
+  auto devices = xgboost::GPUSet::AllVisible();
+  if (devices.IsEmpty()) {
+    LOG(WARNING) << "Empty devices.";
+    return;
+  }
+  dh::DSpan<int> span_i;
+  dh::DSpan<float> span_f;
+  dh::DSpan<double> span_d;
+  ba.Allocate(0, &span_i, 16, &span_f, 32, &span_d, 4096);
+
+  ASSERT_TRUE(span_i.data());
+  ASSERT_EQ(span_i.size(), 16);
+
+  ASSERT_TRUE(span_f.data());
+  ASSERT_EQ(span_f.size(), 32);
+
+  ASSERT_TRUE(span_d.data());
+  ASSERT_EQ(span_d.size(), 4096);
+
+  dh::DSpan<unsigned char> span_c;
+  ba.Allocate(0, &span_c, 1404);
+  ASSERT_EQ(span_c.size(), 1404);
+  span_c.Fill(3);
+  auto vec = span_c.AsVector();
+  for (auto v : vec) {
+    ASSERT_EQ(v, 3);
+  }
+
+  dh::DoubleBuffer<int> buf_i;
+  dh::DoubleBuffer<float> buf_f;
+  dh::DoubleBuffer<double> buf_d;
+
+  ba.Allocate(0, &buf_i, 16, &buf_f, 32, &buf_d, 64);
+
+  ASSERT_TRUE(buf_i.S1().data());
+  ASSERT_EQ(buf_i.S1().size(), 16);
+  ASSERT_EQ(buf_i.S2().size(), 16);
+
+  ASSERT_TRUE(buf_f.S1().data());
+  ASSERT_EQ(buf_f.S1().size(), 32);
+  ASSERT_EQ(buf_f.S2().size(), 32);
+
+  ASSERT_TRUE(buf_d.S1().data());
+  ASSERT_EQ(buf_d.S1().size(), 64);
+  ASSERT_EQ(buf_d.S2().size(), 64);
+}
+
+TEST(BulkAllocator, Mixed){
+  dh::BulkAllocatorTemp ba;
+  auto devices = xgboost::GPUSet::AllVisible();
+  if (devices.IsEmpty()) {
+    LOG(WARNING) << "Empty devices.";
+    return;
+  }
+
+  dh::DSpan<float> span_f;
+  dh::DSpan<double> span_d;
+  ba.Allocate(0, &span_f, 32, &span_d, 64);
+
+  dh::DoubleBuffer<float> buf_f;
+  dh::DoubleBuffer<double> buf_d;
+  ba.Allocate(0, &span_f, 16, &span_d, 32, &buf_f, 64, &buf_d, 128);
+
+  ASSERT_EQ(span_f.size(), 16);
+  ASSERT_EQ(span_d.size(), 32);
+  ASSERT_EQ(buf_f.Size(), 64);
+  ASSERT_EQ(buf_d.Size(), 128);
+}
