@@ -7,6 +7,7 @@
 #include <xgboost/base.h>
 #include <xgboost/tree_updater.h>
 #include <vector>
+#include <chrono>
 #include <algorithm>
 #include "../common/sync.h"
 #include "../common/quantile.h"
@@ -272,6 +273,8 @@ class CQHistMaker: public HistMaker<TStats> {
   CQHistMaker()  = default;
 
  protected:
+  long io_time_cost_hist;
+  long io_time_cost_summary;
   struct HistEntry {
     typename HistMaker<TStats>::HistUnit hist;
     unsigned istart;
@@ -455,7 +458,13 @@ class CQHistMaker: public HistMaker<TStats> {
     }
     if (summary_array_.size() != 0) {
       size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+      std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
       sreducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
+      std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+      this->io_time_cost_summary +=
+          (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) / 1000.0;
+      LOG(INFO) << "current io time cost (summary) = " << this->io_time_cost_summary << " rabit rank: " <<
+               rabit::GetRank();;
     }
     // now we get the final result of sketch, setup the cut
     this->wspace_.cut.clear();
@@ -745,8 +754,14 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
             .data[0] = this->node_stats_[nid];
       }
     }
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                             this->wspace_.hset[0].data.size());
+    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+    this->io_time_cost_hist +=
+            (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) / 1000.0;
+    LOG(INFO) << "current io time cost (hist) = " << this->io_time_cost_hist << " rabit rank: " <<
+              rabit::GetRank();;
   }
 
   // cached unit pointer
