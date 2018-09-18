@@ -463,7 +463,7 @@ class CQHistMaker: public HistMaker<TStats> {
       std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
       this->io_time_cost_summary +=
           (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) / 1000.0;
-      LOG(INFO) << "current io time cost (summary) = " << this->io_time_cost_summary << " rabit rank: " <<
+      LOG(CONSOLE) << "current io time cost (summary) = " << this->io_time_cost_summary << " rabit rank: " <<
                rabit::GetRank();;
     }
     // now we get the final result of sketch, setup the cut
@@ -760,7 +760,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
     std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
     this->io_time_cost_hist +=
             (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) / 1000.0;
-    LOG(INFO) << "current io time cost (hist) = " << this->io_time_cost_hist << " rabit rank: " <<
+    LOG(CONSOLE) << "current io time cost (hist) = " << this->io_time_cost_hist << " rabit rank: " <<
               rabit::GetRank();;
   }
 
