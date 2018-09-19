@@ -6,7 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/inner_product.h>
 #include <xgboost/linear_updater.h>
-#include "../common/gpu_set.h"
+#include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "coordinate_common.h"

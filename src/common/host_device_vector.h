@@ -14,7 +14,7 @@
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
  * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'Reshard' method 
+ * allocate/resize memory explicitly, and use the 'Reshard' method
  * to specify the devices.
  *
  * Accessing underlying data:<br/>
@@ -31,7 +31,7 @@
  * DevicePointer but data on CPU  --> this causes a cudaMemcpy to be issued internally.
  *                        subsequent calls to DevicePointer, will NOT incur this penalty.
  *                        (assuming 'HostVector' is not called in between)
- * DevicePointer and data on GPU  --> no problems, the device ptr 
+ * DevicePointer and data on GPU  --> no problems, the device ptr
  *                        will be returned immediately.
  *
  * What if xgboost is compiled without CUDA?<br/>
@@ -40,13 +40,13 @@
  *
  * Why not consider CUDA unified memory?<br/>
  * We did consider. However, it poses complications if we need to support both
- * compiling with and without CUDA toolkit. It was easier to have 
+ * compiling with and without CUDA toolkit. It was easier to have
  * 'HostDeviceVector' with a special-case implementation in host_device_vector.cc
  *
  * @note: Size and Devices methods are thread-safe.
- * DevicePointer, DeviceStart, DeviceSize, tbegin and tend methods are thread-safe 
+ * DevicePointer, DeviceStart, DeviceSize, tbegin and tend methods are thread-safe
  * if different threads call these methods with different values of the device argument.
- * All other methods are not thread safe. 
+ * All other methods are not thread safe.
  */
 
 #ifndef XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
@@ -59,7 +59,7 @@
 #include <initializer_list>
 #include <vector>
 
-#include "gpu_set.h"
+#include "common.h"
 #include "span.h"
 
 // only include thrust-related files if host_device_vector.h

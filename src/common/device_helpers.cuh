@@ -9,7 +9,6 @@
 #include <xgboost/logging.h>
 
 #include "common.h"
-#include "gpu_set.h"
 
 #include <algorithm>
 #include <chrono>

@@ -20,4 +20,11 @@ GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;
 }
 }  // namespace common
+
+#if !defined(XGBOOST_USE_CUDA)
+int AllVisibleImpl::AllVisible() {
+  return 0;
+}
+#endif
+
 }  // namespace xgboost

@@ -11,7 +11,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 #include <memory>
-#include "../common/gpu_set.h"
+#include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/host_device_vector.h"
 

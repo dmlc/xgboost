@@ -8,7 +8,7 @@
 #include <map>
 #include <string>
 
-#include "gpu_set.h"
+#include "common.h"
 
 namespace xgboost {
 namespace common {

@@ -1,8 +1,7 @@
-#include "../../../src/common/gpu_set.h"
+#include "../../../src/common/common.h"
 #include <gtest/gtest.h>
 
 namespace xgboost {
-
 TEST(GPUSet, Basic) {
   GPUSet devices = GPUSet::Empty();
   ASSERT_TRUE(devices.IsEmpty());
@@ -28,10 +27,16 @@ TEST(GPUSet, Basic) {
 
   devices = GPUSet::Range(2, 8);
   EXPECT_EQ(devices.Size(), 8);
+  EXPECT_ANY_THROW(devices[8]);
+  EXPECT_ANY_THROW(devices.Index(0));
+
   devices = devices.Unnormalised();
 
   EXPECT_EQ(*devices.begin(), 0);
   EXPECT_EQ(*devices.end(), devices.Size());
+#ifndef XGBOOST_USE_CUDA
+  EXPECT_EQ(GPUSet::AllVisible(), GPUSet::Empty());
+#endif
 }
-
 }  // namespace xgboost
+
