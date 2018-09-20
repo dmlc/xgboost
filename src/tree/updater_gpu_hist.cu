@@ -389,7 +389,8 @@ struct DeviceShard {
       null_gidx_value(0),
       param(param),
       prediction_cache_initialised(false),
-      can_use_smem_atomics(false) {}
+      can_use_smem_atomics(false),
+      tmp_pinned(nullptr) {}
 
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_idx));

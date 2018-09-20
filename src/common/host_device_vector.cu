@@ -230,7 +230,7 @@ struct HostDeviceVectorImpl {
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
     return {shards_[devices.Index(device)].data_.data().get(),
-            static_cast<typename common::Span<T>::index_type>(Size())};
+            static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
@@ -238,7 +238,7 @@ struct HostDeviceVectorImpl {
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
     return {shards_[devices.Index(device)].data_.data().get(),
-      static_cast<typename common::Span<const T>::index_type>(Size())};
+      static_cast<typename common::Span<const T>::index_type>(DeviceSize(device))};
   }
 
   size_t DeviceSize(int device) {

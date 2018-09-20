@@ -33,8 +33,8 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <flink.version>0.10.2</flink.version>
-        <spark.version>2.3.0</spark.version>
+        <flink.version>1.5.0</flink.version>
+        <spark.version>2.3.1</spark.version>
         <scala.version>2.11.8</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
     </properties>
