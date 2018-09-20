@@ -844,7 +844,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """A Booster of of XGBoost.
+    """A Booster of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
