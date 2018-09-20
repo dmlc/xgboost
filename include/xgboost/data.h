@@ -151,10 +151,11 @@ struct Entry {
 };
 
 /*!
- * \brief in-memory storage unit of sparse batch
+ * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
 class SparsePage {
  public:
+  // Offset for each row.
   HostDeviceVector<size_t> offset;
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
