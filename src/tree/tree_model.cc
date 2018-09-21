@@ -6,6 +6,7 @@
 #include <xgboost/tree_model.h>
 #include <sstream>
 #include <limits>
+#include <cmath>
 #include <iomanip>
 #include "./param.h"
 
@@ -75,17 +76,21 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
           break;
         }
         case FeatureMap::kInteger: {
+          const bst_float floored = std::floor(cond);
+          const int integer_threshold
+            = (floored == cond) ? static_cast<int>(floored)
+                                : static_cast<int>(floored) + 1;
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.Name(split_index) << "\""
-               << ", \"split_condition\": " << int(cond + 1.0)
+               << ", \"split_condition\": " << integer_threshold
                << ", \"yes\": " << tree[nid].LeftChild()
                << ", \"no\": " << tree[nid].RightChild()
                << ", \"missing\": " << tree[nid].DefaultChild();
           } else {
             fo << nid << ":[" << fmap.Name(split_index) << "<"
-               << int(cond + 1.0)
+               << integer_threshold
                << "] yes=" << tree[nid].LeftChild()
                << ",no=" << tree[nid].RightChild()
                << ",missing=" << tree[nid].DefaultChild();
