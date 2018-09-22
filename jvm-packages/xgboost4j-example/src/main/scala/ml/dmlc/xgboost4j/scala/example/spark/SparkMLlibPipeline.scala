@@ -31,7 +31,7 @@ object SparkMLlibPipeline {
 
   def main(args: Array[String]): Unit = {
 
-    if (args.length != 1) {
+    if (args.length != 3) {
       println("Usage: SparkMLlibPipeline input_path native_model_path pipeline_model_path")
       sys.exit(1)
     }
@@ -79,6 +79,8 @@ object SparkMLlibPipeline {
         "num_workers" -> 2
       )
     )
+    booster.setFeaturesCol("features")
+    booster.setLabelCol("classIndex")
     val labelConverter = new IndexToString()
       .setInputCol("prediction")
       .setOutputCol("realLabel")
@@ -94,6 +96,8 @@ object SparkMLlibPipeline {
 
     // Model evaluation
     val evaluator = new MulticlassClassificationEvaluator()
+    evaluator.setLabelCol("classIndex")
+    evaluator.setPredictionCol("prediction")
     val accuracy = evaluator.evaluate(prediction)
     println("The model accuracy is : " + accuracy)
 
