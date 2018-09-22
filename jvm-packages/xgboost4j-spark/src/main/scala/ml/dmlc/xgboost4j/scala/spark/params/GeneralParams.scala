@@ -153,7 +153,7 @@ private[spark] trait GeneralParams extends Params {
   setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
+    trackerConf -> TrackerConf(), seed -> 0L, timeoutRequestWorkers -> 30 * 60 * 1000L,
     checkpointPath -> "", checkpointInterval -> -1
   )
 }
