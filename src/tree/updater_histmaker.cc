@@ -36,7 +36,7 @@ class HistMaker: public BaseMaker {
   }
 
  protected:
-  /*! \brief a single histogram */
+    /*! \brief a single histogram */
   struct HistUnit {
     /*! \brief cutting point of histogram, contains maximum point */
     const bst_float *cut;
