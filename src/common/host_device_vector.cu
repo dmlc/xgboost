@@ -289,6 +289,7 @@ struct HostDeviceVectorImpl {
                                data_h_.size() * sizeof(T),
                                cudaMemcpyHostToDevice));
     } else {
+      //
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }
   }
@@ -347,7 +348,10 @@ struct HostDeviceVectorImpl {
 
   void Reshard(const GPUDistribution& distribution) {
     if (distribution_ == distribution) { return; }
-    CHECK(distribution_.IsEmpty());
+    CHECK(distribution_.IsEmpty() || distribution.IsEmpty());
+    if (distribution.IsEmpty()) {
+      LazySyncHost(GPUAccess::kWrite);
+    }
     distribution_ = distribution;
     InitShards();
   }
