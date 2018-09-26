@@ -7,7 +7,8 @@ data(agaricus.test, package = 'xgboost')
 dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
-# disable some tests for Win32
+# Disable flaky tests for 32-bit Windows.
+# See https://github.com/dmlc/xgboost/issues/3720
 win32_flag = .Platform$OS.type == "windows" && .Machine$sizeof.pointer != 8
 
 test_that("updating the model works", {
@@ -32,7 +33,9 @@ test_that("updating the model works", {
   tr1r <- xgb.model.dt.tree(model = bst1r)
   # all should be the same when no subsampling
   expect_equal(bst1$evaluation_log, bst1r$evaluation_log)
-  expect_equal(tr1, tr1r, tolerance = 0.00001, check.attributes = FALSE)
+  if (!win32_flag) {
+    expect_equal(tr1, tr1r, tolerance = 0.00001, check.attributes = FALSE)
+  }
 
   # the same boosting with subsampling with an extra 'refresh' updater:
   p2r <- modifyList(p2, list(updater = 'grow_colmaker,prune,refresh', refresh_leaf = FALSE))
@@ -41,8 +44,9 @@ test_that("updating the model works", {
   tr2r <- xgb.model.dt.tree(model = bst2r)
   # should be the same evaluation but different gains and larger cover
   expect_equal(bst2$evaluation_log, bst2r$evaluation_log)
-  if (!win32_flag)
+  if (!win32_flag) {
     expect_equal(tr2[Feature == 'Leaf']$Quality, tr2r[Feature == 'Leaf']$Quality)
+  }
   expect_gt(sum(abs(tr2[Feature != 'Leaf']$Quality - tr2r[Feature != 'Leaf']$Quality)), 100)
   expect_gt(sum(tr2r$Cover) / sum(tr2$Cover), 1.5)
 
@@ -65,8 +69,9 @@ test_that("updating the model works", {
   expect_gt(sum(tr2u$Cover) / sum(tr2$Cover), 1.5)
   # the results should be the same as for the model with an extra 'refresh' updater
   expect_equal(bst2r$evaluation_log, bst2u$evaluation_log)
-  if (!win32_flag)
+  if (!win32_flag) {
     expect_equal(tr2r, tr2u, tolerance = 0.00001, check.attributes = FALSE)
+  }
   
   # process type 'update' for no-subsampling model, refreshing only the tree stats from TEST data:
   p1ut <- modifyList(p1, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))
