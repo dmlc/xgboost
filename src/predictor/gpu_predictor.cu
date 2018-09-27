@@ -44,6 +44,49 @@ void IncrementOffset(IterT begin_itr, IterT end_itr, size_t amount) {
 }
 
 /**
+ * \struct  DeviceMatrix
+ *
+ * \brief A csr representation of the input matrix allocated on the device.
+ */
+
+struct DeviceMatrix {
+  DMatrix* p_mat;  // Pointer to the original matrix on the host
+  dh::BulkAllocator<dh::MemoryType::kDevice> ba;
+  dh::DVec<size_t> row_ptr;
+  dh::DVec<Entry> data;
+  thrust::device_vector<float> predictions;
+
+  DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    const auto& info = dmat->Info();
+    ba.Allocate(device_idx, silent, &row_ptr, info.num_row_ + 1, &data,
+                info.num_nonzero_);
+    auto iter = dmat->RowIterator();
+    iter->BeforeFirst();
+    size_t data_offset = 0;
+    while (iter->Next()) {
+      const auto& batch = iter->Value();
+      const auto& offset_vec = batch.offset.HostVector();
+      const auto& data_vec = batch.data.HostVector();
+      // Copy row ptr
+      dh::safe_cuda(cudaMemcpy(
+          row_ptr.Data() + batch.base_rowid, offset_vec.data(),
+          sizeof(size_t) * offset_vec.size(), cudaMemcpyHostToDevice));
+      if (batch.base_rowid > 0) {
+        auto begin_itr = row_ptr.tbegin() + batch.base_rowid;
+        auto end_itr = begin_itr + batch.Size() + 1;
+        IncrementOffset(begin_itr, end_itr, batch.base_rowid);
+      }
+      dh::safe_cuda(cudaMemcpy(data.Data() + data_offset, data_vec.data(),
+                               sizeof(Entry) * data_vec.size(),
+                               cudaMemcpyHostToDevice));
+      // Copy data
+      data_offset += batch.data.Size();
+    }
+  }
+};
+
+/**
  * \struct  DevicePredictionNode
  *
  * \brief Packed 16 byte representation of a tree node for use in device
@@ -100,13 +143,13 @@ struct DevicePredictionNode {
 
 struct ElementLoader {
   bool use_shared;
-  const size_t* d_row_ptr;
-  const Entry* d_data;
+  size_t* d_row_ptr;
+  Entry* d_data;
   int num_features;
   float* smem;
 
-  __device__ ElementLoader(bool use_shared, const size_t* row_ptr,
-                           const Entry* entry, int num_features,
+  __device__ ElementLoader(bool use_shared, size_t* row_ptr,
+                           Entry* entry, int num_features,
                            float* smem, int num_rows)
       : use_shared(use_shared),
         d_row_ptr(row_ptr),
@@ -137,7 +180,7 @@ struct ElementLoader {
       // Binary search
       auto begin_ptr = d_data + d_row_ptr[ridx];
       auto end_ptr = d_data + d_row_ptr[ridx + 1];
-      const Entry* previous_middle = nullptr;
+      Entry* previous_middle = nullptr;
       while (end_ptr != begin_ptr) {
         auto middle = begin_ptr + (end_ptr - begin_ptr) / 2;
         if (middle == previous_middle) {
@@ -182,8 +225,8 @@ __device__ float GetLeafWeight(bst_uint ridx, const DevicePredictionNode* tree,
 template <int BLOCK_THREADS>
 __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
                               float* d_out_predictions, size_t* d_tree_segments,
-                              int* d_tree_group, const size_t* d_row_ptr,
-                              const Entry* d_data, size_t tree_begin,
+                              int* d_tree_group, size_t* d_row_ptr,
+                              Entry* d_data, size_t tree_begin,
                               size_t tree_end, size_t num_features,
                               size_t num_rows, bool use_shared, int num_group) {
   extern __shared__ float smem[];
@@ -227,6 +270,22 @@ class GPUPredictor : public xgboost::Predictor {
       return;
     }
 
+    std::shared_ptr<DeviceMatrix> device_matrix;
+    // Matrix is not in host cache, create a temporary matrix
+    if (this->cache_.find(dmat) == this->cache_.end()) {
+      device_matrix = std::shared_ptr<DeviceMatrix>(
+          new DeviceMatrix(dmat, param.gpu_id, param.silent));
+    } else {
+      // Create this matrix on device if doesn't exist
+      if (this->device_matrix_cache_.find(dmat) ==
+          this->device_matrix_cache_.end()) {
+        this->device_matrix_cache_.emplace(
+            dmat, std::shared_ptr<DeviceMatrix>(
+                      new DeviceMatrix(dmat, param.gpu_id, param.silent)));
+      }
+      device_matrix = device_matrix_cache_.find(dmat)->second;
+    }
+
     dh::safe_cuda(cudaSetDevice(param.gpu_id));
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
@@ -259,45 +318,37 @@ class GPUPredictor : public xgboost::Predictor {
                              sizeof(int) * model.tree_info.size(),
                              cudaMemcpyHostToDevice));
 
-    // TODO: make it a class member if it affects performance
-    thrust::device_vector<bst_float> predictions(out_preds->Size());
+    device_matrix->predictions.resize(out_preds->Size());
+    auto& predictions = device_matrix->predictions;
     out_preds->GatherTo(predictions.data(),
                         predictions.data() + predictions.size());
+
     dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
-    dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
-    iter->BeforeFirst();
-    CHECK(iter->Next()) << "Empty batches are not supported";
-    const SparsePage& batch = iter->Value();
-    devices = GPUSet::Range(param.gpu_id, param.gpu_id + 1);    
-    batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
-    std::vector<size_t> batch_offsets{0, batch.data.Size()};
-    batch.data.Reshard(GPUDistribution::Explicit(devices, batch_offsets));
-    
     const int BLOCK_THREADS = 128;
     const int GRID_SIZE = static_cast<int>(
-        dh::DivRoundUp(batch.offset.Size() - 1, BLOCK_THREADS));
+        dh::DivRoundUp(device_matrix->row_ptr.Size() - 1, BLOCK_THREADS));
 
     int shared_memory_bytes = static_cast<int>(
-        sizeof(float) * dmat->Info().num_col_ * BLOCK_THREADS);
+        sizeof(float) * device_matrix->p_mat->Info().num_col_ * BLOCK_THREADS);
     bool use_shared = true;
     if (shared_memory_bytes > max_shared_memory_bytes) {
       shared_memory_bytes = 0;
       use_shared = false;
     }
 
-    PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-      (dh::Raw(nodes), predictions.data().get(),
-       dh::Raw(tree_segments), dh::Raw(tree_group),
-       batch.offset.DevicePointer(param.gpu_id),
-       batch.data.DevicePointer(param.gpu_id),
-       tree_begin, tree_end, dmat->Info().num_col_,
-       dmat->Info().num_row_, use_shared, model.param.num_output_group);
+    PredictKernel<BLOCK_THREADS>
+        <<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>(
+            dh::Raw(nodes), dh::Raw(device_matrix->predictions),
+            dh::Raw(tree_segments), dh::Raw(tree_group),
+            device_matrix->row_ptr.Data(), device_matrix->data.Data(),
+            tree_begin, tree_end, device_matrix->p_mat->Info().num_col_,
+            device_matrix->p_mat->Info().num_row_, use_shared,
+            model.param.num_output_group);
 
     dh::safe_cuda(cudaDeviceSynchronize());
     out_preds->ScatterFrom(predictions.data(),
                            predictions.data() + predictions.size());
-    CHECK(!iter->Next()) << "External memory not supported";
   }
 
  public:
@@ -423,6 +474,8 @@ class GPUPredictor : public xgboost::Predictor {
  private:
   GPUPredictionParam param;
   std::unique_ptr<Predictor> cpu_predictor;
+  std::unordered_map<DMatrix*, std::shared_ptr<DeviceMatrix>>
+      device_matrix_cache_;
   thrust::device_vector<DevicePredictionNode> nodes;
   thrust::device_vector<size_t> tree_segments;
   thrust::device_vector<int> tree_group;
