@@ -137,7 +137,7 @@ public class XGBoost {
           IEvaluation eval,
           int earlyStoppingRound,
           Booster booster) throws XGBoostError {
-    if(eval != null) {
+    if (eval != null) {
       return trainWithMultipleEvals(dtrain, params, round, watches, metrics, obj,
                                     new IEvaluation[]{eval}, earlyStoppingRound, booster);
     } else {
@@ -163,6 +163,13 @@ public class XGBoost {
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
     List<String> logLines = new ArrayList<String>();
+
+    if (evals != null && evals.length == 0) {
+      throw new XGBoostError("Evaluation function array is empty, but not null.");
+    } else if (earlyStoppingRound != 0 && evals != null && evals.length > 1) {
+      Rabit.trackerPrint("Multiple evaluation functions provided, disabling early stopping.");
+      earlyStoppingRound = 0;
+    }
 
     for (Map.Entry<String, DMatrix> evalEntry : watches.entrySet()) {
       names.add(evalEntry.getKey());
@@ -209,7 +216,7 @@ public class XGBoost {
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo = "";
-        if (evals != null && evals.length > 0) {
+        if (evals != null) {
           for (int i = 0; i < evals.length; i++) {
             String evalLine = booster.evalSet(evalMats, evalNames, evals[i], metricsOut);
             evalInfo = evalInfo + " " + evalLine;
