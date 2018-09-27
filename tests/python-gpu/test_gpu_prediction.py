@@ -49,7 +49,7 @@ class TestGPUPredict(unittest.TestCase):
     # Test case for a bug where multiple batch predictions made on a test set produce incorrect results
     def test_multi_predict(self):
         from sklearn.datasets import make_regression
-        from sklearn.cross_validation import train_test_split
+        from sklearn.model_selection import train_test_split
 
         n = 1000
         X, y = make_regression(n, random_state=rng)
