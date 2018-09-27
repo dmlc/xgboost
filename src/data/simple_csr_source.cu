@@ -86,11 +86,13 @@ gdf_error gdf_to_csr(gdf_column** gdf_data, int n_cols, csr_gdf* csr) {
   //CUDA_TRY(cudaMemset(offsets, 0, sizeof(gdf_size_type) * (numRows + 2)));
   CUDA_TRY(cudaMemset(offsets, 0, sizeof(gdf_size_type) * (n_rows + 1)));
 
-  for (int i = 0; i < n_cols; ++i) {
-    determine_valid_rec_count_k<<<blocks, threads>>>
-      (gdf_data[i]->valid, n_rows, n_cols, offsets);
-    CUDA_TRY(cudaGetLastError());
-    CUDA_TRY(cudaDeviceSynchronize());
+  if (blocks > 0) {
+    for (int i = 0; i < n_cols; ++i) {
+      determine_valid_rec_count_k<<<blocks, threads>>>
+        (gdf_data[i]->valid, n_rows, n_cols, offsets);
+      CUDA_TRY(cudaGetLastError());
+      CUDA_TRY(cudaDeviceSynchronize());
+    }
   }
 
   //--------------------------------------------------------------------------------------
@@ -134,12 +136,14 @@ gdf_error run_converter(gdf_column** gdf_data, csr_gdf* csr) {
   thrust::device_vector<size_t> offsets2(offset_begin, offset_begin + n_rows + 1);
 
   // Now start moving the data and creating the CSR
-  for (int col = 0; col < n_cols; ++col) {
-    gdf_column *gdf = gdf_data[col];
-    cuda_create_csr_k<<<blocks, threads>>>
-      (gdf->data, gdf->valid, gdf->dtype, col, csr->data,
-       offsets2.data().get(), n_rows);
-    CUDA_TRY(cudaGetLastError());
+  if (blocks > 0) {
+    for (int col = 0; col < n_cols; ++col) {
+      gdf_column *gdf = gdf_data[col];
+      cuda_create_csr_k<<<blocks, threads>>>
+        (gdf->data, gdf->valid, gdf->dtype, col, csr->data,
+         offsets2.data().get(), n_rows);
+      CUDA_TRY(cudaGetLastError());
+    }
   }
   return gdf_error::GDF_SUCCESS;
 }
