@@ -148,6 +148,12 @@ template <typename T>
 void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) const { }
 
 template <typename T>
+void HostDeviceVector<T>::CopyTo(int device, size_t offset, T* dst, size_t n) const {
+  CHECK_LE(offset + n, Size());
+  std::copy(HostVector().begin() + offset, HostVector().begin() + offset + n, dst);
+}
+
+template <typename T>
 void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only

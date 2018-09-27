@@ -136,6 +136,9 @@ if(USE_CUDA)
     include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
+  
+  find_package(GDF REQUIRED)
+  include_directories(${GDF_INCLUDE_DIR})
 
   set(GENCODE_FLAGS "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)

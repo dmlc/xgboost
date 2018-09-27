@@ -10,7 +10,9 @@ import os
 import re
 import sys
 
+from libgdf_cffi import ffi, libgdf
 import numpy as np
+import pygdf.dataframe as gdf
 import scipy.sparse
 
 from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
@@ -369,6 +371,8 @@ class DMatrix(object):
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(self.handle)))
+        elif isinstance(data, gdf.DataFrame):
+            self._init_from_gdf(data)
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
@@ -388,17 +392,37 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
+            elif isinstance(label, gdf.Column):
+                self.set_info_gdf('label', label)
+            elif isinstance(label, gdf.DataFrame):
+                self.set_info_gdf('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
+            elif isinstance(weight, gdf.Column):
+                self.set_info_gdf('weight', weight)
+            elif isinstance(weight, gdf.DataFrame):
+                self.set_info_gdf('weight', weight)
             else:
                 self.set_weight(weight)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
 
+    def _init_from_gdf(self, df):
+        """
+        Initialize data from a GPU data frame.
+        """
+        self.handle = ctypes.c_void_p()
+        col_ptrs = [df[col]._column.cffi_view for col in df.columns]
+        col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
+        _check_call(_LIB.XGDMatrixCreateFromGDF
+                    (ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
+                     ctypes.c_size_t(len(df.columns)),
+                     ctypes.byref(self.handle)))
+        
     def _init_from_csr(self, csr):
         """
         Initialize data from a CSR matrix.
@@ -574,6 +598,19 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
+
+    def set_info_gdf(self, field, data):
+        col_ptrs = []
+        if isinstance(data, gdf.DataFrame):
+            col_ptrs = [data[col]._column.cffi_view for col in data.columns]
+        else:
+            # data is a single GDF column
+            col_ptrs = [data.cffi_view]
+        col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
+        _check_call(_LIB.XGDMatrixSetInfoGDF
+                    (self.handle, c_str(field),
+                     ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
+                     ctypes.c_size_t(len(col_ptrs))))
 
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.

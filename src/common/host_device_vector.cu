@@ -153,6 +153,15 @@ struct HostDeviceVectorImpl {
       }
     }
 
+    void CopyTo(size_t offset, T* dst, size_t n) {
+      LazySyncDevice(GPUAccess::kRead);
+      CHECK_GE(offset, start_);
+      CHECK_LE(offset + n, start_ + data_.size()); 
+      dh::safe_cuda(cudaSetDevice(device_));      
+      dh::safe_cuda(cudaMemcpy(dst, data_.data().get() + (offset - start_),
+                               n * sizeof(T), cudaMemcpyDefault));
+    }
+
     int index_;
     int device_;
     thrust::device_vector<T> data_;
@@ -332,6 +341,20 @@ struct HostDeviceVectorImpl {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
           shard.ScatterFrom(other.begin());
         });
+    }
+  }
+
+  void CopyTo(int device, size_t offset, T* dst, size_t n) {
+    CHECK_LE(offset + n, Size());
+    if (distribution_.IsEmpty()) {
+      // data not present on device, copy from host
+      dh::safe_cuda(cudaSetDevice(device));
+      dh::safe_cuda(cudaMemcpy(dst, data_h_.data() + offset,
+                               n * sizeof(T), cudaMemcpyDefault));
+    } else {
+      // TODO(canonizer): support copies with multiple devices
+      CHECK(distribution_.devices_.Contains(device));
+      shards_[distribution_.devices_.Index(device)].CopyTo(offset, dst, n);
     }
   }
 
@@ -547,6 +570,11 @@ void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
 template <typename T>
 void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
   impl_->Copy(other);
+}
+
+template <typename T>
+void HostDeviceVector<T>::CopyTo(int device, size_t offset, T* dst, size_t n) const {
+  impl_->CopyTo(device, offset, dst, n);
 }
 
 template <typename T>

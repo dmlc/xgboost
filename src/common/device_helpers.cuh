@@ -4,6 +4,7 @@
 #pragma once
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
@@ -195,7 +196,6 @@ inline void RowSegments(size_t n_rows, size_t n_devices, std::vector<size_t>* se
   }
 }
 
-
 template <typename L>
 __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
   for (auto i : GridStrideRange(begin, end)) {
@@ -222,6 +222,24 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
                                                 lambda);
 }
+
+inline void BatchEntrySegments
+(int device, const size_t* offsets, size_t n_rows, size_t batch_nrows,
+ thrust::host_vector<size_t>* segments) {
+  size_t n_batches = DivRoundUp(n_rows, batch_nrows);
+  segments->resize(n_batches + 1);
+  thrust::device_vector<size_t> segments_d(n_batches + 1);
+  size_t* segments_ptr = segments_d.data().get();
+  LaunchN(device, n_batches, [=] __device__ (size_t i) {
+      segments_ptr[i] = offsets[min(i * batch_nrows, n_rows)];
+      if (i == n_batches - 1) {
+        // also write the end of the last batch
+        segments_ptr[n_batches] = offsets[n_rows];
+      }
+    });
+  thrust::copy(segments_d.begin(), segments_d.end(), segments->begin());
+}
+
 
 /*
  * Memory
