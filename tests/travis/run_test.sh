@@ -48,7 +48,7 @@ if [ ${TASK} == "python_test" ]; then
     python --version
     conda install numpy scipy pandas matplotlib nose scikit-learn
     python -m pip install graphviz pytest pytest-cov codecov
-    python -m nose tests/python || exit -1
+    python -m nose -v tests/python || exit -1
     py.test tests/python --cov=python-package/xgboost
     codecov
     source activate python2
@@ -56,7 +56,7 @@ if [ ${TASK} == "python_test" ]; then
     python --version
     conda install numpy scipy pandas matplotlib nose scikit-learn
     python -m pip install graphviz
-    python -m nose tests/python || exit -1
+    python -m nose -v tests/python || exit -1
     exit 0
 fi
 
@@ -67,7 +67,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy nose
     python -m pip install graphviz pytest pytest-cov codecov
-    python -m nose tests/python || exit -1
+    python -m nose -v tests/python || exit -1
     py.test tests/python --cov=python-package/xgboost
     codecov
     source activate python2
@@ -75,7 +75,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy nose
     python -m pip install graphviz
-    python -m nose tests/python || exit -1
+    python -m nose -v tests/python || exit -1
     python -m pip install flake8==3.4.1
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1
