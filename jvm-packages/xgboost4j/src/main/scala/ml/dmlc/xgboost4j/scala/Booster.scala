@@ -188,13 +188,40 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   }
 
   /**
+    * Dump model as Array of string with specified feature names.
+    *
+    * @param featureNames Names of features.
+    */
+  @throws(classOf[XGBoostError])
+  def getModelDump(featureNames: Array[String])
+  : Array[String] = {
+    booster.getModelDump(featureNames, false, "text")
+  }
+
+  def getModelDump(featureNames: Array[String], withStats: Boolean, format: String)
+  : Array[String] = {
+    booster.getModelDump(featureNames, withStats, format)
+  }
+
+
+  /**
    * Get importance of each feature
    *
-   * @return featureMap  key: feature index, value: feature importance score
+   * @return featureScoreMap  key: feature index, value: feature importance score
    */
   @throws(classOf[XGBoostError])
   def getFeatureScore(featureMap: String = null): mutable.Map[String, Integer] = {
     booster.getFeatureScore(featureMap).asScala
+  }
+
+  /**
+    * Get importance of each feature with specified feature names.
+    *
+    * @return featureScoreMap  key: feature index, value: feature importance score
+    */
+  @throws(classOf[XGBoostError])
+  def getFeatureScore(featureNames: Array[String]): mutable.Map[String, Integer] = {
+    booster.getFeatureScore(featureNames).asScala
   }
 
   def getVersion: Int = booster.getVersion
