@@ -243,6 +243,11 @@ class HostDeviceVector {
   bool HostCanAccess(GPUAccess access) const;
   bool DeviceCanAccess(int device, GPUAccess access) const;
 
+  /*!
+   * \brief Specify memory distribution.
+   *
+   *   If GPUSet::Empty() is used, all data will be drawn back to CPU.
+   */
   void Reshard(const GPUDistribution& distribution) const;
   void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());
