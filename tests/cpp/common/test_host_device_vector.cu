@@ -162,7 +162,7 @@ TEST(HostDeviceVector, TestCopy) {
   std::vector<size_t> starts{0, 501};
   std::vector<size_t> sizes{501, 500};
   SetCudaSetDeviceHandler(SetDevice);
-  
+
   HostDeviceVector<int> v;
   {
     // a separate scope to ensure that v1 is gone before further checks
@@ -176,6 +176,52 @@ TEST(HostDeviceVector, TestCopy) {
   CheckHost(&v, GPUAccess::kRead);
   CheckHost(&v, GPUAccess::kWrite);
   SetCudaSetDeviceHandler(nullptr);
+}
+
+// The test is not really useful if n_gpus < 2
+TEST(HostDeviceVector, Reshard) {
+  std::vector<int> h_vec (2345);
+  for (size_t i = 0; i < h_vec.size(); ++i) {
+    h_vec[i] = i;
+  }
+  HostDeviceVector<int> vec (h_vec);
+  auto devices = GPUSet::AllVisible();
+  std::vector<size_t> devices_size (devices.Size());
+
+  // From CPU to GPUs.
+  // Assuming we have > 1 devices.
+  vec.Reshard(devices);
+  size_t total_size = 0;
+  for (size_t i = 0; i < devices.Size(); ++i) {
+    total_size += vec.DeviceSize(i);
+    devices_size[i] = vec.DeviceSize(i);
+  }
+  ASSERT_EQ(total_size, h_vec.size());
+  ASSERT_EQ(total_size, vec.Size());
+  auto h_vec_1 = vec.HostVector();
+
+  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
+  vec.Reshard(GPUSet::Empty()); // clear out devices memory
+
+  // Shrink down the number of devices.
+  vec.Reshard(GPUSet::Range(0, 1));
+  ASSERT_EQ(vec.Size(), h_vec.size());
+  ASSERT_EQ(vec.DeviceSize(0), h_vec.size());
+  h_vec_1 = vec.HostVector();
+  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
+  vec.Reshard(GPUSet::Empty()); // clear out devices memory
+
+  // Grow the number of devices.
+  vec.Reshard(devices);
+  total_size = 0;
+  for (size_t i = 0; i < devices.Size(); ++i) {
+    total_size += vec.DeviceSize(i);
+    ASSERT_EQ(devices_size[i], vec.DeviceSize(i));
+  }
+  ASSERT_EQ(total_size, h_vec.size());
+  ASSERT_EQ(total_size, vec.Size());
+  h_vec_1 = vec.HostVector();
+  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
 }
 
 TEST(HostDeviceVector, Span) {

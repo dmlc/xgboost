@@ -28,7 +28,7 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   tree::TrainParam p;
   p.max_bin = 20;
   p.gpu_id = 0;
-  p.n_gpus = 1;
+  p.n_gpus = GPUSet::AllVisible().Size();
   // ensure that the exact quantiles are found
   p.gpu_batch_nrows = nrows * 10;
 

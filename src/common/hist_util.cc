@@ -17,7 +17,6 @@ namespace xgboost {
 namespace common {
 
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy

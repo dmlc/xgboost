@@ -8,6 +8,17 @@
 #include "../../../src/common/timer.h"
 #include "gtest/gtest.h"
 
+struct Shard { int id; };
+
+TEST(DeviceHelpers, Basic) {
+  std::vector<Shard> shards (4);
+  for (int i = 0; i < 4; ++i) {
+    shards[i].id = i;
+  }
+  int sum = dh::ReduceShards<int>(&shards, [](Shard& s) { return s.id ; });
+  ASSERT_EQ(sum, 6);
+}
+
 void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
                     thrust::host_vector<int> *row_ptr,
                     thrust::host_vector<xgboost::bst_uint> *rows) {

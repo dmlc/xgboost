@@ -67,7 +67,7 @@ struct HistCutUnit {
       : cut(cut), size(size) {}
 };
 
-/*! \brief cut configuration for all the features */
+/*! \brief cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief unit pointer to rows by element position */
   std::vector<uint32_t> row_ptr;
