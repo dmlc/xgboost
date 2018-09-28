@@ -5,7 +5,8 @@
 
 import groovy.transform.Field
 
-/* Unrestricted tasks: tasks that do NOT generate artifacts */
+/* Restricted tasks: tasks generating artifacts, such as binary wheels and
+                     documentation */
 
 // Command to run command inside a docker container
 def dockerRun = 'tests/ci_build/ci_build.sh'
@@ -14,7 +15,7 @@ def dockerRun = 'tests/ci_build/ci_build.sh'
 def utils
 
 def buildMatrix = [
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.1" ],
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
 ]
@@ -35,7 +36,7 @@ pipeline {
     stages {
         stage('Jenkins: Get sources') {
             agent {
-                label 'unrestricted'
+                label 'restricted'
             }
             steps {
                 script {
@@ -46,12 +47,34 @@ pipeline {
                 milestone label: 'Sources ready', ordinal: 1
             }
         }
-        stage('Jenkins: Build & Test') {
+        stage('Jenkins: Build doc') {
+            agent {
+                label 'linux && cpu && restricted'
+            }
+            steps {
+                unstash name: 'srcs'
+                script {
+                    def commit_id = "${GIT_COMMIT}"
+                    def branch_name = "${GIT_LOCAL_BRANCH}"
+                    echo 'Building doc...'
+                    dir ('jvm-packages') {
+                        sh "bash ./build_doc.sh ${commit_id}"
+                        archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
+                        echo 'Deploying doc...'
+                        withAWS(credentials:'xgboost-doc-bucket') {
+                            s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Jenkins: Build artifacts') {
             steps {
                 script {
                     parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
                         def buildName = utils.getBuildName(c)
-                        utils.buildFactory(buildName, c, false, this.&buildPlatformCmake)
+                        utils.buildFactory(buildName, c, true, this.&buildPlatformCmake)
                     })
                 }
             }
@@ -82,7 +105,17 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         // Invoke command inside docker
         sh """
         ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${dockerTarget}.sh
+        ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
+        rm -rf "${distDir}"; mkdir -p "${distDir}/py"
+        cp xgboost "${distDir}"
+        cp -r lib "${distDir}"
+        cp -r python-package/dist "${distDir}/py"
+        # Test the wheel for compatibility on a barebones CPU container
+        ${dockerRun} release ${dockerArgs} bash -c " \
+            auditwheel show xgboost-*-py2-none-any.whl
+            pip install --user python-package/dist/xgboost-*-none-any.whl && \
+            python -m nose tests/python"
         """
+        archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
     }
 }
