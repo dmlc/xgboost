@@ -26,7 +26,7 @@ def checkoutSrcs() {
  */
 def buildFactory(buildName, conf, restricted, build_func) {
     def os = conf["os"]
-    def device = conf["withGpu"] ? "gpu" : "cpu"
+    def device = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
     def restricted_flag = restricted ? "restricted" : "unrestricted"
     def nodeReq = "${os} && ${device} && ${restricted_flag}"
     def dockerTarget = conf["withGpu"] ? "gpu" : "cpu"
@@ -43,7 +43,7 @@ def cmakeOptions(conf) {
 }
 
 def getBuildName(conf) {
-    def gpuLabel = conf['withGpu'] ? ("_cuda" + conf['cudaVersion'] + (conf['withNccl'] ? "_nccl" : "_nonccl")) : "_cpu"
+    def gpuLabel = conf['withGpu'] ? ( (conf['multiGpu'] ? "_mgpu" : "") + "_cuda" + conf['cudaVersion'] + (conf['withNccl'] ? "_nccl" : "_nonccl")) : "_cpu"
     def ompLabel = conf['withOmp'] ? "_omp" : ""
     def pyLabel = "_py${conf['pythonVersion']}"
     return "${conf['os']}${gpuLabel}${ompLabel}${pyLabel}"
