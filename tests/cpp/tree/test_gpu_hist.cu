@@ -10,6 +10,7 @@
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/tree/updater_gpu_hist.cu"
+#include "../../../src/common/common.h"
 
 namespace xgboost {
 namespace tree {
@@ -86,6 +87,16 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   }
 
   delete dmat;
+}
+
+TEST(gpu_hist_experimental, MGPU_mock) {
+  // Attempt to choose multiple GPU devices
+  int ngpu;
+  dh::safe_cuda(cudaGetDeviceCount(&ngpu));
+  CHECK_GT(ngpu, 1);
+  for (int i = 0; i < ngpu; ++i) {
+    dh::safe_cuda(cudaSetDevice(i));
+  }
 }
 
 }  // namespace tree
