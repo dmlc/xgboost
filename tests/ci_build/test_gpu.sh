@@ -5,5 +5,5 @@ cd python-package
 python setup.py install --user
 cd ..
 python -m nose -v --attr='!slow' tests/python-gpu/
-./testxgboost
+./testxgboost --gtest_filter=-*.MGPU_*
 
