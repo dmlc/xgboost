@@ -40,8 +40,6 @@ class SparsePageDMatrix : public DMatrix {
  private:
   /*! \brief page size 256 MB */
   static const size_t kPageSize = 256UL << 20UL;
-  /*! \brief Maximum number of rows per batch. */
-  static const size_t kMaxRowPerBatch = 64UL << 10UL;
 
   // source data pointers.
   std::unique_ptr<DataSource> row_source_;

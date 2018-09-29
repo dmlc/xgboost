@@ -33,13 +33,14 @@ TEST(SparsePageDMatrix, RowAccess) {
   std::remove(tmp_file.c_str());
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
-   //Loop over the batches and count the records
+  // Loop over the batches and count the records
   long row_count = 0;
   for(auto &batch:dmat->GetRowBatches())
   {
     row_count += batch.Size();
   }
   EXPECT_EQ(row_count, dmat->Info().num_row_);
+
   // Test the data read into the first row
   auto &batch = *dmat->GetRowBatches().begin();
   auto first_row = batch[0];
@@ -77,8 +78,15 @@ TEST(SparsePageDMatrix, ColAccess) {
     EXPECT_EQ(col_batch[1].size(), 1);
   }
 
+  EXPECT_TRUE(FileExists(tmp_file + ".cache"));
+  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+  EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
+  EXPECT_TRUE(FileExists(tmp_file + ".cache.sorted.col.page"));
+
   std::remove((tmp_file + ".cache").c_str());
   std::remove((tmp_file + ".cache.row.page").c_str());
+  std::remove((tmp_file + ".cache.col.page").c_str());
+  std::remove((tmp_file + ".cache.sorted.col.page").c_str());
 
   delete dmat;
 }

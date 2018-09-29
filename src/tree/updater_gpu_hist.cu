@@ -804,19 +804,8 @@ class GPUHistMaker : public TreeUpdater {
 
     reducer_.Init(device_list_);
 
-<<<<<<< HEAD
-    dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
-    iter->BeforeFirst();
-    CHECK(iter->Next()) << "Empty batches are not supported";
-    const SparsePage& batch = iter->Value();
-=======
-    // Partition input matrix into row segments
-    std::vector<size_t> row_segments;
-    dh::RowSegments(info_->num_row_, n_devices, &row_segments);
-
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
->>>>>>> DMatrix refactor 2
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {

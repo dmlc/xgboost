@@ -85,8 +85,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   int tree_method;
   // internal test flag
   std::string test_flag;
-  // maximum row per batch.
-  size_t max_row_perbatch;
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
@@ -121,9 +119,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("").describe(
         "Internal test flag");
-    DMLC_DECLARE_FIELD(max_row_perbatch)
-        .set_default(std::numeric_limits<size_t>::max())
-        .describe("maximum row per batch.");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
     DMLC_DECLARE_FIELD(debug_verbose)

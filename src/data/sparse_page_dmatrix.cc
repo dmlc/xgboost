@@ -64,14 +64,14 @@ BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
 
 BatchSet SparsePageDMatrix::GetColumnBatches() {
   // Lazily instantiate
-  if (!sorted_column_source_) {
+  if (!column_source_) {
     SparsePageSource::CreateColumnPage(this, cache_info_, false);
-    sorted_column_source_.reset(new SparsePageSource(cache_info_, ".col.page"));
+    column_source_.reset(new SparsePageSource(cache_info_, ".col.page"));
   }
-  sorted_column_source_->BeforeFirst();
-  sorted_column_source_->Next();
+  column_source_->BeforeFirst();
+  column_source_->Next();
   auto begin_iter =
-      BatchIterator(new SparseBatchIteratorImpl(sorted_column_source_.get()));
+      BatchIterator(new SparseBatchIteratorImpl(column_source_.get()));
   return BatchSet(begin_iter);
 }
 

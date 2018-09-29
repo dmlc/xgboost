@@ -210,7 +210,7 @@ class SparsePage {
     }
     builder.InitStorage();
 #pragma omp parallel for schedule(static)
-    for (long i = 0; i < static_cast<long>(this->Size()); ++i) {  // NOLINT(*)
+    for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
       int tid = omp_get_thread_num();
       auto inst = (*this)[i];
       for (bst_uint j = 0; j < inst.size(); ++j) {
