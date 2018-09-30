@@ -25,8 +25,7 @@ TEST(SimpleDMatrix, RowAccess) {
 
   // Loop over the batches and count the records
   long row_count = 0;
-  for(auto &batch:dmat->GetRowBatches())
-  {
+  for (auto &batch : dmat->GetRowBatches()) {
     row_count += batch.Size();
   }
   EXPECT_EQ(row_count, dmat->Info().num_row_);

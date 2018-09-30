@@ -309,6 +309,7 @@ class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;
   explicit BatchIterator(BatchIteratorImpl* impl) { impl_.reset(impl); }
+
   BatchIterator(const BatchIterator& other) {
     if (other.impl_) {
       impl_.reset(other.impl_->Clone());
@@ -316,12 +317,26 @@ class BatchIterator {
       impl_.reset();
     }
   }
-  void operator++() { ++(*impl_); }
-  const SparsePage& operator*() const { return *(*impl_); }
 
-  bool operator!=(const BatchIterator& rhs) const { return !impl_->AtEnd(); }
+  void operator++() {
+    CHECK(impl_ != nullptr);
+    ++(*impl_);
+  }
 
-  bool AtEnd() const { return impl_->AtEnd(); }
+  const SparsePage& operator*() const {
+    CHECK(impl_ != nullptr);
+    return *(*impl_);
+  }
+
+  bool operator!=(const BatchIterator& rhs) const {
+    CHECK(impl_ != nullptr);
+    return !impl_->AtEnd();
+  }
+
+  bool AtEnd() const {
+    CHECK(impl_ != nullptr);
+    return impl_->AtEnd();
+  }
 
  private:
   std::unique_ptr<BatchIteratorImpl> impl_;

@@ -18,6 +18,9 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
 
+  // Test we have non-empty batch
+  EXPECT_EQ(dmat->GetRowBatches().begin().AtEnd(), false);
+
   auto row_iter = dmat->GetRowBatches().begin();
   auto row_iter_read = dmat_read->GetRowBatches().begin();
   // Test the data read into the first row

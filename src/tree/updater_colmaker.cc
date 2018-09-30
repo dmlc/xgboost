@@ -144,6 +144,7 @@ class ColMaker: public TreeUpdater {
       {
         // setup position
         position_.resize(gpair.size());
+        CHECK_EQ(fmat.Info().num_row_, position_.size());
         if (root_index.size() == 0) {
           std::fill(position_.begin(), position_.end(), 0);
         } else {

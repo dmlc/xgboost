@@ -26,8 +26,9 @@ const MetaInfo& SparsePageDMatrix::Info() const {
 
 class SparseBatchIteratorImpl : public BatchIteratorImpl {
  public:
-  explicit SparseBatchIteratorImpl(SparsePageSource* source)
-      : source_(source) {}
+  explicit SparseBatchIteratorImpl(SparsePageSource* source) : source_(source) {
+    CHECK(source_ != nullptr);
+  }
   const SparsePage& operator*() const override { return source_->Value(); }
   void operator++() override { at_end_ = !source_->Next(); }
   bool AtEnd() const override { return at_end_; }
