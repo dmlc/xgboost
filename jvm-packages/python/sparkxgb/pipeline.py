@@ -46,7 +46,8 @@ class JavaParamsXGBoost(JavaParams):
         stage_name = java_stage.getClass().getName()
         class_name = stage_name.split('.')[-1]
 
-        if class_name in ("XGBoostEstimator", "XGBoostClassificationModel", "XGBoostRegressionModel"):
+        if class_name in ("XGBoostClassifier", "XGBoostRegressor", "XGBoostClassificationModel",
+                          "XGBoostRegressionModel"):
             stage_name = stage_name.replace("ml.dmlc.xgboost4j.scala.spark", "sparkxgb")
 
         # Our Pipeline's Java object is just the default Spark one. (Cast all Pipelines to our version)

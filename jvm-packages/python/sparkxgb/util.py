@@ -45,7 +45,8 @@ class XGBoostReader(JavaMLReader):
         """
 
         # Deal with Python locations for XGBoost objects.
-        if clazz.__name__ in ("XGBoostEstimator", "XGBoostClassificationModel", "XGBoostRegressionModel"):
+        if clazz.__name__ in ("XGBoostClassifier", "XGBoostRegressor" "XGBoostClassificationModel",
+                              "XGBoostRegressionModel"):
             java_package = clazz.__module__.replace("sparkxgb", "ml.dmlc.xgboost4j.scala.spark")
 
         # Our Pipeline object calls down to Spark's Pipeline object.
@@ -60,8 +61,8 @@ class XGBoostReader(JavaMLReader):
         else:
             java_package = clazz.__module__.replace("pyspark", "org.apache.spark")
 
-        if clazz.__name__ in ("Pipeline", "PipelineModel", "XGBoostEstimator", "XGBoostClassificationModel",
-                              "XGBoostRegressionModel"):
+        if clazz.__name__ in ("Pipeline", "PipelineModel", "XGBoostClassifier", "XGBoostRegressor",
+                              "XGBoostClassificationModel", "XGBoostRegressionModel"):
             # Remove the last dangling package name, e.g. "pipeline" or "xgboost".
             java_package = ".".join(java_package.split(".")[0:-1])
 

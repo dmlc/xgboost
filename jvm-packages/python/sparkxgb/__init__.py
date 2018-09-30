@@ -14,10 +14,10 @@
 # limitations under the License.
 #
 
-__version__ = "0.80-SNAPSHOT"
+__version__ = "0.90-SNAPSHOT"
 
 from sparkxgb.pipeline import XGBoostPipeline, XGBoostPipelineModel
-from sparkxgb.xgboost import XGBoostEstimator, XGBoostClassificationModel, XGBoostRegressionModel
+from sparkxgb.xgboost import XGBoostClassifier, XGBoostRegressor, XGBoostClassificationModel, XGBoostRegressionModel
 
-__all__ = ["XGBoostEstimator", "XGBoostClassificationModel", "XGBoostRegressionModel",
+__all__ = ["XGBoostClassifier", "XGBoostRegressor", "XGBoostClassificationModel", "XGBoostRegressionModel",
            "XGBoostPipeline", "XGBoostPipelineModel"]
