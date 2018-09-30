@@ -344,10 +344,7 @@ class CQHistMaker: public HistMaker<TStats> {
     {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
-      auto iter = p_fmat->ColIterator();
-      iter->BeforeFirst();
-      while (iter->Next()) {
-        auto &batch = iter->Value();
+      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
         #pragma omp parallel for schedule(dynamic, 1)
@@ -426,10 +423,7 @@ class CQHistMaker: public HistMaker<TStats> {
       work_set_.resize(std::unique(work_set_.begin(), work_set_.end()) - work_set_.begin());
 
       // start accumulating statistics
-      auto iter = p_fmat->ColIterator();
-      iter->BeforeFirst();
-      while (iter->Next()) {
-        auto &batch = iter->Value();
+      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
@@ -714,10 +708,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
       // start accumulating statistics
-      auto iter = p_fmat->ColIterator();
-      iter->BeforeFirst();
-      while (iter->Next()) {
-        auto &batch = iter->Value();
+      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 
@@ -772,10 +763,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
       sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
     }
     // start accumulating statistics
-    auto iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       // parallel convert to column major format
       common::ParallelGroupBuilder<Entry>
           builder(&col_ptr_, &col_data_, &thread_col_ptr_);

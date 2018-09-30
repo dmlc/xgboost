@@ -32,11 +32,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-  auto iter = p_fmat->RowIterator();
-  iter->BeforeFirst();
   const auto& weights = info.weights_.HostVector();
-  while (iter->Next()) {
-     auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetRowBatches()) {
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
@@ -128,17 +125,14 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
-  auto iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
-  iter->BeforeFirst();
   row_ptr.push_back(0);
-  while (iter->Next()) {
-     auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetRowBatches()) {
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
       row_ptr.push_back(batch[i].size() + row_ptr.back());

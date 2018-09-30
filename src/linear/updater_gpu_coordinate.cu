@@ -235,10 +235,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
       row_begin = row_end;
     }
 
-    auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
-    iter->Next();
-    auto &batch = iter->Value();
+    const auto &batch = *p_fmat->GetColumnBatches().begin();
 
     shards.resize(n_devices);
     // Create device shards
