@@ -438,12 +438,8 @@ class Dart : public GBTree {
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
-    auto iter = p_fmat->RowIterator();
     auto* self = static_cast<Derived*>(this);
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
-      // parallel over local batch
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;

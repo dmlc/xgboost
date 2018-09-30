@@ -45,7 +45,7 @@ TEST(gpu_predictor, Test) {
               abs_tolerance);
   }
   // Test predict instance
-  auto batch = (*dmat)->RowIterator()->Value();
+  const auto &batch = *(*dmat)->GetRowBatches().begin();
   for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> gpu_instance_out_predictions;
     std::vector<float> cpu_instance_out_predictions;

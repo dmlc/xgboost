@@ -53,10 +53,7 @@ class CPUPredictor : public Predictor {
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
-     auto iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const  auto& batch = iter->Value();
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       // parallel over local batch
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
@@ -233,10 +230,7 @@ class CPUPredictor : public Predictor {
     std::vector<bst_float>& preds = *out_preds;
     preds.resize(info.num_row_ * ntree_limit);
     // start collecting the prediction
-    auto iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
@@ -280,12 +274,9 @@ class CPUPredictor : public Predictor {
     for (bst_omp_uint i = 0; i < ntree_limit; ++i) {
       model.trees[i]->FillNodeMeanValues();
     }
+    const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     // start collecting the contributions
-    auto iter = p_fmat->RowIterator();
-    const auto& base_margin = info.base_margin_.HostVector();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)

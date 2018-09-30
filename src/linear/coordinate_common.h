@@ -65,9 +65,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
                                              const std::vector<GradientPair> &gpair,
                                              DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  auto iter = p_fmat->ColIterator();
-  while (iter->Next()) {
-    auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetColumnBatches()) {
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.size());
     for (bst_omp_uint j = 0; j < ndata; ++j) {
@@ -96,9 +94,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
                                                      const std::vector<GradientPair> &gpair,
                                                      DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  auto iter = p_fmat->ColIterator();
-  while (iter->Next()) {
-    auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetColumnBatches()) {
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.size());
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
@@ -126,12 +122,11 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
 inline std::pair<double, double> GetBiasGradientParallel(int group_idx, int num_group,
                                                          const std::vector<GradientPair> &gpair,
                                                          DMatrix *p_fmat) {
-  const RowSet &rowset = p_fmat->BufferedRowset();
   double sum_grad = 0.0, sum_hess = 0.0;
-  const auto ndata = static_cast<bst_omp_uint>(rowset.Size());
+  const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
-    auto &p = gpair[rowset[i] * num_group + group_idx];
+    auto &p = gpair[i * num_group + group_idx];
     if (p.GetHess() >= 0.0f) {
       sum_grad += p.GetGrad();
       sum_hess += p.GetHess();
@@ -154,9 +149,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
                                    float dw, std::vector<GradientPair> *in_gpair,
                                    DMatrix *p_fmat) {
   if (dw == 0.0f) return;
-  auto iter = p_fmat->ColIterator();
-  while (iter->Next()) {
-    auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetColumnBatches()) {
     auto col = batch[fidx];
     // update grad value
     const auto num_row = static_cast<bst_omp_uint>(col.size());
@@ -182,11 +175,10 @@ inline void UpdateBiasResidualParallel(int group_idx, int num_group, float dbias
                                        std::vector<GradientPair> *in_gpair,
                                        DMatrix *p_fmat) {
   if (dbias == 0.0f) return;
-  const RowSet &rowset = p_fmat->BufferedRowset();
   const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 #pragma omp parallel for schedule(static)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
-    GradientPair &g = (*in_gpair)[rowset[i] * num_group + group_idx];
+    GradientPair &g = (*in_gpair)[i * num_group + group_idx];
     if (g.GetHess() < 0.0f) continue;
     g += GradientPair(g.GetHess() * dbias, 0);
   }
@@ -325,9 +317,7 @@ class GreedyFeatureSelector : public FeatureSelector {
     const bst_omp_uint nfeat = model.param.num_feature;
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
-    auto iter = p_fmat->ColIterator();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetColumnBatches()) {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
@@ -392,11 +382,9 @@ class ThriftyFeatureSelector : public FeatureSelector {
     }
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
-    auto iter = p_fmat->ColIterator();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
-      // column-parallel is usually faster than row-parallel
-      #pragma omp parallel for schedule(static)
+    for (const auto &batch : p_fmat->GetColumnBatches()) {
+// column-parallel is usually faster than row-parallel
+#pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
         const bst_uint ndata = col.size();

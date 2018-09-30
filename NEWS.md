@@ -3,6 +3,10 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## Master (2018.09.30)
+* BREAKING CHANGES
+  - External memory page files have changed, breaking backwards compatibility for temporary storage used during external memory training. This only affects external memory users upgrading their xgboost version - we recommend clearing all *.page files before resuming training. Model serialization is unaffected.
+
 ## v0.80 (2018.08.13)
 * **JVM packages received a major upgrade**: To consolidate the APIs and improve the user experience, we refactored the design of XGBoost4J-Spark in a significant manner. (#3387)
   - Consolidated APIs: It is now much easier to integrate XGBoost models into a Spark ML pipeline. Users can control behaviors like output leaf prediction results by setting corresponding column names. Training is now more consistent with other Estimators in Spark MLLIB: there is now one single method `fit()` to train decision trees.
