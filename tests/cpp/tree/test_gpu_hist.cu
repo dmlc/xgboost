@@ -18,20 +18,18 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   int columns = 80;
   int max_bins = 4;
   auto dmat = CreateDMatrix(rows, columns, 0.9f);
-  common::HistCutMatrix hmat;
   common::GHistIndexMatrix gmat;
-  hmat.Init(dmat.get(), max_bins);
-  gmat.cut = &hmat;
-  gmat.Init(dmat.get());
+  gmat.Init((*dmat).get(),max_bins);
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
-  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
-  shard.Init(hmat, batch);
+  DeviceShard shard(0, 0, 0, rows, p);
+  shard.InitRowPtrs(batch);
+  shard.InitCompressedData(gmat.cut, batch);
   CHECK(!iter->Next());
 
   ASSERT_LT(shard.row_stride, columns);
@@ -39,7 +37,7 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   auto host_gidx_buffer = shard.gidx_buffer.AsVector();
 
   common::CompressedIterator<uint32_t> gidx(host_gidx_buffer.data(),
-                                            hmat.row_ptr.back() + 1);
+                                            gmat.cut.row_ptr.back() + 1);
 
   for (int i = 0; i < rows; i++) {
     int row_offset = 0;
@@ -52,6 +50,8 @@ TEST(gpu_hist_experimental, TestSparseShard) {
       ASSERT_EQ(gidx[i * shard.row_stride + row_offset], shard.null_gidx_value);
     }
   }
+
+  delete dmat;
 }
 
 TEST(gpu_hist_experimental, TestDenseShard) {
@@ -59,21 +59,19 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   int columns = 80;
   int max_bins = 4;
   auto dmat = CreateDMatrix(rows, columns, 0);
-  common::HistCutMatrix hmat;
   common::GHistIndexMatrix gmat;
-  hmat.Init(dmat.get(), max_bins);
-  gmat.cut = &hmat;
-  gmat.Init(dmat.get());
+  gmat.Init((*dmat).get(),max_bins);
   TrainParam p;
   p.max_depth = 6;
 
-  dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
 
-  DeviceShard shard(0, 0, 0, rows, hmat.row_ptr.back(), p);
-  shard.Init(hmat, batch);
+  DeviceShard shard(0, 0, 0, rows, p);
+  shard.InitRowPtrs(batch);
+  shard.InitCompressedData(gmat.cut, batch);
   CHECK(!iter->Next());
 
   ASSERT_EQ(shard.row_stride, columns);
@@ -81,11 +79,13 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   auto host_gidx_buffer = shard.gidx_buffer.AsVector();
 
   common::CompressedIterator<uint32_t> gidx(host_gidx_buffer.data(),
-                                            hmat.row_ptr.back() + 1);
+                                            gmat.cut.row_ptr.back() + 1);
 
   for (int i = 0; i < gmat.index.size(); i++) {
     ASSERT_EQ(gidx[i], gmat.index[i]);
   }
+
+  delete dmat;
 }
 
 }  // namespace tree

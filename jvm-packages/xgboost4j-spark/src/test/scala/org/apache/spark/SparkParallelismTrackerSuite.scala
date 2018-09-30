@@ -16,22 +16,24 @@
 
 package org.apache.spark
 
+import org.scalatest.FunSuite
+import _root_.ml.dmlc.xgboost4j.scala.spark.PerTest
+
 import org.apache.spark.rdd.RDD
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.apache.spark.sql.SparkSession
 
-class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
-  var sc: SparkContext = _
-  var numParallelism: Int = _
+class SparkParallelismTrackerSuite extends FunSuite with PerTest {
 
-  override def beforeAll(): Unit = {
-    val conf: SparkConf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("XGBoostSuite")
-    sc = new SparkContext(conf)
-    numParallelism = sc.defaultParallelism
-  }
+  val numParallelism: Int = Runtime.getRuntime.availableProcessors()
 
-  test("tracker should not affect execution result") {
+  override protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
+    .master("local[*]")
+    .appName("XGBoostSuite")
+    .config("spark.ui.enabled", true)
+    .config("spark.driver.memory", "512m")
+    .config("spark.task.cpus", 1)
+
+  test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 10000, nWorkers)
@@ -42,6 +44,23 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
 
   test("tracker should throw exception if parallelism is not sufficient") {
     val nWorkers = numParallelism * 3
+    val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
+    val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
+    intercept[IllegalStateException] {
+      tracker.execute {
+        rdd.map { i =>
+          // Test interruption
+          Thread.sleep(Long.MaxValue)
+          i
+        }.sum()
+      }
+    }
+  }
+
+  test("tracker should throw exception if parallelism is not sufficient with" +
+    " spark.task.cpus larger than 1") {
+    sc.conf.set("spark.task.cpus", "2")
+    val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
     intercept[IllegalStateException] {

@@ -156,6 +156,13 @@ struct HostDeviceVectorImpl {
     return shards_[devices_.Index(device)].data_.data().get();
   }
 
+  common::Span<T> DeviceSpan(int device) {
+    CHECK(devices_.Contains(device));
+    LazySyncDevice(device);
+    return { shards_[devices_.Index(device)].data_.data().get(),
+             static_cast<typename common::Span<T>::index_type>(Size()) };
+  }
+
   size_t DeviceSize(int device) {
     CHECK(devices_.Contains(device));
     LazySyncDevice(device);
@@ -322,6 +329,11 @@ GPUSet HostDeviceVector<T>::Devices() const { return impl_->Devices(); }
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) { return impl_->DevicePointer(device); }
+
+template <typename T>
+common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
+  return impl_->DeviceSpan(device);
+}
 
 template <typename T>
 size_t HostDeviceVector<T>::DeviceStart(int device) { return impl_->DeviceStart(device); }

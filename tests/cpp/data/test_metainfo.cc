@@ -1,5 +1,9 @@
 // Copyright by Contributors
+#include <dmlc/io.h>
 #include <xgboost/data.h>
+#include <string>
+#include <memory>
+#include "../../../src/data/simple_csr_source.h"
 
 #include "../helpers.h"
 
@@ -49,7 +53,7 @@ TEST(MetaInfo, SaveLoadBinary) {
   info.SaveBinary(fs);
   delete fs;
 
-  ASSERT_EQ(GetFileSize(tmp_file), 76)
+  ASSERT_EQ(GetFileSize(tmp_file), 84)
     << "Expected saved binary file size to be same as object size";
 
   fs = dmlc::Stream::Create(tmp_file.c_str(), "r");
@@ -60,4 +64,9 @@ TEST(MetaInfo, SaveLoadBinary) {
   EXPECT_EQ(inforead.num_row_, info.num_row_);
 
   std::remove(tmp_file.c_str());
+
+  delete fs;
+}
+
+TEST(MetaInfo, LoadQid) {
 }

@@ -14,6 +14,8 @@ TEST(SimpleDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_col_, 5);
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
   EXPECT_EQ(dmat->Info().labels_.size(), dmat->Info().num_row_);
+
+  delete dmat;
 }
 
 TEST(SimpleDMatrix, RowAccess) {
@@ -31,10 +33,12 @@ TEST(SimpleDMatrix, RowAccess) {
   row_iter->BeforeFirst();
   row_iter->Next();
   auto first_row = row_iter->Value()[0];
-  ASSERT_EQ(first_row.length, 3);
+  ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);
   row_iter = nullptr;
+
+  delete dmat;
 }
 
 TEST(SimpleDMatrix, ColAccessWithoutBatches) {
@@ -70,10 +74,12 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
     EXPECT_EQ(col_iter->Value().Size(), dmat->Info().num_col_)
       << "Expected batch size = number of cells as #batches is 1.";
     for (int i = 0; i < static_cast<int>(col_iter->Value().Size()); ++i) {
-      EXPECT_EQ(col_iter->Value()[i].length, dmat->GetColSize(i))
+      EXPECT_EQ(col_iter->Value()[i].size(), dmat->GetColSize(i))
         << "Expected length of each colbatch = colsize as #batches is 1.";
     }
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
   col_iter = nullptr;
+
+  delete dmat;
 }

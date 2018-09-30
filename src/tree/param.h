@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 
 
@@ -76,6 +77,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_id;
   // number of GPUs to use
   int n_gpus;
+  // number of rows in a single GPU batch
+  int gpu_batch_nrows;
+  // the criteria to use for ranking splits
+  std::string split_evaluator;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -183,7 +188,14 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_lower_bound(-1)
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
-
+    DMLC_DECLARE_FIELD(gpu_batch_nrows)
+        .set_lower_bound(-1)
+        .set_default(0)
+        .describe("Number of rows in a GPU batch, used for finding quantiles on GPU; "
+                  "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
+    DMLC_DECLARE_FIELD(split_evaluator)
+        .set_default("elastic_net,monotonic")
+        .describe("The criteria to use for ranking splits");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);

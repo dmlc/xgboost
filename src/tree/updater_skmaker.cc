@@ -147,7 +147,7 @@ class SketchMaker: public BaseMaker {
     auto iter = p_fmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       // start enumeration
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)
@@ -155,7 +155,7 @@ class SketchMaker: public BaseMaker {
         this->UpdateSketchCol(gpair, batch[fidx], tree,
                               node_stats_,
                               fidx,
-                              batch[fidx].length == nrows,
+                              batch[fidx].size() == nrows,
                               &thread_sketch_[omp_get_thread_num()]);
       }
     }
@@ -174,13 +174,13 @@ class SketchMaker: public BaseMaker {
   }
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
-                              const SparsePage::Inst &c,
+                              const SparsePage::Inst &col,
                               const RegTree &tree,
                               const std::vector<SKStats> &nstats,
                               bst_uint fid,
                               bool col_full,
                               std::vector<SketchEntry> *p_temp) {
-    if (c.length == 0) return;
+    if (col.size() == 0) return;
     // initialize sbuilder for use
     std::vector<SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes * 3);
@@ -192,10 +192,10 @@ class SketchMaker: public BaseMaker {
       }
     }
     if (!col_full) {
-      for (bst_uint j = 0; j < c.length; ++j) {
-        const bst_uint ridx = c[j].index;
+      for (const auto& c : col) {
+        const bst_uint ridx = c.index;
         const int nid = this->position_[ridx];
-        if (nid >= 0) {
+        if (nid > 0) {
           const GradientPair &e = gpair[ridx];
           if (e.GetGrad() >= 0.0f) {
             sbuilder[3 * nid + 0].sum_total += e.GetGrad();
@@ -213,10 +213,10 @@ class SketchMaker: public BaseMaker {
       }
     }
     // if only one value, no need to do second pass
-    if (c[0].fvalue  == c[c.length-1].fvalue) {
+    if (col[0].fvalue  == col[col.size()-1].fvalue) {
       for (int nid : this->qexpand_) {
         for (int k = 0; k < 3; ++k) {
-          sbuilder[3 * nid + k].sketch->Push(c[0].fvalue,
+          sbuilder[3 * nid + k].sketch->Push(col[0].fvalue,
                                              static_cast<bst_float>(
                                                  sbuilder[3 * nid + k].sum_total));
         }
@@ -231,17 +231,17 @@ class SketchMaker: public BaseMaker {
       }
     }
     // second pass, build the sketch
-    for (bst_uint j = 0; j < c.length; ++j) {
-      const bst_uint ridx = c[j].index;
+    for (const auto& c : col) {
+      const bst_uint ridx = c.index;
       const int nid = this->position_[ridx];
       if (nid >= 0) {
         const GradientPair &e = gpair[ridx];
         if (e.GetGrad() >= 0.0f) {
-          sbuilder[3 * nid + 0].Push(c[j].fvalue, e.GetGrad(), max_size);
+          sbuilder[3 * nid + 0].Push(c.fvalue, e.GetGrad(), max_size);
         } else {
-          sbuilder[3 * nid + 1].Push(c[j].fvalue, -e.GetGrad(), max_size);
+          sbuilder[3 * nid + 1].Push(c.fvalue, -e.GetGrad(), max_size);
         }
-        sbuilder[3 * nid + 2].Push(c[j].fvalue, e.GetHess(), max_size);
+        sbuilder[3 * nid + 2].Push(c.fvalue, e.GetHess(), max_size);
       }
     }
     for (int nid : this->qexpand_) {

@@ -394,6 +394,11 @@ class TweedieRegression : public ObjFunction {
       preds[j] = std::exp(preds[j]);
     }
   }
+
+  bst_float ProbToMargin(bst_float base_score) const override {
+    return std::log(base_score);
+  }
+
   const char* DefaultEvalMetric() const override {
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;

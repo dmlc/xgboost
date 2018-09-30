@@ -125,8 +125,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    * @return predict result
    */
   @throws(classOf[XGBoostError])
-  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0)
-      : Array[Array[Float]] = {
+  def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0):
+      Array[Array[Float]] = {
     booster.predict(data.jDMatrix, outPutMargin, treeLimit)
   }
 
@@ -139,7 +139,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
    * @throws XGBoostError native error
    */
   @throws(classOf[XGBoostError])
-  def predictLeaf(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
+  def predictLeaf(data: DMatrix, treeLimit: Int = 0): Array[Array[Float]] = {
     booster.predictLeaf(data.jDMatrix, treeLimit)
   }
 
@@ -196,6 +196,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   def getFeatureScore(featureMap: String = null): mutable.Map[String, Integer] = {
     booster.getFeatureScore(featureMap).asScala
   }
+
+  def getVersion: Int = booster.getVersion
 
   def toByteArray: Array[Byte] = {
     booster.toByteArray

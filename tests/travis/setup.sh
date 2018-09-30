@@ -27,3 +27,7 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ]; the
     conda create -n python3 python=3.5
     conda create -n python2 python=2.7
 fi
+
+if [ ${TASK} == "distributed_test" ]; then
+    pip install --user kubernetes numpy scipy
+fi

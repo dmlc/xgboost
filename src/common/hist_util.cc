@@ -36,25 +36,35 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   auto iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
-     auto batch = iter->Value();
+     auto &batch = iter->Value();
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
-      for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-        size_t ridx = batch.base_rowid + i;
-        SparsePage::Inst inst = batch[i];
-        for (bst_uint j = 0; j < inst.length; ++j) {
-          if (inst[j].index >= begin && inst[j].index < end) {
-            sketchs[inst[j].index].Push(inst[j].fvalue, info.GetWeight(ridx));
+      // do not iterate if no columns are assigned to the thread
+      if (begin < end && end <= ncol) {
+        for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
+          size_t ridx = batch.base_rowid + i;
+          SparsePage::Inst inst = batch[i];
+          for (auto& ins : inst) {
+            if (ins.index >= begin && ins.index < end) {
+              sketchs[ins.index].Push(ins.fvalue, info.GetWeight(ridx));
+            }
           }
         }
       }
     }
   }
 
+  Init(&sketchs, max_num_bins);
+}
+
+void HistCutMatrix::Init
+(std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
+  std::vector<WXQSketch>& sketchs = *in_sketchs;
+  constexpr int kFactor = 8;
   // gather the histogram data
   rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   std::vector<WXQSketch::SummaryContainer> summary_array;
@@ -68,7 +78,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
 
-  this->min_val.resize(info.num_col_);
+  this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WXQSketch::SummaryContainer a;
@@ -104,27 +114,38 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat) {
-  CHECK(cut != nullptr);  // NOLINT
+uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
+  unsigned fid = e.index;
+  auto cbegin = cut.begin() + row_ptr[fid];
+  auto cend = cut.begin() + row_ptr[fid + 1];
+  CHECK(cbegin != cend);
+  auto it = std::upper_bound(cbegin, cend, e.fvalue);
+  if (it == cend) it = cend - 1;
+  uint32_t idx = static_cast<uint32_t>(it - cut.begin());
+  return idx;
+}
+
+void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
+  cut.Init(p_fmat, max_num_bins);
   auto iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
-  const uint32_t nbins = cut->row_ptr.back();
+  const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
   iter->BeforeFirst();
   row_ptr.push_back(0);
   while (iter->Next()) {
-     auto batch = iter->Value();
+     auto &batch = iter->Value();
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
-      row_ptr.push_back(batch[i].length + row_ptr.back());
+      row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
 
-    CHECK_GT(cut->cut.size(), 0U);
-    CHECK_EQ(cut->row_ptr.back(), cut->cut.size());
+    CHECK_GT(cut.cut.size(), 0U);
+    CHECK_EQ(cut.row_ptr.back(), cut.cut.size());
 
     auto bsize = static_cast<omp_ulong>(batch.Size());
     #pragma omp parallel for num_threads(nthread) schedule(static)
@@ -133,15 +154,11 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
       SparsePage::Inst inst = batch[i];
-      CHECK_EQ(ibegin + inst.length, iend);
-      for (bst_uint j = 0; j < inst.length; ++j) {
-        unsigned fid = inst[j].index;
-        auto cbegin = cut->cut.begin() + cut->row_ptr[fid];
-        auto cend = cut->cut.begin() + cut->row_ptr[fid + 1];
-        CHECK(cbegin != cend);
-        auto it = std::upper_bound(cbegin, cend, inst[j].fvalue);
-        if (it == cend) it = cend - 1;
-        uint32_t idx = static_cast<uint32_t>(it - cut->cut.begin());
+
+      CHECK_EQ(ibegin + inst.size(), iend);
+      for (bst_uint j = 0; j < inst.size(); ++j) {
+        uint32_t idx = cut.GetBinIdx(inst[j]);
+
         index[ibegin + j] = idx;
         ++hit_count_tloc_[tid * nbins + idx];
       }
@@ -157,14 +174,13 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   }
 }
 
-template <typename T>
 static size_t GetConflictCount(const std::vector<bool>& mark,
-                               const Column<T>& column,
+                               const Column& column,
                                size_t max_cnt) {
   size_t ret = 0;
-  if (column.type == xgboost::common::kDenseColumn) {
-    for (size_t i = 0; i < column.len; ++i) {
-      if (column.index[i] != std::numeric_limits<T>::max() && mark[i]) {
+  if (column.GetType() == xgboost::common::kDenseColumn) {
+    for (size_t i = 0; i < column.Size(); ++i) {
+      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max() && mark[i]) {
         ++ret;
         if (ret > max_cnt) {
           return max_cnt + 1;
@@ -172,8 +188,8 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
       }
     }
   } else {
-    for (size_t i = 0; i < column.len; ++i) {
-      if (mark[column.row_ind[i]]) {
+    for (size_t i = 0; i < column.Size(); ++i) {
+      if (mark[column.GetRowIdx(i)]) {
         ++ret;
         if (ret > max_cnt) {
           return max_cnt + 1;
@@ -184,30 +200,28 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
   return ret;
 }
 
-template <typename T>
 inline void
-MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
+MarkUsed(std::vector<bool>* p_mark, const Column& column) {
   std::vector<bool>& mark = *p_mark;
-  if (column.type == xgboost::common::kDenseColumn) {
-    for (size_t i = 0; i < column.len; ++i) {
-      if (column.index[i] != std::numeric_limits<T>::max()) {
+  if (column.GetType() == xgboost::common::kDenseColumn) {
+    for (size_t i = 0; i < column.Size(); ++i) {
+      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max()) {
         mark[i] = true;
       }
     }
   } else {
-    for (size_t i = 0; i < column.len; ++i) {
-      mark[column.row_ind[i]] = true;
+    for (size_t i = 0; i < column.Size(); ++i) {
+      mark[column.GetRowIdx(i)] = true;
     }
   }
 }
 
-template <typename T>
 inline std::vector<std::vector<unsigned>>
-FindGroups_(const std::vector<unsigned>& feature_list,
-            const std::vector<size_t>& feature_nnz,
-            const ColumnMatrix& colmat,
-            size_t nrow,
-            const FastHistParam& param) {
+FindGroups(const std::vector<unsigned>& feature_list,
+           const std::vector<size_t>& feature_nnz,
+           const ColumnMatrix& colmat,
+           size_t nrow,
+           const FastHistParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
            member features.
@@ -221,7 +235,7 @@ FindGroups_(const std::vector<unsigned>& feature_list,
     = static_cast<size_t>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
-    const Column<T>& column = colmat.GetColumn<T>(fid);
+    const Column& column = colmat.GetColumn(fid);
 
     const size_t cur_fid_nnz = feature_nnz[fid];
     bool need_new_group = true;
@@ -267,23 +281,11 @@ FindGroups_(const std::vector<unsigned>& feature_list,
 }
 
 inline std::vector<std::vector<unsigned>>
-FindGroups(const std::vector<unsigned>& feature_list,
-           const std::vector<size_t>& feature_nnz,
-           const ColumnMatrix& colmat,
-           size_t nrow,
-           const FastHistParam& param) {
-  XGBOOST_TYPE_SWITCH(colmat.dtype, {
-    return FindGroups_<DType>(feature_list, feature_nnz, colmat, nrow, param);
-  });
-  return std::vector<std::vector<unsigned>>();  // to avoid warning message
-}
-
-inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
                     const FastHistParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
-  const size_t nfeature = gmat.cut->row_ptr.size() - 1;
+  const size_t nfeature = gmat.cut.row_ptr.size() - 1;
 
   std::vector<unsigned> feature_list(nfeature);
   std::iota(feature_list.begin(), feature_list.end(), 0);
@@ -336,10 +338,10 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
                                  const FastHistParam& param) {
-  cut_ = gmat.cut;
+  cut_ = &gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
-  const uint32_t nbins = gmat.cut->row_ptr.back();
+  const uint32_t nbins = gmat.cut.row_ptr.back();
 
   /* step 1: form feature groups */
   auto groups = FastFeatureGrouping(gmat, colmat, param);
@@ -349,8 +351,8 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
   for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
     for (auto& fid : groups[group_id]) {
-      const uint32_t bin_begin = gmat.cut->row_ptr[fid];
-      const uint32_t bin_end = gmat.cut->row_ptr[fid + 1];
+      const uint32_t bin_begin = gmat.cut.row_ptr[fid];
+      const uint32_t bin_end = gmat.cut.row_ptr[fid + 1];
       for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
         bin2block[bin_id] = group_id;
       }

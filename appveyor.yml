@@ -52,8 +52,10 @@ install:
           Invoke-WebRequest http://raw.github.com/krlmlr/r-appveyor/master/scripts/appveyor-tool.ps1 -OutFile "$Env:TEMP\appveyor-tool.ps1"
           Import-Module "$Env:TEMP\appveyor-tool.ps1"
           Bootstrap
-          $DEPS = "c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','igraph','knitr','rmarkdown')"
+          $DEPS = "c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown')"
           cmd.exe /c "R.exe -q -e ""install.packages($DEPS, repos='$CRAN', type='both')"" 2>&1"
+          $BINARY_DEPS = "c('XML','igraph')"
+          cmd.exe /c "R.exe -q -e ""install.packages($BINARY_DEPS, repos='$CRAN', type='win.binary')"" 2>&1"
         }
 
 build_script:

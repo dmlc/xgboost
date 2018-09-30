@@ -46,12 +46,12 @@ class BaseMaker: public TreeUpdater {
       auto iter = p_fmat->ColIterator();
       iter->BeforeFirst();
       while (iter->Next()) {
-        auto batch = iter->Value();
+        auto &batch = iter->Value();
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
            auto c = batch[fid];
-          if (c.length != 0) {
+          if (c.size() != 0) {
             fminmax_[fid * 2 + 0] = std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
-            fminmax_[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax_[fid * 2 + 1]);
+            fminmax_[fid * 2 + 1] = std::max(c[c.size() - 1].fvalue, fminmax_[fid * 2 + 1]);
           }
         }
       }
@@ -106,9 +106,9 @@ class BaseMaker: public TreeUpdater {
   inline static int NextLevel(const SparsePage::Inst &inst, const RegTree &tree, int nid) {
     const RegTree::Node &n = tree[nid];
     bst_uint findex = n.SplitIndex();
-    for (unsigned i = 0; i < inst.length; ++i) {
-      if (findex == inst[i].index) {
-        if (inst[i].fvalue < n.SplitCond()) {
+    for (const auto& ins : inst) {
+      if (findex == ins.index) {
+        if (ins.fvalue < n.SplitCond()) {
           return n.LeftChild();
         } else {
           return n.RightChild();
@@ -250,7 +250,7 @@ class BaseMaker: public TreeUpdater {
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
-        const auto ndata = static_cast<bst_omp_uint>(col.length);
+        const auto ndata = static_cast<bst_omp_uint>(col.size());
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
           const bst_uint ridx = col[j].index;
@@ -305,10 +305,10 @@ class BaseMaker: public TreeUpdater {
     this->GetSplitSet(nodes, tree, &fsplits);
     auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       for (auto fid : fsplits) {
         auto col = batch[fid];
-        const auto ndata = static_cast<bst_omp_uint>(col.length);
+        const auto ndata = static_cast<bst_omp_uint>(col.size());
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
           const bst_uint ridx = col[j].index;

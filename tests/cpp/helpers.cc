@@ -41,17 +41,13 @@ std::string CreateBigTestData(size_t n_entries) {
   return tmp_file;
 }
 
-void CheckObjFunction(xgboost::ObjFunction * obj,
+void _CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
+                      xgboost::MetaInfo info,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess) {
-  xgboost::MetaInfo info;
-  info.num_row_ = labels.size();
-  info.labels_ = labels;
-  info.weights_ = weights;
-
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
 
   xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
@@ -69,6 +65,37 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   }
 }
 
+void CheckObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
+void CheckRankingObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_uint> groups,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row_ = labels.size();
+  info.labels_ = labels;
+  info.weights_ = weights;
+  info.group_ptr_ = groups;
+
+  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+}
+
+
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  std::vector<xgboost::bst_float> preds,
                                  std::vector<xgboost::bst_float> labels,
@@ -80,8 +107,8 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
   return metric->Eval(preds, info, false);
 }
 
-std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
-                                                float sparsity, int seed) {
+std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
+                                                 float sparsity, int seed) {
   const float missing_value = -1;
   std::vector<float> test_data(rows * columns);
   std::mt19937 gen(seed);
@@ -97,5 +124,5 @@ std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
   DMatrixHandle handle;
   XGDMatrixCreateFromMat(test_data.data(), rows, columns, missing_value,
                          &handle);
-  return *static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }

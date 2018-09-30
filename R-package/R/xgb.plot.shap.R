@@ -212,6 +212,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   }
   if (plot && which == "2d") {
     # TODO
+    warning("Bivariate plotting is currently not available.")
   }
   invisible(list(data = data, shap_contrib = shap_contrib))
 }

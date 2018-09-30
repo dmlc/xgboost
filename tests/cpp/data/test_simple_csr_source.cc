@@ -25,8 +25,11 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   row_iter_read->BeforeFirst(); row_iter_read->Next();
   auto first_row = row_iter->Value()[0];
   auto first_row_read = row_iter_read->Value()[0];
-  EXPECT_EQ(first_row.length, first_row_read.length);
+  EXPECT_EQ(first_row.size(), first_row_read.size());
   EXPECT_EQ(first_row[2].index, first_row_read[2].index);
   EXPECT_EQ(first_row[2].fvalue, first_row_read[2].fvalue);
   row_iter = nullptr; row_iter_read = nullptr;
+
+  delete dmat;
+  delete dmat_read;
 }

@@ -118,13 +118,13 @@ class DeviceShard {
         return e1.index < e2.index;
       };
       auto column_begin =
-          std::lower_bound(col.data, col.data + col.length,
+          std::lower_bound(col.data(), col.data() + col.size(),
                            Entry(row_begin, 0.0f), cmp);
       auto column_end =
-          std::upper_bound(col.data, col.data + col.length,
+          std::upper_bound(col.data(), col.data() + col.size(),
                            Entry(row_end, 0.0f), cmp);
       column_segments.push_back(
-          std::make_pair(column_begin - col.data, column_end - col.data));
+          std::make_pair(column_begin - col.data(), column_end - col.data()));
       row_ptr_.push_back(row_ptr_.back() + column_end - column_begin);
     }
     ba_.Allocate(device_idx, param.silent, &data_, row_ptr_.back(), &gpair_,
@@ -132,9 +132,10 @@ class DeviceShard {
 
     for (int fidx = 0; fidx < batch.Size(); fidx++) {
       auto col = batch[fidx];
-      thrust::copy(col.data + column_segments[fidx].first,
-                   col.data + column_segments[fidx].second,
-                   data_.tbegin() + row_ptr_[fidx]);
+      auto seg = column_segments[fidx];
+      dh::safe_cuda(cudaMemcpy(
+          data_.Data() + row_ptr_[fidx], col.data() + seg.first,
+          sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
     // Rescale indices with respect to current shard
     RescaleIndices(ridx_begin_, &data_);
@@ -236,7 +237,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
     iter->Next();
-    auto batch = iter->Value();
+    auto &batch = iter->Value();
 
     shards.resize(n_devices);
     // Create device shards

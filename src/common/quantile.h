@@ -35,9 +35,9 @@ struct WQSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    Entry() = default;
+    XGBOOST_DEVICE Entry() {}  // NOLINT
     // constructor
-    Entry(RType rmin, RType rmax, RType wmin, DType value)
+    XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
     /*!
      * \brief debug function,  check Valid
@@ -48,11 +48,11 @@ struct WQSummary {
       CHECK(rmax- rmin - wmin > -eps) <<  "relation constraint: min/max";
     }
     /*! \return rmin estimation for v strictly bigger than value */
-    inline RType RMinNext() const {
+    XGBOOST_DEVICE inline RType RMinNext() const {
       return rmin + wmin;
     }
     /*! \return rmax estimation for v strictly smaller than value */
-    inline RType RMaxPrev() const {
+    XGBOOST_DEVICE inline RType RMaxPrev() const {
       return rmax - wmin;
     }
   };
@@ -157,6 +157,17 @@ struct WQSummary {
   inline void CopyFrom(const WQSummary &src) {
     size = src.size;
     std::memcpy(data, src.data, sizeof(Entry) * size);
+  }
+  inline void MakeFromSorted(const Entry* entries, size_t n) {
+    size = 0;
+    for (size_t i = 0; i < n;) {
+      size_t j = i + 1;
+      // ignore repeated values
+      for (; j < n && entries[j].value == entries[i].value; ++j) {}
+      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin,
+                           entries[i].value);
+      i = j;
+    }
   }
   /*!
    * \brief debug function, validate whether the summary
@@ -676,6 +687,18 @@ class QuantileSketchTemplate {
    * \param eps accuracy level of summary
    */
   inline void Init(size_t maxn, double eps) {
+    LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
+    // lazy reserve the space, if there is only one value, no need to allocate space
+    inqueue.queue.resize(1);
+    inqueue.qtail = 0;
+    data.clear();
+    level.clear();
+  }
+
+  inline static void LimitSizeLevel
+    (size_t maxn, double eps, size_t* out_nlevel, size_t* out_limit_size) {
+    size_t& nlevel = *out_nlevel;
+    size_t& limit_size = *out_limit_size;
     nlevel = 1;
     while (true) {
       limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
@@ -687,12 +710,8 @@ class QuantileSketchTemplate {
     size_t n = (1ULL << nlevel);
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
     CHECK(nlevel <= limit_size * eps) << "invalid init parameter";
-    // lazy reserve the space, if there is only one value, no need to allocate space
-    inqueue.queue.resize(1);
-    inqueue.qtail = 0;
-    data.clear();
-    level.clear();
   }
+
   /*!
    * \brief add an element to a sketch
    * \param x The element added to the sketch
@@ -714,6 +733,13 @@ class QuantileSketchTemplate {
     }
     inqueue.Push(x, w);
   }
+
+  inline void PushSummary(const Summary& summary) {
+    temp.Reserve(limit_size * 2);
+    temp.SetPrune(summary, limit_size * 2);
+    PushTemp();
+  }
+
   /*! \brief push up temp */
   inline void PushTemp() {
     temp.Reserve(limit_size * 2);

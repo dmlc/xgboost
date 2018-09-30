@@ -556,11 +556,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
   bst_ulong len;
   float *result;
   int ret = XGBoosterPredict(handle, dmat, joption_mask, (unsigned int) jntree_limit, &len, (const float **) &result);
-
-  jsize jlen = (jsize) len;
-  jfloatArray jarray = jenv->NewFloatArray(jlen);
-  jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *) result);
-  jenv->SetObjectArrayElement(jout, 0, jarray);
+  if (len) {
+    jsize jlen = (jsize) len;
+    jfloatArray jarray = jenv->NewFloatArray(jlen);
+    jenv->SetFloatArrayRegion(jarray, 0, jlen, (jfloat *) result);
+    jenv->SetObjectArrayElement(jout, 0, jarray);
+  }
   return ret;
 }
 

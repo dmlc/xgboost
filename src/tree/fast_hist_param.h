@@ -12,8 +12,6 @@ namespace tree {
 
 /*! \brief training parameters for histogram-based training */
 struct FastHistParam : public dmlc::Parameter<FastHistParam> {
-  // integral data type to be used with columnar data storage
-  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };  // NOLINT
   int colmat_dtype;
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
@@ -32,14 +30,6 @@ struct FastHistParam : public dmlc::Parameter<FastHistParam> {
 
   // declare the parameters
   DMLC_DECLARE_PARAMETER(FastHistParam) {
-    DMLC_DECLARE_FIELD(colmat_dtype)
-        .set_default(static_cast<int>(DataType::uint32))
-        .add_enum("uint8", static_cast<int>(DataType::uint8))
-        .add_enum("uint16", static_cast<int>(DataType::uint16))
-        .add_enum("uint32", static_cast<int>(DataType::uint32))
-        .describe("Integral data type to be used with columnar data storage."
-                  "May carry marginal performance implications. Reserved for "
-                  "advanced use");
     DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
         .describe("percentage threshold for treating a feature as sparse");
     DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(0)

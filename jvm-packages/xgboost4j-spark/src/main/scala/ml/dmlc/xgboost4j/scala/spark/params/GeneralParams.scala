@@ -16,84 +16,105 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import com.google.common.base.CaseFormat
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 
 import org.apache.spark.ml.param._
+import scala.collection.mutable
 
-trait GeneralParams extends Params {
+private[spark] trait GeneralParams extends Params {
 
   /**
    * The number of rounds for boosting
    */
-  val round = new IntParam(this, "num_round", "The number of rounds for boosting",
+  final val numRound = new IntParam(this, "numRound", "The number of rounds for boosting",
     ParamValidators.gtEq(1))
+
+  final def getNumRound: Int = $(numRound)
 
   /**
    * number of workers used to train xgboost model. default: 1
    */
-  val nWorkers = new IntParam(this, "nworkers", "number of workers used to run xgboost",
+  final val numWorkers = new IntParam(this, "numWorkers", "number of workers used to run xgboost",
     ParamValidators.gtEq(1))
+
+  final def getNumWorkers: Int = $(numWorkers)
 
   /**
    * number of threads used by per worker. default 1
    */
-  val numThreadPerTask = new IntParam(this, "nthread", "number of threads used by per worker",
+  final val nthread = new IntParam(this, "nthread", "number of threads used by per worker",
     ParamValidators.gtEq(1))
+
+  final def getNthread: Int = $(nthread)
 
   /**
    * whether to use external memory as cache. default: false
    */
-  val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external" +
-    "memory as cache")
+  final val useExternalMemory = new BooleanParam(this, "useExternalMemory",
+    "whether to use external memory as cache")
+
+  final def getUseExternalMemory: Boolean = $(useExternalMemory)
 
   /**
    * 0 means printing running messages, 1 means silent mode. default: 0
    */
-  val silent = new IntParam(this, "silent",
+  final val silent = new IntParam(this, "silent",
     "0 means printing running messages, 1 means silent mode.",
     (value: Int) => value >= 0 && value <= 1)
+
+  final def getSilent: Int = $(silent)
 
   /**
    * customized objective function provided by user. default: null
    */
-  val customObj = new CustomObjParam(this, "custom_obj", "customized objective function " +
+  final val customObj = new CustomObjParam(this, "customObj", "customized objective function " +
     "provided by user")
 
   /**
    * customized evaluation function provided by user. default: null
    */
-  val customEval = new CustomEvalParam(this, "custom_eval", "customized evaluation function " +
-    "provided by user")
+  final val customEval = new CustomEvalParam(this, "customEval",
+    "customized evaluation function provided by user")
 
   /**
    * the value treated as missing. default: Float.NaN
    */
-  val missing = new FloatParam(this, "missing", "the value treated as missing")
+  final val missing = new FloatParam(this, "missing", "the value treated as missing")
+
+  final def getMissing: Float = $(missing)
 
   /**
     * the maximum time to wait for the job requesting new workers. default: 30 minutes
     */
-  val timeoutRequestWorkers = new LongParam(this, "timeout_request_workers", "the maximum time to" +
-    " request new Workers if numCores are insufficient. The timeout will be disabled if this" +
-    " value is set smaller than or equal to 0.")
+  final val timeoutRequestWorkers = new LongParam(this, "timeoutRequestWorkers", "the maximum " +
+    "time to request new Workers if numCores are insufficient. The timeout will be disabled " +
+    "if this value is set smaller than or equal to 0.")
+
+  final def getTimeoutRequestWorkers: Long = $(timeoutRequestWorkers)
 
   /**
     * The hdfs folder to load and save checkpoint boosters. default: `empty_string`
     */
-  val checkpointPath = new Param[String](this, "checkpoint_path", "the hdfs folder to load and " +
-    "save checkpoints. If there are existing checkpoints in checkpoint_path. The job will load " +
-    "the checkpoint with highest version as the starting point for training. If " +
+  final val checkpointPath = new Param[String](this, "checkpointPath", "the hdfs folder to load " +
+    "and save checkpoints. If there are existing checkpoints in checkpoint_path. The job will " +
+    "load the checkpoint with highest version as the starting point for training. If " +
     "checkpoint_interval is also set, the job will save a checkpoint every a few rounds.")
+
+  final def getCheckpointPath: String = $(checkpointPath)
 
   /**
     * Param for set checkpoint interval (&gt;= 1) or disable checkpoint (-1). E.g. 10 means that
     * the trained model will get checkpointed every 10 iterations. Note: `checkpoint_path` must
     * also be set if the checkpoint interval is greater than 0.
     */
-  val checkpointInterval: IntParam = new IntParam(this, "checkpointInterval", "set checkpoint " +
-    "interval (>= 1) or disable checkpoint (-1). E.g. 10 means that the trained model will get " +
-    "checkpointed every 10 iterations. Note: `checkpoint_path` must also be set if the checkpoint" +
-    " interval is greater than 0.", (interval: Int) => interval == -1 || interval >= 1)
+  final val checkpointInterval: IntParam = new IntParam(this, "checkpointInterval",
+    "set checkpoint interval (>= 1) or disable checkpoint (-1). E.g. 10 means that the trained " +
+      "model will get checkpointed every 10 iterations. Note: `checkpoint_path` must also be " +
+      "set if the checkpoint interval is greater than 0.",
+    (interval: Int) => interval == -1 || interval >= 1)
+
+  final def getCheckpointInterval: Int = $(checkpointInterval)
 
   /**
     * Rabit tracker configurations. The parameter must be provided as an instance of the
@@ -122,15 +143,117 @@ trait GeneralParams extends Params {
     *        Note that zero timeout value means to wait indefinitely (equivalent to Duration.Inf).
     *        Ignored if the tracker implementation is "python".
     */
-  val trackerConf = new TrackerConfParam(this, "tracker_conf", "Rabit tracker configurations")
+  final val trackerConf = new TrackerConfParam(this, "trackerConf", "Rabit tracker configurations")
 
   /** Random seed for the C++ part of XGBoost and train/test splitting. */
-  val seed = new LongParam(this, "seed", "random seed")
+  final val seed = new LongParam(this, "seed", "random seed")
 
-  setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
+  final def getSeed: Long = $(seed)
+
+  setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
     checkpointPath -> "", checkpointInterval -> -1
   )
+}
+
+trait HasLeafPredictionCol extends Params {
+  /**
+   * Param for leaf prediction column name.
+   * @group param
+   */
+  final val leafPredictionCol: Param[String] = new Param[String](this, "leafPredictionCol",
+    "name of the predictLeaf results")
+
+  /** @group getParam */
+  final def getLeafPredictionCol: String = $(leafPredictionCol)
+}
+
+trait HasContribPredictionCol extends Params {
+  /**
+   * Param for contribution prediction column name.
+   * @group param
+   */
+  final val contribPredictionCol: Param[String] = new Param[String](this, "contribPredictionCol",
+    "name of the predictContrib results")
+
+  /** @group getParam */
+  final def getContribPredictionCol: String = $(contribPredictionCol)
+}
+
+trait HasBaseMarginCol extends Params {
+
+  /**
+   * Param for initial prediction (aka base margin) column name.
+   * @group param
+   */
+  final val baseMarginCol: Param[String] = new Param[String](this, "baseMarginCol",
+    "Initial prediction (aka base margin) column name.")
+
+  /** @group getParam */
+  final def getBaseMarginCol: String = $(baseMarginCol)
+}
+
+trait HasGroupCol extends Params {
+
+  /**
+   * Param for group column name.
+   * @group param
+   */
+  final val groupCol: Param[String] = new Param[String](this, "groupCol", "group column name.")
+
+  /** @group getParam */
+  final def getGroupCol: String = $(groupCol)
+
+}
+
+trait HasNumClass extends Params {
+
+  /**
+   * number of classes
+   */
+  final val numClass = new IntParam(this, "numClass", "number of classes")
+
+  /** @group getParam */
+  final def getNumClass: Int = $(numClass)
+}
+
+private[spark] trait ParamMapFuncs extends Params {
+
+  def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
+    for ((paramName, paramValue) <- xgboostParams) {
+      if ((paramName == "booster" && paramValue != "gbtree") ||
+        (paramName == "updater" && paramValue != "grow_colmaker,prune")) {
+        throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
+          s" XGBoost-Spark only supports gbtree as booster type" +
+          " and grow_colmaker,prune as the updater type")
+      }
+      val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
+      params.find(_.name == name) match {
+        case None =>
+        case Some(_: DoubleParam) =>
+          set(name, paramValue.toString.toDouble)
+        case Some(_: BooleanParam) =>
+          set(name, paramValue.toString.toBoolean)
+        case Some(_: IntParam) =>
+          set(name, paramValue.toString.toInt)
+        case Some(_: FloatParam) =>
+          set(name, paramValue.toString.toFloat)
+        case Some(_: Param[_]) =>
+          set(name, paramValue)
+      }
+    }
+  }
+
+  def MLlib2XGBoostParams: Map[String, Any] = {
+    val xgboostParams = new mutable.HashMap[String, Any]()
+    for (param <- params) {
+      if (isDefined(param)) {
+        val name = CaseFormat.LOWER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, param.name)
+        xgboostParams += name -> $(param)
+      }
+    }
+    xgboostParams.toMap
+  }
 }

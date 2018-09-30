@@ -81,7 +81,7 @@ class ShotgunUpdater : public LinearUpdater {
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
      auto iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      auto batch = iter->Value();
+      auto &batch = iter->Value();
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
@@ -92,10 +92,10 @@ class ShotgunUpdater : public LinearUpdater {
         auto col = batch[ii];
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
-          for (bst_uint j = 0; j < col.length; ++j) {
-            GradientPair &p = gpair[col[j].index * ngroup + gid];
+          for (auto& c : col) {
+            GradientPair &p = gpair[c.index * ngroup + gid];
             if (p.GetHess() < 0.0f) continue;
-            const bst_float v = col[j].fvalue;
+            const bst_float v = c.fvalue;
             sum_grad += p.GetGrad() * v;
             sum_hess += p.GetHess() * v * v;
           }
@@ -107,10 +107,10 @@ class ShotgunUpdater : public LinearUpdater {
           if (dw == 0.f) continue;
           w += dw;
           // update grad values
-          for (bst_uint j = 0; j < col.length; ++j) {
-            GradientPair &p = gpair[col[j].index * ngroup + gid];
+          for (auto& c : col) {
+            GradientPair &p = gpair[c.index * ngroup + gid];
             if (p.GetHess() < 0.0f) continue;
-            p += GradientPair(p.GetHess() * col[j].fvalue * dw, 0);
+            p += GradientPair(p.GetHess() * c.fvalue * dw, 0);
           }
         }
       }

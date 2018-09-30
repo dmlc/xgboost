@@ -11,9 +11,22 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+from subprocess import call
+from sh.contrib import git
+import urllib.request
+from recommonmark.parser import CommonMarkParser
 import sys
+import re
 import os, subprocess
 import shlex
+import guzzle_sphinx_theme
+
+git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
+git_branch = [x for x in git_branch if 'HEAD' not in x]
+print('git_branch = {}'.format(git_branch[0]))
+filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch[0]))
+call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -22,13 +35,11 @@ libpath = os.path.join(curr_path, '../python-package/')
 sys.path.insert(0, libpath)
 sys.path.insert(0, curr_path)
 
-from sphinx_util import MarkdownParser, AutoStructify
-
 # -- mock out modules
 import mock
 MOCK_MODULES = ['numpy', 'scipy', 'scipy.sparse', 'sklearn', 'matplotlib', 'pandas', 'graphviz']
 for mod_name in MOCK_MODULES:
-    sys.modules[mod_name] = mock.Mock()
+  sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
 
@@ -38,11 +49,6 @@ author = u'%s developers' % project
 copyright = u'2016, %s' % author
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
-# add markdown parser
-MarkdownParser.github_doc_root = github_doc_root
-source_parsers = {
-    '.md': MarkdownParser,
-}
 os.environ['XGBOOST_BUILD_DOC'] = '1'
 # Version information.
 import xgboost
@@ -55,14 +61,23 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
+    'sphinx.ext.intersphinx',
+    'breathe'
 ]
+
+# Breathe extension variables
+breathe_projects = {"xgboost": "doxyxml/"}
+breathe_default_project = "xgboost"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
+source_parsers = {
+  '.md': CommonMarkParser,
+}
+
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
-# source_suffix = ['.rst', '.md']
 source_suffix = ['.rst', '.md']
 
 # The encoding of source files.
@@ -89,6 +104,7 @@ autoclass_content = 'both'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = ['_build']
+html_extra_path = ['./tmp']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -119,11 +135,23 @@ todo_include_todos = False
 
 # -- Options for HTML output ----------------------------------------------
 
-html_theme_path = ['_static']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-# html_theme = 'alabaster'
-html_theme = 'xgboost-theme'
+html_theme_path = guzzle_sphinx_theme.html_theme_path()
+html_theme = 'guzzle_sphinx_theme'
+
+# Register the theme as an extension to generate a sitemap.xml
+extensions.append("guzzle_sphinx_theme")
+
+# Guzzle theme options (see theme.conf for more information)
+html_theme_options = {
+    # Set the name of the project to appear in the sidebar
+    "project_nav_name": "XGBoost"
+}
+
+html_sidebars = {
+  '**': ['logo-text.html', 'globaltoc.html', 'searchbox.html']
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -145,38 +173,27 @@ latex_documents = [
    author, 'manual'),
 ]
 
+intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None),
+                       'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+                       'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+                       'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
+                       'sklearn': ('http://scikit-learn.org/stable', None)}
+
 # hook for doxygen
 def run_doxygen(folder):
-    """Run the doxygen make command in the designated folder."""
-    try:
-        retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
-        if retcode < 0:
-            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
-    except OSError as e:
-        sys.stderr.write("doxygen execution failed: %s" % e)
+  """Run the doxygen make command in the designated folder."""
+  try:
+    retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
+    if retcode < 0:
+      sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
+  except OSError as e:
+    sys.stderr.write("doxygen execution failed: %s" % e)
 
 def generate_doxygen_xml(app):
-    """Run the doxygen make commands if we're on the ReadTheDocs server"""
-    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
-    if read_the_docs_build:
-        run_doxygen('..')
+  """Run the doxygen make commands if we're on the ReadTheDocs server"""
+  read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
+  if read_the_docs_build:
+    run_doxygen('..')
 
 def setup(app):
-    # Add hook for building doxygen xml when needed
-    # no c++ API for now
-    # app.connect("builder-inited", generate_doxygen_xml)
-
-    # urlretrieve got moved in Python 3.x
-    try:
-      from urllib import urlretrieve
-    except ImportError:
-      from urllib.request import urlretrieve
-    urlretrieve('https://code.jquery.com/jquery-2.2.4.min.js',
-                '_static/jquery.js')
-    app.add_config_value('recommonmark_config', {
-            'url_resolver': lambda url: github_doc_root + url,
-            'enable_eval_rst': True,
-            }, True,
-            )
-    app.add_transform(AutoStructify)
-    app.add_javascript('jquery.js')
+  app.add_stylesheet('custom.css')

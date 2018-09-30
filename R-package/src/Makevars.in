@@ -12,7 +12,7 @@ XGB_RFLAGS = -DXGBOOST_STRICT_R_MODE=1 -DDMLC_LOG_BEFORE_THROW=0\
 
 # disable the use of thread_local for 32 bit windows:
 ifeq ($(R_OSTYPE)$(WIN),windows)
-    XGB_RFLAGS += -DDMLC_CXX11_THREAD_LOCAL=0
+    XGB_RFLAGS += -DDMLC_CXX11_THREAD_LOCAL=0 -msse2 -mfpmath=sse
 endif
 $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 

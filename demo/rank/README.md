@@ -14,8 +14,15 @@ For more usage details please refer to the [binary classification demo](../binar
 
 Instructions
 ====
-The dataset for ranking demo is from LETOR04 MQ2008 fold1,
-You can use the following command to run the example
+The dataset for ranking demo is from LETOR04 MQ2008 fold1.
+You can use the following command to run the example:
 
-Get the data: ./wgetdata.sh
-Run the example: ./runexp.sh
+Get the data:
+```
+./wgetdata.sh
+```
+
+Run the example:
+```
+./runexp.sh
+```

@@ -33,13 +33,14 @@ import scala.concurrent.{Await, Future, TimeoutException}
  *
  * @param sc The SparkContext object
  * @param timeout The maximum time to wait for enough number of workers.
- * @param nWorkers nWorkers used in an XGBoost Job
+ * @param numWorkers nWorkers used in an XGBoost Job
  */
 class SparkParallelismTracker(
     val sc: SparkContext,
     timeout: Long,
-    nWorkers: Int) {
+    numWorkers: Int) {
 
+  private[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
   private[this] val mapper = new ObjectMapper()
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
   private[this] val url = sc.uiWebUrl match {
@@ -76,12 +77,12 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    val listener = new TaskFailedListener;
+    val listener = new TaskFailedListener
     sc.addSparkListener(listener)
     try {
       body
     } finally {
-      sc.listenerBus.removeListener(listener)
+      sc.removeSparkListener(listener)
     }
   }
 
@@ -99,10 +100,11 @@ class SparkParallelismTracker(
       body
     } else {
       try {
-        waitForCondition(numAliveCores >= nWorkers, timeout)
+        waitForCondition(numAliveCores >= requestedCores, timeout)
       } catch {
         case _: TimeoutException =>
-          throw new IllegalStateException(s"Unable to get $nWorkers workers for XGBoost training")
+          throw new IllegalStateException(s"Unable to get $requestedCores workers for" +
+            s" XGBoost training")
       }
       safeExecute(body)
     }
