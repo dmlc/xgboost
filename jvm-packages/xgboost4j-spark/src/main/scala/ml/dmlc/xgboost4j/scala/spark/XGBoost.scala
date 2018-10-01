@@ -141,6 +141,20 @@ object XGBoost extends Serializable {
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
         Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      } catch {
+        case ex: Exception => {
+
+          logger.error(s"buildDistributedBoosters exception", ex)
+          throw ex
+        }
+        case err : Error => {
+          logger.error(s"buildDistributedBoosters error", err)
+          throw err
+        }
+        case th : Throwable => {
+          logger.error(s"buildDistributedBoosters throwable", th)
+          throw th
+        }
       } finally {
         Rabit.shutdown()
         watches.delete()
@@ -279,6 +293,7 @@ object XGBoost extends Serializable {
           }
           (booster, metrics)
       } finally {
+
         tracker.stop()
       }
     }.last
