@@ -49,7 +49,7 @@ object XGBoost {
     val jFilteredParams = params
         .filter(_._2 != null)
         .mapValues(_.toString.asInstanceOf[AnyRef])
-        .asJava,
+        .asJava
 
     val xgboostResults = JXGBoost.trainWithResults(dtrain.jDMatrix, jFilteredParams, round, jWatches, metrics, obj, evals, earlyStoppingRound, jBooster)
     xgboostResults
