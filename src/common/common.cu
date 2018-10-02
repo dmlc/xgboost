@@ -11,7 +11,7 @@ int AllVisibleImpl::AllVisible() {
     // When compiled with CUDA but running on CPU only device,
     // cudaGetDeviceCount will fail.
     dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-  } catch(const std::exception& e) {
+  } catch(const thrust::system::system_error& err) {
     return 0;
   }
   return n_visgpus;

@@ -4,7 +4,7 @@
 
 #include "../helpers.h"
 
-TEST(Objective, HingeObj) {
+TEST(Objective, DeclareUnifiedTest(HingeObj)) {
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:hinge");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
@@ -13,6 +13,12 @@ TEST(Objective, HingeObj) {
                    {-1.0f, -0.5f, 0.5f, 1.0f, -1.0f, -0.5f,  0.5f, 1.0f},
                    { 0.0f,  0.0f, 0.0f, 0.0f,  1.0f,  1.0f,  1.0f, 1.0f},
                    { 1.0f,  1.0f, 1.0f, 1.0f,  1.0f,  1.0f,  1.0f, 1.0f},
+                   { 0.0f,  1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f},
+                   {  eps,  1.0f, 1.0f, 1.0f,  1.0f,  1.0f,  1.0f, eps });
+  CheckObjFunction(obj,
+                   {-1.0f, -0.5f, 0.5f, 1.0f, -1.0f, -0.5f,  0.5f, 1.0f},
+                   { 0.0f,  0.0f, 0.0f, 0.0f,  1.0f,  1.0f,  1.0f, 1.0f},
+                   {},  // Empty weight.
                    { 0.0f,  1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f},
                    {  eps,  1.0f, 1.0f, 1.0f,  1.0f,  1.0f,  1.0f, eps });
 

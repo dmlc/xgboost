@@ -14,7 +14,7 @@ struct WriteSymbolFunction {
   WriteSymbolFunction(CompressedBufferWriter cbw, unsigned char* buffer_data_d,
                       int* input_data_d)
     : cbw(cbw), buffer_data_d(buffer_data_d), input_data_d(input_data_d) {}
-                                           
+
   __device__ void operator()(size_t i) {
     cbw.AtomicWriteSymbol(buffer_data_d, input_data_d[i], i);
   }
@@ -28,7 +28,7 @@ struct ReadSymbolFunction {
 
   __device__ void operator()(size_t i) {
     output_data_d[i] = ci[i];
-  }                                           
+  }
 };
 
 TEST(CompressedIterator, TestGPU) {

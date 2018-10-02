@@ -125,3 +125,17 @@ std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
                          &handle);
   return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }
+
+namespace xgboost {
+bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
+          std::vector<xgboost::bst_float>::const_iterator _end1,
+          std::vector<xgboost::bst_float>::const_iterator _beg2) {
+  for (auto iter1 = _beg1, iter2 = _beg2; iter1 != _end1; ++iter1, ++iter2) {
+    if (std::abs(*iter1 - *iter2) > xgboost::kRtEps){
+      return false;
+    }
+  }
+  return true;
+}
+}
+
