@@ -7,6 +7,14 @@
 #include "../../include/xgboost/base.h"
 #include "../../../src/common/span.h"
 
+template <typename Iter>
+XGBOOST_DEVICE void InitializeRange(Iter _begin, Iter _end) {
+  float j = 0;
+  for (Iter i = _begin; i != _end; ++i, ++j) {
+    *i = j;
+  }
+}
+
 namespace xgboost {
 namespace common {
 
@@ -19,14 +27,6 @@ namespace common {
   if ((cond)) {                                 \
     *(status) = -1;                             \
   }
-
-template <typename Iter>
-XGBOOST_DEVICE void InitializeRange(Iter _begin, Iter _end) {
-  float j = 0;
-  for (Iter i = _begin; i != _end; ++i, ++j) {
-    *i = j;
-  }
-}
 
 struct TestTestStatus {
   int * status_;

@@ -116,6 +116,7 @@ struct HostDeviceVectorImpl {
       int ndevices = vec_->distribution_.devices_.Size();
       start_ = vec_->distribution_.ShardStart(new_size, index_);
       proper_size_ = vec_->distribution_.ShardProperSize(new_size, index_);
+      // The size on this device.
       size_t size_d = vec_->distribution_.ShardSize(new_size, index_);
       SetDevice();
       data_.resize(size_d);
@@ -230,7 +231,7 @@ struct HostDeviceVectorImpl {
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
     return {shards_[devices.Index(device)].data_.data().get(),
-            static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
+        static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
@@ -238,7 +239,7 @@ struct HostDeviceVectorImpl {
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
     return {shards_[devices.Index(device)].data_.data().get(),
-      static_cast<typename common::Span<const T>::index_type>(DeviceSize(device))};
+        static_cast<typename common::Span<const T>::index_type>(DeviceSize(device))};
   }
 
   size_t DeviceSize(int device) {
@@ -289,7 +290,6 @@ struct HostDeviceVectorImpl {
                                data_h_.size() * sizeof(T),
                                cudaMemcpyHostToDevice));
     } else {
-      //
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
     }
   }
@@ -304,14 +304,20 @@ struct HostDeviceVectorImpl {
 
   void Copy(HostDeviceVectorImpl<T>* other) {
     CHECK_EQ(Size(), other->Size());
+    // Data is on host.
     if (perm_h_.CanWrite() && other->perm_h_.CanWrite()) {
       std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
-    } else {
-      CHECK(distribution_ == other->distribution_);
-      dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-          shard.Copy(&other->shards_[i]);
-        });
+      return;
     }
+    // Data is on device;
+    if (distribution_ != other->distribution_) {
+      distribution_ = GPUDistribution();
+      Reshard(other->Distribution());
+      size_d_ = other->size_d_;
+    }
+    dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
+        shard.Copy(&other->shards_[i]);
+      });
   }
 
   void Copy(const std::vector<T>& other) {

@@ -178,18 +178,57 @@ TEST(HostDeviceVector, TestCopy) {
   SetCudaSetDeviceHandler(nullptr);
 }
 
-// The test is not really useful if n_gpus < 2
 TEST(HostDeviceVector, Reshard) {
   std::vector<int> h_vec (2345);
   for (size_t i = 0; i < h_vec.size(); ++i) {
     h_vec[i] = i;
   }
   HostDeviceVector<int> vec (h_vec);
+  auto devices = GPUSet::Range(0, 1);
+
+  vec.Reshard(devices);
+  ASSERT_EQ(vec.DeviceSize(0), h_vec.size());
+  ASSERT_EQ(vec.Size(), h_vec.size());
+  auto span = vec.DeviceSpan(0);  // sync to device
+
+  vec.Reshard(GPUSet::Empty());  // pull back to cpu, empty devices.
+  ASSERT_EQ(vec.Size(), h_vec.size());
+  ASSERT_TRUE(vec.Devices().IsEmpty());
+
+  auto h_vec_1 = vec.HostVector();
+  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
+}
+
+TEST(HostDeviceVector, Span) {
+  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  vec.Reshard(GPUSet{0, 1});
+  auto span = vec.DeviceSpan(0);
+  ASSERT_EQ(vec.DeviceSize(0), span.size());
+  ASSERT_EQ(vec.DevicePointer(0), span.data());
+  auto const_span = vec.ConstDeviceSpan(0);
+  ASSERT_EQ(vec.DeviceSize(0), span.size());
+  ASSERT_EQ(vec.ConstDevicePointer(0), span.data());
+}
+
+// Multi-GPUs' test
+#if defined(XGBOOST_USE_NCCL)
+TEST(HostDeviceVector, MGPU_Reshard) {
   auto devices = GPUSet::AllVisible();
+  if (devices.Size() < 2) {
+    LOG(WARNING) << "Not testing in multi-gpu environment.";
+    return;
+  }
+
+  std::vector<int> h_vec (2345);
+  for (size_t i = 0; i < h_vec.size(); ++i) {
+    h_vec[i] = i;
+  }
+  HostDeviceVector<int> vec (h_vec);
+
+  // Data size for each device.
   std::vector<size_t> devices_size (devices.Size());
 
   // From CPU to GPUs.
-  // Assuming we have > 1 devices.
   vec.Reshard(devices);
   size_t total_size = 0;
   for (size_t i = 0; i < devices.Size(); ++i) {
@@ -198,42 +237,26 @@ TEST(HostDeviceVector, Reshard) {
   }
   ASSERT_EQ(total_size, h_vec.size());
   ASSERT_EQ(total_size, vec.Size());
-  auto h_vec_1 = vec.HostVector();
 
-  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
-  vec.Reshard(GPUSet::Empty()); // clear out devices memory
+  // Reshard from devices to devices with different distribution.
+  EXPECT_ANY_THROW(
+      vec.Reshard(GPUDistribution::Granular(devices, 12)));
 
-  // Shrink down the number of devices.
-  vec.Reshard(GPUSet::Range(0, 1));
+  // All data is drawn back to CPU
+  vec.Reshard(GPUSet::Empty());
+  ASSERT_TRUE(vec.Devices().IsEmpty());
   ASSERT_EQ(vec.Size(), h_vec.size());
-  ASSERT_EQ(vec.DeviceSize(0), h_vec.size());
-  h_vec_1 = vec.HostVector();
-  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
-  vec.Reshard(GPUSet::Empty()); // clear out devices memory
 
-  // Grow the number of devices.
-  vec.Reshard(devices);
+  vec.Reshard(GPUDistribution::Granular(devices, 12));
   total_size = 0;
   for (size_t i = 0; i < devices.Size(); ++i) {
     total_size += vec.DeviceSize(i);
-    ASSERT_EQ(devices_size[i], vec.DeviceSize(i));
+    devices_size[i] = vec.DeviceSize(i);
   }
   ASSERT_EQ(total_size, h_vec.size());
   ASSERT_EQ(total_size, vec.Size());
-  h_vec_1 = vec.HostVector();
-  ASSERT_TRUE(std::equal(h_vec_1.cbegin(), h_vec_1.cend(), h_vec.cbegin()));
 }
-
-TEST(HostDeviceVector, Span) {
-  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  vec.Reshard(GPUSet{0, 1});
-  auto span = vec.DeviceSpan(0);
-  ASSERT_EQ(vec.Size(), span.size());
-  ASSERT_EQ(vec.DevicePointer(0), span.data());
-  auto const_span = vec.ConstDeviceSpan(0);
-  ASSERT_EQ(vec.Size(), span.size());
-  ASSERT_EQ(vec.ConstDevicePointer(0), span.data());
-}
+#endif
 
 }  // namespace common
 }  // namespace xgboost
