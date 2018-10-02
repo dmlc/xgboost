@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
 
-import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError, BoosterResults, IEvaluation}
+import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError, BoosterResults}
 import scala.collection.JavaConverters._
 
 /**
@@ -34,7 +34,7 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map[String, DMatrix](),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      evals: Array[IEvaluation] = null,
+      evals: Array[EvalTrait] = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null): BoosterResults = {
 
@@ -81,11 +81,11 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map(),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      eval: IEvaluation = null,
+      eval: EvalTrait = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null
   ): Booster = {
-    val evals: Array[IEvaluation] = {
+    val evals: Array[EvalTrait] = {
       if (eval != null) {
         Array(eval)
       } else {
@@ -128,7 +128,7 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map[String, DMatrix](),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      evals: Array[IEvaluation] = null,
+      evals: Array[EvalTrait] = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null): Booster = {
     val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics, obj, evals, earlyStoppingRound, booster)
