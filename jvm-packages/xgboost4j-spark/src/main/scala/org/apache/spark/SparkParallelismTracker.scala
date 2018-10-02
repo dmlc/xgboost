@@ -82,6 +82,19 @@ class SparkParallelismTracker(
     sc.addSparkListener(listener)
     try {
       body
+    } catch {
+      case ex: Exception => {
+        logger.error(s"waitForCondition exception", ex)
+        throw ex
+      }
+      case err : Error => {
+        logger.error(s"waitForCondition error", err)
+        throw err
+      }
+      case th : Throwable => {
+        logger.error(s"waitForCondition throwable", th)
+        throw th
+      }
     } finally {
       sc.removeSparkListener(listener)
     }

@@ -19,14 +19,13 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.Iterator
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
-
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
@@ -38,7 +37,6 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.json4s.DefaultFormats
-
 import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
@@ -214,6 +212,8 @@ class XGBoostClassificationModel private[ml](
   extends ProbabilisticClassificationModel[Vector, XGBoostClassificationModel]
     with XGBoostClassifierParams with MLWritable with Serializable {
 
+  private val logger = LogFactory.getLog(XGBoostClassificationModel.getClass)
+
   import XGBoostClassificationModel._
 
   // only called in copy()
@@ -307,6 +307,19 @@ class XGBoostClassificationModel private[ml](
           Rabit.shutdown()
           produceResultIterator(rowItr1, rawPredictionItr, probabilityItr, predLeafItr,
             predContribItr)
+        } catch {
+          case ex: Exception => {
+            logger.error(s"trainDistributed exception", ex)
+            throw ex
+          }
+          case err : Error => {
+            logger.error(s"trainDistributed error", err)
+            throw err
+          }
+          case th : Throwable => {
+            logger.error(s"trainDistributed throwable", th)
+            throw th
+          }
         } finally {
           dm.delete()
         }

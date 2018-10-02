@@ -292,8 +292,20 @@ object XGBoost extends Serializable {
             checkpointManager.updateCheckpoint(prevBooster)
           }
           (booster, metrics)
-      } finally {
-
+      } catch {
+          case ex: Exception => {
+            logger.error(s"trainDistributed exception", ex)
+            throw ex
+          }
+          case err : Error => {
+            logger.error(s"trainDistributed error", err)
+            throw err
+          }
+          case th : Throwable => {
+            logger.error(s"trainDistributed throwable", th)
+            throw th
+          }
+        } finally {
         tracker.stop()
       }
     }.last

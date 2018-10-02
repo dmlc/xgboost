@@ -18,14 +18,13 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.Iterator
 import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
+import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
-
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param.shared.HasWeightCol
@@ -37,8 +36,8 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.json4s.DefaultFormats
-import scala.collection.mutable
 
+import scala.collection.mutable
 import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
@@ -207,6 +206,7 @@ class XGBoostRegressionModel private[ml] (
     private[spark] val _booster: Booster)
   extends PredictionModel[Vector, XGBoostRegressionModel]
     with XGBoostRegressorParams with MLWritable with Serializable {
+  private val logger = LogFactory.getLog(XGBoostRegressionModel.getClass)
 
   import XGBoostRegressionModel._
 
@@ -283,6 +283,19 @@ class XGBoostRegressionModel private[ml] (
             producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
           produceResultIterator(rowItr1, originalPredictionItr, predLeafItr, predContribItr)
+        } catch {
+          case ex: Exception => {
+            logger.error(s"transformInternal exception", ex)
+            throw ex
+          }
+          case err : Error => {
+            logger.error(s"transformInternal error", err)
+            throw err
+          }
+          case th : Throwable => {
+            logger.error(s"transformInternal throwable", th)
+            throw th
+          }
         } finally {
           dm.delete()
         }
