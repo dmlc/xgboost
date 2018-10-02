@@ -58,7 +58,7 @@ object XGBoost {
       jWatches,
       metrics,
       obj,
-      evals,
+      evals.toArray,
       earlyStoppingRound,
       jBooster)
 
