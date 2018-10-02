@@ -18,13 +18,7 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
 
-import ml.dmlc.xgboost4j.java.{
-  Booster => JBooster,
-  XGBoost => JXGBoost,
-  XGBoostError,
-  BoosterResults,
-  IEvaluation
-}
+import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError, BoosterResults, IEvaluation}
 import scala.collection.JavaConverters._
 
 /**
@@ -42,8 +36,7 @@ object XGBoost {
       obj: ObjectiveTrait = null,
       evals: Array[IEvaluation] = null,
       earlyStoppingRound: Int = 0,
-      booster: Booster = null
-  ): BoosterResults = {
+      booster: Booster = null): BoosterResults = {
 
     val jWatches = watches.mapValues(_.jDMatrix).asJava
     val jBooster = if (booster == null) {
@@ -51,21 +44,14 @@ object XGBoost {
     } else {
       booster.booster
     }
-    val xgboostResults = JXGBoost.trainWithResults(
-      dtrain.jDMatrix,
-      // we have to filter null value for customized obj and eval
-      params
+
+    // we have to filter null value for customized obj and eval
+    val jFilteredParams = params
         .filter(_._2 != null)
         .mapValues(_.toString.asInstanceOf[AnyRef])
         .asJava,
-      round,
-      jWatches,
-      metrics,
-      obj,
-      evals,
-      earlyStoppingRound,
-      jBooster
-    )
+
+    val xgboostResults = JXGBoost.trainWithResults(dtrain.jDMatrix, jFilteredParams, round, jWatches, metrics, obj, evals, earlyStoppingRound, jBooster)
     xgboostResults
   }
 
@@ -107,17 +93,7 @@ object XGBoost {
       }
     }
 
-    val xgboostResults = trainWithResults(
-      dtrain,
-      params,
-      round,
-      watches,
-      metrics,
-      obj,
-      evals,
-      earlyStoppingRound,
-      booster
-    )
+    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics, obj, evals, earlyStoppingRound, booster)
     if (booster == null) {
       new Booster(xgboostResults.getBooster())
     } else {
@@ -154,19 +130,8 @@ object XGBoost {
       obj: ObjectiveTrait = null,
       evals: Array[IEvaluation] = null,
       earlyStoppingRound: Int = 0,
-      booster: Booster = null
-  ): Booster = {
-    val xgboostResults = trainWithResults(
-      dtrain,
-      params,
-      round,
-      watches,
-      metrics,
-      obj,
-      evals,
-      earlyStoppingRound,
-      booster
-    )
+      booster: Booster = null): Booster = {
+    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics, obj, evals, earlyStoppingRound, booster)
     if (booster == null) {
       new Booster(xgboostResults.getBooster())
     } else {
@@ -195,8 +160,7 @@ object XGBoost {
       nfold: Int = 5,
       metrics: Array[String] = null,
       obj: ObjectiveTrait = null,
-      eval: EvalTrait = null
-  ): Array[String] = {
+      eval: EvalTrait = null): Array[String] = {
     JXGBoost.crossValidation(
       data.jDMatrix,
       params
