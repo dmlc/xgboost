@@ -51,7 +51,17 @@ object XGBoost {
         .mapValues(_.toString.asInstanceOf[AnyRef])
         .asJava
 
-    val xgboostResults = JXGBoost.trainWithResults(dtrain.jDMatrix, jFilteredParams, round, jWatches, metrics, obj, evals, earlyStoppingRound, jBooster)
+    val xgboostResults = JXGBoost.trainWithResults(
+      dtrain.jDMatrix,
+      jFilteredParams,
+      round,
+      jWatches,
+      metrics,
+      obj,
+      evals,
+      earlyStoppingRound,
+      jBooster)
+
     xgboostResults
   }
 
@@ -93,7 +103,8 @@ object XGBoost {
       }
     }
 
-    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics, obj, evals, earlyStoppingRound, booster)
+    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics,
+                                          obj, evals, earlyStoppingRound, booster)
     if (booster == null) {
       new Booster(xgboostResults.getBooster())
     } else {
@@ -131,7 +142,8 @@ object XGBoost {
       evals: Array[EvalTrait] = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null): Booster = {
-    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics, obj, evals, earlyStoppingRound, booster)
+    val xgboostResults = trainWithResults(dtrain, params, round, watches, metrics,
+                                          obj, evals, earlyStoppingRound, booster)
     if (booster == null) {
       new Booster(xgboostResults.getBooster())
     } else {
