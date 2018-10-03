@@ -204,12 +204,12 @@ class DMatrixSuite extends FunSuite {
     }
     // create groups
     val group0 = new Array[Int](nrow)
-    for (i <- label0.indices) {
-      label0(i) = 1
+    for (i <- group0.indices) {
+      group0(i) = 1
     }
 
     val dmat0 = new DMatrix(data0, nrow, ncol, -0.1f)
-    dmat0.setGroup(label0)
+    dmat0.setGroup(group0)
 
     // check
     assert(dmat0.getGroup === group0)
