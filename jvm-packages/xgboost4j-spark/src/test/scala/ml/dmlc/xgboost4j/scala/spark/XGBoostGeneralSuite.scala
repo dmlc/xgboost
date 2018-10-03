@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingDeque
 import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
@@ -71,18 +72,16 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(collectedAllReduceResults.poll().sameElements(maxVec))
   }
 
-  test("build RDD containing boosters with the specified worker number") {
+  test("distributed training with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
-    val partitionedRDD = XGBoost.repartitionForTraining(trainingRDD, 2)
-    val boosterRDD = XGBoost.buildDistributedBoosters(
-      partitionedRDD,
+    val (booster, metrics) = XGBoost.trainDistributed(
+      trainingRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
-      new java.util.HashMap[String, String](),
-      round = 5, eval = null, obj = null, useExternalMemory = true,
-      missing = Float.NaN, prevBooster = null)
-    val boosterCount = boosterRDD.count()
-    assert(boosterCount === 2)
+      round = 5, nWorkers = numWorkers, eval = null, obj = null, useExternalMemory = false,
+      hasGroup = false, missing = Float.NaN)
+
+    assert(booster != null)
   }
 
   test("training with external memory cache") {
@@ -234,5 +233,38 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(error(tmpModel) > error(prevModel._booster))
     assert(error(prevModel._booster) > error(nextModel._booster))
     assert(error(nextModel._booster) < 0.1)
+  }
+
+  test("repartitionForTrainingGroup with group data") {
+    // test different splits to cover the corner cases.
+    for (split <- 1 to 20) {
+      val trainingRDD = sc.parallelize(Ranking.train, split)
+      val traingGroupsRDD = XGBoost.repartitionForTrainingGroup(trainingRDD, 4)
+      val trainingGroups: Array[Array[XGBLabeledPoint]] = traingGroupsRDD.collect()
+      // check the the order of the groups with group id.
+      // Ranking.train has 20 groups
+      assert(trainingGroups.length == 20)
+
+      // compare all points
+      val allPoints = trainingGroups.sortBy(_(0).group).flatten
+      assert(allPoints.length == Ranking.train.size)
+      for (i <- 0 to Ranking.train.size - 1) {
+        assert(allPoints(i).group == Ranking.train(i).group)
+        assert(allPoints(i).label == Ranking.train(i).label)
+        assert(allPoints(i).values.sameElements(Ranking.train(i).values))
+      }
+    }
+  }
+
+  test("distributed training with group data") {
+    val trainingRDD = sc.parallelize(Ranking.train, 2)
+    val (booster, metrics) = XGBoost.trainDistributed(
+      trainingRDD,
+      List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+        "objective" -> "binary:logistic").toMap,
+      round = 5, nWorkers = numWorkers, eval = null, obj = null, useExternalMemory = false,
+      hasGroup = true, missing = Float.NaN)
+
+    assert(booster != null)
   }
 }

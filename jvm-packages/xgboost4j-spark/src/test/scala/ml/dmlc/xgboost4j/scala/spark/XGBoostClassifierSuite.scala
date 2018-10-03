@@ -173,7 +173,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val training2 = training1.withColumn("margin", functions.rand())
     val test = buildDataFrame(Classification.test)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "test_train_split" -> "0.5",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "1.0",
       "num_round" -> 5, "num_workers" -> numWorkers)
 
     val xgb = new XGBoostClassifier(paramMap)

@@ -196,7 +196,7 @@ class XGBoostClassifier (
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
       $(numRound), $(numWorkers), $(customObj), $(customEval), $(useExternalMemory),
-      $(missing))
+      $(missing), hasGroup = false)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
@@ -517,3 +517,4 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     }
   }
 }
+
