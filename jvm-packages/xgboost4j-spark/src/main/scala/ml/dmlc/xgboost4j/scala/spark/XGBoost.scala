@@ -494,7 +494,7 @@ private[spark] class LabeledPointGroupIterator(base: Iterator[XGBLabeledPoint])
   extends AbstractIterator[XGBLabeledPointGroup] {
 
   private var firstPointOfNextGroup: XGBLabeledPoint = null
-  private var isNewGroup = true
+  private var isNewGroup = false
 
   override def hasNext: Boolean = {
     return base.hasNext || isNewGroup
