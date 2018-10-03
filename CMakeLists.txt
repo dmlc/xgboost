@@ -9,8 +9,6 @@ msvc_use_static_runtime()
 
 # Options
 option(USE_CUDA  "Build with GPU acceleration")
-option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF)
-option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -23,9 +21,8 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
 address, leak and thread.")
 
 # Deprecation warning
-if(PLUGIN_UPDATER_GPU)
-  set(USE_CUDA ON)
-  message(WARNING "The option 'PLUGIN_UPDATER_GPU' is deprecated. Set 'USE_CUDA' instead.")
+if(USE_AVX)
+  message(WARNING "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from xgboost.")
 endif()
 
 # Compiler flags
