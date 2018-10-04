@@ -956,7 +956,7 @@ class SaveCudaContext {
     // cudaGetDevice will fail.
     try {
       safe_cuda(cudaGetDevice(&saved_device_));
-    } catch (const thrust::system::system_error & err) {
+    } catch (const dmlc::Error &except) {
       saved_device_ = -1;
     }
     func();
