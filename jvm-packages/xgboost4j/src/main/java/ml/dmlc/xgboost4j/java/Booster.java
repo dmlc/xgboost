@@ -370,14 +370,67 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Get the dump of the model as a string array with specified feature names.
+   *
+   * @param featureNames Names of the features.
+   * @return dumped model information
+   * @throws XGBoostError
+   */
+  public String[] getModelDump(String[] featureNames, boolean withStats) throws XGBoostError {
+    return getModelDump(featureNames, withStats, "text");
+  }
+
+  public String[] getModelDump(String[] featureNames, boolean withStats, String format)
+    throws XGBoostError {
+    int statsFlag = 0;
+    if (withStats) {
+      statsFlag = 1;
+    }
+    if (format == null) {
+      format = "text";
+    }
+    String[][] modelInfos = new String[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterDumpModelExWithFeatures(
+        handle, featureNames, statsFlag, format, modelInfos));
+    return modelInfos[0];
+  }
+
+  /**
+   * Get importance of each feature with specified feature names.
+   *
+   * @return featureScoreMap  key: feature name, value: feature importance score, can be nill.
+   * @throws XGBoostError native error
+   */
+  public Map<String, Integer> getFeatureScore(String[] featureNames) throws XGBoostError {
+    String[] modelInfos = getModelDump(featureNames, false);
+    Map<String, Integer> featureScore = new HashMap<>();
+    for (String tree : modelInfos) {
+      for (String node : tree.split("\n")) {
+        String[] array = node.split("\\[");
+        if (array.length == 1) {
+          continue;
+        }
+        String fid = array[1].split("\\]")[0];
+        fid = fid.split("<")[0];
+        if (featureScore.containsKey(fid)) {
+          featureScore.put(fid, 1 + featureScore.get(fid));
+        } else {
+          featureScore.put(fid, 1);
+        }
+      }
+    }
+    return featureScore;
+  }
+
+  /**
    * Get importance of each feature
    *
-   * @return featureMap  key: feature index, value: feature importance score, can be nill
+   * @return featureScoreMap  key: feature index, value: feature importance score, can be nill
    * @throws XGBoostError native error
    */
   public Map<String, Integer> getFeatureScore(String featureMap) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, false);
-    Map<String, Integer> featureScore = new HashMap<String, Integer>();
+    Map<String, Integer> featureScore = new HashMap<>();
     for (String tree : modelInfos) {
       for (String node : tree.split("\n")) {
         String[] array = node.split("\\[");
