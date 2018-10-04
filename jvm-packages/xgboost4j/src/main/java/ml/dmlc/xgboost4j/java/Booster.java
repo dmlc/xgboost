@@ -398,7 +398,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get importance of each feature with specified feature names.
    *
-   * @return featureScoreMap  key: feature index, value: feature importance score, can be nill.
+   * @return featureScoreMap  key: feature name, value: feature importance score, can be nill.
    * @throws XGBoostError native error
    */
   public Map<String, Integer> getFeatureScore(String[] featureNames) throws XGBoostError {

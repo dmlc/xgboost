@@ -193,13 +193,12 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     * @param featureNames Names of features.
     */
   @throws(classOf[XGBoostError])
-  def getModelDump(featureNames: Array[String])
-  : Array[String] = {
+  def getModelDump(featureNames: Array[String]): Array[String] = {
     booster.getModelDump(featureNames, false, "text")
   }
 
   def getModelDump(featureNames: Array[String], withStats: Boolean, format: String)
-  : Array[String] = {
+    : Array[String] = {
     booster.getModelDump(featureNames, withStats, format)
   }
 
@@ -217,7 +216,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   /**
     * Get importance of each feature with specified feature names.
     *
-    * @return featureScoreMap  key: feature index, value: feature importance score
+    * @return featureScoreMap  key: feature name, value: feature importance score
     */
   @throws(classOf[XGBoostError])
   def getFeatureScore(featureNames: Array[String]): mutable.Map[String, Integer] = {
