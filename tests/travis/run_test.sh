@@ -127,7 +127,8 @@ if [ ${TASK} == "cmake_test" ]; then
     # Build/test
     rm -rf build
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/
+    PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
+    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
     make
     cd ..
     ./testxgboost

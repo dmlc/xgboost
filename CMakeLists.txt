@@ -20,6 +20,10 @@ set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak and thread.")
 
+# Plugins
+option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
+option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+
 # Deprecation warning
 if(USE_AVX)
   message(WARNING "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from xgboost.")
@@ -51,16 +55,6 @@ if(USE_SANITIZER)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif(USE_SANITIZER)
 
-# AVX
-if(USE_AVX)
-  if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
-  endif()
-  add_definitions(-DXGBOOST_USE_AVX)
-endif()
-
 # dmlc-core
 add_subdirectory(dmlc-core)
 set(LINK_LIBRARIES dmlc rabit)
@@ -81,6 +75,7 @@ if(R_LIB)
   )
 endif()
 
+# Gather source files
 include_directories (
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/dmlc-core/include
@@ -96,10 +91,21 @@ file(GLOB_RECURSE SOURCES
 # Only add main function for executable target
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
+file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
+
 file(GLOB_RECURSE CUDA_SOURCES
     src/*.cu
     src/*.cuh
 )
+
+# Add plugins to source files
+if(PLUGIN_LZ4)
+  list(APPEND SOURCES plugin/lz4/sparse_page_lz4_format.cc)
+  link_libraries(lz4)
+endif()
+if(PLUGIN_DENSE_PARSER)
+  list(APPEND SOURCES plugin/dense_parser/dense_libsvm.cc)
+endif()
 
 # rabit
 # TODO: Create rabit cmakelists.txt
@@ -233,7 +239,6 @@ if(GOOGLE_TEST)
   enable_testing()
   find_package(GTest REQUIRED)
 
-  file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
   include_directories(${GTEST_INCLUDE_DIRS})
 
