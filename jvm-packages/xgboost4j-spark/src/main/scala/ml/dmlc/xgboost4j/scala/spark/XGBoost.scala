@@ -341,6 +341,7 @@ object XGBoost extends Serializable {
       // Copies of the final booster and the corresponding metrics
       // reside in each partition of the `distributedBoostersAndMetrics`.
       // Any of them can be used to create the model.
+      sparkJobThread.join(60000)
       val (booster, metrics) = distributedBoostersAndMetrics.first()
       distributedBoostersAndMetrics.unpersist(false)
       (booster, metrics)
