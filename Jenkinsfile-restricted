@@ -110,11 +110,6 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         cp xgboost "${distDir}"
         cp -r lib "${distDir}"
         cp -r python-package/dist "${distDir}/py"
-        # Test the wheel for compatibility on a barebones CPU container
-        ${dockerRun} release ${dockerArgs} bash -c " \
-            auditwheel show xgboost-*-py2-none-any.whl
-            pip install --user python-package/dist/xgboost-*-none-any.whl && \
-            python -m nose tests/python"
         """
         archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
     }
