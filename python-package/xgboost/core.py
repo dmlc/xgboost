@@ -875,6 +875,10 @@ class Booster(object):
                                          ctypes.byref(self.handle)))
         self.set_param({'seed': 0})
         self.set_param(params or {})
+        if (params is not None) and ('booster' in params):
+            self.booster = params['booster']
+        else:
+            self.booster = 'gbtree'
         if model_file is not None:
             self.load_model(model_file)
 
@@ -1379,6 +1383,12 @@ class Booster(object):
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1397,6 +1407,12 @@ class Booster(object):
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1404,6 +1420,10 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
+
+        if self.booster != 'gbtree':
+            raise ValueError('Feature importance is not defined for Booster type {}'
+                             .format(self.booster))
 
         allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
         if importance_type not in allowed_importance_types:
