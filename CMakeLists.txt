@@ -189,6 +189,9 @@ if(R_LIB)
   target_link_libraries(xgboost ${LINK_LIBRARIES})
   # R uses no lib prefix in shared library names of its packages
   set_target_properties(xgboost PROPERTIES PREFIX "")
+  if(APPLE)
+    set_target_properties(xgboost PROPERTIES SUFFIX ".so")
+  endif()
 
   setup_rpackage_install_target(xgboost ${CMAKE_CURRENT_BINARY_DIR})
   # use a dummy location for any other remaining installs
