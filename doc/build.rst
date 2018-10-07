@@ -90,11 +90,11 @@ Building on OSX
 Install with pip: simple method
 --------------------------------
 
-First, make sure you obtained ``gcc-5`` (newer version does not work with this method yet). Note: installation of ``gcc`` can take a while (~ 30 minutes).
+First, obtain ``gcc-7`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
 
 .. code-block:: bash
 
-  brew install gcc@5
+  brew install gcc@7
 
 Then install XGBoost with ``pip``:
 
@@ -102,42 +102,30 @@ Then install XGBoost with ``pip``:
 
   pip3 install xgboost
 
-You might need to run the command with ``sudo`` if you run into permission errors.
+You might need to run the command with ``--user`` flag if you run into permission errors.
 
 Build from the source code - advanced method
 --------------------------------------------
 
-First, obtain ``gcc-7`` with homebrew (https://brew.sh/) if you want multi-threaded version. Clang is okay if multithreading is not required. Note: installation of ``gcc`` can take a while (~ 30 minutes).
+Obtain ``gcc-7`` from Homebrew:
 
 .. code-block:: bash
 
   brew install gcc@7
 
-Now, clone the repository:
+Now clone the repository:
 
 .. code-block:: bash
 
   git clone --recursive https://github.com/dmlc/xgboost
-  cd xgboost; cp make/config.mk ./config.mk
 
-Open ``config.mk`` and uncomment these two lines:
-
-.. code-block:: bash
-
-  export CC = gcc
-  export CXX = g++
-
-and replace these two lines as follows: (specify the GCC version)
+Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-7 CXX=g++-7`` so that Homebrew GCC is selected. After invoking CMake, you can build XGBoost with ``make``:
 
 .. code-block:: bash
 
-  export CC = gcc-7
-  export CXX = g++-7
-
-Now, you may build XGBoost using the following command:
-
-.. code-block:: bash
-
+  mkdir build
+  cd build
+  CC=gcc-7 CXX=g++-7 cmake ..
   make -j4
 
 You may now continue to `Python Package Installation`_.
@@ -204,7 +192,7 @@ From the command line on Linux starting from the XGBoost directory:
   mkdir build
   cd build
   cmake .. -DUSE_CUDA=ON
-  make -j
+  make -j4
 
 .. note:: Enabling multi-GPU training
 
@@ -214,8 +202,8 @@ From the command line on Linux starting from the XGBoost directory:
 
     mkdir build
     cd build
-    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON
-    make -j
+    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
+    make -j4
 
 On Windows, see what options for generators you have for CMake, and choose one with ``[arch]`` replaced with Win64:
 
@@ -257,6 +245,8 @@ The configuration file ``config.mk`` modifies several compilation flags:
 - And some more
 
 To customize, first copy ``make/config.mk`` to the project root and then modify the copy.
+
+Alternatively, use CMake.
 
 Python Package Installation
 ===========================
@@ -316,35 +306,13 @@ You can install xgboost from CRAN just like any other R package:
 
   install.packages("xgboost")
 
-Or you can install it from our weekly updated drat repo:
-
-.. code-block:: R
-
-  install.packages("drat", repos="https://cran.rstudio.com")
-  drat:::addRepo("dmlc")
-  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
-
-For OSX users, single threaded version will be installed. To install multi-threaded version,
-first follow `Building on OSX`_ to get the OpenMP enabled compiler. Then
-
-- Set the ``Makevars`` file in highest piority for R.
-
-  The point is, there are three ``Makevars`` : ``~/.R/Makevars``, ``xgboost/R-package/src/Makevars``, and ``/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf`` (the last one obtained by running ``file.path(R.home("etc"), "Makeconf")`` in R), and ``SHLIB_OPENMP_CXXFLAGS`` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
-
-  Then inside R, run
-
-.. code-block:: R
-
-  install.packages("drat", repos="https://cran.rstudio.com")
-  drat:::addRepo("dmlc")
-  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+For OSX users, single-threaded version will be installed. So only one thread will be used for training. To enable use of multiple threads (and utilize capacity of multi-core CPUs), see the section osx_multithread_ to install XGBoost from source.
 
 Installing the development version
 ----------------------------------
 
 Make sure you have installed git and a recent C++ compiler supporting C++11 (e.g., g++-4.8 or higher).
-On Windows, Rtools must be installed, and its bin directory has to be added to PATH during the installation.
-And see the previous subsection for an OSX tip.
+On Windows, Rtools must be installed, and its bin directory has to be added to ``PATH`` during the installation.
 
 Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to install the latest version of R package.
 Thus, one has to run git to check out the code first:
@@ -370,6 +338,33 @@ The package could also be built and installed with cmake (and Visual C++ 2015 on
 
 If all fails, try `Building the shared library`_ to see whether a problem is specific to R package or not.
 
+.. _osx_multithread:
+
+Installing R package on Mac OSX with multi-threading
+----------------------------------------------------
+
+First, obtain ``gcc-7`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
+
+.. code-block:: bash
+
+  brew install gcc@7
+
+Now, clone the repository:
+
+.. code-block:: bash
+
+  git clone --recursive https://github.com/dmlc/xgboost
+
+Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make sure to add ``CC=gcc-7 CXX=g++-7`` so that Homebrew GCC is selected. After invoking CMake, you can install the R package by running ``make`` and ``make install``:
+
+.. code-block:: bash
+
+  mkdir build
+  cd build
+  CC=gcc-7 CXX=g++-7 cmake .. -DR_LIB=ON
+  make -j4
+  make install
+
 Installing R package with GPU support
 -------------------------------------
 
@@ -387,7 +382,7 @@ On Linux, starting from the XGBoost directory type:
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package``, and runs ``R CMD INSTALL``.
 
-On Windows, cmake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``gendef.exe`` and ``dlltool.exe`` would work, but that was not tested).
+On Windows, CMake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``gendef.exe`` and ``dlltool.exe`` would work, but that was not tested).
 
 .. code-block:: bash
 
