@@ -306,7 +306,7 @@ You can install xgboost from CRAN just like any other R package:
 
   install.packages("xgboost")
 
-For OSX users, single-threaded version will be installed. So only one thread will be used for training. To enable use of multiple threads (and utilize capacity of multi-core CPUs), see the section osx_multithread_ to install XGBoost from source.
+For OSX users, single-threaded version will be installed. So only one thread will be used for training. To enable use of multiple threads (and utilize capacity of multi-core CPUs), see the section :ref:`osx_multithread` to install XGBoost from source.
 
 Installing the development version
 ----------------------------------
