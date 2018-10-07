@@ -466,6 +466,12 @@ class XGBModel(XGBModelBase):
         """
         Feature importances property
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
         Returns
         -------
         feature_importances_ : array of shape ``[n_features]``
