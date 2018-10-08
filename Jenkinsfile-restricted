@@ -13,6 +13,10 @@ def dockerRun = 'tests/ci_build/ci_build.sh'
 // Utility functions
 @Field
 def utils
+@Field
+def commit_id
+@Field
+def branch_name
 
 def buildMatrix = [
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
@@ -42,6 +46,8 @@ pipeline {
                 script {
                     utils = load('tests/ci_build/jenkins_tools.Groovy')
                     utils.checkoutSrcs()
+                    commit_id = "${GIT_COMMIT}"
+                    branch_name = "${GIT_LOCAL_BRANCH}"
                 }
                 stash name: 'srcs', excludes: '.git/'
                 milestone label: 'Sources ready', ordinal: 1
@@ -53,8 +59,6 @@ pipeline {
                     retry(3) {
                         node('linux && cpu && restricted') {
                             unstash name: 'srcs'
-                            def commit_id = "${GIT_COMMIT}"
-                            def branch_name = "${GIT_LOCAL_BRANCH}"
                             echo 'Building doc...'
                             dir ('jvm-packages') {
                                 sh "bash ./build_doc.sh ${commit_id}"
