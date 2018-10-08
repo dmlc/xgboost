@@ -73,8 +73,8 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
     }
     def test_suite = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
     // Build node - this is returned result
-    node(nodeReq) {
-        retry(3) {
+    retry(3) {
+        node(nodeReq) {
             unstash name: 'srcs'
             echo """
             |===== XGBoost CMake build =====
