@@ -52,17 +52,19 @@ pipeline {
                 label 'linux && cpu && restricted'
             }
             steps {
-                unstash name: 'srcs'
-                script {
-                    def commit_id = "${GIT_COMMIT}"
-                    def branch_name = "${GIT_LOCAL_BRANCH}"
-                    echo 'Building doc...'
-                    dir ('jvm-packages') {
-                        sh "bash ./build_doc.sh ${commit_id}"
-                        archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
-                        echo 'Deploying doc...'
-                        withAWS(credentials:'xgboost-doc-bucket') {
-                            s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                retry(3) {
+                    unstash name: 'srcs'
+                    script {
+                        def commit_id = "${GIT_COMMIT}"
+                        def branch_name = "${GIT_LOCAL_BRANCH}"
+                        echo 'Building doc...'
+                        dir ('jvm-packages') {
+                            sh "bash ./build_doc.sh ${commit_id}"
+                            archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
+                            echo 'Deploying doc...'
+                            withAWS(credentials:'xgboost-doc-bucket') {
+                                s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                            }
                         }
                     }
                 }
@@ -95,22 +97,24 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
     }
     // Build node - this is returned result
     node(nodeReq) {
-        unstash name: 'srcs'
-        echo """
-        |===== XGBoost CMake build =====
-        |  dockerTarget: ${dockerTarget}
-        |  cmakeOpts   : ${opts}
-        |=========================
-        """.stripMargin('|')
-        // Invoke command inside docker
-        sh """
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
-        rm -rf "${distDir}"; mkdir -p "${distDir}/py"
-        cp xgboost "${distDir}"
-        cp -r lib "${distDir}"
-        cp -r python-package/dist "${distDir}/py"
-        """
-        archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
+        retry(3) {
+            unstash name: 'srcs'
+            echo """
+            |===== XGBoost CMake build =====
+            |  dockerTarget: ${dockerTarget}
+            |  cmakeOpts   : ${opts}
+            |=========================
+            """.stripMargin('|')
+            // Invoke command inside docker
+            sh """
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
+            ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
+            rm -rf "${distDir}"; mkdir -p "${distDir}/py"
+            cp xgboost "${distDir}"
+            cp -r lib "${distDir}"
+            cp -r python-package/dist "${distDir}/py"
+            """
+            archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
+        }
     }
 }
