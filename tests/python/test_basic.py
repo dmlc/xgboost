@@ -118,6 +118,8 @@ class TestBasic(unittest.TestCase):
         dm.feature_names = list('abcde')
         assert dm.feature_names == list('abcde')
 
+        assert dm.slice([0, 1]).feature_names == dm.feature_names
+
         dm.feature_types = 'q'
         assert dm.feature_types == list('qqqqq')
 
