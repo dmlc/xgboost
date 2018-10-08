@@ -48,11 +48,11 @@ pipeline {
             }
         }
         stage('Jenkins: Build doc') {
-            agent {
-                label 'linux && cpu && restricted'
-            }
-            steps {
-                retry(3) {
+            retry(3) {
+                agent {
+                    label 'linux && cpu && restricted'
+                }
+                steps {
                     unstash name: 'srcs'
                     script {
                         def commit_id = "${GIT_COMMIT}"
@@ -96,8 +96,8 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
     }
     // Build node - this is returned result
-    node(nodeReq) {
-        retry(3) {
+    retry(3) {
+        node(nodeReq) {
             unstash name: 'srcs'
             echo """
             |===== XGBoost CMake build =====
