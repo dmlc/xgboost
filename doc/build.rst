@@ -164,16 +164,18 @@ To build with MinGW, type:
 Opening a can of worms - building XGBoost library for python for Windows with MinGW-w64
 ---------------------------------------------------------------------------------------
 
-Windows versions of python are built with Microsoft proprietary Visual Studio. This has multiple issues:
+Windows versions of python are built with Microsoft Visual Studio. This has multiple issues:
 
-1. VS is proprietary and commercial software (it may be illegal to install the free version in your org). It is bundled with telemetry. It also has been spotted on inserting telemetry into apps.
+1. VS is proprietary and commercial software (it may be illegal to install the free version in your org). While Microsoft provides a free edition (Community Edition), installing it may be illegal and/or against the policy of your organization. It is bundled with telemetry. Visual Studio contains telemetry, as documented in [Microsoft Visual Studio Licensing Terms] (https://visualstudio.microsoft.com/license-terms/mt736442/). It also [has been spotted on inserting telemetry](https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/) into apps. These facts have raised privacy and security concerns among some users and system administrators.
 2. g++ usually generates faster code on `-O3`.
 
-So you may want to build xgboost with g++ own yohr own risk. This opens a can of worms because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and runtimes have differrent memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
+So you may want to build XGBoost with g++ own your own risk. This opens a can of worms because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and runtimes have different incompatible memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
 
 1. The python interpreter will crash on exit if XGBoost was used. This is usually not a big issue.
-2. Don't use `-march=native` gcc flag. Using it causes the python interpreter to crash on using XGBoost. `-mtune=native` is OK. `-O3` is also OK.
-3. You may need to provide the lib with the runtime libs. If ```mingw32/bin``` is not in `PATH`, build a wheel (`python setup.py bdist_wheel`), open it with an archiver and put the needed dlls to the directory where `xgboost.dll` is situated.
+2. `-O3` is OK.
+3. `-mtune=native` is OK.
+4. Don't use `-march=native` gcc flag. Using it causes the python interpreter to crash if the dll was actually used.
+5. You may need to provide the lib with the runtime libs. If ```mingw32/bin``` is not in `PATH`, build a wheel (`python setup.py bdist_wheel`), open it with an archiver and put the needed dlls to the directory where `xgboost.dll` is situated. Then you can install the wheel with `pip`.
 
 
 Compile XGBoost with Microsoft Visual Studio
