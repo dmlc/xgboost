@@ -1395,6 +1395,11 @@ class Booster(object):
             learner (`booster=gbtree`). It is not defined for other base learner types, such
             as linear learners (`booster=gblinear`).
 
+        .. note:: Zero-importance features will not be included
+
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
+
         Parameters
         ----------
         fmap: str (optional)
