@@ -166,8 +166,9 @@ Opening a can of worms - building XGBoost library for python for Windows with Mi
 
 Windows versions of python are built with Microsoft Visual Studio. This has multiple issues:
 
-1. VS is proprietary and commercial software (it may be illegal to install the free version in your org). While Microsoft provides a free edition (Community Edition), installing it may be illegal and/or against the policy of your organization. It is bundled with telemetry. Visual Studio contains telemetry, as documented in [Microsoft Visual Studio Licensing Terms] (https://visualstudio.microsoft.com/license-terms/mt736442/). It also [has been spotted on inserting telemetry](https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/) into apps. These facts have raised privacy and security concerns among some users and system administrators.
-2. g++ usually generates faster code on `-O3`.
+1. VS is proprietary and commercial software (it may be illegal to install the free version in your org). While Microsoft provides a free edition (Community Edition), installing it may be illegal in your organization.
+2. Visual Studio contains telemetry, as documented in [Microsoft Visual Studio Licensing Terms] (https://visualstudio.microsoft.com/license-terms/mt736442/). It also [has been spotted on inserting telemetry](https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/) into apps. These facts have raised privacy and security concerns among some users and system administrators. Installing this kind of software amy be against the policy of your organization.
+3. g++ usually generates faster code on `-O3`.
 
 So you may want to build XGBoost with g++ own your own risk. This opens a can of worms because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and runtimes have different incompatible memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
 
