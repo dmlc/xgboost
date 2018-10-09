@@ -161,6 +161,24 @@ To build with MinGW, type:
 
   cp make/mingw64.mk config.mk; make -j4
 
+Building XGBoost library for python for Windows with MinGW-w64
+--------------------------------------------------------------
+
+Windows versions of python are built with Microsoft Visual Studio. Usually python binary modules are built with the same compiler the interpreter is built with, raising several potential concerns.
+
+1. VS is proprietary and commercial software. Microsoft provides a freeware "Community" edition, but its licensing terms are unsuitable for many organizations.
+2. Visual Studio contains telemetry, as documented in `Microsoft Visual Studio Licensing Terms <https://visualstudio.microsoft.com/license-terms/mt736442/>`_. It `has been inserting telemetry <https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/>`_ into apps for some time. In order to download VS distribution from MS servers one has to run the application containing telemetry. These facts have raised privacy and security concerns among some users and system administrators. Running software with telemetry may be against the policy of your organization.
+3. g++ usually generates faster code on ``-O3``.
+
+So you may want to build XGBoost with g++ own your own risk. This opens a can of worms, because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and the runtimes have different incompatible memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
+
+1. The python interpreter will crash on exit if XGBoost was used. This is usually not a big issue.
+2. ``-O3`` is OK.
+3. ``-mtune=native`` is also OK.
+4. Don't use ``-march=native`` gcc flag. Using it causes the python interpreter to crash if the dll was actually used.
+5. You may need to provide the lib with the runtime libs. If ``mingw32/bin`` is not in ``PATH``, build a wheel (``python setup.py bdist_wheel``), open it with an archiver and put the needed dlls to the directory where ``xgboost.dll`` is situated. Then you can install the wheel with ``pip``.
+
+
 Compile XGBoost with Microsoft Visual Studio
 --------------------------------------------
 To build with Visual Studio, we will need CMake. Make sure to install a recent version of CMake. Then run the following from the root of the XGBoost directory:
