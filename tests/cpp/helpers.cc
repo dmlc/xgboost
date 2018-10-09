@@ -5,16 +5,6 @@
 #include "xgboost/c_api.h"
 #include <random>
 
-std::string TempFileName() {
-  std::string tmp = std::tmpnam(nullptr);
-  std::replace(tmp.begin(), tmp.end(), '\\',
-               '/');  // Remove windows backslashes
-  // Remove drive prefix for windows
-  if (tmp.find("C:") != std::string::npos)
-    tmp.erase(tmp.find("C:"), 2);
-  return tmp;
-}
-
 bool FileExists(const std::string name) {
   struct stat st;
   return stat(name.c_str(), &st) == 0;
@@ -26,22 +16,18 @@ long GetFileSize(const std::string filename) {
   return st.st_size;
 }
 
-std::string CreateSimpleTestData() {
-  return CreateBigTestData(6);
+void CreateSimpleTestData(const std::string& filename) {
+  CreateBigTestData(filename, 6);
 }
 
-std::string CreateBigTestData(size_t n_entries) {
-  std::string tmp_file = TempFileName();
-  std::ofstream fo;
-  fo.open(tmp_file);
+void CreateBigTestData(const std::string& filename, size_t n_entries) {
+  std::ofstream fo(filename.c_str());
   const size_t entries_per_row = 3;
   size_t n_rows = (n_entries + entries_per_row - 1) / entries_per_row;
   for (size_t i = 0; i < n_rows; ++i) {
     const char* row = i % 2 == 0 ? " 0:0 1:10 2:20\n" : " 0:0 3:30 4:40\n";
     fo << i << row;
   }
-  fo.close();
-  return tmp_file;
 }
 
 void _CheckObjFunction(xgboost::ObjFunction * obj,
