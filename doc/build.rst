@@ -166,7 +166,7 @@ Building XGBoost library for python for Windows with MinGW-w64
 
 Windows versions of python are built with Microsoft Visual Studio. Usually python binary modules are built with the same compiler the interpreter is built with, raising several potential concerns.
 
-1. VS is proprietary and commercial software. Microsoft provides a freeware "Community" edition but, its licensing terms are unsuitable for many organizations.
+1. VS is proprietary and commercial software. Microsoft provides a freeware "Community" edition, but its licensing terms are unsuitable for many organizations.
 2. Visual Studio contains telemetry, as documented in `Microsoft Visual Studio Licensing Terms <https://visualstudio.microsoft.com/license-terms/mt736442/>`_. It `has been inserting telemetry <https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/>`_ into apps for some time. In order to download VS distribution from MS servers one has to run the application containing telemetry. These facts have raised privacy and security concerns among some users and system administrators. Running software with telemetry may be against the policy of your organization.
 3. g++ usually generates faster code on ``-O3``.
 
