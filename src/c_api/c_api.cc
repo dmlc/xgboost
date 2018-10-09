@@ -239,7 +239,7 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
-#ifdef XGBOOST_USE_CUDA
+#ifdef XGBOOST_USE_GDF
 
 int XGDMatrixCreateFromGDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
@@ -771,7 +771,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_END();
 }
 
-#ifdef XGBOOST_USE_CUDA
+#ifdef XGBOOST_USE_GDF
 
 XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
                                 const char *field,

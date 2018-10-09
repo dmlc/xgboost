@@ -10,6 +10,7 @@ msvc_use_static_runtime()
 # Options
 option(USE_CUDA  "Build with GPU acceleration")
 option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF)
+option(USE_GDF "Build with GDF support. Requires USE_CUDA." OFF)
 option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
@@ -136,9 +137,12 @@ if(USE_CUDA)
     include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
-  
-  find_package(GDF REQUIRED)
-  include_directories(${GDF_INCLUDE_DIR})
+
+  if(USE_GDF)
+    find_package(GDF REQUIRED)
+    include_directories(${GDF_INCLUDE_DIR})
+    add_definitions(-DXGBOOST_USE_GDF)
+  endif()
 
   set(GENCODE_FLAGS "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)

@@ -2,6 +2,7 @@
  * Copyright 2018 by xgboost contributors
  */
 
+#ifdef XGBOOST_USE_GDF
 #include <gdf/gdf.h>
 #include <gdf/errorutils.h>
 
@@ -215,3 +216,4 @@ void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
 
 }  // namespace data
 }  // namespace xgboost
+#endif

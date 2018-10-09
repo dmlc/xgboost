@@ -16,7 +16,7 @@
 #include <stdint.h>
 #endif
 
-#ifdef XGBOOST_USE_CUDA
+#ifdef XGBOOST_USE_GDF
 #include <gdf/gdf.h>
 #endif
 
@@ -108,7 +108,7 @@ XGB_DLL const char *XGBGetLastError(void);
  */
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
-#ifdef XGBOOST_USE_CUDA
+#ifdef XGBOOST_USE_GDF
 
 /*!
  * \bried create a data matrix from a GPU data frame (GDF)
@@ -300,7 +300,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 
-#ifdef XGBOOST_USE_CUDA
+#ifdef XGBOOST_USE_GDF
 
 /*!
  * \brief set a vector to 
