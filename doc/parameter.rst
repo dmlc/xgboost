@@ -248,6 +248,20 @@ Parameters for Linear Booster (``booster=gblinear``)
     - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
     - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
 
+* ``feature_selector`` [default= ``cyclic``]
+
+  - Feature selection and ordering method
+
+    * ``cyclic``: Deterministic selection by cycling through features one at a time.
+    * ``shuffle``: Similar to ``cyclic`` but with random feature shuffling prior to each update.
+    * ``random``: A random (with replacement) coordinate selector.
+    * ``greedy``: Select coordinate with the greatest gradient magnitude.  It has ``O(num_feature^2)`` complexity. It is fully deterministic. It allows restricting the selection to ``top_k`` features per group with the largest magnitude of univariate weight change, by setting the ``top_k`` parameter. Doing so would reduce the complexity to ``O(num_feature*top_k)``.
+    * ``thrifty``: Thrifty, approximately-greedy feature selector. Prior to cyclic updates, reorders features in descending magnitude of their univariate weight changes. This operation is multithreaded and is a linear complexity approximation of the quadratic greedy selection. It allows restricting the selection to ``top_k`` features per group with the largest magnitude of univariate weight change, by setting the ``top_k`` parameter.
+
+* ``top_k`` [default=0]
+
+  - The number of top features to select in ``greedy`` and ``thrifty`` feature selector. The value of 0 means using all the features.
+
 Parameters for Tweedie Regression (``objective=reg:tweedie``)
 =============================================================
 * ``tweedie_variance_power`` [default=1.5]

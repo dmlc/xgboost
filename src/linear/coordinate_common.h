@@ -241,7 +241,7 @@ class CyclicFeatureSelector : public FeatureSelector {
 };
 
 /**
- * \brief Similar to Cyclyc but with random feature shuffling prior to each update.
+ * \brief Similar to Cyclic but with random feature shuffling prior to each update.
  * \note Its randomness is controllable by setting a random seed.
  */
 class ShuffleFeatureSelector : public FeatureSelector {
