@@ -9,7 +9,7 @@
 #
 #  GDF_ROOT - When set, this path is inspected instead of standard library
 #              locations as the root of the GDF installation.
-#              The environment variable GDF_ROOT overrides this veriable.
+#              The environment variable GDF_ROOT overrides this variable.
 #
 # This module defines
 #  GDF_FOUND, whether nccl has been found
@@ -24,11 +24,11 @@ set(GDF_LIB_NAME gdf)
 
 find_path(GDF_INCLUDE_DIR
   NAMES gdf/gdf.h
-  PATHS $ENV{GDF_ROOT}/include ${GDF_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include $ENV{HOME}/usr/include)
+  PATHS $ENV{GDF_ROOT}/include ${GDF_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
 
 find_library(GDF_LIBRARY
   NAMES ${GDF_LIB_NAME}
-  PATHS $ENV{GDF_ROOT}/lib ${GDF_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib $ENV{HOME}/usr/lib)
+  PATHS $ENV{GDF_ROOT}/lib ${GDF_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib)
 
 if (GDF_INCLUDE_DIR AND GDF_LIBRARY)
   get_filename_component(GDF_LIBRARY ${GDF_LIBRARY} PATH)
