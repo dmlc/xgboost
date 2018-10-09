@@ -217,7 +217,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 def _maybe_pandas_data(data, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame for DMatrix data """
 
-    if not isinstance(data, DataFrame):
+    if not isinstance(data, (DataFrame, gdf.DataFrame)):
         return data, feature_names, feature_types
 
     data_dtypes = data.dtypes
@@ -230,18 +230,24 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        if isinstance(data.columns, MultiIndex):
+        data_columns = data.columns
+        if isinstance(data_columns, MultiIndex):
             feature_names = [
                 ' '.join(map(str, i))
-                for i in data.columns
+                for i in data_columns
             ]
+        elif (isinstance(data_columns, (tuple, list)) and len(data_columns) > 0 and
+              isinstance(data_columns[0], str)):
+            feature_names = list(data_columns)
         else:
-            feature_names = data.columns.format()
+            feature_names = data_columns.format()
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
 
-    data = data.values.astype('float')
+    # only convert pandas.DataFrame, GDF conversion happens elsewhere
+    if isinstance(data, DataFrame):
+        data = data.values.astype('float')
 
     return data, feature_names, feature_types
 
