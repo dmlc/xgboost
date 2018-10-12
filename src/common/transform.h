@@ -58,12 +58,13 @@ class Transform {
    public:
     Evaluator(Functor func, Range range, GPUSet devices, bool reshard) :
         func_(func), range_{std::move(range)},
-        distribution_{std::move(GPUDistribution::Block(devices))},
-        reshard_{reshard} {}
+        reshard_{reshard},
+        distribution_{std::move(GPUDistribution::Block(devices))} {}
     Evaluator(Functor func, Range range, GPUDistribution dist,
               bool reshard) :
-        func_(func), range_{std::move(range)}, distribution_{std::move(dist)},
-        reshard_{reshard} {}
+        func_(func), range_{std::move(range)},
+        reshard_{reshard},
+        distribution_{std::move(dist)} {}
 
     /*!
      * \brief Evaluate the functor with input pointers to HostDeviceVector.

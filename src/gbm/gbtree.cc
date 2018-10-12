@@ -21,7 +21,7 @@
 #include "../common/host_device_vector.h"
 #include "../common/random.h"
 #include "gbtree_model.h"
-#include "../common/timer.h"
+#include "../common/monitor.h"
 
 namespace xgboost {
 namespace gbm {

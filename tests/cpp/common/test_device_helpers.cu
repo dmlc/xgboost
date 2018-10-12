@@ -1,11 +1,10 @@
-
 /*!
  * Copyright 2017 XGBoost contributors
  */
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
-#include "../../../src/common/timer.h"
+#include "../../../src/common/monitor.h"
 #include "gtest/gtest.h"
 
 struct Shard { int id; };
@@ -48,8 +47,8 @@ void TestLbs() {
       thrust::host_vector<int> h_row_ptr;
       thrust::host_vector<xgboost::bst_uint> h_rows;
       CreateTestData(num_rows, max_row_size, &h_row_ptr, &h_rows);
-      thrust::device_vector<size_t> row_ptr = h_row_ptr;
-      thrust::device_vector<int> output_row(h_rows.size());
+      dh::DeviceVector<size_t> row_ptr = h_row_ptr;
+      dh::DeviceVector<int> output_row(h_rows.size());
       auto d_output_row = output_row.data();
 
       dh::TransformLbs(0, &temp_memory, h_rows.size(), dh::Raw(row_ptr),
@@ -67,8 +66,28 @@ void TestLbs() {
 TEST(cub_lbs, Test) { TestLbs(); }
 
 TEST(sumReduce, Test) {
-  thrust::device_vector<float> data(100, 1.0f);
+  dh::DeviceVector<float> data(100, 1.0f);
   dh::CubMemory temp;
   auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
+}
+
+TEST(DeviceHelper, DeviceAllocator) {
+  using DeviceMemoryStat = xgboost::common::DeviceMemoryStat;
+  DeviceMemoryStat::Ins().Reset();
+  DeviceMemoryStat::Ins().SetProfiling(true);
+
+  std::vector<dh::ProfilingDeviceAllocator<float>> allocators(2);
+  auto ptr = allocators[0].allocate(12);
+  allocators[1] = allocators[0];
+  auto usage = DeviceMemoryStat::Ins().GetPtrUsage(&allocators[1]);
+
+  ASSERT_EQ(usage.GetPeak(), sizeof(float)*12);
+  ASSERT_EQ(usage.GetAllocCount(), 1);
+  ASSERT_EQ(usage.GetRunningSum(), sizeof(float)*12);
+
+  // allocators[0].this is replaced.
+  EXPECT_ANY_THROW(allocators[0].deallocate(ptr, 12));
+
+  DeviceMemoryStat::Ins().SetProfiling(false);
 }

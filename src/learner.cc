@@ -21,7 +21,7 @@
 #include "./common/io.h"
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
-#include "./common/timer.h"
+#include "common/monitor.h"
 
 namespace {
 
@@ -239,6 +239,7 @@ class LearnerImpl : public Learner {
     // add to configurations
     tparam_.InitAllowUnknown(args);
     monitor_.Init("Learner", tparam_.debug_verbose);
+    common::DeviceMemoryStat::Ins().SetProfiling(tparam_.debug_verbose);
     cfg_.clear();
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {

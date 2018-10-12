@@ -20,7 +20,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/host_device_vector.h"
-#include "../common/timer.h"
+#include "../common/monitor.h"
 #include "../common/span.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -248,7 +248,7 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, GidxIterT data,
 struct DeviceHistogram {
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map;
-  thrust::device_vector<GradientPairSumT::ValueT> data;
+  dh::DeviceVector<GradientPairSumT::ValueT> data;
   const size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
   int n_bins;
   int device_idx;
@@ -442,7 +442,7 @@ struct DeviceShard {
   std::vector<GradientPair> node_sum_gradients;
   dh::DVec<GradientPair> node_sum_gradients_d;
   /*! \brief row offset in SparsePage (the input data). */
-  thrust::device_vector<size_t> row_ptrs;
+  dh::DeviceVector<size_t> row_ptrs;
   /*! The row offset for this shard. */
   bst_uint row_begin_idx;
   bst_uint row_end_idx;
@@ -825,7 +825,7 @@ inline void DeviceShard::CreateHistIndices(const SparsePage& row_batch) {
                             static_cast<size_t>(n_rows));
   const std::vector<Entry>& data_vec = row_batch.data.HostVector();
 
-  thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
+  dh::DeviceVector<Entry> entries_d(gpu_batch_nrows * row_stride);
   size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
 
   for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {

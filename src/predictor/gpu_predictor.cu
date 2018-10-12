@@ -2,10 +2,8 @@
  * Copyright by Contributors 2017
  */
 #include <dmlc/parameter.h>
-#include <thrust/copy.h>
-#include <thrust/device_ptr.h>
-#include <thrust/device_vector.h>
-#include <thrust/fill.h>
+#include <thrust/host_vector.h>
+#include <thrust/transform.h>
 #include <xgboost/data.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_model.h>
@@ -295,9 +293,9 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     int device_;
-    thrust::device_vector<DevicePredictionNode> nodes;
-    thrust::device_vector<size_t> tree_segments;
-    thrust::device_vector<int> tree_group;
+    dh::DeviceVector<DevicePredictionNode> nodes;
+    dh::DeviceVector<size_t> tree_segments;
+    dh::DeviceVector<int> tree_group;
     size_t max_shared_memory_bytes;
   };
 

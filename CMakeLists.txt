@@ -7,22 +7,27 @@ find_package(OpenMP)
 set_default_configuration_release()
 msvc_use_static_runtime()
 
-# Options
-option(USE_CUDA  "Build with GPU acceleration")
+# Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
-option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
+
+# CUDA
+option(USE_CUDA  "Build with GPU acceleration")
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+
+# Sanitizer
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
-  "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
-address, leak and thread.")
+  "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported
+ sanitizers are address, leak and thread.")
 
 # Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+
+option(GOOGLE_TEST "Build google tests" OFF)
 
 # Deprecation warning
 if(USE_AVX)

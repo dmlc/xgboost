@@ -96,19 +96,19 @@ struct GPUSketcher {
 
     tree::TrainParam param_;
     std::vector<WXQSketch> sketches_;
-    thrust::device_vector<size_t> row_ptrs_;
+    dh::DeviceVector<size_t> row_ptrs_;
     std::vector<WXQSketch::SummaryContainer> summaries_;
-    thrust::device_vector<Entry> entries_;
-    thrust::device_vector<bst_float> fvalues_;
-    thrust::device_vector<bst_float> feature_weights_;
-    thrust::device_vector<bst_float> fvalues_cur_;
-    thrust::device_vector<WXQSketch::Entry> cuts_d_;
+    dh::DeviceVector<Entry> entries_;
+    dh::DeviceVector<bst_float> fvalues_;
+    dh::DeviceVector<bst_float> feature_weights_;
+    dh::DeviceVector<bst_float> fvalues_cur_;
+    dh::DeviceVector<WXQSketch::Entry> cuts_d_;
     thrust::host_vector<WXQSketch::Entry> cuts_h_;
-    thrust::device_vector<bst_float> weights_;
-    thrust::device_vector<bst_float> weights2_;
+    dh::DeviceVector<bst_float> weights_;
+    dh::DeviceVector<bst_float> weights2_;
     std::vector<size_t> n_cuts_cur_;
-    thrust::device_vector<size_t> num_elements_;
-    thrust::device_vector<char> tmp_storage_;
+    dh::DeviceVector<size_t> num_elements_;
+    dh::DeviceVector<char> tmp_storage_;
 
     DeviceShard(int device, bst_uint row_begin, bst_uint row_end,
                 tree::TrainParam param) :

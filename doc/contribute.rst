@@ -19,6 +19,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 * `Documents`_
 * `Testcases`_
 * `Sanitizers`_
+* `Profiling`_
 * `Examples`_
 * `Core Library`_
 * `Python Package`_
@@ -169,6 +170,12 @@ environment variable:
 
 For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
 
+**********
+Profiling
+**********
+* To profile XGBoost, one can specify "debug_verbose" in XGBoost's parameter,
+  which will ask XGBoost to generate various information including run time of
+  the algorithms and device memory usage statistics.
 
 ********
 Examples

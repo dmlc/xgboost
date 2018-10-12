@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2018 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -10,11 +10,13 @@
 
 #include "common.h"
 #include "span.h"
+#include "monitor.h"
 
 #include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <cub/cub.cuh>
+#include <fstream>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -36,7 +38,7 @@ namespace dh {
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
 
 inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
-                                        int line) {
+                                     int line) {
   if (code != ncclSuccess) {
     std::stringstream ss;
     ss << "NCCL failure :" << ncclGetErrorString(code) << " ";
@@ -48,13 +50,67 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
 }
 #endif
 
+inline cudaError_t ProfilingCudaMalloc(void **devPtr, size_t size_bytes) {
+  cudaError_t error_code = cudaMalloc(devPtr, size_bytes);
+  xgboost::common::DeviceMemoryStat::Ins().Allocate(*devPtr, size_bytes);
+  return error_code;
+}
+inline cudaError_t ProfilingCudaFree(void* devPtr) {
+  xgboost::common::DeviceMemoryStat::Ins().Deallocate(devPtr);
+  return cudaFree(devPtr);
+}
+
 template <typename T>
-T *Raw(thrust::device_vector<T> &v) {  //  NOLINT
+class ProfilingDeviceAllocator : public thrust::device_malloc_allocator<T> {
+  using Allocator = thrust::device_malloc_allocator<T>;
+  using Stat = xgboost::common::DeviceMemoryStat;
+
+ public:
+  using pointer = thrust::device_ptr<T>;              // NOLINT
+  using const_pointer = thrust::device_ptr<const T>;  // NOLINT
+  using size_type = typename Allocator::size_type;    // NOLINT
+
+  ~ProfilingDeviceAllocator() = default;
+  ProfilingDeviceAllocator() = default;
+
+  ProfilingDeviceAllocator(ProfilingDeviceAllocator&& other) = delete;
+  ProfilingDeviceAllocator& operator=(
+      ProfilingDeviceAllocator&& other) = delete;
+
+  // These two are the move functions, NOT copy!. Thrust doesn't use
+  // move constructors internally, we have to bend it a little bit.
+  ProfilingDeviceAllocator(ProfilingDeviceAllocator const& other) {
+    Stat::Ins().Replace(this, &other);
+  }
+  ProfilingDeviceAllocator& operator=(ProfilingDeviceAllocator const& other) {
+    Stat::Ins().Replace(this, &other);
+    return *this;
+  }
+
+  pointer allocate(size_type cnt,  // NOLINT
+                   const_pointer=const_pointer(static_cast<T*>(0))) {
+    size_t size_bytes = sizeof(T) * cnt;
+    xgboost::common::DeviceMemoryStat::Ins().Allocate(this, size_bytes);
+    return Allocator::allocate(cnt);
+  }
+
+  void deallocate(pointer p, size_type cnt) {  // NOLINT
+    size_t size_bytes = sizeof(T) * cnt;
+    xgboost::common::DeviceMemoryStat::Ins().Deallocate(this, size_bytes);
+    return Allocator::deallocate(p, cnt);
+  }
+};
+
+template <typename T>
+using DeviceVector = thrust::device_vector<T, ProfilingDeviceAllocator<T>>;
+
+template <typename T>
+T *Raw(dh::DeviceVector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
 template <typename T>
-const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
+const T *Raw(const dh::DeviceVector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
@@ -407,7 +463,7 @@ class BulkAllocator {
   char *AllocateDevice(int device_idx, size_t bytes, MemoryType t) {
     char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaMalloc(&ptr, bytes));
+    safe_cuda(ProfilingCudaMalloc((void**)&ptr, bytes));
     return ptr;
   }
   template <typename T>
@@ -449,7 +505,7 @@ class BulkAllocator {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
       if (!(d_ptr_[i] == nullptr)) {
         safe_cuda(cudaSetDevice(device_idx_[i]));
-        safe_cuda(cudaFree(d_ptr_[i]));
+        safe_cuda(ProfilingCudaFree(d_ptr_[i]));
         d_ptr_[i] = nullptr;
       }
     }
@@ -493,14 +549,14 @@ struct CubMemory {
 
   void Free() {
     if (this->IsAllocated()) {
-      safe_cuda(cudaFree(d_temp_storage));
+      safe_cuda(ProfilingCudaFree(d_temp_storage));
     }
   }
 
   void LazyAllocate(size_t num_bytes) {
     if (num_bytes > temp_storage_bytes) {
       Free();
-      safe_cuda(cudaMalloc(&d_temp_storage, num_bytes));
+      safe_cuda(ProfilingCudaMalloc(&d_temp_storage, num_bytes));
       temp_storage_bytes = num_bytes;
     }
   }
@@ -1041,7 +1097,7 @@ ReduceT ReduceShards(std::vector<ShardT> *shards, FunctionT f) {
 template <typename T,
   typename IndexT = typename xgboost::common::Span<T>::index_type>
 xgboost::common::Span<T> ToSpan(
-    thrust::device_vector<T>& vec,
+    dh::DeviceVector<T>& vec,
     IndexT offset = 0,
     IndexT size = -1) {
   size = size == -1 ? vec.size() : size;
@@ -1050,7 +1106,7 @@ xgboost::common::Span<T> ToSpan(
 }
 
 template <typename T>
-xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
+xgboost::common::Span<T> ToSpan(dh::DeviceVector<T>& vec,
                                 size_t offset, size_t size) {
   using IndexT = typename xgboost::common::Span<T>::index_type;
   return ToSpan(vec, static_cast<IndexT>(offset), static_cast<IndexT>(size));
