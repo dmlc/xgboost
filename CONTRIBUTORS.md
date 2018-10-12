@@ -15,7 +15,7 @@ Committers are people who have made substantial contribution to the project and 
   - Bing is the original creator of XGBoost Python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Michael is a lawyer and data scientist in France. He is the creator of XGBoost interactive analysis module in R.
-* [Yuan Tang](https://github.com/terrytangyuan)
+* [Yuan Tang](https://github.com/terrytangyuan), Ant Financial
   - Yuan is a software engineer in Ant Financial. He contributed mostly in R and Python packages.
 * [Nan Zhu](https://github.com/CodingCat), Uber
   - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
