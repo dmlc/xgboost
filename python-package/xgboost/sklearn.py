@@ -183,8 +183,9 @@ class XGBModel(XGBModelBase):
 
     def set_params(self, **params):
         """Set the parameters of this estimator.
-        Modification of the sklearn method to allow unknown kwargs. This allows using the full range of xgboost
-        parameters that are not defined as member variables in sklearn grid search.
+        Modification of the sklearn method to allow unknown kwargs. This allows using
+        the full range of xgboost parameters that are not defined as member variables
+        in sklearn grid search.
         Returns
         -------
         self
