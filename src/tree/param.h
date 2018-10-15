@@ -391,25 +391,6 @@ template <typename ParamT>
   }
 };
 
-struct NoConstraint {
-  inline static void Init(TrainParam *param, unsigned num_feature) {
-    param->monotone_constraints.resize(num_feature, 0);
-  }
-  inline double CalcSplitGain(const TrainParam &param, int constraint,
-                              GradStats left, GradStats right) const {
-    return left.CalcGain(param) + right.CalcGain(param);
-  }
-  inline double CalcWeight(const TrainParam &param, GradStats stats) const {
-    return stats.CalcWeight(param);
-  }
-  inline double CalcGain(const TrainParam &param, GradStats stats) const {
-    return stats.CalcGain(param);
-  }
-  inline void SetChild(const TrainParam &param, bst_uint split_index,
-                       GradStats left, GradStats right, NoConstraint *cleft,
-                       NoConstraint *cright) {}
-};
-
 struct ValueConstraint {
   double lower_bound;
   double upper_bound;
