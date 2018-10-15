@@ -204,7 +204,7 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   const int GRID_SIZE =
       static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                                lambda);
+                                              lambda);
 }
 
 /*
@@ -365,6 +365,7 @@ class DVec2 {
   T *other() { return buff_.Alternate(); }
 };
 
+/*! \brief Helper for allocating large block of memory. */
 template <MemoryType MemoryT>
 class BulkAllocator {
   std::vector<char *> d_ptr_;

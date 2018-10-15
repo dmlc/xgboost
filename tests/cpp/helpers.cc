@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2016-2018 XGBoost contributors
+ */
 #include "./helpers.h"
 #include "xgboost/c_api.h"
 #include <random>
@@ -14,7 +17,7 @@ std::string TempFileName() {
 
 bool FileExists(const std::string name) {
   struct stat st;
-  return stat(name.c_str(), &st) == 0; 
+  return stat(name.c_str(), &st) == 0;
 }
 
 long GetFileSize(const std::string filename) {
@@ -106,17 +109,42 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
   return metric->Eval(preds, info, false);
 }
 
+namespace xgboost {
+bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
+            std::vector<xgboost::bst_float>::const_iterator _end1,
+            std::vector<xgboost::bst_float>::const_iterator _beg2) {
+  for (auto iter1 = _beg1, iter2 = _beg2; iter1 != _end1; ++iter1, ++iter2) {
+    if (std::abs(*iter1 - *iter2) > xgboost::kRtEps){
+      return false;
+    }
+  }
+  return true;
+}
+
+SimpleLCG::StateType SimpleLCG::operator()() {
+  state_ = (alpha_ * state_) % mod_;
+  return state_;
+}
+SimpleLCG::StateType SimpleLCG::Min() const {
+  return seed_ * alpha_;
+}
+SimpleLCG::StateType SimpleLCG::Max() const {
+  return max_value_;
+}
+
 std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
                                                  float sparsity, int seed) {
   const float missing_value = -1;
   std::vector<float> test_data(rows * columns);
-  std::mt19937 gen(seed);
-  std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+
+  xgboost::SimpleLCG gen(seed);
+  SimpleRealUniformDistribution<float> dis(0.0f, 1.0f);
+
   for (auto &e : test_data) {
-    if (dis(gen) < sparsity) {
+    if (dis(&gen) < sparsity) {
       e = missing_value;
     } else {
-      e = dis(gen);
+      e = dis(&gen);
     }
   }
 
@@ -126,16 +154,4 @@ std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
   return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }
 
-namespace xgboost {
-bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
-          std::vector<xgboost::bst_float>::const_iterator _end1,
-          std::vector<xgboost::bst_float>::const_iterator _beg2) {
-  for (auto iter1 = _beg1, iter2 = _beg2; iter1 != _end1; ++iter1, ++iter2) {
-    if (std::abs(*iter1 - *iter2) > xgboost::kRtEps){
-      return false;
-    }
-  }
-  return true;
-}
-}
-
+}  // namespace xgboost

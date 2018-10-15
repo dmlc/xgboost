@@ -7,7 +7,7 @@ typedef std::pair<std::string, std::string> arg;
 
 TEST(Linear, shotgun) {
   typedef std::pair<std::string, std::string> arg;
-  auto mat = CreateDMatrix(10, 10, 0);
+  auto mat = xgboost::CreateDMatrix(10, 10, 0);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("shotgun"));
   updater->Init({{"eta", "1."}});
@@ -26,7 +26,7 @@ TEST(Linear, shotgun) {
 
 TEST(Linear, coordinate) {
   typedef std::pair<std::string, std::string> arg;
-  auto mat = CreateDMatrix(10, 10, 0);
+  auto mat = xgboost::CreateDMatrix(10, 10, 0);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent"));
   updater->Init({{"eta", "1."}});
