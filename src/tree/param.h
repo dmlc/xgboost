@@ -292,7 +292,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
-  if (sum_hess < p.min_child_weight) {
+  if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return 0.0;
 }
   T dw;
