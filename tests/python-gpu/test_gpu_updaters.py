@@ -28,8 +28,8 @@ class TestGPU(unittest.TestCase):
             assert_gpu_results(cpu_results, gpu_results)
 
     def test_gpu_hist(self):
-        variable_param = {'n_gpus': [-1], 'max_depth': [2, 10], 'max_leaves': [255, 4],
-                          'max_bin': [2, 256],
+        variable_param = {'n_gpus': [-1], 'max_depth': [2, 8], 'max_leaves': [255, 4],
+                          'max_bin': [2, 256], 'min_child_weight': [0, 1], 'lambda': [0.0, 1.0],
                           'grow_policy': ['lossguide']}
         for param in parameter_combinations(variable_param):
             param['tree_method'] = 'gpu_hist'
