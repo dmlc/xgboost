@@ -417,7 +417,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public Map<String, Integer> getFeatureScore(String[] featureNames) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, false);
-    getFeatureWeightsFromModel(modelInfos);
+    return getFeatureWeightsFromModel(modelInfos);
   }
 
   /**
@@ -428,7 +428,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public Map<String, Integer> getFeatureScore(String featureMap) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, false);
-    getFeatureWeightsFromModel(modelInfos);
+    return getFeatureWeightsFromModel(modelInfos);
   }
 
   /**
@@ -465,7 +465,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public Map<String, Double> getScore(String[] featureNames, FeatureImportanceType importanceType) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, true);
-    getFeatureImportanceFromModel(modelInfos, importanceType);
+    return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
 
   /**
@@ -476,7 +476,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public Map<String, Double> getScore(String featureMap, FeatureImportanceType importanceType) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, true);
-    getFeatureImportanceFromModel(modelInfos, importanceType);
+    return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
 
   /**
