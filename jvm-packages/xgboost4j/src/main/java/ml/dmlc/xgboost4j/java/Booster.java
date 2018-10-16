@@ -396,6 +396,20 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Supported feature importance types
+   *
+   * WEIGHT = Number of nodes that a feature was used to determine a split
+   * GAIN = Average information gain per split for a feature
+   * COVER = Average cover per split for a feature
+   * TOTAL_GAIN = Total information gain over all splits of a feature
+   * TOTAL_COVER = Total cover over all splits of a feature
+   */
+
+  enum FeatureImportanceType {
+    GAIN, COVER, TOTAL_GAIN, TOTAL_COVER;
+  }
+
+  /**
    * Get importance of each feature with specified feature names.
    *
    * @return featureScoreMap  key: feature name, value: feature importance score, can be nill.
@@ -403,6 +417,27 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public Map<String, Integer> getFeatureScore(String[] featureNames) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, false);
+    getFeatureWeightsFromModel(modelInfos);
+  }
+
+  /**
+   * Get importance of each feature
+   *
+   * @return featureScoreMap  key: feature index, value: feature importance score, can be nill
+   * @throws XGBoostError native error
+   */
+  public Map<String, Integer> getFeatureScore(String featureMap) throws XGBoostError {
+    String[] modelInfos = getModelDump(featureMap, false);
+    getFeatureWeightsFromModel(modelInfos);
+  }
+
+  /**
+   * Get the importance of each feature based purely on weights (number of splits)
+   *
+   * @return featureScoreMap key: feature index, value: feature importance score based on weight, can be null
+   * @throws XGBoostError native error
+   */
+  private Map<String, Integer> getFeatureWeightsFromModel(String[] modelInfos) throws XGBoostError {
     Map<String, Integer> featureScore = new HashMap<>();
     for (String tree : modelInfos) {
       for (String node : tree.split("\n")) {
@@ -423,30 +458,65 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Get importance of each feature
+   * Get the feature importances for gain or cover (average or total)
    *
-   * @return featureScoreMap  key: feature index, value: feature importance score, can be nill
+   * @return featureImportanceMap key: feature index, values: feature importance score based on gain or cover, can be null
    * @throws XGBoostError native error
    */
-  public Map<String, Integer> getFeatureScore(String featureMap) throws XGBoostError {
-    String[] modelInfos = getModelDump(featureMap, false);
-    Map<String, Integer> featureScore = new HashMap<>();
-    for (String tree : modelInfos) {
-      for (String node : tree.split("\n")) {
+  public Map<String, Double> getScore(String[] featureNames, FeatureImportanceType importanceType) throws XGBoostError {
+    String[] modelInfos = getModelDump(featureNames, true);
+    getFeatureImportanceFromModel(modelInfos, importanceType);
+  }
+
+  /**
+   * Get the feature importances for gain or cover (average or total), with feature names
+   *
+   * @return featureImportanceMap key: feature name, values: feature importance score based on gain or cover, can be null
+   * @throws XGBoostError native error
+   */
+  public Map<String, Double> getScore(String featureMap, FeatureImportanceType importanceType) throws XGBoostError {
+    String[] modelInfos = getModelDump(featureMap, true);
+    getFeatureImportanceFromModel(modelInfos, importanceType);
+  }
+
+  /**
+   * Get the importance of each feature based on information gain or cover
+   *
+   * @return featureImportanceMap key: feature index, value: feature importance score based on information gain or cover, can be null
+   * @throws XGBoostError native error
+   */
+  private Map<String, Double> getFeatureImportanceFromModel(String[] modelInfos, FeatureImportanceType importanceType) throws XGBoostError {
+    Map<String, Double> importanceMap = new HashMap<>();
+    Map<String, Double> weightMap = new HashMap<>();
+    String splitter = "gain=";
+    if (importanceType == FeatureImportanceType.COVER || importanceType == FeatureImportanceType.TOTAL_COVER) {
+      splitter = "cover=";
+    }
+    for (String tree: modelInfos) {
+      for (String node: tree.split("\n")) {
         String[] array = node.split("\\[");
         if (array.length == 1) {
           continue;
         }
-        String fid = array[1].split("\\]")[0];
-        fid = fid.split("<")[0];
-        if (featureScore.containsKey(fid)) {
-          featureScore.put(fid, 1 + featureScore.get(fid));
+        String[] fidWithImportance = array[1].split("\\]");
+        // Extract gain or cover from string after closing bracket
+        Double importance = Double.parseDouble(fidWithImportance[1].split(splitter)[1].split(",")[0]);
+        String fid = fidWithImportance[0].split("<")[0];
+        if (importanceMap.contains(fid)) {
+          importanceMap.put(fid, importance + importanceMap.get(fid));
+          weightMap.put(fid, 1 + weightMap.get(fid))
         } else {
-          featureScore.put(fid, 1);
+          importanceMap.put(fid, importance);
+          weightMap.put(fid, 1);
         }
       }
     }
-    return featureScore;
+    if (importanceType == FeatureImportanceType.COVER || importanceType == FeatureImportanceType.GAIN) {
+      for (String fid: importanceMap.keySet()) {
+        importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid))
+      }
+    }
+    return importanceMap;
   }
 
   /**

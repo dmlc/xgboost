@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala
 import com.esotericsoftware.kryo.io.{Output, Input}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
+import ml.dmlc.xgboost4j.java.Booster.FeatureImportanceType
 import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -204,7 +205,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
 
 
   /**
-   * Get importance of each feature
+   * Get importance of each feature based on weight only (number of splits)
    *
    * @return featureScoreMap  key: feature index, value: feature importance score
    */
@@ -214,13 +215,33 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   }
 
   /**
-    * Get importance of each feature with specified feature names.
+    * Get importance of each feature based on weight only (number of splits), with specified feature names.
     *
     * @return featureScoreMap  key: feature name, value: feature importance score
     */
   @throws(classOf[XGBoostError])
   def getFeatureScore(featureNames: Array[String]): mutable.Map[String, Integer] = {
     booster.getFeatureScore(featureNames).asScala
+  }
+
+  /**
+    * Get importance of each feature based on information gain or cover
+    *
+    * @return featureScoreMap  key: feature index, value: feature importance score
+    */
+  @throws(classOf[XGBoostError])
+  def getScore(featureMap: String = null, importanceType: FeatureImportanceType = FeatureImportanceType.GAIN): mutable.Map[String, Integer] = {
+    booster.getScore(featureMap, importanceType).asScala
+  }
+
+  /**
+    * Get importance of each feature based on information gain or cover, with specified feature names.
+    *
+    * @return featureScoreMap  key: feature name, value: feature importance score
+    */
+  @throws(classOf[XGBoostError])
+  def getScore(featureNames: Array[String], importanceType: FeatureImportanceType = FeatureImportanceType.GAIN): mutable.Map[String, Integer] = {
+    booster.getScore(featureNames, importanceType).asScala
   }
 
   def getVersion: Int = booster.getVersion
