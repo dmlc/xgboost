@@ -434,7 +434,8 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the importance of each feature based purely on weights (number of splits)
    *
-   * @return featureScoreMap key: feature index, value: feature importance score based on weight, can be null
+   * @return featureScoreMap key: feature index,
+   * value: feature importance score based on weight, can be null
    * @throws XGBoostError native error
    */
   private Map<String, Integer> getFeatureWeightsFromModel(String[] modelInfos) throws XGBoostError {
@@ -460,10 +461,13 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the feature importances for gain or cover (average or total)
    *
-   * @return featureImportanceMap key: feature index, values: feature importance score based on gain or cover, can be null
+   * @return featureImportanceMap key: feature index,
+   * values: feature importance score based on gain or cover, can be null
    * @throws XGBoostError native error
    */
-  public Map<String, Double> getScore(String[] featureNames, FeatureImportanceType importanceType) throws XGBoostError {
+  public Map<String, Double> getScore(
+    String[] featureNames, FeatureImportanceType importanceType
+  ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
@@ -471,10 +475,13 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the feature importances for gain or cover (average or total), with feature names
    *
-   * @return featureImportanceMap key: feature name, values: feature importance score based on gain or cover, can be null
+   * @return featureImportanceMap key: feature name,
+   * values: feature importance score based on gain or cover, can be null
    * @throws XGBoostError native error
    */
-  public Map<String, Double> getScore(String featureMap, FeatureImportanceType importanceType) throws XGBoostError {
+  public Map<String, Double> getScore(
+    String featureMap, FeatureImportanceType importanceType
+  ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
@@ -482,14 +489,18 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the importance of each feature based on information gain or cover
    *
-   * @return featureImportanceMap key: feature index, value: feature importance score based on information gain or cover, can be null
+   * @return featureImportanceMap key: feature index, value: feature importance score
+   * based on information gain or cover, can be null
    * @throws XGBoostError native error
    */
-  private Map<String, Double> getFeatureImportanceFromModel(String[] modelInfos, FeatureImportanceType importanceType) throws XGBoostError {
+  private Map<String, Double> getFeatureImportanceFromModel(
+    String[] modelInfos, FeatureImportanceType importanceType
+  ) throws XGBoostError {
     Map<String, Double> importanceMap = new HashMap<>();
     Map<String, Double> weightMap = new HashMap<>();
     String splitter = "gain=";
-    if (importanceType == FeatureImportanceType.COVER || importanceType == FeatureImportanceType.TOTAL_COVER) {
+    if (importanceType == FeatureImportanceType.COVER
+      || importanceType == FeatureImportanceType.TOTAL_COVER) {
       splitter = "cover=";
     }
     for (String tree: modelInfos) {
@@ -500,7 +511,9 @@ public class Booster implements Serializable, KryoSerializable {
         }
         String[] fidWithImportance = array[1].split("\\]");
         // Extract gain or cover from string after closing bracket
-        Double importance = Double.parseDouble(fidWithImportance[1].split(splitter)[1].split(",")[0]);
+        Double importance = Double.parseDouble(
+          fidWithImportance[1].split(splitter)[1].split(",")[0]
+        );
         String fid = fidWithImportance[0].split("<")[0];
         if (importanceMap.contains(fid)) {
           importanceMap.put(fid, importance + importanceMap.get(fid));
@@ -511,7 +524,8 @@ public class Booster implements Serializable, KryoSerializable {
         }
       }
     }
-    if (importanceType == FeatureImportanceType.COVER || importanceType == FeatureImportanceType.GAIN) {
+    if (importanceType == FeatureImportanceType.COVER
+      || importanceType == FeatureImportanceType.GAIN) {
       for (String fid: importanceMap.keySet()) {
         importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid))
       }
