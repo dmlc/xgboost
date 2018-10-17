@@ -61,6 +61,9 @@ class ShotgunUpdater : public LinearUpdater {
     param_.InitAllowUnknown(args);
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param_, name, value);
+  }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     auto &gpair = in_gpair->HostVector();

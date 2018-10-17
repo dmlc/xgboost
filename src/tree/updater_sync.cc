@@ -23,6 +23,8 @@ class TreeSyncher: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {}
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {}
+
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {

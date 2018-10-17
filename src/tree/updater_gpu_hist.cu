@@ -770,6 +770,10 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Init("updater_gpu_hist", param_.debug_verbose);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param_, name, value);
+  }
+
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update", dist_.Devices());

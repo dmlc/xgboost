@@ -259,6 +259,16 @@ class LearnerImpl : public Learner {
     }
   }
 
+  void UpdateParamInPlace(const std::string& name,
+                          const std::string& value) override {
+    if (gbm_ != nullptr) {
+      gbm_->UpdateParamInPlace(name, value);
+    }
+    if (obj_ != nullptr) {
+      obj_->UpdateParamInPlace(name, value);
+    }
+  }
+
   void InitModel() override { this->LazyInitModel(); }
 
   void Load(dmlc::Stream* fi) override {

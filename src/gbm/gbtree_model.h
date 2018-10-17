@@ -1,7 +1,9 @@
 /*!
  * Copyright by Contributors 2017
  */
-#pragma once
+#ifndef XGBOOST_GBM_GBTREE_MODEL_H_
+#define XGBOOST_GBM_GBTREE_MODEL_H_
+
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
@@ -138,3 +140,4 @@ struct GBTreeModel {
 };
 }  // namespace gbm
 }  // namespace xgboost
+#endif  // XGBOOST_GBM_GBTREE_MODEL_H_

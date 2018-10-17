@@ -28,6 +28,9 @@ class TreePruner: public TreeUpdater {
     param_.InitAllowUnknown(args);
     syncher_->Init(args);
   }
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param_, name, value);
+  }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,

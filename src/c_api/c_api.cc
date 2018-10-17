@@ -7,6 +7,7 @@
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include <cstring>
@@ -48,6 +49,13 @@ class Booster {
     if (configured_) {
       learner_->Configure(cfg_);
     }
+  }
+
+  inline void UpdateParamInPlace(const std::string& name,
+                                 const std::string& val) {
+    CHECK_NE(name, "eval_metric")
+      << "Booster::UpdateParamInPlace(): eval_metric cannot be updated in-place";
+    learner_->UpdateParamInPlace(name, val);
   }
 
   inline void LazyInit() {
@@ -867,6 +875,19 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<Booster*>(handle)->SetParam(name, value);
+  API_END();
+}
+
+XGB_DLL int XGBoosterUpdateParamInPlace(BoosterHandle handle,
+                                        const char *name,
+                                        const char *value) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  // List of parameters allowed for in-place update
+  const std::unordered_set<std::string> whitelist{"learning_rate", "eta"};
+  CHECK_GT(whitelist.count(name), 0)
+    << "XGBoosterUpdateParamInPlace(): Parameter " << name << " is not allowed";
+  static_cast<Booster*>(handle)->UpdateParamInPlace(name, value);
   API_END();
 }
 

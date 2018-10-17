@@ -1023,6 +1023,22 @@ class Booster(object):
         for key, val in params:
             _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val))))
 
+    def update_param_in_place(self, param, value):
+        """Update a parameter "in place", i.e. in a way that the underlying
+           objects (Booster, Learner, TreeUpdater, etc.) are preserved.
+           If updating the parameter would reset or re-create any of the
+           underlying objects, this function will fail. This function addresses
+           https://github.com/dmlc/xgboost/issues/3579.
+
+        Parameters
+        ----------
+        param: str
+           key of parameter to update
+        value: optional
+           value of the specified parameter
+        """
+        _check_call(_LIB.XGBoosterUpdateParamInPlace(self.handle, c_str(param), c_str(str(value))))
+
     def update(self, dtrain, iteration, fobj=None):
         """
         Update for one iteration, with objective function calculated internally.

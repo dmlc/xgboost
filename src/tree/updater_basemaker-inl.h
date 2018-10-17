@@ -32,6 +32,10 @@ class BaseMaker: public TreeUpdater {
     param_.InitAllowUnknown(args);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param_, name, value);
+  }
+
  protected:
   // helper to collect and query feature meta information
   struct FMetaHelper {

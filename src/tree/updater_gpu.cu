@@ -520,6 +520,10 @@ class GPUMaker : public TreeUpdater {
     devices_ = GPUSet::All(param.n_gpus).Normalised(param.gpu_id);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param, name, value);
+  }
+
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     GradStats::CheckInfo(dmat->Info());

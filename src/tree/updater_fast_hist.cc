@@ -63,6 +63,11 @@ class FastHistMaker: public TreeUpdater {
     spliteval_->Init(args);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param_, name, value);
+    common::UpdateParamInPlaceDefault(&fhparam_, name, value);
+  }
+
   void Update(HostDeviceVector<GradientPair>* gpair,
               DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {

@@ -84,6 +84,9 @@ class CoordinateUpdater : public LinearUpdater {
     selector.reset(FeatureSelector::Create(param.feature_selector));
     monitor.Init("CoordinateUpdater", param.debug_verbose);
   }
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param, name, value);
+  }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     param.DenormalizePenalties(sum_instance_weight);

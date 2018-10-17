@@ -8,6 +8,7 @@
 
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
+#include <dmlc/parameter.h>
 
 #include <exception>
 #include <limits>
@@ -62,6 +63,26 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
     ret.push_back(item);
   }
   return ret;
+}
+
+/*!
+ * \brief Default implementation of UpdateParamInPlace for subclasses of
+ *        dmlc::Parameter
+ * \tparam ParamType subclass of dmlc::Parameter
+ * \param param object of a subclass of dmlc::Parameter
+ * \param name parameter name
+ * \param value value of parameter
+ */
+template <typename ParamType>
+inline void UpdateParamInPlaceDefault(ParamType* param, const std::string& name,
+                                      const std::string& value) {
+  CHECK(param);
+  dmlc::parameter::ParamManager* manager = ParamType::__MANAGER__();
+  CHECK(manager);
+  dmlc::parameter::FieldAccessEntry* entry = manager->Find(name);
+  if (entry) {
+    entry->Set(param, value);
+  }
 }
 
 // simple routine to convert any data to string

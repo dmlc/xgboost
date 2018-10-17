@@ -163,6 +163,12 @@ class GBTree : public GradientBooster {
     monitor_.Init("GBTree", tparam_.debug_verbose);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    for (const auto& up : updaters_) {
+      up->UpdateParamInPlace(name, value);
+    }
+  }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
 

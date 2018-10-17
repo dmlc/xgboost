@@ -212,6 +212,10 @@ class GPUCoordinateUpdater : public LinearUpdater {
     monitor.Init("GPUCoordinateUpdater", param.debug_verbose);
   }
 
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    common::UpdateParamInPlaceDefault(&param, name, value);
+  }
+
   void LazyInitShards(DMatrix *p_fmat,
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;

@@ -17,6 +17,7 @@
 #include "./data.h"
 #include "./tree_model.h"
 #include "../../src/common/host_device_vector.h"
+#include "../../src/common/common.h"
 
 namespace xgboost {
 /*!
@@ -43,6 +44,16 @@ class TreeUpdater {
   virtual void Update(HostDeviceVector<GradientPair>* gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
+  /*!
+   * \brief Update a parameter "in place", i.e. in a way that the underlying
+   *        objects (Booster, Learner, TreeUpdater, etc.) are preserved.
+   *        If updating the parameter would reset or re-create any of the
+   *        underlying objects, this function will have no effect. This function
+   *        addresses https://github.com/dmlc/xgboost/issues/3579.
+   * \param name parameter name
+   * \param value value of parameter
+   */
+  virtual void UpdateParamInPlace(const std::string& name, const std::string& value) = 0;
 
   /*!
    * \brief determines whether updater has enough knowledge about a given dataset

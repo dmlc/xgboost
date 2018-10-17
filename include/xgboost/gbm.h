@@ -44,6 +44,16 @@ class GradientBooster {
    */
   virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
   /*!
+   * \brief Update a parameter "in place", i.e. in a way that the underlying
+   *        objects (Booster, Learner, TreeUpdater, etc.) are preserved.
+   *        If updating the parameter would reset or re-create any of the
+   *        underlying objects, this function will have no effect. This function
+   *        addresses https://github.com/dmlc/xgboost/issues/3579.
+   * \param name parameter name
+   * \param value value of parameter
+   */
+  virtual void UpdateParamInPlace(const std::string& name, const std::string& value) = 0;
+  /*!
    * \brief load model from stream
    * \param fi input stream.
    */

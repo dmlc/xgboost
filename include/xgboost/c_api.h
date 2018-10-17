@@ -374,6 +374,21 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *value);
 
 /*!
+ * \brief Update a parameter "in place", i.e. in a way that the underlying
+ *        objects (Booster, Learner, TreeUpdater, etc.) are preserved.
+ *        If updating the parameter would reset or re-create any of the
+ *        underlying objects, this function will fail. This function addresses
+ *        https://github.com/dmlc/xgboost/issues/3579.
+ * \param handle handle
+ * \param name parameter name
+ * \param value value of parameter
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterUpdateParamInPlace(BoosterHandle handle,
+                                        const char *name,
+                                        const char *value);
+
+/*!
  * \brief update the model in one round using dtrain
  * \param handle handle
  * \param iter current iteration rounds

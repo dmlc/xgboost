@@ -71,6 +71,9 @@ class GBLinear : public GradientBooster {
     updater_->Init(cfg);
     monitor_.Init("GBLinear ", param_.debug_verbose);
   }
+  void UpdateParamInPlace(const std::string& name, const std::string& value) override {
+    updater_->UpdateParamInPlace(name, value);
+  }
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }
