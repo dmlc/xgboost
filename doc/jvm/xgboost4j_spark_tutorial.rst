@@ -65,6 +65,10 @@ and then refer to the snapshot dependency by adding:
 
   XGBoost4J-Spark now requires Spark 2.3+. Latest versions of XGBoost4J-Spark uses facilities of `org.apache.spark.ml.param.shared` extensively to provide for a tight integration with Spark MLLIB framework, and these facilities are not fully available on earlier versions of Spark.
 
+.. note:: CDH Hadoop is incompatible with XGBoost4J-Spark
+
+  The use of `CDH distribution of Hadoop <https://www.cloudera.com/products/open-source/apache-hadoop/key-cdh-components.html>`_ is known to cause `issues <https://github.com/dmlc/xgboost/issues/3737>`_ with XGBoost4J-Spark. Until further notice, please use Apache Hadoop from Maven Central.
+
 Data Preparation
 ================
 
