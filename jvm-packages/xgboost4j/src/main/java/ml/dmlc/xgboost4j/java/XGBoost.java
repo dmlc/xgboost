@@ -196,16 +196,11 @@ public class XGBoost {
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
-
-        boolean decreasing = true;
-        float[] criterion = metrics[metrics.length - 1];
-        for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
-          decreasing &= criterion[iter - shift] <= criterion[iter - shift - 1];
-        }
-
-        if (!decreasing) {
+        boolean onTrack = judgeIfTrainingOnTrack(params, earlyStoppingRound, metrics, iter);
+        if (earlyStoppingRound > 0 && !onTrack) {
+          String reversedDirection = getReversedDirection(params);
           Rabit.trackerPrint(String.format(
-                  "early stopping after %d decreasing rounds", earlyStoppingRound));
+                  "early stopping after %d %s rounds", earlyStoppingRound, reversedDirection));
           break;
         }
         if (Rabit.getRank() == 0) {
@@ -215,6 +210,45 @@ public class XGBoost {
       booster.saveRabitCheckpoint();
     }
     return booster;
+  }
+
+  static boolean judgeIfTrainingOnTrack(
+          Map<String, Object> params, int earlyStoppingRound, float[][] metrics, int iter) {
+    boolean metricsExpectedDirection = getMetricsExpectedDirection(params, earlyStoppingRound);
+    boolean onTrack = false;
+    float[] criterion = metrics[metrics.length - 1];
+    for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
+      onTrack |= metricsExpectedDirection ?
+              criterion[iter - shift] >= criterion[iter - shift - 1] :
+              criterion[iter - shift] <= criterion[iter - shift - 1];
+    }
+    return onTrack;
+  }
+
+  private static String getReversedDirection(Map<String, Object> params) {
+    String reversedDirection = null;
+    if (params.get("metrics_expected_direction").equals("asc")) {
+      reversedDirection = "descending";
+    } else if (params.get("metrics_expected_direction").equals("desc")) {
+      reversedDirection = "ascending";
+    }
+    return reversedDirection;
+  }
+
+  private static boolean getMetricsExpectedDirection(
+      Map<String, Object> params, int earlyStoppingRound) {
+    boolean metricsExpectedDirection = false;
+    if (earlyStoppingRound > 0) {
+      if (params.get("metrics_expected_direction").equals("asc")) {
+        metricsExpectedDirection = true;
+      } else if (params.get("metrics_expected_direction").equals("desc")) {
+        metricsExpectedDirection = false;
+      } else {
+        throw new IllegalArgumentException("metrics_expected_direction has to be specified as" +
+                " either asc or desc");
+      }
+    }
+    return metricsExpectedDirection;
   }
 
   /**

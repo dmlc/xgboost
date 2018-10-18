@@ -132,6 +132,14 @@ object XGBoost extends Serializable {
     try {
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
+      if (numEarlyStoppingRounds > 0) {
+        if (!params.contains("metrics_expected_direction") &&
+          (params("metrics_expected_direction") == "asc" ||
+            params("metrics_expected_direction") == "desc")) {
+          throw new IllegalArgumentException(
+            "metrics_expected_direction has to be specified as" + " either asc or desc")
+        }
+      }
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
       val booster = SXGBoost.train(watches.train, params, round,
         watches.toMap, metrics, obj, eval,
