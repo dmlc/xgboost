@@ -24,15 +24,13 @@
 #define DeclareUnifiedTest(name) name
 #endif
 
-std::string TempFileName();
-
 bool FileExists(const std::string name);
 
 long GetFileSize(const std::string filename);
 
-std::string CreateSimpleTestData();
+void CreateSimpleTestData(const std::string& filename);
 
-std::string CreateBigTestData(size_t n_entries);
+void CreateBigTestData(const std::string& filename, size_t n_entries);
 
 void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,
