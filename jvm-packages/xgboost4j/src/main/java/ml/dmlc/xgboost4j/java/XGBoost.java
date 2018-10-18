@@ -118,7 +118,7 @@ public class XGBoost {
    *                performance on the validation set.
    * @param metrics array containing the evaluation metrics for each matrix in watches for each
    *                iteration
-   * @param earlyStoppingRound if non-zero, training would be stopped
+   * @param earlyStoppingRounds if non-zero, training would be stopped
    *                           after a specified number of consecutive
    *                           increases in any evaluation metric.
    * @param obj     customized objective
@@ -134,7 +134,7 @@ public class XGBoost {
           float[][] metrics,
           IObjective obj,
           IEvaluation eval,
-          int earlyStoppingRound,
+          int earlyStoppingRounds,
           Booster booster) throws XGBoostError {
 
     //collect eval matrixs
@@ -196,11 +196,11 @@ public class XGBoost {
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
-        boolean onTrack = judgeIfTrainingOnTrack(params, earlyStoppingRound, metrics, iter);
-        if (earlyStoppingRound > 0 && !onTrack) {
+        boolean onTrack = judgeIfTrainingOnTrack(params, earlyStoppingRounds, metrics, iter);
+        if (earlyStoppingRounds > 0 && !onTrack) {
           String reversedDirection = getReversedDirection(params);
           Rabit.trackerPrint(String.format(
-                  "early stopping after %d %s rounds", earlyStoppingRound, reversedDirection));
+                  "early stopping after %d %s rounds", earlyStoppingRounds, reversedDirection));
           break;
         }
         if (Rabit.getRank() == 0) {
@@ -213,11 +213,11 @@ public class XGBoost {
   }
 
   static boolean judgeIfTrainingOnTrack(
-          Map<String, Object> params, int earlyStoppingRound, float[][] metrics, int iter) {
-    boolean metricsExpectedDirection = getMetricsExpectedDirection(params, earlyStoppingRound);
+          Map<String, Object> params, int earlyStoppingRounds, float[][] metrics, int iter) {
+    boolean metricsExpectedDirection = getMetricsExpectedDirection(params, earlyStoppingRounds);
     boolean onTrack = false;
     float[] criterion = metrics[metrics.length - 1];
-    for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
+    for (int shift = 0; shift < Math.min(iter, earlyStoppingRounds) - 1; shift++) {
       onTrack |= metricsExpectedDirection ?
               criterion[iter - shift] >= criterion[iter - shift - 1] :
               criterion[iter - shift] <= criterion[iter - shift - 1];

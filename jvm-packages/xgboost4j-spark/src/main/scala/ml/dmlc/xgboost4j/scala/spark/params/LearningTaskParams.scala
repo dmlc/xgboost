@@ -87,6 +87,13 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getNumEarlyStoppingRounds: Int = $(numEarlyStoppingRounds)
 
+
+  final val metricsExpectedDirection = new Param[String](this, "metricsExpectedDirection",
+    "the expected direction of the metrics' change, asc or desc",
+    (value: String) => value == "asc" || value == "desc")
+
+  final def getMetricsExpectedDirection: String = $(metricsExpectedDirection)
+
   setDefault(objective -> "reg:linear", baseScore -> 0.5,
     trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
 }
