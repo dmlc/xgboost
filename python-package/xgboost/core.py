@@ -849,6 +849,7 @@ class DMatrix(object):
         self._feature_types = feature_types
 
 
+# pylint: disable=R0904
 class Booster(object):
     """A Booster of XGBoost.
 
