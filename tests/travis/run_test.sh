@@ -147,6 +147,11 @@ fi
 if [ ${TASK} == "distributed_test" ]; then
     set -e
     make all || exit -1
+    echo "-------------------------------"
+    source activate python3
+    python --version
+    conda install numpy scipy
+    python -m pip install kubernetes
     cd tests/distributed
     ./runtests.sh
 fi

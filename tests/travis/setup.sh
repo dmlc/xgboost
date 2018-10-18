@@ -10,8 +10,7 @@ if [ ${TASK} == "lint" ]; then
 fi
 
 
-if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ]; then
-    # python2
+if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ] || [ ${TASK} ==  "distributed_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
     else
@@ -26,8 +25,4 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ]; the
     conda info -a
     conda create -n python3 python=3.5
     conda create -n python2 python=2.7
-fi
-
-if [ ${TASK} == "distributed_test" ]; then
-    pip install --user kubernetes numpy scipy
 fi
