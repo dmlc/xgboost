@@ -1,18 +1,19 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
+#include <dmlc/filesystem.h>
 #include "../../../src/data/simple_csr_source.h"
 
 #include "../helpers.h"
 
 TEST(SimpleCSRSource, SaveLoadBinary) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
-  std::remove(tmp_file.c_str());
 
-  std::string tmp_binfile = TempFileName();
+  const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
   dmat->SaveToLocalFile(tmp_binfile);
   xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, false);
-  std::remove(tmp_binfile.c_str());
 
   EXPECT_EQ(dmat->Info().num_col_, dmat_read->Info().num_col_);
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);

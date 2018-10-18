@@ -1,13 +1,15 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
+#include <dmlc/filesystem.h>
 #include "../../../src/data/simple_dmatrix.h"
 
 #include "../helpers.h"
 
 TEST(SimpleDMatrix, MetaInfo) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
-  std::remove(tmp_file.c_str());
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 2);
@@ -19,9 +21,10 @@ TEST(SimpleDMatrix, MetaInfo) {
 }
 
 TEST(SimpleDMatrix, RowAccess) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, false, false);
-  std::remove(tmp_file.c_str());
 
   // Loop over the batches and count the records
   long row_count = 0;
@@ -40,9 +43,10 @@ TEST(SimpleDMatrix, RowAccess) {
 }
 
 TEST(SimpleDMatrix, ColAccessWithoutBatches) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
-  std::remove(tmp_file.c_str());
 
   // Sorted column access
   EXPECT_EQ(dmat->GetColDensity(0), 1);

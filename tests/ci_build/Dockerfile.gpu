@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y tar unzip wget xz && \
+    yum install -y tar unzip wget xz git && \
     wget http://people.centos.org/tru/devtools-2/devtools-2.repo -O /etc/yum.repos.d/devtools-2.repo && \
     yum install -y devtoolset-2-gcc devtoolset-2-binutils devtoolset-2-gcc-c++ && \
     # Python

@@ -1,11 +1,14 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
+#include <dmlc/filesystem.h>
 #include "../../../src/data/sparse_page_dmatrix.h"
 
 #include "../helpers.h"
 
 TEST(SparsePageDMatrix, MetaInfo) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
     tmp_file + "#" + tmp_file + ".cache", false, false);
   std::cout << tmp_file << std::endl;
@@ -17,20 +20,16 @@ TEST(SparsePageDMatrix, MetaInfo) {
   EXPECT_EQ(dmat->Info().num_nonzero_, 6);
   EXPECT_EQ(dmat->Info().labels_.Size(), dmat->Info().num_row_);
 
-  // Clean up of external memory files
-  std::remove(tmp_file.c_str());
-  std::remove((tmp_file + ".cache").c_str());
-  std::remove((tmp_file + ".cache.row.page").c_str());
-
   delete dmat;
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
   // Create sufficiently large data to make two row pages
-  std::string tmp_file = CreateBigTestData(5000000);
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/big.libsvm";
+  CreateBigTestData(tmp_file, 5000000);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
     tmp_file + "#" + tmp_file + ".cache", true, false);
-  std::remove(tmp_file.c_str());
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
@@ -47,18 +46,15 @@ TEST(SparsePageDMatrix, RowAccess) {
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);
 
-  // Clean up of external memory files
-  std::remove((tmp_file + ".cache").c_str());
-  std::remove((tmp_file + ".cache.row.page").c_str());
-
   delete dmat;
 }
 
 TEST(SparsePageDMatrix, ColAccess) {
-  std::string tmp_file = CreateSimpleTestData();
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
     tmp_file + "#" + tmp_file + ".cache", true, false);
-  std::remove(tmp_file.c_str());
 
   EXPECT_EQ(dmat->GetColDensity(0), 1);
   EXPECT_EQ(dmat->GetColDensity(1), 0.5);
@@ -81,11 +77,6 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.sorted.col.page"));
-
-  std::remove((tmp_file + ".cache").c_str());
-  std::remove((tmp_file + ".cache.row.page").c_str());
-  std::remove((tmp_file + ".cache.col.page").c_str());
-  std::remove((tmp_file + ".cache.sorted.col.page").c_str());
 
   delete dmat;
 }
