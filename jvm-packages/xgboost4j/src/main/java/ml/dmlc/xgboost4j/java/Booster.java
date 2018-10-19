@@ -466,7 +466,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-    String[] featureNames, FeatureImportanceType importanceType
+      String[] featureNames, FeatureImportanceType importanceType
   ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
@@ -480,7 +480,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-    String featureMap, FeatureImportanceType importanceType
+      String featureMap, FeatureImportanceType importanceType
   ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
@@ -494,13 +494,13 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   private Map<String, Double> getFeatureImportanceFromModel(
-    String[] modelInfos, FeatureImportanceType importanceType
+      String[] modelInfos, FeatureImportanceType importanceType
   ) throws XGBoostError {
     Map<String, Double> importanceMap = new HashMap<>();
     Map<String, Double> weightMap = new HashMap<>();
     String splitter = "gain=";
     if (importanceType == FeatureImportanceType.COVER
-      || importanceType == FeatureImportanceType.TOTAL_COVER) {
+        || importanceType == FeatureImportanceType.TOTAL_COVER) {
       splitter = "cover=";
     }
     for (String tree: modelInfos) {
@@ -512,7 +512,7 @@ public class Booster implements Serializable, KryoSerializable {
         String[] fidWithImportance = array[1].split("\\]");
         // Extract gain or cover from string after closing bracket
         Double importance = Double.parseDouble(
-          fidWithImportance[1].split(splitter)[1].split(",")[0]
+            fidWithImportance[1].split(splitter)[1].split(",")[0]
         );
         String fid = fidWithImportance[0].split("<")[0];
         if (importanceMap.contains(fid)) {
@@ -525,7 +525,7 @@ public class Booster implements Serializable, KryoSerializable {
       }
     }
     if (importanceType == FeatureImportanceType.COVER
-      || importanceType == FeatureImportanceType.GAIN) {
+        || importanceType == FeatureImportanceType.GAIN) {
       for (String fid: importanceMap.keySet()) {
         importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid))
       }
