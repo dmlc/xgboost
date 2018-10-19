@@ -28,7 +28,7 @@ before_install:
   - source ${TRAVIS}/travis_setup_env.sh
 
 install:
-  - pip install --user cpplint pylint 
+  - pip install --user cpplint pylint kubernetes urllib3
 
 script: scripts/travis_script.sh
 
