@@ -41,13 +41,22 @@ RABIT_DLL void RabitInit(int argc, char *argv[]);
  */
 RABIT_DLL void RabitFinalize(void);
 
-/*! \brief get rank of current process */
+/*!
+ * \brief get rank of current process
+ * \return rank number of worker
+ * */
 RABIT_DLL int RabitGetRank(void);
 
-/*! \brief get total number of process */
+/*!
+ * \brief get total number of process
+ * \return total world size
+ * */
 RABIT_DLL int RabitGetWorldSize(void);
 
-/*! \brief get rank of current process */
+/*!
+ * \brief get rank of current process
+ * \return if rabit is distributed
+ * */
 RABIT_DLL int RabitIsDistributed(void);
 
 /*!
@@ -136,6 +145,7 @@ RABIT_DLL void RabitCheckPoint(const char *global_model,
 /*!
  * \return version number of current stored model,
  * which means how many calls to CheckPoint we made so far
+ * \return rabit version number
  */
 RABIT_DLL int RabitVersionNumber(void);
 
@@ -144,7 +154,7 @@ RABIT_DLL int RabitVersionNumber(void);
  * \brief a Dummy function,
  *  used to cause force link of C API  into the  DLL.
  * \code
- * // force link rabit C API library.
+ * \/\/force link rabit C API library.
  * static int must_link_rabit_ = RabitLinkTag();
  * \endcode
  * \return a dummy integer.

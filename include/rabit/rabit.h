@@ -79,14 +79,18 @@ inline void Init(int argc, char *argv[]);
  * \brief finalizes the rabit engine, call this function after you finished with all the jobs
  */
 inline void Finalize();
-/*! \brief gets rank of the current process */
+/*! \brief gets rank of the current process
+ * \return rank number of worker*/
 inline int GetRank();
-/*! \brief gets total number of processes */
+/*! \brief gets total number of processes
+ * \return total world size*/
 inline int GetWorldSize();
-/*! \brief whether rabit env is in distributed mode */
+/*! \brief whether rabit env is in distributed mode
+ * \return is distributed*/
 inline bool IsDistributed();
 
-/*! \brief gets processor's name */
+/*! \brief gets processor's name
+ * \return processor name*/
 inline std::string GetProcessorName();
 /*!
  * \brief prints the msg to the tracker,
