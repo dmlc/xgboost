@@ -315,24 +315,22 @@ class GPUPredictor : public xgboost::Predictor {
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
 
-    dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
-    iter->BeforeFirst();
-    CHECK(iter->Next()) << "Empty batches are not supported";
-    const SparsePage& batch = iter->Value();
+    size_t i_batch = 0;
+    for (const auto &batch : dmat->GetRowBatches()) {
+      CHECK_EQ(i_batch, 0) << "External memory not supported";
+      size_t n_rows = batch.offset.Size() - 1;
+      // out_preds have been resharded and resized in InitOutPredictions()
+      batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
+      std::vector<size_t> device_offsets;
+      DeviceOffsets(batch.offset, &device_offsets);
+      batch.data.Reshard(GPUDistribution::Explicit(devices, device_offsets));
 
-    size_t n_rows = batch.offset.Size() - 1;
-    // out_preds have been resharded and resized in InitOutPredictions()
-    batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
-    std::vector<size_t> device_offsets;
-    DeviceOffsets(batch.offset, &device_offsets);
-    batch.data.Reshard(GPUDistribution::Explicit(devices, device_offsets));
-
-    dh::ExecuteShards(&shards, [&](DeviceShard& shard){
-        shard.PredictInternal(batch, dmat->Info(), out_preds, model, h_tree_segments,
-                              h_nodes, tree_begin, tree_end);
-      });
-
-    CHECK(!iter->Next()) << "External memory not supported";
+      dh::ExecuteShards(&shards, [&](DeviceShard& shard){
+          shard.PredictInternal(batch, dmat->Info(), out_preds, model, h_tree_segments,
+                                h_nodes, tree_begin, tree_end);
+        });
+      i_batch++;
+    }
   }
 
  public:

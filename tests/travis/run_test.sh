@@ -124,21 +124,15 @@ if [ ${TASK} == "cmake_test" ]; then
     cd ..
     rm -rf release-1.7.0.zip
 
-    # Build/test without AVX
+    # Build/test
     rm -rf build
     mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/
+    PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
+    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
     make
     cd ..
     ./testxgboost
     rm -rf build
-
-    # Build/test with AVX
-    mkdir build && cd build
-    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON -DGTEST_ROOT=$PWD/../gtest/
-    make
-    cd ..
-    ./testxgboost
 fi
 
 if [ ${TASK} == "cpp_test" ]; then
@@ -153,6 +147,11 @@ fi
 if [ ${TASK} == "distributed_test" ]; then
     set -e
     make all || exit -1
+    echo "-------------------------------"
+    source activate python3
+    python --version
+    conda install numpy scipy
+    python -m pip install kubernetes
     cd tests/distributed
     ./runtests.sh
 fi

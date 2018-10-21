@@ -13,6 +13,10 @@ def dockerRun = 'tests/ci_build/ci_build.sh'
 // Utility functions
 @Field
 def utils
+@Field
+def commit_id
+@Field
+def branch_name
 
 def buildMatrix = [
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
@@ -42,27 +46,28 @@ pipeline {
                 script {
                     utils = load('tests/ci_build/jenkins_tools.Groovy')
                     utils.checkoutSrcs()
+                    commit_id = "${GIT_COMMIT}"
+                    branch_name = "${GIT_LOCAL_BRANCH}"
                 }
                 stash name: 'srcs', excludes: '.git/'
                 milestone label: 'Sources ready', ordinal: 1
             }
         }
         stage('Jenkins: Build doc') {
-            agent {
-                label 'linux && cpu && restricted'
-            }
             steps {
-                unstash name: 'srcs'
                 script {
-                    def commit_id = "${GIT_COMMIT}"
-                    def branch_name = "${GIT_LOCAL_BRANCH}"
-                    echo 'Building doc...'
-                    dir ('jvm-packages') {
-                        sh "bash ./build_doc.sh ${commit_id}"
-                        archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
-                        echo 'Deploying doc...'
-                        withAWS(credentials:'xgboost-doc-bucket') {
-                            s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                    retry(3) {
+                        node('linux && cpu && restricted') {
+                            unstash name: 'srcs'
+                            echo 'Building doc...'
+                            dir ('jvm-packages') {
+                                sh "bash ./build_doc.sh ${commit_id}"
+                                archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
+                                echo 'Deploying doc...'
+                                withAWS(credentials:'xgboost-doc-bucket') {
+                                    s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
+                                }
+                            }
                         }
                     }
                 }
@@ -94,28 +99,25 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
     }
     // Build node - this is returned result
-    node(nodeReq) {
-        unstash name: 'srcs'
-        echo """
-        |===== XGBoost CMake build =====
-        |  dockerTarget: ${dockerTarget}
-        |  cmakeOpts   : ${opts}
-        |=========================
-        """.stripMargin('|')
-        // Invoke command inside docker
-        sh """
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
-        rm -rf "${distDir}"; mkdir -p "${distDir}/py"
-        cp xgboost "${distDir}"
-        cp -r lib "${distDir}"
-        cp -r python-package/dist "${distDir}/py"
-        # Test the wheel for compatibility on a barebones CPU container
-        ${dockerRun} release ${dockerArgs} bash -c " \
-            auditwheel show xgboost-*-py2-none-any.whl
-            pip install --user python-package/dist/xgboost-*-none-any.whl && \
-            python -m nose tests/python"
-        """
-        archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
+    retry(3) {
+        node(nodeReq) {
+            unstash name: 'srcs'
+            echo """
+            |===== XGBoost CMake build =====
+            |  dockerTarget: ${dockerTarget}
+            |  cmakeOpts   : ${opts}
+            |=========================
+            """.stripMargin('|')
+            // Invoke command inside docker
+            sh """
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
+            ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
+            rm -rf "${distDir}"; mkdir -p "${distDir}/py"
+            cp xgboost "${distDir}"
+            cp -r lib "${distDir}"
+            cp -r python-package/dist "${distDir}/py"
+            """
+            archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
+        }
     }
 }

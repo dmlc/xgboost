@@ -6,21 +6,30 @@ Committers
 ----------
 Committers are people who have made substantial contribution to the project and granted write access to the project.
 * [Tianqi Chen](https://github.com/tqchen), University of Washington
-  - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
+  - Tianqi is a Ph.D. student working on large-scale machine learning. He is the creator of the project.
 * [Tong He](https://github.com/hetong007), Amazon AI
-  - Tong is an applied scientist in Amazon AI, he is the maintainer of xgboost R package.
+  - Tong is an applied scientist in Amazon AI. He is the maintainer of XGBoost R package.
 * [Vadim Khotilovich](https://github.com/khotilov)
   - Vadim contributes many improvements in R and core packages.
 * [Bing Xu](https://github.com/antinucleon)
-  - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
+  - Bing is the original creator of XGBoost Python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
-  - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
-* [Yuan Tang](https://github.com/terrytangyuan)
-  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages.
-* [Nan Zhu](https://github.com/CodingCat)
-  - Nan is a software engineer in Microsoft. He contributed mostly in JVM packages.
-* [Sergei Lebedev](https://github.com/superbobry)
-  - Serget is a software engineer in Criteo. He contributed mostly in JVM packages.
+  - Michael is a lawyer and data scientist in France. He is the creator of XGBoost interactive analysis module in R.
+* [Yuan Tang](https://github.com/terrytangyuan), Ant Financial
+  - Yuan is a software engineer in Ant Financial. He contributed mostly in R and Python packages.
+* [Nan Zhu](https://github.com/CodingCat), Uber
+  - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
+* [Sergei Lebedev](https://github.com/superbobry), Criteo
+  - Sergei is a software engineer in Criteo. He contributed mostly in JVM packages.
+* [Hongliang Liu](https://github.com/phunterlau)
+* [Scott Lundberg](http://scottlundberg.com/), University of Washington
+  - Scott is a Ph.D. student at University of Washington. He is the creator of SHAP, a unified approach to explain the output of machine learning models such as decision tree ensembles. He also helps maintain the XGBoost Julia package.
+* [Rory Mitchell](https://github.com/RAMitchell), University of Waikato
+  - Rory is a Ph.D. student at University of Waikato. He is the original creator of the GPU training algorithms. He improved the CMake build system and continuous integration. 
+* [Hyunsu Cho](http://hyunsu-cho.io/), Amazon AI
+  - Hyunsu is an applied scientist in Amazon AI. He is the maintainer of the XGBoost Python package. He also manages the Jenkins continuous integration system (https://xgboost-ci.net/). He is the initial author of the CPU 'hist' updater. 
+* [Jiaming](https://github.com/trivialfis)
+  - Jiaming contributed to the GPU algorithms. He has also introduced new abstractions to improve the quality of the C++ codebase.
 
 Become a Committer
 ------------------
@@ -36,28 +45,25 @@ List of Contributors
 * [Full List of Contributors](https://github.com/dmlc/xgboost/graphs/contributors)
   - To contributors: please add your name to the list when you submit a patch to the project:)
 * [Kailong Chen](https://github.com/kalenhaha)
-  - Kailong is an early contributor of xgboost, he is creator of ranking objectives in xgboost.
+  - Kailong is an early contributor of XGBoost, he is creator of ranking objectives in XGBoost.
 * [Skipper Seabold](https://github.com/jseabold)
-  - Skipper is the major contributor to the scikit-learn module of xgboost.
+  - Skipper is the major contributor to the scikit-learn module of XGBoost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Yangqing Men](https://github.com/yanqingmen)
-  - Yangqing is the creator of xgboost java package.
+  - Yangqing is the creator of XGBoost java package.
 * [Engpeng Yao](https://github.com/yepyao)
 * [Giulio](https://github.com/giuliohome)
-  - Giulio is the creator of windows project of xgboost
+  - Giulio is the creator of Windows project of XGBoost
 * [Jamie Hall](https://github.com/nerdcha)
-  - Jamie is the initial creator of xgboost sklearn module.
+  - Jamie is the initial creator of XGBoost scikit-learn module.
 * [Yen-Ying Lee](https://github.com/white1033)
 * [Masaaki Horikoshi](https://github.com/sinhrks)
-  - Masaaki is the initial creator of xgboost python plotting module.
-* [Hongliang Liu](https://github.com/phunterlau)
-* [Hyunsu Cho](http://hyunsu-cho.io/)
-  - Hyunsu is the maintainer of the XGBoost Python package. He is in charge of submitting the Python package to Python Package Index (PyPI). He is also the initial author of the CPU 'hist' updater.
+  - Masaaki is the initial creator of XGBoost Python plotting module.
 * [daiyl0320](https://github.com/daiyl0320)
-  - daiyl0320 contributed patch to xgboost distributed version more robust, and scales stably on TB scale datasets.
+  - daiyl0320 contributed patch to XGBoost distributed version more robust, and scales stably on TB scale datasets.
 * [Huayi Zhang](https://github.com/irachex)
 * [Johan Manders](https://github.com/johanmanders)
 * [yoori](https://github.com/yoori)
@@ -68,8 +74,6 @@ List of Contributors
 * [Alex Bain](https://github.com/convexquad)
 * [Baltazar Bieniek](https://github.com/bbieniek)
 * [Adam Pocock](https://github.com/Craigacp)
-* [Rory Mitchell](https://github.com/RAMitchell)
-  - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
 * [Gideon Whitehead](https://github.com/gaw89)
 * [Yi-Lin Juang](https://github.com/frankyjuang)
 * [Andrew Hannigan](https://github.com/andrewhannigan)
@@ -80,3 +84,4 @@ List of Contributors
   - liuliang01 added support for the qid column for LibSVM input format. This makes ranking task easier in distributed setting.
 * [Andrew Thia](https://github.com/BlueTea88)
   - Andrew Thia implemented feature interaction constraints
+* [Wei Tian](https://github.com/weitian)

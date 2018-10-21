@@ -33,14 +33,14 @@ using RandomEngine = std::mt19937;
 class CustomGlobalRandomEngine {
  public:
   /*! \brief The result type */
-  typedef size_t result_type;
+  using result_type = uint32_t;
   /*! \brief The minimum of random numbers generated */
   inline static constexpr result_type min() {
     return 0;
   }
   /*! \brief The maximum random numbers generated */
   inline static constexpr result_type max() {
-    return std::numeric_limits<size_t>::max();
+    return std::numeric_limits<result_type>::max();
   }
   /*!
    * \brief seed function, to be implemented

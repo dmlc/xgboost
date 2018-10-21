@@ -271,6 +271,24 @@ public class BoosterImplTest {
     Booster booster = trainBooster(trainMat, testMat);
     String[] dump = booster.getModelDump("", false, "json");
     TestCase.assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
+
+    // test with specified feature names
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    dump = booster.getModelDump(featureNames, false, "json");
+    TestCase.assertTrue(dump[0].contains("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportance() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Integer> scoreMap = booster.getFeatureScore(featureNames);
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
   }
 
   @Test

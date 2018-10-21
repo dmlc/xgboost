@@ -1,5 +1,6 @@
 // Copyright by Contributors
 #include <dmlc/io.h>
+#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 #include <string>
 #include <memory>
@@ -48,8 +49,9 @@ TEST(MetaInfo, SaveLoadBinary) {
   info.num_row_ = 2;
   info.num_col_ = 1;
 
-  std::string tmp_file = TempFileName();
-  dmlc::Stream * fs = dmlc::Stream::Create(tmp_file.c_str(), "w");
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/metainfo.binary";
+  dmlc::Stream* fs = dmlc::Stream::Create(tmp_file.c_str(), "w");
   info.SaveBinary(fs);
   delete fs;
 
@@ -62,14 +64,12 @@ TEST(MetaInfo, SaveLoadBinary) {
   EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
   EXPECT_EQ(inforead.num_col_, info.num_col_);
   EXPECT_EQ(inforead.num_row_, info.num_row_);
-
-  std::remove(tmp_file.c_str());
-
   delete fs;
 }
 
 TEST(MetaInfo, LoadQid) {
-  std::string tmp_file = TempFileName();
+  dmlc::TemporaryDirectory tempdir;
+  std::string tmp_file = tempdir.path + "/qid_test.libsvm";
   {
     std::unique_ptr<dmlc::Stream> fs(
       dmlc::Stream::Create(tmp_file.c_str(), "w"));
@@ -90,7 +90,6 @@ TEST(MetaInfo, LoadQid) {
   }
   std::unique_ptr<xgboost::DMatrix> dmat(
     xgboost::DMatrix::Load(tmp_file, true, false, "libsvm"));
-  std::remove(tmp_file.c_str());
 
   const xgboost::MetaInfo& info = dmat->Info();
   const std::vector<uint64_t> expected_qids{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
@@ -123,12 +122,9 @@ TEST(MetaInfo, LoadQid) {
       xgboost::Entry(2, 0),   xgboost::Entry(3, 0),   xgboost::Entry(4, 0.4),
       xgboost::Entry(5, 1),   xgboost::Entry(1, 0),   xgboost::Entry(2, 1),
       xgboost::Entry(3, 1),   xgboost::Entry(4, 0.5), {5, 0}};
-  dmlc::DataIter<xgboost::SparsePage>* iter = dmat->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const xgboost::SparsePage& batch = iter->Value();
-  CHECK_EQ(batch.base_rowid, 0);
-  CHECK(batch.offset.HostVector() == expected_offset);
-  CHECK(batch.data.HostVector() == expected_data);
-  CHECK(!iter->Next());
+  for (const auto &batch : dmat->GetRowBatches()) {
+    CHECK_EQ(batch.base_rowid, 0);
+    CHECK(batch.offset.HostVector() == expected_offset);
+    CHECK(batch.data.HostVector() == expected_data);
+  }
 }

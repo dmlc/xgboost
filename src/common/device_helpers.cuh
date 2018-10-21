@@ -9,6 +9,7 @@
 #include <xgboost/logging.h>
 
 #include "common.h"
+#include "span.h"
 
 #include <algorithm>
 #include <chrono>
@@ -203,7 +204,7 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   const int GRID_SIZE =
       static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                                lambda);
+                                              lambda);
 }
 
 /*
@@ -364,6 +365,7 @@ class DVec2 {
   T *other() { return buff_.Alternate(); }
 };
 
+/*! \brief Helper for allocating large block of memory. */
 template <MemoryType MemoryT>
 class BulkAllocator {
   std::vector<char *> d_ptr_;
@@ -955,7 +957,7 @@ class SaveCudaContext {
     // cudaGetDevice will fail.
     try {
       safe_cuda(cudaGetDevice(&saved_device_));
-    } catch (thrust::system::system_error & err) {
+    } catch (const dmlc::Error &except) {
       saved_device_ = -1;
     }
     func();
@@ -1034,5 +1036,23 @@ ReduceT ReduceShards(std::vector<ShardT> *shards, FunctionT f) {
       }}
   };
   return std::accumulate(sums.begin(), sums.end(), ReduceT());
+}
+
+template <typename T,
+  typename IndexT = typename xgboost::common::Span<T>::index_type>
+xgboost::common::Span<T> ToSpan(
+    thrust::device_vector<T>& vec,
+    IndexT offset = 0,
+    IndexT size = -1) {
+  size = size == -1 ? vec.size() : size;
+  CHECK_LE(offset + size, vec.size());
+  return {vec.data().get() + offset, static_cast<IndexT>(size)};
+}
+
+template <typename T>
+xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
+                                size_t offset, size_t size) {
+  using IndexT = typename xgboost::common::Span<T>::index_type;
+  return ToSpan(vec, static_cast<IndexT>(offset), static_cast<IndexT>(size));
 }
 }  // namespace dh

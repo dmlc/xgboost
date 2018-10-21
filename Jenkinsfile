@@ -14,6 +14,7 @@ def dockerRun = 'tests/ci_build/ci_build.sh'
 def utils
 
 def buildMatrix = [
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2", "multiGpu": true],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
@@ -67,22 +68,37 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
     // Destination dir for artifacts
     def distDir = "dist/${buildName}"
     def dockerArgs = ""
-    if(conf["withGpu"]){
+    if (conf["withGpu"]) {
         dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
     }
+    def test_suite = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
     // Build node - this is returned result
-    node(nodeReq) {
-        unstash name: 'srcs'
-        echo """
-        |===== XGBoost CMake build =====
-        |  dockerTarget: ${dockerTarget}
-        |  cmakeOpts   : ${opts}
-        |=========================
-        """.stripMargin('|')
-        // Invoke command inside docker
-        sh """
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${dockerTarget}.sh
-        """
+    retry(3) {
+        node(nodeReq) {
+            unstash name: 'srcs'
+            echo """
+            |===== XGBoost CMake build =====
+            |  dockerTarget: ${dockerTarget}
+            |  cmakeOpts   : ${opts}
+            |=========================
+            """.stripMargin('|')
+            // Invoke command inside docker
+            sh """
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${test_suite}.sh
+            """
+            if (!conf["multiGpu"]) {
+                sh """
+                ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
+                rm -rf "${distDir}"; mkdir -p "${distDir}/py"
+                cp xgboost "${distDir}"
+                cp -r python-package/dist "${distDir}/py"
+                # Test the wheel for compatibility on a barebones CPU container
+                ${dockerRun} release ${dockerArgs} bash -c " \
+                    pip install --user python-package/dist/xgboost-*-none-any.whl && \
+                    python -m nose tests/python"
+                """
+            }
+        }
     }
 }

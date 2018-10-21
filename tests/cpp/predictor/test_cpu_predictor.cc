@@ -32,7 +32,7 @@ TEST(cpu_predictor, Test) {
   }
 
   // Test predict instance
-  auto batch = (*dmat)->RowIterator()->Value();
+  auto &batch = *(*dmat)->GetRowBatches().begin();
   for (int i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);

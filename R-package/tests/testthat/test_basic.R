@@ -237,3 +237,28 @@ test_that("max_delta_step works", {
   expect_true(all(bst1$evaluation_log$train_logloss < bst2$evaluation_log$train_logloss))
   expect_lt(mean(bst1$evaluation_log$train_logloss)/mean(bst2$evaluation_log$train_logloss), 0.8)
 })
+
+test_that("colsample_bytree works", {
+  # Randomly generate data matrix by sampling from uniform distribution [-1, 1]
+  set.seed(1)
+  train_x <- matrix(runif(1000, min = -1, max = 1), ncol = 100)
+  train_y <- as.numeric(rowSums(train_x) > 0)
+  test_x <- matrix(runif(1000, min = -1, max = 1), ncol = 100)
+  test_y <- as.numeric(rowSums(test_x) > 0)
+  colnames(train_x) <- paste0("Feature_", sprintf("%03d", 1:100))
+  colnames(test_x) <- paste0("Feature_", sprintf("%03d", 1:100))
+   dtrain <- xgb.DMatrix(train_x, label = train_y)
+  dtest <- xgb.DMatrix(test_x, label = test_y)
+  watchlist <- list(train = dtrain, eval = dtest)
+   # Use colsample_bytree = 0.01, so that roughly one out of 100 features is
+  # chosen for each tree
+  param <- list(max_depth = 2, eta = 0, silent = 1, nthread = 2,
+                colsample_bytree = 0.01, objective = "binary:logistic",
+                eval_metric = "auc")
+   set.seed(2)
+  bst <- xgb.train(param, dtrain, nrounds = 100, watchlist, verbose = 0)
+  xgb.importance(model = bst)
+  # If colsample_bytree works properly, a variety of features should be used
+  # in the 100 trees
+  expect_gte(nrow(xgb.importance(model = bst)), 30)
+})

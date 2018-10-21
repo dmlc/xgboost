@@ -18,10 +18,7 @@ void SimpleCSRSource::Clear() {
 void SimpleCSRSource::CopyFrom(DMatrix* src) {
   this->Clear();
   this->info = src->Info();
-  auto iter = src->RowIterator();
-  iter->BeforeFirst();
-  while (iter->Next()) {
-    const auto &batch = iter->Value();
+  for (const auto &batch : src->GetRowBatches()) {
     page_.Push(batch);
   }
 }

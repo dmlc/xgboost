@@ -11,7 +11,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include "avx_helpers.h"
+#include <utility>
 
 namespace xgboost {
 namespace common {
@@ -24,27 +24,32 @@ XGBOOST_DEVICE inline float Sigmoid(float x) {
   return 1.0f / (1.0f + expf(-x));
 }
 
-inline avx::Float8 Sigmoid(avx::Float8 x) {
-  return avx::Sigmoid(x);
-}
-
 /*!
- * \brief do inplace softmax transformaton on p_rec
- * \param p_rec the input/output vector of the values.
+ * \brief Do inplace softmax transformaton on start to end
+ *
+ * \tparam Iterator Input iterator type
+ *
+ * \param start Start iterator of input
+ * \param end end iterator of input
  */
-inline void Softmax(std::vector<float>* p_rec) {
-  std::vector<float> &rec = *p_rec;
-  float wmax = rec[0];
-  for (size_t i = 1; i < rec.size(); ++i) {
-    wmax = std::max(rec[i], wmax);
+template <typename Iterator>
+XGBOOST_DEVICE inline void Softmax(Iterator start, Iterator end) {
+  static_assert(std::is_same<bst_float,
+                typename std::remove_reference<
+                  decltype(std::declval<Iterator>().operator*())>::type
+                >::value,
+                "Values should be of type bst_float");
+  bst_float wmax = *start;
+  for (Iterator i = start+1; i != end; ++i) {
+    wmax = fmaxf(*i, wmax);
   }
   double wsum = 0.0f;
-  for (float & elem : rec) {
-    elem = std::exp(elem - wmax);
-    wsum += elem;
+  for (Iterator i = start; i != end; ++i) {
+    *i = expf(*i - wmax);
+    wsum += *i;
   }
-  for (float & elem : rec) {
-    elem /= static_cast<float>(wsum);
+  for (Iterator i = start; i != end; ++i) {
+    *i /= static_cast<float>(wsum);
   }
 }
 
@@ -56,7 +61,7 @@ inline void Softmax(std::vector<float>* p_rec) {
  * \tparam Iterator The type of the iterator.
  */
 template<typename Iterator>
-inline Iterator FindMaxIndex(Iterator begin, Iterator end) {
+XGBOOST_DEVICE inline Iterator FindMaxIndex(Iterator begin, Iterator end) {
   Iterator maxit = begin;
   for (Iterator it = begin; it != end; ++it) {
     if (*it > *maxit) maxit = it;

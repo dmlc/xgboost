@@ -661,19 +661,12 @@ class GPUMaker : public TreeUpdater {
     fId->reserve(nCols * nRows);
     // in case you end up with a DMatrix having no column access
     // then make sure to enable that before copying the data!
-    if (!dmat->HaveColAccess(true)) {
-      dmat->InitColAccess(nRows, true);
-    }
-    auto iter = dmat->ColIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto& batch : dmat->GetSortedColumnBatches()) {
       for (int i = 0; i < batch.Size(); i++) {
         auto col = batch[i];
-        for (const Entry* it = col.data(); it != col.data() + col.size();
-             it++) {
-          int inst_id = static_cast<int>(it->index);
-          fval->push_back(it->fvalue);
+        for (const Entry& e : col) {
+          int inst_id = static_cast<int>(e.index);
+          fval->push_back(e.fvalue);
           fId->push_back(inst_id);
         }
         offset->push_back(fval->size());

@@ -10,7 +10,7 @@
 namespace xgboost {
 namespace common {
 
-TEST(gpu_hist_util, TestDeviceSketch) {
+void TestDeviceSketch(const GPUSet& devices) {
   // create the data
   int nrows = 10001;
   std::vector<float> test_data(nrows);
@@ -28,7 +28,7 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   tree::TrainParam p;
   p.max_bin = 20;
   p.gpu_id = 0;
-  p.n_gpus = GPUSet::AllVisible().Size();
+  p.n_gpus = devices.Size();
   // ensure that the exact quantiles are found
   p.gpu_batch_nrows = nrows * 10;
 
@@ -37,13 +37,9 @@ TEST(gpu_hist_util, TestDeviceSketch) {
   hmat_cpu.Init((*dmat).get(), p.max_bin);
 
   // find the cuts on the GPU
-  dmlc::DataIter<SparsePage>* iter = (*dmat)->RowIterator();
-  iter->BeforeFirst();
-  CHECK(iter->Next());
-  const SparsePage& batch = iter->Value();
+  const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   HistCutMatrix hmat_gpu;
   DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu);
-  CHECK(!iter->Next());
 
   // compare the cuts
   double eps = 1e-2;
@@ -57,6 +53,18 @@ TEST(gpu_hist_util, TestDeviceSketch) {
 
   delete dmat;
 }
+
+TEST(gpu_hist_util, DeviceSketch) {
+  TestDeviceSketch(GPUSet::Range(0, 1));
+}
+
+#if defined(XGBOOST_USE_NCCL)
+TEST(gpu_hist_util, MGPU_DeviceSketch) {
+  auto devices = GPUSet::AllVisible();
+  CHECK_GT(devices.Size(), 1);
+  TestDeviceSketch(devices);
+}
+#endif
 
 }  // namespace common
 }  // namespace xgboost

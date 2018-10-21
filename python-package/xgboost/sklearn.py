@@ -181,6 +181,27 @@ class XGBModel(XGBModelBase):
             raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
+    def set_params(self, **params):
+        """Set the parameters of this estimator.
+        Modification of the sklearn method to allow unknown kwargs. This allows using
+        the full range of xgboost parameters that are not defined as member variables
+        in sklearn grid search.
+        Returns
+        -------
+        self
+        """
+        if not params:
+            # Simple optimization to gain speed (inspect is slow)
+            return self
+
+        for key, value in params.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                self.kwargs[key] = value
+
+        return self
+
     def get_params(self, deep=False):
         """Get parameters."""
         params = super(XGBModel, self).get_params(deep=deep)
@@ -465,6 +486,12 @@ class XGBModel(XGBModelBase):
     def feature_importances_(self):
         """
         Feature importances property
+
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
 
         Returns
         -------

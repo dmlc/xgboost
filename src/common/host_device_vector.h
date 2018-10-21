@@ -111,8 +111,11 @@ class GPUDistribution {
   }
 
   friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
-    return a.devices_ == b.devices_ && a.granularity_ == b.granularity_ &&
-      a.overlap_ == b.overlap_ && a.offsets_ == b.offsets_;
+    bool const res = a.devices_ == b.devices_ &&
+                     a.granularity_ == b.granularity_ &&
+                     a.overlap_ == b.overlap_ &&
+                     a.offsets_ == b.offsets_;
+    return res;
   }
 
   friend bool operator!=(const GPUDistribution& a, const GPUDistribution& b) {
