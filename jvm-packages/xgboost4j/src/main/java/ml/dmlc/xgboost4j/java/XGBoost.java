@@ -120,7 +120,7 @@ public class XGBoost {
    *                iteration
    * @param earlyStoppingRounds if non-zero, training would be stopped
    *                           after a specified number of consecutive
-   *                           increases in any evaluation metric.
+   *                           goes to the unexpected direction in any evaluation metric.
    * @param obj     customized objective
    * @param eval    customized evaluation
    * @param booster train from scratch if set to null; train from an existing booster if not null.
@@ -196,12 +196,14 @@ public class XGBoost {
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
-        boolean onTrack = judgeIfTrainingOnTrack(params, earlyStoppingRounds, metrics, iter);
-        if (earlyStoppingRounds > 0 && !onTrack) {
-          String reversedDirection = getReversedDirection(params);
-          Rabit.trackerPrint(String.format(
-                  "early stopping after %d %s rounds", earlyStoppingRounds, reversedDirection));
-          break;
+        if (earlyStoppingRounds > 0) {
+          boolean onTrack = judgeIfTrainingOnTrack(params, earlyStoppingRounds, metrics, iter);
+          if (!onTrack) {
+            String reversedDirection = getReversedDirection(params);
+            Rabit.trackerPrint(String.format(
+                    "early stopping after %d %s rounds", earlyStoppingRounds, reversedDirection));
+            break;
+          }
         }
         if (Rabit.getRank() == 0) {
           Rabit.trackerPrint(evalInfo + '\n');
@@ -214,11 +216,11 @@ public class XGBoost {
 
   static boolean judgeIfTrainingOnTrack(
           Map<String, Object> params, int earlyStoppingRounds, float[][] metrics, int iter) {
-    boolean metricsExpectedDirection = getMetricsExpectedDirection(params, earlyStoppingRounds);
+    boolean maximizeEvaluationMetrics = getMetricsExpectedDirection(params);
     boolean onTrack = false;
     float[] criterion = metrics[metrics.length - 1];
     for (int shift = 0; shift < Math.min(iter, earlyStoppingRounds) - 1; shift++) {
-      onTrack |= metricsExpectedDirection ?
+      onTrack |= maximizeEvaluationMetrics ?
               criterion[iter - shift] >= criterion[iter - shift - 1] :
               criterion[iter - shift] <= criterion[iter - shift - 1];
     }
@@ -227,28 +229,22 @@ public class XGBoost {
 
   private static String getReversedDirection(Map<String, Object> params) {
     String reversedDirection = null;
-    if (params.get("metrics_expected_direction").equals("asc")) {
+    if (Boolean.valueOf(String.valueOf(params.get("maximize_evaluation_metrics")))) {
       reversedDirection = "descending";
-    } else if (params.get("metrics_expected_direction").equals("desc")) {
+    } else if (!Boolean.valueOf(String.valueOf(params.get("maximize_evaluation_metrics")))) {
       reversedDirection = "ascending";
     }
     return reversedDirection;
   }
 
-  private static boolean getMetricsExpectedDirection(
-      Map<String, Object> params, int earlyStoppingRound) {
-    boolean metricsExpectedDirection = false;
-    if (earlyStoppingRound > 0) {
-      if (params.get("metrics_expected_direction").equals("asc")) {
-        metricsExpectedDirection = true;
-      } else if (params.get("metrics_expected_direction").equals("desc")) {
-        metricsExpectedDirection = false;
-      } else {
-        throw new IllegalArgumentException("metrics_expected_direction has to be specified as" +
-                " either asc or desc");
-      }
+  private static boolean getMetricsExpectedDirection(Map<String, Object> params) {
+    try {
+      return Boolean.valueOf(String.valueOf(params.get("maximize_evaluation_metrics")));
+    } catch (Exception ex) {
+      logger.error("maximize_evaluation_metrics has to be specified for enabling early stop," +
+              " allowed value: true/false", ex);
+      throw ex;
     }
-    return metricsExpectedDirection;
   }
 
   /**

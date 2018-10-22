@@ -159,7 +159,7 @@ public class BoosterImplTest {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
-        put("metrics_expected_direction", "desc");
+        put("maximize_evaluation_metrics", "false");
       }
     };
     float[][] metrics = new float[1][5];
@@ -189,7 +189,7 @@ public class BoosterImplTest {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
-        put("metrics_expected_direction", "asc");
+        put("maximize_evaluation_metrics", "true");
       }
     };
     float[][] metrics = new float[1][5];

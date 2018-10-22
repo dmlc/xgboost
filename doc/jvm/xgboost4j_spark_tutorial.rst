@@ -188,9 +188,9 @@ Early Stopping
 
 Early stopping is a feature to prevent the unnecessary training iterations. By specifying ``num_early_stopping_rounds`` or directly call ``setNumEarlyStoppingRounds`` over a XGBoostClassifier or XGBoostRegressor, we can define number of rounds for the evaluation metric going to the unexpected direction to tolerate before stopping the training.
 
-In additional to ``num_early_stopping_rounds``, you also need to define ``metrics_expected_direction`` or call ``setMetricsExpectedDirection`` to specify what's the expected direction you want metrics to change.
+In additional to ``num_early_stopping_rounds``, you also need to define ``maximize_evaluation_metrics`` or call ``setMaximizeEvaluationMetrics`` to specify whether you want to maximize or minimize the metrics in training.
 
-After specifying these two parameters, the training would stop when the metrics goes to the other direction against ``metrics_expected_direction`` for ``num_early_stopping_rounds`` iterations.
+After specifying these two parameters, the training would stop when the metrics goes to the other direction against the one specified by ``maximize_evaluation_metrics`` for ``num_early_stopping_rounds`` iterations.
 
 Prediction
 ==========
