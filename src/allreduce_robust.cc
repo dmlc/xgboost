@@ -334,7 +334,7 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
         if (len == sizeof(sig)) all_links[i].size_write = 2;
       }
     }
-    utils::SelectHelper rsel;
+    utils::PollHelper rsel;
     bool finished = true;
     for (int i = 0; i < nlink; ++i) {
       if (all_links[i].size_write != 2 && !all_links[i].sock.BadSocket()) {
@@ -343,15 +343,15 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
     }
     if (finished) break;
     // wait to read from the channels to discard data
-    rsel.Select();
+    rsel.Poll();
   }
   for (int i = 0; i < nlink; ++i) {
     if (!all_links[i].sock.BadSocket()) {
-      utils::SelectHelper::WaitExcept(all_links[i].sock);
+      utils::PollHelper::WaitExcept(all_links[i].sock);
     }
   }
   while (true) {
-    utils::SelectHelper rsel;
+    utils::PollHelper rsel;
     bool finished = true;
     for (int i = 0; i < nlink; ++i) {
       if (all_links[i].size_read == 0 && !all_links[i].sock.BadSocket()) {
@@ -359,7 +359,7 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
       }
     }
     if (finished) break;
-    rsel.Select();
+    rsel.Poll();
     for (int i = 0; i < nlink; ++i) {
       if (all_links[i].sock.BadSocket()) continue;
       if (all_links[i].size_read == 0) {
@@ -624,32 +624,32 @@ AllreduceRobust::TryRecoverData(RecoverType role,
   }
   while (true) {
     bool finished = true;
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     for (int i = 0; i < nlink; ++i) {
       if (i == recv_link && links[i].size_read != size) {
-        selecter.WatchRead(links[i].sock);
+        watcher.WatchRead(links[i].sock);
         finished = false;
       }
       if (req_in[i] && links[i].size_write != size) {
         if (role == kHaveData ||
             (links[recv_link].size_read != links[i].size_write)) {
-          selecter.WatchWrite(links[i].sock);
+          watcher.WatchWrite(links[i].sock);
         }
         finished = false;
       }
-      selecter.WatchException(links[i].sock);
+      watcher.WatchException(links[i].sock);
     }
     if (finished) break;
-    selecter.Select();
+    watcher.Poll();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-      if (selecter.CheckExcept(links[i].sock)) {
+      if (watcher.CheckExcept(links[i].sock)) {
         return ReportError(&links[i], kGetExcept);
       }
     }
     if (role == kRequestData) {
       const int pid = recv_link;
-      if (selecter.CheckRead(links[pid].sock)) {
+      if (watcher.CheckRead(links[pid].sock)) {
         ReturnType ret = links[pid].ReadToArray(sendrecvbuf_, size);
         if (ret != kSuccess) {
           return ReportError(&links[pid], ret);
@@ -677,7 +677,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     if (role == kPassData) {
       const int pid = recv_link;
       const size_t buffer_size = links[pid].buffer_size;
-      if (selecter.CheckRead(links[pid].sock)) {
+      if (watcher.CheckRead(links[pid].sock)) {
         size_t min_write = size;
         for (int i = 0; i < nlink; ++i) {
           if (req_in[i]) min_write = std::min(links[i].size_write, min_write);
@@ -1144,22 +1144,22 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
   char *buf = reinterpret_cast<char*>(sendrecvbuf_);
   while (true) {
     bool finished = true;
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     if (read_ptr != read_end) {
-      selecter.WatchRead(prev.sock);
+      watcher.WatchRead(prev.sock);
       finished = false;
     }
     if (write_ptr < read_ptr && write_ptr != write_end) {
-      selecter.WatchWrite(next.sock);
+      watcher.WatchWrite(next.sock);
       finished = false;
     }
-    selecter.WatchException(prev.sock);
-    selecter.WatchException(next.sock);
+    watcher.WatchException(prev.sock);
+    watcher.WatchException(next.sock);
     if (finished) break;
-    selecter.Select();
-    if (selecter.CheckExcept(prev.sock)) return ReportError(&prev, kGetExcept);
-    if (selecter.CheckExcept(next.sock)) return ReportError(&next, kGetExcept);
-    if (read_ptr != read_end && selecter.CheckRead(prev.sock)) {
+    watcher.Poll();
+    if (watcher.CheckExcept(prev.sock)) return ReportError(&prev, kGetExcept);
+    if (watcher.CheckExcept(next.sock)) return ReportError(&next, kGetExcept);
+    if (read_ptr != read_end && watcher.CheckRead(prev.sock)) {
       ssize_t len = prev.sock.Recv(buf + read_ptr, read_end - read_ptr);
       if (len == 0) {
         prev.sock.Close(); return ReportError(&prev, kRecvZeroLen);

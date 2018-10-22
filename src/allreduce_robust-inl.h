@@ -69,30 +69,30 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     if (parent_index == -1) {
       utils::Assert(stage != 2 && stage != 1, "invalie stage id");
     }
-    // select helper
-    utils::SelectHelper selecter;
+    // poll helper
+    utils::PollHelper watcher;
     bool done = (stage == 3);
     for (int i = 0; i < nlink; ++i) {
-      selecter.WatchException(links[i].sock);
+      watcher.WatchException(links[i].sock);
       switch (stage) {
         case 0:
           if (i != parent_index && links[i].size_read != sizeof(EdgeType)) {
-            selecter.WatchRead(links[i].sock);
+            watcher.WatchRead(links[i].sock);
           }
           break;
         case 1:
           if (i == parent_index) {
-            selecter.WatchWrite(links[i].sock);
+            watcher.WatchWrite(links[i].sock);
           }
           break;
         case 2:
           if (i == parent_index) {
-            selecter.WatchRead(links[i].sock);
+            watcher.WatchRead(links[i].sock);
           }
           break;
         case 3:
           if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
-            selecter.WatchWrite(links[i].sock);
+            watcher.WatchWrite(links[i].sock);
             done = false;
           }
           break;
@@ -101,11 +101,11 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     }
     // finish all the stages, and write out message
     if (done) break;
-    selecter.Select();
+    watcher.Poll();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) {
+      if (watcher.CheckExcept(links[i].sock)) {
         return ReportError(&links[i], kGetExcept);
       }
     }
@@ -114,7 +114,7 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
       // read data from childs
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
-          if (selecter.CheckRead(links[i].sock)) {
+          if (watcher.CheckRead(links[i].sock)) {
             ReturnType ret = links[i].ReadToArray(&edge_in[i], sizeof(EdgeType));
             if (ret != kSuccess) return ReportError(&links[i], ret);
           }

@@ -208,9 +208,9 @@ utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
       } else {
         fprintf(stderr, "retry connect to ip(retry time %d): [%s]\n", retry, tracker_uri.c_str());
         #ifdef _MSC_VER
-        Sleep(1);
+        Sleep(retry << 1);
         #else
-        sleep(1);
+        sleep(retry << 1);
         #endif
         continue;
       }
@@ -454,29 +454,29 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
   while (true) {
     // select helper
     bool finished = true;
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     for (int i = 0; i < nlink; ++i) {
       if (i == parent_index) {
         if (size_down_in != total_size) {
-          selecter.WatchRead(links[i].sock);
+          watcher.WatchRead(links[i].sock);
           // only watch for exception in live channels
-          selecter.WatchException(links[i].sock);
+          watcher.WatchException(links[i].sock);
           finished = false;
         }
         if (size_up_out != total_size && size_up_out < size_up_reduce) {
-          selecter.WatchWrite(links[i].sock);
+          watcher.WatchWrite(links[i].sock);
         }
       } else {
         if (links[i].size_read != total_size) {
-          selecter.WatchRead(links[i].sock);
+          watcher.WatchRead(links[i].sock);
         }
         // size_write <= size_read
         if (links[i].size_write != total_size) {
           if (links[i].size_write < size_down_in) {
-            selecter.WatchWrite(links[i].sock);
+            watcher.WatchWrite(links[i].sock);
           }
           // only watch for exception in live channels
-          selecter.WatchException(links[i].sock);
+          watcher.WatchException(links[i].sock);
           finished = false;
         }
       }
@@ -484,17 +484,17 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     // finish runing allreduce
     if (finished) break;
     // select must return
-    selecter.Select();
+    watcher.Poll();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) {
+      if (watcher.CheckExcept(links[i].sock)) {
         return ReportError(&links[i], kGetExcept);
       }
     }
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
-      if (i != parent_index && selecter.CheckRead(links[i].sock)) {
+      if (i != parent_index && watcher.CheckRead(links[i].sock)) {
         ReturnType ret = links[i].ReadToRingBuffer(size_up_out, total_size);
         if (ret != kSuccess) {
           return ReportError(&links[i], ret);
@@ -551,7 +551,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         }
       }
       // read data from parent
-      if (selecter.CheckRead(links[parent_index].sock) &&
+      if (watcher.CheckRead(links[parent_index].sock) &&
           total_size > size_down_in) {
         ssize_t len = links[parent_index].sock.
             Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
@@ -620,37 +620,37 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   while (true) {
     bool finished = true;
     // select helper
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     for (int i = 0; i < nlink; ++i) {
       if (in_link == -2) {
-        selecter.WatchRead(links[i].sock); finished = false;
+        watcher.WatchRead(links[i].sock); finished = false;
       }
       if (i == in_link && links[i].size_read != total_size) {
-        selecter.WatchRead(links[i].sock); finished = false;
+        watcher.WatchRead(links[i].sock); finished = false;
       }
       if (in_link != -2 && i != in_link && links[i].size_write != total_size) {
         if (links[i].size_write < size_in) {
-          selecter.WatchWrite(links[i].sock);
+          watcher.WatchWrite(links[i].sock);
         }
         finished = false;
       }
-      selecter.WatchException(links[i].sock);
+      watcher.WatchException(links[i].sock);
     }
     // finish running
     if (finished) break;
     // select
-    selecter.Select();
+    watcher.Poll();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) {
+      if (watcher.CheckExcept(links[i].sock)) {
         return ReportError(&links[i], kGetExcept);
       }
     }
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
-        if (selecter.CheckRead(links[i].sock)) {
+        if (watcher.CheckRead(links[i].sock)) {
           ReturnType ret = links[i].ReadToArray(sendrecvbuf_, total_size);
           if (ret != kSuccess) {
             return ReportError(&links[i], ret);
@@ -663,7 +663,7 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
       }
     } else {
       // read from in link
-      if (in_link >= 0 && selecter.CheckRead(links[in_link].sock)) {
+      if (in_link >= 0 && watcher.CheckRead(links[in_link].sock)) {
         ReturnType ret = links[in_link].ReadToArray(sendrecvbuf_, total_size);
         if (ret != kSuccess) {
           return ReportError(&links[in_link], ret);
@@ -717,20 +717,20 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
   while (true) {
     // select helper
     bool finished = true;
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     if (read_ptr != stop_read) {
-      selecter.WatchRead(next.sock);
+      watcher.WatchRead(next.sock);
       finished = false;
     }
     if (write_ptr != stop_write) {
       if (write_ptr < read_ptr) {
-        selecter.WatchWrite(prev.sock);
+        watcher.WatchWrite(prev.sock);
       }
       finished  = false;
     }
     if (finished) break;
-    selecter.Select();
-    if (read_ptr != stop_read && selecter.CheckRead(next.sock)) {
+    watcher.Poll();
+    if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       size_t size = stop_read - read_ptr;
       size_t start = read_ptr % total_size;
       if (start + size > total_size) {
@@ -811,20 +811,20 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
   while (true) {
     // select helper
     bool finished = true;
-    utils::SelectHelper selecter;
+    utils::PollHelper watcher;
     if (read_ptr != stop_read) {
-      selecter.WatchRead(next.sock);
+      watcher.WatchRead(next.sock);
       finished = false;
     }
     if (write_ptr != stop_write) {
       if (write_ptr < reduce_ptr) {
-        selecter.WatchWrite(prev.sock);
+        watcher.WatchWrite(prev.sock);
       }
       finished = false;
     }
     if (finished) break;
-    selecter.Select();
-    if (read_ptr != stop_read && selecter.CheckRead(next.sock)) {
+    watcher.Poll();
+    if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       ReturnType ret = next.ReadToRingBuffer(reduce_ptr, stop_read);
       if (ret != kSuccess) {
         return ReportError(&next, ret);
