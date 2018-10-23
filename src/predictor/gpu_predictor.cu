@@ -245,11 +245,12 @@ class GPUPredictor : public xgboost::Predictor {
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
     for (int shard = 0; shard < devices.Size(); ++shard) {
       int device = devices[shard];
+      auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
       // copy the last element from every shard
-      dh::safe_cuda(cudaMemcpy(&offsets[shard + 1],
-                               data.DevicePointer(device) + data.DeviceSize(device) - 1,
-                               sizeof(size_t), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
+                               &data_span[data_span.size()-1],
+                               sizeof(size_t), cudaMemcpyDeviceToHost));
     }
     LOG(INFO) << CurrentDeviceStr() << ", Done\t" << __PRETTY_FUNCTION__;
   }
