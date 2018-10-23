@@ -99,8 +99,8 @@ TEST(gpu_predictor, MGPU_Test) {
   LOG(INFO) << "";
   model.param.num_output_group = 1;
 
-  int n_row = 51;
-  int n_col = 15;
+  int n_row = 5;
+  int n_col = 5;
 
   auto dmat = CreateDMatrix(n_row, n_col, 0);
   LOG(INFO) << "";
