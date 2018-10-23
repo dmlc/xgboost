@@ -137,8 +137,8 @@ struct ElementLoader {
       return smem[threadIdx.x * num_features + fidx];
     } else {
       // Binary search
-      auto begin_ptr = d_data.begin() + d_row_ptr[ridx] - entry_start;
-      auto end_ptr = d_data.begin() + d_row_ptr[ridx + 1] - entry_start;
+      auto begin_ptr = d_data.begin() + (d_row_ptr[ridx] - entry_start);
+      auto end_ptr = d_data.begin() + (d_row_ptr[ridx + 1] - entry_start);
       common::Span<const Entry>::iterator previous_middle;
       while (end_ptr != begin_ptr) {
         auto middle = begin_ptr + (end_ptr - begin_ptr) / 2;
@@ -183,7 +183,7 @@ __device__ float GetLeafWeight(bst_uint ridx, const DevicePredictionNode* tree,
 
 template <int BLOCK_THREADS>
 __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
-                              float* d_out_predictions, size_t* d_tree_segments,
+                              common::Span<float> d_out_predictions, size_t* d_tree_segments,
                               int* d_tree_group, common::Span<const size_t> d_row_ptr,
                               common::Span<const Entry> d_data, size_t tree_begin,
                               size_t tree_end, size_t num_features,
@@ -277,7 +277,7 @@ class GPUPredictor : public xgboost::Predictor {
       size_t entry_start = data_distr.ShardStart(batch.data.Size(), index);
 
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::Raw(nodes), predictions->DevicePointer(device), dh::Raw(tree_segments),
+        (dh::Raw(nodes), predictions->DeviceSpan(device), dh::Raw(tree_segments),
          dh::Raw(tree_group), batch.offset.DeviceSpan(device),
          batch.data.DeviceSpan(device), tree_begin, tree_end, info.num_col_,
          num_rows, entry_start, use_shared, model.param.num_output_group);
