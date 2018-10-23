@@ -132,6 +132,11 @@ object XGBoost extends Serializable {
     try {
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
+      if (numEarlyStoppingRounds > 0) {
+        if (!params.contains("maximize_evaluation_metrics")) {
+          throw new IllegalArgumentException("maximize_evaluation_metrics has to be specified")
+        }
+      }
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
       val booster = SXGBoost.train(watches.train, params, round,
         watches.toMap, metrics, obj, eval,

@@ -140,6 +140,9 @@ class XGBoostClassifier (
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
 
+  def setMaximizeEvaluationMetrics(value: Boolean): this.type =
+    set(maximizeEvaluationMetrics, value)
+
   def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)

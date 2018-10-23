@@ -87,6 +87,13 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getNumEarlyStoppingRounds: Int = $(numEarlyStoppingRounds)
 
+
+  final val maximizeEvaluationMetrics = new BooleanParam(this, "maximizeEvaluationMetrics",
+    "define the expected optimization to the evaluation metrics, true to maximize otherwise" +
+      " minimize it")
+
+  final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
+
   setDefault(objective -> "reg:linear", baseScore -> 0.5,
     trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
 }
