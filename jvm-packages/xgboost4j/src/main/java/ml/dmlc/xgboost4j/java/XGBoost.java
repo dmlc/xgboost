@@ -239,7 +239,9 @@ public class XGBoost {
 
   private static boolean getMetricsExpectedDirection(Map<String, Object> params) {
     try {
-      return Boolean.valueOf(String.valueOf(params.get("maximize_evaluation_metrics")));
+      String maximize = String.valueOf(params.get("maximize_evaluation_metrics"));
+      assert(maximize != null);
+      return Boolean.valueOf(maximize);
     } catch (Exception ex) {
       logger.error("maximize_evaluation_metrics has to be specified for enabling early stop," +
               " allowed value: true/false", ex);

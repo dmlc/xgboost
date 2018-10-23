@@ -222,7 +222,7 @@ public class BoosterImplTest {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
-        put("metrics_expected_direction", "desc");
+        put("maximize_evaluation_metrics", "false");
       }
     };
     Map<String, DMatrix> watches = new LinkedHashMap<>();
