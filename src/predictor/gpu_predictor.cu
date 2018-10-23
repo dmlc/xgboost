@@ -369,7 +369,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     size_t i_batch = 0;
-    LOG(INFO) << CurrentDeviceStr();
+    LOG(INFO) << "Before real predict:" << CurrentDeviceStr();
     for (const auto &batch : dmat->GetRowBatches()) {
       LOG(INFO) << CurrentDeviceStr();
       CHECK_EQ(i_batch, 0) << "External memory not supported";
@@ -380,14 +380,15 @@ class GPUPredictor : public xgboost::Predictor {
       LOG(INFO) << CurrentDeviceStr();
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices, device_offsets));
-      LOG(INFO) << CurrentDeviceStr();
+      LOG(INFO) << "Before ExecuteShards:" << CurrentDeviceStr();
       dh::ExecuteShards(&shards, [&](DeviceShard& shard){
           shard.PredictInternal(batch, dmat->Info(), out_preds, model, h_tree_segments,
                                 h_nodes, tree_begin, tree_end);
         });
       i_batch++;
-      LOG(INFO) << CurrentDeviceStr();
+      LOG(INFO) << "After ExecuteShards:" << CurrentDeviceStr();
     }
+    LOG(INFO) << "After real predict:" << CurrentDeviceStr();
     LOG(INFO) << CurrentDeviceStr() << ", Done\t" << __PRETTY_FUNCTION__;;
   }
 
@@ -485,12 +486,16 @@ class GPUPredictor : public xgboost::Predictor {
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {
+    LOG(INFO) << CurrentDeviceStr() << __PRETTY_FUNCTION__;
     cpu_predictor->PredictInstance(inst, out_preds, model, root_index);
+    LOG(INFO) << CurrentDeviceStr() << ", Done\t" << __PRETTY_FUNCTION__;
   }
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model,
                    unsigned ntree_limit) override {
+    LOG(INFO) << CurrentDeviceStr() << __PRETTY_FUNCTION__;
     cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
+    LOG(INFO) << CurrentDeviceStr() << ", Done\t" << __PRETTY_FUNCTION__;
   }
 
   void PredictContribution(DMatrix* p_fmat,
@@ -498,9 +503,11 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
                            bool approximate, int condition,
                            unsigned condition_feature) override {
+    LOG(INFO) << CurrentDeviceStr() << __PRETTY_FUNCTION__;
     cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit,
                                        approximate, condition,
                                        condition_feature);
+    LOG(INFO) << CurrentDeviceStr() << ", Done\t" << __PRETTY_FUNCTION__;
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
