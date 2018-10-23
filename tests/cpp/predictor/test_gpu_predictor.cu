@@ -88,7 +88,7 @@ TEST(gpu_predictor, MGPU_Test) {
   gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
   cpu_predictor->Init({}, {});
 
-  for (size_t i = 1; i < 1001; i *= 10) {
+  for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
