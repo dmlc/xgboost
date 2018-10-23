@@ -182,9 +182,9 @@ __device__ float GetLeafWeight(bst_uint ridx, const DevicePredictionNode* tree,
 }
 
 template <int BLOCK_THREADS>
-__global__ void PredictKernel(const DevicePredictionNode* d_nodes,
-                              common::Span<float> d_out_predictions, size_t* d_tree_segments,
-                              int* d_tree_group, common::Span<const size_t> d_row_ptr,
+__global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
+                              common::Span<float> d_out_predictions, common::Span<size_t> d_tree_segments,
+                              common::Span<int> d_tree_group, common::Span<const size_t> d_row_ptr,
                               common::Span<const Entry> d_data, size_t tree_begin,
                               size_t tree_end, size_t num_features,
                               size_t num_rows, size_t entry_start,
@@ -198,7 +198,7 @@ __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
     float sum = 0;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       const DevicePredictionNode* d_tree =
-          d_nodes + d_tree_segments[tree_idx - tree_begin];
+          &d_nodes[d_tree_segments[tree_idx - tree_begin]];
       sum += GetLeafWeight(global_idx, d_tree, &loader);
     }
     d_out_predictions[global_idx] += sum;
@@ -206,7 +206,7 @@ __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       int tree_group = d_tree_group[tree_idx];
       const DevicePredictionNode* d_tree =
-          d_nodes + d_tree_segments[tree_idx - tree_begin];
+          &d_nodes[d_tree_segments[tree_idx - tree_begin]];
       bst_uint out_prediction_idx = global_idx * num_group + tree_group;
       d_out_predictions[out_prediction_idx] +=
           GetLeafWeight(global_idx, d_tree, &loader);
@@ -228,26 +228,26 @@ class GPUPredictor : public xgboost::Predictor {
     offsets[0] = 0;
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
     for (int shard = 0; shard < devices.Size(); ++shard) {
-        int device = devices[shard];
-        dh::safe_cuda(cudaSetDevice(device));
-        // copy the last element from every shard
-        dh::safe_cuda(cudaMemcpy(&offsets[shard + 1],
-                                 data.DevicePointer(device) + data.DeviceSize(device) - 1,
-                                 sizeof(size_t), cudaMemcpyDefault));
+      int device = devices[shard];
+      dh::safe_cuda(cudaSetDevice(device));
+      // copy the last element from every shard
+      dh::safe_cuda(cudaMemcpy(&offsets[shard + 1],
+                               data.DevicePointer(device) + data.DeviceSize(device) - 1,
+                               sizeof(size_t), cudaMemcpyDefault));
     }
   }
 
   struct DeviceShard {
-    DeviceShard() : device(-1) {}
+    DeviceShard() : device_(-1) {}
     void Init(int device) {
-      this->device = device;
-      max_shared_memory_bytes = dh::MaxSharedMemory(this->device);
+      this->device_ = device;
+      max_shared_memory_bytes = dh::MaxSharedMemory(this->device_);
     }
     void PredictInternal
     (const SparsePage& batch, const MetaInfo& info, HostDeviceVector<bst_float>* predictions,
      const gbm::GBTreeModel& model, const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes, size_t tree_begin, size_t tree_end) {
-      dh::safe_cuda(cudaSetDevice(device));
+      dh::safe_cuda(cudaSetDevice(device_));
       nodes.resize(h_nodes.size());
       dh::safe_cuda(cudaMemcpy(dh::Raw(nodes), h_nodes.data(),
                                sizeof(DevicePredictionNode) * h_nodes.size(),
@@ -262,7 +262,8 @@ class GPUPredictor : public xgboost::Predictor {
                                cudaMemcpyHostToDevice));
 
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.DeviceSize(device) - 1;
+      size_t num_rows = batch.offset.DeviceSize(device_) - 1;
+      dh::safe_cuda(cudaSetDevice(device_));
       const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
@@ -273,18 +274,18 @@ class GPUPredictor : public xgboost::Predictor {
         use_shared = false;
       }
       const auto& data_distr = batch.data.Distribution();
-      int index = data_distr.Devices().Index(device);
+      int index = data_distr.Devices().Index(device_);
       size_t entry_start = data_distr.ShardStart(batch.data.Size(), index);
-
+      dh::safe_cuda(cudaSetDevice(device_));
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::Raw(nodes), predictions->DeviceSpan(device), dh::Raw(tree_segments),
-         dh::Raw(tree_group), batch.offset.DeviceSpan(device),
-         batch.data.DeviceSpan(device), tree_begin, tree_end, info.num_col_,
+        (dh::ToSpan(nodes), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments),
+         dh::ToSpan(tree_group), batch.offset.DeviceSpan(device_),
+         batch.data.DeviceSpan(device_), tree_begin, tree_end, info.num_col_,
          num_rows, entry_start, use_shared, model.param.num_output_group);
       dh::safe_cuda(cudaDeviceSynchronize());
     }
 
-    int device;
+    int device_;
     thrust::device_vector<DevicePredictionNode> nodes;
     thrust::device_vector<size_t> tree_segments;
     thrust::device_vector<int> tree_group;
@@ -304,13 +305,13 @@ class GPUPredictor : public xgboost::Predictor {
     size_t sum = 0;
     h_tree_segments.push_back(sum);
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      sum += model.trees[tree_idx]->GetNodes().size();
+      sum += model.trees.at(tree_idx)->GetNodes().size();
       h_tree_segments.push_back(sum);
     }
 
     thrust::host_vector<DevicePredictionNode> h_nodes(h_tree_segments.back());
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      auto& src_nodes = model.trees[tree_idx]->GetNodes();
+      auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
       std::copy(src_nodes.begin(), src_nodes.end(),
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
