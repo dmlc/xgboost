@@ -9,12 +9,14 @@
 
 namespace xgboost {
 namespace predictor {
+
 TEST(gpu_predictor, Test) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
 
+  // gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "1")}, {});
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
@@ -41,8 +43,7 @@ TEST(gpu_predictor, Test) {
   std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
   float abs_tolerance = 0.001;
   for (int i = 0; i < gpu_out_predictions.Size(); i++) {
-    ASSERT_LT(std::abs(gpu_out_predictions_h[i] - cpu_out_predictions_h[i]),
-              abs_tolerance);
+    ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
   }
   // Test predict instance
   const auto &batch = *(*dmat)->GetRowBatches().begin();
@@ -87,41 +88,34 @@ TEST(gpu_predictor, MGPU_Test) {
   gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
   cpu_predictor->Init({}, {});
 
-  LOG(INFO) << "";
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-  trees.back()->InitModel();
-  LOG(INFO) << "";
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
-  gbm::GBTreeModel model(0.5);
-  model.CommitModel(std::move(trees), 0);
-  LOG(INFO) << "";
-  model.param.num_output_group = 1;
+  for (size_t i = 1; i < 1001; i *= 10) {
+    int n_row = i, n_col = i;
+    auto dmat = CreateDMatrix(n_row, n_col, 0);
 
-  int n_row = 5;
-  int n_col = 5;
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
+    trees.back()->InitModel();
+    (*trees.back())[0].SetLeaf(1.5f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    gbm::GBTreeModel model(0.5);
+    model.CommitModel(std::move(trees), 0);
+    model.param.num_output_group = 1;
 
-  auto dmat = CreateDMatrix(n_row, n_col, 0);
-  LOG(INFO) << "";
-  // Test predict batch
-  HostDeviceVector<float> gpu_out_predictions;
-  HostDeviceVector<float> cpu_out_predictions;
-  LOG(INFO) << "Before GPU_predictor";
-  gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
-  LOG(INFO) << "After GPU_predictor";
-  cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
-  LOG(INFO) << "After CPU_predictor";
-  std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
-  std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
-  LOG(INFO) << "";
-  float abs_tolerance = 0.001;
-  for (int i = 0; i < gpu_out_predictions.Size(); i++) {
-    ASSERT_LT(std::abs(gpu_out_predictions_h[i] - cpu_out_predictions_h[i]),
-              abs_tolerance);
+    // Test predict batch
+    HostDeviceVector<float> gpu_out_predictions;
+    HostDeviceVector<float> cpu_out_predictions;
+
+    gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
+    cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
+
+    std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
+    std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
+    float abs_tolerance = 0.001;
+    for (int i = 0; i < gpu_out_predictions.Size(); i++) {
+      ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
+    }
+    delete dmat;
   }
-  delete dmat;
-  LOG(INFO) << "";
 }
 
 }  // namespace predictor

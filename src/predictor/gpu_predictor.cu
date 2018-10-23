@@ -400,8 +400,8 @@ class GPUPredictor : public xgboost::Predictor {
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
     LOG(INFO) << CurrentDeviceStr() << __PRETTY_FUNCTION__;
+    devices = GPUSet::All(param.n_gpus, dmat->Info().num_row_).Normalised(param.gpu_id);
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
-      LOG(INFO) << "Return by FromCache";
       return;
     }
     this->InitOutPredictions(dmat->Info(), out_preds, model);
@@ -529,6 +529,7 @@ class GPUPredictor : public xgboost::Predictor {
     cpu_predictor->Init(cfg, cache);
     param.InitAllowUnknown(cfg);
     devices = GPUSet::All(param.n_gpus).Normalised(param.gpu_id);
+
     shards.resize(devices.Size());
     dh::ExecuteIndexShards(&shards, [=](size_t i, DeviceShard& shard){
         shard.Init(devices[i]);
