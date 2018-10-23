@@ -4,7 +4,8 @@
 daysUntilLock: 90
 
 # Issues and pull requests with these labels will not be locked. Set to `[]` to disable
-exemptLabels: []
+exemptLabels:
+  - feature-request
 
 # Label to add before locking, such as `outdated`. Set to `false` to disable
 lockLabel: false
@@ -16,7 +17,7 @@ lockComment: >
   related bugs.
 
 # Assign `resolved` as the reason for locking. Set to `false` to disable
-setLockReason: true
+setLockReason: false
 
 # Limit to only `issues` or `pulls`
 # only: issues
