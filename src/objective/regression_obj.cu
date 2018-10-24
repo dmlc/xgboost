@@ -34,7 +34,7 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   DMLC_DECLARE_PARAMETER(RegLossParam) {
     DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
       .describe("Scale the weight of positive examples by this factor");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(-1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(-1)
       .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
       .set_lower_bound(0)
