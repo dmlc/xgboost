@@ -9,6 +9,7 @@
 
 namespace xgboost {
 namespace predictor {
+
 TEST(gpu_predictor, Test) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
@@ -41,8 +42,7 @@ TEST(gpu_predictor, Test) {
   std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
   float abs_tolerance = 0.001;
   for (int i = 0; i < gpu_out_predictions.Size(); i++) {
-    ASSERT_LT(std::abs(gpu_out_predictions_h[i] - cpu_out_predictions_h[i]),
-              abs_tolerance);
+    ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
   }
   // Test predict instance
   const auto &batch = *(*dmat)->GetRowBatches().begin();
@@ -76,5 +76,46 @@ TEST(gpu_predictor, Test) {
 
   delete dmat;
 }
+
+// multi-GPU predictor test
+TEST(gpu_predictor, MGPU_Test) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+
+  gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
+  cpu_predictor->Init({}, {});
+
+  for (size_t i = 1; i < 33; i *= 2) {
+    int n_row = i, n_col = i;
+    auto dmat = CreateDMatrix(n_row, n_col, 0);
+
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
+    trees.back()->InitModel();
+    (*trees.back())[0].SetLeaf(1.5f);
+    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    gbm::GBTreeModel model(0.5);
+    model.CommitModel(std::move(trees), 0);
+    model.param.num_output_group = 1;
+
+    // Test predict batch
+    HostDeviceVector<float> gpu_out_predictions;
+    HostDeviceVector<float> cpu_out_predictions;
+
+    gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
+    cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
+
+    std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
+    std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
+    float abs_tolerance = 0.001;
+    for (int i = 0; i < gpu_out_predictions.Size(); i++) {
+      ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
+    }
+    delete dmat;
+  }
+}
+
 }  // namespace predictor
 }  // namespace xgboost

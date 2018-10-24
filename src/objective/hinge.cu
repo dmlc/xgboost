@@ -22,7 +22,7 @@ struct HingeObjParam : public dmlc::Parameter<HingeObjParam> {
   int n_gpus;
   int gpu_id;
   DMLC_DECLARE_PARAMETER(HingeObjParam) {
-    DMLC_DECLARE_FIELD(n_gpus).set_default(0).set_lower_bound(0)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(-1)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)

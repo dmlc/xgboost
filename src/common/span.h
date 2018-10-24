@@ -120,7 +120,7 @@ class SpanIterator {
 
   using reference = typename std::conditional<                    // NOLINT
     IsConst, const ElementType, ElementType>::type&;
-  using pointer = typename std::add_pointer<reference>::type&;    // NOLINT
+  using pointer = typename std::add_pointer<reference>::type;     // NOLINT
 
   XGBOOST_DEVICE constexpr SpanIterator() : span_{nullptr}, index_{0} {}
 

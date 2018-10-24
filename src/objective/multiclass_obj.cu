@@ -31,7 +31,7 @@ struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
   DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
     DMLC_DECLARE_FIELD(num_class).set_lower_bound(1)
         .describe("Number of output class in the multi-class classification.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(-1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(-1)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
@@ -63,10 +63,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
-
-    // clear out device memory;
-    out_gpair->Reshard(GPUSet::Empty());
-    preds.Reshard(GPUSet::Empty());
 
     out_gpair->Reshard(GPUDistribution::Granular(devices_, nclass));
     info.labels_.Reshard(GPUDistribution::Block(devices_));
@@ -109,11 +105,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
         }, common::Range{0, ndata}, devices_, false)
         .Eval(out_gpair, &info.labels_, &preds, &info.weights_, &label_correct_);
 
-    out_gpair->Reshard(GPUSet::Empty());
-    out_gpair->Reshard(GPUDistribution::Block(devices_));
-    preds.Reshard(GPUSet::Empty());
-    preds.Reshard(GPUDistribution::Block(devices_));
-
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {
       if (flag != 1) {
@@ -136,7 +127,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
-    io_preds->Reshard(GPUSet::Empty());  // clear out device memory
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
@@ -166,8 +156,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
       io_preds->Resize(max_preds_.Size());
       io_preds->Copy(max_preds_);
     }
-    io_preds->Reshard(GPUSet::Empty());  // clear out device memory
-    io_preds->Reshard(GPUDistribution::Block(devices_));
   }
 
  private:

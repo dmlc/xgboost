@@ -194,8 +194,9 @@ class GBTree : public GradientBooster {
       CHECK_EQ(in_gpair->Size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       // TODO(canonizer): perform this on GPU if HostDeviceVector has device set.
-      HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
-                                      GradientPair(), in_gpair->Distribution());
+      HostDeviceVector<GradientPair> tmp
+        (in_gpair->Size() / ngroup, GradientPair(),
+         GPUDistribution::Block(in_gpair->Distribution().Devices()));
       const auto& gpair_h = in_gpair->ConstHostVector();
       auto nsize = static_cast<bst_omp_uint>(tmp.Size());
       for (int gid = 0; gid < ngroup; ++gid) {
