@@ -22,7 +22,7 @@ xgb.ggplot.importance <- function(importance_matrix = NULL, top_n = NULL, measur
 
   plot <-
     ggplot2::ggplot(importance_matrix, 
-                    ggplot2::aes(x = factor(Feature, levels = rev(Feature)), y = Importance, width = 0.05),
+                    ggplot2::aes(x = factor(Feature, levels = rev(Feature)), y = Importance, width = 0.5),
                     environment = environment()) + 
     ggplot2::geom_bar(ggplot2::aes(fill = Cluster), stat = "identity", position = "identity") + 
     ggplot2::coord_flip() + 
