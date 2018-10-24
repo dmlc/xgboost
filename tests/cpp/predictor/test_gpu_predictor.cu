@@ -16,7 +16,6 @@ TEST(gpu_predictor, Test) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
 
-  // gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "1")}, {});
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
