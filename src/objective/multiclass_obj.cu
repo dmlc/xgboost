@@ -64,10 +64,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    // clear out device memory;
-    // out_gpair->Reshard(GPUSet::Empty());
-    // preds.Reshard(GPUSet::Empty());
-
     out_gpair->Reshard(GPUDistribution::Granular(devices_, nclass));
     info.labels_.Reshard(GPUDistribution::Block(devices_));
     info.weights_.Reshard(GPUDistribution::Block(devices_));
@@ -131,7 +127,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
-    // io_preds->Reshard(GPUSet::Empty());  // clear out device memory
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
