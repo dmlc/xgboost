@@ -241,6 +241,13 @@ class XGBModel(XGBModelBase):
         """
         Save the model to a file.
 
+        The model is saved in an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature names) will not be loaded.
+        Label encodings (text labels to numeric labels) will be also lost.
+        **If you are using only the Python interface, we recommend pickling the
+        model object for best results.**
+
         Parameters
         ----------
         fname : string
@@ -251,6 +258,13 @@ class XGBModel(XGBModelBase):
     def load_model(self, fname):
         """
         Load the model from a file.
+
+        The model is loaded from an XGBoost internal binary format which is
+        universal among the various XGBoost interfaces. Auxiliary attributes of
+        the Python Booster object (such as feature names) will not be loaded.
+        Label encodings (text labels to numeric labels) will be also lost.
+        **If you are using only the Python interface, we recommend pickling the
+        model object for best results.**
 
         Parameters
         ----------
