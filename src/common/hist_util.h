@@ -11,15 +11,12 @@
 #include <limits>
 #include <vector>
 #include "row_set.h"
-#include "../tree/fast_hist_param.h"
 #include "../tree/param.h"
 #include "./quantile.h"
 
 namespace xgboost {
 
 namespace common {
-
-using tree::FastHistParam;
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {
@@ -145,7 +142,7 @@ class GHistIndexBlockMatrix {
  public:
   void Init(const GHistIndexMatrix& gmat,
             const ColumnMatrix& colmat,
-            const FastHistParam& param);
+            const tree::TrainParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
     return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};

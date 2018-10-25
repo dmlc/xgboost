@@ -4,15 +4,16 @@
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 #include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
+
 #include "./param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"
-#include "../common/sync.h"
 #include "split_evaluator.h"
 
 namespace xgboost {
