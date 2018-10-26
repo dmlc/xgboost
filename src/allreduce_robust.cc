@@ -50,6 +50,12 @@ void AllreduceRobust::Shutdown(void) {
   // execute check ack step, load happens here
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
                 "Shutdown: check ack must return true");
+#ifdef __APPLE__
+  // In OSX, one worker shutdowns and closes sockets while rest still run kCheckAck
+  // This cause rest workers checkandrecover and hang inf, https://github.com/dmlc/xgboost/pull/3818
+  // TODO: a fundamental fix for this
+  sleep(2);
+#endif
   AllreduceBase::Shutdown();
 }
 /*!
