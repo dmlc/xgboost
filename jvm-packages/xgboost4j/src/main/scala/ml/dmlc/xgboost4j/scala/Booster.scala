@@ -233,7 +233,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   @throws(classOf[XGBoostError])
   def getScore(featureMap: String = null,
                importanceType: String = FeatureImportanceType.GAIN
-              ): mutable.Map[String, Integer] = {
+              ): mutable.Map[String, Double] = {
     booster.getScore(featureMap, importanceType).asScala
   }
 
@@ -246,7 +246,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   @throws(classOf[XGBoostError])
   def getScore(featureNames: Array[String],
                importanceType: String = FeatureImportanceType.GAIN
-              ): mutable.Map[String, Integer] = {
+              ): mutable.Map[String, Double] = {
     booster.getScore(featureNames, importanceType).asScala
   }
 
