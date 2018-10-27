@@ -405,8 +405,11 @@ public class Booster implements Serializable, KryoSerializable {
    * TOTAL_COVER = Total cover over all splits of a feature
    */
 
-  enum FeatureImportanceType {
-    GAIN, COVER, TOTAL_GAIN, TOTAL_COVER;
+  class FeatureImportanceType {
+    public static final String GAIN = "gain";
+    public static final String COVER = "cover";
+    public static final String TOTAL_GAIN = "total_gain";
+    public static final String TOTAL_COVER = "total_cover";
   }
 
   /**
@@ -466,7 +469,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-      String[] featureNames, FeatureImportanceType importanceType
+      String[] featureNames, String importanceType
   ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
@@ -480,7 +483,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-      String featureMap, FeatureImportanceType importanceType
+      String featureMap, String importanceType
   ) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
@@ -494,7 +497,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   private Map<String, Double> getFeatureImportanceFromModel(
-      String[] modelInfos, FeatureImportanceType importanceType
+      String[] modelInfos, String importanceType
   ) throws XGBoostError {
     Map<String, Double> importanceMap = new HashMap<>();
     Map<String, Double> weightMap = new HashMap<>();
