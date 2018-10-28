@@ -16,6 +16,28 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu);
 
+template <typename GradientPairT>
+XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
+                                         const GradientPairT& missing,
+                                         const GradientPairT& parent_sum,
+                                         const float& parent_gain,
+                                         const GPUTrainingParam& param,
+                                         bool& missing_left_out) {  // NOLINT
+  // Put gradients of missing values to left
+  float missing_left_loss =
+      DeviceCalcLossChange(param, scan + missing, parent_sum, parent_gain);
+  float missing_right_loss =
+      DeviceCalcLossChange(param, scan, parent_sum, parent_gain);
+
+  if (missing_left_loss >= missing_right_loss) {
+    missing_left_out = true;
+    return missing_left_loss;
+  } else {
+    missing_left_out = false;
+    return missing_right_loss;
+  }
+}
+
 /**
  * @brief Absolute BFS order IDs to col-wise unique IDs based on user input
  * @param tid the index of the element that this thread should access
@@ -565,7 +587,6 @@ class GPUMaker : public TreeUpdater {
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
-    GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
@@ -633,7 +654,7 @@ class GPUMaker : public TreeUpdater {
         // get the default direction for the current node
         GradientPair missing = n.sum_gradients - gradSum;
         LossChangeMissing(gradScan, missing, n.sum_gradients, n.root_gain,
-                         gpu_param, missingLeft);
+                          gpu_param, missingLeft);
         // get the score/weight/id/gradSum for left and right child nodes
         GradientPair lGradSum = missingLeft ? gradScan + missing : gradScan;
         GradientPair rGradSum = n.sum_gradients - lGradSum;
