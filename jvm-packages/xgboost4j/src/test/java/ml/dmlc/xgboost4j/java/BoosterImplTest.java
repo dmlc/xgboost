@@ -280,7 +280,7 @@ public class BoosterImplTest {
   }
 
   @Test
-  public void testGetFeatureImportance() throws XGBoostError {
+  public void testGetFeatureScore() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
 
@@ -288,6 +288,18 @@ public class BoosterImplTest {
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
     Map<String, Integer> scoreMap = booster.getFeatureScore(featureNames);
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportance() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Double> scoreMap = booster.getScore(featureNames, "gain");
     for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
   }
 
