@@ -405,7 +405,7 @@ public class Booster implements Serializable, KryoSerializable {
    * TOTAL_COVER = Total cover over all splits of a feature
    */
 
-  class FeatureImportanceType {
+  public static class FeatureImportanceType {
     public static final String GAIN = "gain";
     public static final String COVER = "cover";
     public static final String TOTAL_GAIN = "total_gain";
@@ -518,19 +518,19 @@ public class Booster implements Serializable, KryoSerializable {
             fidWithImportance[1].split(splitter)[1].split(",")[0]
         );
         String fid = fidWithImportance[0].split("<")[0];
-        if (importanceMap.contains(fid)) {
+        if (importanceMap.containsKey(fid)) {
           importanceMap.put(fid, importance + importanceMap.get(fid));
-          weightMap.put(fid, 1 + weightMap.get(fid))
+          weightMap.put(fid, 1d + weightMap.get(fid));
         } else {
           importanceMap.put(fid, importance);
-          weightMap.put(fid, 1);
+          weightMap.put(fid, 1d);
         }
       }
     }
     if (importanceType == FeatureImportanceType.COVER
         || importanceType == FeatureImportanceType.GAIN) {
       for (String fid: importanceMap.keySet()) {
-        importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid))
+        importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid));
       }
     }
     return importanceMap;

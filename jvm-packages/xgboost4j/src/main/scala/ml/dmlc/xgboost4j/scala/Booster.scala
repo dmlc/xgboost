@@ -19,7 +19,6 @@ package ml.dmlc.xgboost4j.scala
 import com.esotericsoftware.kryo.io.{Output, Input}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
-import ml.dmlc.xgboost4j.java.Booster.FeatureImportanceType
 import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -227,27 +226,33 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
 
   /**
     * Get importance of each feature based on information gain or cover
+    * Supported: ["gain, "cover", "total_gain", "total_cover"]
     *
     * @return featureScoreMap  key: feature index, value: feature importance score
     */
   @throws(classOf[XGBoostError])
-  def getScore(featureMap: String = null,
-               importanceType: String = FeatureImportanceType.GAIN
+  def getScore(featureMap: String,
+               importanceType: String
               ): mutable.Map[String, Double] = {
-    booster.getScore(featureMap, importanceType).asScala
+    mutable.Map(
+      booster.getScore(featureMap, importanceType)
+        .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
 
   /**
     * Get importance of each feature based on information gain or cover
     * , with specified feature names.
+    * Supported: ["gain, "cover", "total_gain", "total_cover"]
     *
     * @return featureScoreMap  key: feature name, value: feature importance score
     */
   @throws(classOf[XGBoostError])
   def getScore(featureNames: Array[String],
-               importanceType: String = FeatureImportanceType.GAIN
+               importanceType: String
               ): mutable.Map[String, Double] = {
-    booster.getScore(featureNames, importanceType).asScala
+    mutable.Map(
+      booster.getScore(featureNames, importanceType)
+        .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
 
   def getVersion: Int = booster.getVersion
