@@ -82,7 +82,7 @@ Parameters for Tree Booster
 
 * ``colsample_bylevel`` [default=1]
 
-  - Subsample ratio of columns for each split, in each level. Subsampling will occur each time a new split is made. This paramter has no effect when ``tree_method`` is set to ``hist``.
+  - Subsample ratio of columns for each split, in each level. Subsampling will occur each time a new split is made. This parameter has no effect when ``tree_method`` is set to ``hist``.
   - range: (0,1]
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
