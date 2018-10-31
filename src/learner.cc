@@ -19,13 +19,21 @@
 #include "./common/host_device_vector.h"
 #include "./common/io.h"
 #include "./common/random.h"
+#include "./common/enum_class_param.h"
 #include "common/timer.h"
 
 namespace {
 
 const char* kMaxDeltaStepDefaultValue = "0.7";
 
+enum class TreeMethod : int {
+  kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
+  kGPUExact = 4, kGPUHist = 5
+};
+
 }  // anonymous namespace
+
+DECLARE_FIELD_ENUM_CLASS(TreeMethod);
 
 namespace xgboost {
 // implementation of base learner.
@@ -82,7 +90,7 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
   int dsplit;
   // tree construction method
-  int tree_method;
+  TreeMethod tree_method;
   // internal test flag
   std::string test_flag;
   // number of threads to use if OpenMP is enabled
@@ -109,13 +117,13 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .add_enum("row", 2)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method)
-        .set_default(0)
-        .add_enum("auto", 0)
-        .add_enum("approx", 1)
-        .add_enum("exact", 2)
-        .add_enum("hist", 3)
-        .add_enum("gpu_exact", 4)
-        .add_enum("gpu_hist", 5)
+        .set_default(TreeMethod::kAuto)
+        .add_enum("auto", TreeMethod::kAuto)
+        .add_enum("approx", TreeMethod::kApprox)
+        .add_enum("exact", TreeMethod::kExact)
+        .add_enum("hist", TreeMethod::kHist)
+        .add_enum("gpu_exact", TreeMethod::kGPUExact)
+        .add_enum("gpu_hist", TreeMethod::kGPUHist)
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("").describe(
         "Internal test flag");
@@ -164,33 +172,39 @@ class LearnerImpl : public Learner {
       return;
     }
 
-    if (tparam_.tree_method == 0) {  // tree_method='auto'
+    switch (tparam_.tree_method) {
+     case TreeMethod::kAuto:
       // Use heuristic to choose between 'exact' and 'approx'
       // This choice is deferred to PerformTreeMethodHeuristic().
-      ;
-    } else if (tparam_.tree_method == 1) {  // tree_method='approx'
+      break;
+     case TreeMethod::kApprox:
       cfg_["updater"] = "grow_histmaker,prune";
-    } else if (tparam_.tree_method == 2) {  // tree_method='exact'
+      break;
+     case TreeMethod::kExact:
       cfg_["updater"] = "grow_colmaker,prune";
-    } else if (tparam_.tree_method == 3) {  // tree_method='hist'
+      break;
+     case TreeMethod::kHist:
       LOG(CONSOLE) << "Tree method is selected to be 'hist', which uses a "
                       "single updater grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
-    } else if (tparam_.tree_method == 4) {  // tree_method='gpu_exact'
+      break;
+     case TreeMethod::kGPUExact:
       this->AssertGPUSupport();
       cfg_["updater"] = "grow_gpu,prune";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
-    } else if (tparam_.tree_method == 5) {  // tree_method='gpu_hist'
+      break;
+     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
       cfg_["updater"] = "grow_gpu_hist";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
-    } else {
-      LOG(FATAL) << "Unknown tree_method (" << tparam_.tree_method
-                 << ") detected";
+      break;
+     default:
+      LOG(FATAL) << "Unknown tree_method ("
+                 << static_cast<int>(tparam_.tree_method) << ") detected";
     }
   }
 
@@ -495,7 +509,7 @@ class LearnerImpl : public Learner {
       return;
     }
 
-    const int current_tree_method = tparam_.tree_method;
+    const TreeMethod current_tree_method = tparam_.tree_method;
     if (rabit::IsDistributed()) {
       /* Choose tree_method='approx' when distributed training is activated */
       CHECK(tparam_.dsplit != 0)
@@ -503,42 +517,69 @@ class LearnerImpl : public Learner {
       if (tparam_.dsplit == 1) {
         LOG(FATAL) << "Column-wise data split is currently not supported";
       }
-      if (current_tree_method == 0) {
+      switch (current_tree_method) {
+       case TreeMethod::kAuto:
         LOG(CONSOLE) << "Tree method is automatically selected to be 'approx' "
                         "for distributed training.";
-      } else if (current_tree_method == 2 || current_tree_method == 3) {
+        break;
+       case TreeMethod::kApprox:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kExact:
+       case TreeMethod::kHist:
         LOG(CONSOLE) << "Tree method was set to be '"
-                     << (current_tree_method == 2 ? "exact" : "hist")
+                     << (current_tree_method == TreeMethod::kExact ?
+                        "exact" : "hist")
                      << "', but only 'approx' is available for distributed "
                         "training. The `tree_method` parameter is now being "
                         "changed to 'approx'";
-      } else if (current_tree_method == 4 || current_tree_method == 5) {
+        break;
+       case TreeMethod::kGPUExact:
+       case TreeMethod::kGPUHist:
         LOG(FATAL) << "Distributed training is not available with GPU algoritms";
+        break;
+       default:
+        LOG(FATAL) << "Unknown tree_method ("
+                   << static_cast<int>(current_tree_method) << ") detected";
       }
-      tparam_.tree_method = 1;
+      tparam_.tree_method = TreeMethod::kApprox;
     } else if (!p_train->SingleColBlock()) {
       /* Some tree methods are not available for external-memory DMatrix */
-      if (current_tree_method == 0) {
+      switch (current_tree_method) {
+       case TreeMethod::kAuto:
         LOG(CONSOLE) << "Tree method is automatically set to 'approx' "
                         "since external-memory data matrix is used.";
-      } else if (current_tree_method == 2) {
+        break;
+       case TreeMethod::kApprox:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kExact:
         LOG(CONSOLE) << "Tree method was set to be 'exact', "
                         "but currently we are only able to proceed with "
                         "approximate algorithm ('approx') because external-"
                         "memory data matrix is used.";
-      } else if (current_tree_method == 4 || current_tree_method == 5) {
+        break;
+       case TreeMethod::kHist:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kGPUExact:
+       case TreeMethod::kGPUHist:
         LOG(FATAL)
           << "External-memory data matrix is not available with GPU algorithms";
+        break;
+       default:
+        LOG(FATAL) << "Unknown tree_method ("
+                   << static_cast<int>(current_tree_method) << ") detected";
       }
-      tparam_.tree_method = 1;
+      tparam_.tree_method = TreeMethod::kApprox;
     } else if (p_train->Info().num_row_ >= (4UL << 20UL)
-               && current_tree_method == 0) {
+               && current_tree_method == TreeMethod::kAuto) {
       /* Choose tree_method='approx' automatically for large data matrix */
       LOG(CONSOLE) << "Tree method is automatically selected to be "
                       "'approx' for faster speed. To use old behavior "
                       "(exact greedy algorithm on single machine), "
                       "set tree_method to 'exact'.";
-      tparam_.tree_method = 1;
+      tparam_.tree_method = TreeMethod::kApprox;
     }
 
     /* If tree_method was changed, re-configure updaters and gradient boosters */
