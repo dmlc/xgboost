@@ -154,37 +154,43 @@ class LearnerImpl : public Learner {
   }
 
   void ConfigureUpdaters() {
-    if (tparam_.tree_method == 0 || tparam_.tree_method == 1 ||
-        tparam_.tree_method == 2) {
-      if (cfg_.count("updater") == 0) {
-        if (tparam_.dsplit == 1) {
-          cfg_["updater"] = "distcol";
-        } else if (tparam_.dsplit == 2) {
-          cfg_["updater"] = "grow_histmaker,prune";
-        }
-      }
-    } else if (tparam_.tree_method == 3) {
-      /* histogram-based algorithm */
-      LOG(CONSOLE) << "Tree method is selected to be \'hist\', which uses a "
-                      "single updater "
-                   << "grow_fast_histmaker.";
+    /* Choose updaters according to tree_method parameters */
+    if (cfg_.count("updater") > 0) {
+      LOG(CONSOLE) << "DANGER AHEAD: You have manually specified `updater` "
+                      "parameter. The `tree_method` parameter will be ignored. "
+                      "Incorrect sequence of updaters will produce undefined "
+                      "behavior. For common uses, we recommend using "
+                      "`tree_method` parameter instead.";
+      return;
+    }
+
+    if (tparam_.tree_method == 0) {  // tree_method='auto'
+      // Use heuristic to choose between 'exact' and 'approx'
+      // This choice is deferred to PerformTreeMethodHeuristic().
+      ;
+    } else if (tparam_.tree_method == 1) {  // tree_method='approx'
+      cfg_["updater"] = "grow_histmaker,prune";
+    } else if (tparam_.tree_method == 2) {  // tree_method='exact'
+      cfg_["updater"] = "grow_colmaker,prune";
+    } else if (tparam_.tree_method == 3) {  // tree_method='hist'
+      LOG(CONSOLE) << "Tree method is selected to be 'hist', which uses a "
+                      "single updater grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
-    } else if (tparam_.tree_method == 4) {
+    } else if (tparam_.tree_method == 4) {  // tree_method='gpu_exact'
       this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu,prune";
-      }
+      cfg_["updater"] = "grow_gpu,prune";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
-    } else if (tparam_.tree_method == 5) {
+    } else if (tparam_.tree_method == 5) {  // tree_method='gpu_hist'
       this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu_hist";
-      }
+      cfg_["updater"] = "grow_gpu_hist";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
+    } else {
+      LOG(FATAL) << "Unknown tree_method (" << tparam_.tree_method
+                 << ") detected";
     }
   }
 
@@ -376,7 +382,7 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->LazyInitDMatrix(train);
+    this->PerformTreeMethodHeuristic(train);
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
     monitor_.Stop("PredictRaw");
@@ -393,7 +399,7 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->LazyInitDMatrix(train);
+    this->PerformTreeMethodHeuristic(train);
     gbm_->DoBoost(train, in_gpair);
     monitor_.Stop("BoostOneIter");
   }
@@ -479,21 +485,65 @@ class LearnerImpl : public Learner {
   }
 
  protected:
-  // check if p_train is ready to used by training.
-  // if not, initialize the column access.
-  inline void LazyInitDMatrix(DMatrix* p_train) {
-    if (tparam_.tree_method == 3 || tparam_.tree_method == 4 ||
-        tparam_.tree_method == 5 || name_gbm_ == "gblinear") {
+  // Revise `tree_method` and `updater` parameters after seeing the training
+  // data matrix
+  inline void PerformTreeMethodHeuristic(DMatrix* p_train) {
+    if (name_gbm_ != "gbtree" || cfg_.count("updater") > 0) {
+      // 1. This method is not applicable for non-tree learners
+      // 2. This method is disabled when `updater` parameter is explicitly
+      //    set, since only experts are expected to do so.
       return;
     }
 
-    if (!p_train->SingleColBlock() && cfg_.count("updater") == 0) {
-      if (tparam_.tree_method == 2) {
-        LOG(CONSOLE) << "tree method is set to be 'exact',"
-                     << " but currently we are only able to proceed with "
-                        "approximate algorithm";
+    const int current_tree_method = tparam_.tree_method;
+    if (rabit::IsDistributed()) {
+      /* Choose tree_method='approx' when distributed training is activated */
+      CHECK(tparam_.dsplit != 0)
+        << "Precondition violated; dsplit cannot be zero in distributed mode";
+      if (tparam_.dsplit == 1) {
+        LOG(FATAL) << "Column-wise data split is currently not supported";
       }
-      cfg_["updater"] = "grow_histmaker,prune";
+      if (current_tree_method == 0) {
+        LOG(CONSOLE) << "Tree method is automatically selected to be 'approx' "
+                        "for distributed training.";
+      } else if (current_tree_method == 2 || current_tree_method == 3) {
+        LOG(CONSOLE) << "Tree method was set to be '"
+                     << (current_tree_method == 2 ? "exact" : "hist")
+                     << "', but only 'approx' is available for distributed "
+                        "training. The `tree_method` parameter is now being "
+                        "changed to 'approx'";
+      } else if (current_tree_method == 4 || current_tree_method == 5) {
+        LOG(FATAL) << "Distributed training is not available with GPU algoritms";
+      }
+      tparam_.tree_method = 1;
+    } else if (!p_train->SingleColBlock()) {
+      /* Some tree methods are not available for external-memory DMatrix */
+      if (current_tree_method == 0) {
+        LOG(CONSOLE) << "Tree method is automatically set to 'approx' "
+                        "since external-memory data matrix is used.";
+      } else if (current_tree_method == 2) {
+        LOG(CONSOLE) << "Tree method was set to be 'exact', "
+                        "but currently we are only able to proceed with "
+                        "approximate algorithm ('approx') because external-"
+                        "memory data matrix is used.";
+      } else if (current_tree_method == 4 || current_tree_method == 5) {
+        LOG(FATAL)
+          << "External-memory data matrix is not available with GPU algorithms";
+      }
+      tparam_.tree_method = 1;
+    } else if (p_train->Info().num_row_ >= (4UL << 20UL)
+               && current_tree_method == 0) {
+      /* Choose tree_method='approx' automatically for large data matrix */
+      LOG(CONSOLE) << "Tree method is automatically selected to be "
+                      "'approx' for faster speed. To use old behavior "
+                      "(exact greedy algorithm on single machine), "
+                      "set tree_method to 'exact'.";
+      tparam_.tree_method = 1;
+    }
+
+    /* If tree_method was changed, re-configure updaters and gradient boosters */
+    if (tparam_.tree_method != current_tree_method) {
+      ConfigureUpdaters();
       if (gbm_ != nullptr) {
         gbm_->Configure(cfg_.begin(), cfg_.end());
       }
