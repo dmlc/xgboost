@@ -319,6 +319,7 @@
                 <version>2.19.1</version>
                 <configuration>
                     <skipTests>false</skipTests>
+                    <useSystemClassLoader>false</useSystemClassLoader>
                 </configuration>
             </plugin>
             <plugin>
