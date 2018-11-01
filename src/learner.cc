@@ -20,7 +20,8 @@
 #include "./common/io.h"
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
-#include "common/timer.h"
+#include "./common/timer.h"
+#include "../tests/cpp/test_learner.h"
 
 namespace {
 
@@ -151,7 +152,7 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
  */
-class LearnerImpl : public Learner {
+class LearnerImpl : public Learner, public LearnerTestHook {
  public:
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
       : cache_(std::move(cache)) {
@@ -518,7 +519,7 @@ class LearnerImpl : public Learner {
     if (rabit::IsDistributed()) {
       /* Choose tree_method='approx' when distributed training is activated */
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
-        << "Precondition violated; dsplit cannot be zero in distributed mode";
+        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
         // 'distcol' updater hidden until it becomes functional again
         // See discussion at https://github.com/dmlc/xgboost/issues/1832
@@ -663,6 +664,11 @@ class LearnerImpl : public Learner {
   std::vector<std::shared_ptr<DMatrix> > cache_;
 
   common::Monitor monitor_;
+
+  // diagnostic method reserved for C++ test learner.SelectTreeMethod
+  std::string GetUpdaterSequence(void) const override {
+    return cfg_.at("updater");
+  }
 };
 
 Learner* Learner::Create(
