@@ -19,7 +19,7 @@
  *
  * Usage:
  *
- * \code
+ * \code{.cpp}
  *
  *   // enum class must inherit from int type
  *   enum class Foo : int {
@@ -44,7 +44,7 @@
  *   };
  *
  *   DMLC_REGISTER_PARAMETER(MyParam);
- *
+ * \endcode
  */
 #define DECLARE_FIELD_ENUM_CLASS(EnumClass) \
 namespace dmlc {  \
