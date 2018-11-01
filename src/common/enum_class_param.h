@@ -14,9 +14,10 @@
 
 // specialization of FieldEntry for enum class (backed by int)
 #define DECLARE_FIELD_ENUM_CLASS(EnumClass) \
+namespace dmlc {  \
+namespace parameter {  \
 template <>  \
-class dmlc::parameter::FieldEntry< EnumClass >  \
-  : public dmlc::parameter::FieldEntry<int> {  \
+class FieldEntry<EnumClass> : public FieldEntry<int> {  \
  public:  \
   FieldEntry<EnumClass>() {  \
     static_assert(  \
@@ -24,7 +25,7 @@ class dmlc::parameter::FieldEntry< EnumClass >  \
       "enum class must be backed by int");  \
     is_enum_ = true;  \
   }  \
-  typedef FieldEntry<int> Super;  \
+  using Super = FieldEntry<int>;  \
   void Set(void *head, const std::string &value) const override {  \
     Super::Set(head, value);  \
   }  \
@@ -37,9 +38,12 @@ class dmlc::parameter::FieldEntry< EnumClass >  \
     has_default_ = true;  \
     return *this;  \
   }  \
+  /* NOLINTNEXTLINE */  \
   inline void Init(const std::string &key, void *head, EnumClass& ref) {  \
     Super::Init(key, head, *reinterpret_cast<int*>(&ref));  \
   }  \
-};
+};  \
+}  /* namespace parameter */  \
+}  /* namespace dmlc */
 
 #endif  // XGBOOST_COMMON_ENUM_CLASS_PARAM_H_
