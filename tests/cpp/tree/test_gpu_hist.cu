@@ -48,7 +48,7 @@ TEST(GpuHist, BuildGidxDense) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, 0, n_rows, param);
+  DeviceShard shard(0, 0, n_rows, param);
   BuildGidx(&shard, n_rows, n_cols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
@@ -87,7 +87,7 @@ TEST(GpuHist, BuildGidxSparse) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, 0, n_rows, param);
+  DeviceShard shard(0, 0, n_rows, param);
   BuildGidx(&shard, n_rows, n_cols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
@@ -130,7 +130,7 @@ void TestBuildHist(GPUHistBuilderBase& builder) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, 0, n_rows, param);
+  DeviceShard shard(0, 0, n_rows, param);
 
   BuildGidx(&shard, n_rows, n_cols);
 
@@ -236,7 +236,7 @@ TEST(GpuHist, EvaluateSplits) {
   int max_bins = 4;
 
   // Initialize DeviceShard
-  std::unique_ptr<DeviceShard> shard {new DeviceShard(0, 0, 0, n_rows, param)};
+  std::unique_ptr<DeviceShard> shard {new DeviceShard(0, 0, n_rows, param)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4, 12.8}};
 
@@ -316,7 +316,7 @@ TEST(GpuHist, ApplySplit) {
   }
 
   hist_maker.shards_.resize(1);
-  hist_maker.shards_[0].reset(new DeviceShard(0, 0, 0, n_rows, param));
+  hist_maker.shards_[0].reset(new DeviceShard(0, 0, n_rows, param));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.

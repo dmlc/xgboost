@@ -78,10 +78,11 @@ void SetCudaSetDeviceHandler(void (*handler)(int));
 
 template <typename T> struct HostDeviceVectorImpl;
 
-// Distribution for the HostDeviceVector; it specifies such aspects as the devices it is
-// distributed on, whether there are copies of elements from other GPUs as well as the granularity
-// of splitting. It may also specify explicit boundaries for devices, in which case the size of the
-// array cannot be changed.
+// Distribution for the HostDeviceVector; it specifies such aspects as the
+// devices it is distributed on, whether there are copies of elements from
+// other GPUs as well as the granularity of splitting. It may also specify
+// explicit boundaries for devices, in which case the size of the array cannot
+// be changed.
 class GPUDistribution {
   template<typename T> friend struct HostDeviceVectorImpl;
 
