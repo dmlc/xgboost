@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2018 by Contributors
  * \file enum_class_param.h
  * \brief macro for using C++11 enum class as DMLC parameter
  * \author Hyunsu Philip Cho
@@ -12,7 +12,40 @@
 #include <string>
 #include <type_traits>
 
-// specialization of FieldEntry for enum class (backed by int)
+/*!
+ * \brief Specialization of FieldEntry for enum class (backed by int)
+ *
+ * Use this macro to use C++11 enum class as DMLC parameters
+ *
+ * Usage:
+ *
+ * \code
+ *
+ *   // enum class must inherit from int type
+ *   enum class Foo : int {
+ *     kBar = 0, kFrog = 1, kCat = 2, kDog = 3
+ *   };
+ *
+ *   // This line is needed to prevent compilation error
+ *   DECLARE_FIELD_ENUM_CLASS(Foo);
+ *
+ *   // Now define DMLC parameter as usual;
+ *   //   enum classes can now be members.
+ *   struct MyParam : dmlc::Parameter<MyParam> {
+ *     Foo foo;
+ *     DMLC_DECLARE_PARAMETER(MyParam) {
+ *       DMLC_DECLARE_FIELD(foo)
+ *         .set_default(Foo::kBar)
+ *         .add_enum("bar", Foo::kBar)
+ *         .add_enum("frog", Foo::kFrog)
+ *         .add_enum("cat", Foo::kCat)
+ *         .add_enum("dog", Foo::kDog);
+ *     }
+ *   };
+ *
+ *   DMLC_REGISTER_PARAMETER(MyParam);
+ *
+ */
 #define DECLARE_FIELD_ENUM_CLASS(EnumClass) \
 namespace dmlc {  \
 namespace parameter {  \
