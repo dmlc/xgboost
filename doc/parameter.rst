@@ -156,7 +156,7 @@ Parameters for Tree Booster
 
   - Controls a way new nodes are added to the tree.
   - Currently supported only if ``tree_method`` is set to ``hist``.
-  - Choices: ``depthwise``, ```lossguide``
+  - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
     - ``lossguide``: split at nodes with highest loss change.
