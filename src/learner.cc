@@ -666,7 +666,7 @@ class LearnerImpl : public Learner, public LearnerTestHook {
   common::Monitor monitor_;
 
   // diagnostic method reserved for C++ test learner.SelectTreeMethod
-  std::string GetUpdaterSequence(void) const override {
+  std::string GetUpdaterSequence() const override {
     return cfg_.at("updater");
   }
 };

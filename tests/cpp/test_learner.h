@@ -13,7 +13,7 @@
 namespace xgboost {
 class LearnerTestHook {
  private:
-  virtual std::string GetUpdaterSequence(void) const = 0;
+  virtual std::string GetUpdaterSequence() const = 0;
   // allow friend access to C++ tests for Learner
   friend class LearnerTestHookAdapter;
 };
