@@ -31,9 +31,14 @@ enum class TreeMethod : int {
   kGPUExact = 4, kGPUHist = 5
 };
 
+enum class DataSplitMode : int {
+  kAuto = 0, kCol = 1, kRow = 2
+};
+
 }  // anonymous namespace
 
 DECLARE_FIELD_ENUM_CLASS(TreeMethod);
+DECLARE_FIELD_ENUM_CLASS(DataSplitMode);
 
 namespace xgboost {
 // implementation of base learner.
@@ -88,7 +93,7 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // whether seed the PRNG each iteration
   bool seed_per_iteration;
   // data split mode, can be row, col, or none.
-  int dsplit;
+  DataSplitMode dsplit;
   // tree construction method
   TreeMethod tree_method;
   // internal test flag
@@ -111,10 +116,10 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
             "this option will be switched on automatically on distributed "
             "mode.");
     DMLC_DECLARE_FIELD(dsplit)
-        .set_default(0)
-        .add_enum("auto", 0)
-        .add_enum("col", 1)
-        .add_enum("row", 2)
+        .set_default(DataSplitMode::kAuto)
+        .add_enum("auto", DataSplitMode::kAuto)
+        .add_enum("col", DataSplitMode::kCol)
+        .add_enum("row", DataSplitMode::kRow)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method)
         .set_default(TreeMethod::kAuto)
@@ -234,8 +239,8 @@ class LearnerImpl : public Learner {
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
-    if (tparam_.dsplit == 0 && rabit::IsDistributed()) {
-      tparam_.dsplit = 2;
+    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+      tparam_.dsplit = DataSplitMode::kRow;
     }
 
     if (cfg_.count("num_class") != 0) {
@@ -432,7 +437,7 @@ class LearnerImpl : public Learner {
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
            << ev->Eval(preds_.ConstHostVector(), data_sets[i]->Info(),
-                       tparam_.dsplit == 2);
+                       tparam_.dsplit == DataSplitMode::kRow);
       }
     }
 
@@ -476,7 +481,7 @@ class LearnerImpl : public Learner {
     obj_->EvalTransform(&preds_);
     return std::make_pair(metric,
                           ev->Eval(preds_.ConstHostVector(), data->Info(),
-                                   tparam_.dsplit == 2));
+                                   tparam_.dsplit == DataSplitMode::kRow));
   }
 
   void Predict(DMatrix* data, bool output_margin,
@@ -512,10 +517,12 @@ class LearnerImpl : public Learner {
     const TreeMethod current_tree_method = tparam_.tree_method;
     if (rabit::IsDistributed()) {
       /* Choose tree_method='approx' when distributed training is activated */
-      CHECK(tparam_.dsplit != 0)
+      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be zero in distributed mode";
-      if (tparam_.dsplit == 1) {
-        LOG(FATAL) << "Column-wise data split is currently not supported";
+      if (tparam_.dsplit == DataSplitMode::kCol) {
+        // 'distcol' updater hidden until it becomes functional again
+        // See discussion at https://github.com/dmlc/xgboost/issues/1832
+        LOG(FATAL) << "Column-wise data split is currently not supported.";
       }
       switch (current_tree_method) {
        case TreeMethod::kAuto:
