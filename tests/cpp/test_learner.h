@@ -1,7 +1,7 @@
 /*!
  * Copyright 2018 by Contributors
  * \file test_learner.h
- * \brief Interface
+ * \brief Hook to access implementation class of Learner
  * \author Hyunsu Philip Cho
  */
 
@@ -14,7 +14,7 @@ namespace xgboost {
 class LearnerTestHook {
  private:
   virtual std::string GetUpdaterSequence(void) const = 0;
-  // allow friend access to C++ test learner.SelectTreeMethod
+  // allow friend access to C++ tests for Learner
   friend class LearnerTestHookAdapter;
 };
 }  // namespace xgboost
