@@ -921,7 +921,7 @@ class XGBRanker(XGBModel):
                                         base_score, random_state, seed, missing)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
-        elif self.objective != "rank:pairwise":
+        elif "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
     def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
