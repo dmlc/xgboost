@@ -71,12 +71,11 @@ class FieldEntry<EnumClass> : public FieldEntry<int> {  \
     has_default_ = true;  \
     return *this;  \
   }  \
-  /* NOLINTNEXTLINE */  \
   inline void Init(const std::string &key, void *head, EnumClass& ref) {  \
     Super::Init(key, head, *reinterpret_cast<int*>(&ref));  \
   }  \
 };  \
 }  /* namespace parameter */  \
-}  /* namespace dmlc */
+}  /* namespace dmlc */  // NOLINT
 
 #endif  // XGBOOST_COMMON_ENUM_CLASS_PARAM_H_
