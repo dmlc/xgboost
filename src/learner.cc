@@ -351,11 +351,12 @@ class LearnerImpl : public Learner, public LearnerTestHook {
     if (mparam_.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
-      for (const auto& kv : attr) {
+      for (auto& kv : attr) {
         // Load `predictor`, `n_gpus`, `gpu_id` parameters from extra attributes
         const std::string prefix = "SAVED_PARAM_";
         if (kv.first.find(prefix) == 0) {
           const std::string saved_param = kv.first.substr(prefix.length());
+#ifdef XGBOOST_USE_CUDA
           if (saved_param == "predictor" || saved_param == "n_gpus"
               || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
@@ -372,6 +373,14 @@ class LearnerImpl : public Learner, public LearnerTestHook {
               << "  * JVM packages:   bst.setParam(\""
               << saved_param << "\", [new value])";
           }
+#else
+          if (saved_param == "predictor" && kv.second == "gpu_predictor") {
+            LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
+                      << "since XGBoots wasn't compiled with GPU support.";
+            cfg_["predictor"] = "cpu_predictor";
+            kv.second = "cpu_predictor";
+          }
+#endif
         }
       }
       attributes_ =
