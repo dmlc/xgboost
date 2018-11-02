@@ -514,7 +514,7 @@ class XGBModel(XGBModelBase):
 
         """
         if self.booster != 'gbtree':
-            raise AttributeError('Feature importance is not defined for Booster type {}'\
+            raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
         fs = b.get_fscore()
@@ -538,7 +538,7 @@ class XGBModel(XGBModelBase):
         coef_ : array of shape ``[n_features]``
         """
         if self.booster != 'gblinear':
-            raise AttributeError('Coefficients are not defined for Booster type {}'\
+            raise AttributeError('Coefficients are not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
         return json.loads(b.get_dump(dump_format='json')[0])['weight']
@@ -559,7 +559,7 @@ class XGBModel(XGBModelBase):
         intercept_ : array of shape ``[n_features]``
         """
         if self.booster != 'gblinear':
-            raise AttributeError('Intercept (bias) is not defined for Booster type {}'\
+            raise AttributeError('Intercept (bias) is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
         return json.loads(b.get_dump(dump_format='json')[0])['bias']
