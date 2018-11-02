@@ -19,13 +19,27 @@
 #include "./common/host_device_vector.h"
 #include "./common/io.h"
 #include "./common/random.h"
-#include "common/timer.h"
+#include "./common/enum_class_param.h"
+#include "./common/timer.h"
+#include "../tests/cpp/test_learner.h"
 
 namespace {
 
 const char* kMaxDeltaStepDefaultValue = "0.7";
 
+enum class TreeMethod : int {
+  kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
+  kGPUExact = 4, kGPUHist = 5
+};
+
+enum class DataSplitMode : int {
+  kAuto = 0, kCol = 1, kRow = 2
+};
+
 }  // anonymous namespace
+
+DECLARE_FIELD_ENUM_CLASS(TreeMethod);
+DECLARE_FIELD_ENUM_CLASS(DataSplitMode);
 
 namespace xgboost {
 // implementation of base learner.
@@ -80,9 +94,9 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // whether seed the PRNG each iteration
   bool seed_per_iteration;
   // data split mode, can be row, col, or none.
-  int dsplit;
+  DataSplitMode dsplit;
   // tree construction method
-  int tree_method;
+  TreeMethod tree_method;
   // internal test flag
   std::string test_flag;
   // number of threads to use if OpenMP is enabled
@@ -103,19 +117,19 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
             "this option will be switched on automatically on distributed "
             "mode.");
     DMLC_DECLARE_FIELD(dsplit)
-        .set_default(0)
-        .add_enum("auto", 0)
-        .add_enum("col", 1)
-        .add_enum("row", 2)
+        .set_default(DataSplitMode::kAuto)
+        .add_enum("auto", DataSplitMode::kAuto)
+        .add_enum("col", DataSplitMode::kCol)
+        .add_enum("row", DataSplitMode::kRow)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method)
-        .set_default(0)
-        .add_enum("auto", 0)
-        .add_enum("approx", 1)
-        .add_enum("exact", 2)
-        .add_enum("hist", 3)
-        .add_enum("gpu_exact", 4)
-        .add_enum("gpu_hist", 5)
+        .set_default(TreeMethod::kAuto)
+        .add_enum("auto", TreeMethod::kAuto)
+        .add_enum("approx", TreeMethod::kApprox)
+        .add_enum("exact", TreeMethod::kExact)
+        .add_enum("hist", TreeMethod::kHist)
+        .add_enum("gpu_exact", TreeMethod::kGPUExact)
+        .add_enum("gpu_hist", TreeMethod::kGPUHist)
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("").describe(
         "Internal test flag");
@@ -138,7 +152,7 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
  */
-class LearnerImpl : public Learner {
+class LearnerImpl : public Learner, public LearnerTestHook {
  public:
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
       : cache_(std::move(cache)) {
@@ -154,37 +168,49 @@ class LearnerImpl : public Learner {
   }
 
   void ConfigureUpdaters() {
-    if (tparam_.tree_method == 0 || tparam_.tree_method == 1 ||
-        tparam_.tree_method == 2) {
-      if (cfg_.count("updater") == 0) {
-        if (tparam_.dsplit == 1) {
-          cfg_["updater"] = "distcol";
-        } else if (tparam_.dsplit == 2) {
-          cfg_["updater"] = "grow_histmaker,prune";
-        }
-      }
-    } else if (tparam_.tree_method == 3) {
-      /* histogram-based algorithm */
-      LOG(CONSOLE) << "Tree method is selected to be \'hist\', which uses a "
-                      "single updater "
-                   << "grow_fast_histmaker.";
+    /* Choose updaters according to tree_method parameters */
+    if (cfg_.count("updater") > 0) {
+      LOG(CONSOLE) << "DANGER AHEAD: You have manually specified `updater` "
+                      "parameter. The `tree_method` parameter will be ignored. "
+                      "Incorrect sequence of updaters will produce undefined "
+                      "behavior. For common uses, we recommend using "
+                      "`tree_method` parameter instead.";
+      return;
+    }
+
+    switch (tparam_.tree_method) {
+     case TreeMethod::kAuto:
+      // Use heuristic to choose between 'exact' and 'approx'
+      // This choice is deferred to PerformTreeMethodHeuristic().
+      break;
+     case TreeMethod::kApprox:
+      cfg_["updater"] = "grow_histmaker,prune";
+      break;
+     case TreeMethod::kExact:
+      cfg_["updater"] = "grow_colmaker,prune";
+      break;
+     case TreeMethod::kHist:
+      LOG(CONSOLE) << "Tree method is selected to be 'hist', which uses a "
+                      "single updater grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
-    } else if (tparam_.tree_method == 4) {
+      break;
+     case TreeMethod::kGPUExact:
       this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu,prune";
-      }
+      cfg_["updater"] = "grow_gpu,prune";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
-    } else if (tparam_.tree_method == 5) {
+      break;
+     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu_hist";
-      }
+      cfg_["updater"] = "grow_gpu_hist";
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
       }
+      break;
+     default:
+      LOG(FATAL) << "Unknown tree_method ("
+                 << static_cast<int>(tparam_.tree_method) << ") detected";
     }
   }
 
@@ -214,8 +240,8 @@ class LearnerImpl : public Learner {
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
-    if (tparam_.dsplit == 0 && rabit::IsDistributed()) {
-      tparam_.dsplit = 2;
+    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+      tparam_.dsplit = DataSplitMode::kRow;
     }
 
     if (cfg_.count("num_class") != 0) {
@@ -376,7 +402,7 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->LazyInitDMatrix(train);
+    this->PerformTreeMethodHeuristic(train);
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
     monitor_.Stop("PredictRaw");
@@ -393,7 +419,7 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->LazyInitDMatrix(train);
+    this->PerformTreeMethodHeuristic(train);
     gbm_->DoBoost(train, in_gpair);
     monitor_.Stop("BoostOneIter");
   }
@@ -412,7 +438,7 @@ class LearnerImpl : public Learner {
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
            << ev->Eval(preds_.ConstHostVector(), data_sets[i]->Info(),
-                       tparam_.dsplit == 2);
+                       tparam_.dsplit == DataSplitMode::kRow);
       }
     }
 
@@ -456,7 +482,7 @@ class LearnerImpl : public Learner {
     obj_->EvalTransform(&preds_);
     return std::make_pair(metric,
                           ev->Eval(preds_.ConstHostVector(), data->Info(),
-                                   tparam_.dsplit == 2));
+                                   tparam_.dsplit == DataSplitMode::kRow));
   }
 
   void Predict(DMatrix* data, bool output_margin,
@@ -479,21 +505,94 @@ class LearnerImpl : public Learner {
   }
 
  protected:
-  // check if p_train is ready to used by training.
-  // if not, initialize the column access.
-  inline void LazyInitDMatrix(DMatrix* p_train) {
-    if (tparam_.tree_method == 3 || tparam_.tree_method == 4 ||
-        tparam_.tree_method == 5 || name_gbm_ == "gblinear") {
+  // Revise `tree_method` and `updater` parameters after seeing the training
+  // data matrix
+  inline void PerformTreeMethodHeuristic(DMatrix* p_train) {
+    if (name_gbm_ != "gbtree" || cfg_.count("updater") > 0) {
+      // 1. This method is not applicable for non-tree learners
+      // 2. This method is disabled when `updater` parameter is explicitly
+      //    set, since only experts are expected to do so.
       return;
     }
 
-    if (!p_train->SingleColBlock() && cfg_.count("updater") == 0) {
-      if (tparam_.tree_method == 2) {
-        LOG(CONSOLE) << "tree method is set to be 'exact',"
-                     << " but currently we are only able to proceed with "
-                        "approximate algorithm";
+    const TreeMethod current_tree_method = tparam_.tree_method;
+    if (rabit::IsDistributed()) {
+      /* Choose tree_method='approx' when distributed training is activated */
+      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
+        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
+      if (tparam_.dsplit == DataSplitMode::kCol) {
+        // 'distcol' updater hidden until it becomes functional again
+        // See discussion at https://github.com/dmlc/xgboost/issues/1832
+        LOG(FATAL) << "Column-wise data split is currently not supported.";
       }
-      cfg_["updater"] = "grow_histmaker,prune";
+      switch (current_tree_method) {
+       case TreeMethod::kAuto:
+        LOG(CONSOLE) << "Tree method is automatically selected to be 'approx' "
+                        "for distributed training.";
+        break;
+       case TreeMethod::kApprox:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kExact:
+       case TreeMethod::kHist:
+        LOG(CONSOLE) << "Tree method was set to be '"
+                     << (current_tree_method == TreeMethod::kExact ?
+                        "exact" : "hist")
+                     << "', but only 'approx' is available for distributed "
+                        "training. The `tree_method` parameter is now being "
+                        "changed to 'approx'";
+        break;
+       case TreeMethod::kGPUExact:
+       case TreeMethod::kGPUHist:
+        LOG(FATAL) << "Distributed training is not available with GPU algoritms";
+        break;
+       default:
+        LOG(FATAL) << "Unknown tree_method ("
+                   << static_cast<int>(current_tree_method) << ") detected";
+      }
+      tparam_.tree_method = TreeMethod::kApprox;
+    } else if (!p_train->SingleColBlock()) {
+      /* Some tree methods are not available for external-memory DMatrix */
+      switch (current_tree_method) {
+       case TreeMethod::kAuto:
+        LOG(CONSOLE) << "Tree method is automatically set to 'approx' "
+                        "since external-memory data matrix is used.";
+        break;
+       case TreeMethod::kApprox:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kExact:
+        LOG(CONSOLE) << "Tree method was set to be 'exact', "
+                        "but currently we are only able to proceed with "
+                        "approximate algorithm ('approx') because external-"
+                        "memory data matrix is used.";
+        break;
+       case TreeMethod::kHist:
+        // things are okay, do nothing
+        break;
+       case TreeMethod::kGPUExact:
+       case TreeMethod::kGPUHist:
+        LOG(FATAL)
+          << "External-memory data matrix is not available with GPU algorithms";
+        break;
+       default:
+        LOG(FATAL) << "Unknown tree_method ("
+                   << static_cast<int>(current_tree_method) << ") detected";
+      }
+      tparam_.tree_method = TreeMethod::kApprox;
+    } else if (p_train->Info().num_row_ >= (4UL << 20UL)
+               && current_tree_method == TreeMethod::kAuto) {
+      /* Choose tree_method='approx' automatically for large data matrix */
+      LOG(CONSOLE) << "Tree method is automatically selected to be "
+                      "'approx' for faster speed. To use old behavior "
+                      "(exact greedy algorithm on single machine), "
+                      "set tree_method to 'exact'.";
+      tparam_.tree_method = TreeMethod::kApprox;
+    }
+
+    /* If tree_method was changed, re-configure updaters and gradient boosters */
+    if (tparam_.tree_method != current_tree_method) {
+      ConfigureUpdaters();
       if (gbm_ != nullptr) {
         gbm_->Configure(cfg_.begin(), cfg_.end());
       }
@@ -565,6 +664,11 @@ class LearnerImpl : public Learner {
   std::vector<std::shared_ptr<DMatrix> > cache_;
 
   common::Monitor monitor_;
+
+  // diagnostic method reserved for C++ test learner.SelectTreeMethod
+  std::string GetUpdaterSequence() const override {
+    return cfg_.at("updater");
+  }
 };
 
 Learner* Learner::Create(
