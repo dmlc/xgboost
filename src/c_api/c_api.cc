@@ -52,12 +52,36 @@ class Booster {
 
   inline void LazyInit() {
     if (!configured_) {
+      LoadSavedParamFromAttr();
       learner_->Configure(cfg_);
       configured_ = true;
     }
     if (!initialized_) {
       learner_->InitModel();
       initialized_ = true;
+    }
+  }
+
+  inline void LoadSavedParamFromAttr() {
+    // Locate saved parameter from learner attributes
+    const std::string prefix = "SAVED_PARAM_";
+    for (const std::string& attr_name : learner_->GetAttrNames()) {
+      if (attr_name.find(prefix) == 0) {
+        const std::string saved_param = attr_name.substr(prefix.length());
+        std::string saved_param_value;
+        CHECK(learner_->GetAttr(attr_name, &saved_param_value));
+        bool in_place_update = false;
+        // if cfg_ contains the parameter already, update it in place
+        for (auto it = cfg_.begin(); it != cfg_.end(); ++it) {
+          if (it->first == saved_param) {
+            it->second = saved_param_value;
+            in_place_update = true;
+          }
+        }
+        if (!in_place_update) {
+          cfg_.emplace_back(saved_param, saved_param_value);
+        }
+      }
     }
   }
 

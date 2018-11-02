@@ -13,6 +13,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <ios>
 #include <utility>
 #include <vector>
 #include "./common/common.h"
@@ -35,6 +36,26 @@ enum class TreeMethod : int {
 enum class DataSplitMode : int {
   kAuto = 0, kCol = 1, kRow = 2
 };
+
+inline bool is_float(const std::string& str) {
+  std::stringstream ss(str);
+  float f;
+  return !((ss >> std::noskipws >> f).rdstate() ^ std::ios_base::eofbit);
+}
+
+inline bool is_int(const std::string& str) {
+  std::stringstream ss(str);
+  int i;
+  return !((ss >> std::noskipws >> i).rdstate() ^ std::ios_base::eofbit);
+}
+
+inline std::string render_param_val(const std::string& str) {
+  if (is_float(str) || is_int(str)) {
+    return str;
+  } else {
+    return std::string("'") + str + "'";
+  }
+}
 
 }  // anonymous namespace
 
@@ -330,6 +351,29 @@ class LearnerImpl : public Learner, public LearnerTestHook {
     if (mparam_.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
+      for (const auto& kv : attr) {
+        // Load `predictor`, `n_gpus`, `gpu_id` parameters from extra attributes
+        const std::string prefix = "SAVED_PARAM_";
+        if (kv.first.find(prefix) == 0) {
+          const std::string saved_param = kv.first.substr(prefix.length());
+          if (saved_param == "predictor" || saved_param == "n_gpus"
+              || saved_param == "gpu_id") {
+            cfg_[saved_param] = kv.second;
+            LOG(INFO)
+              << "Parameter '" << saved_param << "' has been recovered from "
+              << "the saved model. It will be set to "
+              << render_param_val(kv.second) << " for prediction. To "
+              << "override the predictor behavior, explicitly set '"
+              << saved_param << "' parameter as follows:\n"
+              << "  * Python package: bst.set_param('"
+              << saved_param << "', [new value])\n"
+              << "  * R package:      xgb.parameters(bst) <- list("
+              << saved_param << " = [new value])\n"
+              << "  * JVM packages:   bst.setParam(\""
+              << saved_param << "\", [new value])";
+          }
+        }
+      }
       attributes_ =
           std::map<std::string, std::string>(attr.begin(), attr.end());
     }
@@ -364,15 +408,28 @@ class LearnerImpl : public Learner, public LearnerTestHook {
         extra_attr.emplace_back("count_poisson_max_delta_step", it->second);
       }
     }
+    {
+      // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
+      for (const auto& key : std::vector<std::string>{
+                                   "predictor", "n_gpus", "gpu_id"}) {
+        auto it = cfg_.find(key);
+        if (it != cfg_.end()) {
+          mparam.contain_extra_attrs = 1;
+          extra_attr.emplace_back("SAVED_PARAM_" + key, it->second);
+        }
+      }
+    }
     fo->Write(&mparam, sizeof(LearnerModelParam));
     fo->Write(name_obj_);
     fo->Write(name_gbm_);
     gbm_->Save(fo);
     if (mparam.contain_extra_attrs != 0) {
-      std::vector<std::pair<std::string, std::string> > attr(
-          attributes_.begin(), attributes_.end());
-      attr.insert(attr.end(), extra_attr.begin(), extra_attr.end());
-      fo->Write(attr);
+      std::map<std::string, std::string> attr(attributes_);
+      for (const auto& kv : extra_attr) {
+        attr[kv.first] = kv.second;
+      }
+      fo->Write(std::vector<std::pair<std::string, std::string>>(
+                  attr.begin(), attr.end()));
     }
     if (name_obj_ == "count:poisson") {
       auto it = cfg_.find("max_delta_step");
