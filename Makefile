@@ -250,6 +250,8 @@ Rpack: clean_all
 	cp -r src xgboost/src/src
 	cp -r include xgboost/src/include
 	cp -r amalgamation xgboost/src/amalgamation
+	mkdir -p xgboost/src/tests/cpp
+	cp tests/cpp/test_learner.h xgboost/src/tests/cpp
 	mkdir -p xgboost/src/rabit
 	cp -r rabit/include xgboost/src/rabit/include
 	cp -r rabit/src xgboost/src/rabit/src
