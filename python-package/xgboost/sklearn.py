@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import numpy as np
 import warnings
+import json
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
@@ -512,11 +513,56 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape ``[n_features]``
 
         """
+        if self.booster != 'gbtree':
+            raise AttributeError('Feature importance is not defined for Booster type {}'
+                                 .format(self.booster))
         b = self.get_booster()
         fs = b.get_fscore()
         all_features = [fs.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
         return all_features / all_features.sum()
+
+    @property
+    def coef_(self):
+        """
+        Coefficients property
+
+        .. note:: Coefficients are defined only for linear learners
+
+            Coefficients are only defined when the linear model is chosen as base
+            learner (`booster=gblinear`). It is not defined for other base learner types, such
+            as tree learners (`booster=gbtree`).
+
+        Returns
+        -------
+        coef_ : array of shape ``[n_features]``
+        """
+        if self.booster != 'gblinear':
+            raise AttributeError('Coefficients are not defined for Booster type {}'
+                                 .format(self.booster))
+        b = self.get_booster()
+        return json.loads(b.get_dump(dump_format='json')[0])['weight']
+
+    @property
+    def intercept_(self):
+        """
+        Intercept (bias) property
+
+        .. note:: Intercept is defined only for linear learners
+
+            Intercept (bias) is only defined when the linear model is chosen as base
+            learner (`booster=gblinear`). It is not defined for other base learner types, such
+            as tree learners (`booster=gbtree`).
+
+        Returns
+        -------
+        intercept_ : array of shape ``[n_features]``
+        """
+        if self.booster != 'gblinear':
+            raise AttributeError('Intercept (bias) is not defined for Booster type {}'
+                                 .format(self.booster))
+        b = self.get_booster()
+        return json.loads(b.get_dump(dump_format='json')[0])['bias']
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
