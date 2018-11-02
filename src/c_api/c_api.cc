@@ -1170,5 +1170,14 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_END();
 }
 
+/* hidden method; only known to C++ test suite */
+const std::map<std::string, std::string>&
+QueryBoosterConfigurationArguments(BoosterHandle handle) {
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
+  bst->LazyInit();
+  return bst->learner()->GetConfigurationArguments();
+}
+
 // force link rabit
 static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();

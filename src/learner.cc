@@ -22,7 +22,6 @@
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
 #include "./common/timer.h"
-#include "../tests/cpp/test_learner.h"
 
 namespace {
 
@@ -173,7 +172,7 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
  */
-class LearnerImpl : public Learner, public LearnerTestHook {
+class LearnerImpl : public Learner {
  public:
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
       : cache_(std::move(cache)) {
@@ -570,6 +569,10 @@ class LearnerImpl : public Learner, public LearnerTestHook {
     }
   }
 
+  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
+    return cfg_;
+  }
+
  protected:
   // Revise `tree_method` and `updater` parameters after seeing the training
   // data matrix
@@ -730,11 +733,6 @@ class LearnerImpl : public Learner, public LearnerTestHook {
   std::vector<std::shared_ptr<DMatrix> > cache_;
 
   common::Monitor monitor_;
-
-  // diagnostic method reserved for C++ test learner.SelectTreeMethod
-  std::string GetUpdaterSequence() const override {
-    return cfg_.at("updater");
-  }
 };
 
 Learner* Learner::Create(

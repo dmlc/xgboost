@@ -2,10 +2,24 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
+#include <dmlc/logging.h>
+#include <dmlc/filesystem.h>
 #include <xgboost/c_api.h>
 #include <xgboost/predictor.h>
+#include <string>
 #include "gtest/gtest.h"
 #include "../helpers.h"
+
+namespace {
+
+inline void CheckCAPICall(int ret) {
+  ASSERT_EQ(ret, 0) << XGBGetLastError();
+}
+
+}  // namespace anonymous
+
+extern const std::map<std::string, std::string>&
+QueryBoosterConfigurationArguments(BoosterHandle handle);
 
 namespace xgboost {
 namespace predictor {
@@ -75,6 +89,75 @@ TEST(gpu_predictor, Test) {
   }
 
   delete dmat;
+}
+
+// Test whether pickling preserves predictor parameters
+TEST(gpu_predictor, MGPU_PicklingTest) {
+  int ngpu;
+  dh::safe_cuda(cudaGetDeviceCount(&ngpu));
+
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
+
+  DMatrixHandle dmat[1];
+  BoosterHandle bst, bst2;
+
+  // Load data matrix
+  CheckCAPICall(XGDMatrixCreateFromFile(tmp_file.c_str(), 0, &dmat[0]));
+  // Create booster
+  CheckCAPICall(XGBoosterCreate(dmat, 1, &bst));
+  // Set parameters
+  CheckCAPICall(XGBoosterSetParam(bst, "seed", "0"));
+  CheckCAPICall(XGBoosterSetParam(bst, "base_score", "0.5"));
+  CheckCAPICall(XGBoosterSetParam(bst, "booster", "gbtree"));
+  CheckCAPICall(XGBoosterSetParam(bst, "learning_rate", "0.01"));
+  CheckCAPICall(XGBoosterSetParam(bst, "max_depth", "8"));
+  CheckCAPICall(XGBoosterSetParam(bst, "objective", "binary:logistic"));
+  CheckCAPICall(XGBoosterSetParam(bst, "seed", "123"));
+  CheckCAPICall(XGBoosterSetParam(bst, "tree_method", "gpu_hist"));
+  CheckCAPICall(XGBoosterSetParam(bst, "n_gpus", std::to_string(ngpu).c_str()));
+  CheckCAPICall(XGBoosterSetParam(bst, "predictor", "gpu_predictor"));
+
+  // Run boosting iterations
+  for (int i = 0; i < 10; ++i) {
+    CheckCAPICall(XGBoosterUpdateOneIter(bst, i, dmat[0]));
+  }
+
+  // Delete matrix
+  CheckCAPICall(XGDMatrixFree(dmat[0]));
+
+  // Pickle
+  const char* dptr;
+  bst_ulong len;
+  std::string buf;
+  CheckCAPICall(XGBoosterGetModelRaw(bst, &len, &dptr));
+  buf = std::string(dptr, len);
+  CheckCAPICall(XGBoosterFree(bst));
+
+  // Unpickle
+  CheckCAPICall(XGBoosterCreate(nullptr, 0, &bst2));
+  CheckCAPICall(XGBoosterLoadModelFromBuffer(bst2, buf.c_str(), len));
+
+  {  // Query predictor
+    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
+    ASSERT_EQ(kwargs.at("predictor"), "gpu_predictor");
+    ASSERT_EQ(kwargs.at("n_gpus"), std::to_string(ngpu).c_str());
+  }
+
+  {  // Change n_gpus and query again
+    CheckCAPICall(XGBoosterSetParam(bst2, "n_gpus", "1"));
+    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
+    ASSERT_EQ(kwargs.at("n_gpus"), "1");
+  }
+
+  {  // Change predictor and query again
+    CheckCAPICall(XGBoosterSetParam(bst2, "predictor", "cpu_predictor"));
+    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
+    ASSERT_EQ(kwargs.at("predictor"), "cpu_predictor");
+  }
+
+  CheckCAPICall(XGBoosterFree(bst2));
 }
 
 // multi-GPU predictor test
