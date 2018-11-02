@@ -37,20 +37,20 @@ enum class DataSplitMode : int {
   kAuto = 0, kCol = 1, kRow = 2
 };
 
-inline bool is_float(const std::string& str) {
+inline bool IsFloat(const std::string& str) {
   std::stringstream ss(str);
   float f;
   return !((ss >> std::noskipws >> f).rdstate() ^ std::ios_base::eofbit);
 }
 
-inline bool is_int(const std::string& str) {
+inline bool IsInt(const std::string& str) {
   std::stringstream ss(str);
   int i;
   return !((ss >> std::noskipws >> i).rdstate() ^ std::ios_base::eofbit);
 }
 
-inline std::string render_param_val(const std::string& str) {
-  if (is_float(str) || is_int(str)) {
+inline std::string RenderParamVal(const std::string& str) {
+  if (IsFloat(str) || IsInt(str)) {
     return str;
   } else {
     return std::string("'") + str + "'";
@@ -362,7 +362,7 @@ class LearnerImpl : public Learner, public LearnerTestHook {
             LOG(INFO)
               << "Parameter '" << saved_param << "' has been recovered from "
               << "the saved model. It will be set to "
-              << render_param_val(kv.second) << " for prediction. To "
+              << RenderParamVal(kv.second) << " for prediction. To "
               << "override the predictor behavior, explicitly set '"
               << saved_param << "' parameter as follows:\n"
               << "  * Python package: bst.set_param('"

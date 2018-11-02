@@ -72,10 +72,11 @@ class Booster {
         CHECK(learner_->GetAttr(attr_name, &saved_param_value));
         bool in_place_update = false;
         // if cfg_ contains the parameter already, update it in place
-        for (auto it = cfg_.begin(); it != cfg_.end(); ++it) {
-          if (it->first == saved_param) {
-            it->second = saved_param_value;
+        for (auto& e : cfg_) {
+          if (e.first == saved_param) {
+            e.second = saved_param_value;
             in_place_update = true;
+            break;
           }
         }
         if (!in_place_update) {
