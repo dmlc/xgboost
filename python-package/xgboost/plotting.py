@@ -28,10 +28,11 @@ def plot_importance(booster, ax=None, height=0.2,
     grid : bool, Turn the axes grids on or off.  Default is True (On).
     importance_type : str, default "weight"
         How the importance is calculated: either "weight", "gain", or "cover"
-        "weight" is the number of times a feature appears in a tree
-        "gain" is the average gain of splits which use the feature
-        "cover" is the average coverage of splits which use the feature
-            where coverage is defined as the number of samples affected by the split
+
+        * "weight" is the number of times a feature appears in a tree
+        * "gain" is the average gain of splits which use the feature
+        * "cover" is the average coverage of splits which use the feature
+          where coverage is defined as the number of samples affected by the split
     max_num_features : int, default None
         Maximum number of top features displayed on plot. If None, all features will be displayed.
     height : float, default 0.2
