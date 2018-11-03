@@ -28,11 +28,10 @@ def plot_importance(booster, ax=None, height=0.2,
     grid : bool, Turn the axes grids on or off.  Default is True (On).
     importance_type : str, default "weight"
         How the importance is calculated: either "weight", "gain", or "cover"
-
-        * "weight" is the number of times a feature appears in a tree
-        * "gain" is the average gain of splits which use the feature
-        * "cover" is the average coverage of splits which use the feature
-          where coverage is defined as the number of samples affected by the split
+        "weight" is the number of times a feature appears in a tree
+        "gain" is the average gain of splits which use the feature
+        "cover" is the average coverage of splits which use the feature
+            where coverage is defined as the number of samples affected by the split
     max_num_features : int, default None
         Maximum number of top features displayed on plot. If None, all features will be displayed.
     height : float, default 0.2
@@ -124,17 +123,17 @@ _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
 _EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
 
 
-def _parse_node(graph, text):
+def _parse_node(graph, text,conditionNodeParams,leafNodeParams):
     """parse dumped node"""
     match = _NODEPAT.match(text)
     if match is not None:
         node = match.group(1)
-        graph.node(node, label=match.group(2), shape='circle')
+        graph.node(node, label=match.group(2), **conditionNodeParams)
         return node
     match = _LEAFPAT.match(text)
     if match is not None:
         node = match.group(1)
-        graph.node(node, label=match.group(2), shape='box')
+        graph.node(node, label=match.group(2),**leafNodeParams)
         return node
     raise ValueError('Unable to parse node: {0}'.format(text))
 
@@ -164,7 +163,7 @@ def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
 
 
 def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
-                yes_color='#0000FF', no_color='#FF0000', **kwargs):
+                yes_color='#0000FF', no_color='#FF0000',conditionNodeParams={},leafNodeParams={}, **kwargs):
 
     """Convert specified tree to graphviz instance. IPython can automatically plot the
     returned graphiz instance. Otherwise, you should call .render() method
@@ -184,6 +183,18 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
+    conditionNodeParams : dict, default {}
+        condition node configuration,
+        {'shape':'box',
+               'style':'filled,rounded',
+               'fillcolor':'#78bceb'
+        }
+    leafNodeParams : dict, default {}
+        leaf node configuration
+        {'shape':'box',
+               'style':'filled',
+               'fillcolor':'#e48038'
+        }
     kwargs :
         Other keywords passed to graphviz graph_attr
 
@@ -212,7 +223,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
 
     for i, text in enumerate(tree):
         if text[0].isdigit():
-            node = _parse_node(graph, text)
+            node = _parse_node(graph, text,conditionNodeParams=conditionNodeParams,leafNodeParams= leafNodeParams)
         else:
             if i == 0:
                 # 1st string must be node
@@ -266,3 +277,4 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir='UT', ax=None, **kwargs):
     ax.imshow(img)
     ax.axis('off')
     return ax
+    
