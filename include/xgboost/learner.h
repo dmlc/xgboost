@@ -10,6 +10,7 @@
 
 #include <rabit/rabit.h>
 #include <utility>
+#include <map>
 #include <string>
 #include <vector>
 #include "./base.h"
@@ -177,6 +178,12 @@ class Learner : public rabit::Serializable {
    * \return Created learner.
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
+
+  /*!
+   * \brief Get configuration arguments currently stored by the learner
+   * \return Key-value pairs representing configuration arguments
+   */
+  virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
  protected:
   /*! \brief internal base score of the model */
