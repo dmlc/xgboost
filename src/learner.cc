@@ -13,6 +13,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <ios>
 #include <utility>
 #include <vector>
 #include "./common/common.h"
@@ -21,7 +22,6 @@
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
 #include "./common/timer.h"
-#include "../tests/cpp/test_learner.h"
 
 namespace {
 
@@ -35,6 +35,26 @@ enum class TreeMethod : int {
 enum class DataSplitMode : int {
   kAuto = 0, kCol = 1, kRow = 2
 };
+
+inline bool IsFloat(const std::string& str) {
+  std::stringstream ss(str);
+  float f;
+  return !((ss >> std::noskipws >> f).rdstate() ^ std::ios_base::eofbit);
+}
+
+inline bool IsInt(const std::string& str) {
+  std::stringstream ss(str);
+  int i;
+  return !((ss >> std::noskipws >> i).rdstate() ^ std::ios_base::eofbit);
+}
+
+inline std::string RenderParamVal(const std::string& str) {
+  if (IsFloat(str) || IsInt(str)) {
+    return str;
+  } else {
+    return std::string("'") + str + "'";
+  }
+}
 
 }  // anonymous namespace
 
@@ -152,7 +172,7 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
  */
-class LearnerImpl : public Learner, public LearnerTestHook {
+class LearnerImpl : public Learner {
  public:
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
       : cache_(std::move(cache)) {
@@ -330,6 +350,38 @@ class LearnerImpl : public Learner, public LearnerTestHook {
     if (mparam_.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
+      for (auto& kv : attr) {
+        // Load `predictor`, `n_gpus`, `gpu_id` parameters from extra attributes
+        const std::string prefix = "SAVED_PARAM_";
+        if (kv.first.find(prefix) == 0) {
+          const std::string saved_param = kv.first.substr(prefix.length());
+#ifdef XGBOOST_USE_CUDA
+          if (saved_param == "predictor" || saved_param == "n_gpus"
+              || saved_param == "gpu_id") {
+            cfg_[saved_param] = kv.second;
+            LOG(INFO)
+              << "Parameter '" << saved_param << "' has been recovered from "
+              << "the saved model. It will be set to "
+              << RenderParamVal(kv.second) << " for prediction. To "
+              << "override the predictor behavior, explicitly set '"
+              << saved_param << "' parameter as follows:\n"
+              << "  * Python package: bst.set_param('"
+              << saved_param << "', [new value])\n"
+              << "  * R package:      xgb.parameters(bst) <- list("
+              << saved_param << " = [new value])\n"
+              << "  * JVM packages:   bst.setParam(\""
+              << saved_param << "\", [new value])";
+          }
+#else
+          if (saved_param == "predictor" && kv.second == "gpu_predictor") {
+            LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
+                      << "since XGBoots wasn't compiled with GPU support.";
+            cfg_["predictor"] = "cpu_predictor";
+            kv.second = "cpu_predictor";
+          }
+#endif
+        }
+      }
       attributes_ =
           std::map<std::string, std::string>(attr.begin(), attr.end());
     }
@@ -364,15 +416,28 @@ class LearnerImpl : public Learner, public LearnerTestHook {
         extra_attr.emplace_back("count_poisson_max_delta_step", it->second);
       }
     }
+    {
+      // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
+      for (const auto& key : std::vector<std::string>{
+                                   "predictor", "n_gpus", "gpu_id"}) {
+        auto it = cfg_.find(key);
+        if (it != cfg_.end()) {
+          mparam.contain_extra_attrs = 1;
+          extra_attr.emplace_back("SAVED_PARAM_" + key, it->second);
+        }
+      }
+    }
     fo->Write(&mparam, sizeof(LearnerModelParam));
     fo->Write(name_obj_);
     fo->Write(name_gbm_);
     gbm_->Save(fo);
     if (mparam.contain_extra_attrs != 0) {
-      std::vector<std::pair<std::string, std::string> > attr(
-          attributes_.begin(), attributes_.end());
-      attr.insert(attr.end(), extra_attr.begin(), extra_attr.end());
-      fo->Write(attr);
+      std::map<std::string, std::string> attr(attributes_);
+      for (const auto& kv : extra_attr) {
+        attr[kv.first] = kv.second;
+      }
+      fo->Write(std::vector<std::pair<std::string, std::string>>(
+                  attr.begin(), attr.end()));
     }
     if (name_obj_ == "count:poisson") {
       auto it = cfg_.find("max_delta_step");
@@ -502,6 +567,10 @@ class LearnerImpl : public Learner, public LearnerTestHook {
         obj_->PredTransform(out_preds);
       }
     }
+  }
+
+  const std::map<std::string, std::string>& GetConfigurationArguments() const override {
+    return cfg_;
   }
 
  protected:
@@ -664,11 +733,6 @@ class LearnerImpl : public Learner, public LearnerTestHook {
   std::vector<std::shared_ptr<DMatrix> > cache_;
 
   common::Monitor monitor_;
-
-  // diagnostic method reserved for C++ test learner.SelectTreeMethod
-  std::string GetUpdaterSequence() const override {
-    return cfg_.at("updater");
-  }
 };
 
 Learner* Learner::Create(

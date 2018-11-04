@@ -7,9 +7,10 @@
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
+#include <cstring>
+#include <algorithm>
 #include <vector>
 #include <string>
-#include <cstring>
 #include <memory>
 
 #include "./c_api_error.h"
@@ -52,12 +53,32 @@ class Booster {
 
   inline void LazyInit() {
     if (!configured_) {
+      LoadSavedParamFromAttr();
       learner_->Configure(cfg_);
       configured_ = true;
     }
     if (!initialized_) {
       learner_->InitModel();
       initialized_ = true;
+    }
+  }
+
+  inline void LoadSavedParamFromAttr() {
+    // Locate saved parameters from learner attributes
+    const std::string prefix = "SAVED_PARAM_";
+    for (const std::string& attr_name : learner_->GetAttrNames()) {
+      if (attr_name.find(prefix) == 0) {
+        const std::string saved_param = attr_name.substr(prefix.length());
+        if (std::none_of(cfg_.begin(), cfg_.end(),
+                         [&](const std::pair<std::string, std::string>& x)
+                             { return x.first == saved_param; })) {
+          // If cfg_ contains the parameter already, skip it
+          //   (this is to allow the user to explicitly override its value)
+          std::string saved_param_value;
+          CHECK(learner_->GetAttr(attr_name, &saved_param_value));
+          cfg_.emplace_back(saved_param, saved_param_value);
+        }
+      }
     }
   }
 
@@ -1147,6 +1168,15 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
     rabit::CheckPoint(bst->learner());
   }
   API_END();
+}
+
+/* hidden method; only known to C++ test suite */
+const std::map<std::string, std::string>&
+QueryBoosterConfigurationArguments(BoosterHandle handle) {
+  CHECK_HANDLE();
+  auto* bst = static_cast<Booster*>(handle);
+  bst->LazyInit();
+  return bst->learner()->GetConfigurationArguments();
 }
 
 // force link rabit
