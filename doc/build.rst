@@ -161,7 +161,7 @@ To build with MinGW, type:
 
   cp make/mingw64.mk config.mk; make -j4
 
-See :ref:`_mingw_python` for buildilng XGBoost for Python.
+See :ref:`mingw_python` for buildilng XGBoost for Python.
 
 Compile XGBoost with Microsoft Visual Studio
 --------------------------------------------
