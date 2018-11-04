@@ -102,9 +102,14 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
   DMatrixHandle dmat[1];
   BoosterHandle bst, bst2;
+  std::vector<bst_float> label;
+  for (int i = 0; i < 200; ++i) {
+    label.push_back((i % 2 ? 1 : 0));
+  }
 
   // Load data matrix
   CheckCAPICall(XGDMatrixCreateFromFile(tmp_file.c_str(), 0, &dmat[0]));
+  CheckCAPICall(XGDMatrixSetFloatInfo(dmat[0], "label", label.data(), 200));
   // Create booster
   CheckCAPICall(XGBoosterCreate(dmat, 1, &bst));
   // Set parameters
