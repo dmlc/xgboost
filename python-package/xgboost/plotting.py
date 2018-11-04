@@ -16,7 +16,6 @@ def plot_importance(booster, ax=None, height=0.2,
                     xlabel='F score', ylabel='Features',
                     importance_type='weight', max_num_features=None,
                     grid=True, show_values=True, **kwargs):
-
     """Plot importance based on fitted trees.
 
     Parameters
@@ -124,7 +123,7 @@ _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
 _EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
 
 
-def _parse_node(graph, text,conditionNodeParams,leafNodeParams):
+def _parse_node(graph, text, conditionNodeParams, leafNodeParams):
     """parse dumped node"""
     match = _NODEPAT.match(text)
     if match is not None:
@@ -134,7 +133,7 @@ def _parse_node(graph, text,conditionNodeParams,leafNodeParams):
     match = _LEAFPAT.match(text)
     if match is not None:
         node = match.group(1)
-        graph.node(node, label=match.group(2),**leafNodeParams)
+        graph.node(node, label=match.group(2), **leafNodeParams)
         return node
     raise ValueError('Unable to parse node: {0}'.format(text))
 
@@ -164,8 +163,7 @@ def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
 
 
 def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
-                yes_color='#0000FF', no_color='#FF0000',conditionNodeParams={},leafNodeParams={}, **kwargs):
-
+                yes_color='#0000FF', no_color='#FF0000', conditionNodeParams={}, leafNodeParams={}, **kwargs):
     """Convert specified tree to graphviz instance. IPython can automatically plot the
     returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -224,7 +222,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
 
     for i, text in enumerate(tree):
         if text[0].isdigit():
-            node = _parse_node(graph, text,conditionNodeParams=conditionNodeParams,leafNodeParams= leafNodeParams)
+            node = _parse_node(
+                graph, text, conditionNodeParams=conditionNodeParams, leafNodeParams=leafNodeParams)
         else:
             if i == 0:
                 # 1st string must be node
@@ -268,7 +267,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir='UT', ax=None, **kwargs):
     if ax is None:
         _, ax = plt.subplots(1, 1)
 
-    g = to_graphviz(booster, fmap=fmap, num_trees=num_trees, rankdir=rankdir, **kwargs)
+    g = to_graphviz(booster, fmap=fmap, num_trees=num_trees,
+                    rankdir=rankdir, **kwargs)
 
     s = BytesIO()
     s.write(g.pipe(format='png'))
@@ -278,4 +278,3 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir='UT', ax=None, **kwargs):
     ax.imshow(img)
     ax.axis('off')
     return ax
-    
