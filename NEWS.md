@@ -3,7 +3,7 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## v0.81 (2018.09.30)
+## v0.81 (2018.11.04)
 ### New feature: feature interaction constraints
 * Users are now able to control which features (independent variables) are allowed to interact by specifying feature interaction constraints (#3466).
 * [Tutorial](https://xgboost.readthedocs.io/en/release_0.81/tutorials/feature_interaction_constraint.html) is available, as well as [R](https://github.com/dmlc/xgboost/blob/9254c58e4dfff6a59dc0829a2ceb02e45ed17cd0/R-package/demo/interaction_constraints.R) and [Python](https://github.com/dmlc/xgboost/blob/9254c58e4dfff6a59dc0829a2ceb02e45ed17cd0/tests/python/test_interaction_constraints.py) examples.
