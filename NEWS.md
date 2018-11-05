@@ -23,6 +23,10 @@ This file records the changes in xgboost library in reverse chronological order.
 * Mitigate tracker "thundering herd" issue on large cluster. Add exponential backoff retry when workers connect to tracker.
 * With this change, we were able to scale to 1.5k executors on a 12 billion row dataset after some tweaks here and there.
 
+### New feature: Additional objective functions for GPUs
+* New objective functions ported to GPU: `hinge`, `multi:softmax`, `multi:softprob`, `count:poisson`, `reg:gamma`, `"reg:tweedie`.
+* With supported objectives, XGBoost will select the correct devices based on your system and `n_gpus` parameter.
+
 ### Major bug fix: learning to rank with XGBoost4J-Spark
 * Previously, `repartitionForData` would shuffle data and lose ordering necessary for ranking task.
 * To fix this issue, data points within each RDD partition is explicitly group by their group (query session) IDs (#3654). Also handle empty RDD partition carefully (#3750).
@@ -33,6 +37,7 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ### API changes
 * Column sampling by level (`colsample_bylevel`) is now functional for `hist` algorithm (#3635, #3862)
+* GPU tag `gpu:` for regression objectives are now deprecated. XGBoost will select the correct devices automatically (#3643)
 * Add `disable_default_eval_metric` parameter to disable default metric (#3606)
 * Experimental AVX support for gradient computation is removed (#3752)
 * XGBoost4J-Spark
@@ -334,7 +339,7 @@ This version is only applicable for the Python package. The content is identical
   - Compatibility fix for Python 2.6
   - Call `print_evaluation` callback at last iteration
   - Use appropriate integer types when calling native code, to prevent truncation and memory error
-  - Fix shared library loading on Mac OS X 
+  - Fix shared library loading on Mac OS X
 * R package:
   - New parameters:
     - `silent` in `xgb.DMatrix()`
@@ -375,7 +380,7 @@ This version is only applicable for the Python package. The content is identical
   - Support instance weights
   - Use `SparkParallelismTracker` to prevent jobs from hanging forever
   - Expose train-time evaluation metrics via `XGBoostModel.summary`
-  - Option to specify `host-ip` explicitly in the Rabit tracker 
+  - Option to specify `host-ip` explicitly in the Rabit tracker
 * Documentation
   - Better math notation for gradient boosting
   - Updated build instructions for Mac OS X
