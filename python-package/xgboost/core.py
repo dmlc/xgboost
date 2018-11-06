@@ -117,18 +117,23 @@ def _load_lib():
     lib_paths = find_lib_path()
     if len(lib_paths) == 0:
         return None
-    pathBackup = os.environ['PATH']
+    try:
+        pathBackup = os.environ['PATH'].split(os.pathsep)
+    except KeyError:
+        pathBackup = []
     lib_success = False
     os_error_list = []
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
-            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
+            os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
         except OSError as e:
             os_error_list.append(str(e))
             continue
+        finally:
+            os.environ['PATH'] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
