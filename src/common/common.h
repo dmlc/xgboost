@@ -147,27 +147,27 @@ struct AllVisibleImpl {
  */
 class GPUSet {
  public:
-  using GpuIndex = int;
-  static constexpr GpuIndex kAll = -1;
+  using GpuIdType = int;
+  static constexpr GpuIdType kAll = -1;
 
   explicit GPUSet(int start = 0, int ndevices = 0)
       : devices_(start, start + ndevices) {}
 
   static GPUSet Empty() { return GPUSet(); }
 
-  static GPUSet Range(GpuIndex start, GpuIndex n_gpus) {
+  static GPUSet Range(GpuIdType start, GpuIdType n_gpus) {
     return n_gpus <= 0 ? Empty() : GPUSet{start, n_gpus};
   }
   /*! \brief n_gpus and num_rows both are upper bounds. */
-  static GPUSet All(GpuIndex gpu_id, GpuIndex n_gpus,
-                    GpuIndex num_rows = std::numeric_limits<GpuIndex>::max()) {
+  static GPUSet All(GpuIdType gpu_id, GpuIdType n_gpus,
+                    GpuIdType num_rows = std::numeric_limits<GpuIdType>::max()) {
     CHECK_GE(gpu_id, 0) << "gpu_id must be >= 0.";
     CHECK_GE(n_gpus, -1) << "n_gpus must be >= -1.";
 
-    GpuIndex const n_devices_visible = AllVisible().Size();
+    GpuIdType const n_devices_visible = AllVisible().Size();
     if (n_devices_visible == 0) { return Empty(); }
 
-    GpuIndex const n_available_devices = n_devices_visible - gpu_id;
+    GpuIdType const n_available_devices = n_devices_visible - gpu_id;
 
     if (n_gpus == kAll) {  // Use all devices starting from `gpu_id'.
       CHECK(gpu_id < n_devices_visible)
@@ -175,7 +175,7 @@ class GPUSet {
           << gpu_id
           << ", number of visible devices: "
           << n_devices_visible;
-      GpuIndex n_devices =
+      GpuIdType n_devices =
           n_available_devices < num_rows ? n_available_devices : num_rows;
       return Range(gpu_id, n_devices);
     } else {  // Use devices in ( gpu_id, gpu_id + n_gpus ).
@@ -183,18 +183,18 @@ class GPUSet {
           << "Starting from gpu id: " << gpu_id << ", there are only "
           << n_available_devices << " available devices, while n_gpus is set to: "
           << n_gpus;
-      GpuIndex n_devices = n_gpus < num_rows ? n_gpus : num_rows;
+      GpuIdType n_devices = n_gpus < num_rows ? n_gpus : num_rows;
       return Range(gpu_id, n_devices);
     }
   }
 
   static GPUSet AllVisible() {
-    GpuIndex n =  AllVisibleImpl::AllVisible();
+    GpuIdType n =  AllVisibleImpl::AllVisible();
     return Range(0, n);
   }
 
-  GpuIndex Size() const {
-    GpuIndex res = *devices_.end() - *devices_.begin();
+  size_t Size() const {
+    size_t res = *devices_.end() - *devices_.begin();
     return res < 0 ? 0 : res;
   }
 
@@ -207,25 +207,25 @@ class GPUSet {
    * Hence, `DeviceId' converts a zero-based index to actual device id,
    * `Index' converts a device id to a zero-based index.
    */
-  GpuIndex DeviceId(GpuIndex index) const {
-    GpuIndex result = *devices_.begin() + index;
+  GpuIdType DeviceId(size_t index) const {
+    GpuIdType result = *devices_.begin() + index;
     CHECK(Contains(result)) << "\nDevice " << result << " is not in GPUSet."
                             << "\nIndex: " << index
                             << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
                             << std::endl;
     return result;
   }
-  GpuIndex Index(GpuIndex device) const {
+  size_t Index(GpuIdType device) const {
     CHECK(Contains(device)) << "\nDevice " << device << " is not in GPUSet."
                             << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
                             << std::endl;
-    GpuIndex result = device - *devices_.begin();
+    size_t result = device - *devices_.begin();
     return result;
   }
 
   bool IsEmpty() const { return Size() == 0; }
 
-  bool Contains(GpuIndex device) const {
+  bool Contains(GpuIdType device) const {
     return *devices_.begin() <= device && device < *devices_.end();
   }
 
