@@ -25,6 +25,9 @@ if echo "${OSTYPE}" | grep -q "darwin"; then
   elif which g++-7; then
     export CC=gcc-7
     export CXX=g++-7
+  elif which g++-8; then
+    export CC=gcc-8
+    export CXX=g++-8
   elif which clang++; then
     export CC=clang
     export CXX=clang++
