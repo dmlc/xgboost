@@ -194,8 +194,9 @@ class GPUSet {
   }
 
   size_t Size() const {
-    size_t res = *devices_.end() - *devices_.begin();
-    return res < 0 ? 0 : res;
+    GpuIdType size = *devices_.end() - *devices_.begin();
+    GpuIdType res = size < 0 ? 0 : size;
+    return (size_t)res;
   }
 
   /*
@@ -208,7 +209,7 @@ class GPUSet {
    * `Index' converts a device id to a zero-based index.
    */
   GpuIdType DeviceId(size_t index) const {
-    GpuIdType result = *devices_.begin() + index;
+    GpuIdType result = *devices_.begin() + static_cast<GpuIdType>(index);
     CHECK(Contains(result)) << "\nDevice " << result << " is not in GPUSet."
                             << "\nIndex: " << index
                             << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
