@@ -53,6 +53,16 @@ T *Raw(thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
+inline void CudaCheckPointerDevice(void* ptr) {
+  cudaPointerAttributes attr;
+  dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
+  int ptr_device = attr.device;
+  int cur_device = -1;
+  cudaGetDevice(&cur_device);
+  CHECK_EQ(ptr_device, cur_device) << "pointer device: " << ptr_device
+                                   << "current device: " << cur_device;
+}
+
 template <typename T>
 const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
@@ -61,7 +71,7 @@ const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
 // if n_devices=-1, then use all visible devices
 inline void SynchronizeNDevices(xgboost::GPUSet devices) {
   devices = devices.IsEmpty() ? xgboost::GPUSet::AllVisible() : devices;
-  for (auto const d : devices.Unnormalised()) {
+  for (auto const d : devices) {
     safe_cuda(cudaSetDevice(d));
     safe_cuda(cudaDeviceSynchronize());
   }
@@ -743,7 +753,8 @@ void SumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
 * @param nVals number of elements in the input array
 */
 template <typename T>
-typename std::iterator_traits<T>::value_type SumReduction(dh::CubMemory &tmp_mem, T in, int nVals) {
+typename std::iterator_traits<T>::value_type SumReduction(
+    dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, in, nVals));
@@ -900,11 +911,10 @@ class AllReducer {
                     double *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised);
-
-    dh::safe_cuda(cudaSetDevice(device_ordinals[communication_group_idx]));
+    dh::safe_cuda(cudaSetDevice(device_ordinals.at(communication_group_idx)));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum,
-                                comms[communication_group_idx],
-                                streams[communication_group_idx]));
+                                comms.at(communication_group_idx),
+                                streams.at(communication_group_idx)));
 #endif
   }
 

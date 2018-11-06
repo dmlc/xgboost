@@ -10,11 +10,7 @@ TEST(GPUSet, Basic) {
   ASSERT_TRUE(devices != GPUSet::Empty());
   EXPECT_EQ(devices.Size(), 1);
 
-  EXPECT_ANY_THROW(devices.Index(1));
-  EXPECT_ANY_THROW(devices.Index(-1));
-
   devices = GPUSet::Range(1, 0);
-  EXPECT_EQ(devices, GPUSet::Empty());
   EXPECT_EQ(devices.Size(), 0);
   EXPECT_TRUE(devices.IsEmpty());
 
@@ -25,18 +21,17 @@ TEST(GPUSet, Basic) {
   EXPECT_EQ(devices.Size(), 0);
   EXPECT_TRUE(devices.IsEmpty());
 
-  devices = GPUSet::Range(2, 8);
+  devices = GPUSet::Range(2, 8);  // 2 ~ 10
   EXPECT_EQ(devices.Size(), 8);
-  EXPECT_ANY_THROW(devices[8]);
-  EXPECT_ANY_THROW(devices.Index(0));
+  EXPECT_ANY_THROW(devices.DeviceId(8));
 
-  devices = devices.Unnormalised();
+  auto device_id = devices.DeviceId(0);
+  EXPECT_EQ(device_id, 2);
+  auto device_index = devices.Index(2);
+  EXPECT_EQ(device_index, 0);
 
-  EXPECT_EQ(*devices.begin(), 0);
-  EXPECT_EQ(*devices.end(), devices.Size());
 #ifndef XGBOOST_USE_CUDA
   EXPECT_EQ(GPUSet::AllVisible(), GPUSet::Empty());
 #endif
 }
 }  // namespace xgboost
-

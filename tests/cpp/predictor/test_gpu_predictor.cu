@@ -198,8 +198,8 @@ TEST(gpu_predictor, MGPU_Test) {
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
     std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
     float abs_tolerance = 0.001;
-    for (int i = 0; i < gpu_out_predictions.Size(); i++) {
-      ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
+    for (int j = 0; j < gpu_out_predictions.Size(); j++) {
+      ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
     }
     delete dmat;
   }

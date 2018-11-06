@@ -46,14 +46,13 @@ template <typename T>
 struct HostDeviceVectorImpl {
   struct DeviceShard {
     DeviceShard()
-      : index_(-1), proper_size_(0), device_(-1), start_(0), perm_d_(false),
+        : proper_size_(0), device_(-1), start_(0), perm_d_(false),
         cached_size_(~0), vec_(nullptr) {}
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = device;
-      index_ = vec_->distribution_.devices_.Index(device);
       LazyResize(vec_->Size());
       perm_d_ = vec_->perm_h_.Complementary();
     }
@@ -62,7 +61,6 @@ struct HostDeviceVectorImpl {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = other.device_;
-      index_ = other.index_;
       cached_size_ = other.cached_size_;
       start_ = other.start_;
       proper_size_ = other.proper_size_;
@@ -114,10 +112,11 @@ struct HostDeviceVectorImpl {
       if (new_size == cached_size_) { return; }
       // resize is required
       int ndevices = vec_->distribution_.devices_.Size();
-      start_ = vec_->distribution_.ShardStart(new_size, index_);
-      proper_size_ = vec_->distribution_.ShardProperSize(new_size, index_);
+      int device_index = vec_->distribution_.devices_.Index(device_);
+      start_ = vec_->distribution_.ShardStart(new_size, device_index);
+      proper_size_ = vec_->distribution_.ShardProperSize(new_size, device_index);
       // The size on this device.
-      size_t size_d = vec_->distribution_.ShardSize(new_size, index_);
+      size_t size_d = vec_->distribution_.ShardSize(new_size, device_index);
       SetDevice();
       data_.resize(size_d);
       cached_size_ = new_size;
@@ -154,7 +153,6 @@ struct HostDeviceVectorImpl {
       }
     }
 
-    int index_;
     int device_;
     thrust::device_vector<T> data_;
     // cached vector size
@@ -183,13 +181,13 @@ struct HostDeviceVectorImpl {
       distribution_(other.distribution_), mutex_() {
     shards_.resize(other.shards_.size());
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-        shard.Init(this, other.shards_[i]);
+        shard.Init(this, other.shards_.at(i));
       });
   }
 
-  // Init can be std::vector<T> or std::initializer_list<T>
-  template <class Init>
-  HostDeviceVectorImpl(const Init& init, GPUDistribution distribution)
+  // Initializer can be std::vector<T> or std::initializer_list<T>
+  template <class Initializer>
+  HostDeviceVectorImpl(const Initializer& init, GPUDistribution distribution)
     : distribution_(distribution), perm_h_(distribution.IsEmpty()), size_d_(0) {
     if (!distribution_.IsEmpty()) {
       size_d_ = init.size();
@@ -204,7 +202,7 @@ struct HostDeviceVectorImpl {
     int ndevices = distribution_.devices_.Size();
     shards_.resize(ndevices);
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-        shard.Init(this, distribution_.devices_[i]);
+        shard.Init(this, distribution_.devices_.DeviceId(i));
       });
   }
 
@@ -217,20 +215,20 @@ struct HostDeviceVectorImpl {
   T* DevicePointer(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
-    return shards_[distribution_.devices_.Index(device)].data_.data().get();
+    return shards_.at(distribution_.devices_.Index(device)).data_.data().get();
   }
 
   const T* ConstDevicePointer(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_[distribution_.devices_.Index(device)].data_.data().get();
+    return shards_.at(distribution_.devices_.Index(device)).data_.data().get();
   }
 
   common::Span<T> DeviceSpan(int device) {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
-    return {shards_[devices.Index(device)].data_.data().get(),
+    return {shards_.at(devices.Index(device)).data_.data().get(),
         static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
@@ -238,20 +236,20 @@ struct HostDeviceVectorImpl {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return {shards_[devices.Index(device)].data_.data().get(),
+    return {shards_.at(devices.Index(device)).data_.data().get(),
         static_cast<typename common::Span<const T>::index_type>(DeviceSize(device))};
   }
 
   size_t DeviceSize(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_[distribution_.devices_.Index(device)].data_.size();
+    return shards_.at(distribution_.devices_.Index(device)).data_.size();
   }
 
   size_t DeviceStart(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_[distribution_.devices_.Index(device)].start_;
+    return shards_.at(distribution_.devices_.Index(device)).start_;
   }
 
   thrust::device_ptr<T> tbegin(int device) {  // NOLINT
@@ -316,7 +314,7 @@ struct HostDeviceVectorImpl {
       size_d_ = other->size_d_;
     }
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-        shard.Copy(&other->shards_[i]);
+        shard.Copy(&other->shards_.at(i));
       });
   }
 
@@ -405,7 +403,7 @@ struct HostDeviceVectorImpl {
   void LazySyncDevice(int device, GPUAccess access) {
     GPUSet devices = distribution_.Devices();
     CHECK(devices.Contains(device));
-    shards_[devices.Index(device)].LazySyncDevice(access);
+    shards_.at(devices.Index(device)).LazySyncDevice(access);
   }
 
   bool HostCanAccess(GPUAccess access) { return perm_h_.CanAccess(access); }
@@ -413,7 +411,7 @@ struct HostDeviceVectorImpl {
   bool DeviceCanAccess(int device, GPUAccess access) {
     GPUSet devices = distribution_.Devices();
     if (!devices.Contains(device)) { return false; }
-    return shards_[devices.Index(device)].perm_d_.CanAccess(access);
+    return shards_.at(devices.Index(device)).perm_d_.CanAccess(access);
   }
 
   std::vector<T> data_h_;

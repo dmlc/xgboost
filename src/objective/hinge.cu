@@ -38,7 +38,7 @@ class HingeObj : public ObjFunction {
   void Configure(
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.n_gpus).Normalised(param_.gpu_id);
+    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
 
