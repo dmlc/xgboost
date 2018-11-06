@@ -196,7 +196,7 @@ class GPUSet {
   size_t Size() const {
     GpuIdType size = *devices_.end() - *devices_.begin();
     GpuIdType res = size < 0 ? 0 : size;
-    return (size_t)res;
+    return static_cast<size_t>(res);
   }
 
   /*
@@ -220,7 +220,7 @@ class GPUSet {
     CHECK(Contains(device)) << "\nDevice " << device << " is not in GPUSet."
                             << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
                             << std::endl;
-    size_t result = device - *devices_.begin();
+    size_t result = static_cast<size_t>(device - *devices_.begin());
     return result;
   }
 
