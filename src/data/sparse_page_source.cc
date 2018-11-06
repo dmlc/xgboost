@@ -34,7 +34,7 @@ GetCacheShards(const std::string& cache_info) {
   }
 }
 
-}  // namespace anonymous
+}  // anonymous namespace
 
 namespace xgboost {
 namespace data {
