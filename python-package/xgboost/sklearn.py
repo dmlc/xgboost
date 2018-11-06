@@ -543,11 +543,12 @@ class XGBModel(XGBModelBase):
         b = self.get_booster()
         coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
-        if getattr(self, 'n_classes_', None) is not None:
-            if self.n_classes_ > 2:
+        n_classes = getattr(self, 'n_classes_', None)
+        if n_classes is not None:
+            if n_classes > 2:
                 assert len(coef.shape) == 1
-                assert coef.shape[0] % self.n_classes_ == 0
-                coef = coef.reshape((self.n_classes_, -1))
+                assert coef.shape[0] % n_classes == 0
+                coef = coef.reshape((n_classes, -1))
         return coef
 
     @property
