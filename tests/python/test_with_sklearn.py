@@ -544,3 +544,35 @@ def test_save_load_model():
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
+
+def test_RFECV():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_breast_cancer
+    from sklearn.datasets import load_iris
+    from sklearn.feature_selection import RFECV
+
+    # Regression
+    X, y = load_boston(return_X_y=True)
+    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
+                            n_estimators=10, n_jobs=1, objective='reg:linear',
+                            random_state=0, silent=True)
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')
+    rfecv.fit(X, y)
+
+    # Binary classification
+    X, y = load_breast_cancer(return_X_y=True)
+    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
+                            n_estimators=10, n_jobs=1, objective='binary:logistic',
+                            random_state=0, silent=True)
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
+    rfecv.fit(X, y)
+ 
+    # Multi-class classification
+    X, y = load_iris(return_X_y=True)
+    bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear', learning_rate=0.1,
+                            n_estimators=10, n_jobs=1, objective='multi:softprob',
+                            random_state=0, reg_alpha=0.001, reg_lambda=0.01,
+                            scale_pos_weight=0.5, silent=True)
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
+    rfecv.fit(X, y)
