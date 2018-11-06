@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, exec-used
 """Setup xgboost package."""
 from __future__ import absolute_import
+import io
 import sys
 import os
 from setuptools import setup, find_packages
@@ -31,7 +32,7 @@ print("Install libxgboost from: %s" % LIB_PATH)
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       description="XGBoost Python Package",
-      long_description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
+      long_description=io.open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8').read(),
       install_requires=[
           'numpy',
           'scipy',
