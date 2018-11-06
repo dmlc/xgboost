@@ -352,8 +352,9 @@ struct GPUSketcher {
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
         size_t start = dist_.ShardStart(info.num_row_, i);
         size_t size = dist_.ShardSize(info.num_row_, i);
-        shard = std::unique_ptr<DeviceShard>
-          (new DeviceShard(dist_.Devices()[i], start, start + size, param_));
+        shard = std::unique_ptr<DeviceShard>(
+            new DeviceShard(dist_.Devices().DeviceId(i),
+                            start, start + size, param_));
       });
 
     // compute sketches for each shard
@@ -379,8 +380,7 @@ struct GPUSketcher {
   }
 
   GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.n_gpus, n_rows).
-                                   Normalised(param_.gpu_id));
+    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
   }
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;

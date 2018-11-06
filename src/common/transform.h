@@ -86,11 +86,13 @@ class Transform {
     // CUDA UnpackHDV
     template <typename T>
     Span<T> UnpackHDV(HostDeviceVector<T>* _vec, int _device) const {
-      return _vec->DeviceSpan(_device);
+      auto span = _vec->DeviceSpan(_device);
+      return span;
     }
     template <typename T>
     Span<T const> UnpackHDV(const HostDeviceVector<T>* _vec, int _device) const {
-      return _vec->ConstDeviceSpan(_device);
+      auto span = _vec->ConstDeviceSpan(_device);
+      return span;
     }
     // CPU UnpackHDV
     template <typename T>
@@ -125,19 +127,23 @@ class Transform {
 
       GPUSet devices = distribution_.Devices();
       size_t range_size = *range_.end() - *range_.begin();
+
+      // Extract index to deal with possible old OpenMP.
+      size_t device_beg = *(devices.begin());
+      size_t device_end = *(devices.end());
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (omp_ulong i = 0; i < devices.Size(); ++i) {
-        int d = devices.Index(i);
+      for (omp_ulong device = device_beg; device < device_end; ++device) {  // NOLINT
         // Ignore other attributes of GPUDistribution for spliting index.
-        size_t shard_size =
-            GPUDistribution::Block(devices).ShardSize(range_size, d);
+        // This deals with situation like multi-class setting where
+        // granularity is used in data vector.
+        size_t shard_size = GPUDistribution::Block(devices).ShardSize(
+            range_size, devices.Index(device));
         Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
-        dh::safe_cuda(cudaSetDevice(d));
+        dh::safe_cuda(cudaSetDevice(device));
         const int GRID_SIZE =
             static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
-
         detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
-            _func, shard_range, UnpackHDV(_vectors, d)...);
+            _func, shard_range, UnpackHDV(_vectors, device)...);
         dh::safe_cuda(cudaGetLastError());
         dh::safe_cuda(cudaDeviceSynchronize());
       }

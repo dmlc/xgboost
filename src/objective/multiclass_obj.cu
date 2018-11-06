@@ -50,7 +50,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
-    devices_ = GPUSet::All(param_.n_gpus).Normalised(param_.gpu_id);
+    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
   void GetGradient(const HostDeviceVector<bst_float>& preds,
