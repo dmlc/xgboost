@@ -24,9 +24,9 @@
 #define DeclareUnifiedTest(name) name
 #endif
 
-bool FileExists(const std::string name);
+bool FileExists(const std::string& filename);
 
-long GetFileSize(const std::string filename);
+long GetFileSize(const std::string& filename);
 
 void CreateSimpleTestData(const std::string& filename);
 

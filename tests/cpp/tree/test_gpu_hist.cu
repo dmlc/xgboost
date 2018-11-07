@@ -24,16 +24,16 @@ void BuildGidx(DeviceShard* shard, int n_rows, int n_cols,
 
   common::HistCutMatrix cmat;
   cmat.row_ptr = {0, 3, 6, 9, 12, 15, 18, 21, 24};
-  cmat.min_val = {0.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.2, 0.2};
+  cmat.min_val = {0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f};
   // 24 cut fields, 3 cut fields for each feature (column).
-  cmat.cut = {0.30, 0.67, 1.64,
-              0.32, 0.77, 1.95,
-              0.29, 0.70, 1.80,
-              0.32, 0.75, 1.85,
-              0.18, 0.59, 1.69,
-              0.25, 0.74, 2.00,
-              0.26, 0.74, 1.98,
-              0.26, 0.71, 1.83};
+  cmat.cut = {0.30f, 0.67f, 1.64f,
+              0.32f, 0.77f, 1.95f,
+              0.29f, 0.70f, 1.80f,
+              0.32f, 0.75f, 1.85f,
+              0.18f, 0.59f, 1.69f,
+              0.25f, 0.74f, 2.00f,
+              0.26f, 0.74f, 1.98f,
+              0.26f, 0.71f, 1.83f};
 
   shard->InitRowPtrs(batch);
   shard->InitCompressedData(cmat, batch);
@@ -110,14 +110,14 @@ TEST(GpuHist, BuildGidxSparse) {
 std::vector<GradientPairPrecise> GetHostHistGpair() {
   // 24 bins, 3 bins for each feature (column).
   std::vector<GradientPairPrecise> hist_gpair = {
-    {0.8314, 0.7147}, {1.7989, 3.7312}, {3.3846, 3.4598},
-    {2.9277, 3.5886}, {1.8429, 2.4152}, {1.2443, 1.9019},
-    {1.6380, 2.9174}, {1.5657, 2.5107}, {2.8111, 2.4776},
-    {2.1322, 3.0651}, {3.2927, 3.8540}, {0.5899, 0.9866},
-    {1.5185, 1.6263}, {2.0686, 3.1844}, {2.4278, 3.0950},
-    {1.5105, 2.1403}, {2.6922, 4.2217}, {1.8122, 1.5437},
-    {0.0000, 0.0000}, {4.3245, 5.7955}, {1.6903, 2.1103},
-    {2.4012, 4.4754}, {3.6136, 3.4303}, {0.0000, 0.0000}
+    {0.8314f, 0.7147f}, {1.7989f, 3.7312f}, {3.3846f, 3.4598f},
+    {2.9277f, 3.5886f}, {1.8429f, 2.4152f}, {1.2443f, 1.9019f},
+    {1.6380f, 2.9174f}, {1.5657f, 2.5107f}, {2.8111f, 2.4776f},
+    {2.1322f, 3.0651f}, {3.2927f, 3.8540f}, {0.5899f, 0.9866f},
+    {1.5185f, 1.6263f}, {2.0686f, 3.1844f}, {2.4278f, 3.0950f},
+    {1.5105f, 2.1403f}, {2.6922f, 4.2217f}, {1.8122f, 1.5437f},
+    {0.0000f, 0.0000f}, {4.3245f, 5.7955f}, {1.6903f, 2.1103f},
+    {2.4012f, 4.4754f}, {3.6136f, 3.4303f}, {0.0000f, 0.0000f}
   };
   return hist_gpair;
 }
@@ -198,17 +198,17 @@ TEST(GpuHist, BuildHistSharedMem) {
 common::HistCutMatrix GetHostCutMatrix () {
   common::HistCutMatrix cmat;
   cmat.row_ptr = {0, 3, 6, 9, 12, 15, 18, 21, 24};
-  cmat.min_val = {0.1, 0.2, 0.3, 0.1, 0.2, 0.3, 0.2, 0.2};
+  cmat.min_val = {0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f};
   // 24 cut fields, 3 cut fields for each feature (column).
   // Each row of the cut represents the cuts for a data column.
-  cmat.cut = {0.30, 0.67, 1.64,
-              0.32, 0.77, 1.95,
-              0.29, 0.70, 1.80,
-              0.32, 0.75, 1.85,
-              0.18, 0.59, 1.69,
-              0.25, 0.74, 2.00,
-              0.26, 0.74, 1.98,
-              0.26, 0.71, 1.83};
+  cmat.cut = {0.30f, 0.67f, 1.64f,
+              0.32f, 0.77f, 1.95f,
+              0.29f, 0.70f, 1.80f,
+              0.32f, 0.75f, 1.85f,
+              0.18f, 0.59f, 1.69f,
+              0.25f, 0.74f, 2.00f,
+              0.26f, 0.74f, 1.98f,
+              0.26f, 0.71f, 1.83f};
   return cmat;
 }
 
@@ -238,7 +238,7 @@ TEST(GpuHist, EvaluateSplits) {
   // Initialize DeviceShard
   std::unique_ptr<DeviceShard> shard {new DeviceShard(0, 0, n_rows, param)};
   // Initialize DeviceShard::node_sum_gradients
-  shard->node_sum_gradients = {{6.4, 12.8}};
+  shard->node_sum_gradients = {{6.4f, 12.8f}};
 
   // Initialize DeviceShard::cut
   common::HistCutMatrix cmat = GetHostCutMatrix();
