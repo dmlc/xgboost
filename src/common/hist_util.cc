@@ -4,10 +4,11 @@
  * \brief Utilities to store histograms
  * \author Philip Cho, Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
-#include "./sync.h"
+
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./hist_util.h"
@@ -216,7 +217,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
            const std::vector<size_t>& feature_nnz,
            const ColumnMatrix& colmat,
            size_t nrow,
-           const FastHistParam& param) {
+           const tree::TrainParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
            member features.
@@ -278,7 +279,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
 inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
-                    const FastHistParam& param) {
+                    const tree::TrainParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
   const size_t nfeature = gmat.cut.row_ptr.size() - 1;
 
@@ -332,7 +333,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
-                                 const FastHistParam& param) {
+                                 const tree::TrainParam& param) {
   cut_ = &gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;

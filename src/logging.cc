@@ -4,9 +4,9 @@
  * \brief Implementation of loggers.
  * \author Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <xgboost/logging.h>
 #include <iostream>
-#include "./common/sync.h"
 
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces

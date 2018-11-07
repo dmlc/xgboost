@@ -4,11 +4,12 @@
  * \brief use histogram counting to construct a tree
  * \author Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/tree_updater.h>
 #include <vector>
 #include <algorithm>
-#include "../common/sync.h"
+
 #include "../common/quantile.h"
 #include "../common/group_data.h"
 #include "./updater_basemaker-inl.h"

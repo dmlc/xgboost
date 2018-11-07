@@ -4,12 +4,13 @@
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
  */
-
+#include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
+
 #include <string>
 #include <memory>
+
 #include "./param.h"
-#include "../common/sync.h"
 #include "../common/io.h"
 
 namespace xgboost {

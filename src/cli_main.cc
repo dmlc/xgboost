@@ -19,7 +19,6 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
-#include "./common/sync.h"
 #include "./common/config.h"
 
 
