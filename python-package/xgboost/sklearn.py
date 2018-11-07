@@ -100,6 +100,9 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    importance_type: string, default "gain"
+        The feature importance type for the feature_importances_ property: either "gain",
+        "weight", "cover", "total_gain" or "total_cover".
     \*\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
@@ -133,7 +136,8 @@ class XGBModel(XGBModelBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+                 base_score=0.5, random_state=0, seed=None, missing=None, 
+                 importance_type="gain", **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -159,6 +163,7 @@ class XGBModel(XGBModelBase):
         self.random_state = random_state
         self.nthread = nthread
         self.n_jobs = n_jobs
+        self.importance_type = importance_type
 
     def __setstate__(self, state):
         # backward compatibility code
@@ -517,7 +522,7 @@ class XGBModel(XGBModelBase):
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
-        fs = b.get_score(importance_type='gain')
+        fs = b.get_score(importance_type=self.importance_type)
         all_features = [fs.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
         return all_features / all_features.sum()
