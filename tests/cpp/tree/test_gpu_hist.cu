@@ -328,8 +328,8 @@ TEST(GpuHist, ApplySplit) {
   shard->row_stride = n_cols;
   thrust::sequence(shard->ridx.CurrentDVec().tbegin(),
                    shard->ridx.CurrentDVec().tend());
+  // Free inside DeviceShard
   dh::safe_cuda(cudaMallocHost(&(shard->tmp_pinned), sizeof(int64_t)));
-
   // Initialize GPUHistMaker
   hist_maker.param_ = param;
   RegTree tree;
@@ -388,16 +388,6 @@ TEST(GpuHist, ApplySplit) {
   ASSERT_EQ(shard->ridx_segments[left_nidx].end, 6);
   ASSERT_EQ(shard->ridx_segments[right_nidx].begin, 6);
   ASSERT_EQ(shard->ridx_segments[right_nidx].end, 16);
-}
-
-TEST(GpuHist, MGPU_mock) {
-  // Attempt to choose multiple GPU devices
-  int ngpu;
-  dh::safe_cuda(cudaGetDeviceCount(&ngpu));
-  CHECK_GT(ngpu, 1);
-  for (int i = 0; i < ngpu; ++i) {
-    dh::safe_cuda(cudaSetDevice(i));
-  }
 }
 
 }  // namespace tree

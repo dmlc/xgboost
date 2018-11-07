@@ -211,8 +211,8 @@ class LearnerImpl : public Learner {
       break;
      case TreeMethod::kHist:
       LOG(CONSOLE) << "Tree method is selected to be 'hist', which uses a "
-                      "single updater grow_fast_histmaker.";
-      cfg_["updater"] = "grow_fast_histmaker";
+                      "single updater grow_quantile_histmaker.";
+      cfg_["updater"] = "grow_quantile_histmaker";
       break;
      case TreeMethod::kGPUExact:
       this->AssertGPUSupport();

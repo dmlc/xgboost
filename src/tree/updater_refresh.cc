@@ -4,12 +4,13 @@
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
-
+#include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
+
 #include <vector>
 #include <limits>
+
 #include "./param.h"
-#include "../common/sync.h"
 #include "../common/io.h"
 
 namespace xgboost {

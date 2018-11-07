@@ -7,7 +7,6 @@
 #include <vector>
 #include <string>
 #include <limits>
-#include "../common/sync.h"
 #include "../common/io.h"
 
 namespace xgboost {
