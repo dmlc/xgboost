@@ -545,6 +545,7 @@ def test_save_load_model():
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
 
+
 def test_RFECV():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_boston
@@ -567,7 +568,7 @@ def test_RFECV():
                             random_state=0, silent=True)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
     rfecv.fit(X, y)
- 
+
     # Multi-class classification
     X, y = load_iris(return_X_y=True)
     bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear', learning_rate=0.1,
