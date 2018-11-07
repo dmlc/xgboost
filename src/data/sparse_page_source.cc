@@ -6,10 +6,34 @@
 #include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <memory>
+#include <vector>
+#include <string>
+#include <locale>
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "../common/common.h"
+
+namespace {
+
+// Split a cache info string with delimiter ':'
+// If cache info string contains drive letter (e.g. C:), exclude it before splitting
+inline std::vector<std::string>
+GetCacheShards(const std::string& cache_info) {
+#if (defined _WIN32) || (defined __CYGWIN__)
+  if (cache_info.length() >= 2
+      && std::isalpha(cache_info[0], std::locale::classic())
+      && cache_info[1] == ':') {
+    std::vector<std::string> cache_shards
+      = xgboost::common::Split(cache_info.substr(2), ':');
+    cache_shards[0] = cache_info.substr(0, 2) + cache_shards[0];
+    return cache_shards;
+  }
+#endif
+  return xgboost::common::Split(cache_info, ':');
+}
+
+}  // anonymous namespace
 
 namespace xgboost {
 namespace data {
@@ -18,7 +42,7 @@ SparsePageSource::SparsePageSource(const std::string& cache_info,
                                    const std::string& page_type)
     : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
   // read in the info files
-  std::vector<std::string> cache_shards = common::Split(cache_info, ':');
+  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   {
     std::string name_info = cache_shards[0];
@@ -86,7 +110,7 @@ const SparsePage& SparsePageSource::Value() const {
 
 bool SparsePageSource::CacheExist(const std::string& cache_info,
                                   const std::string& page_type) {
-  std::vector<std::string> cache_shards = common::Split(cache_info, ':');
+  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   {
     std::string name_info = cache_shards[0];
@@ -104,7 +128,7 @@ bool SparsePageSource::CacheExist(const std::string& cache_info,
 void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
                               const std::string& cache_info) {
   const std::string page_type = ".row.page";
-  std::vector<std::string> cache_shards = common::Split(cache_info, ':');
+  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
   std::string name_info = cache_shards[0];
@@ -198,7 +222,7 @@ void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
 void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
                                              const std::string& cache_info,
                                              const std::string& page_type) {
-  std::vector<std::string> cache_shards = common::Split(cache_info, ':');
+  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
   std::string name_info = cache_shards[0];
