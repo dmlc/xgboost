@@ -247,6 +247,7 @@ Parameters for Linear Booster (``booster=gblinear``)
 
     - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
     - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution.
+    - ``gpu_coord_descent``: GPU implementation of ordinary coordinate descent algorithm.
 
 * ``feature_selector`` [default= ``cyclic``]
 

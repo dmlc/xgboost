@@ -33,13 +33,28 @@ TEST(learner, SelectTreeMethod) {
   learner->Configure({arg("tree_method", "hist")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_quantile_histmaker");
+
 #ifdef XGBOOST_USE_CUDA
   learner->Configure({arg("tree_method", "gpu_exact")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_gpu,prune");
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "1");
+
   learner->Configure({arg("tree_method", "gpu_hist")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_gpu_hist");
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "1");
+
+  learner->Configure({arg("tree_method", "gpu_hist"), arg("n_gpus", "2")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "2");
+
+  learner->Configure({arg("tree_method", "hist")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "0");
+  learner->Configure({arg("tree_method", "approx")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "0");
+  learner->Configure({arg("tree_method", "exact")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "0");
+
 #endif
 
   delete mat_ptr;

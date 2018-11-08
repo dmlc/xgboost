@@ -122,6 +122,8 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
+  // Number of used GPUs.
+  std::string n_gpus;
   // flag to print out detailed breakdown of runtime
   int debug_verbose;
   // flag to disable default metric
@@ -155,6 +157,8 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         "Internal test flag");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
+    DMLC_DECLARE_FIELD(n_gpus).set_default("").describe(
+        "Number of GPUs to use, -1 means all available GPUs.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -281,6 +285,20 @@ class LearnerImpl : public Learner {
     if (cfg_.count("max_delta_step") == 0 && cfg_.count("objective") != 0 &&
         cfg_["objective"] == "count:poisson") {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
+    }
+
+    ConfigureUpdaters();
+
+    if (cfg_["updater"] == "grow_gpu_hist" ||
+        cfg_["updater"] == "grow_gpu,prune") {
+      if (cfg_["n_gpus"] == "") {
+        cfg_["n_gpus"] = "1";
+      }
+    } else {
+      // If updater is not running on GPU, we disable GPU on other components.
+      if (cfg_["n_gpus"] == "") {
+        cfg_["n_gpus"] = "0";
+      }
     }
 
     if (cfg_.count("objective") == 0) {
