@@ -522,8 +522,8 @@ class XGBModel(XGBModelBase):
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
-        fs = b.get_score(importance_type=self.importance_type)
-        all_features = [fs.get(f, 0.) for f in b.feature_names]
+        score = b.get_score(importance_type=self.importance_type)
+        all_features = [score.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
         return all_features / all_features.sum()
 
