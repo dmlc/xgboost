@@ -187,8 +187,14 @@ class LearnerImpl : public Learner {
 #endif
   }
 
+
+  /*! \brief Map `tree_method` parameter to `updater` parameter */
   void ConfigureUpdaters() {
-    /* Choose updaters according to tree_method parameters */
+    // This method is not applicable to non-tree learners
+    if (cfg_.count("booster") > 0 && cfg_.at("booster") != "gbtree") {
+      return;
+    }
+    // `updater` parameter was manually specified
     if (cfg_.count("updater") > 0) {
       LOG(CONSOLE) << "DANGER AHEAD: You have manually specified `updater` "
                       "parameter. The `tree_method` parameter will be ignored. "
@@ -198,6 +204,7 @@ class LearnerImpl : public Learner {
       return;
     }
 
+    /* Choose updaters according to tree_method parameters */
     switch (tparam_.tree_method) {
      case TreeMethod::kAuto:
       // Use heuristic to choose between 'exact' and 'approx'
@@ -276,14 +283,14 @@ class LearnerImpl : public Learner {
       cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
     }
 
-    ConfigureUpdaters();
-
     if (cfg_.count("objective") == 0) {
       cfg_["objective"] = "reg:linear";
     }
     if (cfg_.count("booster") == 0) {
       cfg_["booster"] = "gbtree";
     }
+
+    ConfigureUpdaters();
 
     if (!this->ModelInitialized()) {
       mparam_.InitAllowUnknown(args);
