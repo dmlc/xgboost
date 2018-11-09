@@ -535,13 +535,21 @@ class XGBModel(XGBModelBase):
 
         Returns
         -------
-        coef_ : array of shape ``[n_features]``
+        coef_ : array of shape ``[n_features]`` or ``[n_classes, n_features]``
         """
         if self.booster != 'gblinear':
             raise AttributeError('Coefficients are not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
-        return json.loads(b.get_dump(dump_format='json')[0])['weight']
+        coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
+        # Logic for multiclass classification
+        n_classes = getattr(self, 'n_classes_', None)
+        if n_classes is not None:
+            if n_classes > 2:
+                assert len(coef.shape) == 1
+                assert coef.shape[0] % n_classes == 0
+                coef = coef.reshape((n_classes, -1))
+        return coef
 
     @property
     def intercept_(self):
@@ -556,13 +564,13 @@ class XGBModel(XGBModelBase):
 
         Returns
         -------
-        intercept_ : array of shape ``[n_features]``
+        intercept_ : array of shape ``(1,)`` or ``[n_classes]``
         """
         if self.booster != 'gblinear':
             raise AttributeError('Intercept (bias) is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
-        return json.loads(b.get_dump(dump_format='json')[0])['bias']
+        return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
