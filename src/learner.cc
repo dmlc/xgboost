@@ -674,11 +674,15 @@ class LearnerImpl : public Learner {
   inline void LazyInitModel() {
     if (this->ModelInitialized()) return;
     // estimate feature bound
+    // TODO(hcho3): Change num_feature to 64-bit integer
     unsigned num_feature = 0;
     for (auto & matrix : cache_) {
       CHECK(matrix != nullptr);
-      num_feature = std::max(num_feature,
-                             static_cast<unsigned>(matrix->Info().num_col_));
+      const uint64_t num_col = matrix->Info().num_col_;
+      CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
+        << "Unfortunately, XGBoost does not support data matrices with "
+        << std::numeric_limits<unsigned>::max() << " features or greater";
+      num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
