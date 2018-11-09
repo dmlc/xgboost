@@ -163,7 +163,8 @@ def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
 
 
 def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
-                yes_color='#0000FF', no_color='#FF0000', conditionNodeParams={}, leafNodeParams={}, **kwargs):
+                yes_color='#0000FF', no_color='#FF0000',
+                conditionNodeParams=None, leafNodeParams=None, **kwargs):
     """Convert specified tree to graphviz instance. IPython can automatically plot the
     returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -182,13 +183,13 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
-    conditionNodeParams : dict, default {}
+    conditionNodeParams : dict (optional)
         condition node configuration,
         {'shape':'box',
                'style':'filled,rounded',
                'fillcolor':'#78bceb'
         }
-    leafNodeParams : dict, default {}
+    leafNodeParams : dict (optional)
         leaf node configuration
         {'shape':'box',
                'style':'filled',
@@ -201,6 +202,11 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     -------
     ax : matplotlib Axes
     """
+
+    if conditionNodeParams is None:
+        conditionNodeParams = {}
+    if leafNodeParams is None:
+        leafNodeParams = {}
 
     try:
         from graphviz import Digraph
@@ -223,7 +229,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     for i, text in enumerate(tree):
         if text[0].isdigit():
             node = _parse_node(
-                graph, text, conditionNodeParams=conditionNodeParams, leafNodeParams=leafNodeParams)
+                graph, text, conditionNodeParams=conditionNodeParams,
+                leafNodeParams=leafNodeParams)
         else:
             if i == 0:
                 # 1st string must be node
