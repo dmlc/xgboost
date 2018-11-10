@@ -1024,7 +1024,7 @@ class GPUHistMaker : public TreeUpdater {
         node_value_constraints_[nidx]);
   }
 
-  void InitRoot(DMatrix* p_fmat, RegTree* p_tree) {
+  void InitRoot(RegTree* p_tree) {
     constexpr int root_nidx = 0;
     // Sum gradients
     std::vector<GradientPair> tmp_sums(shards_.size());
@@ -1142,7 +1142,7 @@ class GPUHistMaker : public TreeUpdater {
     this->InitData(gpair, p_fmat);
     monitor_.Stop("InitData", dist_.Devices());
     monitor_.Start("InitRoot", dist_.Devices());
-    this->InitRoot(p_fmat, p_tree);
+    this->InitRoot(p_tree);
     monitor_.Stop("InitRoot", dist_.Devices());
 
     auto timestamp = qexpand_->size();
