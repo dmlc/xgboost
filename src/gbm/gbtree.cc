@@ -194,8 +194,9 @@ class GBTree : public GradientBooster {
       CHECK_EQ(in_gpair->Size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       // TODO(canonizer): perform this on GPU if HostDeviceVector has device set.
-      HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
-                                      GradientPair(), in_gpair->Distribution());
+      HostDeviceVector<GradientPair> tmp
+        (in_gpair->Size() / ngroup, GradientPair(),
+         GPUDistribution::Block(in_gpair->Distribution().Devices()));
       const auto& gpair_h = in_gpair->ConstHostVector();
       auto nsize = static_cast<bst_omp_uint>(tmp.Size());
       for (int gid = 0; gid < ngroup; ++gid) {
@@ -443,12 +444,8 @@ class Dart : public GBTree {
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
-    auto iter = p_fmat->RowIterator();
     auto* self = static_cast<Derived*>(this);
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
-      // parallel over local batch
+    for (const auto &batch : p_fmat->GetRowBatches()) {
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;

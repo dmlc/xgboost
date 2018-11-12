@@ -10,6 +10,7 @@
 
 #include <rabit/rabit.h>
 #include <utility>
+#include <map>
 #include <string>
 #include <vector>
 #include "./base.h"
@@ -188,6 +189,11 @@ class Learner : public rabit::Serializable {
        // Also visit the booster
       gbm_->Accept(v);
   }
+  /*!
+   * \brief Get configuration arguments currently stored by the learner
+   * \return Key-value pairs representing configuration arguments
+   */
+  virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
  protected:
   /*! \brief internal base score of the model */

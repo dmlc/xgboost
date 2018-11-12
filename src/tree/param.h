@@ -81,6 +81,23 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_batch_nrows;
   // the criteria to use for ranking splits
   std::string split_evaluator;
+
+  // ------ From cpu quantile histogram -------.
+  // percentage threshold for treating a feature as sparse
+  // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
+  double sparse_threshold;
+  // use feature grouping? (default yes)
+  int enable_feature_grouping;
+  // when grouping features, how many "conflicts" to allow.
+  // conflict is when an instance has nonzero values for two or more features
+  // default is 0, meaning features should be strictly complementary
+  double max_conflict_rate;
+  // when grouping features, how much effort to expend to prevent singleton groups
+  // we'll try to insert each feature into existing groups before creating a new group
+  // for that feature; to save time, only up to (max_search_group) of existing groups
+  // will be considered. If set to zero, ALL existing groups will be examined
+  unsigned max_search_group;
+
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -196,6 +213,24 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
+
+    // ------ From cpu quantile histogram -------.
+    DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
+        .describe("percentage threshold for treating a feature as sparse");
+    DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(0)
+        .describe("if >0, enable feature grouping to ameliorate work imbalance "
+                  "among worker threads");
+    DMLC_DECLARE_FIELD(max_conflict_rate).set_range(0, 1.0).set_default(0)
+        .describe("when grouping features, how many \"conflicts\" to allow."
+       "conflict is when an instance has nonzero values for two or more features."
+       "default is 0, meaning features should be strictly complementary.");
+    DMLC_DECLARE_FIELD(max_search_group).set_lower_bound(0).set_default(100)
+        .describe("when grouping features, how much effort to expend to prevent "
+                  "singleton groups. We'll try to insert each feature into existing "
+                  "groups before creating a new group for that feature; to save time, "
+                  "only up to (max_search_group) of existing groups will be "
+                  "considered. If set to zero, ALL existing groups will be examined.");
+
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
@@ -292,7 +327,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
-  if (sum_hess < p.min_child_weight) {
+  if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
     return 0.0;
 }
   T dw;
@@ -389,25 +424,6 @@ template <typename ParamT>
     sum_grad += grad;
     sum_hess += hess;
   }
-};
-
-struct NoConstraint {
-  inline static void Init(TrainParam *param, unsigned num_feature) {
-    param->monotone_constraints.resize(num_feature, 0);
-  }
-  inline double CalcSplitGain(const TrainParam &param, int constraint,
-                              GradStats left, GradStats right) const {
-    return left.CalcGain(param) + right.CalcGain(param);
-  }
-  inline double CalcWeight(const TrainParam &param, GradStats stats) const {
-    return stats.CalcWeight(param);
-  }
-  inline double CalcGain(const TrainParam &param, GradStats stats) const {
-    return stats.CalcGain(param);
-  }
-  inline void SetChild(const TrainParam &param, bst_uint split_index,
-                       GradStats left, GradStats right, NoConstraint *cleft,
-                       NoConstraint *cright) {}
 };
 
 struct ValueConstraint {
@@ -537,7 +553,7 @@ struct SplitEntry {
       this->loss_chg = new_loss_chg;
       if (default_left) {
         split_index |= (1U << 31);
-}
+      }
       this->sindex = split_index;
       this->split_value = new_split_value;
       return true;

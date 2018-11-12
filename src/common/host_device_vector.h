@@ -78,10 +78,11 @@ void SetCudaSetDeviceHandler(void (*handler)(int));
 
 template <typename T> struct HostDeviceVectorImpl;
 
-// Distribution for the HostDeviceVector; it specifies such aspects as the devices it is
-// distributed on, whether there are copies of elements from other GPUs as well as the granularity
-// of splitting. It may also specify explicit boundaries for devices, in which case the size of the
-// array cannot be changed.
+// Distribution for the HostDeviceVector; it specifies such aspects as the
+// devices it is distributed on, whether there are copies of elements from
+// other GPUs as well as the granularity of splitting. It may also specify
+// explicit boundaries for devices, in which case the size of the array cannot
+// be changed.
 class GPUDistribution {
   template<typename T> friend struct HostDeviceVectorImpl;
 
@@ -111,8 +112,11 @@ class GPUDistribution {
   }
 
   friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
-    return a.devices_ == b.devices_ && a.granularity_ == b.granularity_ &&
-      a.overlap_ == b.overlap_ && a.offsets_ == b.offsets_;
+    bool const res = a.devices_ == b.devices_ &&
+                     a.granularity_ == b.granularity_ &&
+                     a.overlap_ == b.overlap_ &&
+                     a.offsets_ == b.offsets_;
+    return res;
   }
 
   friend bool operator!=(const GPUDistribution& a, const GPUDistribution& b) {
@@ -243,6 +247,11 @@ class HostDeviceVector {
   bool HostCanAccess(GPUAccess access) const;
   bool DeviceCanAccess(int device, GPUAccess access) const;
 
+  /*!
+   * \brief Specify memory distribution.
+   *
+   *   If GPUSet::Empty() is used, all data will be drawn back to CPU.
+   */
   void Reshard(const GPUDistribution& distribution) const;
   void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());

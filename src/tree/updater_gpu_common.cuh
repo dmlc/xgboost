@@ -274,6 +274,7 @@ XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
                                          const float& parent_gain,
                                          const GPUTrainingParam& param,
                                          bool& missing_left_out) {  // NOLINT
+  // Put gradients of missing values to left
   float missing_left_loss =
       DeviceCalcLossChange(param, scan + missing, parent_sum, parent_gain);
   float missing_right_loss =

@@ -4,10 +4,10 @@
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
-#include "../common/sync.h"
 #include "../common/math.h"
 
 namespace xgboost {

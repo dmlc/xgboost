@@ -153,6 +153,66 @@ public class BoosterImplTest {
   }
 
   @Test
+  public void testDescendMetrics() {
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "false");
+      }
+    };
+    float[][] metrics = new float[1][5];
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = i;
+    }
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertFalse(onTrack);
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = 5 - i;
+    }
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertTrue(onTrack);
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = 5 - i;
+    }
+    metrics[0][0] = 1;
+    metrics[0][2] = 5;
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertTrue(onTrack);
+  }
+
+  @Test
+  public void testAscendMetrics() {
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "true");
+      }
+    };
+    float[][] metrics = new float[1][5];
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = i;
+    }
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertTrue(onTrack);
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = 5 - i;
+    }
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertFalse(onTrack);
+    for (int i = 0; i < 5; i++) {
+      metrics[0][i] = i;
+    }
+    metrics[0][0] = 6;
+    metrics[0][2] = 1;
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    TestCase.assertTrue(onTrack);
+  }
+
+  @Test
   public void testBoosterEarlyStop() throws XGBoostError, IOException {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
@@ -162,6 +222,7 @@ public class BoosterImplTest {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "false");
       }
     };
     Map<String, DMatrix> watches = new LinkedHashMap<>();
@@ -271,6 +332,24 @@ public class BoosterImplTest {
     Booster booster = trainBooster(trainMat, testMat);
     String[] dump = booster.getModelDump("", false, "json");
     TestCase.assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
+
+    // test with specified feature names
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    dump = booster.getModelDump(featureNames, false, "json");
+    TestCase.assertTrue(dump[0].contains("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportance() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Integer> scoreMap = booster.getFeatureScore(featureNames);
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
   }
 
   @Test

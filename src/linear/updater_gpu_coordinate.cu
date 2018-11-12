@@ -90,7 +90,6 @@ void RescaleIndices(size_t ridx_begin, dh::DVec<Entry> *data) {
 
 class DeviceShard {
   int device_idx_;
-  int normalised_device_idx_;  // Device index counting from param.gpu_id
   dh::BulkAllocator<dh::MemoryType::kDevice> ba_;
   std::vector<size_t> row_ptr_;
   dh::DVec<Entry> data_;
@@ -100,12 +99,11 @@ class DeviceShard {
   size_t ridx_end_;
 
  public:
-  DeviceShard(int device_idx, int normalised_device_idx, const SparsePage &batch,
+  DeviceShard(int device_idx, const SparsePage &batch,
               bst_uint row_begin, bst_uint row_end,
               const GPUCoordinateTrainParam &param,
               const gbm::GBLinearModelParam &model_param)
       : device_idx_(device_idx),
-        normalised_device_idx_(normalised_device_idx),
         ridx_begin_(row_begin),
         ridx_end_(row_end) {
     dh::safe_cuda(cudaSetDevice(device_idx));
@@ -215,16 +213,16 @@ class GPUCoordinateUpdater : public LinearUpdater {
   void LazyInitShards(DMatrix *p_fmat,
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;
-    int n_devices = GPUSet::All(param.n_gpus, p_fmat->Info().num_row_).Size();
+
+    dist_ = GPUDistribution::Block(GPUSet::All(param.gpu_id, param.n_gpus,
+                                               p_fmat->Info().num_row_));
+    auto devices = dist_.Devices();
+
+    int n_devices = devices.Size();
     bst_uint row_begin = 0;
     bst_uint shard_size =
         std::ceil(static_cast<double>(p_fmat->Info().num_row_) / n_devices);
 
-    device_list.resize(n_devices);
-    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      int device_idx = GPUSet::GetDeviceIdx(param.gpu_id + d_idx);
-      device_list[d_idx] = device_idx;
-    }
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
     row_segments.push_back(0);
@@ -235,20 +233,19 @@ class GPUCoordinateUpdater : public LinearUpdater {
       row_begin = row_end;
     }
 
-    auto iter = p_fmat->ColIterator();
     CHECK(p_fmat->SingleColBlock());
-    iter->Next();
-    auto &batch = iter->Value();
+    const auto &batch = *p_fmat->GetColumnBatches().begin();
 
     shards.resize(n_devices);
     // Create device shards
-    dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
-      auto idx = &shard - &shards[0];
-      shard = std::unique_ptr<DeviceShard>(
-          new DeviceShard(device_list[idx], idx, batch, row_segments[idx],
-                          row_segments[idx + 1], param, model_param));
-    });
+    dh::ExecuteIndexShards(&shards,
+                           [&](int i, std::unique_ptr<DeviceShard>& shard) {
+        shard = std::unique_ptr<DeviceShard>(
+            new DeviceShard(devices.DeviceId(i), batch, row_segments[i],
+                            row_segments[i + 1], param, model_param));
+      });
   }
+
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     param.DenormalizePenalties(sum_instance_weight);
@@ -331,11 +328,11 @@ class GPUCoordinateUpdater : public LinearUpdater {
 
   // training parameter
   GPUCoordinateTrainParam param;
+  GPUDistribution dist_;
   std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;
 
   std::vector<std::unique_ptr<DeviceShard>> shards;
-  std::vector<int> device_list;
 };
 
 DMLC_REGISTER_PARAMETER(GPUCoordinateTrainParam);

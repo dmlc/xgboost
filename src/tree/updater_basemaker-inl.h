@@ -7,6 +7,8 @@
 #ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 #define XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 
+#include <rabit/rabit.h>
+
 #include <xgboost/base.h>
 #include <xgboost/tree_updater.h>
 #include <vector>
@@ -14,8 +16,8 @@
 #include <string>
 #include <limits>
 #include <utility>
+
 #include "./param.h"
-#include "../common/sync.h"
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
@@ -43,15 +45,14 @@ class BaseMaker: public TreeUpdater {
       std::fill(fminmax_.begin(), fminmax_.end(),
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
-      auto iter = p_fmat->ColIterator();
-      iter->BeforeFirst();
-      while (iter->Next()) {
-        auto &batch = iter->Value();
+      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
-           auto c = batch[fid];
+          auto c = batch[fid];
           if (c.size() != 0) {
-            fminmax_[fid * 2 + 0] = std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
-            fminmax_[fid * 2 + 1] = std::max(c[c.size() - 1].fvalue, fminmax_[fid * 2 + 1]);
+            fminmax_[fid * 2 + 0] =
+                std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
+            fminmax_[fid * 2 + 1] =
+                std::max(c[c.size() - 1].fvalue, fminmax_[fid * 2 + 1]);
           }
         }
       }
@@ -208,16 +209,13 @@ class BaseMaker: public TreeUpdater {
    */
   inline void SetDefaultPostion(DMatrix *p_fmat,
                                 const RegTree &tree) {
-    // set rest of instances to default position
-    const RowSet &rowset = p_fmat->BufferedRowset();
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
-    const auto ndata = static_cast<bst_omp_uint>(rowset.Size());
+    const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
     #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
-      const bst_uint ridx = rowset[i];
+    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
         // mark finish when it is not a fresh leaf
@@ -303,9 +301,7 @@ class BaseMaker: public TreeUpdater {
                                         const RegTree &tree) {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
-    auto iter = p_fmat->ColIterator();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
       for (auto fid : fsplits) {
         auto col = batch[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.size());
@@ -345,12 +341,10 @@ class BaseMaker: public TreeUpdater {
         thread_temp[tid][nid].Clear();
       }
     }
-    const RowSet &rowset = fmat.BufferedRowset();
     // setup position
-    const auto ndata = static_cast<bst_omp_uint>(rowset.Size());
+    const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
     #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
-      const bst_uint ridx = rowset[i];
+    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {

@@ -117,18 +117,23 @@ def _load_lib():
     lib_paths = find_lib_path()
     if len(lib_paths) == 0:
         return None
-    pathBackup = os.environ['PATH']
+    try:
+        pathBackup = os.environ['PATH'].split(os.pathsep)
+    except KeyError:
+        pathBackup = []
     lib_success = False
     os_error_list = []
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
-            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
+            os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
         except OSError as e:
             os_error_list.append(str(e))
             continue
+        finally:
+            os.environ['PATH'] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
@@ -351,6 +356,11 @@ class DMatrix(object):
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
+
+            if feature_names is not None:
+                self._feature_names = feature_names
+            if feature_types is not None:
+                self._feature_types = feature_types
             return
 
         data, feature_names, feature_types = _maybe_pandas_data(data,
@@ -742,7 +752,8 @@ class DMatrix(object):
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
-        res = DMatrix(None, feature_names=self.feature_names)
+        res = DMatrix(None, feature_names=self.feature_names,
+                      feature_types=self.feature_types)
         res.handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
                                                c_array(ctypes.c_int, rindex),
@@ -847,7 +858,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """A Booster of of XGBoost.
+    """A Booster of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
@@ -878,6 +889,10 @@ class Booster(object):
                                          ctypes.byref(self.handle)))
         self.set_param({'seed': 0})
         self.set_param(params or {})
+        if (params is not None) and ('booster' in params):
+            self.booster = params['booster']
+        else:
+            self.booster = 'gbtree'
         if model_file is not None:
             self.load_model(model_file)
 
@@ -1382,6 +1397,17 @@ class Booster(object):
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
+        .. note:: Zero-importance features will not be included
+
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1400,6 +1426,12 @@ class Booster(object):
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1407,6 +1439,10 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
+
+        if self.booster != 'gbtree':
+            raise ValueError('Feature importance is not defined for Booster type {}'
+                             .format(self.booster))
 
         allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
         if importance_type not in allowed_importance_types:

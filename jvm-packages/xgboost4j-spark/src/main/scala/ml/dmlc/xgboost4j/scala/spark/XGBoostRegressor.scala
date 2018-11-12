@@ -140,6 +140,9 @@ class XGBoostRegressor (
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
 
+  def setMaximizeEvaluationMetrics(value: Boolean): this.type =
+    set(maximizeEvaluationMetrics, value)
+
   def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
@@ -191,7 +194,7 @@ class XGBoostRegressor (
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
       $(numRound), $(numWorkers), $(customObj), $(customEval), $(useExternalMemory),
-      $(missing))
+      $(missing), hasGroup = group != lit(-1))
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
