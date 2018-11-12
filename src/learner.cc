@@ -29,7 +29,7 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 
 enum class TreeMethod : int {
   kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
-  kGPUExact = 4, kGPUHist = 5, kGPUHist = 6
+  kGPUExact = 4, kGPUHist = 5, kGPUHist2 = 6
 };
 
 enum class DataSplitMode : int {
