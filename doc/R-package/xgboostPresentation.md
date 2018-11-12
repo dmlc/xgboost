@@ -176,7 +176,7 @@ In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, 
 We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
-* `max.deph = 2`: the trees won't be deep, because our case is very simple ;
+* `max.depth = 2`: the trees won't be deep, because our case is very simple ;
 * `nthread = 2`: the number of cpu threads we are going to use;
 * `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
