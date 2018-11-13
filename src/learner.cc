@@ -289,8 +289,8 @@ class LearnerImpl : public Learner {
 
     ConfigureUpdaters();
 
-    if (cfg_.find("updater") != cfg_.end() &&
-        (cfg_.at("updater").find("gpu") != std::string::npos)) {
+    if (cfg_["updater"] == "grow_gpu_hist" ||
+        cfg_["updater"] == "grow_gpu,prune") {
       if (cfg_["n_gpus"] == "") {
         cfg_["n_gpus"] = "1";
       }

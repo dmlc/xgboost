@@ -13,7 +13,7 @@ namespace xgboost {
 LinearUpdater* LinearUpdater::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
-    LOG(FATAL) << "Unknown linear updater: \"" << name << "\"";
+    LOG(FATAL) << "Unknown linear updater " << name;
   }
   return (e->body)();
 }
