@@ -31,7 +31,7 @@ struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
   DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
     DMLC_DECLARE_FIELD(num_class).set_lower_bound(1)
         .describe("Number of output class in the multi-class classification.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
@@ -49,7 +49,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   }
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
     devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }

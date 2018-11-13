@@ -18,7 +18,7 @@ Tree construction (training) and prediction can be accelerated with CUDA-capable
 
 Usage
 =====
-Specify the ``tree_method`` parameter as one of the following algorithms. 
+Specify the ``tree_method`` parameter as one of the following algorithms.
 
 Algorithms
 ----------
@@ -31,11 +31,11 @@ Algorithms
 | gpu_hist     | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture. |
 +--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-Supported parameters 
+Supported parameters
 --------------------
 
-.. |tick| unicode:: U+2714 
-.. |cross| unicode:: U+2718 
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
 
 +--------------------------+---------------+--------------+
 | parameter                | ``gpu_exact`` | ``gpu_hist`` |
@@ -78,6 +78,49 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
   param['max_bin'] = 16
   param['tree_method'] = 'gpu_hist'
 
+Objective functions
+===================
+Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
+
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
+
++-----------------+-------------+
+| Objectives      | GPU support |
++-----------------+-------------+
+| reg:linear      | |tick|      |
++-----------------+-------------+
+| reg:logistic    | |tick|      |
++-----------------+-------------+
+| binary:logistic | |tick|      |
++-----------------+-------------+
+| binary:logitraw | |tick|      |
++-----------------+-------------+
+| binary:hinge    | |tick|      |
++-----------------+-------------+
+| count:poisson   | |tick|      |
++-----------------+-------------+
+| reg:gamma       | |tick|      |
++-----------------+-------------+
+| reg:tweedie     | |tick|      |
++-----------------+-------------+
+| multi:softmax   | |tick|      |
++-----------------+-------------+
+| multi:softprob  | |tick|      |
++-----------------+-------------+
+| survival:cox    | |cross|     |
++-----------------+-------------+
+| rank:pairwise   | |cross|     |
++-----------------+-------------+
+| rank:ndcg       | |cross|     |
++-----------------+-------------+
+| rank:map        | |cross|     |
++-----------------+-------------+
+
+For multi-gpu support, objective functions also honor the ``n_gpus`` parameter,
+which, by default is set to 1.  To disable running objectives on GPU, just set
+``n_gpus`` to 0.
+
 Benchmarks
 ==========
 You can run benchmarks on synthetic data for binary classification:
@@ -118,4 +161,3 @@ Authors
 * ... and the rest of the H2O.ai and NVIDIA team.
 
 Please report bugs to the user forum https://discuss.xgboost.ai/.
-
