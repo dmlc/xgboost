@@ -117,13 +117,9 @@ Most of the objective functions implemented in XGBoost can be run on GPU.  Follo
 | rank:map        | |cross|     |
 +-----------------+-------------+
 
-For multi-gpu support, objective functions also honor the ``n_gpus``
-parameter, which, by default is set to 1.  XGBoost has modularized
-implementation of objective functions. Such design enables flexibility of
-XGBoost, but prevents further interaction between different modules.  So even
-the tree method is selected to be a CPU algorithm, the objective function still
-try to run on GPU, which sometimes could be problematic due memory copying
-between host and devices.  To disable running on GPU, just set ``n_gpus`` to 0.
+For multi-gpu support, objective functions also honor the ``n_gpus`` parameter,
+which, by default is set to 1.  To disable running objectives on GPU, just set
+``n_gpus`` to 0.
 
 Benchmarks
 ==========
