@@ -257,6 +257,14 @@ class DVec {
 
   const T *Data() const { return ptr_; }
 
+  xgboost::common::Span<const T> GetSpan() const {
+    return xgboost::common::Span<const T>(ptr_, this->Size());
+  }
+
+  xgboost::common::Span<T> GetSpan() {
+    return xgboost::common::Span<T>(ptr_, this->Size());
+  }
+
   std::vector<T> AsVector() const {
     std::vector<T> h_vector(Size());
     safe_cuda(cudaSetDevice(device_idx_));
@@ -497,8 +505,9 @@ struct CubMemory {
   ~CubMemory() { Free(); }
 
   template <typename T>
-  T *Pointer() {
-    return static_cast<T *>(d_temp_storage);
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    this->LazyAllocate(size * sizeof(T));
+    return xgboost::common::Span<T>(static_cast<T*>(d_temp_storage), size);
   }
 
   void Free() {
