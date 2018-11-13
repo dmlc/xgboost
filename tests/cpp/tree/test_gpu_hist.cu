@@ -168,13 +168,13 @@ void TestBuildHist(GPUHistBuilderBase& builder) {
   builder.Build(&shard, 0);
   DeviceHistogram d_hist = shard.hist;
 
-  GradientPairSumT* d_histptr {d_hist.GetHistPtr(0)};
+  auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
   thrust::host_vector<GradientPairSumT> h_result (d_hist.data.size()/2);
   size_t data_size = sizeof(GradientPairSumT) / (
       sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT));
   data_size *= d_hist.data.size();
-  dh::safe_cuda(cudaMemcpy(h_result.data(), d_histptr, data_size,
+  dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), data_size,
                            cudaMemcpyDeviceToHost));
 
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
@@ -293,12 +293,11 @@ TEST(GpuHist, EvaluateSplits) {
   hist_maker.node_value_constraints_[0].lower_bound = -1.0;
   hist_maker.node_value_constraints_[0].upper_bound = 1.0;
 
-  std::vector<DeviceSplitCandidate> res =
-      hist_maker.EvaluateSplits({0}, &tree);
+  DeviceSplitCandidate res =
+      hist_maker.EvaluateSplit(0, &tree);
 
-  ASSERT_EQ(res.size(), 1);
-  ASSERT_EQ(res[0].findex, 7);
-  ASSERT_NEAR(res[0].fvalue, 0.26, xgboost::kRtEps);
+  ASSERT_EQ(res.findex, 7);
+  ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
 }
 
 TEST(GpuHist, ApplySplit) {
