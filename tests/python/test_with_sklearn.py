@@ -104,14 +104,14 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
-def test_feature_importances():
+def test_feature_importances_weight():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="weight").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
@@ -127,10 +127,39 @@ def test_feature_importances():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="weight").fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+
+def test_feature_importances_gain():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="gain").fit(X, y)
+
+    exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00326159, 0., 0., 0.,
+                    0., 0., 0., 0., 0., 0.00297238, 0.00988034, 0., 0., 0., 0.,
+                    0., 0., 0.03512521, 0.41123885, 0., 0., 0., 0., 0.01326332,
+                    0.00160674, 0., 0.4206952, 0., 0., 0., 0., 0.00616747, 0.01237546,
+                    0., 0., 0., 0., 0., 0., 0., 0.08240705, 0., 0., 0., 0.,
+                    0., 0., 0., 0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
+
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    # numeric columns
+    import pandas as pd
+    y = pd.Series(digits['target'])
+    X = pd.DataFrame(digits['data'])
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="gain").fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    xgb_model = xgb.XGBClassifier(random_state=0, importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
