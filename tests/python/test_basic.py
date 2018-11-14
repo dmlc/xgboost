@@ -21,6 +21,8 @@ def captured_output():
     """
     Reassign stdout temporarily in order to test printed statements
     Taken from: https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
+
+    Also works for pytest.
     """
     new_out, new_err = StringIO(), StringIO()
     old_out, old_err = sys.stdout, sys.stderr
@@ -36,7 +38,8 @@ class TestBasic(unittest.TestCase):
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+                 'objective': 'binary:logistic'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -44,7 +47,8 @@ class TestBasic(unittest.TestCase):
         # this is prediction
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -62,7 +66,8 @@ class TestBasic(unittest.TestCase):
     def test_record_results(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+                 'objective': 'binary:logistic'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -86,7 +91,8 @@ class TestBasic(unittest.TestCase):
         # this is prediction
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(len(preds))
+        err = sum(1 for i in range(len(preds))
+                  if preds[i] != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -248,7 +254,8 @@ class TestBasic(unittest.TestCase):
 
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
+                  'objective': 'binary:logistic'}
 
         # return np.ndarray
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
@@ -257,16 +264,19 @@ class TestBasic(unittest.TestCase):
 
     def test_cv_no_shuffle(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
+                  'objective': 'binary:logistic'}
 
         # return np.ndarray
-        cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
+        cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10,
+                    as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
     def test_cv_explicit_fold_indices(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective':
+                  'binary:logistic'}
         folds = [
             # Train        Test
             ([1, 3], [5, 8]),
@@ -274,12 +284,14 @@ class TestBasic(unittest.TestCase):
         ]
 
         # return np.ndarray
-        cv = xgb.cv(params, dm, num_boost_round=10, folds=folds, as_pandas=False)
+        cv = xgb.cv(params, dm, num_boost_round=10, folds=folds,
+                    as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
     def test_cv_explicit_fold_indices_labels(self):
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'reg:linear'}
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective':
+                  'reg:linear'}
         N = 100
         F = 3
         dm = xgb.DMatrix(data=np.random.randn(N, F), label=np.arange(N))
@@ -300,7 +312,9 @@ class TestBasic(unittest.TestCase):
                 as_pandas=False
             )
             output = out.getvalue().strip()
-        assert output == '[array([5., 8.], dtype=float32), array([23., 43., 11.], dtype=float32)]'
+        solution = ('[array([5., 8.], dtype=float32), array([23., 43., 11.],' +
+                    ' dtype=float32)]')
+        assert output == solution
 
     def test_get_info(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
