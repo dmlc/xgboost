@@ -257,6 +257,14 @@ class DVec {
 
   const T *Data() const { return ptr_; }
 
+  xgboost::common::Span<const T> GetSpan() const {
+    return xgboost::common::Span<const T>(ptr_, this->Size());
+  }
+
+  xgboost::common::Span<T> GetSpan() {
+    return xgboost::common::Span<T>(ptr_, this->Size());
+  }
+
   std::vector<T> AsVector() const {
     std::vector<T> h_vector(Size());
     safe_cuda(cudaSetDevice(device_idx_));
@@ -497,8 +505,9 @@ struct CubMemory {
   ~CubMemory() { Free(); }
 
   template <typename T>
-  T *Pointer() {
-    return static_cast<T *>(d_temp_storage);
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    this->LazyAllocate(size * sizeof(T));
+    return xgboost::common::Span<T>(static_cast<T*>(d_temp_storage), size);
   }
 
   void Free() {
@@ -757,7 +766,8 @@ typename std::iterator_traits<T>::value_type SumReduction(
     dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
   size_t tmpSize;
-  dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, in, nVals));
+  ValueT *dummy_out = nullptr;
+  dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
   // Allocate small extra memory for the return value
   tmp_mem.LazyAllocate(tmpSize + sizeof(ValueT));
   auto ptr = reinterpret_cast<ValueT *>(tmp_mem.d_temp_storage) + 1;
@@ -1065,4 +1075,71 @@ xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
   using IndexT = typename xgboost::common::Span<T>::index_type;
   return ToSpan(vec, static_cast<IndexT>(offset), static_cast<IndexT>(size));
 }
+
+template <typename FunctionT>
+class LauncherItr {
+public:
+  int idx;
+  FunctionT f;
+  XGBOOST_DEVICE LauncherItr() : idx(0) {}
+  XGBOOST_DEVICE LauncherItr(int idx, FunctionT f) : idx(idx), f(f) {}
+  XGBOOST_DEVICE LauncherItr &operator=(int output) {
+    f(idx, output);
+    return *this;
+  }
+};
+
+/**
+ * \brief Thrust compatible iterator type - discards algorithm output and launches device lambda
+ *        with the index of the output and the algorithm output as arguments.
+ *
+ * \author  Rory
+ * \date  7/9/2017
+ *
+ * \tparam  FunctionT Type of the function t.
+ */
+template <typename FunctionT>
+class DiscardLambdaItr {
+public:
+ // Required iterator traits
+ using self_type = DiscardLambdaItr;  // NOLINT
+ using difference_type = ptrdiff_t;   // NOLINT
+ using value_type = void;       // NOLINT
+ using pointer = value_type *;  // NOLINT
+ using reference = LauncherItr<FunctionT>;  // NOLINT
+ using iterator_category = typename thrust::detail::iterator_facade_category<
+     thrust::any_system_tag, thrust::random_access_traversal_tag, value_type,
+     reference>::type;  // NOLINT
+private:
+  difference_type offset_;
+  FunctionT f_;
+public:
+ XGBOOST_DEVICE explicit DiscardLambdaItr(FunctionT f) : offset_(0), f_(f) {}
+ XGBOOST_DEVICE DiscardLambdaItr(difference_type offset, FunctionT f)
+     : offset_(offset), f_(f) {}
+ XGBOOST_DEVICE self_type operator+(const int &b) const {
+   return DiscardLambdaItr(offset_ + b, f_);
+  }
+  XGBOOST_DEVICE self_type operator++() {
+    offset_++;
+    return *this;
+  }
+  XGBOOST_DEVICE self_type operator++(int) {
+    self_type retval = *this;
+    offset_++;
+    return retval;
+  }
+  XGBOOST_DEVICE self_type &operator+=(const int &b) {
+    offset_ += b;
+    return *this;
+  }
+  XGBOOST_DEVICE reference operator*() const {
+    return LauncherItr<FunctionT>(offset_, f_);
+  }
+  XGBOOST_DEVICE reference operator[](int idx) {
+    self_type offset = (*this) + idx;
+    return *offset;
+  }
+};
+
 }  // namespace dh

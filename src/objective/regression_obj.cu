@@ -34,7 +34,7 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   DMLC_DECLARE_PARAMETER(RegLossParam) {
     DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
       .describe("Scale the weight of positive examples by this factor");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
       .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
       .set_lower_bound(0)
@@ -53,7 +53,6 @@ class RegLossObj : public ObjFunction {
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
     devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
@@ -182,7 +181,7 @@ struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
     DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
         .describe("Maximum delta step we allow each weight estimation to be." \
                   " This parameter is required for possion regression.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(-1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
@@ -197,7 +196,6 @@ class PoissonRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
     devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
@@ -364,7 +362,7 @@ struct GammaRegressionParam : public dmlc::Parameter<GammaRegressionParam> {
   int n_gpus;
   int gpu_id;
   DMLC_DECLARE_PARAMETER(GammaRegressionParam) {
-    DMLC_DECLARE_FIELD(n_gpus).set_default(-1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
@@ -379,7 +377,6 @@ class GammaRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
     devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
@@ -461,7 +458,7 @@ struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
     DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
       .describe("Tweedie variance power.  Must be between in range [1, 2).");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(-1).set_lower_bound(-1)
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
         .set_lower_bound(0)
@@ -476,7 +473,6 @@ class TweedieRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";  // Default is -1
     devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
     label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
