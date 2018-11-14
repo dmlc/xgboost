@@ -123,17 +123,17 @@ _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
 _EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
 
 
-def _parse_node(graph, text, conditionNodeParams, leafNodeParams):
+def _parse_node(graph, text, condition_node_params, leaf_node_params):
     """parse dumped node"""
     match = _NODEPAT.match(text)
     if match is not None:
         node = match.group(1)
-        graph.node(node, label=match.group(2), **conditionNodeParams)
+        graph.node(node, label=match.group(2), **condition_node_params)
         return node
     match = _LEAFPAT.match(text)
     if match is not None:
         node = match.group(1)
-        graph.node(node, label=match.group(2), **leafNodeParams)
+        graph.node(node, label=match.group(2), **leaf_node_params)
         return node
     raise ValueError('Unable to parse node: {0}'.format(text))
 
@@ -164,7 +164,7 @@ def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
 
 def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
                 yes_color='#0000FF', no_color='#FF0000',
-                conditionNodeParams=None, leafNodeParams=None, **kwargs):
+                condition_node_params=None, leaf_node_params=None, **kwargs):
     """Convert specified tree to graphviz instance. IPython can automatically plot the
     returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
@@ -183,13 +183,13 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
-    conditionNodeParams : dict (optional)
+    condition_node_params : dict (optional)
         condition node configuration,
         {'shape':'box',
                'style':'filled,rounded',
                'fillcolor':'#78bceb'
         }
-    leafNodeParams : dict (optional)
+    leaf_node_params : dict (optional)
         leaf node configuration
         {'shape':'box',
                'style':'filled',
@@ -203,10 +203,10 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     ax : matplotlib Axes
     """
 
-    if conditionNodeParams is None:
-        conditionNodeParams = {}
-    if leafNodeParams is None:
-        leafNodeParams = {}
+    if condition_node_params is None:
+        condition_node_params = {}
+    if leaf_node_params is None:
+        leaf_node_params = {}
 
     try:
         from graphviz import Digraph
@@ -229,8 +229,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     for i, text in enumerate(tree):
         if text[0].isdigit():
             node = _parse_node(
-                graph, text, conditionNodeParams=conditionNodeParams,
-                leafNodeParams=leafNodeParams)
+                graph, text, condition_node_params=condition_node_params,
+                leaf_node_params=leaf_node_params)
         else:
             if i == 0:
                 # 1st string must be node
