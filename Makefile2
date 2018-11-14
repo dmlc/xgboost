@@ -17,6 +17,7 @@ libxgboostgpu:
 	sed -i 's/define PRECISE 1/define PRECISE 0/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/GPUHistMaker/GPUHistMaker2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/upper_bound/upper_bound2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/SortPosition/SortPosition2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/compress_bin_ellpack_k/compress_bin_ellpack_k2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/Grow tree with GPU using doubles for sum/Grow tree with GPU using integer64s for sum/g' src/tree/updater_gpu_hist2.cu
 libxgboostcpu:
