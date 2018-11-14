@@ -4,5 +4,5 @@ set -e
 cd python-package
 python setup.py install --user
 cd ..
-pytest -m -s --fulltrace "not slow" tests/python-gpu
+pytest -s --fulltrace -m "not slow" tests/python-gpu
 ./testxgboost --gtest_filter=*.MGPU_*
