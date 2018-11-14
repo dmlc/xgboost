@@ -15,8 +15,8 @@ ENV PATH=/opt/python/bin:$PATH
 
 # Install Python packages
 RUN \
-    conda install numpy scipy pandas matplotlib nose scikit-learn && \
-    pip install nose wheel auditwheel graphviz
+    conda install numpy scipy pandas matplotlib pytest scikit-learn && \
+    pip install pytest wheel auditwheel graphviz
 
 ENV GOSU_VERSION 1.10
 

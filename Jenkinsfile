@@ -96,11 +96,11 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
                 # Test the wheel for compatibility on a barebones CPU container
                 ${dockerRun} release ${dockerArgs} bash -c " \
                     pip install --user python-package/dist/xgboost-*-none-any.whl && \
-                    python -m nose -v tests/python"
+		    pytest -v --fulltrace -s tests/python
                 # Test the wheel for compatibility on CUDA 10.0 container
                 ${dockerRun} gpu --build-arg CUDA_VERSION=10.0 bash -c " \
                     pip install --user python-package/dist/xgboost-*-none-any.whl && \
-                    python -m nose -v --eval-attr='(not slow) and (not mgpu)' tests/python-gpu"
+		    pytest -m -s --fulltrace "(not mgpu) and (not slow)" tests/python-gpu
                 """
             }
         }
