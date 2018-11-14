@@ -60,7 +60,7 @@ class TestEvalMetrics(unittest.TestCase):
     def test_eval_metrics(self):
         try:
             from sklearn.model_selection import train_test_split
-        finally:
+        except ImportError:
             from sklearn.cross_validation import train_test_split
         from sklearn.datasets import load_digits
 

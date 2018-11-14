@@ -14,7 +14,7 @@ class TestEarlyStopping(unittest.TestCase):
         from sklearn.datasets import load_digits
         try:
             from sklearn.model_selection import train_test_split
-        finally:
+        except ImportError:
             from sklearn.cross_validation import train_test_split
 
         digits = load_digits(2)

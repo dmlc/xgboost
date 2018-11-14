@@ -13,7 +13,7 @@ except ImportError:
 
 pytestmark = pytest.mark.skipif(
     tm.no_dt()['condition'] or tm.no_pandas()['condition'],
-    reason=tm.no_dt()['reason']+' or '+tm.no_pandas()['reason'])
+    reason=tm.no_dt()['reason'] + ' or '+tm.no_pandas()['reason'])
 
 
 class TestDataTable(unittest.TestCase):

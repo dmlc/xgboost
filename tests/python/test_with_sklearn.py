@@ -320,6 +320,7 @@ def test_sklearn_api_gblinear():
     assert err < 0.5
 
 
+@pytest.mark.skipif(**tm.no_matplotlib())
 def test_sklearn_plotting():
     from sklearn.datasets import load_iris
 
