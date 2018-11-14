@@ -62,7 +62,7 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install datatable --no-binary datatable
 
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test tests/python --cov=python-package/xgboost
+    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost
     codecov
 
     source activate python2
@@ -70,7 +70,7 @@ if [ ${TASK} == "python_test" ]; then
     python --version
     conda install numpy scipy pandas matplotlib scikit-learn
     python -m pip install graphviz
-    py.test tests/python
+    py.test -v --fulltrace -s tests/python
     exit 0
 fi
 
@@ -81,7 +81,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test tests/python --cov=python-package/xgboost
+    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost
     codecov
     source activate python2
     echo "-------------------------------"
