@@ -44,7 +44,7 @@ install:
     - set DO_PYTHON=off
     - if /i "%target%" == "mingw" set DO_PYTHON=on
     - if /i "%target%_%ver%_%configuration%" == "msvc_2015_Release" set DO_PYTHON=on
-    - if /i "%DO_PYTHON%" == "on" conda install -y numpy scipy pandas matplotlib nose scikit-learn graphviz python-graphviz
+    - if /i "%DO_PYTHON%" == "on" conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz
     # R: based on https://github.com/krlmlr/r-appveyor
     - ps: |
         if($env:target -eq 'rmingw' -or $env:target -eq 'rmsvc') {
@@ -96,7 +96,7 @@ build_script:
 
 test_script:
     - cd %APPVEYOR_BUILD_FOLDER%
-    - if /i "%DO_PYTHON%" == "on" python -m nose tests/python
+    - if /i "%DO_PYTHON%" == "on" python -m pytest tests/python
     # mingw R package: run the R check (which includes unit tests), and also keep the built binary package
     - if /i "%target%" == "rmingw" (
         set _R_CHECK_CRAN_INCOMING_=FALSE&&
