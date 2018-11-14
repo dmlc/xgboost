@@ -7,3 +7,15 @@ disiable=unexpected-special-method-signature,too-many-nested-blocks
 dummy-variables-rgx=(unused|)_.*
 
 reports=no
+
+[BASIC]
+
+# Enforce naming convention
+const-naming-style=UPPER_CASE
+class-naming-style=PascalCase
+function-naming-style=snake_case
+method-naming-style=snake_case
+attr-naming-style=snake_case
+argument-naming-style=snake_case
+variable-naming-style=snake_case
+class-attribute-naming-style=snake_case
