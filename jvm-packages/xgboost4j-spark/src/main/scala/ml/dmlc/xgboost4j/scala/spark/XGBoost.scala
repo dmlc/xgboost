@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
+import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
@@ -26,12 +27,12 @@ import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker 
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
 /**
@@ -206,6 +207,44 @@ object XGBoost extends Serializable {
       }
     }
   }
+
+  class IteratorWrapper(arrayOfXGBLabeledPoints: Array[Iterator[XGBLabeledPoint]])
+    extends Iterator[Iterator[XGBLabeledPoint]] {
+
+    def this(iters: Iterator[Iterator[XGBLabeledPoint]]) = this(iters.toArray)
+
+    private var currentIndex = 0
+
+    override def hasNext: Boolean = currentIndex < arrayOfXGBLabeledPoints.length - 1
+
+    override def next(): Iterator[XGBLabeledPoint] = {
+      currentIndex += 1
+      arrayOfXGBLabeledPoints(currentIndex - 1)
+    }
+  }
+
+  private def coPartitionTrainingAndValidationSet(
+      trainingData: RDD[XGBLabeledPoint], params: Map[String, Any], nWorkers: Int): Unit = {
+    // eval_sets is supposed to be set by the caller of [[trainDistributed]]
+    val allEvalSets = params.get("eval_sets").asInstanceOf[Array[RDD[XGBLabeledPoint]]]
+    val repartitionedDatasets = trainingData +: allEvalSets.map(rdd =>
+      if (rdd.getNumPartitions != nWorkers) {
+        rdd.repartition(nWorkers)
+      } else {
+        rdd
+      })
+    val repartitionedTrainingSet = repartitionedDatasets.head
+    val repartitionedEvalSets = repartitionedDatasets.tail
+    val eventualRDD = repartitionedEvalSets.foldLeft(trainingData.sparkContext.parallelize(
+      new Array[Iterator[XGBLabeledPoint]](nWorkers), nWorkers)){
+      case (ds1, ds2) =>
+        ds1.zipPartitions(ds2){
+          (itrWrapper, itr) =>
+            new IteratorWrapper(itrWrapper.toArray :+ itr)
+        }
+    }
+  }
+
 
   /**
    * @return A tuple of the booster and the metrics used to build training summary
