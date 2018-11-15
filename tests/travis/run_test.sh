@@ -76,6 +76,7 @@ fi
 
 if [ ${TASK} == "python_lightweight_test" ]; then
     make all || exit -1
+
     echo "-------------------------------"
     source activate python3
     python --version
@@ -83,12 +84,15 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python -m pip install graphviz pytest pytest-cov codecov
     py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
+
     source activate python2
     echo "-------------------------------"
     python --version
-    conda install numpy scipy
+    conda install numpy scipy pytest
     python -m pip install graphviz
     python -m pip install flake8==3.4.1
+    py.test -v --fulltrace -s tests/python || exit -1
+
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1
     exit 0
