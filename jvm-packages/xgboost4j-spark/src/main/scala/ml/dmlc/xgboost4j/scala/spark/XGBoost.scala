@@ -207,45 +207,7 @@ object XGBoost extends Serializable {
       }
     }
   }
-
-  class IteratorWrapper(arrayOfXGBLabeledPoints: Array[Iterator[XGBLabeledPoint]])
-    extends Iterator[Iterator[XGBLabeledPoint]] {
-
-    def this(iters: Iterator[Iterator[XGBLabeledPoint]]) = this(iters.toArray)
-
-    private var currentIndex = 0
-
-    override def hasNext: Boolean = currentIndex < arrayOfXGBLabeledPoints.length - 1
-
-    override def next(): Iterator[XGBLabeledPoint] = {
-      currentIndex += 1
-      arrayOfXGBLabeledPoints(currentIndex - 1)
-    }
-  }
-
-  private def coPartitionTrainingAndValidationSet(
-      trainingData: RDD[XGBLabeledPoint], params: Map[String, Any], nWorkers: Int): Unit = {
-    // eval_sets is supposed to be set by the caller of [[trainDistributed]]
-    val allEvalSets = params.get("eval_sets").asInstanceOf[Array[RDD[XGBLabeledPoint]]]
-    val repartitionedDatasets = trainingData +: allEvalSets.map(rdd =>
-      if (rdd.getNumPartitions != nWorkers) {
-        rdd.repartition(nWorkers)
-      } else {
-        rdd
-      })
-    val repartitionedTrainingSet = repartitionedDatasets.head
-    val repartitionedEvalSets = repartitionedDatasets.tail
-    val eventualRDD = repartitionedEvalSets.foldLeft(trainingData.sparkContext.parallelize(
-      new Array[Iterator[XGBLabeledPoint]](nWorkers), nWorkers)){
-      case (ds1, ds2) =>
-        ds1.zipPartitions(ds2){
-          (itrWrapper, itr) =>
-            new IteratorWrapper(itrWrapper.toArray :+ itr)
-        }
-    }
-  }
-
-
+  
   /**
    * @return A tuple of the booster and the metrics used to build training summary
    */
@@ -253,13 +215,13 @@ object XGBoost extends Serializable {
   private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],
       params: Map[String, Any],
-      round: Int,
-      nWorkers: Int,
-      obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
-      useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
       hasGroup: Boolean = false): (Booster, Map[String, Array[Float]]) = {
+    val nWorkers = params("num_workers").asInstanceOf[Int]
+    val round = params("num_round").asInstanceOf[Int]
+    val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
+    val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
+    val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
+    val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
     validateSparkSslConf(trainingData.context)
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
@@ -284,10 +246,9 @@ object XGBoost extends Serializable {
         " an instance of Long.")
     }
     val (checkpointPath, checkpointInterval) = CheckpointManager.extractParams(params)
-
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, checkpointPath)
-    checkpointManager.cleanUpHigherVersions(round)
+    checkpointManager.cleanUpHigherVersions(round.asInstanceOf[Int])
 
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     // Train for every ${savingRound} rounds and save the partially completed booster
