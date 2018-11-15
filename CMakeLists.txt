@@ -9,6 +9,8 @@ msvc_use_static_runtime()
 
 # Options
 option(USE_CUDA  "Build with GPU acceleration")
+option(USE_CUDF "Build with cuDF support. Requires USE_CUDA." OFF)
+option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -138,6 +140,12 @@ if(USE_CUDA)
     find_package(Nccl REQUIRED)
     include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
+  endif()
+
+  if(USE_CUDF)
+    find_package(CUDF REQUIRED)
+    include_directories(${CUDF_INCLUDE_DIR})
+    add_definitions(-DXGBOOST_USE_CUDF)
   endif()
 
   set(GENCODE_FLAGS "")

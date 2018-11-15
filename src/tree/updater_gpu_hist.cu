@@ -476,8 +476,7 @@ struct DeviceShard {
   /*! \brief Sum gradient for each node. */
   std::vector<GradientPair> node_sum_gradients;
   dh::DVec<GradientPair> node_sum_gradients_d;
-  /*! \brief row offset in SparsePage (the input data). */
-  thrust::device_vector<size_t> row_ptrs;
+
   /*! The row offset for this shard. */
   bst_uint row_begin_idx;
   bst_uint row_end_idx;
@@ -507,13 +506,8 @@ struct DeviceShard {
   /* Init row_ptrs and row_stride */
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_id_));
-    const auto& offset_vec = row_batch.offset.HostVector();
-    row_ptrs.resize(n_rows + 1);
-    thrust::copy(offset_vec.data() + row_begin_idx,
-                 offset_vec.data() + row_end_idx + 1,
-                 row_ptrs.begin());
-    auto row_iter = row_ptrs.begin();
-    // find the maximum row size for converting to ELLPack
+    // find the maximum row size
+    auto row_iter = row_batch.offset.tbegin(device_id_);
     auto get_size = [=] __device__(size_t row) {
       return row_iter[row + 1] - row_iter[row];
     }; // NOLINT
@@ -528,13 +522,13 @@ struct DeviceShard {
 
   /*
      Init:
-     n_bins, null_gidx_value, gidx_buffer, row_ptrs, gidx, gidx_fvalue_map,
+     n_bins, null_gidx_value, gidx_buffer, gidx, gidx_fvalue_map,
      min_fvalue, feature_segments, node_sum_gradients, ridx_segments,
      hist
   */
   void InitCompressedData(
       const common::HistCutMatrix& hmat, const SparsePage& row_batch);
-
+  
   void CreateHistIndices(const SparsePage& row_batch);
 
   ~DeviceShard() {
@@ -856,45 +850,38 @@ inline void DeviceShard::CreateHistIndices(const SparsePage& row_batch) {
       std::min
       (dh::TotalMemory(device_id_) / (16 * row_stride * sizeof(Entry)),
        static_cast<size_t>(n_rows));
-  const std::vector<Entry>& data_vec = row_batch.data.HostVector();
 
   thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
   size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
-
+  thrust::host_vector<size_t> batch_segments;
+  dh::BatchEntrySegments
+    (device_id_, row_batch.offset.DevicePointer(device_id_), n_rows,
+     gpu_batch_nrows, &batch_segments);
   for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
     size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
-    size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
-    if (batch_row_end > n_rows) {
-      batch_row_end = n_rows;
-    }
+    size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows,
+                                    static_cast<size_t>(n_rows));
     size_t batch_nrows = batch_row_end - batch_row_begin;
-    // number of entries in this batch.
-    size_t n_entries = row_ptrs[batch_row_end] - row_ptrs[batch_row_begin];
-    // copy data entries to device.
-    dh::safe_cuda
-        (cudaMemcpy
-         (entries_d.data().get(), data_vec.data() + row_ptrs[batch_row_begin],
-          n_entries * sizeof(Entry), cudaMemcpyDefault));
-    const dim3 block3(32, 8, 1);  // 256 threads
-    const dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
-                     dh::DivRoundUp(row_stride, block3.y), 1);
+    size_t batch_entry_begin = batch_segments[gpu_batch];
+    size_t batch_entry_end = batch_segments[gpu_batch + 1];
+    size_t n_entries = batch_entry_end - batch_entry_begin;
+    row_batch.data.CopyTo
+      (device_id_, batch_entry_begin, entries_d.data().get(), n_entries);
+    dim3 block3(32, 8, 1);
+    dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
+               dh::DivRoundUp(row_stride, block3.y), 1);
     compress_bin_ellpack_k<<<grid3, block3>>>
-        (common::CompressedBufferWriter(num_symbols),
-         gidx_buffer.Data(),
-         row_ptrs.data().get() + batch_row_begin,
-         entries_d.data().get(),
-         cut_.gidx_fvalue_map.Data(), cut_.feature_segments.Data(),
-         batch_row_begin, batch_nrows,
-         row_ptrs[batch_row_begin],
-         row_stride, null_gidx_value);
-
+        (common::CompressedBufferWriter(num_symbols), gidx_buffer.Data(),
+         row_batch.offset.DevicePointer(device_id_) + batch_row_begin,
+         entries_d.data().get(), cut_.gidx_fvalue_map.Data(),
+         cut_.feature_segments.Data(), batch_row_begin, batch_nrows,
+         batch_entry_begin, row_stride, null_gidx_value);
+    
     dh::safe_cuda(cudaGetLastError());
     dh::safe_cuda(cudaDeviceSynchronize());
   }
 
   // free the memory that is no longer needed
-  row_ptrs.resize(0);
-  row_ptrs.shrink_to_fit();
   entries_d.resize(0);
   entries_d.shrink_to_fit();
 }
@@ -922,6 +909,44 @@ class GPUHistMaker : public TreeUpdater {
     monitor_.Init("updater_gpu_hist", param_.debug_verbose);
   }
 
+  // void PrintDMatrixInfo(DMatrix* dmat) {
+  //   const MetaInfo& info = dmat->Info();
+  //   dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
+  //   iter->BeforeFirst();
+  //   CHECK(iter->Next()) << "Empty batches are not supported";
+  //   const SparsePage& batch = iter->Value();
+
+  //   std::cerr << "n_rows = " << info.num_row_ << std::endl;
+  //   std::cerr << "n_cols = " << info.num_col_ << std::endl;
+  //   std::cerr << "n_nz = " << info.num_nonzero_ << std::endl;
+
+  //   size_t n_labels = 50;
+  //   const auto& labels = info.labels_.HostVector();
+  //   std::cerr << "labels = { ";
+  //   for (size_t i = 0; i < std::min(n_labels, labels.size()); ++i) {
+  //     std::cerr << labels[i] << " ";
+  //   }
+  //   std::cerr << "}" << std::endl;
+
+  //   size_t n_offsets = 30;
+  //   const auto& offsets = batch.offset.HostVector();
+  //   std::cerr << "offsets = { ";
+  //   for (size_t i = 0; i < std::min(n_offsets, offsets.size()); ++i) {
+  //     std::cerr << offsets[i] << " ";
+  //   }
+  //   std::cerr << "}" << std::endl;
+
+  //   size_t n_data = 50;
+  //   const auto& data = batch.data.HostVector();
+  //   std::cerr << "data = { ";
+  //   for (size_t i = 0; i < std::min(n_data, data.size()); ++i) {
+  //     std::cerr << data[i].index << ":" << data[i].fvalue << " ";
+  //   }
+  //   std::cerr << "}" << std::endl;
+    
+  //   CHECK(!iter->Next()) << "External memory not supported";
+  // }
+
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     monitor_.Start("Update", dist_.Devices());
@@ -944,6 +969,8 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void InitDataOnce(DMatrix* dmat) {
+
+    //PrintDMatrixInfo(dmat);
     info_ = &dmat->Info();
 
     int n_devices = dist_.Devices().Size();
@@ -958,6 +985,10 @@ class GPUHistMaker : public TreeUpdater {
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
+
+    // Ensure proper data distribution
+    batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
+    
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {

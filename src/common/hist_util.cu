@@ -5,7 +5,9 @@
 #include "./hist_util.h"
 
 #include <thrust/copy.h>
+#include <thrust/device_vector.h>
 #include <thrust/functional.h>
+#include <thrust/host_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
@@ -96,7 +98,6 @@ struct GPUSketcher {
 
     tree::TrainParam param_;
     std::vector<WXQSketch> sketches_;
-    thrust::device_vector<size_t> row_ptrs_;
     std::vector<WXQSketch::SummaryContainer> summaries_;
     thrust::device_vector<Entry> entries_;
     thrust::device_vector<bst_float> fvalues_;
@@ -276,30 +277,27 @@ struct GPUSketcher {
     }
 
     void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
+                     const thrust::host_vector<size_t>& batch_segments,
                      size_t gpu_batch) {
+      //const auto& data_vec = row_batch.data.HostVector();
+      
       // compute start and end indices
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
       size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
                                       static_cast<size_t>(n_rows_));
+      size_t batch_entry_begin = batch_segments[gpu_batch];
+      size_t batch_entry_end = batch_segments[gpu_batch + 1];
       size_t batch_nrows = batch_row_end - batch_row_begin;
-
-      const auto& offset_vec = row_batch.offset.HostVector();
-      const auto& data_vec = row_batch.data.HostVector();
-
-      size_t n_entries = offset_vec[row_begin_ + batch_row_end] -
-        offset_vec[row_begin_ + batch_row_begin];
+      size_t n_entries = batch_entry_end - batch_entry_begin;
       // copy the batch to the GPU
-      dh::safe_cuda
-        (cudaMemcpy(entries_.data().get(),
-                    data_vec.data() + offset_vec[row_begin_ + batch_row_begin],
-                    n_entries * sizeof(Entry), cudaMemcpyDefault));
+      row_batch.data.CopyTo(device_, batch_entry_begin, entries_.data().get(),
+                            n_entries);
       // copy the weights if necessary
       if (has_weights_) {
-        const auto& weights_vec = info.weights_.HostVector();
-        dh::safe_cuda
-          (cudaMemcpy(weights_.data().get(),
-                      weights_vec.data() + row_begin_ + batch_row_begin,
-                      batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
+        dh::safe_cuda(cudaMemcpy
+                      (weights_.data().get(),
+                       info.weights_.DevicePointer(device_) + batch_row_begin,
+                       batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
 
       // unpack the features; also unpack weights if present
@@ -311,10 +309,9 @@ struct GPUSketcher {
                  dh::DivRoundUp(num_cols_, block3.y), 1);
       unpack_features_k<<<grid3, block3>>>
         (fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
-         row_ptrs_.data().get() + batch_row_begin,
+         row_batch.offset.DevicePointer(device_) + batch_row_begin,
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
-         gpu_batch_nrows_, num_cols_,
-         offset_vec[row_begin_ + batch_row_begin], batch_nrows);
+         gpu_batch_nrows_, num_cols_, batch_entry_begin, batch_nrows);
       dh::safe_cuda(cudaGetLastError());       // NOLINT
       dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
@@ -332,21 +329,30 @@ struct GPUSketcher {
       }
     }
 
-    void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
+    void Sketch(const SparsePage& row_batch, const MetaInfo& info) {      
       // copy rows to the device
       dh::safe_cuda(cudaSetDevice(device_));
-      const auto& offset_vec = row_batch.offset.HostVector();
-      row_ptrs_.resize(n_rows_ + 1);
-      thrust::copy(offset_vec.data() + row_begin_,
-                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
       size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
+
+      thrust::host_vector<size_t> batch_segments;
+      dh::BatchEntrySegments(device_, row_batch.offset.DevicePointer(device_),
+                             n_rows_, gpu_batch_nrows_, &batch_segments);
+
       for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
-        SketchBatch(row_batch, info, gpu_batch);
+        SketchBatch(row_batch, info, batch_segments, gpu_batch);
       }
     }
   };
 
   void Sketch(const SparsePage& batch, const MetaInfo& info, HistCutMatrix* hmat) {
+    // partition input matrix into row segments
+    std::vector<size_t> row_segments;
+    dh::RowSegments(info.num_row_, dist_.Devices().Size(), &row_segments);
+
+    // ensure that the data is distributed properly
+    info.weights_.Reshard(dist_);
+    batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
+
     // create device shards
     shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
