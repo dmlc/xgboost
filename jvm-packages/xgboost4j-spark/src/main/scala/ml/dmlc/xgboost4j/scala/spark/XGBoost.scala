@@ -19,7 +19,6 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
-import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
@@ -32,7 +31,7 @@ import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 
 /**
@@ -207,22 +206,15 @@ object XGBoost extends Serializable {
       }
     }
   }
-  
-  /**
-   * @return A tuple of the booster and the metrics used to build training summary
-   */
-  @throws(classOf[XGBoostError])
-  private[spark] def trainDistributed(
-      trainingData: RDD[XGBLabeledPoint],
-      params: Map[String, Any],
-      hasGroup: Boolean = false): (Booster, Map[String, Array[Float]]) = {
+
+  private def parameterFetchAndValidation(params: Map[String, Any], sparkContext: SparkContext) = {
     val nWorkers = params("num_workers").asInstanceOf[Int]
     val round = params("num_round").asInstanceOf[Int]
     val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
     val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
-    validateSparkSslConf(trainingData.context)
+    validateSparkSslConf(sparkContext)
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
@@ -246,10 +238,60 @@ object XGBoost extends Serializable {
         " an instance of Long.")
     }
     val (checkpointPath, checkpointInterval) = CheckpointManager.extractParams(params)
+    (nWorkers, round, useExternalMemory, obj, eval, missing, trackerConf, timeoutRequestWorkers,
+      checkpointPath, checkpointInterval)
+  }
+
+  private def trainForNonRanking(
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      rabitEnv: java.util.Map[String, String],
+      checkpointRound: Int,
+      prevBooster: Booster) = {
+    val (nWorkers, round, useExternalMemory, obj, eval, missing, _, _, _, _) =
+      parameterFetchAndValidation(params, trainingData.sparkContext)
+    val partitionedData = repartitionForTraining(trainingData, nWorkers)
+    partitionedData.mapPartitions(labeledPoints => {
+      val watches = Watches.buildWatches(params,
+        removeMissingValues(labeledPoints, missing),
+        getCacheDirName(useExternalMemory))
+      buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+        obj, eval, prevBooster)
+    }).cache()
+  }
+
+  private def trainForRanking(
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      rabitEnv: java.util.Map[String, String],
+      checkpointRound: Int,
+      prevBooster: Booster) = {
+    val (nWorkers, round, useExternalMemory, obj, eval, missing, _, _, _, _) =
+      parameterFetchAndValidation(params, trainingData.sparkContext)
+    val partitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
+    partitionedData.mapPartitions(labeledPointGroups => {
+      val watches = Watches.buildWatchesWithGroup(params,
+        removeMissingValuesWithGroup(labeledPointGroups, missing),
+        getCacheDirName(useExternalMemory))
+      buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+        obj, eval, prevBooster)
+    }).cache()
+  }
+
+  /**
+   * @return A tuple of the booster and the metrics used to build training summary
+   */
+  @throws(classOf[XGBoostError])
+  private[spark] def trainDistributed(
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      hasGroup: Boolean = false): (Booster, Map[String, Array[Float]]) = {
+    val (nWorkers, round, _, _, _, _, trackerConf, timeoutRequestWorkers,
+      checkpointPath, checkpointInterval) = parameterFetchAndValidation(params,
+      trainingData.sparkContext)
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, checkpointPath)
     checkpointManager.cleanUpHigherVersions(round.asInstanceOf[Int])
-
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     // Train for every ${savingRound} rounds and save the partially completed booster
     checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
@@ -259,27 +301,12 @@ object XGBoost extends Serializable {
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val rabitEnv = tracker.getWorkerEnvs
-          val boostersAndMetrics = hasGroup match {
-            case true => {
-              val partitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
-              partitionedData.mapPartitions(labeledPointGroups => {
-                val watches = Watches.buildWatchesWithGroup(overriddenParams,
-                  removeMissingValuesWithGroup(labeledPointGroups, missing),
-                  getCacheDirName(useExternalMemory))
-                buildDistributedBooster(watches, overriddenParams, rabitEnv, checkpointRound,
-                  obj, eval, prevBooster)
-              }).cache()
-            }
-            case false => {
-              val partitionedData = repartitionForTraining(trainingData, nWorkers)
-              partitionedData.mapPartitions(labeledPoints => {
-                val watches = Watches.buildWatches(overriddenParams,
-                  removeMissingValues(labeledPoints, missing),
-                  getCacheDirName(useExternalMemory))
-                 buildDistributedBooster(watches, overriddenParams, rabitEnv, checkpointRound,
-                   obj, eval, prevBooster)
-              }).cache()
-            }
+          val boostersAndMetrics = if (hasGroup) {
+            trainForRanking(trainingData, overriddenParams, rabitEnv, checkpointInterval,
+              prevBooster)
+          } else {
+            trainForNonRanking(trainingData, overriddenParams, rabitEnv, checkpointInterval,
+              prevBooster)
           }
           val sparkJobThread = new Thread() {
             override def run() {
