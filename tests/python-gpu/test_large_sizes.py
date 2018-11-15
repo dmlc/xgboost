@@ -2,12 +2,12 @@ from __future__ import print_function
 
 import sys
 import time
+import pytest
 
 sys.path.append("../../tests/python")
 import xgboost as xgb
 import numpy as np
 import unittest
-from nose.plugins.attrib import attr
 
 
 def eprint(*args, **kwargs):
@@ -16,9 +16,11 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
     sys.stdout.flush()
 
+
 rng = np.random.RandomState(1994)
 
-# "realistic" size based upon http://stat-computing.org/dataexpo/2009/ , which has been processed to one-hot encode categoricalsxsy
+# "realistic" size based upon http://stat-computing.org/dataexpo/2009/
+# , which has been processed to one-hot encode categoricalsxsy
 cols = 31
 # reduced to fit onto 1 gpu but still be large
 rows3 = 5000  # small
@@ -28,7 +30,7 @@ rows1 = 42360032  # large
 rowslist = [rows1, rows2, rows3]
 
 
-@attr('slow')
+@pytest.mark.slow
 class TestGPU(unittest.TestCase):
     def test_large(self):
         for rows in rowslist:
@@ -47,15 +49,8 @@ class TestGPU(unittest.TestCase):
             max_depth = 6
             max_bin = 1024
 
-            # regression test --- hist must be same as exact on all-categorial data
-            ag_param = {'max_depth': max_depth,
-                        'tree_method': 'exact',
-                        'nthread': 0,
-                        'eta': 1,
-                        'silent': 0,
-                        'debug_verbose': 5,
-                        'objective': 'binary:logistic',
-                        'eval_metric': 'auc'}
+            # regression test --- hist must be same as exact on
+            # all-categorial data
             ag_paramb = {'max_depth': max_depth,
                          'tree_method': 'hist',
                          'nthread': 0,
