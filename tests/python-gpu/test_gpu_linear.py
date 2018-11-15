@@ -1,18 +1,19 @@
 import sys
+import pytest
+import unittest
 
 sys.path.append('tests/python/')
 import test_linear
 import testing as tm
-import unittest
 
 
 class TestGPULinear(unittest.TestCase):
 
     datasets = ["Boston", "Digits", "Cancer", "Sparse regression",
                 "Boston External Memory"]
-    
+
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_gpu_coordinate(self):
-        tm._skip_if_no_sklearn()
         variable_param = {
             'booster': ['gblinear'],
             'updater': ['coord_descent'],

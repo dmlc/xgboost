@@ -37,7 +37,7 @@ ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
 
 # Install Python packages
 RUN \
-    pip install numpy nose scipy scikit-learn wheel
+    pip install numpy pytest scipy scikit-learn wheel
 
 ENV GOSU_VERSION 1.10
 

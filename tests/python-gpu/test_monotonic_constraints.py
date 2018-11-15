@@ -1,10 +1,12 @@
 from __future__ import print_function
 
 import numpy as np
-import unittest
-import xgboost as xgb
-from nose.plugins.attrib import attr
 from sklearn.datasets import make_regression
+
+import unittest
+import pytest
+
+import xgboost as xgb
 
 rng = np.random.RandomState(1994)
 
@@ -33,7 +35,7 @@ def assert_constraint(constraint, tree_method):
         assert non_increasing(pred)
 
 
-@attr('gpu')
+@pytest.mark.gpu
 class TestMonotonicConstraints(unittest.TestCase):
     def test_exact(self):
         assert_constraint(1, 'exact')

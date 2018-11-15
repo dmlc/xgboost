@@ -1,15 +1,14 @@
 from __future__ import print_function
 
 import numpy as np
-import sys
 import unittest
 import xgboost as xgb
-from nose.plugins.attrib import attr
+import pytest
 
 rng = np.random.RandomState(1994)
 
 
-@attr('gpu')
+@pytest.mark.gpu
 class TestGPUPredict(unittest.TestCase):
     def test_predict(self):
         iterations = 10
@@ -18,9 +17,12 @@ class TestGPUPredict(unittest.TestCase):
         test_num_cols = [10, 50, 500]
         for num_rows in test_num_rows:
             for num_cols in test_num_cols:
-                dtrain = xgb.DMatrix(np.random.randn(num_rows, num_cols), label=[0, 1] * int(num_rows / 2))
-                dval = xgb.DMatrix(np.random.randn(num_rows, num_cols), label=[0, 1] * int(num_rows / 2))
-                dtest = xgb.DMatrix(np.random.randn(num_rows, num_cols), label=[0, 1] * int(num_rows / 2))
+                dtrain = xgb.DMatrix(np.random.randn(num_rows, num_cols),
+                                     label=[0, 1] * int(num_rows / 2))
+                dval = xgb.DMatrix(np.random.randn(num_rows, num_cols),
+                                   label=[0, 1] * int(num_rows / 2))
+                dtest = xgb.DMatrix(np.random.randn(num_rows, num_cols),
+                                    label=[0, 1] * int(num_rows / 2))
                 watchlist = [(dtrain, 'train'), (dval, 'validation')]
                 res = {}
                 param = {
@@ -28,7 +30,8 @@ class TestGPUPredict(unittest.TestCase):
                     "predictor": "gpu_predictor",
                     'eval_metric': 'auc',
                 }
-                bst = xgb.train(param, dtrain, iterations, evals=watchlist, evals_result=res)
+                bst = xgb.train(param, dtrain, iterations, evals=watchlist,
+                                evals_result=res)
                 assert self.non_decreasing(res["train"]["auc"])
                 gpu_pred_train = bst.predict(dtrain, output_margin=True)
                 gpu_pred_test = bst.predict(dtest, output_margin=True)
@@ -39,21 +42,26 @@ class TestGPUPredict(unittest.TestCase):
                 cpu_pred_train = bst_cpu.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst_cpu.predict(dtest, output_margin=True)
                 cpu_pred_val = bst_cpu.predict(dval, output_margin=True)
-                np.testing.assert_allclose(cpu_pred_train, gpu_pred_train, rtol=1e-5)
-                np.testing.assert_allclose(cpu_pred_val, gpu_pred_val, rtol=1e-5)
-                np.testing.assert_allclose(cpu_pred_test, gpu_pred_test, rtol=1e-5)
+                np.testing.assert_allclose(cpu_pred_train, gpu_pred_train,
+                                           rtol=1e-5)
+                np.testing.assert_allclose(cpu_pred_val, gpu_pred_val,
+                                           rtol=1e-5)
+                np.testing.assert_allclose(cpu_pred_test, gpu_pred_test,
+                                           rtol=1e-5)
 
     def non_decreasing(self, L):
         return all((x - y) < 0.001 for x, y in zip(L, L[1:]))
 
-    # Test case for a bug where multiple batch predictions made on a test set produce incorrect results
+    # Test case for a bug where multiple batch predictions made on a
+    # test set produce incorrect results
     def test_multi_predict(self):
         from sklearn.datasets import make_regression
         from sklearn.model_selection import train_test_split
 
         n = 1000
         X, y = make_regression(n, random_state=rng)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=123)
+        X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                                            random_state=123)
         dtrain = xgb.DMatrix(X_train, label=y_train)
         dtest = xgb.DMatrix(X_test)
 
@@ -85,8 +93,7 @@ class TestGPUPredict(unittest.TestCase):
         params = {'tree_method': 'gpu_hist',
                   'predictor': 'cpu_predictor',
                   'n_jobs': -1,
-                  'seed': 123
-                  }
+                  'seed': 123}
         m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         cpu_train_score = m.score(X_train, y_train)
         cpu_test_score = m.score(X_test, y_test)

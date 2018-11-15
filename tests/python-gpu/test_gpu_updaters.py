@@ -1,10 +1,9 @@
 import numpy as np
 import sys
 import unittest
-from nose.plugins.attrib import attr
+import pytest
 
 sys.path.append("tests/python")
-import xgboost as xgb
 from regression_test_utilities import run_suite, parameter_combinations, \
     assert_results_non_increasing
 
@@ -45,7 +44,7 @@ class TestGPU(unittest.TestCase):
             cpu_results = run_suite(param, select_datasets=datasets)
             assert_gpu_results(cpu_results, gpu_results)
 
-    @attr('mgpu')
+    @pytest.mark.mgpu
     def test_gpu_hist_mgpu(self):
         variable_param = {'n_gpus': [-1], 'max_depth': [2, 10],
                           'max_leaves': [255, 4],
@@ -56,7 +55,7 @@ class TestGPU(unittest.TestCase):
             gpu_results = run_suite(param, select_datasets=datasets)
             assert_results_non_increasing(gpu_results, 1e-2)
 
-    @attr('mgpu')
+    @pytest.mark.mgpu
     def test_specified_gpu_id_gpu_update(self):
         variable_param = {'n_gpus': [1],
                           'gpu_id': [1],

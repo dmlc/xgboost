@@ -1,27 +1,28 @@
 # coding: utf-8
-
-import nose
-
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
 
 
-def _skip_if_no_sklearn():
-    if not SKLEARN_INSTALLED:
-        raise nose.SkipTest()
+def no_sklearn():
+    return {'condition': not SKLEARN_INSTALLED,
+            'reason': 'Scikit-Learn is not installed'}
 
 
-def _skip_if_no_pandas():
-    if not PANDAS_INSTALLED:
-        raise nose.SkipTest()
+def no_pandas():
+    return {'condition': not PANDAS_INSTALLED,
+            'reason': 'Pandas is not installed.'}
 
 
-def _skip_if_no_dt():
-    if not DT_INSTALLED:
-        raise nose.SkipTest()
+def no_dt():
+    return {'condition': not DT_INSTALLED,
+            'reason': 'Datatable is not installed.'}
 
 
-def _skip_if_no_matplotlib():
+def no_matplotlib():
+    reason = 'Matplotlib is not installed.'
     try:
         import matplotlib.pyplot as _     # noqa
+        return {'condition': False,
+                'reason': reason}
     except ImportError:
-        raise nose.SkipTest()
+        return {'condition': True,
+                'reason': reason}
