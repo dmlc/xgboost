@@ -248,7 +248,7 @@ object XGBoost extends Serializable {
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
       prevBooster: Booster) = {
-    val (nWorkers, round, useExternalMemory, obj, eval, missing, _, _, _, _) =
+    val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
     partitionedData.mapPartitions(labeledPoints => {
@@ -266,7 +266,7 @@ object XGBoost extends Serializable {
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
       prevBooster: Booster) = {
-    val (nWorkers, round, useExternalMemory, obj, eval, missing, _, _, _, _) =
+    val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
     partitionedData.mapPartitions(labeledPointGroups => {
@@ -302,10 +302,10 @@ object XGBoost extends Serializable {
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val rabitEnv = tracker.getWorkerEnvs
           val boostersAndMetrics = if (hasGroup) {
-            trainForRanking(trainingData, overriddenParams, rabitEnv, checkpointInterval,
+            trainForRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
               prevBooster)
           } else {
-            trainForNonRanking(trainingData, overriddenParams, rabitEnv, checkpointInterval,
+            trainForNonRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
               prevBooster)
           }
           val sparkJobThread = new Thread() {
