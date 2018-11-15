@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
+import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
@@ -31,7 +32,7 @@ import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
 /**
@@ -120,7 +121,7 @@ object XGBoost extends Serializable {
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    if (watches.train.rowNum == 0) {
+    if (watches.toMap("train").rowNum == 0) {
       throw new XGBoostError(
         s"detected an empty partition in the training data, partition ID:" +
           s" ${TaskContext.getPartitionId()}")
@@ -138,7 +139,7 @@ object XGBoost extends Serializable {
         }
       }
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
-      val booster = SXGBoost.train(watches.train, params, round,
+      val booster = SXGBoost.train(watches.toMap("train"), params, round,
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
@@ -173,6 +174,43 @@ object XGBoost extends Serializable {
 
     require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
+  }
+
+  class IteratorWrapper(arrayOfXGBLabeledPoints: Array[Iterator[XGBLabeledPoint]])
+    extends Iterator[Iterator[XGBLabeledPoint]] {
+
+    def this(iters: Iterator[Iterator[XGBLabeledPoint]]) = this(iters.toArray)
+
+    private var currentIndex = 0
+
+    override def hasNext: Boolean = currentIndex < arrayOfXGBLabeledPoints.length - 1
+
+    override def next(): Iterator[XGBLabeledPoint] = {
+      currentIndex += 1
+      arrayOfXGBLabeledPoints(currentIndex - 1)
+    }
+  }
+
+  private def coPartitionTrainingAndValidationSet(
+      trainingData: RDD[XGBLabeledPoint], params: Map[String, Any]) = {
+    val nWorkers = params("num_workers").asInstanceOf[Int]
+    // eval_sets is supposed to be set by the caller of [[trainDistributed]]
+    val allEvalSets = params.getOrElse("eval_sets", new Array[RDD[XGBLabeledPoint]](0)).
+      asInstanceOf[Array[RDD[XGBLabeledPoint]]]
+    val repartitionedDatasets = trainingData +: allEvalSets.map(rdd =>
+      if (rdd.getNumPartitions != nWorkers) {
+        rdd.repartition(nWorkers)
+      } else {
+        rdd
+      })
+    repartitionedDatasets.foldLeft(trainingData.sparkContext.parallelize(
+      new Array[Iterator[XGBLabeledPoint]](nWorkers), nWorkers)){
+      case (ds1, ds2) =>
+        ds1.zipPartitions(ds2){
+          (itrWrapper, itr) =>
+            new IteratorWrapper(itrWrapper.toArray :+ itr)
+        }
+    }
   }
 
   /**
@@ -215,6 +253,7 @@ object XGBoost extends Serializable {
     val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
     validateSparkSslConf(sparkContext)
+
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
@@ -251,6 +290,8 @@ object XGBoost extends Serializable {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
+    val coPartitionedRDD = coPartitionTrainingAndValidationSet(trainingData, params)
+
     partitionedData.mapPartitions(labeledPoints => {
       val watches = Watches.buildWatches(params,
         removeMissingValues(labeledPoints, missing),
@@ -395,12 +436,13 @@ object XGBoost extends Serializable {
 }
 
 private class Watches private(
-    val train: DMatrix,
-    val test: DMatrix,
-    private val cacheDirName: Option[String]) {
+    val datasets: Array[DMatrix],
+    val names: Array[String],
+    val cacheDirName: Option[String]) {
 
-  def toMap: Map[String, DMatrix] = Map("train" -> train, "test" -> test)
-    .filter { case (_, matrix) => matrix.rowNum > 0 }
+  def toMap: Map[String, DMatrix] = {
+    names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
+  }
 
   def size: Int = toMap.size
 
@@ -441,6 +483,24 @@ private object Watches {
   }
 
   def buildWatches(
+      labeledPointSets: Iterator[Iterator[XGBLabeledPoint]],
+      datasetNames: Iterator[String],
+      cachedDirName: Option[String]): Unit = {
+    val dms = labeledPointSets.zip(datasetNames).map {
+      case (labeledPoints, name) =>
+        val baseMargins = new mutable.ArrayBuilder.ofFloat
+        val duplicatedItr = labeledPoints.map(labeledPoint => {
+          baseMargins += labeledPoint.baseMargin
+          labeledPoint
+        })
+        val dMatrix = new DMatrix(duplicatedItr, cachedDirName.map(_ + s"/$name").orNull)
+        dMatrix.setBaseMargin(fromBaseMarginsToArray(baseMargins.result().iterator).get)
+        dMatrix
+    }
+    new Watches(dms.toArray, datasetNames.toArray, cachedDirName)
+  }
+
+  def buildWatches(
       params: Map[String, Any],
       labeledPoints: Iterator[XGBLabeledPoint],
       cacheDirName: Option[String]): Watches = {
@@ -468,7 +528,7 @@ private object Watches {
     if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
     if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
 
-    new Watches(trainMatrix, testMatrix, cacheDirName)
+    new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }
 
   def buildWatchesWithGroup(
@@ -513,7 +573,7 @@ private object Watches {
     if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
     if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
 
-    new Watches(trainMatrix, testMatrix, cacheDirName)
+    new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }
 }
 
