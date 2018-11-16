@@ -20,7 +20,7 @@ __global__ void unpack_cudf_column_k
   size_t i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i >= n_rows)
     return;
-  data[n_cols * i] = convert_data_element(col.data, i, col.dtype);
+  data[n_cols * i] = ConvertDataElement(col.data, i, col.dtype);
 }
 
 void MetaInfo::SetInfoCUDF(const char* key, gdf_column** cols, size_t n_cols) {
