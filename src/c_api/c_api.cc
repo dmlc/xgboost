@@ -260,14 +260,14 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
 
-int XGDMatrixCreateFromGDF
+int XGDMatrixCreateFromCUDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
   API_BEGIN();
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
-  source->InitFromGDF(cols, n_cols);
+  source->InitFromCUDF(cols, n_cols);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -792,16 +792,16 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_END();
 }
 
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
 
-XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
+XGB_DLL int XGDMatrixSetInfoCUDF(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column **cols,
                                 size_t n_cols) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-    ->get()->Info().SetInfoGDF(field, cols, n_cols);
+    ->get()->Info().SetInfoCUDF(field, cols, n_cols);
   API_END();
 }
 

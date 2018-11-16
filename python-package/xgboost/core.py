@@ -11,7 +11,7 @@ import re
 import sys
 
 import cudf as cudf
-#from libgdf_cffi import ffi
+from libgdf_cffi import ffi
 import numpy as np
 import scipy.sparse
 
@@ -433,7 +433,7 @@ class DMatrix(object):
         """
         self.handle = ctypes.c_void_p()
         col_ptrs = [df[col]._column.cffi_view for col in df.columns]
-        col_ptr_arr = ffi.new('cudf_column*[]', col_ptrs)
+        col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
         _check_call(_LIB.XGDMatrixCreateFromCUDF
                     (ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
                      ctypes.c_size_t(len(df.columns)),
@@ -622,7 +622,7 @@ class DMatrix(object):
         else:
             # data is a single CUDF column
             col_ptrs = [data.cffi_view]
-        col_ptr_arr = ffi.new('cudf_column*[]', col_ptrs)
+        col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
         _check_call(_LIB.XGDMatrixSetInfoCUDF
                     (self.handle, c_str(field),
                      ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),

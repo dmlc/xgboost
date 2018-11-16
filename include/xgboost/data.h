@@ -9,7 +9,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
 #include <gdf/gdf.h>
 #endif
 #include <cstring>
@@ -127,14 +127,14 @@ class MetaInfo {
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
   
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
   /*!
-   * \brief Set information in the meta info from GDF columns.
+   * \brief Set information in the meta info from CUDF columns.
    * \param key The key of the information.
-   * \param cols The GDF columns used to set the info.
-   * \param n_cols The number of GDF columns.
+   * \param cols The CUDF columns used to set the info.
+   * \param n_cols The number of CUDF columns.
    */
-  void SetInfoGDF(const char* key, gdf_column** cols, size_t n_cols);
+  void SetInfoCUDF(const char* key, gdf_column** cols, size_t n_cols);
 #endif
 
  private:
