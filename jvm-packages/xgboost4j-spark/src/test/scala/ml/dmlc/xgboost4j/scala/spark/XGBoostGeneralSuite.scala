@@ -78,10 +78,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val (booster, metrics) = XGBoost.trainDistributed(
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-        "objective" -> "binary:logistic").toMap,
-      round = 5, nWorkers = numWorkers, eval = null, obj = null, useExternalMemory = false,
-      hasGroup = false, missing = Float.NaN)
-
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+        "custom_eval" -> null, "custom_obj" -> null, "use_external_memory" -> false,
+        "missing" -> Float.NaN).toMap,
+      hasGroup = false)
     assert(booster != null)
   }
 
@@ -270,9 +270,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val (booster, metrics) = XGBoost.trainDistributed(
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-        "objective" -> "binary:logistic").toMap,
-      round = 5, nWorkers = numWorkers, eval = null, obj = null, useExternalMemory = false,
-      hasGroup = true, missing = Float.NaN)
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+        "custom_eval" -> null, "custom_obj" -> null, "use_external_memory" -> false,
+        "missing" -> Float.NaN).toMap,
+      hasGroup = true)
 
     assert(booster != null)
   }
