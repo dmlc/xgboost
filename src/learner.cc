@@ -397,7 +397,7 @@ class LearnerImpl : public Learner {
 #else
           if (saved_param == "predictor" && kv.second == "gpu_predictor") {
             LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
-                      << "since XGBoots wasn't compiled with GPU support.";
+                      << "since XGBoost wasn't compiled with GPU support.";
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }

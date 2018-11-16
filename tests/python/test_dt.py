@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+import pytest
 
 import testing as tm
 import xgboost as xgb
@@ -10,14 +11,16 @@ try:
 except ImportError:
     pass
 
-tm._skip_if_no_dt()
-tm._skip_if_no_pandas()
+pytestmark = pytest.mark.skipif(
+    tm.no_dt()['condition'] or tm.no_pandas()['condition'],
+    reason=tm.no_dt()['reason'] + ' or ' + tm.no_pandas()['reason'])
 
 
 class TestDataTable(unittest.TestCase):
 
     def test_dt(self):
-        df = pd.DataFrame([[1, 2., True], [2, 3., False]], columns=['a', 'b', 'c'])
+        df = pd.DataFrame([[1, 2., True], [2, 3., False]],
+                          columns=['a', 'b', 'c'])
         dtable = dt.Frame(df)
         labels = dt.Frame([1, 2])
         dm = xgb.DMatrix(dtable, label=labels)
@@ -34,7 +37,8 @@ class TestDataTable(unittest.TestCase):
         assert dm.num_col() == 3
 
         # incorrect dtypes
-        df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']], columns=['a', 'b', 'c'])
+        df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']],
+                          columns=['a', 'b', 'c'])
         dtable = dt.Frame(df)
         self.assertRaises(ValueError, xgb.DMatrix, dtable)
 

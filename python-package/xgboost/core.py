@@ -3,8 +3,13 @@
 # pylint: disable=too-many-branches, too-many-lines, W0141
 """Core XGBoost Library."""
 from __future__ import absolute_import
-
 import collections
+# pylint: disable=no-name-in-module,import-error
+try:
+    from collections.abc import Mapping  # Python 3
+except ImportError:
+    from collections import Mapping  # Python 2
+# pylint: enable=no-name-in-module,import-error
 import ctypes
 import os
 import re
@@ -13,8 +18,10 @@ import sys
 import numpy as np
 import scipy.sparse
 
-from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
+from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
+                     PANDAS_INSTALLED, DataTable)
 from .libpath import find_lib_path
+
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
@@ -1024,7 +1031,7 @@ class Booster(object):
         value: optional
            value of the specified parameter, when params is str key
         """
-        if isinstance(params, collections.Mapping):
+        if isinstance(params, Mapping):
             params = params.items()
         elif isinstance(params, STRING_TYPES) and value is not None:
             params = [(params, value)]

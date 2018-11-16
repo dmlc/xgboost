@@ -3,6 +3,7 @@ import numpy as np
 import xgboost as xgb
 import testing as tm
 import unittest
+import pytest
 
 try:
     import pandas as pd
@@ -10,7 +11,7 @@ except ImportError:
     pass
 
 
-tm._skip_if_no_pandas()
+pytestmark = pytest.mark.skipif(**tm.no_pandas())
 
 
 dpath = 'demo/data/'
@@ -21,7 +22,8 @@ class TestPandas(unittest.TestCase):
 
     def test_pandas(self):
 
-        df = pd.DataFrame([[1, 2., True], [2, 3., False]], columns=['a', 'b', 'c'])
+        df = pd.DataFrame([[1, 2., True], [2, 3., False]],
+                          columns=['a', 'b', 'c'])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.feature_names == ['a', 'b', 'c']
         assert dm.feature_types == ['int', 'float', 'i']
@@ -30,14 +32,16 @@ class TestPandas(unittest.TestCase):
 
         # overwrite feature_names and feature_types
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]),
-                         feature_names=['x', 'y', 'z'], feature_types=['q', 'q', 'q'])
+                         feature_names=['x', 'y', 'z'],
+                         feature_types=['q', 'q', 'q'])
         assert dm.feature_names == ['x', 'y', 'z']
         assert dm.feature_types == ['q', 'q', 'q']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
 
         # incorrect dtypes
-        df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']], columns=['a', 'b', 'c'])
+        df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']],
+                          columns=['a', 'b', 'c'])
         self.assertRaises(ValueError, xgb.DMatrix, df)
 
         # numeric columns
@@ -107,7 +111,8 @@ class TestPandas(unittest.TestCase):
 
         df = pd.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
         result = xgb.core._maybe_pandas_label(df)
-        np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]], dtype=float))
+        np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
+                                                       dtype=float))
 
         dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
         assert dm.num_row() == 3

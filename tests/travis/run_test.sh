@@ -53,7 +53,7 @@ if [ ${TASK} == "python_test" ]; then
     echo "-------------------------------"
     source activate python3
     python --version
-    conda install numpy scipy pandas matplotlib nose scikit-learn
+    conda install numpy scipy pandas matplotlib scikit-learn
 
     # Install data table from source
     wget http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-14.04.tar.xz
@@ -62,35 +62,37 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install datatable --no-binary datatable
 
     python -m pip install graphviz pytest pytest-cov codecov
-    python -m nose -v tests/python || exit -1
-    py.test tests/python --cov=python-package/xgboost
+    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
+
     source activate python2
     echo "-------------------------------"
     python --version
-    conda install numpy scipy pandas matplotlib nose scikit-learn
+    conda install numpy scipy pandas matplotlib scikit-learn
     python -m pip install graphviz
-    python -m nose -v tests/python || exit -1
+    py.test -v --fulltrace -s tests/python || exit -1
     exit 0
 fi
 
 if [ ${TASK} == "python_lightweight_test" ]; then
     make all || exit -1
+
     echo "-------------------------------"
     source activate python3
     python --version
-    conda install numpy scipy nose
+    conda install numpy scipy
     python -m pip install graphviz pytest pytest-cov codecov
-    python -m nose -v tests/python || exit -1
-    py.test tests/python --cov=python-package/xgboost
+    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
+
     source activate python2
     echo "-------------------------------"
     python --version
-    conda install numpy scipy nose
+    conda install numpy scipy pytest
     python -m pip install graphviz
-    python -m nose -v tests/python || exit -1
     python -m pip install flake8==3.4.1
+    py.test -v --fulltrace -s tests/python || exit -1
+
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1
     exit 0

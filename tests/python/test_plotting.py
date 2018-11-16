@@ -2,7 +2,9 @@
 import numpy as np
 import xgboost as xgb
 import testing as tm
+
 import unittest
+import pytest
 
 try:
     import matplotlib
@@ -13,7 +15,7 @@ except ImportError:
     pass
 
 
-tm._skip_if_no_matplotlib()
+pytestmark = pytest.mark.skipif(**tm.no_matplotlib())
 
 
 dpath = 'demo/data/'
