@@ -290,15 +290,23 @@ object XGBoost extends Serializable {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
-    val coPartitionedRDD = coPartitionTrainingAndValidationSet(trainingData, params)
-
-    partitionedData.mapPartitions(labeledPoints => {
-      val watches = Watches.buildWatches(params,
-        removeMissingValues(labeledPoints, missing),
-        getCacheDirName(useExternalMemory))
-      buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-        obj, eval, prevBooster)
-    }).cache()
+    if (!params.contains("eval_sets") || params("eval_sets") == null) {
+      partitionedData.mapPartitions(labeledPoints => {
+        val watches = Watches.buildWatches(params,
+          removeMissingValues(labeledPoints, missing),
+          getCacheDirName(useExternalMemory))
+        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+          obj, eval, prevBooster)
+      }).cache()
+    } else {
+      coPartitionTrainingAndValidationSet(trainingData, params).mapPartitions { labeledPointSets =>
+        val evalSetsNames = params("eval_set_names").asInstanceOf[Array[String]]
+        val watches = Watches.buildWatches(labeledPointSets, evalSetsNames.iterator,
+          getCacheDirName(useExternalMemory))
+        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+          obj, eval, prevBooster)
+      }.cache()
+    }
   }
 
   private def trainForRanking(
@@ -485,7 +493,7 @@ private object Watches {
   def buildWatches(
       labeledPointSets: Iterator[Iterator[XGBLabeledPoint]],
       datasetNames: Iterator[String],
-      cachedDirName: Option[String]): Unit = {
+      cachedDirName: Option[String]): Watches = {
     val dms = labeledPointSets.zip(datasetNames).map {
       case (labeledPoints, name) =>
         val baseMargins = new mutable.ArrayBuilder.ofFloat
@@ -592,7 +600,7 @@ private[spark] class LabeledPointGroupIterator(base: Iterator[XGBLabeledPoint])
   private var isNewGroup = false
 
   override def hasNext: Boolean = {
-    return base.hasNext || isNewGroup
+    base.hasNext || isNewGroup
   }
 
   override def next(): XGBLabeledPointGroup = {
