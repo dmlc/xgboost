@@ -286,11 +286,12 @@ object XGBoost extends Serializable {
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
-      prevBooster: Booster) = {
+      prevBooster: Booster): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
-    if (!params.contains("eval_sets") || params("eval_sets") == null) {
+    if (!params.contains("eval_sets") ||
+      params("eval_sets").asInstanceOf[Array[DataFrame]].isEmpty) {
       partitionedData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
@@ -314,7 +315,7 @@ object XGBoost extends Serializable {
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
-      prevBooster: Booster) = {
+      prevBooster: Booster): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTrainingGroup(trainingData, nWorkers)

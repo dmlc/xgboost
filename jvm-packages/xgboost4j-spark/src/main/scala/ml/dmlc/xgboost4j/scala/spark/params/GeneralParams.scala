@@ -22,6 +22,8 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
+import org.apache.spark.sql.DataFrame
+
 private[spark] trait GeneralParams extends Params {
 
   /**
@@ -150,11 +152,28 @@ private[spark] trait GeneralParams extends Params {
 
   final def getSeed: Long = $(seed)
 
+  /**
+   * Param for setting evaluation datasets to track model performance during training
+   */
+  final val evalSets = new EvalSetsParam(this, "evalSets",
+    "evaluation datasets to track model performance during training")
+
+  final def getEvalSets: Array[DataFrame] = $(evalSets)
+
+  /**
+   * Param for setting evaluation datasets to track model performance during training
+   */
+  final val evalSetNames = new StringArrayParam(this, "evalSetNames",
+    "evaluation datasets to track model performance during training")
+
+  final def getEvalSetNames: Array[String] = $(evalSetNames)
+
   setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1
+    checkpointPath -> "", checkpointInterval -> -1, evalSets -> new Array[DataFrame](0),
+    evalSetNames -> new Array[String](0)
   )
 }
 
