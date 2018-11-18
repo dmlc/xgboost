@@ -16,9 +16,11 @@
 #include <ios>
 #include <utility>
 #include <vector>
+
 #include "./common/common.h"
 #include "./common/host_device_vector.h"
 #include "./common/io.h"
+#include "./common/json.h"
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
 #include "./common/timer.h"
@@ -409,6 +411,41 @@ class LearnerImpl : public Learner {
     obj_->Configure(cfg_.begin(), cfg_.end());
   }
 
+  void Load(json::Json* p_json) override {
+    /*
+     * Steps to Load:
+     *
+     * i   Model parameters
+     * ii  Train parameters
+     * iii Name of obj and booster(gbm)
+     * iv  Create obj and gbm
+     * v   Load configuration
+     * vi  Configure obj (Currently not saved hence not loaded).
+     * vii Load gbm
+     */
+    auto& r_json = *p_json;
+    json::InitParametersFromJson(r_json, "model_parameter", &mparam_);
+    json::InitParametersFromJson(r_json, "train_parameter", &tparam_);
+
+    name_obj_ = json::Get<json::String>(r_json["objective"]).GetString();
+    name_gbm_ = json::Get<json::String>(r_json["booster"]).GetString();
+
+    obj_.reset(ObjFunction::Create(name_obj_));
+    gbm_.reset(GradientBooster::Create(name_gbm_, cache_, mparam_.base_score));
+
+    auto const& config_param_json_map =
+        json::Get<json::Object const>(r_json["configuration"]).GetObject();
+    for (auto const& param_pair : config_param_json_map) {
+      std::string key = param_pair.first;
+      std::string const& value =
+          json::Get<json::String const>(param_pair.second).GetString();
+      cfg_[key] = value;
+    }
+
+    obj_->Configure(cfg_.begin(), cfg_.end());
+    gbm_->Load(&r_json["gbm"]);
+  }
+
   // rabit save model to rabit checkpoint
   void Save(dmlc::Stream* fo) const override {
     LearnerModelParam mparam = mparam_;  // make a copy to potentially modify
@@ -465,6 +502,34 @@ class LearnerImpl : public Learner {
       }
       fo->Write(metr);
     }
+  }
+
+  void Save(json::Json* p_json) const override {
+    auto& r_json = *p_json;
+    r_json = json::Object();
+
+    std::map<std::string, json::Json> param_pairs;
+    for (auto const& p : mparam_.__DICT__()) {
+      param_pairs[p.first] = json::String(p.second);
+    }
+    r_json["model_parameter"] = json::Object{param_pairs};
+
+    param_pairs.clear();
+    for (auto const& p : tparam_.__DICT__()) {
+      param_pairs[p.first] = json::String(p.second);
+    }
+    r_json["train_parameter"] = json::Object{param_pairs};
+
+    param_pairs.clear();
+    for (auto const& p : cfg_) {
+      param_pairs[p.first] = json::String(p.second);
+    }
+    r_json["configuration"] = json::Object{param_pairs};
+    r_json["objective"] = json::String(name_obj_);
+    r_json["booster"] = json::String(name_gbm_);
+
+    r_json["gbm"] = json::Object();
+    gbm_->Save(&r_json["gbm"]);
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {

@@ -4,10 +4,12 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -15,8 +17,10 @@
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
+#include "../common/common.h"
 #include "../common/math.h"
 #include "../common/io.h"
+#include "../common/json.h"
 #include "../common/group_data.h"
 
 
@@ -80,6 +84,11 @@ class Booster {
         }
       }
     }
+  }
+
+  void LoadModel(json::Json* p_json) {
+    learner_->Load(p_json);
+    initialized_ = true;
   }
 
   inline void LoadModel(dmlc::Stream* fi) {
@@ -981,18 +990,42 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
-  static_cast<Booster*>(handle)->LoadModel(fi.get());
+
+  if (common::EndsWith(fname, ".json")) {
+    LOG(WARNING) << "JSON support is still at experimental stage.";
+    std::ifstream fin(fname, std::ios_base::in);
+    if ( !fin ) { LOG(FATAL) << "Error opening file: " << fname; }
+
+    json::Json loaded {json::Json::Load(&fin)};
+    static_cast<Booster*>(handle)->LoadModel(&loaded);
+    fin.close();
+  } else {
+    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
+    static_cast<Booster*>(handle)->LoadModel(fi.get());
+  }
+
   API_END();
 }
 
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname, "w"));
   auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
-  bst->learner()->Save(fo.get());
+
+  if (common::EndsWith(fname, ".json")) {
+    LOG(WARNING) << "JSON support is still at experimental stage.";
+    json::Json result;
+    bst->learner()->Save(&result);
+    std::ofstream fout(fname, std::ios_base::out);
+    if ( !fout ) { LOG(FATAL) << "Error opening file: " << fname; }
+    json::Json::Dump(result, &fout);
+    fout.close();
+  } else {
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname, "w"));
+    bst->learner()->Save(fo.get());
+  }
+
   API_END();
 }
 
@@ -1050,11 +1083,11 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
   return XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
 }
 XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
-                       const char* fmap,
-                       int with_stats,
-                       const char *format,
-                       xgboost::bst_ulong* len,
-                       const char*** out_models) {
+                                 const char* fmap,
+                                 int with_stats,
+                                 const char *format,
+                                 xgboost::bst_ulong* len,
+                                 const char*** out_models) {
   API_BEGIN();
   CHECK_HANDLE();
   FeatureMap featmap;

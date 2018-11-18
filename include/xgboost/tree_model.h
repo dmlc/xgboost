@@ -9,12 +9,17 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+
+#include <algorithm>
 #include <limits>
+#include <map>
 #include <vector>
 #include <string>
 #include <cstring>
-#include <algorithm>
-#include <tuple>
+#include <stack>
+
+#include "../../src/common/json.h"
+
 #include "./base.h"
 #include "./data.h"
 #include "./logging.h"
@@ -309,7 +314,7 @@ class TreeModel {
    * \brief load model from stream
    * \param fi input stream
    */
-  inline void Load(dmlc::Stream* fi) {
+  virtual void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
@@ -332,7 +337,7 @@ class TreeModel {
    * \brief save model to stream
    * \param fo output stream
    */
-  inline void Save(dmlc::Stream* fo) const {
+  virtual void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
     CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
     fo->Write(&param, sizeof(TreeParam));
@@ -341,6 +346,112 @@ class TreeModel {
     fo->Write(dmlc::BeginPtr(stats_), sizeof(NodeStat) * nodes_.size());
     if (param.size_leaf_vector != 0) fo->Write(leaf_vector_);
   }
+
+  virtual void Save(json::Json* p_json) const {
+    CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
+    CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
+
+    json::SaveParametersToJson(p_json, param, "TreeParam");
+
+    std::stack<int> node_ids;
+    node_ids.push(0);
+    size_t depth = 0;
+
+    std::vector<json::Json> nodes;
+    while (!node_ids.empty()) {
+      int nid = node_ids.top();
+      node_ids.pop();
+      auto& node = nodes_.at(nid);
+
+      json::Object node_values;
+      node_values["nodeid"] = nid;
+      node_values["hess"] = Stat(nid).sum_hess;
+
+      if (nodes_.at(nid).IsLeaf()) {
+        node_values["leaf"] = node.LeafValue();
+      } else {
+        bst_float const cond = node.SplitCond();
+        unsigned const split_index = node.SplitIndex();
+
+        node_values["depth"] = depth;
+        node_values["split_index"] = split_index;
+        node_values["split_condition"] = cond;
+        node_values["left"] = node.LeftChild();
+        node_values["right"] = node.RightChild();
+
+        node_values["gain"] = Stat(nid).loss_chg;
+
+        node_ids.push(node.LeftChild());
+        node_ids.push(node.RightChild());
+
+        depth += 1;
+      }
+      nodes.push_back(node_values);
+    }
+    (*p_json)["nodes"] = json::Array(nodes);
+    std::vector<json::Json> leaf_arr;
+    for (bst_float leaf : leaf_vector_) {
+      leaf_arr.push_back(json::Number{leaf});
+    }
+    (*p_json)["leaf_vector"] = json::Array(leaf_arr);
+  }
+
+  virtual void Load(json::Json* p_json) {
+    auto& r_json = *p_json;
+    json::InitParametersFromJson(r_json, "TreeParam", &param);
+
+    std::vector<json::Json> const& nodes_json =
+        json::Get<json::Array>(r_json["nodes"]).GetArray();
+
+    size_t n_nodes = nodes_json.size();
+    nodes_.resize(n_nodes);
+    stats_.resize(n_nodes);
+
+    param.num_nodes = n_nodes;
+
+    int nid = 0;
+    for (auto const& node_j : nodes_json) {
+      std::map<std::string, json::Json> const& node_map =
+          json::Get<json::Object const>(node_j).GetObject();
+      nid = json::Get<json::Number const>(node_map.at("nodeid")).GetInteger();
+      auto& node = nodes_.at(nid);
+
+      if (node_map.find("leaf") != node_map.end()) {
+        node.cleft_ = -1;
+        node.SetLeaf(
+            json::Get<json::Number const>(node_map.at("leaf")).GetFloat());
+      } else {
+        // Set values that belonging to non-leaf nodes.
+        node.cleft_ =
+            json::Get<json::Number const>(node_map.at("left")).GetInteger();
+        node.cright_ =
+            json::Get<json::Number const>(node_map.at("right")).GetInteger();
+        Stat(nid).loss_chg =
+            static_cast<decltype(TNodeStat::loss_chg)>(
+                json::Get<json::Number const>(node_map.at("gain")).GetFloat());
+        unsigned split =
+            static_cast<unsigned>(json::Get<json::Number const>(
+                node_map.at("split_index")).GetInteger());
+        TSplitCond cond =
+            static_cast<TSplitCond>(
+                json::Get<json::Number const>(
+                    node_map.at("split_condition")).GetDouble());
+        node.SetSplit(split, cond);
+      }
+
+      Stat(nid).sum_hess =
+          static_cast<decltype(TNodeStat::sum_hess)>(
+              json::Get<json::Number const>(node_map.at("hess")).GetDouble());
+    }
+
+    auto& leaf_vector_json =
+        json::Get<json::Array>(r_json["leaf_vector"]).GetArray();
+    for (auto const& leaf : leaf_vector_json) {
+      leaf_vector_.push_back(
+          json::Get<json::Number const>(leaf).GetFloat());
+    }
+  }
+
   /*!
    * \brief add child nodes to node
    * \param nid node id to add children to

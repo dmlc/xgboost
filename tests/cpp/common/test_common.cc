@@ -34,4 +34,11 @@ TEST(GPUSet, Basic) {
   EXPECT_EQ(GPUSet::AllVisible(), GPUSet::Empty());
 #endif
 }
+
+TEST(Strings, EndsWith) {
+  std::string str = "A simple string.";
+  std::string postfix = "string.";
+  ASSERT_TRUE(common::EndsWith(str, postfix));
+}
+
 }  // namespace xgboost

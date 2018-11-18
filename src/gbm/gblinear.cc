@@ -14,6 +14,8 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+
+#include "../common/json.h"
 #include "../common/timer.h"
 
 namespace xgboost {
@@ -71,11 +73,21 @@ class GBLinear : public GradientBooster {
     updater_->Init(cfg);
     monitor_.Init("GBLinear ", param_.debug_verbose);
   }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }
+
+  void Load(json::Json* p_json) override {
+    model_.Load(p_json);
+  }
+
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
+  }
+
+  void Save(json::Json* p_json) const override {
+    model_.Save(p_json);
   }
 
   void DoBoost(DMatrix *p_fmat,

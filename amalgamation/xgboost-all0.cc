@@ -66,6 +66,7 @@
 #include "../src/common/common.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
+#include "../src/common/json.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"

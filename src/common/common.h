@@ -64,6 +64,8 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+bool EndsWith(std::string const& str, std::string const& end);
+
 // simple routine to convert any data to string
 template<typename T>
 inline std::string ToString(const T& data) {

@@ -13,10 +13,12 @@
 #include <map>
 #include <string>
 #include <vector>
+
 #include "./base.h"
 #include "./gbm.h"
 #include "./metric.h"
 #include "./objective.h"
+#include "../../src/common/json.h"
 
 namespace xgboost {
 /*!
@@ -69,6 +71,9 @@ class Learner : public rabit::Serializable {
    * \param fo output stream
    */
   void Save(dmlc::Stream* fo) const override = 0;
+
+  virtual void Load(json::Json* p_json) = 0;
+  virtual void Save(json::Json* p_json) const = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.

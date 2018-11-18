@@ -5,9 +5,13 @@
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
+
+#include <map>
 #include <utility>
 #include <string>
 #include <vector>
+
+#include "../common/json.h"
 
 namespace xgboost {
 namespace gbm {
@@ -49,6 +53,8 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
             " used for multi-class classification.");
     DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1).describe(
         "Tree updater sequence.");
+    DMLC_DECLARE_FIELD(num_trees).set_lower_bound(1).set_default(0).describe(
+        "Number of trees.");
     DMLC_DECLARE_FIELD(num_feature)
         .set_lower_bound(0)
         .describe("Number of features used for training and prediction.");
@@ -97,6 +103,28 @@ struct GBTreeModel {
     }
   }
 
+  void Load(json::Json* p_json) {
+    trees.clear();
+    trees_to_update.clear();
+
+    auto& r_json = *p_json;
+    json::InitParametersFromJson(r_json, "GBTreeModelParam", &param);
+
+    auto const& trees_json = r_json["trees"];
+    for (size_t i = 0; i < param.num_trees; ++i) {
+      std::unique_ptr<RegTree> ptr{new RegTree()};
+      ptr->Load(&trees_json[i]);
+      trees.push_back(std::move(ptr));
+    }
+    tree_info.resize(param.num_trees);
+    auto& tree_info_json =
+        json::Get<json::Array>(r_json["tree_info"]).GetArray();
+    CHECK_EQ(param.num_trees, tree_info_json.size());
+    for (size_t i = 0; i < param.num_trees; ++i) {
+      tree_info[i] = json::Get<json::Number>(tree_info_json[i]).GetInteger();
+    }
+  }
+
   void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
     fo->Write(&param, sizeof(param));
@@ -106,6 +134,28 @@ struct GBTreeModel {
     if (tree_info.size() != 0) {
       fo->Write(dmlc::BeginPtr(tree_info), sizeof(int) * tree_info.size());
     }
+  }
+
+  void Save(json::Json* p_json) const {
+    CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
+
+    json::SaveParametersToJson(p_json, param, "GBTreeModelParam");
+
+    std::vector<json::Json> trees_json_vec(trees.size());
+    json::Json trees_json = json::Array(trees_json_vec);
+    for (size_t i = 0; i < trees_json_vec.size(); ++i) {
+      auto const& tree = trees[i];
+      auto & tree_json = trees_json[i];
+      tree_json = json::Object();
+      tree->Save(&tree_json);
+    }
+    (*p_json)["trees"] = trees_json;
+
+    std::vector<json::Json> tree_info_json(tree_info.size());
+    for (size_t i = 0; i < tree_info.size(); ++i) {
+      tree_info_json[i] = json::Number(tree_info[i]);
+    }
+    (*p_json)["tree_info"] = tree_info_json;
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,

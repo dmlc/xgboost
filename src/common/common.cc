@@ -18,6 +18,13 @@ struct RandomThreadLocalEntry {
 
 using RandomThreadLocalStore = dmlc::ThreadLocalStore<RandomThreadLocalEntry>;
 
+bool EndsWith(std::string const& str, std::string const& end) {
+  size_t end_size = end.size();
+  if (end_size > str.size()) { return false; }
+  std::string substr = str.substr(str.size() - end_size);
+  return substr == end;
+}
+
 GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;
 }

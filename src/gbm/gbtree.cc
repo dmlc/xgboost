@@ -17,10 +17,12 @@
 #include <string>
 #include <limits>
 #include <algorithm>
+
+#include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
+#include "../common/json.h"
 #include "../common/random.h"
-#include "gbtree_model.h"
 #include "../common/timer.h"
 
 namespace xgboost {
@@ -171,8 +173,39 @@ class GBTree : public GradientBooster {
                                        common::ToString(model_.param.num_feature));
   }
 
+  void Load(json::Json* p_json) override {
+    auto& r_json = *p_json;
+    std::vector<json::Json> const& config_json =
+        json::Get<json::Array>(r_json["configuration"]).GetArray();
+    cfg_.resize(config_json.size());
+    for (size_t i = 0; i < cfg_.size(); ++i) {
+      std::map<std::string, json::Json> const& conf_json =
+          json::Get<json::Object const>(config_json[i]).GetObject();
+      CHECK_EQ(conf_json.size(), 1);
+      std::string const& value =
+          json::Get<json::String const>(conf_json.begin()->second).GetString();
+      cfg_[i] = {conf_json.begin()->first, value};
+    }
+    model_.Load(&r_json["GBTreeModel"]);
+  }
+
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
+  }
+
+  void Save(json::Json* p_json) const override {
+    std::vector<json::Json> configurations(cfg_.size());
+    for (size_t i = 0; i < cfg_.size(); ++i) {
+      json::Object config;
+      std::string const& key = cfg_[i].first;
+      std::string const& value = cfg_[i].second;
+      config[key] = value;
+      configurations[i] = config;
+    }
+    auto& r_json = *p_json;
+    r_json["configuration"] = configurations;
+    r_json["GBTreeModel"] = json::Object();
+    model_.Save(&r_json["GBTreeModel"]);
   }
 
   bool AllowLazyCheckPoint() const override {
@@ -298,7 +331,7 @@ class GBTree : public GradientBooster {
     // update the trees
     for (auto& up : updaters_) {
       up->Update(gpair, p_fmat, new_trees);
-}
+    }
   }
 
   // commit new trees all at once
@@ -352,6 +385,46 @@ class Dart : public GBTree {
     if (weight_drop_.size() != 0) {
       fo->Write(weight_drop_);
     }
+  }
+
+  void Load(json::Json* p_json) override {
+    GBTree::Load(p_json);
+    auto& r_json = *p_json;
+
+    auto const& gb_param_json_map =
+        json::Cast<json::Object>(&(r_json["DartTrainParam"].GetValue()))->GetObject();
+    std::map<std::string, std::string> param_map;
+    for (auto const& param_pair : gb_param_json_map) {
+      std::string key = param_pair.first;
+      std::string const& value =
+          json::Get<json::String const>(param_pair.second).GetString();
+      param_map[key] = value;
+    }
+    dparam_.Init(param_map);
+
+    std::vector<json::Json> const& weight_drop_json =
+        json::Cast<json::Array>(&r_json["weight_drop"].GetValue())->GetArray();
+    weight_drop_.resize(weight_drop_json.size());
+    for (size_t i = 0; i < weight_drop_json.size(); ++i) {
+      weight_drop_[i] = json::Get<json::Number const>(weight_drop_json[i]).GetFloat();
+    }
+  }
+
+  void Save(json::Json* p_json) const override {
+    GBTree::Save(p_json);
+
+    auto& r_json = *p_json;
+    std::map<std::string, json::Json> param_pairs;
+    for (auto const& p : dparam_.__DICT__()) {
+      param_pairs[p.first] = json::String(p.second);
+    }
+    r_json["DartTrainParam"] = json::Object{param_pairs};
+
+    std::vector<json::Json> weight_drop_json(weight_drop_.size());
+    for (size_t i = 0; i < weight_drop_.size(); ++i) {
+      weight_drop_json[i] = json::Number(weight_drop_[i]);
+    }
+    (*p_json)["weight_drop"] = json::Array(weight_drop_json);
   }
 
   // predict the leaf scores with dropout if ntree_limit = 0
