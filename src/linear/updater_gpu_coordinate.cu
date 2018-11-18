@@ -221,16 +221,16 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto devices = dist_.Devices();
 
     int n_devices = devices.Size();
-    bst_uint row_begin = 0;
-    bst_uint shard_size =
-        std::ceil(static_cast<double>(p_fmat->Info().num_row_) / n_devices);
+    size_t row_begin = 0;
+    size_t shard_size =
+        static_cast<size_t>(std::ceil(static_cast<double>(p_fmat->Info().num_row_) / n_devices));
 
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
     row_segments.push_back(0);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size),
-                                  p_fmat->Info().num_row_);
+      size_t row_end = std::min(row_begin + shard_size,
+                                static_cast<size_t>(p_fmat->Info().num_row_));
       row_segments.push_back(row_end);
       row_begin = row_end;
     }
