@@ -182,22 +182,15 @@ class XGBoostClassifier (
       col($(baseMarginCol))
     }
 
-    val instances: RDD[XGBLabeledPoint] = dataset.select(
-      col($(featuresCol)),
-      col($(labelCol)).cast(FloatType),
-      baseMargin.cast(FloatType),
-      weight.cast(FloatType)
-    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float, weight: Float) =>
-      val (indices, values) = features match {
-        case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-        case v: DenseVector => (null, v.values.map(_.toFloat))
-      }
-      XGBLabeledPoint(label, indices, values, baseMargin = baseMargin, weight = weight)
-    }
+    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
+      col($(labelCol)), col($(featuresCol)), weight, baseMargin,
+      None, dataset.asInstanceOf[DataFrame]).head
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams
+    val derivedXGBParamMap = MLlib2XGBoostParams +
+      ("eval_sets" -> DataUtils.convertDataFrameToXGBLabeledPointRDDs(
+        col($(labelCol)), col($(featuresCol)), weight, baseMargin, None, getEvalSets.toSeq: _*))
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
+    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
       hasGroup = false)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)

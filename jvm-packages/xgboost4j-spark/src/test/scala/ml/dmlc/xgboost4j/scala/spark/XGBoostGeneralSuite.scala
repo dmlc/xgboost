@@ -277,4 +277,46 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
     assert(booster != null)
   }
+
+  test("training summary") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers)
+
+    val trainingDF = buildDataFrame(Classification.train)
+    val xgb = new XGBoostClassifier(paramMap)
+    val model = xgb.fit(trainingDF)
+
+    assert(model.summary.trainObjectiveHistory.length === 5)
+    assert(model.summary.validationObjectiveHistory.isEmpty)
+  }
+
+  test("train/test split") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val training = buildDataFrame(Classification.train)
+
+    val xgb = new XGBoostClassifier(paramMap)
+    val model = xgb.fit(training)
+    assert(model.summary.validationObjectiveHistory.length === 1)
+    assert(model.summary.validationObjectiveHistory(0)._2.length === 5)
+    assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(0))
+  }
+
+  test("train with multiple validation datasets") {
+    val training = buildDataFrame(Classification.train)
+    val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2))
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "num_round" -> 5, "num_workers" -> numWorkers,
+      "eval_sets" -> Array(eval1, eval2), "eval_set_names" -> Array("eval1", "eval2"))
+
+    val xgb = new XGBoostClassifier(paramMap)
+    val model = xgb.fit(train)
+    assert(model.summary.validationObjectiveHistory.length === 2)
+    assert(model.summary.validationObjectiveHistory(0)._2.length === 5)
+    assert(model.summary.validationObjectiveHistory(1)._2.length === 5)
+    assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(0))
+    assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(1))
+  }
 }

@@ -115,8 +115,7 @@ object XGBoost extends Serializable {
       round: Int,
       obj: ObjectiveTrait,
       eval: EvalTrait,
-      prevBooster: Booster)
-    : Iterator[(Booster, Map[String, Array[Float]])] = {
+      prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
 
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
@@ -183,7 +182,7 @@ object XGBoost extends Serializable {
 
     private var currentIndex = 0
 
-    override def hasNext: Boolean = currentIndex < arrayOfXGBLabeledPoints.length - 1
+    override def hasNext: Boolean = currentIndex <= arrayOfXGBLabeledPoints.length - 1
 
     override def next(): Iterator[XGBLabeledPoint] = {
       currentIndex += 1
@@ -204,11 +203,16 @@ object XGBoost extends Serializable {
         rdd
       })
     repartitionedDatasets.foldLeft(trainingData.sparkContext.parallelize(
-      new Array[Iterator[XGBLabeledPoint]](nWorkers), nWorkers)){
-      case (ds1, ds2) =>
-        ds1.zipPartitions(ds2){
+      Array.fill[Iterator[XGBLabeledPoint]](nWorkers)(null), nWorkers)){
+      case (rddOfIterWrapper, rddOfIter) =>
+        rddOfIterWrapper.zipPartitions(rddOfIter){
           (itrWrapper, itr) =>
-            new IteratorWrapper(itrWrapper.toArray :+ itr)
+            val itrArray = itrWrapper.toArray
+            if (itrArray.head != null) {
+              new IteratorWrapper(itrArray :+ itr)
+            } else {
+              new IteratorWrapper(Array(itr))
+            }
         }
     }
   }
@@ -291,7 +295,7 @@ object XGBoost extends Serializable {
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
     if (!params.contains("eval_sets") ||
-      params("eval_sets").asInstanceOf[Array[DataFrame]].isEmpty) {
+      params("eval_sets").asInstanceOf[Array[RDD[XGBLabeledPoint]]].isEmpty) {
       partitionedData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
@@ -300,12 +304,13 @@ object XGBoost extends Serializable {
           obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionTrainingAndValidationSet(trainingData, params).mapPartitions { labeledPointSets =>
-        val evalSetsNames = params("eval_set_names").asInstanceOf[Array[String]]
-        val watches = Watches.buildWatches(labeledPointSets, evalSetsNames.iterator,
-          getCacheDirName(useExternalMemory))
-        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-          obj, eval, prevBooster)
+      coPartitionTrainingAndValidationSet(partitionedData, params).mapPartitions {
+        labeledPointSets =>
+          val evalSetsNames = "train" +: params("eval_set_names").asInstanceOf[Array[String]]
+          val watches = Watches.buildWatches(labeledPointSets, evalSetsNames.iterator,
+            getCacheDirName(useExternalMemory))
+          buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+            obj, eval, prevBooster)
       }.cache()
     }
   }
@@ -323,8 +328,7 @@ object XGBoost extends Serializable {
       val watches = Watches.buildWatchesWithGroup(params,
         removeMissingValuesWithGroup(labeledPointGroups, missing),
         getCacheDirName(useExternalMemory))
-      buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-        obj, eval, prevBooster)
+      buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
     }).cache()
   }
 
@@ -503,10 +507,13 @@ private object Watches {
           labeledPoint
         })
         val dMatrix = new DMatrix(duplicatedItr, cachedDirName.map(_ + s"/$name").orNull)
-        dMatrix.setBaseMargin(fromBaseMarginsToArray(baseMargins.result().iterator).get)
-        dMatrix
-    }
-    new Watches(dms.toArray, datasetNames.toArray, cachedDirName)
+        val baseMargin = fromBaseMarginsToArray(baseMargins.result().iterator)
+        if (baseMargin.isDefined) {
+          dMatrix.setBaseMargin(baseMargin.get)
+        }
+        (name, dMatrix)
+    }.toArray
+    new Watches(dms.map(_._2), dms.map(_._1), cachedDirName)
   }
 
   def buildWatches(
