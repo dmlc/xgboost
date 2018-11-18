@@ -62,7 +62,7 @@ test:data = "agaricus.txt.test"
 We use the tree booster and logistic regression objective in our setting. This indicates that we accomplish our task using classic gradient boosting regression tree(GBRT), which is a promising method for binary classification.
 
 The parameters shown in the example gives the most common ones that are needed to use xgboost.
-If you are interested in more parameter settings, the complete parameter settings and detailed descriptions are [here](../../doc/parameter.md). Besides putting the parameters in the configuration file, we can set them by passing them as arguments as below:
+If you are interested in more parameter settings, the complete parameter settings and detailed descriptions are [here](../../doc/parameter.rst). Besides putting the parameters in the configuration file, we can set them by passing them as arguments as below:
 
 ```
 ../../xgboost mushroom.conf max_depth=6
