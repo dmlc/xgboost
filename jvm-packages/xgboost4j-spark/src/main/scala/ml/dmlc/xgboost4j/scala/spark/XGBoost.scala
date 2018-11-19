@@ -175,22 +175,20 @@ object XGBoost extends Serializable {
     tracker
   }
 
-  class IteratorWrapper(arrayOfXGBLabeledPoints: Array[Iterator[XGBLabeledPoint]])
-    extends Iterator[Iterator[XGBLabeledPoint]] {
-
-    def this(iters: Iterator[Iterator[XGBLabeledPoint]]) = this(iters.toArray)
+  class IteratorWrapper[T](arrayOfXGBLabeledPoints: Array[Iterator[T]])
+    extends Iterator[Iterator[T]] {
 
     private var currentIndex = 0
 
     override def hasNext: Boolean = currentIndex <= arrayOfXGBLabeledPoints.length - 1
 
-    override def next(): Iterator[XGBLabeledPoint] = {
+    override def next(): Iterator[T] = {
       currentIndex += 1
       arrayOfXGBLabeledPoints(currentIndex - 1)
     }
   }
 
-  private def coPartitionTrainingAndValidationSet(
+  private def coPartitionNoGroupSets(
       trainingData: RDD[XGBLabeledPoint], params: Map[String, Any]) = {
     val nWorkers = params("num_workers").asInstanceOf[Int]
     // eval_sets is supposed to be set by the caller of [[trainDistributed]]
@@ -304,7 +302,7 @@ object XGBoost extends Serializable {
           obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionTrainingAndValidationSet(partitionedData, params).mapPartitions {
+      coPartitionNoGroupSets(partitionedData, params).mapPartitions {
         labeledPointSets =>
           val evalSetsNames = "train" +: params("eval_set_names").asInstanceOf[Array[String]]
           val watches = Watches.buildWatches(labeledPointSets, evalSetsNames.iterator,
@@ -324,12 +322,23 @@ object XGBoost extends Serializable {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
     val partitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
-    partitionedData.mapPartitions(labeledPointGroups => {
-      val watches = Watches.buildWatchesWithGroup(params,
-        removeMissingValuesWithGroup(labeledPointGroups, missing),
-        getCacheDirName(useExternalMemory))
-      buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
-    }).cache()
+    if (!params.contains("eval_sets") ||
+      params("eval_sets").asInstanceOf[Array[RDD[XGBLabeledPoint]]].isEmpty) {
+      partitionedData.mapPartitions(labeledPointGroups => {
+        val watches = Watches.buildWatchesWithGroup(params,
+          removeMissingValuesWithGroup(labeledPointGroups, missing),
+          getCacheDirName(useExternalMemory))
+        buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
+      }).cache()
+    } else {
+      val evalSetsNames = "train" +: params("eval_set_names").asInstanceOf[Array[String]]
+      coPartitionGroupSets(partitionedData, params).mapPartitions(labeledPointGroupSets => {
+        val watches = Watches.buildWatchesWithGroup(labeledPointGroupSets,
+          evalSetsNames.iterator,
+          getCacheDirName(useExternalMemory))
+        buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
+      }).cache()
+    }
   }
 
   /**
@@ -394,8 +403,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private[spark] def repartitionForTrainingGroup(
-      trainingData: RDD[XGBLabeledPoint], nWorkers: Int): RDD[Array[XGBLabeledPoint]] = {
+  private def aggByGroupInfo(trainingData: RDD[XGBLabeledPoint]) = {
     val normalGroups: RDD[Array[XGBLabeledPoint]] = trainingData.mapPartitions(
       // LabeledPointGroupIterator returns (Boolean, Array[XGBLabeledPoint])
       new LabeledPointGroupIterator(_)).filter(!_.isEdgeGroup).map(_.points)
@@ -403,20 +411,53 @@ object XGBoost extends Serializable {
     // edge groups with partition id.
     val edgeGroups: RDD[(Int, XGBLabeledPointGroup)] = trainingData.mapPartitions(
       new LabeledPointGroupIterator(_)).filter(_.isEdgeGroup).map(
-        group => (TaskContext.getPartitionId(), group))
+      group => (TaskContext.getPartitionId(), group))
 
     // group chunks from different partitions together by group id in XGBLabeledPoint.
-    // use groupBy instead of aggregateBy since all groups within a partition have unique groud ids.
+    // use groupBy instead of aggregateBy since all groups within a partition have unique group ids.
     val stitchedGroups: RDD[Array[XGBLabeledPoint]] = edgeGroups.groupBy(_._2.groupId).map(
       groups => {
         val it: Iterable[(Int, XGBLabeledPointGroup)] = groups._2
         // sorted by partition id and merge list of Array[XGBLabeledPoint] into one array
-        it.toArray.sortBy(_._1).map(_._2.points).flatten
+        it.toArray.sortBy(_._1).flatMap(_._2.points)
       })
+    normalGroups.union(stitchedGroups)
+  }
 
-    var allGroups = normalGroups.union(stitchedGroups)
+  private[spark] def repartitionForTrainingGroup(
+      trainingData: RDD[XGBLabeledPoint], nWorkers: Int): RDD[Array[XGBLabeledPoint]] = {
+    val allGroups = aggByGroupInfo(trainingData)
     logger.info(s"repartitioning training group set to $nWorkers partitions")
     allGroups.repartition(nWorkers)
+  }
+
+  private def coPartitionGroupSets(
+      aggedTrainingSet: RDD[Array[XGBLabeledPoint]],
+      params: Map[String, Any]): RDD[Iterator[Array[XGBLabeledPoint]]] = {
+    val nWorkers = params("num_workers").asInstanceOf[Int]
+    val allEvalSets = params.getOrElse("eval_sets", new Array[RDD[XGBLabeledPoint]](0)).
+      asInstanceOf[Array[RDD[XGBLabeledPoint]]]
+    val repartitionedDatasets = aggedTrainingSet +: allEvalSets.map(rdd => {
+      val aggedRdd = aggByGroupInfo(rdd)
+      if (aggedRdd.getNumPartitions != nWorkers) {
+        aggedRdd.repartition(nWorkers)
+      } else {
+        aggedRdd
+      }
+    })
+    repartitionedDatasets.foldLeft(aggedTrainingSet.sparkContext.parallelize(
+      Array.fill[Iterator[Array[XGBLabeledPoint]]](nWorkers)(null), nWorkers)){
+      case (rddOfIterWrapper, rddOfIter) =>
+        rddOfIterWrapper.zipPartitions(rddOfIter){
+          (itrWrapper, itr) =>
+            val itrArray = itrWrapper.toArray
+            if (itrArray.head != null) {
+              new IteratorWrapper(itrArray :+ itr)
+            } else {
+              new IteratorWrapper(Array(itr))
+            }
+        }
+    }
   }
 
   private def postTrackerReturnProcessing(
@@ -545,6 +586,30 @@ private object Watches {
     if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
 
     new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
+  }
+
+  def buildWatchesWithGroup(
+      labeledPointGroupSets: Iterator[Iterator[Array[XGBLabeledPoint]]],
+      datasetNames: Iterator[String],
+      cachedDirName: Option[String]): Watches = {
+    val dms = labeledPointGroupSets.zip(datasetNames).map {
+      case (labeledPointsGroups, name) =>
+        val baseMargins = new mutable.ArrayBuilder.ofFloat
+        val duplicatedItr = labeledPointsGroups.map(labeledPoints => {
+          labeledPoints.map { labeledPoint =>
+            baseMargins += labeledPoint.baseMargin
+            labeledPoint
+          }
+        })
+        val dMatrix = new DMatrix(duplicatedItr.flatMap(_.iterator),
+          cachedDirName.map(_ + s"/$name").orNull)
+        val baseMargin = fromBaseMarginsToArray(baseMargins.result().iterator)
+        if (baseMargin.isDefined) {
+          dMatrix.setBaseMargin(baseMargin.get)
+        }
+        (name, dMatrix)
+    }.toArray
+    new Watches(dms.map(_._2), dms.map(_._1), cachedDirName)
   }
 
   def buildWatchesWithGroup(

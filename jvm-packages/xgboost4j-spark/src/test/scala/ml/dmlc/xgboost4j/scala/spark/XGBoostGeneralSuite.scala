@@ -303,16 +303,33 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(0))
   }
 
-  test("train with multiple validation datasets") {
+  test("train with multiple validation datasets (non-ranking)") {
     val training = buildDataFrame(Classification.train)
     val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2))
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
+      "objective" -> "binary:logistic",
       "num_round" -> 5, "num_workers" -> numWorkers,
       "eval_sets" -> Array(eval1, eval2), "eval_set_names" -> Array("eval1", "eval2"))
 
     val xgb = new XGBoostClassifier(paramMap)
     val model = xgb.fit(train)
+    assert(model.summary.validationObjectiveHistory.length === 2)
+    assert(model.summary.validationObjectiveHistory(0)._2.length === 5)
+    assert(model.summary.validationObjectiveHistory(1)._2.length === 5)
+    assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(0))
+    assert(model.summary.trainObjectiveHistory !== model.summary.validationObjectiveHistory(1))
+  }
+
+  test("train with multiple validation datasets (ranking)") {
+    val training = buildDataFrameWithGroup(Ranking.train, 5)
+    val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2))
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise",
+      "num_round" -> 5, "num_workers" -> numWorkers, "group_col" -> "group",
+      "eval_sets" -> Array(eval1, eval2), "eval_set_names" -> Array("eval1", "eval2"))
+    val xgb = new XGBoostRegressor(paramMap)
+    val model = xgb.fit(train)
+    assert(model != null)
     assert(model.summary.validationObjectiveHistory.length === 2)
     assert(model.summary.validationObjectiveHistory(0)._2.length === 5)
     assert(model.summary.validationObjectiveHistory(1)._2.length === 5)
