@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm</artifactId>
-    <version>0.81</version>
+    <version>0.82-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
