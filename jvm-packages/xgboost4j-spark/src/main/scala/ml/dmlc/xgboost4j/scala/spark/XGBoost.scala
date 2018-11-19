@@ -205,6 +205,11 @@ object XGBoost extends Serializable {
       case (rddOfIterWrapper, rddOfIter) =>
         rddOfIterWrapper.zipPartitions(rddOfIter){
           (itrWrapper, itr) =>
+            if (!itr.hasNext) {
+              logger.error("when specifying eval sets as dataframes, you have to ensure that " +
+                "the number of elements in each dataframe is larger than the number of workers")
+              throw new Exception("too few elements in evaluation sets")
+            }
             val itrArray = itrWrapper.toArray
             if (itrArray.head != null) {
               new IteratorWrapper(itrArray :+ itr)
@@ -259,6 +264,11 @@ object XGBoost extends Serializable {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
+    }
+    if (params.contains("train_test_ratio")) {
+      logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
+        " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
+        "'eval_set_names'")
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
@@ -450,6 +460,11 @@ object XGBoost extends Serializable {
       case (rddOfIterWrapper, rddOfIter) =>
         rddOfIterWrapper.zipPartitions(rddOfIter){
           (itrWrapper, itr) =>
+            if (!itr.hasNext) {
+              logger.error("when specifying eval sets as dataframes, you have to ensure that " +
+                "the number of elements in each dataframe is larger than the number of workers")
+              throw new Exception("too few elements in evaluation sets")
+            }
             val itrArray = itrWrapper.toArray
             if (itrArray.head != null) {
               new IteratorWrapper(itrArray :+ itr)
