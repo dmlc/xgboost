@@ -139,7 +139,7 @@ public class BoosterImplTest {
   }
 
   private static class IncreasingEval implements IEvaluation {
-    private int value = 0;
+    private int value = 1;
 
     @Override
     public String getMetric() {
@@ -153,6 +153,33 @@ public class BoosterImplTest {
   }
 
   @Test
+  public void testDescendMetricsWithBoundaryCondition() {
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "false");
+      }
+    };
+    int totalIterations = 10;
+    int earlyStoppingRounds = 10;
+    float[][] metrics = new float[1][totalIterations];
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = i;
+    }
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+            totalIterations - 1);
+    TestCase.assertFalse(onTrack);
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
+    }
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+            totalIterations - 1);
+    TestCase.assertTrue(onTrack);
+  }
+
+  @Test
   public void testDescendMetrics() {
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
@@ -162,24 +189,57 @@ public class BoosterImplTest {
         put("maximize_evaluation_metrics", "false");
       }
     };
-    float[][] metrics = new float[1][5];
-    for (int i = 0; i < 5; i++) {
+    int totalIterations = 10;
+    int earlyStoppingRounds = 5;
+    float[][] metrics = new float[1][totalIterations];
+    for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
     }
-    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+            totalIterations - 1);
     TestCase.assertFalse(onTrack);
-    for (int i = 0; i < 5; i++) {
-      metrics[0][i] = 5 - i;
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
     }
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+            totalIterations - 1);
     TestCase.assertTrue(onTrack);
-    for (int i = 0; i < 5; i++) {
-      metrics[0][i] = 5 - i;
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
     }
-    metrics[0][0] = 1;
-    metrics[0][2] = 5;
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    metrics[0][5] = 1;
+    metrics[0][6] = 2;
+    metrics[0][7] = 3;
+    metrics[0][8] = 4;
+    metrics[0][9] = 1;
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+            totalIterations - 1);
     TestCase.assertTrue(onTrack);
+  }
+
+  @Test
+  public void testAscendMetricsWithBoundaryCondition() {
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "true");
+      }
+    };
+    int totalIterations = 10;
+    int earlyStoppingRounds = 10;
+    float[][] metrics = new float[1][totalIterations];
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = i;
+    }
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
+    TestCase.assertTrue(onTrack);
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
+    }
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
+    TestCase.assertFalse(onTrack);
   }
 
   @Test
@@ -192,23 +252,28 @@ public class BoosterImplTest {
         put("maximize_evaluation_metrics", "true");
       }
     };
-    float[][] metrics = new float[1][5];
-    for (int i = 0; i < 5; i++) {
+    int totalIterations = 10;
+    int earlyStoppingRounds = 5;
+    float[][] metrics = new float[1][totalIterations];
+    for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
     }
-    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
     TestCase.assertTrue(onTrack);
-    for (int i = 0; i < 5; i++) {
-      metrics[0][i] = 5 - i;
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
     }
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
     TestCase.assertFalse(onTrack);
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
     }
-    metrics[0][0] = 6;
-    metrics[0][2] = 1;
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
+    metrics[0][5] = 9;
+    metrics[0][6] = 8;
+    metrics[0][7] = 7;
+    metrics[0][8] = 6;
+    metrics[0][9] = 9;
+    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
     TestCase.assertTrue(onTrack);
   }
 
@@ -237,7 +302,14 @@ public class BoosterImplTest {
 
     // Make sure we've stopped early.
     for (int w = 0; w < watches.size(); w++) {
-      for (int r = earlyStoppingRound + 1; r < round; r++) {
+      for (int r = 0; r < earlyStoppingRound; r++) {
+        TestCase.assertFalse(0.0f == metrics[w][r]);
+      }
+    }
+
+    for (int w = 0; w < watches.size(); w++) {
+      for (int r = earlyStoppingRound; r < round; r++) {
+        System.out.println("*************" + metrics[w][r]);
         TestCase.assertEquals(0.0f, metrics[w][r]);
       }
     }

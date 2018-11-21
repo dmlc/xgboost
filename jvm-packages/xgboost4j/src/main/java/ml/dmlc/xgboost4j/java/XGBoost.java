@@ -218,8 +218,11 @@ public class XGBoost {
           Map<String, Object> params, int earlyStoppingRounds, float[][] metrics, int iter) {
     boolean maximizeEvaluationMetrics = getMetricsExpectedDirection(params);
     boolean onTrack = false;
+    if (iter < earlyStoppingRounds - 1) {
+      return true;
+    }
     float[] criterion = metrics[metrics.length - 1];
-    for (int shift = 0; shift < Math.min(iter, earlyStoppingRounds) - 1; shift++) {
+    for (int shift = 0; shift < earlyStoppingRounds - 1; shift++) {
       onTrack |= maximizeEvaluationMetrics ?
               criterion[iter - shift] >= criterion[iter - shift - 1] :
               criterion[iter - shift] <= criterion[iter - shift - 1];
