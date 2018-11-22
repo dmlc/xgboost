@@ -309,7 +309,6 @@ public class BoosterImplTest {
 
     for (int w = 0; w < watches.size(); w++) {
       for (int r = earlyStoppingRound; r < round; r++) {
-        System.out.println("*************" + metrics[w][r]);
         TestCase.assertEquals(0.0f, metrics[w][r]);
       }
     }
