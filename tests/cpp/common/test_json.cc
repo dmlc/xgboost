@@ -281,11 +281,5 @@ TEST(Json, CopyUnicode) {
   ASSERT_NE(dumped_string.find("\\u20ac"), std::string::npos);
 }
 
-int main(int argc, char ** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
-
 }  // namespace json
 }  // namespace xgboost

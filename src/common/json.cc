@@ -10,6 +10,10 @@
 #include <cctype>  // isdigit, isspace
 #include "json.h"
 
+#if defined(_MSC_VER)
+#define u8
+#endif
+
 namespace xgboost {
 namespace json {
 
@@ -19,15 +23,15 @@ class JsonWriter {
   size_t n_spaces_;
   std::ostream* stream_;
 
-  std::locale original_locale;
+  std::locale original_locale_;
 
  public:
   explicit JsonWriter(std::ostream* stream) : n_spaces_{0}, stream_{stream} {
-    original_locale = std::locale("");
+    original_locale_ = std::locale("");
     stream_->imbue(std::locale("en_US.UTF-8"));
   }
   ~JsonWriter() {
-    stream_->imbue(original_locale);
+    stream_->imbue(original_locale_);
   }
 
   void NewLine() {
@@ -180,7 +184,7 @@ class JsonReader {
   }
 
   Json Load() {
-    raw_str_ = {std::istreambuf_iterator<char>(*stream_), {}};
+    raw_str_ = std::string(std::istreambuf_iterator<char>(*stream_), {});
     Json result = Parse();
     stream_->imbue(original_locale_);
     return result;
@@ -190,22 +194,22 @@ class JsonReader {
 // Value
 std::string Value::TypeStr() const {
   switch (kind_) {
-    case ValueKind::String: return "String";  break;
-    case ValueKind::Number: return "Number";  break;
-    case ValueKind::Object: return "Object";  break;
-    case ValueKind::Array:  return "Array";   break;
-    case ValueKind::Boolean:return "Boolean"; break;
-    case ValueKind::Null:   return "Null";    break;
+    case ValueKind::kString: return "String";  break;
+    case ValueKind::kNumber: return "Number";  break;
+    case ValueKind::kObject: return "Object";  break;
+    case ValueKind::kArray:  return "Array";   break;
+    case ValueKind::kBoolean:return "Boolean"; break;
+    case ValueKind::kNull:   return "Null";    break;
   }
   return "";
 }
 
 // Json Object
-JsonObject::JsonObject() : Value(ValueKind::Object) {}
+JsonObject::JsonObject() : Value(ValueKind::kObject) {}
 JsonObject::JsonObject(std::map<std::string, Json>&& object)
-    : Value(ValueKind::Object), object_{std::move(object)} {}
+    : Value(ValueKind::kObject), object_(std::move(object)) {}
 JsonObject::JsonObject(std::map<std::string, Json> const& object)
-    : Value(ValueKind::Object), object_{object} {}
+    : Value(ValueKind::kObject), object_(object) {}
 
 Json& JsonObject::operator[](std::string const& key) {
   return object_[key];
@@ -317,11 +321,11 @@ void JsonString::Save(JsonWriter* writer) {
 }
 
 // Json Array
-JsonArray::JsonArray() : Value(ValueKind::Array) {}
+JsonArray::JsonArray() : Value(ValueKind::kArray) {}
 JsonArray::JsonArray(std::vector<Json>&& arr) :
-    Value(ValueKind::Array), vec_(std::move(arr)) {}
+    Value(ValueKind::kArray), vec_(std::move(arr)) {}
 JsonArray::JsonArray(std::vector<Json> const& arr) :
-    Value(ValueKind::Array), vec_(arr) {}
+    Value(ValueKind::kArray), vec_(arr) {}
 
 Json& JsonArray::operator[](std::string const & key) {
   throw std::runtime_error(
@@ -354,7 +358,7 @@ void JsonArray::Save(JsonWriter* writer) {
 
 // Json Number
 JsonNumber::JsonNumber(double value) :  // NOLINT
-    Value(ValueKind::Number), number_(value) {}
+    Value(ValueKind::kNumber), number_(value) {}
 Json& JsonNumber::operator[](std::string const & key) {
   throw std::runtime_error(
       "Object of type " +
@@ -454,11 +458,11 @@ void JsonReader::SkipSpaces() {
 }
 
 Json JsonReader::ParseString() {
-  char ch = GetChar('\"');
+  GetChar('\"');
   std::ostringstream output;
   std::string str;
   while (true) {
-    ch = GetNextChar();
+    char ch = GetNextChar();
     if (ch == '\\') {
       char next = static_cast<char>(GetNextChar());
       switch (next) {
@@ -487,7 +491,7 @@ Json JsonReader::ParseString() {
 Json JsonReader::ParseArray() {
   std::vector<Json> data;
 
-  char ch = GetChar('[');
+  GetChar('[');
   while (true) {
     if (PeekNextChar() == ']') {
       GetChar(']');
@@ -495,7 +499,7 @@ Json JsonReader::ParseArray() {
     }
     auto obj = Parse();
     data.push_back(obj);
-    ch = GetNextNonSpaceChar();
+    char ch = GetNextNonSpaceChar();
     if (ch == ']') break;
     if (ch != ',') {
       Expect(',');
@@ -584,18 +588,18 @@ Json JsonReader::ParseBoolean() {
 Json Json::Load(std::istream* stream) {
   JsonReader reader(stream);
   try {
-    Json json{reader.Load()};
-    return json;
+    Json j{reader.Load()};
+    return j;
   } catch (std::runtime_error const& e) {
     std::cerr << e.what();
     return Json();
   }
 }
 
-void Json::Dump(Json json, std::ostream *stream) {
+void Json::Dump(Json j, std::ostream *stream) {
   JsonWriter writer(stream);
   try {
-    writer.Save(json);
+    writer.Save(j);
   } catch (dmlc::Error const& e) {
     std::cerr << e.what();
   }
@@ -603,3 +607,7 @@ void Json::Dump(Json json, std::ostream *stream) {
 
 }  // namespace json
 }  // namespace xgboost
+
+#if defined(_MSC_VER)
+#undef u8
+#endif
