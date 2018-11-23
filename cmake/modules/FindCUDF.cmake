@@ -20,26 +20,14 @@
 # This module assumes that the user has already called find_package(CUDA)
 
 
-set(CUDF_LIB_NAME gdf)
-
 find_path(CUDF_INCLUDE_DIR
-  NAMES gdf/gdf.h
+  NAMES cudf.h
   PATHS $ENV{CUDF_ROOT}/include ${CUDF_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
-
-find_library(CUDF_LIBRARY
-  NAMES ${CUDF_LIB_NAME}
-  PATHS $ENV{CUDF_ROOT}/lib ${CUDF_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib)
-
-if (CUDF_INCLUDE_DIR AND CUDF_LIBRARY)
-  get_filename_component(CUDF_LIBRARY ${CUDF_LIBRARY} PATH)
-endif ()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(CUDF DEFAULT_MSG
-                                  CUDF_INCLUDE_DIR CUDF_LIBRARY)
+                                  CUDF_INCLUDE_DIR)
 
 mark_as_advanced(
   CUDF_INCLUDE_DIR
-  CUDF_LIBRARY
-  CUDF_LIB_NAME
 )

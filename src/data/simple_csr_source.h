@@ -9,7 +9,7 @@
 #define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
 #ifdef XGBOOST_USE_CUDF
-#include <gdf/gdf.h>
+#include <cudf.h>
 #endif
 
 #include <xgboost/base.h>

@@ -17,7 +17,7 @@
 #endif
 
 #ifdef XGBOOST_USE_CUDF
-#include <gdf/gdf.h>
+#include <cudf.h>
 #endif
 
 // XGBoost C API will include APIs in Rabit C API

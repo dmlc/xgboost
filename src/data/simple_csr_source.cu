@@ -3,8 +3,7 @@
  */
 
 #ifdef XGBOOST_USE_CUDF
-#include <gdf/gdf.h>
-#include <gdf/errorutils.h>
+#include <cudf.h>
 
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
