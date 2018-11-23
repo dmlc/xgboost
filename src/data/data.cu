@@ -3,7 +3,7 @@
  */
 
 #ifdef XGBOOST_USE_CUDF
-#include <cudf.h>
+#include <cudf/types.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 

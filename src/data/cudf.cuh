@@ -2,7 +2,7 @@
  * Copyright 2018 by xgboost contributors
  */
 
-#include <cudf.h>
+#include <cudf/types.h>
 
 namespace xgboost {
 namespace data {

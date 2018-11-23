@@ -14,14 +14,12 @@
 # This module defines
 #  CUDF_FOUND, whether cuDF has been found
 #  CUDF_INCLUDE_DIR, directory containing header
-#  CUDF_LIBRARY, directory containing cuDF library
-#  CUDF_LIB_NAME, cuDF library name
 #
 # This module assumes that the user has already called find_package(CUDA)
 
 
 find_path(CUDF_INCLUDE_DIR
-  NAMES cudf.h
+  NAMES cudf.h cudf/types.h
   PATHS $ENV{CUDF_ROOT}/include ${CUDF_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
 
 include(FindPackageHandleStandardArgs)

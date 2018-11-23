@@ -10,7 +10,7 @@
 #include <dmlc/base.h>
 #include <dmlc/data.h>
 #ifdef XGBOOST_USE_CUDF
-#include <cudf.h>
+#include <cudf/types.h>
 #endif
 #include <cstring>
 #include <memory>
