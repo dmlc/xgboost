@@ -237,7 +237,7 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>net.alchim31.maven</groupId>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
                 <version>3.0</version>
                 <configuration>
