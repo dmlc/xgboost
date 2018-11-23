@@ -140,7 +140,7 @@ class GPUDistribution {
     return begin;
   }
 
-  size_t ShardSize(size_t size, int index) const {
+  size_t ShardSize(size_t size, size_t index) const {
     if (size == 0) { return 0; }
     if (offsets_.size() > 0) {
       // explicit offsets are provided
@@ -154,7 +154,7 @@ class GPUDistribution {
     return end - begin;
   }
 
-  size_t ShardProperSize(size_t size, int index) const {
+  size_t ShardProperSize(size_t size, size_t index) const {
     if (size == 0) { return 0; }
     return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
   }

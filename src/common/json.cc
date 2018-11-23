@@ -7,7 +7,7 @@
 #include <xgboost/base.h>
 
 #include <locale>
-#include <cctype>  // isdigit and friends
+#include <cctype>  // isdigit, isspace
 #include "json.h"
 
 namespace xgboost {
@@ -201,8 +201,11 @@ std::string Value::TypeStr() const {
 }
 
 // Json Object
-JsonObject::JsonObject(std::map<std::string, Json> object)
+JsonObject::JsonObject() : Value(ValueKind::Object) {}
+JsonObject::JsonObject(std::map<std::string, Json>&& object)
     : Value(ValueKind::Object), object_{std::move(object)} {}
+JsonObject::JsonObject(std::map<std::string, Json> const& object)
+    : Value(ValueKind::Object), object_{object} {}
 
 Json& JsonObject::operator[](std::string const& key) {
   return object_[key];
@@ -314,6 +317,12 @@ void JsonString::Save(JsonWriter* writer) {
 }
 
 // Json Array
+JsonArray::JsonArray() : Value(ValueKind::Array) {}
+JsonArray::JsonArray(std::vector<Json>&& arr) :
+    Value(ValueKind::Array), vec_(std::move(arr)) {}
+JsonArray::JsonArray(std::vector<Json> const& arr) :
+    Value(ValueKind::Array), vec_(arr) {}
+
 Json& JsonArray::operator[](std::string const & key) {
   throw std::runtime_error(
       "Object of type " +
@@ -344,6 +353,8 @@ void JsonArray::Save(JsonWriter* writer) {
 }
 
 // Json Number
+JsonNumber::JsonNumber(double value) :  // NOLINT
+    Value(ValueKind::Number), number_(value) {}
 Json& JsonNumber::operator[](std::string const & key) {
   throw std::runtime_error(
       "Object of type " +

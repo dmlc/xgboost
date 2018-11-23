@@ -72,9 +72,9 @@ class JsonString : public Value {
  public:
   JsonString() : Value(ValueKind::String) {}
   JsonString(std::string const& str) :  // NOLINT
-      Value(ValueKind::String), str_{str} {}
+      Value(ValueKind::String), str_(str) {}
   JsonString(std::string&& str) :  // NOLINT
-      Value(ValueKind::String), str_{std::move(str)} {}
+      Value(ValueKind::String), str_(std::move(str)) {}
 
   virtual void Save(JsonWriter* stream);
 
@@ -94,11 +94,9 @@ class JsonString : public Value {
 class JsonArray : public Value {
   std::vector<Json> vec_;
  public:
-  JsonArray() : Value(ValueKind::Array) {}
-  JsonArray(std::vector<Json>&& arr) :  // NOLINT
-      Value(ValueKind::Array), vec_{std::move(arr)} {}
-  JsonArray(std::vector<Json> const& arr) :  // NOLINT
-      Value(ValueKind::Array), vec_{arr} {}
+  JsonArray();
+  JsonArray(std::vector<Json>&& arr);        // NOLINT
+  JsonArray(std::vector<Json> const& arr);   // NOLINT
 
   virtual void Save(JsonWriter* stream);
 
@@ -119,8 +117,9 @@ class JsonObject : public Value {
   std::map<std::string, Json> object_;
 
  public:
-  JsonObject() : Value(ValueKind::Object) {}
-  JsonObject(std::map<std::string, Json> object);  // NOLINT
+  JsonObject();                                           // NOLINT
+  JsonObject(std::map<std::string, Json>&& object);       // NOLINT
+  JsonObject(std::map<std::string, Json> const& object);  // NOLINT
 
   virtual void Save(JsonWriter* writer);
 
@@ -142,8 +141,7 @@ class JsonNumber : public Value {
 
  public:
   JsonNumber() : Value(ValueKind::Number), number_{0} {}
-  JsonNumber(double value) :  // NOLINT
-      Value(ValueKind::Number), number_{value} {}
+  JsonNumber(double value);  // NOLINT
 
   virtual void Save(JsonWriter* stream);
 
@@ -164,7 +162,6 @@ class JsonNumber : public Value {
 class JsonNull : public Value {
  public:
   JsonNull() : Value(ValueKind::Null) {}
-  // JsonNull(std::nullptr_t) : Value(ValueKind::Null) {}
 
   virtual void Save(JsonWriter* stream);
 
@@ -189,7 +186,7 @@ class JsonBoolean : public Value {
               std::is_same<Bool, bool>::value ||
               std::is_same<Bool, bool const>::value>::type* = nullptr>
   JsonBoolean(Bool value) :  // NOLINT
-      Value(ValueKind::Boolean), boolean_{value} {}
+      Value(ValueKind::Boolean), boolean_(value) {}
 
   virtual void Save(JsonWriter* writer);
 
@@ -237,55 +234,55 @@ class Json {
   Json() : ptr_{new JsonNull} {}
 
   // number
-  Json(JsonNumber number) : ptr_{new JsonNumber(number)} {}  // NOLINT
+  Json(JsonNumber number) : ptr_(new JsonNumber(number)) {}  // NOLINT
   Json& operator=(JsonNumber number) {
     ptr_.reset(new JsonNumber(std::move(number)));
     return *this;
   }
   // array
   Json(JsonArray list) :  // NOLINT
-      ptr_{new JsonArray(std::move(list))} {}
+      ptr_(new JsonArray(std::move(list))) {}
   Json& operator=(JsonArray array) {
     ptr_.reset(new JsonArray(std::move(array)));
     return *this;
   }
   // object
   Json(JsonObject object) :  // NOLINT
-      ptr_{new JsonObject(std::move(object))} {}
+      ptr_(new JsonObject(std::move(object))) {}
   Json& operator=(JsonObject object) {
     ptr_.reset(new JsonObject(std::move(object)));
     return *this;
   }
   // string
   Json(JsonString str) :  // NOLINT
-      ptr_{new JsonString(std::move(str))} {}
+      ptr_(new JsonString(std::move(str))) {}
   Json& operator=(JsonString str) {
     ptr_.reset(new JsonString(std::move(str)));
     return *this;
   }
   // bool
   Json(JsonBoolean boolean) :  // NOLINT
-      ptr_{new JsonBoolean(std::move(boolean))} {}
+      ptr_(new JsonBoolean(std::move(boolean))) {}
   Json& operator=(JsonBoolean boolean) {
     ptr_.reset(new JsonBoolean(std::move(boolean)));
     return *this;
   }
   // null
   Json(JsonNull null) :  // NOLINT
-      ptr_{new JsonNull(std::move(null))} {}
+      ptr_(new JsonNull(std::move(null))) {}
   Json& operator=(JsonNull null) {
     ptr_.reset(new JsonNull(std::move(null)));
     return *this;
   }
 
   // copy
-  Json(Json const& other) : ptr_{other.ptr_} {}
+  Json(Json const& other) : ptr_(other.ptr_) {}
   Json& operator=(Json const& other) {
     ptr_ = other.ptr_;
     return *this;
   }
   // move
-  Json(Json&& other) : ptr_{std::move(other.ptr_)} {}
+  Json(Json&& other) : ptr_(std::move(other.ptr_)) {}
   Json& operator=(Json&& other) {
     ptr_ = std::move(other.ptr_);
     return *this;

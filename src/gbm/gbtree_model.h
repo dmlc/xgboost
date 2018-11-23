@@ -111,7 +111,7 @@ struct GBTreeModel {
     json::InitParametersFromJson(r_json, "GBTreeModelParam", &param);
 
     auto const& trees_json = r_json["trees"];
-    for (size_t i = 0; i < param.num_trees; ++i) {
+    for (int i = 0; i < param.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr{new RegTree()};
       ptr->Load(&trees_json[i]);
       trees.push_back(std::move(ptr));
@@ -120,7 +120,7 @@ struct GBTreeModel {
     auto& tree_info_json =
         json::Get<json::Array>(r_json["tree_info"]).GetArray();
     CHECK_EQ(param.num_trees, tree_info_json.size());
-    for (size_t i = 0; i < param.num_trees; ++i) {
+    for (int i = 0; i < param.num_trees; ++i) {
       tree_info[i] = json::Get<json::Number>(tree_info_json[i]).GetInteger();
     }
   }
