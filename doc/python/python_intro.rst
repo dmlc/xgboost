@@ -48,9 +48,15 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
     dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
     dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
 
-  (Note that XGBoost does not support categorical features; if your data contains
-  categorical features, load it as a NumPy array first and then perform
-  `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.)
+  .. note:: Categorical features not supported
+
+    Note that XGBoost does not support categorical features; if your data contains
+    categorical features, load it as a NumPy array first and then perform
+    `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
+
+  .. note:: Use Pandas to load CSV files with headers
+
+    Currently, the DMLC data parser cannot parse CSV files with headers. Use Pandas (see below) to read CSV files with headers.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
