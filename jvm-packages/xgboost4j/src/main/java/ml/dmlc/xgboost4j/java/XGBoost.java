@@ -218,6 +218,7 @@ public class XGBoost {
           Map<String, Object> params, int earlyStoppingRounds, float[][] metrics, int iter) {
     boolean maximizeEvaluationMetrics = getMetricsExpectedDirection(params);
     boolean onTrack = false;
+    // we don't need to consider iterations before reaching to `earlyStoppingRounds`th iteration
     if (iter < earlyStoppingRounds - 1) {
       return true;
     }
