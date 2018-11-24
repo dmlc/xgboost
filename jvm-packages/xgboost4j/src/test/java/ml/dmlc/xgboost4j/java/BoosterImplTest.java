@@ -168,15 +168,21 @@ public class BoosterImplTest {
     for (int i = 0; i < totalIterations; i++) {
       metrics[0][i] = i;
     }
-    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
-            totalIterations - 1);
-    TestCase.assertFalse(onTrack);
-    for (int i = 0; i < totalIterations; i++) {
-      metrics[0][i] = totalIterations - i;
+    for (int itr = 0; itr < totalIterations; itr++) {
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+              itr);
+      if (itr == totalIterations - 1) {
+        TestCase.assertFalse(onTrack);
+        for (int i = 0; i < totalIterations; i++) {
+          metrics[0][i] = totalIterations - i;
+        }
+        onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
+                totalIterations - 1);
+        TestCase.assertTrue(onTrack);
+      } else {
+        TestCase.assertTrue(onTrack);
+      }
     }
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics,
-            totalIterations - 1);
-    TestCase.assertTrue(onTrack);
   }
 
   @Test
@@ -230,16 +236,26 @@ public class BoosterImplTest {
     int totalIterations = 10;
     int earlyStoppingRounds = 10;
     float[][] metrics = new float[1][totalIterations];
-    for (int i = 0; i < totalIterations; i++) {
-      metrics[0][i] = i;
+    for (int iter = 0; iter < totalIterations; iter++) {
+      if (iter == totalIterations - 1) {
+        for (int i = 0; i < totalIterations; i++) {
+          metrics[0][i] = i;
+        }
+        boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, iter);
+        TestCase.assertTrue(onTrack);
+        for (int i = 0; i < totalIterations; i++) {
+          metrics[0][i] = totalIterations - i;
+        }
+        onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, iter);
+        TestCase.assertFalse(onTrack);
+      } else {
+        for (int i = 0; i < totalIterations; i++) {
+          metrics[0][i] = totalIterations - i;
+        }
+        boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, iter);
+        TestCase.assertTrue(onTrack);
+      }
     }
-    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
-    TestCase.assertTrue(onTrack);
-    for (int i = 0; i < totalIterations; i++) {
-      metrics[0][i] = totalIterations - i;
-    }
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRounds, metrics, totalIterations - 1);
-    TestCase.assertFalse(onTrack);
   }
 
   @Test
