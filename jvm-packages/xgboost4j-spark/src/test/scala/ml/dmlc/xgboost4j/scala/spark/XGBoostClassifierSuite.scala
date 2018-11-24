@@ -60,10 +60,11 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
 
     assert(testDF.count() === prediction4.size)
+    // the vector length in rawPrediction column is 2 since we have to fit to the evaluator in Spark
     for (i <- prediction3.indices) {
-      assert(prediction3(i).length === prediction4(i).values.length)
+      assert(prediction3(i).length === prediction4(i).values.length - 1)
       for (j <- prediction3(i).indices) {
-        assert(prediction3(i)(j) === prediction4(i)(j))
+        assert(prediction3(i)(j) === prediction4(i)(j + 1))
       }
     }
 
