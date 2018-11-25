@@ -203,7 +203,7 @@ After specifying these two parameters, the training would stop when the metrics 
 Training with Evaluation Sets
 ----------------
 
-You can also monitor the performance of the model during training with multiple evaluation datasets. By specifying ``eval_sets`` or call ``setEvalSets`` over a XGBoostClassifier or XGBoostRegressor, you can pass in multiple evaluation datasets typed as DataFrame. To make the metrics human-readable, you also need to pass ``eval_set_names`` or call ``setEvalNames`` typed as an array of String.
+You can also monitor the performance of the model during training with multiple evaluation datasets. By specifying ``eval_sets`` or call ``setEvalSets`` over a XGBoostClassifier or XGBoostRegressor, you can pass in multiple evaluation datasets typed as a Map from String to DataFrame.
 
 Prediction
 ==========
