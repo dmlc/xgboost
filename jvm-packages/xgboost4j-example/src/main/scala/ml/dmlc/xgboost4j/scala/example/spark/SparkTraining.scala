@@ -55,7 +55,7 @@ object SparkTraining {
     val xgbInput = vectorAssembler.transform(labelTransformed).select("features",
       "classIndex")
 
-    val Array(train, eval1, eval2, test) = xgbInput.randomSplit(Array(0.6, 0.2, 0.2, 0.1))
+    val Array(train, eval1, eval2, test) = xgbInput.randomSplit(Array(0.6, 0.2, 0.1, 0.1))
 
     /**
      * setup  "timeout_request_workers" -> 60000L to make this application if it cannot get enough resources

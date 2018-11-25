@@ -195,26 +195,39 @@ public class BoosterImplTest {
         put("maximize_evaluation_metrics", "true");
       }
     };
-    float[][] metrics = new float[3][5];
-    for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 5; j++) {
+    int earlyStoppingRound = 3;
+    int totalIterations = 5;
+    int numOfMetrics = 3;
+    float[][] metrics = new float[numOfMetrics][totalIterations];
+    for (int i = 0; i < numOfMetrics; i++) {
+      for (int j = 0; j < totalIterations; j++) {
         metrics[0][j] = j;
       }
     }
-    boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
-    TestCase.assertTrue(onTrack);
-    for (int i = 0; i < 5; i++) {
-      metrics[0][i] = 5 - i;
+    for (int i = 0; i < totalIterations; i++) {
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      TestCase.assertTrue(onTrack);
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
     }
     // when we have multiple datasets, the training metrics is not considered
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
-    TestCase.assertTrue(onTrack);
-    for (int i = 0; i < 5; i++) {
-      metrics[1][i] = 5 - i;
+    for (int i = 0; i < totalIterations; i++) {
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      TestCase.assertTrue(onTrack);
     }
-    // if any metrics off, we need to stop
-    onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, 5, metrics, 4);
-    TestCase.assertFalse(onTrack);
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[1][i] = totalIterations - i;
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      // if any metrics off, we need to stop
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      if (i >= earlyStoppingRound - 1) {
+        TestCase.assertFalse(onTrack);
+      } else {
+        TestCase.assertTrue(onTrack);
+      }
+    }
   }
 
   @Test

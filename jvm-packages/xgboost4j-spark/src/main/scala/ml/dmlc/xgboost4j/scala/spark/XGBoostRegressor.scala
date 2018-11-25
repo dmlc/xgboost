@@ -43,7 +43,7 @@ import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
   with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
+  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
 
 class XGBoostRegressor (
     override val uid: String,
@@ -177,14 +177,16 @@ class XGBoostRegressor (
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
       col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
       dataset.asInstanceOf[DataFrame]).head
-    transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams +
-      ("eval_sets" ->
+    val evalRDDMap = getEvalSets(xgboostParams).map {
+      case (name, dataFrame) => (name,
         DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), getEvalSets.toSeq: _*))
+          weight, baseMargin, Some(group), dataFrame).head)
+    }
+    transformSchema(dataset.schema, logging = true)
+    val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
-      hasGroup = group != lit(-1))
+      hasGroup = group != lit(-1), evalRDDMap)
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)

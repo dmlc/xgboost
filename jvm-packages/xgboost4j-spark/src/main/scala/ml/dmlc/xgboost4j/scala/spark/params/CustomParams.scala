@@ -24,26 +24,6 @@ import org.json4s.jackson.JsonMethods.{compact, parse, render}
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
 import org.apache.spark.sql.DataFrame
 
-class EvalSetsParam(
-    parent: Params,
-    name: String,
-    doc: String) extends Param[Array[DataFrame]](parent, name, doc) {
-
-  /** Creates a param pair with the given value (for Java). */
-  override def w(value: Array[DataFrame]): ParamPair[Array[DataFrame]] = super.w(value)
-
-  override def jsonEncode(value: Array[DataFrame]): String = {
-    import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
-    compact(render(Extraction.decompose(value)))
-  }
-
-  override def jsonDecode(json: String): Array[DataFrame] = {
-    implicit val formats = DefaultFormats
-    parse(json).extract[Array[DataFrame]]
-  }
-}
-
 class CustomEvalParam(
     parent: Params,
     name: String,
