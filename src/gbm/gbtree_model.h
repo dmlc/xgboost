@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "../common/json.h"
+#include "../common/nested_kvstore.h"
 
 namespace xgboost {
 namespace gbm {
@@ -103,25 +103,25 @@ struct GBTreeModel {
     }
   }
 
-  void Load(json::Json* p_json) {
+  void Load(serializer::NestedKVStore* p_kvstore) {
     trees.clear();
     trees_to_update.clear();
 
-    auto& r_json = *p_json;
-    json::InitParametersFromJson(r_json, "GBTreeModelParam", &param);
+    auto& r_kvstore = *p_kvstore;
+    serializer::InitParametersFromKVStore(r_kvstore, "GBTreeModelParam", &param);
 
-    auto const& trees_json = r_json["trees"];
+    auto const& trees_kvstore = r_kvstore["trees"];
     for (int i = 0; i < param.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr{new RegTree()};
-      ptr->Load(&trees_json[i]);
+      ptr->Load(&trees_kvstore[i]);
       trees.push_back(std::move(ptr));
     }
     tree_info.resize(param.num_trees);
-    auto& tree_info_json =
-        json::Get<json::Array>(r_json["tree_info"]).GetArray();
-    CHECK_EQ(param.num_trees, tree_info_json.size());
+    auto& tree_info_kvstore =
+        serializer::Get<serializer::Array>(r_kvstore["tree_info"]).GetArray();
+    CHECK_EQ(param.num_trees, tree_info_kvstore.size());
     for (int i = 0; i < param.num_trees; ++i) {
-      tree_info[i] = json::Get<json::Number>(tree_info_json[i]).GetInteger();
+      tree_info[i] = serializer::Get<serializer::Integer>(tree_info_kvstore[i]).GetInteger();
     }
   }
 
@@ -136,26 +136,26 @@ struct GBTreeModel {
     }
   }
 
-  void Save(json::Json* p_json) const {
+  void Save(serializer::NestedKVStore* p_kvstore) const {
     CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
 
-    json::SaveParametersToJson(p_json, param, "GBTreeModelParam");
+    serializer::SaveParametersToKVStore(p_kvstore, param, "GBTreeModelParam");
 
-    std::vector<json::Json> trees_json_vec(trees.size());
-    json::Json trees_json = json::Array(trees_json_vec);
-    for (size_t i = 0; i < trees_json_vec.size(); ++i) {
+    std::vector<serializer::NestedKVStore> trees_kvstore_vec(trees.size());
+    serializer::NestedKVStore trees_kvstore = serializer::Array(trees_kvstore_vec);
+    for (size_t i = 0; i < trees_kvstore_vec.size(); ++i) {
       auto const& tree = trees[i];
-      auto & tree_json = trees_json[i];
-      tree_json = json::Object();
-      tree->Save(&tree_json);
+      auto & tree_kvstore = trees_kvstore[i];
+      tree_kvstore = serializer::Object();
+      tree->Save(&tree_kvstore);
     }
-    (*p_json)["trees"] = trees_json;
+    (*p_kvstore)["trees"] = trees_kvstore;
 
-    std::vector<json::Json> tree_info_json(tree_info.size());
+    std::vector<serializer::NestedKVStore> tree_info_kvstore(tree_info.size());
     for (size_t i = 0; i < tree_info.size(); ++i) {
-      tree_info_json[i] = json::Number(tree_info[i]);
+      tree_info_kvstore[i] = serializer::Integer(tree_info[i]);
     }
-    (*p_json)["tree_info"] = tree_info_json;
+    (*p_kvstore)["tree_info"] = tree_info_kvstore;
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,

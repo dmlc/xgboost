@@ -20,7 +20,7 @@
 #include "./common/common.h"
 #include "./common/host_device_vector.h"
 #include "./common/io.h"
-#include "./common/json.h"
+#include "./common/nested_kvstore.h"
 #include "./common/random.h"
 #include "./common/enum_class_param.h"
 #include "./common/timer.h"
@@ -411,7 +411,7 @@ class LearnerImpl : public Learner {
     obj_->Configure(cfg_.begin(), cfg_.end());
   }
 
-  void Load(json::Json* p_json) override {
+  void Load(serializer::NestedKVStore* p_kvstore) override {
     /*
      * Steps to Load:
      *
@@ -423,27 +423,27 @@ class LearnerImpl : public Learner {
      * vi  Configure obj (Currently not saved hence not loaded).
      * vii Load gbm
      */
-    auto& r_json = *p_json;
-    json::InitParametersFromJson(r_json, "model_parameter", &mparam_);
-    json::InitParametersFromJson(r_json, "train_parameter", &tparam_);
+    auto& r_kvstore = *p_kvstore;
+    serializer::InitParametersFromKVStore(r_kvstore, "model_parameter", &mparam_);
+    serializer::InitParametersFromKVStore(r_kvstore, "train_parameter", &tparam_);
 
-    name_obj_ = json::Get<json::String>(r_json["objective"]).GetString();
-    name_gbm_ = json::Get<json::String>(r_json["booster"]).GetString();
+    name_obj_ = serializer::Get<serializer::String>(r_kvstore["objective"]).GetString();
+    name_gbm_ = serializer::Get<serializer::String>(r_kvstore["booster"]).GetString();
 
     obj_.reset(ObjFunction::Create(name_obj_));
     gbm_.reset(GradientBooster::Create(name_gbm_, cache_, mparam_.base_score));
 
-    auto const& config_param_json_map =
-        json::Get<json::Object const>(r_json["configuration"]).GetObject();
-    for (auto const& param_pair : config_param_json_map) {
+    auto const& config_param_kvstore_map =
+        serializer::Get<serializer::Object const>(r_kvstore["configuration"]).GetObject();
+    for (auto const& param_pair : config_param_kvstore_map) {
       std::string key = param_pair.first;
       std::string const& value =
-          json::Get<json::String const>(param_pair.second).GetString();
+          serializer::Get<serializer::String const>(param_pair.second).GetString();
       cfg_[key] = value;
     }
 
     obj_->Configure(cfg_.begin(), cfg_.end());
-    gbm_->Load(&r_json["gbm"]);
+    gbm_->Load(&r_kvstore["gbm"]);
   }
 
   // rabit save model to rabit checkpoint
@@ -504,32 +504,32 @@ class LearnerImpl : public Learner {
     }
   }
 
-  void Save(json::Json* p_json) const override {
-    auto& r_json = *p_json;
-    r_json = json::Object();
+  void Save(serializer::NestedKVStore* p_kvstore) const override {
+    auto& r_kvstore = *p_kvstore;
+    r_kvstore = serializer::Object();
 
-    std::map<std::string, json::Json> param_pairs;
+    std::map<std::string, serializer::NestedKVStore> param_pairs;
     for (auto const& p : mparam_.__DICT__()) {
-      param_pairs[p.first] = json::String(p.second);
+      param_pairs[p.first] = serializer::String(p.second);
     }
-    r_json["model_parameter"] = json::Object{param_pairs};
+    r_kvstore["model_parameter"] = serializer::Object{param_pairs};
 
     param_pairs.clear();
     for (auto const& p : tparam_.__DICT__()) {
-      param_pairs[p.first] = json::String(p.second);
+      param_pairs[p.first] = serializer::String(p.second);
     }
-    r_json["train_parameter"] = json::Object{param_pairs};
+    r_kvstore["train_parameter"] = serializer::Object{param_pairs};
 
     param_pairs.clear();
     for (auto const& p : cfg_) {
-      param_pairs[p.first] = json::String(p.second);
+      param_pairs[p.first] = serializer::String(p.second);
     }
-    r_json["configuration"] = json::Object{param_pairs};
-    r_json["objective"] = json::String(name_obj_);
-    r_json["booster"] = json::String(name_gbm_);
+    r_kvstore["configuration"] = serializer::Object{param_pairs};
+    r_kvstore["objective"] = serializer::String(name_obj_);
+    r_kvstore["booster"] = serializer::String(name_gbm_);
 
-    r_json["gbm"] = json::Object();
-    gbm_->Save(&r_json["gbm"]);
+    r_kvstore["gbm"] = serializer::Object();
+    gbm_->Save(&r_kvstore["gbm"]);
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {

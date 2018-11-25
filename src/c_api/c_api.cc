@@ -25,6 +25,11 @@
 
 
 namespace xgboost {
+
+namespace serializer {
+class NestedKVStore;  // forward declaration
+}  // namespace serializer
+
 // booster wrapper for backward compatible reason.
 class Booster {
  public:
@@ -86,8 +91,8 @@ class Booster {
     }
   }
 
-  void LoadModel(json::Json* p_json) {
-    learner_->Load(p_json);
+  void LoadModel(serializer::NestedKVStore* p_kvstore) {
+    learner_->Load(p_kvstore);
     initialized_ = true;
   }
 
@@ -994,9 +999,11 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   if (common::EndsWith(fname, ".json")) {
     LOG(WARNING) << "JSON support is still at experimental stage.";
     std::ifstream fin(fname, std::ios_base::in);
-    if ( !fin ) { LOG(FATAL) << "Error opening file: " << fname; }
+    if ( !fin ) {
+      LOG(FATAL) << "Error opening file: " << fname;
+    }
 
-    json::Json loaded {json::Json::Load(&fin)};
+    serializer::NestedKVStore loaded{serializer::LoadKVStoreFromJSON(&fin)};
     static_cast<Booster*>(handle)->LoadModel(&loaded);
     fin.close();
   } else {
@@ -1015,11 +1022,13 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* fname) {
 
   if (common::EndsWith(fname, ".json")) {
     LOG(WARNING) << "JSON support is still at experimental stage.";
-    json::Json result;
+    serializer::NestedKVStore result;
     bst->learner()->Save(&result);
     std::ofstream fout(fname, std::ios_base::out);
-    if ( !fout ) { LOG(FATAL) << "Error opening file: " << fname; }
-    json::Json::Dump(result, &fout);
+    if ( !fout ) {
+      LOG(FATAL) << "Error opening file: " << fname;
+    }
+    serializer::SaveKVStoreToJSON(result, &fout);
     fout.close();
   } else {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname, "w"));

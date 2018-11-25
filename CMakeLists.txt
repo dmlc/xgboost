@@ -59,6 +59,15 @@ endif(USE_SANITIZER)
 add_subdirectory(dmlc-core)
 set(LINK_LIBRARIES dmlc rabit)
 
+# RapidJSON
+message(STATUS "${PROJECT_SOURCE_DIR}/cmake/rapidjson_cmake.in -> ${CMAKE_BINARY_DIR}/rapidjson-download/CMakeLists.txt")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/rapidjson_cmake.in" "${CMAKE_BINARY_DIR}/rapidjson-download/CMakeLists.txt")
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/rapidjson-download")
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/rapidjson-download")
+include_directories(${CMAKE_BINARY_DIR}/rapidjson-src/include)
+
 # enable custom logging
 add_definitions(-DDMLC_LOG_CUSTOMIZE=1)
 

@@ -12,7 +12,7 @@
 #include <string>
 #include <cstring>
 
-#include "../common/json.h"
+#include "../common/nested_kvstore.h"
 
 namespace xgboost {
 namespace gbm {
@@ -56,35 +56,35 @@ class GBLinearModel {
     fo->Write(&param, sizeof(param));
     fo->Write(weight);
   }
-  void Save(json::Json* p_json) const {
-    auto r_json = *p_json;
-    json::SaveParametersToJson(p_json, param, "GBLinearModelParam");
+  void Save(serializer::NestedKVStore* p_kvstore) const {
+    auto r_kvstore = *p_kvstore;
+    serializer::SaveParametersToKVStore(p_kvstore, param, "GBLinearModelParam");
 
-    std::vector<json::Json> weights_json(weight.size());
+    std::vector<serializer::NestedKVStore> weights_kvstore(weight.size());
     for (size_t i = 0; i < weight.size(); ++i) {
-      weights_json[i] = json::Number(weight[i]);
+      weights_kvstore[i] = serializer::Number(weight[i]);
     }
-    r_json["weights"] = json::Array(weights_json);
+    r_kvstore["weights"] = serializer::Array(weights_kvstore);
   }
   // load model from file
   inline void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
     fi->Read(&weight);
   }
-  void Load(json::Json* p_json) {
-    auto& r_json = *p_json;
-    json::InitParametersFromJson(r_json, "GBLinearModelParam", &param);
+  void Load(serializer::NestedKVStore* p_kvstore) {
+    auto& r_kvstore = *p_kvstore;
+    serializer::InitParametersFromKVStore(r_kvstore, "GBLinearModelParam", &param);
 
-    auto& arr_value = r_json["weights"].GetValue();
-    std::vector<json::Json> const& weights_json =
-        json::Cast<json::Array>(&arr_value)->GetArray();
-    weight.resize(weights_json.size());
+    auto& arr_value = r_kvstore["weights"].GetValue();
+    std::vector<serializer::NestedKVStore> const& weights_kvstore =
+        serializer::Cast<serializer::Array>(&arr_value)->GetArray();
+    weight.resize(weights_kvstore.size());
     for (size_t i = 0; i < weight.size(); ++i) {
-      CHECK_EQ(weight.size(), weights_json.size());
-      json::Value const& value = weights_json.at(i).GetValue();
-      json::Number const* w =
-          json::Cast<json::Number const, json::Value const>(&value);
-      weight[i] = w->GetFloat();
+      CHECK_EQ(weight.size(), weights_kvstore.size());
+      serializer::Value const& value = weights_kvstore.at(i).GetValue();
+      serializer::Number const* w =
+          serializer::Cast<serializer::Number const, serializer::Value const>(&value);
+      weight[i] = static_cast<float>(w->GetNumber());
     }
   }
   // model bias

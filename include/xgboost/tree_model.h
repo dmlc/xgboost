@@ -18,7 +18,7 @@
 #include <cstring>
 #include <stack>
 
-#include "../../src/common/json.h"
+#include "../../src/common/nested_kvstore.h"
 
 #include "./base.h"
 #include "./data.h"
@@ -347,23 +347,23 @@ class TreeModel {
     if (param.size_leaf_vector != 0) fo->Write(leaf_vector_);
   }
 
-  virtual void Save(json::Json* p_json) const {
+  virtual void Save(serializer::NestedKVStore* p_kvstore) const {
     CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
     CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
 
-    json::SaveParametersToJson(p_json, param, "TreeParam");
+    serializer::SaveParametersToKVStore(p_kvstore, param, "TreeParam");
 
     std::stack<int> node_ids;
     node_ids.push(0);
     size_t depth = 0;
 
-    std::vector<json::Json> nodes;
+    std::vector<serializer::NestedKVStore> nodes;
     while (!node_ids.empty()) {
       int nid = node_ids.top();
       node_ids.pop();
       auto& node = nodes_.at(nid);
 
-      json::Object node_values;
+      serializer::Object node_values;
       node_values["nodeid"] = nid;
       node_values["hess"] = Stat(nid).sum_hess;
 
@@ -388,67 +388,67 @@ class TreeModel {
       }
       nodes.push_back(node_values);
     }
-    (*p_json)["nodes"] = json::Array(nodes);
-    std::vector<json::Json> leaf_arr;
+    (*p_kvstore)["nodes"] = serializer::Array(nodes);
+    std::vector<serializer::NestedKVStore> leaf_arr;
     for (bst_float leaf : leaf_vector_) {
-      leaf_arr.push_back(json::Number{leaf});
+      leaf_arr.push_back(serializer::Number{leaf});
     }
-    (*p_json)["leaf_vector"] = json::Array(leaf_arr);
+    (*p_kvstore)["leaf_vector"] = serializer::Array(leaf_arr);
   }
 
-  virtual void Load(json::Json* p_json) {
-    auto& r_json = *p_json;
-    json::InitParametersFromJson(r_json, "TreeParam", &param);
+  virtual void Load(serializer::NestedKVStore* p_kvstore) {
+    auto& r_kvstore = *p_kvstore;
+    serializer::InitParametersFromKVStore(r_kvstore, "TreeParam", &param);
 
-    std::vector<json::Json> const& nodes_json =
-        json::Get<json::Array>(r_json["nodes"]).GetArray();
+    std::vector<serializer::NestedKVStore> const& nodes_kvstore =
+        serializer::Get<serializer::Array>(r_kvstore["nodes"]).GetArray();
 
-    size_t n_nodes = nodes_json.size();
+    size_t n_nodes = nodes_kvstore.size();
     nodes_.resize(n_nodes);
     stats_.resize(n_nodes);
 
     param.num_nodes = n_nodes;
 
     int nid = 0;
-    for (auto const& node_j : nodes_json) {
-      std::map<std::string, json::Json> const& node_map =
-          json::Get<json::Object const>(node_j).GetObject();
-      nid = json::Get<json::Number const>(node_map.at("nodeid")).GetInteger();
+    for (auto const& node_kv : nodes_kvstore) {
+      std::map<std::string, serializer::NestedKVStore> const& node_map =
+          serializer::Get<serializer::Object const>(node_kv).GetObject();
+      nid = serializer::Get<serializer::Integer const>(node_map.at("nodeid")).GetInteger();
       auto& node = nodes_.at(nid);
 
       if (node_map.find("leaf") != node_map.end()) {
         node.cleft_ = -1;
         node.SetLeaf(
-            json::Get<json::Number const>(node_map.at("leaf")).GetFloat());
+            serializer::Get<serializer::Number const>(node_map.at("leaf")).GetNumber());
       } else {
         // Set values that belonging to non-leaf nodes.
         node.cleft_ =
-            json::Get<json::Number const>(node_map.at("left")).GetInteger();
+            serializer::Get<serializer::Integer const>(node_map.at("left")).GetInteger();
         node.cright_ =
-            json::Get<json::Number const>(node_map.at("right")).GetInteger();
+            serializer::Get<serializer::Integer const>(node_map.at("right")).GetInteger();
         Stat(nid).loss_chg =
             static_cast<decltype(TNodeStat::loss_chg)>(
-                json::Get<json::Number const>(node_map.at("gain")).GetFloat());
+                serializer::Get<serializer::Number const>(node_map.at("gain")).GetNumber());
         unsigned split =
-            static_cast<unsigned>(json::Get<json::Number const>(
+            static_cast<unsigned>(serializer::Get<serializer::Integer const>(
                 node_map.at("split_index")).GetInteger());
         TSplitCond cond =
             static_cast<TSplitCond>(
-                json::Get<json::Number const>(
-                    node_map.at("split_condition")).GetDouble());
+                serializer::Get<serializer::Number const>(
+                    node_map.at("split_condition")).GetNumber());
         node.SetSplit(split, cond);
       }
 
       Stat(nid).sum_hess =
           static_cast<decltype(TNodeStat::sum_hess)>(
-              json::Get<json::Number const>(node_map.at("hess")).GetDouble());
+              serializer::Get<serializer::Number const>(node_map.at("hess")).GetNumber());
     }
 
-    auto& leaf_vector_json =
-        json::Get<json::Array>(r_json["leaf_vector"]).GetArray();
-    for (auto const& leaf : leaf_vector_json) {
+    auto& leaf_vector_kvstore =
+        serializer::Get<serializer::Array>(r_kvstore["leaf_vector"]).GetArray();
+    for (auto const& leaf : leaf_vector_kvstore) {
       leaf_vector_.push_back(
-          json::Get<json::Number const>(leaf).GetFloat());
+          serializer::Get<serializer::Number const>(leaf).GetNumber());
     }
   }
 

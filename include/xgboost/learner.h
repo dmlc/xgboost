@@ -18,9 +18,13 @@
 #include "./gbm.h"
 #include "./metric.h"
 #include "./objective.h"
-#include "../../src/common/json.h"
 
 namespace xgboost {
+
+namespace serializer {
+class NestedKVStore;  // forward declaration
+}  // namespace serializer
+
 /*!
  * \brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
@@ -72,8 +76,8 @@ class Learner : public rabit::Serializable {
    */
   void Save(dmlc::Stream* fo) const override = 0;
 
-  virtual void Load(json::Json* p_json) = 0;
-  virtual void Save(json::Json* p_json) const = 0;
+  virtual void Load(serializer::NestedKVStore* p_json) = 0;
+  virtual void Save(serializer::NestedKVStore* p_json) const = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.

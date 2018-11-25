@@ -21,7 +21,7 @@
 #include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
-#include "../common/json.h"
+#include "../common/nested_kvstore.h"
 #include "../common/random.h"
 #include "../common/timer.h"
 
@@ -173,39 +173,39 @@ class GBTree : public GradientBooster {
                                        common::ToString(model_.param.num_feature));
   }
 
-  void Load(json::Json* p_json) override {
-    auto& r_json = *p_json;
-    std::vector<json::Json> const& config_json =
-        json::Get<json::Array>(r_json["configuration"]).GetArray();
-    cfg_.resize(config_json.size());
+  void Load(serializer::NestedKVStore* p_kvstore) override {
+    auto& r_kvstore = *p_kvstore;
+    std::vector<serializer::NestedKVStore> const& config_kvstore =
+        serializer::Get<serializer::Array>(r_kvstore["configuration"]).GetArray();
+    cfg_.resize(config_kvstore.size());
     for (size_t i = 0; i < cfg_.size(); ++i) {
-      std::map<std::string, json::Json> const& conf_json =
-          json::Get<json::Object const>(config_json[i]).GetObject();
-      CHECK_EQ(conf_json.size(), 1);
+      std::map<std::string, serializer::NestedKVStore> const& conf_kvstore =
+          serializer::Get<serializer::Object const>(config_kvstore[i]).GetObject();
+      CHECK_EQ(conf_kvstore.size(), 1);
       std::string const& value =
-          json::Get<json::String const>(conf_json.begin()->second).GetString();
-      cfg_[i] = {conf_json.begin()->first, value};
+          serializer::Get<serializer::String const>(conf_kvstore.begin()->second).GetString();
+      cfg_[i] = {conf_kvstore.begin()->first, value};
     }
-    model_.Load(&r_json["GBTreeModel"]);
+    model_.Load(&r_kvstore["GBTreeModel"]);
   }
 
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
   }
 
-  void Save(json::Json* p_json) const override {
-    std::vector<json::Json> configurations(cfg_.size());
+  void Save(serializer::NestedKVStore* p_kvstore) const override {
+    std::vector<serializer::NestedKVStore> configurations(cfg_.size());
     for (size_t i = 0; i < cfg_.size(); ++i) {
-      json::Object config;
+      serializer::Object config;
       std::string const& key = cfg_[i].first;
       std::string const& value = cfg_[i].second;
       config[key] = value;
       configurations[i] = config;
     }
-    auto& r_json = *p_json;
-    r_json["configuration"] = configurations;
-    r_json["GBTreeModel"] = json::Object();
-    model_.Save(&r_json["GBTreeModel"]);
+    auto& r_kvstore = *p_kvstore;
+    r_kvstore["configuration"] = configurations;
+    r_kvstore["GBTreeModel"] = serializer::Object();
+    model_.Save(&r_kvstore["GBTreeModel"]);
   }
 
   bool AllowLazyCheckPoint() const override {
@@ -387,44 +387,45 @@ class Dart : public GBTree {
     }
   }
 
-  void Load(json::Json* p_json) override {
-    GBTree::Load(p_json);
-    auto& r_json = *p_json;
+  void Load(serializer::NestedKVStore* p_kvstore) override {
+    GBTree::Load(p_kvstore);
+    auto& r_kvstore = *p_kvstore;
 
-    auto const& gb_param_json_map =
-        json::Cast<json::Object>(&(r_json["DartTrainParam"].GetValue()))->GetObject();
+    auto const& gb_param_kvstore_map =
+        serializer::Cast<serializer::Object>(&(r_kvstore["DartTrainParam"].GetValue()))->GetObject();
     std::map<std::string, std::string> param_map;
-    for (auto const& param_pair : gb_param_json_map) {
+    for (auto const& param_pair : gb_param_kvstore_map) {
       std::string key = param_pair.first;
       std::string const& value =
-          json::Get<json::String const>(param_pair.second).GetString();
+          serializer::Get<serializer::String const>(param_pair.second).GetString();
       param_map[key] = value;
     }
     dparam_.Init(param_map);
 
-    std::vector<json::Json> const& weight_drop_json =
-        json::Cast<json::Array>(&r_json["weight_drop"].GetValue())->GetArray();
-    weight_drop_.resize(weight_drop_json.size());
-    for (size_t i = 0; i < weight_drop_json.size(); ++i) {
-      weight_drop_[i] = json::Get<json::Number const>(weight_drop_json[i]).GetFloat();
+    std::vector<serializer::NestedKVStore> const& weight_drop_kvstore =
+        serializer::Cast<serializer::Array>(&r_kvstore["weight_drop"].GetValue())->GetArray();
+    weight_drop_.resize(weight_drop_kvstore.size());
+    for (size_t i = 0; i < weight_drop_kvstore.size(); ++i) {
+      weight_drop_[i] = static_cast<bst_float>(
+        serializer::Get<serializer::Number const>(weight_drop_kvstore[i]).GetNumber());
     }
   }
 
-  void Save(json::Json* p_json) const override {
-    GBTree::Save(p_json);
+  void Save(serializer::NestedKVStore* p_kvstore) const override {
+    GBTree::Save(p_kvstore);
 
-    auto& r_json = *p_json;
-    std::map<std::string, json::Json> param_pairs;
+    auto& r_kvstore = *p_kvstore;
+    std::map<std::string, serializer::NestedKVStore> param_pairs;
     for (auto const& p : dparam_.__DICT__()) {
-      param_pairs[p.first] = json::String(p.second);
+      param_pairs[p.first] = serializer::String(p.second);
     }
-    r_json["DartTrainParam"] = json::Object{param_pairs};
+    r_kvstore["DartTrainParam"] = serializer::Object{param_pairs};
 
-    std::vector<json::Json> weight_drop_json(weight_drop_.size());
+    std::vector<serializer::NestedKVStore> weight_drop_kvstore(weight_drop_.size());
     for (size_t i = 0; i < weight_drop_.size(); ++i) {
-      weight_drop_json[i] = json::Number(weight_drop_[i]);
+      weight_drop_kvstore[i] = serializer::Number(static_cast<double>(weight_drop_[i]));
     }
-    (*p_json)["weight_drop"] = json::Array(weight_drop_json);
+    r_kvstore["weight_drop"] = serializer::Array(weight_drop_kvstore);
   }
 
   // predict the leaf scores with dropout if ntree_limit = 0

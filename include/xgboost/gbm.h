@@ -20,9 +20,13 @@
 #include "./objective.h"
 #include "./feature_map.h"
 #include "../../src/common/host_device_vector.h"
-#include "../../src/common/json.h"
 
 namespace xgboost {
+
+namespace serializer {
+class NestedKVStore;  // forward declaration
+}  // namespace serializer
+
 /*!
  * \brief interface of gradient boosting model.
  */
@@ -50,13 +54,13 @@ class GradientBooster {
    * \param fi input stream.
    */
   virtual void Load(dmlc::Stream* fi) = 0;
-  virtual void Load(json::Json* fo) = 0;
+  virtual void Load(serializer::NestedKVStore* fo) = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
-  virtual void Save(json::Json* fo) const = 0;
+  virtual void Save(serializer::NestedKVStore* fo) const = 0;
   /*!
    * \brief whether the model allow lazy checkpoint
    * return true if model is only updated in DoBoost

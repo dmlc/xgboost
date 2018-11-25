@@ -7,7 +7,6 @@
 #include <fstream>
 
 #include "helpers.h"
-#include "../../src/common/json.h"
 
 namespace xgboost {
 
@@ -50,6 +49,7 @@ TEST(learner, SelectTreeMethod) {
   delete mat_ptr;
 }
 
+#if 0
 void TestModelIO(
     std::vector<std::pair<std::string, std::string>> const& args,
     std::string model_name) {
@@ -143,4 +143,5 @@ TEST(learner, DartModelIO) {
       {{"booster", "dart"}};
   TestModelIO(gbdark_args, "dart");
 }
+#endif
 }  // namespace xgboost

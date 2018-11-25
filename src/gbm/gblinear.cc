@@ -15,10 +15,14 @@
 #include <sstream>
 #include <algorithm>
 
-#include "../common/json.h"
 #include "../common/timer.h"
 
 namespace xgboost {
+
+namespace serializer {
+class NestedKVStore;  // forward declaration
+}  // namespace serializer
+
 namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gblinear);
@@ -78,16 +82,16 @@ class GBLinear : public GradientBooster {
     model_.Load(fi);
   }
 
-  void Load(json::Json* p_json) override {
-    model_.Load(p_json);
+  void Load(serializer::NestedKVStore* p_kvstore) override {
+    model_.Load(p_kvstore);
   }
 
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
   }
 
-  void Save(json::Json* p_json) const override {
-    model_.Save(p_json);
+  void Save(serializer::NestedKVStore* p_kvstore) const override {
+    model_.Save(p_kvstore);
   }
 
   void DoBoost(DMatrix *p_fmat,
