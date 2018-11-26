@@ -70,8 +70,7 @@ object SparkTraining {
       "num_class" -> 3,
       "num_round" -> 100,
       "num_workers" -> 2,
-      "eval_sets" -> Array(eval1, eval2),
-      "eval_set_names" -> Array("eval1", "eval2"))
+      "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").
       setLabelCol("classIndex")
