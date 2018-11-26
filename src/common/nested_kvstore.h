@@ -144,7 +144,7 @@ class IntegerValue : public Value {
               std::is_integral<IntegerType>::value &&
               (!std::is_same<IntegerType, bool>::value) &&
               (!std::is_same<IntegerType, bool const>::value)>::type* = nullptr>
-  IntegerValue(IntegerType value) :
+  IntegerValue(IntegerType value) :   // NOLINT
     Value(ValueKind::kInteger), number_(static_cast<int64_t>(value)) {}
 
   NestedKVStore& operator[](std::string const & key) override;
@@ -169,7 +169,7 @@ class NumberValue : public Value {
   template <typename NumberType,
             typename std::enable_if<
               std::is_floating_point<NumberType>::value>::type* = nullptr>
-  NumberValue(NumberType value) :
+  NumberValue(NumberType value) :    // NOLINT
     Value(ValueKind::kNumber), number_(static_cast<double>(value)) {}
 
   NestedKVStore& operator[](std::string const & key) override;
@@ -242,7 +242,6 @@ class BooleanValue : public Value {
  * \endcode
  */
 class NestedKVStore {
-
  public:
   NestedKVStore() : ptr_{new NullValue} {}
 

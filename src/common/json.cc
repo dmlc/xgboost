@@ -3,16 +3,16 @@
  * \file json.cc
  * \brief JSON serialization of nested key-value store. Uses Tencent/RapidJSON
  */
-#include <istream>
-#include <stack>
-#include <limits>
-#include <unordered_map>
+#include "./json.h"
 #include <dmlc/logging.h>
 #include <rapidjson/istreamwrapper.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
-#include "./json.h"
+#include <istream>
+#include <stack>
+#include <limits>
+#include <unordered_map>
 
 namespace xgboost {
 namespace serializer {
@@ -76,42 +76,42 @@ template <typename OutputStreamType>
 void SaveKVStoreToJSON_(const NestedKVStore& kvstore,
                         rapidjson::Writer<OutputStreamType>* writer) {
   switch (kvstore.GetValue().Type()) {
-   case Value::ValueKind::kString: {
-      const std::string& value = Get<String>(kvstore).GetString();
-      writer->String(value.c_str(), value.length());
-    }
-    break;
-   case Value::ValueKind::kNumber:
-    writer->Double(Get<Number>(kvstore).GetDouble());
-    break;
-   case Value::ValueKind::kInteger:
-    writer->Int64(Get<Integer>(kvstore).GetInteger());
-    break;
-   case Value::ValueKind::kObject: {
-      const auto& map = Get<Object>(kvstore).GetObject();
-      writer->StartObject();
-      for (const auto& kv : map) {
-        writer->Key(kv.first.c_str(), kv.first.length());
-        SaveKVStoreToJSON_(kv.second, writer);
+    case Value::ValueKind::kString: {
+        const std::string& value = Get<String>(kvstore).GetString();
+        writer->String(value.c_str(), value.length());
       }
-      writer->EndObject();
-    }
-    break;
-   case Value::ValueKind::kArray: {
-      const auto& array = Get<Array>(kvstore).GetArray();
-      writer->StartArray();
-      for (const auto& e : array) {
-        SaveKVStoreToJSON_(e, writer);
+      break;
+    case Value::ValueKind::kNumber:
+      writer->Double(Get<Number>(kvstore).GetDouble());
+      break;
+    case Value::ValueKind::kInteger:
+      writer->Int64(Get<Integer>(kvstore).GetInteger());
+      break;
+    case Value::ValueKind::kObject: {
+        const auto& map = Get<Object>(kvstore).GetObject();
+        writer->StartObject();
+        for (const auto& kv : map) {
+          writer->Key(kv.first.c_str(), kv.first.length());
+          SaveKVStoreToJSON_(kv.second, writer);
+        }
+        writer->EndObject();
       }
-      writer->EndArray();
-    }
-    break;
-   case Value::ValueKind::kBoolean:
-    writer->Bool(Get<Boolean>(kvstore).GetBoolean());
-    break;
-   case Value::ValueKind::kNull:
-    writer->Null();
-    break;
+      break;
+    case Value::ValueKind::kArray: {
+        const auto& array = Get<Array>(kvstore).GetArray();
+        writer->StartArray();
+        for (const auto& e : array) {
+          SaveKVStoreToJSON_(e, writer);
+        }
+        writer->EndArray();
+      }
+      break;
+    case Value::ValueKind::kBoolean:
+      writer->Bool(Get<Boolean>(kvstore).GetBoolean());
+      break;
+    case Value::ValueKind::kNull:
+      writer->Null();
+      break;
   }
 }
 
@@ -130,17 +130,17 @@ JSONInputHandler::Null() {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    object_context_.top()[current_key_] = serializer::Null();
-    next_state = State::kObject;
-    break;
-   case State::kExpectArrayItem:
-    object_context_.top().append(serializer::Null());
-    next_state = State::kExpectArrayItem;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      object_context_.top()[current_key_] = serializer::Null();
+      next_state = State::kObject;
+      break;
+    case State::kExpectArrayItem:
+      object_context_.top().append(serializer::Null());
+      next_state = State::kExpectArrayItem;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   parser_state_ = next_state;
@@ -152,17 +152,17 @@ JSONInputHandler::Bool(bool b) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    object_context_.top()[current_key_] = b;
-    next_state = State::kObject;
-    break;
-   case State::kExpectArrayItem:
-    object_context_.top().append(serializer::Boolean(b));
-    next_state = State::kExpectArrayItem;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      object_context_.top()[current_key_] = b;
+      next_state = State::kObject;
+      break;
+    case State::kExpectArrayItem:
+      object_context_.top().append(serializer::Boolean(b));
+      next_state = State::kExpectArrayItem;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   parser_state_ = next_state;
@@ -174,17 +174,17 @@ JSONInputHandler::Int64(int64_t i) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    object_context_.top()[current_key_] = i;
-    next_state = State::kObject;
-    break;
-   case State::kExpectArrayItem:
-    object_context_.top().append(serializer::Integer(i));
-    next_state = State::kExpectArrayItem;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      object_context_.top()[current_key_] = i;
+      next_state = State::kObject;
+      break;
+    case State::kExpectArrayItem:
+      object_context_.top().append(serializer::Integer(i));
+      next_state = State::kExpectArrayItem;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   parser_state_ = next_state;
@@ -211,17 +211,17 @@ JSONInputHandler::Double(double d) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    object_context_.top()[current_key_] = d;
-    next_state = State::kObject;
-    break;
-   case State::kExpectArrayItem:
-    object_context_.top().append(serializer::Number(d));
-    next_state = State::kExpectArrayItem;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      object_context_.top()[current_key_] = d;
+      next_state = State::kObject;
+      break;
+    case State::kExpectArrayItem:
+      object_context_.top().append(serializer::Number(d));
+      next_state = State::kExpectArrayItem;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   parser_state_ = next_state;
@@ -234,17 +234,17 @@ JSONInputHandler::String(const char* str, rapidjson::SizeType length, bool copy)
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    object_context_.top()[current_key_] = value;
-    next_state = State::kObject;
-    break;
-   case State::kExpectArrayItem:
-    object_context_.top().append(serializer::String(value));
-    next_state = State::kExpectArrayItem;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      object_context_.top()[current_key_] = value;
+      next_state = State::kObject;
+      break;
+    case State::kExpectArrayItem:
+      object_context_.top().append(serializer::String(value));
+      next_state = State::kExpectArrayItem;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   parser_state_ = next_state;
@@ -257,33 +257,33 @@ JSONInputHandler::StartObject() {
   uint32_t next_parser_depth = parser_depth_;
   // perform transition
   switch (parser_state_) {
-   case State::kInit:
-    next_state = State::kObject;
-    next_parser_depth = 1;
-    (*kvstore_) = serializer::Object();
-    object_context_.push(*kvstore_);
-    break;
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    next_state = State::kObject;
-    ++next_parser_depth;
-    {
-      NestedKVStore obj = serializer::Object();
-      object_context_.top()[current_key_] = obj;
-      object_context_.push(obj);
-    }
-    break;
-   case State::kExpectArrayItem:
-    next_state = State::kObject;
-    ++next_parser_depth;
-    {
-      NestedKVStore obj = serializer::Object();
-      object_context_.top().append(obj);
-      object_context_.push(obj);
-    }
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kInit:
+      next_state = State::kObject;
+      next_parser_depth = 1;
+      (*kvstore_) = serializer::Object();
+      object_context_.push(*kvstore_);
+      break;
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      next_state = State::kObject;
+      ++next_parser_depth;
+      {
+        NestedKVStore obj = serializer::Object();
+        object_context_.top()[current_key_] = obj;
+        object_context_.push(obj);
+      }
+      break;
+    case State::kExpectArrayItem:
+      next_state = State::kObject;
+      ++next_parser_depth;
+      {
+        NestedKVStore obj = serializer::Object();
+        object_context_.top().append(obj);
+        object_context_.push(obj);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   current_key_ = std::string();
@@ -297,11 +297,11 @@ JSONInputHandler::Key(const char* str, rapidjson::SizeType length, bool copy) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kObject:
-    next_state = State::kExpectValue;
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kObject:
+      next_state = State::kExpectValue;
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   current_key_ = std::string(str, length);
@@ -315,10 +315,10 @@ JSONInputHandler::EndObject(rapidjson::SizeType memberCount) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kObject:
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kObject:
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   object_context_.pop();
@@ -326,15 +326,15 @@ JSONInputHandler::EndObject(rapidjson::SizeType memberCount) {
     CHECK_EQ(parser_depth_, 1);
     next_state = State::kObject;
   } else {
-    switch(object_context_.top().GetValue().Type()) {
-     case Value::ValueKind::kArray:
-      next_state = State::kExpectArrayItem;
-      break;
-     case Value::ValueKind::kObject:
-      next_state = State::kObject;
-      break;
-     default:
-      LOG(FATAL) << "Illegal transition detected";
+    switch (object_context_.top().GetValue().Type()) {
+      case Value::ValueKind::kArray:
+        next_state = State::kExpectArrayItem;
+        break;
+      case Value::ValueKind::kObject:
+        next_state = State::kObject;
+        break;
+      default:
+        LOG(FATAL) << "Illegal transition detected";
     }
   }
   current_key_ = std::string();
@@ -349,30 +349,30 @@ JSONInputHandler::StartArray() {
   uint32_t next_parser_depth = parser_depth_;
   // perform transition
   switch (parser_state_) {
-   case State::kInit:
-    next_parser_depth = 1;
-    (*kvstore_) = serializer::Array();
-    object_context_.push(*kvstore_);
-    break;
-   case State::kExpectValue:
-    CHECK(!current_key_.empty());
-    ++next_parser_depth;
-    {
-      NestedKVStore obj = serializer::Array();
-      object_context_.top()[current_key_] = obj;
-      object_context_.push(obj);
-    }
-    break;
-   case State::kExpectArrayItem:
-    ++next_parser_depth;
-    {
-      NestedKVStore obj = serializer::Array();
-      object_context_.top().append(obj);
-      object_context_.push(obj);
-    }
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kInit:
+      next_parser_depth = 1;
+      (*kvstore_) = serializer::Array();
+      object_context_.push(*kvstore_);
+      break;
+    case State::kExpectValue:
+      CHECK(!current_key_.empty());
+      ++next_parser_depth;
+      {
+        NestedKVStore obj = serializer::Array();
+        object_context_.top()[current_key_] = obj;
+        object_context_.push(obj);
+      }
+      break;
+    case State::kExpectArrayItem:
+      ++next_parser_depth;
+      {
+        NestedKVStore obj = serializer::Array();
+        object_context_.top().append(obj);
+        object_context_.push(obj);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   current_key_ = std::string();
@@ -387,10 +387,10 @@ JSONInputHandler::EndArray(rapidjson::SizeType elementCount) {
   State next_state = State::kInit;
   // perform transition
   switch (parser_state_) {
-   case State::kExpectArrayItem:
-    break;
-   default:
-    LOG(FATAL) << "Illegal transition detected";
+    case State::kExpectArrayItem:
+      break;
+    default:
+      LOG(FATAL) << "Illegal transition detected";
   }
   // move to next state
   object_context_.pop();
@@ -398,15 +398,15 @@ JSONInputHandler::EndArray(rapidjson::SizeType elementCount) {
     CHECK_EQ(parser_depth_, 1);
     next_state = State::kObject;
   } else {
-    switch(object_context_.top().GetValue().Type()) {
-     case Value::ValueKind::kArray:
-      next_state = State::kExpectArrayItem;
-      break;
-     case Value::ValueKind::kObject:
-      next_state = State::kObject;
-      break;
-     default:
-      LOG(FATAL) << "Illegal transition detected";
+    switch (object_context_.top().GetValue().Type()) {
+      case Value::ValueKind::kArray:
+        next_state = State::kExpectArrayItem;
+        break;
+      case Value::ValueKind::kObject:
+        next_state = State::kObject;
+        break;
+      default:
+        LOG(FATAL) << "Illegal transition detected";
     }
   }
   parser_state_ = next_state;
