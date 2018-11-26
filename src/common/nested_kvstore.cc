@@ -152,11 +152,15 @@ NestedKVStore& NumberValue::operator[](int ind) {
 bool NumberValue::operator==(Value const& rhs) const {
   if (!IsA<NumberValue>(&rhs)) { return false; }
   double residue =
-      std::abs(number_ - Cast<NumberValue const>(&rhs)->GetNumber());
+      std::abs(number_ - Cast<NumberValue const>(&rhs)->GetDouble());
   return residue < kRtEps;
 }
 
-double NumberValue::GetNumber() const {
+float NumberValue::GetFloat() const {
+  return static_cast<float>(number_);
+}
+
+double NumberValue::GetDouble() const {
   return number_;
 }
 

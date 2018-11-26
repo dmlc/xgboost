@@ -84,7 +84,7 @@ class GBLinearModel {
       serializer::Value const& value = weights_kvstore.at(i).GetValue();
       serializer::Number const* w =
           serializer::Cast<serializer::Number const, serializer::Value const>(&value);
-      weight[i] = static_cast<float>(w->GetNumber());
+      weight[i] = w->GetFloat();
     }
   }
   // model bias

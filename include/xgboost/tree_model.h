@@ -419,7 +419,7 @@ class TreeModel {
       if (node_map.find("leaf") != node_map.end()) {
         node.cleft_ = -1;
         node.SetLeaf(
-            serializer::Get<serializer::Number const>(node_map.at("leaf")).GetNumber());
+            serializer::Get<serializer::Number const>(node_map.at("leaf")).GetFloat());
       } else {
         // Set values that belonging to non-leaf nodes.
         node.cleft_ =
@@ -428,27 +428,27 @@ class TreeModel {
             serializer::Get<serializer::Integer const>(node_map.at("right")).GetInteger();
         Stat(nid).loss_chg =
             static_cast<decltype(TNodeStat::loss_chg)>(
-                serializer::Get<serializer::Number const>(node_map.at("gain")).GetNumber());
+                serializer::Get<serializer::Number const>(node_map.at("gain")).GetFloat());
         unsigned split =
             static_cast<unsigned>(serializer::Get<serializer::Integer const>(
                 node_map.at("split_index")).GetInteger());
         TSplitCond cond =
             static_cast<TSplitCond>(
                 serializer::Get<serializer::Number const>(
-                    node_map.at("split_condition")).GetNumber());
+                    node_map.at("split_condition")).GetFloat());
         node.SetSplit(split, cond);
       }
 
       Stat(nid).sum_hess =
           static_cast<decltype(TNodeStat::sum_hess)>(
-              serializer::Get<serializer::Number const>(node_map.at("hess")).GetNumber());
+              serializer::Get<serializer::Number const>(node_map.at("hess")).GetFloat());
     }
 
     auto& leaf_vector_kvstore =
         serializer::Get<serializer::Array>(r_kvstore["leaf_vector"]).GetArray();
     for (auto const& leaf : leaf_vector_kvstore) {
       leaf_vector_.push_back(
-          serializer::Get<serializer::Number const>(leaf).GetNumber());
+          serializer::Get<serializer::Number const>(leaf).GetFloat());
     }
   }
 

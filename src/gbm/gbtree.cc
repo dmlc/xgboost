@@ -407,7 +407,7 @@ class Dart : public GBTree {
     weight_drop_.resize(weight_drop_kvstore.size());
     for (size_t i = 0; i < weight_drop_kvstore.size(); ++i) {
       weight_drop_[i] = static_cast<bst_float>(
-        serializer::Get<serializer::Number const>(weight_drop_kvstore[i]).GetNumber());
+        serializer::Get<serializer::Number const>(weight_drop_kvstore[i]).GetFloat());
     }
   }
 

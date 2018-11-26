@@ -14,24 +14,28 @@
 namespace xgboost {
 namespace serializer {
 
+/* Use RapidJSON SAX API to parser JSON into nested key-value store. See
+ * http://rapidjson.org/md_doc_sax.html for more information. */
 class JSONInputHandler
     : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, JSONInputHandler> {
  public:
-  explicit inline JSONInputHandler(NestedKVStore* kvstore);
+  explicit JSONInputHandler(NestedKVStore* kvstore);
   ~JSONInputHandler() = default;
-  inline bool Null();
-  inline bool Bool(bool b);
-  inline bool Int(int i);
-  inline bool Uint(unsigned u);
-  inline bool Int64(int64_t i);
-  inline bool Uint64(uint64_t u);
-  inline bool Double(double d);
-  inline bool String(const char* str, rapidjson::SizeType length, bool copy);
-  inline bool StartObject();
-  inline bool Key(const char* str, rapidjson::SizeType length, bool copy);
-  inline bool EndObject(rapidjson::SizeType memberCount);
-  inline bool StartArray();
-  inline bool EndArray(rapidjson::SizeType elementCount);
+  bool Null();
+  bool Bool(bool b);
+  bool Int(int i);
+  bool Uint(unsigned u);
+  bool Int64(int64_t i);
+  bool Uint64(uint64_t u);
+  bool Double(double d);
+  bool String(const char* str, rapidjson::SizeType length, bool copy);
+  bool StartObject();
+  bool Key(const char* str, rapidjson::SizeType length, bool copy);
+  bool EndObject(rapidjson::SizeType memberCount);
+  bool StartArray();
+  bool EndArray(rapidjson::SizeType elementCount);
+
+  void CheckPostCondition();
  private:
   NestedKVStore* kvstore_;
 
@@ -51,18 +55,25 @@ NestedKVStore LoadKVStoreFromJSON(std::istream* stream) {
   JSONInputHandler handler(&result);
   rapidjson::Reader reader;
   rapidjson::IStreamWrapper isw(*stream);
-  reader.Parse(isw, handler);
+  CHECK(reader.Parse(isw, handler));
+  handler.CheckPostCondition();
   return result;
 }
 
 void SaveKVStoreToJSON(const NestedKVStore& kvstore, std::ostream* stream) {
 }
 
-inline JSONInputHandler::JSONInputHandler(NestedKVStore* kvstore)
+JSONInputHandler::JSONInputHandler(NestedKVStore* kvstore)
   : kvstore_(kvstore), parser_state_(JSONInputHandler::State::kInit),
-    parser_depth_(0U) {}
+    parser_depth_(1U) {}
 
-inline bool
+void
+JSONInputHandler::CheckPostCondition() {
+  CHECK_EQ(parser_depth_, 0);
+  CHECK(parser_state_ == State::kObject);
+}
+
+bool
 JSONInputHandler::Null() {
   State next_state = State::kInit;
   // perform transition
@@ -84,7 +95,7 @@ JSONInputHandler::Null() {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::Bool(bool b) {
   State next_state = State::kInit;
   // perform transition
@@ -106,7 +117,7 @@ JSONInputHandler::Bool(bool b) {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::Int64(int64_t i) {
   State next_state = State::kInit;
   // perform transition
@@ -128,22 +139,22 @@ JSONInputHandler::Int64(int64_t i) {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::Uint64(uint64_t u) {
   return Int64(static_cast<int64_t>(u));
 }
 
-inline bool
+bool
 JSONInputHandler::Int(int i) {
   return Int64(static_cast<int64_t>(i));
 }
 
-inline bool
+bool
 JSONInputHandler::Uint(unsigned u) {
   return Int64(static_cast<int64_t>(u));
 }
 
-inline bool
+bool
 JSONInputHandler::Double(double d) {
   State next_state = State::kInit;
   // perform transition
@@ -165,7 +176,7 @@ JSONInputHandler::Double(double d) {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::String(const char* str, rapidjson::SizeType length, bool copy) {
   const std::string value(str, static_cast<size_t>(length));
   State next_state = State::kInit;
@@ -188,7 +199,7 @@ JSONInputHandler::String(const char* str, rapidjson::SizeType length, bool copy)
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::StartObject() {
   State next_state = State::kInit;
   uint32_t next_parser_depth = parser_depth_;
@@ -196,7 +207,7 @@ JSONInputHandler::StartObject() {
   switch (parser_state_) {
    case State::kInit:
     next_state = State::kObject;
-    next_parser_depth = 0;
+    next_parser_depth = 1;
     (*kvstore_) = serializer::Object();
     object_context_.push(*kvstore_);
     break;
@@ -205,7 +216,7 @@ JSONInputHandler::StartObject() {
     next_state = State::kObject;
     ++next_parser_depth;
     {
-      auto obj = serializer::Object();
+      NestedKVStore obj = serializer::Object();
       object_context_.top()[current_key_] = obj;
       object_context_.push(obj);
     }
@@ -220,7 +231,7 @@ JSONInputHandler::StartObject() {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::Key(const char* str, rapidjson::SizeType length, bool copy) {
   State next_state = State::kInit;
   // perform transition
@@ -237,7 +248,7 @@ JSONInputHandler::Key(const char* str, rapidjson::SizeType length, bool copy) {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::EndObject(rapidjson::SizeType memberCount) {
   CHECK_GE(parser_depth_, 1);
   State next_state = State::kInit;
@@ -257,7 +268,7 @@ JSONInputHandler::EndObject(rapidjson::SizeType memberCount) {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::StartArray() {
   State next_state = State::kInit;
   // perform transition
@@ -276,7 +287,7 @@ JSONInputHandler::StartArray() {
   return true;
 }
 
-inline bool
+bool
 JSONInputHandler::EndArray(rapidjson::SizeType elementCount) {
   CHECK_GE(parser_depth_, 1);
   State next_state = State::kInit;
@@ -291,7 +302,6 @@ JSONInputHandler::EndArray(rapidjson::SizeType elementCount) {
   // move to next state
   CHECK(!current_key_.empty());
   object_context_.top()[current_key_] = current_array_;
-  object_context_.pop();
   parser_state_ = next_state;
   --parser_depth_;
   return true;

@@ -172,7 +172,8 @@ class NumberValue : public Value {
 
   bool operator==(Value const& rhs) const override;
 
-  double GetNumber() const;
+  float GetFloat() const;
+  double GetDouble() const;
 
   static bool IsClassOf(Value const* value) {
     return value->Type() == ValueKind::kNumber;
@@ -323,6 +324,20 @@ class NestedKVStore {
 template <typename T, typename U>
 T& Get(U& value) {  // NOLINT
   auto& casted = *Cast<T>(&value.GetValue());
+  return casted;
+}
+
+/*!
+ * \brief Get value.
+ *
+ * \tparam T One of the serializer::value type.
+ *
+ * \param value
+ * \return value with type T.
+ */
+template <typename T, typename U>
+const T& Get(const U& value) {  // NOLINT
+  const auto& casted = *Cast<const T>(&value.GetValue());
   return casted;
 }
 
