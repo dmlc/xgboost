@@ -71,11 +71,10 @@ class GBLinearModel {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
     fi->Read(&weight);
   }
-  void Load(serializer::NestedKVStore* p_kvstore) {
-    auto& r_kvstore = *p_kvstore;
-    serializer::InitParametersFromKVStore(r_kvstore, "GBLinearModelParam", &param);
+  void Load(const serializer::NestedKVStore& kvstore) {
+    serializer::InitParametersFromKVStore(kvstore, "GBLinearModelParam", &param);
 
-    auto& arr_value = r_kvstore["weights"].GetValue();
+    auto& arr_value = kvstore["weights"].GetValue();
     std::vector<serializer::NestedKVStore> const& weights_kvstore =
         serializer::Cast<serializer::Array>(&arr_value)->GetArray();
     weight.resize(weights_kvstore.size());

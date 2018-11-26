@@ -82,8 +82,8 @@ class GBLinear : public GradientBooster {
     model_.Load(fi);
   }
 
-  void Load(serializer::NestedKVStore* p_kvstore) override {
-    model_.Load(p_kvstore);
+  void Load(const serializer::NestedKVStore& kvstore) override {
+    model_.Load(kvstore);
   }
 
   void Save(dmlc::Stream* fo) const override {

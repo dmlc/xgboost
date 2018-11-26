@@ -173,10 +173,9 @@ class GBTree : public GradientBooster {
                                        common::ToString(model_.param.num_feature));
   }
 
-  void Load(serializer::NestedKVStore* p_kvstore) override {
-    auto& r_kvstore = *p_kvstore;
+  void Load(const serializer::NestedKVStore& kvstore) override {
     std::vector<serializer::NestedKVStore> const& config_kvstore =
-        serializer::Get<serializer::Array>(r_kvstore["configuration"]).GetArray();
+        serializer::Get<serializer::Array>(kvstore["configuration"]).GetArray();
     cfg_.resize(config_kvstore.size());
     for (size_t i = 0; i < cfg_.size(); ++i) {
       std::map<std::string, serializer::NestedKVStore> const& conf_kvstore =
@@ -186,7 +185,7 @@ class GBTree : public GradientBooster {
           serializer::Get<serializer::String const>(conf_kvstore.begin()->second).GetString();
       cfg_[i] = {conf_kvstore.begin()->first, value};
     }
-    model_.Load(&r_kvstore["GBTreeModel"]);
+    model_.Load(kvstore["GBTreeModel"]);
   }
 
   void Save(dmlc::Stream* fo) const override {
@@ -387,12 +386,11 @@ class Dart : public GBTree {
     }
   }
 
-  void Load(serializer::NestedKVStore* p_kvstore) override {
-    GBTree::Load(p_kvstore);
-    auto& r_kvstore = *p_kvstore;
+  void Load(const serializer::NestedKVStore& kvstore) override {
+    GBTree::Load(kvstore);
 
     auto const& gb_param_kvstore_map =
-        serializer::Cast<serializer::Object>(&(r_kvstore["DartTrainParam"].GetValue()))->GetObject();
+        serializer::Cast<serializer::Object>(&(kvstore["DartTrainParam"].GetValue()))->GetObject();
     std::map<std::string, std::string> param_map;
     for (auto const& param_pair : gb_param_kvstore_map) {
       std::string key = param_pair.first;
@@ -403,7 +401,7 @@ class Dart : public GBTree {
     dparam_.Init(param_map);
 
     std::vector<serializer::NestedKVStore> const& weight_drop_kvstore =
-        serializer::Cast<serializer::Array>(&r_kvstore["weight_drop"].GetValue())->GetArray();
+        serializer::Cast<serializer::Array>(&kvstore["weight_drop"].GetValue())->GetArray();
     weight_drop_.resize(weight_drop_kvstore.size());
     for (size_t i = 0; i < weight_drop_kvstore.size(); ++i) {
       weight_drop_[i] = static_cast<bst_float>(

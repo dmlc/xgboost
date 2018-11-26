@@ -131,6 +131,48 @@ TEST(NestedKVStoreJSON, JSONToKVStoreUnitTest) {
     ASSERT_EQ(Get<Integer>(val).GetInteger(), static_cast<int64_t>(206LL));
   }
   {
+    // Simple example, with top-level list
+    std::istringstream iss(R"JSON([1, 2, 3, 4])JSON");
+    NestedKVStore kvstore = LoadKVStoreFromJSON(&iss);
+    ASSERT_EQ(kvstore.GetValue().TypeStr(), "Array");
+    const auto& array = Get<Array>(kvstore).GetArray();
+    ASSERT_EQ(array.size(), 4);
+    int64_t true_val = 1LL;
+    for (const auto& e : array) {
+      int64_t val = Get<Integer>(e).GetInteger();
+      ASSERT_EQ(val, true_val);
+      ++true_val;
+    }
+  }
+  {
+    // Nested lists
+    std::istringstream iss(R"JSON([[1, 2], [3, 4]])JSON");
+    NestedKVStore kvstore = LoadKVStoreFromJSON(&iss);
+    ASSERT_EQ(kvstore.GetValue().TypeStr(), "Array");
+    const auto& array = Get<Array>(kvstore).GetArray();
+    ASSERT_EQ(array.size(), 2);
+
+    ASSERT_EQ(array[0].GetValue().TypeStr(), "Array");
+    const auto& array2 = Get<Array>(array[0]).GetArray();
+    ASSERT_EQ(array2.size(), 2);
+
+    ASSERT_EQ(array[1].GetValue().TypeStr(), "Array");
+    const auto& array3 = Get<Array>(array[1]).GetArray();
+    ASSERT_EQ(array3.size(), 2);
+
+    int64_t true_val = 1LL;
+    for (const auto& e : array2) {
+      int64_t val = Get<Integer>(e).GetInteger();
+      ASSERT_EQ(val, true_val);
+      ++true_val;
+    }
+    for (const auto& e : array3) {
+      int64_t val = Get<Integer>(e).GetInteger();
+      ASSERT_EQ(val, true_val);
+      ++true_val;
+    }
+  }
+  {
     // Slightly bigger example, with multiple keys
     std::istringstream iss(R"JSON(
       {
@@ -141,6 +183,7 @@ TEST(NestedKVStoreJSON, JSONToKVStoreUnitTest) {
         "i": 123,
         "pi": 3.1415,
         "a": [1, 2, 3, 4],
+        "b": [{"foo" : "bar"}],
         "foobar": { "foo" : "bar", "cat" : "dog" }
       }
     )JSON");
@@ -148,7 +191,7 @@ TEST(NestedKVStoreJSON, JSONToKVStoreUnitTest) {
     ASSERT_EQ(kvstore.GetValue().TypeStr(), "Object");
     Object obj = Get<Object>(kvstore);
     const auto& map = obj.GetObject();
-    ASSERT_EQ(map.size(), 8);
+    ASSERT_EQ(map.size(), 9);
 
     ASSERT_EQ(map.count("hello"), 1);
     NestedKVStore val = map.at("hello");
@@ -183,27 +226,40 @@ TEST(NestedKVStoreJSON, JSONToKVStoreUnitTest) {
     ASSERT_EQ(map.count("a"), 1);
     val = map.at("a");
     ASSERT_EQ(val.GetValue().TypeStr(), "Array");
-    const auto& array = Get<Array>(val).GetArray();
-    ASSERT_EQ(array.size(), 4);
+    const auto& array2 = Get<Array>(val).GetArray();
+    ASSERT_EQ(array2.size(), 4);
     // values of array elements are 1, 2, 3, 4
     int true_val = 1;
-    for (const auto& e : array) {
+    for (const auto& e : array2) {
       ASSERT_EQ(e.GetValue().TypeStr(), "Integer");
       ASSERT_EQ(Get<Integer>(e).GetInteger(), true_val);
       ++true_val;
     }
 
-    ASSERT_EQ(map.count("foobar"), 1);
-    val = map.at("foobar");
-    ASSERT_EQ(val.GetValue().TypeStr(), "Object");
-    const auto& dict = Get<Object>(val).GetObject();
-    ASSERT_EQ(dict.size(), 2);
+    ASSERT_EQ(map.count("b"), 1);
+    val = map.at("b");
+    ASSERT_EQ(val.GetValue().TypeStr(), "Array");
+    const auto& array3 = Get<Array>(val).GetArray();
+    ASSERT_EQ(array3.size(), 1);
+    ASSERT_EQ(array3[0].GetValue().TypeStr(), "Object");
+    const auto& dict = Get<Object>(array3[0]).GetObject();
+    ASSERT_EQ(dict.size(), 1);
     ASSERT_EQ(dict.count("foo"), 1);
     NestedKVStore val2 = dict.at("foo");
     ASSERT_EQ(val2.GetValue().TypeStr(), "String");
     ASSERT_EQ(Get<String>(val2).GetString(), "bar");
-    ASSERT_EQ(dict.count("cat"), 1);
-    val2 = dict.at("cat");
+
+    ASSERT_EQ(map.count("foobar"), 1);
+    val = map.at("foobar");
+    ASSERT_EQ(val.GetValue().TypeStr(), "Object");
+    const auto& dict2 = Get<Object>(val).GetObject();
+    ASSERT_EQ(dict2.size(), 2);
+    ASSERT_EQ(dict2.count("foo"), 1);
+    val2 = dict2.at("foo");
+    ASSERT_EQ(val2.GetValue().TypeStr(), "String");
+    ASSERT_EQ(Get<String>(val2).GetString(), "bar");
+    ASSERT_EQ(dict2.count("cat"), 1);
+    val2 = dict2.at("cat");
     ASSERT_EQ(val2.GetValue().TypeStr(), "String");
     ASSERT_EQ(Get<String>(val2).GetString(), "dog");
   }

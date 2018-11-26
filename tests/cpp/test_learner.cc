@@ -7,6 +7,7 @@
 #include <fstream>
 
 #include "helpers.h"
+#include "../../src/common/json.h"
 
 namespace xgboost {
 
@@ -49,7 +50,6 @@ TEST(learner, SelectTreeMethod) {
   delete mat_ptr;
 }
 
-#if 0
 void TestModelIO(
     std::vector<std::pair<std::string, std::string>> const& args,
     std::string model_name) {
@@ -67,7 +67,7 @@ void TestModelIO(
   std::string redump_path =
       tempdir_path + "/" + model_name+ "_redump.json";
 
-  json::Json writer;
+  serializer::NestedKVStore kvstore;
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
@@ -75,53 +75,54 @@ void TestModelIO(
     learner->InitModel();
     learner->UpdateOneIter(0, pp_dmat->get());
 
-    learner->Save(&writer);
+    learner->Save(&kvstore);
 
     std::ofstream fout(dump_path, std::ios_base::out);
-    if (!fout) { LOG(FATAL) << "Failed to open file"; }
-    json::Json::Dump(writer, &fout);
+    if (!fout) {
+      LOG(FATAL) << "Failed to open file";
+    }
+    serializer::SaveKVStoreToJSON(kvstore, &fout);
     fout.close();
   }
 
-  json::Json load_back;
+  serializer::NestedKVStore kvstore_loaded_back;
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
     std::ifstream fin(dump_path, std::ios_base::in);
-    if (!fin) { LOG(FATAL) << "Failed to open file"; }
-    // Load previously dumped model in json.
-    json::Json reader = json::Json::Load(&fin);
-    ASSERT_EQ(reader, writer);
+    if (!fin) {
+      LOG(FATAL) << "Failed to open file";
+    }
+    // Load previously dumped model in JSON.
+    kvstore_loaded_back = serializer::LoadKVStoreFromJSON(&fin);
+    ASSERT_EQ(kvstore, kvstore_loaded_back);
 
-    learner->Load(&reader);  // restore learner model.
+    learner->Load(kvstore_loaded_back);  // restore learner model.
     learner->InitModel();
     fin.close();
 
     std::ofstream fout(redump_path, std::ios_base::out);
-    if (!fout) { LOG(FATAL) << "Failed to open file"; }
-    json::Json reload_json;
+    if (!fout) {
+      LOG(FATAL) << "Failed to open file";
+    }
 
     // Dump it out again
-    learner->Save(&reload_json);
-    json::Json::Dump(reload_json, &fout);
+    serializer::NestedKVStore reload_kvstore;
+    learner->Save(&reload_kvstore);
+    serializer::SaveKVStoreToJSON(reload_kvstore, &fout);
     fout.close();
 
     // Load the model dumped at second time
     fin.open(redump_path, std::ios_base::in);
-    if (!fin) { LOG(FATAL) << "Failed to open file"; }
-    load_back = json::Json::Load(&fin);
+    if (!fin) {
+      LOG(FATAL) << "Failed to open file";
+    }
+    kvstore_loaded_back = serializer::LoadKVStoreFromJSON(&fin);
     fin.close();
   }
 
-  std::stringstream ss;
-  json::Json::Dump(writer, &ss);
-
-  std::stringstream ss2;
-  json::Json::Dump(load_back, &ss2);
-
   // Compare the difference between two dumps.
-  ASSERT_EQ(ss.str(), ss2.str());
-  ASSERT_EQ(writer, load_back);
+  ASSERT_EQ(kvstore, kvstore_loaded_back);
 
   delete pp_dmat;
 }
@@ -143,5 +144,5 @@ TEST(learner, DartModelIO) {
       {{"booster", "dart"}};
   TestModelIO(gbdark_args, "dart");
 }
-#endif
+
 }  // namespace xgboost

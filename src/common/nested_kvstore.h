@@ -22,7 +22,7 @@ namespace serializer {
 class NestedKVStore;
 
 class Value {
- protected:
+ public:
   /*!\brief Simplified implementation of LLVM RTTI. */
   enum class ValueKind {
     kString,
@@ -45,6 +45,7 @@ class Value {
 
   virtual NestedKVStore& operator[](std::string const & key) = 0;
   virtual NestedKVStore& operator[](int ind) = 0;
+  virtual NestedKVStore& append(NestedKVStore val) = 0;
 
   virtual bool operator==(Value const& rhs) const = 0;
 
@@ -77,6 +78,7 @@ class StringValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -97,6 +99,7 @@ class ArrayValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   std::vector<NestedKVStore> const& GetArray() const { return vec_; }
   std::vector<NestedKVStore> & GetArray() { return vec_; }
@@ -118,6 +121,7 @@ class ObjectValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -145,6 +149,7 @@ class IntegerValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -169,6 +174,7 @@ class NumberValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -186,6 +192,7 @@ class NullValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -209,6 +216,7 @@ class BooleanValue : public Value {
 
   NestedKVStore& operator[](std::string const & key) override;
   NestedKVStore& operator[](int ind) override;
+  NestedKVStore& append(NestedKVStore val) override;
 
   bool operator==(Value const& rhs) const override;
 
@@ -300,6 +308,9 @@ class NestedKVStore {
   NestedKVStore& operator[](std::string const & key) const { return (*ptr_)[key]; }
   /*! \brief Index NestedKVStore object with int, used for array value. */
   NestedKVStore& operator[](int ind)                 const { return (*ptr_)[ind]; }
+
+  /*! \brief Append an NestedKVStore object to NestedKVStore lists */
+  NestedKVStore& append(NestedKVStore val) const { return ptr_->append(val); }
 
   /*! \brief Return the reference to stored value. */
   Value& GetValue() { return *ptr_; }

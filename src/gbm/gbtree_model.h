@@ -103,14 +103,13 @@ struct GBTreeModel {
     }
   }
 
-  void Load(serializer::NestedKVStore* p_kvstore) {
+  void Load(const serializer::NestedKVStore& kvstore) {
     trees.clear();
     trees_to_update.clear();
 
-    auto& r_kvstore = *p_kvstore;
-    serializer::InitParametersFromKVStore(r_kvstore, "GBTreeModelParam", &param);
+    serializer::InitParametersFromKVStore(kvstore, "GBTreeModelParam", &param);
 
-    auto const& trees_kvstore = r_kvstore["trees"];
+    auto const& trees_kvstore = kvstore["trees"];
     for (int i = 0; i < param.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr{new RegTree()};
       ptr->Load(&trees_kvstore[i]);
@@ -118,7 +117,7 @@ struct GBTreeModel {
     }
     tree_info.resize(param.num_trees);
     auto& tree_info_kvstore =
-        serializer::Get<serializer::Array>(r_kvstore["tree_info"]).GetArray();
+        serializer::Get<serializer::Array>(kvstore["tree_info"]).GetArray();
     CHECK_EQ(param.num_trees, tree_info_kvstore.size());
     for (int i = 0; i < param.num_trees; ++i) {
       tree_info[i] = serializer::Get<serializer::Integer>(tree_info_kvstore[i]).GetInteger();

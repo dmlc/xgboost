@@ -54,7 +54,7 @@ class GradientBooster {
    * \param fi input stream.
    */
   virtual void Load(dmlc::Stream* fi) = 0;
-  virtual void Load(serializer::NestedKVStore* fo) = 0;
+  virtual void Load(const serializer::NestedKVStore& fo) = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream

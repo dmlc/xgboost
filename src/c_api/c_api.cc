@@ -91,8 +91,8 @@ class Booster {
     }
   }
 
-  void LoadModel(serializer::NestedKVStore* p_kvstore) {
-    learner_->Load(p_kvstore);
+  void LoadModel(const serializer::NestedKVStore& kvstore) {
+    learner_->Load(kvstore);
     initialized_ = true;
   }
 
@@ -1003,8 +1003,8 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
       LOG(FATAL) << "Error opening file: " << fname;
     }
 
-    serializer::NestedKVStore loaded{serializer::LoadKVStoreFromJSON(&fin)};
-    static_cast<Booster*>(handle)->LoadModel(&loaded);
+    serializer::NestedKVStore loaded = serializer::LoadKVStoreFromJSON(&fin);
+    static_cast<Booster*>(handle)->LoadModel(loaded);
     fin.close();
   } else {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));

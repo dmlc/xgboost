@@ -76,8 +76,8 @@ class Learner : public rabit::Serializable {
    */
   void Save(dmlc::Stream* fo) const override = 0;
 
-  virtual void Load(serializer::NestedKVStore* p_json) = 0;
-  virtual void Save(serializer::NestedKVStore* p_json) const = 0;
+  virtual void Load(const serializer::NestedKVStore& kvstore) = 0;
+  virtual void Save(serializer::NestedKVStore* p_kvstore) const = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.

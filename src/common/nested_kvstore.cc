@@ -53,6 +53,12 @@ NestedKVStore& ObjectValue::operator[](int ind) {
   return DummyObjectValue();
 }
 
+NestedKVStore& ObjectValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
+  return DummyObjectValue();
+}
+
 bool ObjectValue::operator==(Value const& rhs) const {
   if ( !IsA<ObjectValue>(&rhs) ) { return false; }
   if (object_.size() != Cast<ObjectValue const>(&rhs)->GetObject().size()) {
@@ -75,6 +81,12 @@ NestedKVStore& StringValue::operator[](int ind) {
              << Value::TypeStr()
              << " can not be indexed by integer."
              << "please try obtaining std::string first.";
+  return DummyObjectValue();
+}
+
+NestedKVStore& StringValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
   return DummyObjectValue();
 }
 
@@ -101,6 +113,11 @@ NestedKVStore& ArrayValue::operator[](int ind) {
   return vec_.at(ind);
 }
 
+NestedKVStore& ArrayValue::append(NestedKVStore val) {
+  vec_.push_back(val);
+  return vec_.back();
+}
+
 bool ArrayValue::operator==(Value const& rhs) const {
   if (!IsA<ArrayValue>(&rhs)) { return false; }
   auto& arr = Cast<ArrayValue const>(&rhs)->GetArray();
@@ -120,6 +137,12 @@ NestedKVStore& IntegerValue::operator[](int ind) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr()
              << " can not be indexed by integer.";
+  return DummyObjectValue();
+}
+
+NestedKVStore& IntegerValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
   return DummyObjectValue();
 }
 
@@ -146,6 +169,12 @@ NestedKVStore& NumberValue::operator[](int ind) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr()
              << " can not be indexed by integer.";
+  return DummyObjectValue();
+}
+
+NestedKVStore& NumberValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
   return DummyObjectValue();
 }
 
@@ -179,6 +208,12 @@ NestedKVStore& NullValue::operator[](int ind) {
   return DummyObjectValue();
 }
 
+NestedKVStore& NullValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
+  return DummyObjectValue();
+}
+
 bool NullValue::operator==(Value const& rhs) const {
   if ( !IsA<NullValue>(&rhs) ) { return false; }
   return true;
@@ -196,6 +231,12 @@ NestedKVStore& BooleanValue::operator[](int ind) {
   throw std::runtime_error(
       "Object of type " +
       Value::TypeStr() + " can not be indexed by Integer.");
+  return DummyObjectValue();
+}
+
+NestedKVStore& BooleanValue::append(NestedKVStore val) {
+  LOG(FATAL) << "Cannot append a value to a non-list Object, "
+             << "which is actually of type " << Value::TypeStr();
   return DummyObjectValue();
 }
 

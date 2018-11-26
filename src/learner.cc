@@ -411,7 +411,7 @@ class LearnerImpl : public Learner {
     obj_->Configure(cfg_.begin(), cfg_.end());
   }
 
-  void Load(serializer::NestedKVStore* p_kvstore) override {
+  void Load(const serializer::NestedKVStore& kvstore) override {
     /*
      * Steps to Load:
      *
@@ -423,18 +423,17 @@ class LearnerImpl : public Learner {
      * vi  Configure obj (Currently not saved hence not loaded).
      * vii Load gbm
      */
-    auto& r_kvstore = *p_kvstore;
-    serializer::InitParametersFromKVStore(r_kvstore, "model_parameter", &mparam_);
-    serializer::InitParametersFromKVStore(r_kvstore, "train_parameter", &tparam_);
+    serializer::InitParametersFromKVStore(kvstore, "model_parameter", &mparam_);
+    serializer::InitParametersFromKVStore(kvstore, "train_parameter", &tparam_);
 
-    name_obj_ = serializer::Get<serializer::String>(r_kvstore["objective"]).GetString();
-    name_gbm_ = serializer::Get<serializer::String>(r_kvstore["booster"]).GetString();
+    name_obj_ = serializer::Get<serializer::String>(kvstore["objective"]).GetString();
+    name_gbm_ = serializer::Get<serializer::String>(kvstore["booster"]).GetString();
 
     obj_.reset(ObjFunction::Create(name_obj_));
     gbm_.reset(GradientBooster::Create(name_gbm_, cache_, mparam_.base_score));
 
     auto const& config_param_kvstore_map =
-        serializer::Get<serializer::Object const>(r_kvstore["configuration"]).GetObject();
+        serializer::Get<serializer::Object const>(kvstore["configuration"]).GetObject();
     for (auto const& param_pair : config_param_kvstore_map) {
       std::string key = param_pair.first;
       std::string const& value =
@@ -443,7 +442,7 @@ class LearnerImpl : public Learner {
     }
 
     obj_->Configure(cfg_.begin(), cfg_.end());
-    gbm_->Load(&r_kvstore["gbm"]);
+    gbm_->Load(kvstore["gbm"]);
   }
 
   // rabit save model to rabit checkpoint
