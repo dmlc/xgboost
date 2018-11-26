@@ -7,3 +7,6 @@
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub
+[submodule "3rdparty/rapidjson"]
+	path = 3rdparty/rapidjson
+	url = https://github.com/Tencent/rapidjson
