@@ -27,7 +27,7 @@ struct CsrCudf {
   size_t n_cols;
 };
 
-gdf_error RunConverter(gdf_column** gdf_data, CsrCudf* csr);
+void RunConverter(gdf_column** gdf_data, CsrCudf* csr);
 
 //--- private CUDA functions / kernels
 __global__ void cuda_create_csr_k
@@ -54,8 +54,7 @@ __device__ bool IsValid(gdf_valid_type* valid, int tid) {
 }
 
 // Convert a CUDF into a CSR CUDF
-gdf_error CUDFToCSR(gdf_column** cudf_data, int n_cols, CsrCudf* csr) {
-  gdf_error status = gdf_error::GDF_SUCCESS;
+void CUDFToCSR(gdf_column** cudf_data, int n_cols, CsrCudf* csr) {
   size_t n_rows = cudf_data[0]->size;
 
   // the first step is to create an array that counts the number of valid entries per row
@@ -88,11 +87,10 @@ gdf_error CUDFToCSR(gdf_column** cudf_data, int n_cols, CsrCudf* csr) {
   csr->n_nz = n_elements;
 
   // process based on data type
-  status = RunConverter(cudf_data, csr);
-  return status;
+  RunConverter(cudf_data, csr);
 }
 
-gdf_error RunConverter(gdf_column** cudf_data, CsrCudf* csr) {
+void RunConverter(gdf_column** cudf_data, CsrCudf* csr) {
   size_t n_cols = csr->n_cols;
   size_t n_rows = csr->n_rows;
   
@@ -113,7 +111,6 @@ gdf_error RunConverter(gdf_column** cudf_data, CsrCudf* csr) {
       dh::safe_cuda(cudaGetLastError());
     }
   }
-  return gdf_error::GDF_SUCCESS;
 }
 
 // move data over into CSR and possibly convert the format
@@ -167,8 +164,7 @@ void SimpleCSRSource::InitFromCUDF(gdf_column** cols, size_t n_cols) {
   csr.n_nz = 0;
   csr.n_rows = n_rows;
   csr.n_cols = n_cols;
-  gdf_error status = CUDFToCSR(cols, n_cols, &csr);
-  CHECK_EQ(status, gdf_error::GDF_SUCCESS);
+  CUDFToCSR(cols, n_cols, &csr);
 }
 
 }  // namespace data
