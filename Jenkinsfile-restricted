@@ -56,7 +56,7 @@ pipeline {
         stage('Jenkins: Build doc') {
             steps {
                 script {
-                    retry(3) {
+                    retry(1) {
                         node('linux && cpu && restricted') {
                             unstash name: 'srcs'
                             echo 'Building doc...'
@@ -99,7 +99,7 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
     }
     // Build node - this is returned result
-    retry(3) {
+    retry(1) {
         node(nodeReq) {
             unstash name: 'srcs'
             echo """
