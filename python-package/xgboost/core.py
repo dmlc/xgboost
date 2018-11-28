@@ -795,13 +795,15 @@ class DMatrix(object):
                                          ctypes.byref(ret)))
         return ret.value
 
-    def slice(self, rindex):
+    def slice(self, rindex, allow_groups=False):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
 
         Parameters
         ----------
         rindex : list
             List of indices to be selected.
+        allow_groups : boolean
+            Allow slicing of a matrix with a groups attribute
 
         Returns
         -------
@@ -814,7 +816,8 @@ class DMatrix(object):
         _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
                                                c_array(ctypes.c_int, rindex),
                                                c_bst_ulong(len(rindex)),
-                                               ctypes.byref(res.handle)))
+                                               ctypes.byref(res.handle),
+                                               ctypes.c_int(allow_groups)))
         return res
 
     @property
