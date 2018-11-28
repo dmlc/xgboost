@@ -1444,7 +1444,7 @@ class Booster(object):
             One of the importance types defined above.
         """
 
-        if self.booster != 'gbtree':
+        if getattr(self, 'booster', None) is not None and self.booster != 'gbtree':
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
 
