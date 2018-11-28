@@ -358,7 +358,7 @@ struct GPUSketcher {
       });
 
     // compute sketches for each shard
-    dh::ExecuteShards(&shards_, [&](std::unique_ptr<DeviceShard>& shard) {
+    dh::ExecuteIndexShards(&shards_, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
         shard->Init(batch, info);
         shard->Sketch(batch, info);
       });
