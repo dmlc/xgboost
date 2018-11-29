@@ -191,8 +191,8 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
             msg = ("Multiple eval metrics have been passed: "
                    "'{0}' will be used for early stopping.\n\n")
             rabit.tracker_print(msg.format(env.evaluation_result_list[-1][0]))
-        maximize_metrics = ('auc', 'map', 'ndcg')
-        maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
+        maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg')
+        maximize_at_n_metrics = ('auc@', 'aucpr@' 'map@', 'ndcg@')
         maximize_score = maximize
         metric_label = env.evaluation_result_list[-1][0]
         metric = metric_label.split('-', 1)[-1]

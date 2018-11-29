@@ -73,7 +73,7 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
     }
     def test_suite = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
     // Build node - this is returned result
-    retry(3) {
+    retry(1) {
         node(nodeReq) {
             unstash name: 'srcs'
             echo """
