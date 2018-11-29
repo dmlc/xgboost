@@ -11,8 +11,11 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <utility>
+
 #include "./data.h"
 #include "./base.h"
+#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
@@ -22,6 +25,23 @@ namespace xgboost {
 class Metric {
  public:
   /*!
+   * \brief Configure the Metric with the specified parameters.
+   * \param args arguments to the objective function.
+   */
+  virtual void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) {}
+  /*!
+   * \brief set configuration from pair iterators.
+   * \param begin The beginning iterator.
+   * \param end The end iterator.
+   * \tparam PairIter iterator<std::pair<std::string, std::string> >
+   */
+  template<typename PairIter>
+  inline void Configure(PairIter begin, PairIter end) {
+    std::vector<std::pair<std::string, std::string> > vec(begin, end);
+    this->Configure(vec);
+  }
+  /*!
    * \brief evaluate a specific metric
    * \param preds prediction
    * \param info information, including label etc.
@@ -29,7 +49,7 @@ class Metric {
    *        the average statistics across all the node,
    *        this is only supported by some metrics
    */
-  virtual bst_float Eval(const std::vector<bst_float>& preds,
+  virtual bst_float Eval(const HostDeviceVector<bst_float>& preds,
                          const MetaInfo& info,
                          bool distributed) const = 0;
   /*! \return name of metric */

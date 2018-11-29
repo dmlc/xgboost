@@ -127,7 +127,7 @@ inline bool CheckNAN(T v) {
 #endif
 }
 template<typename T>
-inline T LogGamma(T v) {
+XGBOOST_DEVICE inline T LogGamma(T v) {
 #ifdef _MSC_VER
 #if _MSC_VER >= 1800
   return lgamma(v);
