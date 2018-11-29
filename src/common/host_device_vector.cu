@@ -275,7 +275,7 @@ struct HostDeviceVectorImpl {
                                (end - begin) * sizeof(T),
                                cudaMemcpyDeviceToHost));
     } else {
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+    dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.ScatterFrom(begin.get());
       });
     }
@@ -288,7 +288,7 @@ struct HostDeviceVectorImpl {
                                data_h_.size() * sizeof(T),
                                cudaMemcpyHostToDevice));
     } else {
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.GatherTo(begin); });
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) { shard.GatherTo(begin); });
     }
   }
 
@@ -296,7 +296,7 @@ struct HostDeviceVectorImpl {
     if (perm_h_.CanWrite()) {
       std::fill(data_h_.begin(), data_h_.end(), v);
     } else {
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) { shard.Fill(v); });
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) { shard.Fill(v); });
     }
   }
 
@@ -323,7 +323,7 @@ struct HostDeviceVectorImpl {
     if (perm_h_.CanWrite()) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
           shard.ScatterFrom(other.data());
         });
     }
@@ -334,7 +334,7 @@ struct HostDeviceVectorImpl {
     if (perm_h_.CanWrite()) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
           shard.ScatterFrom(other.begin());
         });
     }
@@ -387,14 +387,14 @@ struct HostDeviceVectorImpl {
     if (perm_h_.CanAccess(access)) { return; }
     if (perm_h_.CanRead()) {
       // data is present, just need to deny access to the device
-      dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
           shard.perm_d_.DenyComplementary(access);
         });
       perm_h_.Grant(access);
       return;
     }
     if (data_h_.size() != size_d_) { data_h_.resize(size_d_); }
-    dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
+    dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.LazySyncHost(access);
       });
     perm_h_.Grant(access);

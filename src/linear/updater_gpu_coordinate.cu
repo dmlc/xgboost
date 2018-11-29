@@ -258,7 +258,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
 
     monitor.Start("UpdateGpair");
     // Update gpair
-    dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
+    dh::ExecuteIndexShards(&shards, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
       shard->UpdateGpair(in_gpair->ConstHostVector(), model->param);
     });
     monitor.Stop("UpdateGpair");
@@ -300,7 +300,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
       model->bias()[group_idx] += dbias;
 
       // Update residual
-      dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
+    dh::ExecuteIndexShards(&shards, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
         shard->UpdateBiasResidual(dbias, group_idx,
                                   model->param.num_output_group);
       });
@@ -324,7 +324,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
                                                  param.reg_lambda_denorm));
     w += dw;
 
-    dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
+    dh::ExecuteIndexShards(&shards, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
       shard->UpdateResidual(dw, group_idx, model->param.num_output_group, fidx);
     });
   }
