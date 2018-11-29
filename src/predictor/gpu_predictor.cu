@@ -337,10 +337,10 @@ class GPUPredictor : public xgboost::Predictor {
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
-      dh::ExecuteShards(&shards, [&](DeviceShard& shard){
-          shard.PredictInternal(batch, dmat->Info(), out_preds, model, h_tree_segments,
-                                h_nodes, tree_begin, tree_end);
-        });
+      dh::ExecuteIndexShards(&shards, [&](int idx, DeviceShard& shard) {
+        shard.PredictInternal(batch, dmat->Info(), out_preds, model,
+                              h_tree_segments, h_nodes, tree_begin, tree_end);
+      });
       i_batch++;
     }
   }
