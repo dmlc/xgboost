@@ -98,6 +98,7 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist) {
+      rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
