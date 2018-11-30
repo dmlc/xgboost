@@ -43,6 +43,10 @@ struct GHistEntry {
     sum_hess += e.sum_hess;
   }
 
+  inline static void Reduce(GHistEntry& a, const GHistEntry& b) { // NOLINT(*)
+    a.Add(b);
+  }
+
   /*! \brief set sum to be difference of two GHistEntry's */
   inline void SetSubtract(const GHistEntry& a, const GHistEntry& b) {
     sum_grad = a.sum_grad - b.sum_grad;
