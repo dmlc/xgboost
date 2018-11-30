@@ -14,6 +14,10 @@ ifndef RABIT
 	RABIT = rabit
 endif
 
+ifndef RAPID_JSON
+    RAPID_JSON = 3rdparty/rapidjson
+endif
+
 ROOTDIR = $(CURDIR)
 
 # workarounds for some buggy old make & msys2 versions seen in windows
@@ -69,7 +73,7 @@ endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
 export CFLAGS= -DDMLC_LOG_CUSTOMIZE=1 -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
-CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
+CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include -I$(RAPID_JSON)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 

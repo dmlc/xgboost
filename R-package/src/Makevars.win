@@ -28,7 +28,7 @@ ifeq ($(R_OSTYPE)$(WIN),windows)
 endif
 $(foreach v, $(XGB_RFLAGS), $(warning $(v)))
 
-PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT) $(XGB_RFLAGS)
+PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT)/3rdparty/rapidjson/include -I$(PKGROOT) $(XGB_RFLAGS)
 PKG_CXXFLAGS= $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
 OBJECTS= ./xgboost_R.o ./xgboost_custom.o ./xgboost_assert.o ./init.o\
