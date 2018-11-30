@@ -187,6 +187,33 @@ class LearnerImpl : public Learner {
 #endif
   }
 
+  /*! \brief Use heuristics to determine n_gpus. */
+  void ConfigureGpus() {
+    // n_gpus/gpu_id specified by user, no question asked.
+    if (cfg_.find("n_gpus") != cfg_.cend() ||
+        cfg_.find("gpu_id") != cfg_.cend()) {
+      return;
+    }
+
+    // gpu_predictor is used.
+    if (cfg_.find("predictor") != cfg_.cend() &&
+        cfg_.at("predictor") == "gpu_predictor") {
+      return;
+    }
+
+    // gpu updater is used.
+    std::vector<std::string> gpu_updaers =
+        {"grow_gpu,prune", "grow_gpu_hist", "gpu_coord_descent"};
+    if (cfg_.find("updater") != cfg_.cend() &&
+        std::find(gpu_updaers.cbegin(),
+                  gpu_updaers.cend(),
+                  cfg_.at("updater")) != gpu_updaers.cend()) {
+      return;
+    }
+
+    // No gpu component is specified, disable gpu.
+    cfg_["n_gpus"] = "0";
+  }
 
   /*! \brief Map `tree_method` parameter to `updater` parameter */
   void ConfigureUpdaters() {
@@ -261,6 +288,7 @@ class LearnerImpl : public Learner {
         cfg_[kv.first] = kv.second;
       }
     }
+
     if (tparam_.nthread != 0) {
       omp_set_num_threads(tparam_.nthread);
     }
@@ -291,6 +319,7 @@ class LearnerImpl : public Learner {
     }
 
     ConfigureUpdaters();
+    ConfigureGpus();
 
     if (!this->ModelInitialized()) {
       mparam_.InitAllowUnknown(args);
@@ -392,6 +421,8 @@ class LearnerImpl : public Learner {
       attributes_ =
           std::map<std::string, std::string>(attr.begin(), attr.end());
     }
+    ConfigureGpus();
+
     if (name_obj_ == "count:poisson") {
       std::string max_delta_step;
       fi->Read(&max_delta_step);
@@ -406,6 +437,7 @@ class LearnerImpl : public Learner {
     }
     cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+
     obj_->Configure(cfg_.begin(), cfg_.end());
   }
 

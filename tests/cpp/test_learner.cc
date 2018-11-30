@@ -45,4 +45,18 @@ TEST(learner, SelectTreeMethod) {
   delete mat_ptr;
 }
 
+TEST(learner, DetectGpuUsage) {
+  using Arg = std::pair<std::string, std::string>;
+  auto mat_ptr = CreateDMatrix(10, 10, 0);
+  std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
+  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+
+  learner->Configure({Arg("tree_method", "hist")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("n_gpus"), "0");
+
+  learner->Configure({Arg("predictor", "gpu_predictor")});
+  ASSERT_EQ(learner->GetConfigurationArguments().find("n_gpus"),
+            learner->GetConfigurationArguments().cend());
+}
+
 }  // namespace xgboost
