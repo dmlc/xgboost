@@ -17,7 +17,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
+#include <thrust/functional.h>  // thrust::plus<>
 #endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
@@ -126,7 +126,7 @@ class MetricsReduction {
       std::vector<PackedReduceResult> res_per_device(devices.Size());
 
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (GPUSet::GpuIdType id = *devices.begin(); id < devices.Size(); ++id) {
+      for (GPUSet::GpuIdType id = *devices.begin(); id < *devices.end(); ++id) {
         dh::safe_cuda(cudaSetDevice(id));
         res_per_device.at(devices.Index(id)) =
             DeviceReduceMetrics(id, weights, labels, preds);

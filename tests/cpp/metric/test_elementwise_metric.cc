@@ -93,14 +93,28 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
 
 #if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
 TEST(Metric, MGPU_RMSE) {
-  xgboost::Metric * metric = xgboost::Metric::Create("rmse");
-  metric->Configure({Arg{"n_gpus", "-1"}});
-  ASSERT_STREQ(metric->Name(), "rmse");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.6403f, 0.001f);
-  delete metric;
+  {
+    xgboost::Metric * metric = xgboost::Metric::Create("rmse");
+    metric->Configure({Arg{"n_gpus", "-1"}});
+    ASSERT_STREQ(metric->Name(), "rmse");
+    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+    EXPECT_NEAR(GetMetricEval(metric,
+                              {0.1f, 0.9f, 0.1f, 0.9f},
+                              {  0,   0,   1,   1}),
+                0.6403f, 0.001f);
+    delete metric;
+  }
+
+  {
+    xgboost::Metric * metric = xgboost::Metric::Create("rmse");
+    metric->Configure({Arg{"n_gpus", "-1"}, Arg{"gpu_id", "1"}});
+    ASSERT_STREQ(metric->Name(), "rmse");
+    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+    EXPECT_NEAR(GetMetricEval(metric,
+                              {0.1f, 0.9f, 0.1f, 0.9f},
+                              {  0,   0,   1,   1}),
+                0.6403f, 0.001f);
+    delete metric;
+  }
 }
 #endif
