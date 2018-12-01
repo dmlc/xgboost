@@ -6,6 +6,8 @@
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 
+#include "metric_param.h"
+
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
 }
@@ -34,6 +36,8 @@ Metric* Metric::Create(const std::string& name) {
 
 namespace xgboost {
 namespace metric {
+DMLC_REGISTER_PARAMETER(MetricParam);
+
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
