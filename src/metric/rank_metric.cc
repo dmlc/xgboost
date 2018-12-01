@@ -8,6 +8,10 @@
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
+
+#include <vector>
+
+#include "../common/host_device_vector.h"
 #include "../common/math.h"
 
 namespace xgboost {
@@ -26,18 +30,20 @@ struct EvalAMS : public Metric {
     os << "ams@" << ratio_;
     name_ = os.str();
   }
-  bst_float Eval(const std::vector<bst_float> &preds,
+
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK(!distributed) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
     std::vector<std::pair<bst_float, unsigned> > rec(ndata);
 
-    #pragma omp parallel for schedule(static)
+    const std::vector<bst_float>& h_preds = preds.HostVector();
+#pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
-      rec[i] = std::make_pair(preds[i], i);
+      rec[i] = std::make_pair(h_preds[i], i);
     }
     std::sort(rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
@@ -82,11 +88,11 @@ struct EvalAMS : public Metric {
 
 /*! \brief Area Under Curve, for both classification and rank */
 struct EvalAuc : public Metric {
-  bst_float Eval(const std::vector<bst_float> &preds,
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(info.labels_.Size());
@@ -101,10 +107,11 @@ struct EvalAuc : public Metric {
     // each thread takes a local rec
     std::vector< std::pair<bst_float, unsigned> > rec;
     const auto& labels = info.labels_.HostVector();
+    const std::vector<bst_float>& h_preds = preds.HostVector();
     for (bst_omp_uint k = 0; k < ngroup; ++k) {
       rec.clear();
       for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-        rec.emplace_back(preds[j], j);
+        rec.emplace_back(h_preds[j], j);
       }
       XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
       // calculate AUC
@@ -155,23 +162,25 @@ struct EvalAuc : public Metric {
 /*! \brief Evaluate rank list */
 struct EvalRankList : public Metric {
  public:
-  bst_float Eval(const std::vector<bst_float> &preds,
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
-    CHECK_EQ(preds.size(), info.labels_.Size())
+                 bool distributed) override {
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(preds.size());
+    tgptr[1] = static_cast<unsigned>(preds.Size());
     const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
     CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
-    CHECK_EQ(gptr.back(), preds.size())
+    CHECK_EQ(gptr.back(), preds.Size())
         << "EvalRanklist: group structure must match number of prediction";
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
     double sum_metric = 0.0f;
     const auto& labels = info.labels_.HostVector();
-    #pragma omp parallel reduction(+:sum_metric)
+
+    const std::vector<bst_float>& h_preds = preds.HostVector();
+#pragma omp parallel reduction(+:sum_metric)
     {
       // each thread takes a local rec
       std::vector< std::pair<bst_float, unsigned> > rec;
@@ -179,7 +188,7 @@ struct EvalRankList : public Metric {
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         rec.clear();
         for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-          rec.emplace_back(preds[j], static_cast<int>(labels[j]));
+          rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
         }
         sum_metric += this->EvalMetric(rec);
       }
@@ -311,9 +320,9 @@ struct EvalMAP : public EvalRankList {
 struct EvalCox : public Metric {
  public:
   EvalCox() = default;
-  bst_float Eval(const std::vector<bst_float> &preds,
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK(!distributed) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
@@ -322,8 +331,10 @@ struct EvalCox : public Metric {
 
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
+
+    const std::vector<bst_float>& h_preds = preds.HostVector();
     for (omp_ulong i = 0; i < ndata; ++i) {
-      exp_p_sum += preds[i];
+      exp_p_sum += h_preds[i];
     }
 
     double out = 0;
@@ -334,12 +345,12 @@ struct EvalCox : public Metric {
       const size_t ind = label_order[i];
       const auto label = labels[ind];
       if (label > 0) {
-        out -= log(preds[ind]) - log(exp_p_sum);
+        out -= log(h_preds[ind]) - log(exp_p_sum);
         ++num_events;
       }
 
       // only update the denominator after we move forward in time (labels are sorted)
-      accumulated_sum += preds[ind];
+      accumulated_sum += h_preds[ind];
       if (i == ndata - 1 || std::abs(label) < std::abs(labels[label_order[i + 1]])) {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;
@@ -360,10 +371,10 @@ struct EvalAucPR : public Metric {
   // translated from PRROC R Package
   // see https://doi.org/10.1371/journal.pone.0092209
 
-  bst_float Eval(const std::vector<bst_float> &preds, const MetaInfo &info,
-                 bool distributed) const override {
+  bst_float Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels_.Size())
+    CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(info.labels_.Size());
@@ -377,15 +388,17 @@ struct EvalAucPR : public Metric {
     int auc_error = 0, auc_gt_one = 0;
     // each thread takes a local rec
     std::vector<std::pair<bst_float, unsigned>> rec;
-    const auto& labels = info.labels_.HostVector();
+    const auto& h_labels = info.labels_.HostVector();
+    const std::vector<bst_float>& h_preds = preds.HostVector();
+
     for (bst_omp_uint k = 0; k < ngroup; ++k) {
       double total_pos = 0.0;
       double total_neg = 0.0;
       rec.clear();
       for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-        total_pos += info.GetWeight(j) * labels[j];
-        total_neg += info.GetWeight(j) * (1.0f - labels[j]);
-        rec.emplace_back(preds[j], j);
+        total_pos += info.GetWeight(j) * h_labels[j];
+        total_neg += info.GetWeight(j) * (1.0f - h_labels[j]);
+        rec.emplace_back(h_preds[j], j);
       }
       XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
       // we need pos > 0 && neg > 0
@@ -395,8 +408,8 @@ struct EvalAucPR : public Metric {
       // calculate AUC
       double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0, b = 0.0;
       for (size_t j = 0; j < rec.size(); ++j) {
-        tp += info.GetWeight(rec[j].second) * labels[rec[j].second];
-        fp += info.GetWeight(rec[j].second) * (1.0f - labels[rec[j].second]);
+        tp += info.GetWeight(rec[j].second) * h_labels[rec[j].second];
+        fp += info.GetWeight(rec[j].second) * (1.0f - h_labels[rec[j].second]);
         if ((j < rec.size() - 1 && rec[j].first != rec[j + 1].first) || j  == rec.size() - 1) {
           if (tp == prevtp) {
             a = 1.0;
@@ -471,4 +484,3 @@ XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .set_body([](const char* param) { return new EvalCox(); });
 }  // namespace metric
 }  // namespace xgboost
-
