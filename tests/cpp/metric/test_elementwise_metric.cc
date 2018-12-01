@@ -62,11 +62,13 @@ TEST(Metric, DeclareUnifiedTest(Error)) {
 
   EXPECT_ANY_THROW(xgboost::Metric::Create("error@abc"));
   delete metric;
+
   metric = xgboost::Metric::Create("error@0.5f");
   metric->Configure({N_GPU()});
   EXPECT_STREQ(metric->Name(), "error");
 
   delete metric;
+
   metric = xgboost::Metric::Create("error@0.1");
   metric->Configure({N_GPU()});
   ASSERT_STREQ(metric->Name(), "error@0.1");

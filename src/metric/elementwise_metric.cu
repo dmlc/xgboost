@@ -59,12 +59,10 @@ class MetricsReduction {
     bst_float residue_sum = 0;
     bst_float weights_sum = 0;
 
-    bst_float extra_parameter = policy_.GetExtra();
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
       const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
-      residue_sum +=
-          EvalRow::EvalRow(h_labels[i], h_preds[i], extra_parameter) * wt;
+      residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
       weights_sum += wt;
     }
     PackedReduceResult res { residue_sum, weights_sum };
@@ -88,7 +86,8 @@ class MetricsReduction {
     auto s_weights = weights.DeviceSpan(device_id);
 
     bool const is_null_weight = weights.Size() == 0;
-    bst_float extra_parameter = policy_.GetExtra();
+
+    auto d_policy = policy_;
 
     PackedReduceResult result = thrust::transform_reduce(
         thrust::device,
@@ -96,13 +95,13 @@ class MetricsReduction {
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
 
-          bst_float residue =
-              EvalRow::EvalRow(s_label[idx], s_preds[idx], extra_parameter);
+          bst_float residue = d_policy.EvalRow(s_label[idx], s_preds[idx]);
           residue *= weight;
           return PackedReduceResult{ residue, weight };
         },
         PackedReduceResult(),
         thrust::plus<PackedReduceResult>());
+
     return result;
   }
 
@@ -150,16 +149,13 @@ struct EvalRowRMSE {
     return "rmse";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float label, bst_float pred, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float diff = label - pred;
     return diff * diff;
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return std::sqrt(esum / wsum);
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalRowMAE {
@@ -167,15 +163,12 @@ struct EvalRowMAE {
     return "mae";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float label, bst_float pred, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs(label - pred);
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalRowLogLoss {
@@ -183,8 +176,7 @@ struct EvalRowLogLoss {
     return "logloss";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float y, bst_float py, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     const bst_float eps = 1e-16f;
     const bst_float pneg = 1.0f - py;
     if (py < eps) {
@@ -199,42 +191,45 @@ struct EvalRowLogLoss {
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalError {
   explicit EvalError(const char* param) {
     if (param != nullptr) {
-      std::ostringstream os;
-      os << "error";
       CHECK_EQ(sscanf(param, "%f", &threshold_), 1)
-        << "unable to parse the threshold value for the error metric";
-      if (threshold_ != 0.5f) os << '@' << threshold_;
-      name_ = os.str();
+          << "unable to parse the threshold value for the error metric";
+      has_param_ = true;
     } else {
       threshold_ = 0.5f;
-      name_ = "error";
+      has_param_ = false;
     }
   }
   const char *Name() const {
-    return name_.c_str();
+    static std::string name;
+    if (has_param_) {
+      std::ostringstream os;
+      os << "error";
+      if (threshold_ != 0.5f) os << '@' << threshold_;
+      name = os.str();
+      return name.c_str();
+    } else {
+      return "error";
+    }
   }
 
-  XGBOOST_DEVICE bst_float static EvalRow(
-      bst_float label, bst_float pred, bst_float thresh) {
+  XGBOOST_DEVICE bst_float EvalRow(
+      bst_float label, bst_float pred) const {
     // assume label is in [0,1]
-    return pred > thresh ? 1.0f - label : label;
+    return pred > threshold_ ? 1.0f - label : label;
   }
 
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-  bst_float GetExtra() const { return threshold_; }
 
  private:
   bst_float threshold_;
-  std::string name_;
+  bool has_param_;
 };
 
 struct EvalPoissonNegLogLik {
@@ -242,8 +237,7 @@ struct EvalPoissonNegLogLik {
     return "poisson-nloglik";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float y, bst_float py, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     const bst_float eps = 1e-16f;
     if (py < eps) py = eps;
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
@@ -252,8 +246,6 @@ struct EvalPoissonNegLogLik {
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalGammaDeviance {
@@ -261,8 +253,7 @@ struct EvalGammaDeviance {
     return "gamma-deviance";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float label, bst_float pred, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float epsilon = 1.0e-9;
     bst_float tmp = label / (pred + epsilon);
     return tmp - std::log(tmp) - 1;
@@ -270,8 +261,6 @@ struct EvalGammaDeviance {
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return 2 * esum;
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalGammaNLogLik {
@@ -279,8 +268,7 @@ struct EvalGammaNLogLik {
     return "gamma-nloglik";
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float y, bst_float py, bst_float /*extra*/) {
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
     bst_float psi = 1.0;
     bst_float theta = -1. / py;
     bst_float a = psi;
@@ -291,8 +279,6 @@ struct EvalGammaNLogLik {
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-
-  bst_float GetExtra() const { return 0; }
 };
 
 struct EvalTweedieNLogLik {
@@ -302,27 +288,25 @@ struct EvalTweedieNLogLik {
     rho_ = atof(param);
     CHECK(rho_ < 2 && rho_ >= 1)
         << "tweedie variance power must be in interval [1, 2)";
-    std::ostringstream os;
-    os << "tweedie-nloglik@" << rho_;
-    name_ = os.str();
   }
   const char *Name() const {
-    return name_.c_str();
+    static std::string name;
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << rho_;
+    name = os.str();
+    return name.c_str();
   }
 
-  XGBOOST_DEVICE static bst_float EvalRow(
-      bst_float y, bst_float p, bst_float rho) {
-    bst_float a = y * std::exp((1 - rho) * std::log(p)) / (1 - rho);
-    bst_float b = std::exp((2 - rho) * std::log(p)) / (2 - rho);
+  XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float p) const {
+    bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
+    bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
-  bst_float GetExtra() const { return rho_; }
 
  protected:
-  std::string name_;
   bst_float rho_;
 };
 /*!
