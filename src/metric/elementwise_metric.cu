@@ -122,7 +122,10 @@ class MetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      allocators_.resize(devices.Size());
+      if (allocators_.size() != devices.Size()) {
+        allocators_.clear();
+        allocators_.resize(devices.Size());
+      }
       preds.Reshard(devices);
       labels.Reshard(devices);
       weights.Reshard(devices);
