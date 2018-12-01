@@ -51,7 +51,7 @@ class Metric {
    */
   virtual bst_float Eval(const HostDeviceVector<bst_float>& preds,
                          const MetaInfo& info,
-                         bool distributed) const = 0;
+                         bool distributed) = 0;
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */

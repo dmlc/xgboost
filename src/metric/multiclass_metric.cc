@@ -22,7 +22,7 @@ template<typename Derived>
 struct EvalMClassBase : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK(preds.Size() % info.labels_.Size() == 0)
         << "label and prediction size not match";

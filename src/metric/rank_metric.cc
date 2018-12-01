@@ -33,7 +33,7 @@ struct EvalAMS : public Metric {
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK(!distributed) << "metric AMS do not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
@@ -90,7 +90,7 @@ struct EvalAMS : public Metric {
 struct EvalAuc : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
@@ -164,7 +164,7 @@ struct EvalRankList : public Metric {
  public:
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
     // quick consistency when group is not available
@@ -322,7 +322,7 @@ struct EvalCox : public Metric {
   EvalCox() = default;
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK(!distributed) << "Cox metric does not support distributed evaluation";
     using namespace std;  // NOLINT(*)
 
@@ -372,7 +372,7 @@ struct EvalAucPR : public Metric {
   // see https://doi.org/10.1371/journal.pone.0092209
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";

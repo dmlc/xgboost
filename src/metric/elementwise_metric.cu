@@ -18,6 +18,8 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>  // thrust::plus<>
+
+#include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
@@ -73,9 +75,10 @@ class MetricsReduction {
 
   PackedReduceResult DeviceReduceMetrics(
       GPUSet::GpuIdType device_id,
+      size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds) const {
+      const HostDeviceVector<bst_float>& preds) {
     size_t n_data = preds.DeviceSize(device_id);
 
     thrust::counting_iterator<size_t> begin(0);
@@ -90,7 +93,7 @@ class MetricsReduction {
     auto d_policy = policy_;
 
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::device,
+        thrust::cuda::par(allocators_.at(device_index)),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -111,7 +114,7 @@ class MetricsReduction {
       GPUSet devices,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds) const {
+      const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
     if (devices.IsEmpty()) {
@@ -119,6 +122,7 @@ class MetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
+      allocators_.resize(devices.Size());
       preds.Reshard(devices);
       labels.Reshard(devices);
       weights.Reshard(devices);
@@ -127,8 +131,9 @@ class MetricsReduction {
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
       for (GPUSet::GpuIdType id = *devices.begin(); id < *devices.end(); ++id) {
         dh::safe_cuda(cudaSetDevice(id));
-        res_per_device.at(devices.Index(id)) =
-            DeviceReduceMetrics(id, weights, labels, preds);
+        size_t index = devices.Index(id);
+        res_per_device.at(index) =
+            DeviceReduceMetrics(id, index, weights, labels, preds);
       }
 
       for (size_t i = 0; i < devices.Size(); ++i) {
@@ -142,6 +147,9 @@ class MetricsReduction {
 
  private:
   EvalRow policy_;
+#if defined(XGBOOST_USE_CUDA)
+  std::vector<dh::CubMemory> allocators_;
+#endif
 };
 
 struct EvalRowRMSE {
@@ -326,7 +334,7 @@ struct EvalEWiseBase : public Metric {
 
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
-                 bool distributed) const override {
+                 bool distributed) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
