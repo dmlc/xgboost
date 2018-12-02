@@ -8,10 +8,12 @@
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
+
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
+
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
