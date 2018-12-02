@@ -8,13 +8,11 @@
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
-#include <dmlc/timer.h>
 
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./hist_util.h"
 #include "./quantile.h"
-#include <immintrin.h>
 
 #if defined(_MSC_VER) || defined(__INTEL_COMPILER)
     #include <immintrin.h>
