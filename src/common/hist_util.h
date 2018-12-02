@@ -21,9 +21,9 @@ namespace common {
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {
   /*! \brief sum of first-order gradient statistics */
-  double sum_grad{0};
+  float sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
-  double sum_hess{0};
+  float sum_hess{0};
 
   GHistEntry()  = default;
 
@@ -238,6 +238,7 @@ class GHistBuilder {
   inline void Init(size_t nthread, uint32_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
+    thread_init_.resize(nthread_);
   }
 
   // construct a histogram via histogram aggregation
@@ -259,6 +260,7 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   uint32_t nbins_;
   std::vector<GHistEntry> data_;
+  std::vector<size_t> thread_init_;
 };
 
 

@@ -8,11 +8,20 @@
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
+#include <dmlc/timer.h>
 
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./hist_util.h"
 #include "./quantile.h"
+#include <immintrin.h>
+
+#if defined(_MSC_VER) || defined(__INTEL_COMPILER)
+    #include <immintrin.h>
+    #define PREFETCH_READ_T0(addr) _mm_prefetch((char *)addr, _MM_HINT_T0)
+#else
+    #define PREFETCH_READ_T0(addr) __builtin_prefetch((char *)addr, 0, 3)
+#endif
 
 namespace xgboost {
 namespace common {
@@ -399,56 +408,82 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
                              GHistRow hist) {
-  data_.resize(nbins_ * nthread_, GHistEntry());
-  std::fill(data_.begin(), data_.end(), GHistEntry());
-
-  constexpr int kUnroll = 8;  // loop unrolling factor
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-  const size_t nrows = row_indices.end - row_indices.begin;
-  const size_t rest = nrows % kUnroll;
+  data_.resize(nbins_ * nthread_);
 
-  #pragma omp parallel for num_threads(nthread) schedule(guided)
-  for (bst_omp_uint i = 0; i < nrows - rest; i += kUnroll) {
-    const bst_omp_uint tid = omp_get_thread_num();
-    const size_t off = tid * nbins_;
-    size_t rid[kUnroll];
-    size_t ibegin[kUnroll];
-    size_t iend[kUnroll];
-    GradientPair stat[kUnroll];
-    for (int k = 0; k < kUnroll; ++k) {
-      rid[k] = row_indices.begin[i + k];
+  const size_t* rid =  row_indices.begin;
+  const size_t nrows = row_indices.Size();
+  const uint32_t* index = gmat.index.data();
+  const size_t* row_ptr =  gmat.row_ptr.data();
+  const float* pgh = (float*)gpair.data();
+
+  float* hist_data = (float*)hist.begin;
+  float* data = (float*)data_.data();
+
+  const size_t block_size = 512;
+  size_t n_blocks = nrows/block_size;
+  n_blocks += !!(nrows - n_blocks*block_size);
+
+  const size_t nthread_to_process = std::min((size_t)nthread, (size_t)n_blocks);
+  memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
+
+  #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
+  for (size_t iblock = 0; iblock < n_blocks; iblock++) {
+    dmlc::omp_uint tid = omp_get_thread_num();
+    float* data_local_hist = ((nthread_to_process == 1) ? hist_data : (float*)(data_.data() + tid * nbins_));
+
+    if (!thread_init_[tid]) {
+      memset(data_local_hist, '\0', 2*nbins_*sizeof(float));
+      thread_init_[tid] = true;
     }
-    for (int k = 0; k < kUnroll; ++k) {
-      ibegin[k] = gmat.row_ptr[rid[k]];
-      iend[k] = gmat.row_ptr[rid[k] + 1];
-    }
-    for (int k = 0; k < kUnroll; ++k) {
-      stat[k] = gpair[rid[k]];
-    }
-    for (int k = 0; k < kUnroll; ++k) {
-      for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-        const uint32_t bin = gmat.index[j];
-        data_[off + bin].Add(stat[k]);
+
+    const size_t istart = iblock*block_size;
+    const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
+    for(size_t i = istart; i < iend; ++i) {
+      const size_t icol_start = row_ptr[rid[i]];
+      const size_t icol_end = row_ptr[rid[i]+1];
+
+      PREFETCH_READ_T0(row_ptr + rid[i+10]);
+      PREFETCH_READ_T0(pgh + 2*rid[i+10]);
+
+      for (size_t j = icol_start; j < icol_end; ++j) {
+        const uint32_t idx_bin = 2*index[j];
+        const size_t idx_gh = 2*rid[i];
+
+        data_local_hist[idx_bin] += pgh[idx_gh];
+        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
       }
     }
   }
-  for (size_t i = nrows - rest; i < nrows; ++i) {
-    const size_t rid = row_indices.begin[i];
-    const size_t ibegin = gmat.row_ptr[rid];
-    const size_t iend = gmat.row_ptr[rid + 1];
-    const GradientPair stat = gpair[rid];
-    for (size_t j = ibegin; j < iend; ++j) {
-      const uint32_t bin = gmat.index[j];
-      data_[bin].Add(stat);
-    }
-  }
 
-  /* reduction */
-  const uint32_t nbins = nbins_;
-  #pragma omp parallel for num_threads(nthread) schedule(static)
-  for (bst_omp_uint bin_id = 0; bin_id < bst_omp_uint(nbins); ++bin_id) {
-    for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
-      hist.begin[bin_id].Add(data_[tid * nbins_ + bin_id]);
+  if(nthread_to_process > 1) {
+    const size_t size = (2*nbins_);
+    const size_t block_size = 1024;
+    size_t n_blocks = size/block_size;
+    n_blocks += !!(size - n_blocks*block_size);
+
+    size_t n_worked_bins = 0;
+    for(size_t i = 0; i < nthread_to_process; ++i) {
+      if (thread_init_[i]) {
+        thread_init_[n_worked_bins++] = i;
+      }
+    }
+
+    const size_t nthreads_for_merge = std::min((size_t)nthread, (size_t)n_blocks);
+    #pragma omp parallel for num_threads(nthreads_for_merge) schedule(guided)
+    for (size_t iblock = 0; iblock < n_blocks; iblock++) {
+      const size_t istart = iblock*block_size;
+      const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
+
+      const size_t bin = 2*thread_init_[0]*nbins_;
+      memcpy(hist_data + istart, (data + bin + istart), sizeof(float)*(iend - istart));
+
+      for(size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
+        const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
+        for(size_t i = istart; i < iend; i++) {
+          hist_data[i] += data[bin + i];
+        }
+      }
     }
   }
 }
