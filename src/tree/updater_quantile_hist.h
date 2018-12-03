@@ -98,7 +98,6 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist) {
-      rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
@@ -232,6 +231,8 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
+
+
 };
 
 }  // namespace tree
