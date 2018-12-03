@@ -87,11 +87,11 @@ void HistCutMatrix::Init
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
-    WXQSketch::SummaryContainer a;
-    a.Reserve(max_num_bins);
-    a.SetPrune(summary_array[fid], max_num_bins);
-    const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - (fabs(mval) + 1e-5);
+    WXQSketch::SummaryContainer a = summary_array[fid];
+    // a.Reserve(max_num_bins * kFactor);
+    // a.SetPrune(summary_array[fid], max_num_bins * kFactor);
+    const bst_float mval = a.data[fid].value;
+    this->min_val[fid] = mval - (fabs(mval) + 1e-6);
     if (a.size > 1 && a.size <= 16) {
       /* specialized code categorial / ordinal data -- use midpoints */
       for (size_t i = 1; i < a.size; ++i) {
@@ -112,7 +112,7 @@ void HistCutMatrix::Init
     if (a.size != 0) {
       bst_float cpt = a.data[a.size - 1].value;
       // this must be bigger than last value in a scale
-      bst_float last = cpt + (fabs(cpt) + 1e-5);
+      bst_float last = cpt + (fabs(cpt) + 1e-6);
       cut.push_back(last);
     }
 
