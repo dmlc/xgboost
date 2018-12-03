@@ -12,6 +12,7 @@
 #include <vector>
 #include <limits>
 #include <map>
+#include <memory>
 #include <numeric>
 #include <random>
 #include "host_device_vector.h"
@@ -81,21 +82,27 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  */
 
 class ColumnSampler {
-  HostDeviceVector<int> feature_set_tree_;
-  std::map<int, HostDeviceVector<int>> feature_set_level_;
+  std::shared_ptr<HostDeviceVector<int>> feature_set_tree_;
+  std::map<int, std::shared_ptr<HostDeviceVector<int>>> feature_set_level_;
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
+  float colsample_bynode_{1.0f};
 
-  std::vector<int> ColSample(std::vector<int> features, float colsample) const {
+  std::shared_ptr<HostDeviceVector<int>> ColSample
+    (std::shared_ptr<HostDeviceVector<int>> features, float colsample) const {
     if (colsample == 1.0f) return features;
-    CHECK_GT(features.size(), 0);
-    int n = std::max(1, static_cast<int>(colsample * features.size()));
+    const auto& features_h = features->ConstHostVector();
+    CHECK_GT(features_h.size(), 0);
+    int n = std::max(1, static_cast<int>(colsample * features_h.size()));
+    auto new_features = std::make_shared<HostDeviceVector<int>>();
+    auto& new_features_h = new_features->HostVector();
+    new_features_h.resize(features_h.size());
+    std::copy(features_h.begin(), features_h.end(), new_features_h.begin());
+    std::shuffle(new_features_h.begin(), new_features_h.end(), common::GlobalRandom());
+    new_features_h.resize(n);
+    std::sort(new_features_h.begin(), new_features_h.end());
 
-    std::shuffle(features.begin(), features.end(), common::GlobalRandom());
-    features.resize(n);
-    std::sort(features.begin(), features.end());
-
-    return features;
+    return new_features;
   }
 
  public:
@@ -107,40 +114,48 @@ class ColumnSampler {
    * \param colsample_bytree
    * \param skip_index_0      (Optional) True to skip index 0.
    */
-  void Init(int64_t num_col, float colsample_bylevel, float colsample_bytree,
-            bool skip_index_0 = false) {
-    this->colsample_bylevel_ = colsample_bylevel;
-    this->colsample_bytree_ = colsample_bytree;
-    this->Reset();
+  void Init(int64_t num_col, float colsample_bynode, float colsample_bylevel,
+            float colsample_bytree, bool skip_index_0 = false) {
+    colsample_bylevel_ = colsample_bylevel;
+    colsample_bytree_ = colsample_bytree;
+    colsample_bynode_ = colsample_bynode;
+
+    if (feature_set_tree_ == nullptr) {
+      feature_set_tree_ = std::make_shared<HostDeviceVector<int>>();
+    }
+    Reset();
 
     int begin_idx = skip_index_0 ? 1 : 0;
-    auto& feature_set_h = feature_set_tree_.HostVector();
+    auto& feature_set_h = feature_set_tree_->HostVector();
     feature_set_h.resize(num_col - begin_idx);
-
     std::iota(feature_set_h.begin(), feature_set_h.end(), begin_idx);
-    feature_set_h = ColSample(feature_set_h, this->colsample_bytree_);
+
+    feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
 
   /**
    * \brief Resets this object.
    */
   void Reset() {
-    feature_set_tree_.HostVector().clear();
+    feature_set_tree_->HostVector().clear();
     feature_set_level_.clear();
   }
 
-  HostDeviceVector<int>& GetFeatureSet(int depth) {
-    if (this->colsample_bylevel_ == 1.0f) {
+  std::shared_ptr<HostDeviceVector<int>> GetFeatureSet(int depth) {
+    if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
     }
 
     if (feature_set_level_.count(depth) == 0) {
       // Level sampling, level does not yet exist so generate it
-      auto& level = feature_set_level_[depth].HostVector();
-      level = ColSample(feature_set_tree_.HostVector(), this->colsample_bylevel_);
+      feature_set_level_[depth] = ColSample(feature_set_tree_, colsample_bylevel_);
     }
-    // Level sampling
-    return feature_set_level_[depth];
+    if (colsample_bynode_ == 1.0f) {
+      // Level sampling
+      return feature_set_level_[depth];
+    }
+    // Need to sample for the node individually
+    return ColSample(feature_set_level_[depth], colsample_bynode_);
   }
 };
 

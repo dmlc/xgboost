@@ -354,11 +354,11 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     p_last_fmat_ = &fmat;
     // initialize feature index
     if (data_layout_ == kDenseDataOneBased) {
-      column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
-                           param_.colsample_bytree, true);
+      column_sampler_.Init(info.num_col_, param_.colsample_bynode,
+                           param_.colsample_bylevel, param_.colsample_bytree, true);
     } else {
-      column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
-                           param_.colsample_bytree, false);
+      column_sampler_.Init(info.num_col_, param_.colsample_bynode,
+                           param_.colsample_bylevel, param_.colsample_bytree,  false);
     }
   }
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
@@ -400,8 +400,8 @@ void QuantileHistMaker::Builder::EvaluateSplit(int nid,
                                            const RegTree& tree) {
   // start enumeration
   const MetaInfo& info = fmat.Info();
-  const auto& feature_set = column_sampler_.GetFeatureSet(
-      tree.GetDepth(nid)).HostVector();
+  auto p_feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
+  const auto& feature_set = p_feature_set->ConstHostVector();
   const auto nfeature = static_cast<bst_uint>(feature_set.size());
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   best_split_tloc_.resize(nthread);

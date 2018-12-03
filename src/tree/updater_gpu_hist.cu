@@ -977,7 +977,8 @@ class GPUHistMaker : public TreeUpdater {
     }
     monitor_.Stop("InitDataOnce", dist_.Devices());
 
-    column_sampler_.Init(info_->num_col_, param_.colsample_bylevel, param_.colsample_bytree);
+    column_sampler_.Init(info_->num_col_, param_.colsample_bynode,
+                         param_.colsample_bylevel, param_.colsample_bytree);
 
     // Copy gpair & reset memory
     monitor_.Start("InitDataReset", dist_.Devices());
@@ -1057,7 +1058,7 @@ class GPUHistMaker : public TreeUpdater {
 
   DeviceSplitCandidate EvaluateSplit(int nidx, RegTree* p_tree) {
     return shards_.front()->EvaluateSplit(
-        nidx, column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
+        nidx, *column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
         node_value_constraints_[nidx]);
   }
 
