@@ -381,6 +381,7 @@ class LearnerImpl : public Learner {
           if (saved_param == "predictor" || saved_param == "n_gpus"
               || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
+            if(tparam_.debug_verbose > 0) {
             LOG(INFO)
               << "Parameter '" << saved_param << "' has been recovered from "
               << "the saved model. It will be set to "
@@ -393,11 +394,14 @@ class LearnerImpl : public Learner {
               << saved_param << " = [new value])\n"
               << "  * JVM packages:   bst.setParam(\""
               << saved_param << "\", [new value])";
+            }
           }
 #else
           if (saved_param == "predictor" && kv.second == "gpu_predictor") {
+            if(tparam_.debug_verbose > 0) {
             LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
                       << "since XGBoost wasn't compiled with GPU support.";
+            }
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
