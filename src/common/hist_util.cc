@@ -84,16 +84,18 @@ void HistCutMatrix::Init
     summary_array[i].SetPrune(out, max_num_bins * kFactor);
   }
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
-  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+  if (summary_array.size() != 0) {
+      sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+  }
 
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
-    WXQSketch::SummaryContainer a;
-    a.Reserve(max_num_bins);
-    a.SetPrune(summary_array[fid], max_num_bins);
-    const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - (fabs(mval) + 1e-5);
+    WXQSketch::SummaryContainer a = summary_array[fid];
+    // a.Reserve(max_num_bins * kFactor);
+    // a.SetPrune(summary_array[fid], max_num_bins * kFactor);
+    const bst_float mval = a.data[fid].value;
+    this->min_val[fid] = mval - (fabs(mval) + 1e-6);
     if (a.size > 1 && a.size <= 16) {
       /* specialized code categorial / ordinal data -- use midpoints */
       for (size_t i = 1; i < a.size; ++i) {
@@ -114,7 +116,7 @@ void HistCutMatrix::Init
     if (a.size != 0) {
       bst_float cpt = a.data[a.size - 1].value;
       // this must be bigger than last value in a scale
-      bst_float last = cpt + (fabs(cpt) + 1e-5);
+      bst_float last = cpt + (fabs(cpt) + 1e-6);
       cut.push_back(last);
     }
 
@@ -479,14 +481,14 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
 
     #pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
     for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
-      const size_t istart = iblock*block_size;
-      const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
+      const size_t istart = iblock * block_size;
+      const size_t iend = (((iblock + 1) * block_size > size) ? size : istart + block_size);
 
-      const size_t bin = 2*thread_init_[0]*nbins_;
-      memcpy(hist_data + istart, (data + bin + istart), sizeof(double)*(iend - istart));
+      const size_t bin = 2 * thread_init_[0] * nbins_;
+      memcpy(hist_data + istart, (data + bin + istart), sizeof(double) * (iend - istart));
 
       for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
-        const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
+        const size_t bin = 2 * thread_init_[i_bin_part] * nbins_;
         for (size_t i = istart; i < iend; i++) {
           hist_data[i] += data[bin + i];
         }

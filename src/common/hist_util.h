@@ -258,6 +258,10 @@ class GHistBuilder {
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
+  uint32_t GetNumBins() {
+      return nbins_;
+  };
+
  private:
   /*! \brief number of threads for parallel computation */
   size_t nthread_;

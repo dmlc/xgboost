@@ -100,13 +100,12 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist) {
-      rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
-      histred_.Allreduce(hist.begin, hist.size);
+      this->histred_.Allreduce(hist.begin, hist_builder_.GetNumBins());
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
@@ -227,11 +226,17 @@ class QuantileHistMaker: public TreeUpdater {
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
+
+
+    rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
+
   };
 
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
+
+
 };
 
 }  // namespace tree
