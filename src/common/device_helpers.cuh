@@ -945,6 +945,32 @@ class AllReducer {
   }
 
   /**
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing
+   * streams or comms.
+   *
+   * \param communication_group_idx Zero-based index of the communication group.
+   * \param sendbuff                The sendbuff.
+   * \param recvbuff                The recvbuff.
+   * \param count                   Number of elements.
+   */
+
+  void AllReduceSum(int communication_group_idx, const float *sendbuff,
+                    float *recvbuff, int count) {
+#ifdef XGBOOST_USE_NCCL
+    CHECK(initialised_);
+    dh::safe_cuda(cudaSetDevice(device_ordinals.at(communication_group_idx)));
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum,
+                                comms.at(communication_group_idx),
+                                streams.at(communication_group_idx)));
+    if(communication_group_idx == 0)
+    {
+      allreduce_bytes_ += count * sizeof(float);
+      allreduce_calls_ += 1;
+    }
+#endif
+  }
+
+  /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing streams or comms.
    *
    * \param count Number of.
