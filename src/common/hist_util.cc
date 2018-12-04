@@ -426,7 +426,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
-  for (size_t iblock = 0; iblock < n_blocks; iblock++) {
+  for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
     dmlc::omp_uint tid = omp_get_thread_num();
     double* data_local_hist = ((nthread_to_process == 1) ? hist_data : (double*)(data_.data() + tid * nbins_));
 
@@ -441,8 +441,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t icol_start = row_ptr[rid[i]];
       const size_t icol_end = row_ptr[rid[i]+1];
 
-      PREFETCH_READ_T0(row_ptr + rid[i+10]);
-      PREFETCH_READ_T0(pgh + 2*rid[i+10]);
+      if (i < iend-10) PREFETCH_READ_T0(row_ptr + rid[i+10]);
+      if (i < iend-10) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
 
       for (size_t j = icol_start; j < icol_end; ++j) {
         const uint32_t idx_bin = 2*index[j];
@@ -469,7 +469,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
 
     const size_t nthreads_for_merge = std::min((size_t)nthread, (size_t)n_blocks);
     #pragma omp parallel for num_threads(nthreads_for_merge) schedule(guided)
-    for (size_t iblock = 0; iblock < n_blocks; iblock++) {
+    for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
       const size_t istart = iblock*block_size;
       const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
 
