@@ -21,9 +21,9 @@ namespace common {
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {
   /*! \brief sum of first-order gradient statistics */
-  float sum_grad{0};
+  double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
-  float sum_hess{0};
+  double sum_hess{0};
 
   GHistEntry()  = default;
 

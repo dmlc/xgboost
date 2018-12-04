@@ -415,8 +415,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t* row_ptr =  gmat.row_ptr.data();
   const float* pgh = (float*)gpair.data();
 
-  float* hist_data = (float*)hist.begin;
-  float* data = (float*)data_.data();
+  double* hist_data = (double*)hist.begin;
+  double* data = (double*)data_.data();
 
   const size_t block_size = 512;
   size_t n_blocks = nrows/block_size;
@@ -428,10 +428,10 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
   for (size_t iblock = 0; iblock < n_blocks; iblock++) {
     dmlc::omp_uint tid = omp_get_thread_num();
-    float* data_local_hist = ((nthread_to_process == 1) ? hist_data : (float*)(data_.data() + tid * nbins_));
+    double* data_local_hist = ((nthread_to_process == 1) ? hist_data : (double*)(data_.data() + tid * nbins_));
 
     if (!thread_init_[tid]) {
-      memset(data_local_hist, '\0', 2*nbins_*sizeof(float));
+      memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
       thread_init_[tid] = true;
     }
 
@@ -474,7 +474,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
 
       const size_t bin = 2*thread_init_[0]*nbins_;
-      memcpy(hist_data + istart, (data + bin + istart), sizeof(float)*(iend - istart));
+      memcpy(hist_data + istart, (data + bin + istart), sizeof(double)*(iend - istart));
 
       for(size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
         const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
