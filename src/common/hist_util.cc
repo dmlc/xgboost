@@ -16,9 +16,9 @@
 
 #if defined(_MSC_VER) || defined(__INTEL_COMPILER)
     #include <immintrin.h>
-    #define PREFETCH_READ_T0(addr) _mm_prefetch((char *)addr, _MM_HINT_T0)
+    #define PREFETCH_READ_T0(addr) _mm_prefetch(addr, _MM_HINT_T0)
 #else
-    #define PREFETCH_READ_T0(addr) __builtin_prefetch((char *)addr, 0, 3)
+    #define PREFETCH_READ_T0(addr) __builtin_prefetch(addr, 0, 3)
 #endif
 
 namespace xgboost {
@@ -413,10 +413,10 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t nrows = row_indices.Size();
   const uint32_t* index = gmat.index.data();
   const size_t* row_ptr =  gmat.row_ptr.data();
-  const float* pgh = (float*)gpair.data();
+  const float* pgh = reinterpret_cast<const float*>(gpair.data());
 
-  double* hist_data = (double*)hist.begin;
-  double* data = (double*)data_.data();
+  double* hist_data = reinterpret_cast<double*>(hist.begin);
+  double* data = reinterpret_cast<double*>(data_.data());
 
   const size_t block_size = 512;
   size_t n_blocks = nrows/block_size;
@@ -428,7 +428,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
   for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
     dmlc::omp_uint tid = omp_get_thread_num();
-    double* data_local_hist = ((nthread_to_process == 1) ? hist_data : (double*)(data_.data() + tid * nbins_));
+    double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
+            reinterpret_cast<double*>(data_.data() + tid * nbins_));
 
     if (!thread_init_[tid]) {
       memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
@@ -437,12 +438,12 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
 
     const size_t istart = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
-    for(size_t i = istart; i < iend; ++i) {
+    for (size_t i = istart; i < iend; ++i) {
       const size_t icol_start = row_ptr[rid[i]];
       const size_t icol_end = row_ptr[rid[i]+1];
 
-      if (i < iend-10) PREFETCH_READ_T0(row_ptr + rid[i+10]);
-      if (i < iend-10) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
+      if (i < nrows-16) PREFETCH_READ_T0(row_ptr + rid[i+10]);
+      if (i < nrows-16) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
 
       for (size_t j = icol_start; j < icol_end; ++j) {
         const uint32_t idx_bin = 2*index[j];
@@ -454,14 +455,14 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
     }
   }
 
-  if(nthread_to_process > 1) {
+  if (nthread_to_process > 1) {
     const size_t size = (2*nbins_);
     const size_t block_size = 1024;
     size_t n_blocks = size/block_size;
     n_blocks += !!(size - n_blocks*block_size);
 
     size_t n_worked_bins = 0;
-    for(size_t i = 0; i < nthread_to_process; ++i) {
+    for (size_t i = 0; i < nthread_to_process; ++i) {
       if (thread_init_[i]) {
         thread_init_[n_worked_bins++] = i;
       }
@@ -476,9 +477,9 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t bin = 2*thread_init_[0]*nbins_;
       memcpy(hist_data + istart, (data + bin + istart), sizeof(double)*(iend - istart));
 
-      for(size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
+      for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
         const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
-        for(size_t i = istart; i < iend; i++) {
+        for (size_t i = istart; i < iend; i++) {
           hist_data[i] += data[bin + i];
         }
       }
