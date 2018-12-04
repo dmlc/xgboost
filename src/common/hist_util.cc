@@ -495,17 +495,16 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   }
 }
 
+
 void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t* rid,
     const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
     GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat_global) {
   GradStatHist grad_stat;  // make local var to prevent false sharing
 
   const size_t n_features = row_ptr[rid[istart]+1] - row_ptr[rid[istart]];
-
   const size_t cache_line_size = 64;
   const size_t prefetch_step = cache_line_size / sizeof(*index);
   const size_t prefetch_offset = 10;
-
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
@@ -535,7 +534,6 @@ void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t*
     for (size_t i = istart; i < iend; ++i) {
       const size_t icol_start = rid[i] * n_features;
       const size_t idx_gh = 2*rid[i];
-
       grad_stat.sum_grad += pgh[idx_gh];
       grad_stat.sum_hess += pgh[idx_gh+1];
 
