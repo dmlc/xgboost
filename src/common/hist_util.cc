@@ -16,9 +16,9 @@
 
 #if defined(_MSC_VER) || defined(__INTEL_COMPILER)
     #include <immintrin.h>
-    #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<char*>(addr), _MM_HINT_T0)
+    #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
 #else
-    #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<char*>(addr), 0, 3)
+    #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #endif
 
 namespace xgboost {
@@ -422,8 +422,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   size_t n_blocks = nrows/block_size;
   n_blocks += !!(nrows - n_blocks*block_size);
 
-  const size_t nthread_to_process = std::min(reinterpret_cast<size_t>(nthread),
-      reinterpret_cast<size_t>(n_blocks));
+  const size_t nthread_to_process = std::min(static_cast<size_t>(nthread),
+      static_cast<size_t>(n_blocks));
   memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
@@ -469,7 +469,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       }
     }
 
-    const size_t nthreads_for_merge = std::min(reinterpret_cast<size_t>(nthread), reinterpret_cast<size_t>(n_blocks));
+    const size_t nthreads_for_merge = std::min(static_cast<size_t>(nthread),
+        static_cast<size_t>(n_blocks));
     #pragma omp parallel for num_threads(nthreads_for_merge) schedule(guided)
     for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
       const size_t istart = iblock*block_size;
