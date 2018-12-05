@@ -635,7 +635,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             will use the last. If early stopping occurs, the model will have
             three additional fields: bst.best_score, bst.best_iteration and
             bst.best_ntree_limit (bst.best_ntree_limit is the ntree_limit parameter
-            default value in predict method if not any other value is specified). 
+            default value in predict method if not any other value is specified).
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
         verbose : bool
