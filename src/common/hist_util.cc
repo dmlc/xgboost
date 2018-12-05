@@ -425,6 +425,11 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t nthread_to_process = std::min(nthread,  n_blocks);
   memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
+  constexpr size_t cache_line_size = 64;
+  constexpr size_t prefetch_offset = 10;
+  size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
+  no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
+
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
   for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
     dmlc::omp_uint tid = omp_get_thread_num();
@@ -442,10 +447,10 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t icol_start = row_ptr[rid[i]];
       const size_t icol_end = row_ptr[rid[i]+1];
 
-      constexpr size_t cache_line_size = 64;
-      constexpr size_t offset_to_prevent_segfault = 2*(cache_line_size/sizeof(*rid));
-      if (i < nrows - 10 - offset_to_prevent_segfault) PREFETCH_READ_T0(row_ptr + rid[i+10]);
-      if (i < nrows - 10 - offset_to_prevent_segfault) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
+      if (i < nrows - no_prefetch_size) {
+        PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
+        PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+      }
 
       for (size_t j = icol_start; j < icol_end; ++j) {
         const uint32_t idx_bin = 2*index[j];
