@@ -173,8 +173,9 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
   thrust::host_vector<GradientSumT> h_result (d_hist.data.size()/2);
-  size_t data_size = sizeof(GradientSumT) / (
-      sizeof(GradientSumT) / sizeof(GradientSumT::ValueT));
+  size_t data_size =
+      sizeof(GradientSumT) /
+      (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT));
   data_size *= d_hist.data.size();
   dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), data_size,
                            cudaMemcpyDeviceToHost));
