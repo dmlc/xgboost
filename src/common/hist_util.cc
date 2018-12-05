@@ -406,7 +406,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
                              GHistRow hist) {
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const size_t nthread = static_cast<size_t>(this->nthread_);
   data_.resize(nbins_ * nthread_);
 
   const size_t* rid =  row_indices.begin;
@@ -422,8 +422,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   size_t n_blocks = nrows/block_size;
   n_blocks += !!(nrows - n_blocks*block_size);
 
-  const size_t nthread_to_process = std::min(static_cast<size_t>(nthread),
-      static_cast<size_t>(n_blocks));
+  const size_t nthread_to_process = std::min(nthread,  n_blocks);
   memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
   #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
@@ -469,9 +468,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       }
     }
 
-    const size_t nthreads_for_merge = std::min(static_cast<size_t>(nthread),
-        static_cast<size_t>(n_blocks));
-    #pragma omp parallel for num_threads(nthreads_for_merge) schedule(guided)
+    #pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
     for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
       const size_t istart = iblock*block_size;
       const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
