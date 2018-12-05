@@ -14,7 +14,6 @@
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
 
-
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
   #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
@@ -494,7 +493,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     blocks_.push_back(blk);
   }
 }
-
 
 void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t* rid,
     const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
