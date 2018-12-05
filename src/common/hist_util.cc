@@ -425,8 +425,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t nthread_to_process = std::min(nthread,  n_blocks);
   memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
-  constexpr size_t cache_line_size = 64;
-  constexpr size_t prefetch_offset = 10;
+  const size_t cache_line_size = 64;
+  const size_t prefetch_offset = 10;
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
