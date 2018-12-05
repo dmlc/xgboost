@@ -442,8 +442,8 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t icol_start = row_ptr[rid[i]];
       const size_t icol_end = row_ptr[rid[i]+1];
 
-      if (i < nrows-16) PREFETCH_READ_T0(row_ptr + rid[i+10]);
-      if (i < nrows-16) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
+      if (i < nrows - 10 - (64/sizeof(row_ptr[0]))) PREFETCH_READ_T0(row_ptr + rid[i+10]);
+      if (i < nrows - 10 - (64/sizeof(pgh[0]))) PREFETCH_READ_T0(pgh + 2*rid[i+10]);
 
       for (size_t j = icol_start; j < icol_end; ++j) {
         const uint32_t idx_bin = 2*index[j];
