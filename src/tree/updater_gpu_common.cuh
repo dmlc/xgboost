@@ -38,7 +38,7 @@ namespace tree {
 
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
-__device__ __forceinline__ void AtomicAddGpair(OutputGradientT* dest,
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
                                                const InputGradientT& gpair) {
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 

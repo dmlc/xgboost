@@ -87,7 +87,7 @@ __device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_h
 
 /*! \brief Find the thread with best gain. */
 template <int BLOCK_THREADS, typename ReduceT, typename scan_t,
-          typename max_ReduceT, typename TempStorageT, typename GradientSumT>
+          typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
     int fidx,
     common::Span<const GradientSumT> node_histogram,
@@ -135,7 +135,7 @@ __device__ void EvaluateFeature(
     // Find thread with best gain
     cub::KeyValuePair<int, float> tuple(threadIdx.x, gain);
     cub::KeyValuePair<int, float> best =
-        max_ReduceT(temp_storage->max_reduce).Reduce(tuple, cub::ArgMax());
+        MaxReduceT(temp_storage->max_reduce).Reduce(tuple, cub::ArgMax());
 
     __shared__ cub::KeyValuePair<int, float> block_max;
     if (threadIdx.x == 0) {
@@ -361,7 +361,7 @@ __global__ void compress_bin_ellpack_k(
 }
 
 template <typename GradientSumT>
-__global__ void sharedMemHistKernel(size_t row_stride, const bst_uint* d_ridx,
+__global__ void SharedMemHistKernel(size_t row_stride, const bst_uint* d_ridx,
                                     common::CompressedIterator<uint32_t> d_gidx,
                                     int null_gidx_value,
                                     GradientSumT* d_node_hist,
@@ -763,7 +763,7 @@ struct SharedMemHistBuilder : public GPUHistBuilderBase<GradientSumT> {
       return;
     }
     dh::safe_cuda(cudaSetDevice(shard->device_id_));
-    sharedMemHistKernel<<<grid_size, block_threads, smem_size>>>
+    SharedMemHistKernel<<<grid_size, block_threads, smem_size>>>
         (shard->row_stride, d_ridx, d_gidx, null_gidx_value, d_node_hist.data(), d_gpair,
          segment_begin, n_elements);
   }
@@ -1379,6 +1379,15 @@ class GPUHistMaker : public TreeUpdater {
       float_maker_->Update(gpair, dmat, trees);
     } else {
       double_maker_->Update(gpair, dmat, trees);
+    }
+  }
+
+  bool UpdatePredictionCache(
+      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
+    if (hist_maker_param_.single_precision_histogram) {
+      return float_maker_->UpdatePredictionCache(data, p_out_preds);
+    } else {
+      return double_maker_->UpdatePredictionCache(data, p_out_preds);
     }
   }
 
