@@ -75,15 +75,22 @@ Parameters for Tree Booster
   - Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
   - range: (0,1]
 
-* ``colsample_bytree`` [default=1]
-
-  - Subsample ratio of columns when constructing each tree. Subsampling will occur once in every boosting iteration.
-  - range: (0,1]
-
-* ``colsample_bylevel`` [default=1]
-
-  - Subsample ratio of columns for each split, in each level. Subsampling will occur each time a new split is made.
-  - range: (0,1]
+* ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
+  - This is a family of parameters for subsampling of columns.
+  - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and
+    specify the fraction of columns to be subsampled.
+  - ``colsample_bytree`` is the subsample ratio of columns when constructing each
+    tree. Subsampling occurs once for every tree constructed.
+  - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling
+    occurs once for every new depth level reached in a tree. Columns are subsampled from
+    the set of columns chosen for the current tree.
+  - ``colsample_bynode`` is the subsample ratio of columns for each node
+    (split). Subsampling occurs once every time a new split is evaluated. Columns are
+    subsampled from the set of columns chosen for the current level.
+  - ``colsample_by*`` parameters work cumulatively. For instance,
+    the combination ``{'colsample_bytree':0.5, 'colsample_bylevel':0.5,
+    'colsample_bynode':0.5}`` with 64 features will leave 4 features to choose from at
+    each split.
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
