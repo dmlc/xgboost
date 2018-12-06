@@ -382,7 +382,7 @@ class DMatrix(object):
         weight = _maybe_dt_array(weight)
 
         if isinstance(data, list):
-            raise TypeError('can not initialize DMatrix from list)
+            raise TypeError('can not initialize DMatrix from list')
         elif isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
