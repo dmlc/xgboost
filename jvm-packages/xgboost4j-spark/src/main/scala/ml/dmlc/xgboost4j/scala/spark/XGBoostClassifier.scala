@@ -198,8 +198,7 @@ class XGBoostClassifier (
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
-      $(numRound), $(numWorkers), $(customObj), $(customEval), $(useExternalMemory),
-      $(missing), hasGroup = false)
+      hasGroup = false)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
@@ -416,7 +415,9 @@ class XGBoostClassificationModel private[ml](
     var numColsOutput = 0
 
     val rawPredictionUDF = udf { rawPrediction: mutable.WrappedArray[Float] =>
-      Vectors.dense(rawPrediction.map(_.toDouble).toArray)
+      val raw = rawPrediction.map(_.toDouble).toArray
+      val rawPredictions = if (numClasses == 2) Array(-raw(0), raw(0)) else raw
+      Vectors.dense(rawPredictions)
     }
 
     val probabilityUDF = udf { probability: mutable.WrappedArray[Float] =>

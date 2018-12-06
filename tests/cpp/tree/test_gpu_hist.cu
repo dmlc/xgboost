@@ -376,6 +376,7 @@ TEST(GpuHist, ApplySplit) {
 
   hist_maker.info_ = &info;
   hist_maker.ApplySplit(candidate_entry, &tree);
+  hist_maker.UpdatePosition(candidate_entry, &tree);
 
   ASSERT_FALSE(tree[nid].IsLeaf());
 

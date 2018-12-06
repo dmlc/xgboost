@@ -20,6 +20,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "timer.h"
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
@@ -870,14 +871,17 @@ void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
  */
 
 class AllReducer {
-  bool initialised;
+  bool initialised_;
+  bool debug_verbose_;
+  size_t allreduce_bytes_;  // Keep statistics of the number of bytes communicated
+  size_t allreduce_calls_;  // Keep statistics of the number of reduce calls
 #ifdef XGBOOST_USE_NCCL
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;
 #endif
  public:
-  AllReducer() : initialised(false) {}
+  AllReducer() : initialised_(false),debug_verbose_(false) {}
 
   /**
    * \fn  void Init(const std::vector<int> &device_ordinals)
@@ -888,8 +892,10 @@ class AllReducer {
    * \param device_ordinals The device ordinals.
    */
 
-  void Init(const std::vector<int> &device_ordinals) {
+  void Init(const std::vector<int> &device_ordinals, bool debug_verbose) {
 #ifdef XGBOOST_USE_NCCL
+    /** \brief this >monitor . init. */
+    this->debug_verbose_ = debug_verbose;
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
     dh::safe_nccl(ncclCommInitAll(comms.data(),
@@ -900,7 +906,7 @@ class AllReducer {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
       safe_cuda(cudaStreamCreate(&streams[i]));
     }
-    initialised = true;
+    initialised_ = true;
 #else
     CHECK_EQ(device_ordinals.size(), 1)
         << "XGBoost must be compiled with NCCL to use more than one GPU.";
@@ -908,13 +914,18 @@ class AllReducer {
   }
   ~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
-    if (initialised) {
+    if (initialised_) {
       for (auto &stream : streams) {
         dh::safe_cuda(cudaStreamDestroy(stream));
       }
       for (auto &comm : comms) {
         ncclCommDestroy(comm);
       }
+    }
+    if (debug_verbose_) {
+      LOG(CONSOLE) << "======== NCCL Statistics========";
+      LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
+      LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1000000;
     }
 #endif
   }
@@ -950,11 +961,16 @@ class AllReducer {
   void AllReduceSum(int communication_group_idx, const double *sendbuff,
                     double *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
-    CHECK(initialised);
+    CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinals.at(communication_group_idx)));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum,
                                 comms.at(communication_group_idx),
                                 streams.at(communication_group_idx)));
+    if(communication_group_idx == 0)
+    {
+      allreduce_bytes_ += count * sizeof(double);
+      allreduce_calls_ += 1;
+    }
 #endif
   }
 
@@ -972,7 +988,7 @@ class AllReducer {
   void AllReduceSum(int communication_group_idx, const int64_t *sendbuff,
                     int64_t *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
-    CHECK(initialised);
+    CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinals[communication_group_idx]));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum,
@@ -1021,27 +1037,6 @@ class SaveCudaContext {
 
 /**
  * \brief Executes some operation on each element of the input vector, using a
- * single controlling thread for each element.
- *
- * \tparam  T       Generic type parameter.
- * \tparam  FunctionT  Type of the function t.
- * \param shards  The shards.
- * \param f       The func_t to process.
- */
-
-template <typename T, typename FunctionT>
-void ExecuteShards(std::vector<T> *shards, FunctionT f) {
-  SaveCudaContext {
-    [&](){
-#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-      for (int shard = 0; shard < shards->size(); ++shard) {
-        f(shards->at(shard));
-      }
-    }};
-}
-
-/**
- * \brief Executes some operation on each element of the input vector, using a
  * single controlling thread for each element. In addition, passes the shard index
  * into the function.
  *
@@ -1053,13 +1048,12 @@ void ExecuteShards(std::vector<T> *shards, FunctionT f) {
 
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
-  SaveCudaContext {
-    [&](){
+  SaveCudaContext{[&]() {
 #pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-      for (int shard = 0; shard < shards->size(); ++shard) {
-        f(shard, shards->at(shard));
-      }
-    }};
+    for (int shard = 0; shard < shards->size(); ++shard) {
+      f(shard, shards->at(shard));
+    }
+  }};
 }
 
 /**
