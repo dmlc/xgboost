@@ -295,6 +295,10 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     leaf_value_cache_.clear();
     // initialize histogram collection
     uint32_t nbins = gmat.cut.row_ptr.back();
+      if (rabit::IsDistributed()) {
+          int rank = rabit::GetRank();
+          std::cout << "rank " << rank << ":" << nbins << "\n";
+      }
     hist_.Init(nbins);
 
     // initialize histogram builder
@@ -357,7 +361,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                            param_.colsample_bylevel, param_.colsample_bytree,  false);
     }
   }
-  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased || rabit::IsDistributed()) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
@@ -617,7 +621,8 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 
   {
     auto& stats = snode_[nid].stats;
-    if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+    if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased ||
+        rabit::IsDistributed()) {
       /* specialized code for dense data
          For dense data (with no missing value),
          the sum of gradient histogram is equal to snode[nid] */
