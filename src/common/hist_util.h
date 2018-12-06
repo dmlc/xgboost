@@ -13,18 +13,23 @@
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
+#include "../include/rabit/rabit.h"
 
 namespace xgboost {
 
 namespace common {
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
-struct GHistEntry {
+struct XGBOOST_ALIGNAS(16) GHistEntry {
   /*! \brief sum of first-order gradient statistics */
   double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
   double sum_hess{0};
-
+  /*!
+   * \brief whether this is simply statistics and we only need to call
+   *   Add(gpair), instead of Add(gpair, info, ridx)
+   */
+    static const int kSimpleStats = 1;
   GHistEntry()  = default;
 
   inline void Clear() {
