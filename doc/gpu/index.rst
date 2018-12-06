@@ -18,7 +18,7 @@ Tree construction (training) and prediction can be accelerated with CUDA-capable
 
 Usage
 =====
-Specify the ``tree_method`` parameter as one of the following algorithms. 
+Specify the ``tree_method`` parameter as one of the following algorithms.
 
 Algorithms
 ----------
@@ -31,11 +31,11 @@ Algorithms
 | gpu_hist     | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture. |
 +--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-Supported parameters 
+Supported parameters
 --------------------
 
-.. |tick| unicode:: U+2714 
-.. |cross| unicode:: U+2718 
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
 
 +--------------------------+---------------+--------------+
 | parameter                | ``gpu_exact`` | ``gpu_hist`` |
@@ -63,7 +63,7 @@ GPU accelerated prediction is enabled by default for the above mentioned ``tree_
 
 The device ordinal can be selected using the ``gpu_id`` parameter, which defaults to 0.
 
-Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the gpu device order is ``mod(gpu_id + i) % n_visible_devices`` for ``i=0`` to ``n_gpus-1``.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
+Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the selected gpu devices will be from ``gpu_id`` to ``gpu_id+n_gpus``, please note that ``gpu_id+n_gpus`` must be less than or equal to the number of available GPUs on your system.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
 
 .. note:: Enabling multi-GPU training
 
@@ -77,6 +77,49 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
   param['gpu_id'] = 0
   param['max_bin'] = 16
   param['tree_method'] = 'gpu_hist'
+
+Objective functions
+===================
+Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
+
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
+
++-----------------+-------------+
+| Objectives      | GPU support |
++-----------------+-------------+
+| reg:linear      | |tick|      |
++-----------------+-------------+
+| reg:logistic    | |tick|      |
++-----------------+-------------+
+| binary:logistic | |tick|      |
++-----------------+-------------+
+| binary:logitraw | |tick|      |
++-----------------+-------------+
+| binary:hinge    | |tick|      |
++-----------------+-------------+
+| count:poisson   | |tick|      |
++-----------------+-------------+
+| reg:gamma       | |tick|      |
++-----------------+-------------+
+| reg:tweedie     | |tick|      |
++-----------------+-------------+
+| multi:softmax   | |tick|      |
++-----------------+-------------+
+| multi:softprob  | |tick|      |
++-----------------+-------------+
+| survival:cox    | |cross|     |
++-----------------+-------------+
+| rank:pairwise   | |cross|     |
++-----------------+-------------+
+| rank:ndcg       | |cross|     |
++-----------------+-------------+
+| rank:map        | |cross|     |
++-----------------+-------------+
+
+For multi-gpu support, objective functions also honor the ``n_gpus`` parameter,
+which, by default is set to 1.  To disable running objectives on GPU, just set
+``n_gpus`` to 0.
 
 Benchmarks
 ==========
@@ -118,4 +161,3 @@ Authors
 * ... and the rest of the H2O.ai and NVIDIA team.
 
 Please report bugs to the user forum https://discuss.xgboost.ai/.
-

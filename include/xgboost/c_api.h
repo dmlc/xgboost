@@ -16,8 +16,8 @@
 #include <stdint.h>
 #endif
 
-#ifdef XGBOOST_USE_GDF
-#include <gdf/gdf.h>
+#ifdef XGBOOST_USE_CUDF
+#include <cudf/types.h>
 #endif
 
 // XGBoost C API will include APIs in Rabit C API
@@ -108,16 +108,16 @@ XGB_DLL const char *XGBGetLastError(void);
  */
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
 
 /*!
- * \bried create a data matrix from a GPU data frame (GDF)
- * \param cols array of GDF columns
- * \param n_cols number of GDF columns
+ * \bried create a data matrix from a CUDA data frame (CUDF)
+ * \param cols array of CUDF columns
+ * \param n_cols number of CUDF columns
  * \param[out] out handle for the DMatrix built
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromGDF
+XGB_DLL int XGDMatrixCreateFromCUDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out);
 
 #endif
@@ -300,7 +300,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
 
 /*!
  * \brief set a vector to 
@@ -311,7 +311,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
  * \return 0 when success, -1 when failure happens
  */
 
-XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
+XGB_DLL int XGDMatrixSetInfoCUDF(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column** gdf,
                                 size_t n_cols);

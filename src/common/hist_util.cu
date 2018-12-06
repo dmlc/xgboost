@@ -347,17 +347,24 @@ struct GPUSketcher {
   void Sketch(const SparsePage& batch, const MetaInfo& info, HistCutMatrix* hmat) {
     // partition input matrix into row segments
     std::vector<size_t> row_segments;
-    dh::RowSegments(info.num_row_, devices_.Size(), &row_segments);
+    dh::RowSegments(info.num_row_, dist_.Devices().Size(), &row_segments);
+
+    // ensure that the data is distributed properly
+    info.weights_.Reshard(dist_);
+    batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
 
     // ensure that the data is distributed properly
     info.weights_.Reshard(devices_);
     batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
 
     // create device shards
-    shards_.resize(devices_.Size());
+    shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
-        shard = std::unique_ptr<DeviceShard>
-          (new DeviceShard(devices_[i], row_segments[i], row_segments[i + 1], param_));
+        size_t start = dist_.ShardStart(info.num_row_, i);
+        size_t size = dist_.ShardSize(info.num_row_, i);
+        shard = std::unique_ptr<DeviceShard>(
+            new DeviceShard(dist_.Devices().DeviceId(i),
+                            start, start + size, param_));
       });
 
     // compute sketches for each shard
@@ -383,12 +390,12 @@ struct GPUSketcher {
   }
 
   GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    devices_ = GPUSet::All(param_.n_gpus, n_rows).Normalised(param_.gpu_id);
+    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
   }
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   tree::TrainParam param_;
-  GPUSet devices_;
+  GPUDistribution dist_;
 };
 
 void DeviceSketch

@@ -82,7 +82,7 @@ Parameters for Tree Booster
 
 * ``colsample_bylevel`` [default=1]
 
-  - Subsample ratio of columns for each split, in each level. Subsampling will occur each time a new split is made. This paramter has no effect when ``tree_method`` is set to ``hist``.
+  - Subsample ratio of columns for each split, in each level. Subsampling will occur each time a new split is made.
   - range: (0,1]
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
@@ -156,7 +156,7 @@ Parameters for Tree Booster
 
   - Controls a way new nodes are added to the tree.
   - Currently supported only if ``tree_method`` is set to ``hist``.
-  - Choices: ``depthwise``, ```lossguide``
+  - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
     - ``lossguide``: split at nodes with highest loss change.
@@ -245,8 +245,22 @@ Parameters for Linear Booster (``booster=gblinear``)
 
   - Choice of algorithm to fit linear model
 
-    - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
-    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
+    - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
+    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution.
+
+* ``feature_selector`` [default= ``cyclic``]
+
+  - Feature selection and ordering method
+
+    * ``cyclic``: Deterministic selection by cycling through features one at a time.
+    * ``shuffle``: Similar to ``cyclic`` but with random feature shuffling prior to each update.
+    * ``random``: A random (with replacement) coordinate selector.
+    * ``greedy``: Select coordinate with the greatest gradient magnitude.  It has ``O(num_feature^2)`` complexity. It is fully deterministic. It allows restricting the selection to ``top_k`` features per group with the largest magnitude of univariate weight change, by setting the ``top_k`` parameter. Doing so would reduce the complexity to ``O(num_feature*top_k)``.
+    * ``thrifty``: Thrifty, approximately-greedy feature selector. Prior to cyclic updates, reorders features in descending magnitude of their univariate weight changes. This operation is multithreaded and is a linear complexity approximation of the quadratic greedy selection. It allows restricting the selection to ``top_k`` features per group with the largest magnitude of univariate weight change, by setting the ``top_k`` parameter.
+
+* ``top_k`` [default=0]
+
+  - The number of top features to select in ``greedy`` and ``thrifty`` feature selector. The value of 0 means using all the features.
 
 Parameters for Tweedie Regression (``objective=reg:tweedie``)
 =============================================================
@@ -269,9 +283,6 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-  - ``gpu:reg:linear``, ``gpu:reg:logistic``, ``gpu:binary:logistic``, ``gpu:binary:logitraw``: versions
-    of the corresponding objective functions evaluated on the GPU; note that like the GPU histogram algorithm,
-    they can only be used when the entire training session uses the same dataset
   - ``count:poisson`` --poisson regression for count data, output mean of poisson distribution
 
     - ``max_delta_step`` is set to 0.7 by default in poisson regression (used to safeguard optimization)

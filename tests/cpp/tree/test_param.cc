@@ -1,13 +1,13 @@
 // Copyright by Contributors
 #include "../../../src/tree/param.h"
-
 #include "../helpers.h"
+#include <gtest/gtest.h>
 
 TEST(Param, VectorIOStream) {
   std::vector<int> vals = {3, 2, 1};
   std::stringstream ss;
   std::vector<int> vals_in;
-  
+
   ss << vals;
   EXPECT_EQ(ss.str(), "(3,2,1)");
 

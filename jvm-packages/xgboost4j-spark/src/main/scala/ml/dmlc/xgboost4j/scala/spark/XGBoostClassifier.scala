@@ -140,6 +140,9 @@ class XGBoostClassifier (
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
 
+  def setMaximizeEvaluationMetrics(value: Boolean): this.type =
+    set(maximizeEvaluationMetrics, value)
+
   def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
@@ -196,7 +199,7 @@ class XGBoostClassifier (
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
       $(numRound), $(numWorkers), $(customObj), $(customEval), $(useExternalMemory),
-      $(missing))
+      $(missing), hasGroup = false)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
@@ -517,3 +520,4 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     }
   }
 }
+

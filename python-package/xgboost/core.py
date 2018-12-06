@@ -10,7 +10,8 @@ import os
 import re
 import sys
 
-from libgdf_cffi import ffi, libgdf
+import cudf
+from libgdf_cffi import ffi
 import numpy as np
 import pygdf.dataframe as gdf
 import scipy.sparse
@@ -119,18 +120,23 @@ def _load_lib():
     lib_paths = find_lib_path()
     if len(lib_paths) == 0:
         return None
-    pathBackup = os.environ['PATH']
+    try:
+        pathBackup = os.environ['PATH'].split(os.pathsep)
+    except KeyError:
+        pathBackup = []
     lib_success = False
     os_error_list = []
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
-            os.environ['PATH'] = pathBackup + os.pathsep + os.path.dirname(lib_path)
+            os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
         except OSError as e:
             os_error_list.append(str(e))
             continue
+        finally:
+            os.environ['PATH'] = os.pathsep.join(pathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
@@ -217,7 +223,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 def _maybe_pandas_data(data, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame for DMatrix data """
 
-    if not isinstance(data, (DataFrame, gdf.DataFrame)):
+    if not isinstance(data, (DataFrame, cudf.DataFrame)):
         return data, feature_names, feature_types
 
     data_dtypes = data.dtypes
@@ -245,7 +251,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
 
-    # only convert pandas.DataFrame, GDF conversion happens elsewhere
+    # only convert pandas.DataFrame, CUDF conversion happens elsewhere
     if isinstance(data, DataFrame):
         data = data.values.astype('float')
 
@@ -359,6 +365,11 @@ class DMatrix(object):
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
+
+            if feature_names is not None:
+                self._feature_names = feature_names
+            if feature_types is not None:
+                self._feature_types = feature_types
             return
 
         data, feature_names, feature_types = _maybe_pandas_data(data,
@@ -377,8 +388,8 @@ class DMatrix(object):
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(self.handle)))
-        elif isinstance(data, gdf.DataFrame):
-            self._init_from_gdf(data)
+        elif isinstance(data, cudf.DataFrame):
+            self._init_from_cudf(data)
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
@@ -398,33 +409,33 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
-            elif isinstance(label, gdf.Column):
-                self.set_info_gdf('label', label)
-            elif isinstance(label, gdf.DataFrame):
-                self.set_info_gdf('label', label)
+            elif isinstance(label, cudf.dataframe.column.Column):
+                self.set_info_cudf('label', label)
+            elif isinstance(label, cudf.DataFrame):
+                self.set_info_cudf('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
-            elif isinstance(weight, gdf.Column):
-                self.set_info_gdf('weight', weight)
-            elif isinstance(weight, gdf.DataFrame):
-                self.set_info_gdf('weight', weight)
+            elif isinstance(weight, cudf.dataframe.column.Column):
+                self.set_info_cudf('weight', weight)
+            elif isinstance(weight, cudf.DataFrame):
+                self.set_info_cudf('weight', weight)
             else:
                 self.set_weight(weight)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
 
-    def _init_from_gdf(self, df):
+    def _init_from_cudf(self, df):
         """
         Initialize data from a GPU data frame.
         """
         self.handle = ctypes.c_void_p()
         col_ptrs = [df[col]._column.cffi_view for col in df.columns]
         col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
-        _check_call(_LIB.XGDMatrixCreateFromGDF
+        _check_call(_LIB.XGDMatrixCreateFromCUDF
                     (ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
                      ctypes.c_size_t(len(df.columns)),
                      ctypes.byref(self.handle)))
@@ -605,15 +616,15 @@ class DMatrix(object):
                                                c_data,
                                                c_bst_ulong(len(data))))
 
-    def set_info_gdf(self, field, data):
+    def set_info_cudf(self, field, data):
         col_ptrs = []
-        if isinstance(data, gdf.DataFrame):
+        if isinstance(data, cudf.DataFrame):
             col_ptrs = [data[col]._column.cffi_view for col in data.columns]
         else:
-            # data is a single GDF column
+            # data is a single CUDF column
             col_ptrs = [data.cffi_view]
         col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
-        _check_call(_LIB.XGDMatrixSetInfoGDF
+        _check_call(_LIB.XGDMatrixSetInfoCUDF
                     (self.handle, c_str(field),
                      ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
                      ctypes.c_size_t(len(col_ptrs))))
@@ -782,7 +793,8 @@ class DMatrix(object):
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
-        res = DMatrix(None, feature_names=self.feature_names)
+        res = DMatrix(None, feature_names=self.feature_names,
+                      feature_types=self.feature_types)
         res.handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
                                                c_array(ctypes.c_int, rindex),
@@ -918,6 +930,10 @@ class Booster(object):
                                          ctypes.byref(self.handle)))
         self.set_param({'seed': 0})
         self.set_param(params or {})
+        if (params is not None) and ('booster' in params):
+            self.booster = params['booster']
+        else:
+            self.booster = 'gbtree'
         if model_file is not None:
             self.load_model(model_file)
 
@@ -1422,6 +1438,17 @@ class Booster(object):
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
+        .. note:: Zero-importance features will not be included
+
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1440,6 +1467,12 @@ class Booster(object):
         * 'total_gain': the total gain across all splits the feature is used in.
         * 'total_cover': the total coverage across all splits the feature is used in.
 
+        .. note:: Feature importance is defined only for tree boosters
+
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
+
         Parameters
         ----------
         fmap: str (optional)
@@ -1447,6 +1480,10 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
+
+        if self.booster != 'gbtree':
+            raise ValueError('Feature importance is not defined for Booster type {}'
+                             .format(self.booster))
 
         allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
         if importance_type not in allowed_importance_types:

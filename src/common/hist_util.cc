@@ -4,10 +4,11 @@
  * \brief Utilities to store histograms
  * \author Philip Cho, Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
-#include "./sync.h"
+
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./hist_util.h"
@@ -17,7 +18,6 @@ namespace xgboost {
 namespace common {
 
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -33,11 +33,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-  auto iter = p_fmat->RowIterator();
-  iter->BeforeFirst();
   const auto& weights = info.weights_.HostVector();
-  while (iter->Next()) {
-     auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetRowBatches()) {
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
@@ -129,17 +126,14 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
-  auto iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
-  iter->BeforeFirst();
   row_ptr.push_back(0);
-  while (iter->Next()) {
-     auto &batch = iter->Value();
+  for (const auto &batch : p_fmat->GetRowBatches()) {
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
       row_ptr.push_back(batch[i].size() + row_ptr.back());
@@ -223,7 +217,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
            const std::vector<size_t>& feature_nnz,
            const ColumnMatrix& colmat,
            size_t nrow,
-           const FastHistParam& param) {
+           const tree::TrainParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
            member features.
@@ -285,7 +279,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
 inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
-                    const FastHistParam& param) {
+                    const tree::TrainParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
   const size_t nfeature = gmat.cut.row_ptr.size() - 1;
 
@@ -339,7 +333,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
-                                 const FastHistParam& param) {
+                                 const tree::TrainParam& param) {
   cut_ = &gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;

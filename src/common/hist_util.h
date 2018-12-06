@@ -11,15 +11,12 @@
 #include <limits>
 #include <vector>
 #include "row_set.h"
-#include "../tree/fast_hist_param.h"
 #include "../tree/param.h"
 #include "./quantile.h"
 
 namespace xgboost {
 
 namespace common {
-
-using tree::FastHistParam;
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {
@@ -53,34 +50,15 @@ struct GHistEntry {
   }
 };
 
-
-/*! \brief Cut configuration for one feature */
-struct HistCutUnit {
-  /*! \brief the index pointer of each histunit */
-  const bst_float* cut;
-  /*! \brief number of cutting point, containing the maximum point */
-  uint32_t size;
-  // default constructor
-  HistCutUnit() = default;
-  // constructor
-  HistCutUnit(const bst_float* cut, uint32_t size)
-      : cut(cut), size(size) {}
-};
-
-/*! \brief cut configuration for all the features */
+/*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
-  /*! \brief unit pointer to rows by element position */
+  /*! \brief Unit pointer to rows by element position */
   std::vector<uint32_t> row_ptr;
   /*! \brief minimum value of each feature */
   std::vector<bst_float> min_val;
   /*! \brief the cut field */
   std::vector<bst_float> cut;
   uint32_t GetBinIdx(const Entry &e);
-  /*! \brief Get histogram bound for fid */
-  inline HistCutUnit operator[](bst_uint fid) const {
-    return {dmlc::BeginPtr(cut) + row_ptr[fid],
-                       row_ptr[fid + 1] - row_ptr[fid]};
-  }
 
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
@@ -164,7 +142,7 @@ class GHistIndexBlockMatrix {
  public:
   void Init(const GHistIndexMatrix& gmat,
             const ColumnMatrix& colmat,
-            const FastHistParam& param);
+            const tree::TrainParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
     return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
@@ -189,7 +167,7 @@ class GHistIndexBlockMatrix {
 
 /*!
  * \brief histogram of graident statistics for a single node.
- *  Consists of multiple GHistEntry's, each entry showing total graident statistics 
+ *  Consists of multiple GHistEntry's, each entry showing total graident statistics
  *     for that particular bin
  *  Uses global bin id so as to represent all features simultaneously
  */

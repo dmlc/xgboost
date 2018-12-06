@@ -3,10 +3,18 @@
 // Jenkins pipeline
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
+import groovy.transform.Field
+
+/* Unrestricted tasks: tasks that do NOT generate artifacts */
+
 // Command to run command inside a docker container
-dockerRun = 'tests/ci_build/ci_build.sh'
+def dockerRun = 'tests/ci_build/ci_build.sh'
+// Utility functions
+@Field
+def utils
 
 def buildMatrix = [
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2", "multiGpu": true],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
@@ -26,42 +34,25 @@ pipeline {
 
     // Build stages
     stages {
-        stage('Get sources') {
-            agent any
+        stage('Jenkins: Get sources') {
+            agent {
+                label 'unrestricted'
+            }
             steps {
-                checkoutSrcs()
+                script {
+                    utils = load('tests/ci_build/jenkins_tools.Groovy')
+                    utils.checkoutSrcs()
+                }
                 stash name: 'srcs', excludes: '.git/'
                 milestone label: 'Sources ready', ordinal: 1
             }
         }
-        stage('Build doc') {
-            agent any
-            steps {
-                script {
-                    if (env.CHANGE_ID == null) {  // This is a branch
-                        def commit_id = "${GIT_COMMIT}"
-                        def branch_name = "${GIT_LOCAL_BRANCH}"
-                        echo 'Building doc...'
-                        dir ('jvm-packages') {
-                            sh "bash ./build_doc.sh ${commit_id}"
-                            archiveArtifacts artifacts: "${commit_id}.tar.bz2", allowEmptyArchive: true
-                            echo 'Deploying doc...'
-                            withAWS(credentials:'xgboost-doc-bucket') {
-                                s3Upload file: "${commit_id}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${branch_name}.tar.bz2"
-                            }
-                        }
-                    } else {                      // This is a pull request
-                        echo 'Skipping doc build step for pull request'
-                    }
-                }
-            }
-        }
-        stage('Build & Test') {
+        stage('Jenkins: Build & Test') {
             steps {
                 script {
                     parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
-                        def buildName = getBuildName(c)
-                        buildFactory(buildName, c)
+                        def buildName = utils.getBuildName(c)
+                        utils.buildFactory(buildName, c, false, this.&buildPlatformCmake)
                     })
                 }
             }
@@ -69,83 +60,49 @@ pipeline {
     }
 }
 
-// initialize source codes
-def checkoutSrcs() {
-  retry(5) {
-    try {
-      timeout(time: 2, unit: 'MINUTES') {
-        checkout scm
-        sh 'git submodule update --init'
-      }
-    } catch (exc) {
-      deleteDir()
-      error "Failed to fetch source codes"
-    }
-  }
-}
-
-/**
- * Creates cmake and make builds
- */
-def buildFactory(buildName, conf) {
-    def os = conf["os"]
-    def nodeReq = conf["withGpu"] ? "${os} && gpu" : "${os}"
-    def dockerTarget = conf["withGpu"] ? "gpu" : "cpu"
-    [ ("${buildName}") : { buildPlatformCmake("${buildName}", conf, nodeReq, dockerTarget) }
-    ]
-}
-
 /**
  * Build platform and test it via cmake.
  */
 def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
-    def opts = cmakeOptions(conf)
+    def opts = utils.cmakeOptions(conf)
     // Destination dir for artifacts
     def distDir = "dist/${buildName}"
     def dockerArgs = ""
-    if(conf["withGpu"]){
+    if (conf["withGpu"]) {
         dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
     }
+    def test_suite = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
     // Build node - this is returned result
-    node(nodeReq) {
-        unstash name: 'srcs'
-        echo """
-        |===== XGBoost CMake build =====
-        |  dockerTarget: ${dockerTarget}
-        |  cmakeOpts   : ${opts}
-        |=========================
-        """.stripMargin('|')
-        // Invoke command inside docker
-        sh """
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${dockerTarget}.sh
-        ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
-        rm -rf "${distDir}"; mkdir -p "${distDir}/py"
-        cp xgboost "${distDir}"
-        cp -r lib "${distDir}"
-        cp -r python-package/dist "${distDir}/py"
-        # Test the wheel for compatibility on a barebones CPU container
-        ${dockerRun} release ${dockerArgs} bash -c " \
-            auditwheel show xgboost-*-py2-none-any.whl
-            pip install --user python-package/dist/xgboost-*-none-any.whl && \
-            python -m nose tests/python"
-        """
-        archiveArtifacts artifacts: "${distDir}/**/*.*", allowEmptyArchive: true
+    retry(3) {
+        node(nodeReq) {
+            unstash name: 'srcs'
+            echo """
+            |===== XGBoost CMake build =====
+            |  dockerTarget: ${dockerTarget}
+            |  cmakeOpts   : ${opts}
+            |=========================
+            """.stripMargin('|')
+            // Invoke command inside docker
+            sh """
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
+            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${test_suite}.sh
+            """
+            if (!conf["multiGpu"]) {
+                sh """
+                ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
+                rm -rf "${distDir}"; mkdir -p "${distDir}/py"
+                cp xgboost "${distDir}"
+                cp -r python-package/dist "${distDir}/py"
+                # Test the wheel for compatibility on a barebones CPU container
+                ${dockerRun} release ${dockerArgs} bash -c " \
+                    pip install --user python-package/dist/xgboost-*-none-any.whl && \
+		    pytest -v --fulltrace -s tests/python"
+                # Test the wheel for compatibility on CUDA 10.0 container
+                ${dockerRun} gpu --build-arg CUDA_VERSION=10.0 bash -c " \
+                    pip install --user python-package/dist/xgboost-*-none-any.whl && \
+		    pytest -v -s --fulltrace -m '(not mgpu) and (not slow)' tests/python-gpu"
+                """
+            }
+        }
     }
 }
-
-def cmakeOptions(conf) {
-    return ([
-        conf["withGpu"] ? '-DUSE_CUDA=ON' : '-DUSE_CUDA=OFF',
-        conf["withNccl"] ? '-DUSE_NCCL=ON' : '-DUSE_NCCL=OFF',
-        conf["withOmp"] ? '-DOPEN_MP:BOOL=ON' : '']
-        ).join(" ")
-}
-
-def getBuildName(conf) {
-    def gpuLabel = conf['withGpu'] ? ("_cuda" + conf['cudaVersion'] + (conf['withNccl'] ? "_nccl" : "_nonccl")) : "_cpu"
-    def ompLabel = conf['withOmp'] ? "_omp" : ""
-    def pyLabel = "_py${conf['pythonVersion']}"
-    return "${conf['os']}${gpuLabel}${ompLabel}${pyLabel}"
-}
-

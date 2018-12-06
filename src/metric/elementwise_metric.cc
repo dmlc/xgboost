@@ -4,11 +4,11 @@
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
  */
+#include <rabit/rabit.h>
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
 #include "../common/math.h"
-#include "../common/sync.h"
 
 namespace xgboost {
 namespace metric {

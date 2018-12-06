@@ -4,9 +4,11 @@ import testing as tm
 import tempfile
 import os
 import shutil
-from nose.tools import raises
+import pytest
 
 rng = np.random.RandomState(1994)
+
+pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 
 class TemporaryDirectory(object):
@@ -20,23 +22,14 @@ class TemporaryDirectory(object):
 
 
 def test_binary_classification():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    try:
-        from sklearn.model_selection import KFold
-    except:
-        from sklearn.cross_validation import KFold
+    from sklearn.model_selection import KFold
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    try:
-        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    except TypeError:  # sklearn.model_selection.KFold uses n_split
-        kf = KFold(
-            n_splits=2, shuffle=True, random_state=rng
-        ).split(np.arange(y.shape[0]))
-    for train_index, test_index in kf:
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
@@ -46,12 +39,8 @@ def test_binary_classification():
 
 
 def test_multiclass_classification():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    try:
-        from sklearn.cross_validation import KFold
-    except:
-        from sklearn.model_selection import KFold
+    from sklearn.model_selection import KFold
 
     def check_pred(preds, labels, output_margin):
         if output_margin:
@@ -65,14 +54,17 @@ def test_multiclass_classification():
     iris = load_iris()
     y = iris['target']
     X = iris['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf:
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
-        preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
-        preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
-        preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
+        preds2 = xgb_model.predict(X[test_index], output_margin=True,
+                                   ntree_limit=3)
+        preds3 = xgb_model.predict(X[test_index], output_margin=True,
+                                   ntree_limit=0)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False,
+                                   ntree_limit=3)
         labels = y[test_index]
 
         check_pred(preds, labels, output_margin=False)
@@ -82,7 +74,6 @@ def test_multiclass_classification():
 
 
 def test_ranking():
-    tm._skip_if_no_sklearn()
     # generate random data
     x_train = np.random.rand(1000, 10)
     y_train = np.random.randint(5, size=1000)
@@ -115,14 +106,14 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
-def test_feature_importances():
-    tm._skip_if_no_sklearn()
+def test_feature_importances_weight():
     from sklearn.datasets import load_digits
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="weight").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
@@ -138,31 +129,68 @@ def test_feature_importances():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="weight").fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+
+def test_feature_importances_gain():
+    from sklearn.datasets import load_digits
+
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="gain").fit(X, y)
+
+    exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                    0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
+                    0.00297238, 0.00988034, 0., 0., 0., 0., 0., 0.,
+                    0.03512521, 0.41123885, 0., 0., 0., 0.,
+                    0.01326332, 0.00160674, 0., 0.4206952, 0., 0., 0.,
+                    0., 0.00616747, 0.01237546, 0., 0., 0., 0., 0.,
+                    0., 0., 0.08240705, 0., 0., 0., 0., 0., 0., 0.,
+                    0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
+
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    # numeric columns
+    import pandas as pd
+    y = pd.Series(digits['target'])
+    X = pd.DataFrame(digits['data'])
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="gain").fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    xgb_model = xgb.XGBClassifier(
+        random_state=0, importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
 def test_boston_housing_regression():
-    tm._skip_if_no_sklearn()
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import load_boston
-    from sklearn.cross_validation import KFold
+    from sklearn.model_selection import KFold
 
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf:
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
 
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBRegressor().fit
-        preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
-        preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
-        preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
+        preds2 = xgb_model.predict(X[test_index], output_margin=True,
+                                   ntree_limit=3)
+        preds3 = xgb_model.predict(X[test_index], output_margin=True,
+                                   ntree_limit=0)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False,
+                                   ntree_limit=3)
         labels = y[test_index]
 
         assert mean_squared_error(preds, labels) < 25
@@ -172,8 +200,7 @@ def test_boston_housing_regression():
 
 
 def test_parameter_tuning():
-    tm._skip_if_no_sklearn()
-    from sklearn.grid_search import GridSearchCV
+    from sklearn.model_selection import GridSearchCV
     from sklearn.datasets import load_boston
 
     boston = load_boston()
@@ -181,17 +208,17 @@ def test_parameter_tuning():
     X = boston['data']
     xgb_model = xgb.XGBRegressor()
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
-                                   'n_estimators': [50, 100, 200]}, verbose=1)
+                                   'n_estimators': [50, 100, 200]},
+                       cv=3, verbose=1, iid=True)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
     assert clf.best_params_ == {'n_estimators': 100, 'max_depth': 4}
 
 
 def test_regression_with_custom_objective():
-    tm._skip_if_no_sklearn()
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import load_boston
-    from sklearn.cross_validation import KFold
+    from sklearn.model_selection import KFold
 
     def objective_ls(y_true, y_pred):
         grad = (y_pred - y_true)
@@ -201,8 +228,8 @@ def test_regression_with_custom_objective():
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf:
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=objective_ls).fit(
             X[train_index], y[train_index]
         )
@@ -222,9 +249,8 @@ def test_regression_with_custom_objective():
 
 
 def test_classification_with_custom_objective():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    from sklearn.cross_validation import KFold
+    from sklearn.model_selection import KFold
 
     def logregobj(y_true, y_pred):
         y_pred = 1.0 / (1.0 + np.exp(-y_pred))
@@ -235,8 +261,8 @@ def test_classification_with_custom_objective():
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf:
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier(objective=logregobj)
         xgb_model.fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
@@ -261,12 +287,12 @@ def test_classification_with_custom_objective():
 
 
 def test_sklearn_api():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    from sklearn.cross_validation import train_test_split
+    from sklearn.model_selection import train_test_split
 
     iris = load_iris()
-    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
+    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target,
+                                              train_size=120, test_size=0.2)
 
     classifier = xgb.XGBClassifier(booster='gbtree', n_estimators=10)
     classifier.fit(tr_d, tr_l)
@@ -278,12 +304,12 @@ def test_sklearn_api():
 
 
 def test_sklearn_api_gblinear():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    from sklearn.cross_validation import train_test_split
+    from sklearn.model_selection import train_test_split
 
     iris = load_iris()
-    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
+    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target,
+                                              train_size=120)
 
     classifier = xgb.XGBClassifier(booster='gblinear', n_estimators=100)
     classifier.fit(tr_d, tr_l)
@@ -294,8 +320,8 @@ def test_sklearn_api_gblinear():
     assert err < 0.5
 
 
+@pytest.mark.skipif(**tm.no_matplotlib())
 def test_sklearn_plotting():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
 
     iris = load_iris()
@@ -324,7 +350,6 @@ def test_sklearn_plotting():
 
 
 def test_sklearn_nfolds_cv():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
     from sklearn.model_selection import StratifiedKFold
 
@@ -347,14 +372,15 @@ def test_sklearn_nfolds_cv():
     skf = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=seed)
 
     cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed)
-    cv2 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, folds=skf, seed=seed)
-    cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, stratified=True, seed=seed)
+    cv2 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
+                 folds=skf, seed=seed)
+    cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
+                 stratified=True, seed=seed)
     assert cv1.shape[0] == cv2.shape[0] and cv2.shape[0] == cv3.shape[0]
     assert cv2.iloc[-1, 0] == cv3.iloc[-1, 0]
 
 
 def test_split_value_histograms():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
 
     digits_2class = load_digits(2)
@@ -363,11 +389,14 @@ def test_split_value_histograms():
     y = digits_2class['target']
 
     dm = xgb.DMatrix(X, label=y)
-    params = {'max_depth': 6, 'eta': 0.01, 'silent': 1, 'objective': 'binary:logistic'}
+    params = {'max_depth': 6, 'eta': 0.01, 'silent': 1,
+              'objective': 'binary:logistic'}
 
     gbdt = xgb.train(params, dm, num_boost_round=10)
-    assert gbdt.get_split_value_histogram("not_there", as_pandas=True).shape[0] == 0
-    assert gbdt.get_split_value_histogram("not_there", as_pandas=False).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there",
+                                          as_pandas=True).shape[0] == 0
+    assert gbdt.get_split_value_histogram("not_there",
+                                          as_pandas=False).shape[0] == 0
     assert gbdt.get_split_value_histogram("f28", bins=0).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=1).shape[0] == 1
     assert gbdt.get_split_value_histogram("f28", bins=2).shape[0] == 2
@@ -376,8 +405,6 @@ def test_split_value_histograms():
 
 
 def test_sklearn_random_state():
-    tm._skip_if_no_sklearn()
-
     clf = xgb.XGBClassifier(random_state=402)
     assert clf.get_xgb_params()['seed'] == 402
 
@@ -386,8 +413,6 @@ def test_sklearn_random_state():
 
 
 def test_sklearn_n_jobs():
-    tm._skip_if_no_sklearn()
-
     clf = xgb.XGBClassifier(n_jobs=1)
     assert clf.get_xgb_params()['nthread'] == 1
 
@@ -396,8 +421,6 @@ def test_sklearn_n_jobs():
 
 
 def test_kwargs():
-    tm._skip_if_no_sklearn()
-
     params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
     assert clf.get_params()['updater'] == 'grow_gpu'
@@ -405,17 +428,34 @@ def test_kwargs():
     assert clf.get_params()['n_estimators'] == 1000
 
 
-@raises(TypeError)
-def test_kwargs_error():
-    tm._skip_if_no_sklearn()
+def test_kwargs_grid_search():
+    from sklearn.model_selection import GridSearchCV
+    from sklearn import datasets
 
+    params = {'tree_method': 'hist'}
+    clf = xgb.XGBClassifier(n_estimators=1, learning_rate=1.0, **params)
+    assert clf.get_params()['tree_method'] == 'hist'
+    # 'max_leaves' is not a default argument of XGBClassifier
+    # Check we can still do grid search over this parameter
+    search_params = {'max_leaves': range(2, 5)}
+    grid_cv = GridSearchCV(clf, search_params, cv=5)
+    iris = datasets.load_iris()
+    grid_cv.fit(iris.data, iris.target)
+
+    # Expect unique results for each parameter value
+    # This confirms sklearn is able to successfully update the parameter
+    means = grid_cv.cv_results_['mean_test_score']
+    assert len(means) == len(set(means))
+
+
+def test_kwargs_error():
     params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
-    clf = xgb.XGBClassifier(n_jobs=1000, **params)
-    assert isinstance(clf, xgb.XGBClassifier)
+    with pytest.raises(TypeError):
+        clf = xgb.XGBClassifier(n_jobs=1000, **params)
+        assert isinstance(clf, xgb.XGBClassifier)
 
 
 def test_sklearn_clone():
-    tm._skip_if_no_sklearn()
     from sklearn.base import clone
 
     clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
@@ -424,7 +464,6 @@ def test_sklearn_clone():
 
 
 def test_validation_weights_xgbmodel():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import make_hastie_10_2
 
     # prepare training and test data
@@ -448,7 +487,8 @@ def test_validation_weights_xgbmodel():
 
     # evaluate logloss metric on test set *without* using weights
     evals_result_without_weights = clf.evals_result()
-    logloss_without_weights = evals_result_without_weights["validation_0"]["logloss"]
+    logloss_without_weights = evals_result_without_weights[
+        "validation_0"]["logloss"]
 
     # now use weights for the test set
     np.random.seed(0)
@@ -462,13 +502,13 @@ def test_validation_weights_xgbmodel():
     evals_result_with_weights = clf.evals_result()
     logloss_with_weights = evals_result_with_weights["validation_0"]["logloss"]
 
-    # check that the logloss in the test set is actually different when using weights
-    # than when not using them
-    assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
+    # check that the logloss in the test set is actually different when using
+    # weights than when not using them
+    assert all((logloss_with_weights[i] != logloss_without_weights[i]
+                for i in [0, 1]))
 
 
 def test_validation_weights_xgbclassifier():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import make_hastie_10_2
 
     # prepare training and test data
@@ -492,7 +532,8 @@ def test_validation_weights_xgbclassifier():
 
     # evaluate logloss metric on test set *without* using weights
     evals_result_without_weights = clf.evals_result()
-    logloss_without_weights = evals_result_without_weights["validation_0"]["logloss"]
+    logloss_without_weights = evals_result_without_weights[
+        "validation_0"]["logloss"]
 
     # now use weights for the test set
     np.random.seed(0)
@@ -506,31 +547,23 @@ def test_validation_weights_xgbclassifier():
     evals_result_with_weights = clf.evals_result()
     logloss_with_weights = evals_result_with_weights["validation_0"]["logloss"]
 
-    # check that the logloss in the test set is actually different when using weights
-    # than when not using them
-    assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
+    # check that the logloss in the test set is actually different
+    # when using weights than when not using them
+    assert all((logloss_with_weights[i] != logloss_without_weights[i]
+                for i in [0, 1]))
 
 
 def test_save_load_model():
-    tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    try:
-        from sklearn.model_selection import KFold
-    except:
-        from sklearn.cross_validation import KFold
+    from sklearn.model_selection import KFold
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    try:
-        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
-    except TypeError:  # sklearn.model_selection.KFold uses n_split
-        kf = KFold(
-            n_splits=2, shuffle=True, random_state=rng
-        ).split(np.arange(y.shape[0]))
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model')
-        for train_index, test_index in kf:
+        for train_index, test_index in kf.split(X, y):
             xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
             xgb_model.save_model(model_path)
             xgb_model = xgb.XGBModel()
@@ -540,3 +573,39 @@ def test_save_load_model():
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
+
+
+def test_RFECV():
+    from sklearn.datasets import load_boston
+    from sklearn.datasets import load_breast_cancer
+    from sklearn.datasets import load_iris
+    from sklearn.feature_selection import RFECV
+
+    # Regression
+    X, y = load_boston(return_X_y=True)
+    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
+                            n_estimators=10, n_jobs=1, objective='reg:linear',
+                            random_state=0, silent=True)
+    rfecv = RFECV(
+        estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')
+    rfecv.fit(X, y)
+
+    # Binary classification
+    X, y = load_breast_cancer(return_X_y=True)
+    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
+                            n_estimators=10, n_jobs=1,
+                            objective='binary:logistic',
+                            random_state=0, silent=True)
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
+    rfecv.fit(X, y)
+
+    # Multi-class classification
+    X, y = load_iris(return_X_y=True)
+    bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear',
+                            learning_rate=0.1,
+                            n_estimators=10, n_jobs=1,
+                            objective='multi:softprob',
+                            random_state=0, reg_alpha=0.001, reg_lambda=0.01,
+                            scale_pos_weight=0.5, silent=True)
+    rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
+    rfecv.fit(X, y)

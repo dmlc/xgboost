@@ -8,8 +8,8 @@
 #ifndef XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 #define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
-#ifdef XGBOOST_USE_GDF
-#include <gdf/gdf.h>
+#ifdef XGBOOST_USE_CUDF
+#include <cudf/types.h>
 #endif
 
 #include <xgboost/base.h>
@@ -40,13 +40,13 @@ class SimpleCSRSource : public DataSource {
   /*! \brief clear the data structure */
   void Clear();
 
-#ifdef XGBOOST_USE_GDF
+#ifdef XGBOOST_USE_CUDF
   /*!
-    \brief initialize the data source from GPU data frame (GDF)
-    \param cols GDF columns
-    \param n_cols number of GDF columns
+    \brief initialize the data source from CUDA data frame (CUDF)
+    \param cols CUDA columns
+    \param n_cols number of CUDA columns
    */
-  void InitFromGDF(gdf_column** cols, size_t n_cols);
+  void InitFromCUDF(gdf_column** cols, size_t n_cols);
 #endif
   
   /*!

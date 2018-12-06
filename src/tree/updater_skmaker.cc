@@ -5,12 +5,12 @@
           a refresh is needed to make the statistics exactly correct
  * \author Tianqi Chen
  */
-
+#include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/tree_updater.h>
 #include <vector>
 #include <algorithm>
-#include "../common/sync.h"
+
 #include "../common/quantile.h"
 #include "../common/group_data.h"
 #include "./updater_basemaker-inl.h"
@@ -142,12 +142,9 @@ class SketchMaker: public BaseMaker {
     }
     thread_sketch_.resize(omp_get_max_threads());
     // number of rows in
-    const size_t nrows = p_fmat->BufferedRowset().Size();
+    const size_t nrows = p_fmat->Info().num_row_;
     // start accumulating statistics
-    auto iter = p_fmat->ColIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      auto &batch = iter->Value();
+    for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
       // start enumeration
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)

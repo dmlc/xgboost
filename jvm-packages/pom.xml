@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm</artifactId>
-    <version>0.81-SNAPSHOT</version>
+    <version>0.81</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -35,7 +35,7 @@
         <maven.compiler.target>1.7</maven.compiler.target>
         <flink.version>1.5.0</flink.version>
         <spark.version>2.3.1</spark.version>
-        <scala.version>2.11.8</scala.version>
+        <scala.version>2.11.12</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
     </properties>
     <repositories>
@@ -319,6 +319,7 @@
                 <version>2.19.1</version>
                 <configuration>
                     <skipTests>false</skipTests>
+                    <useSystemClassLoader>false</useSystemClassLoader>
                 </configuration>
             </plugin>
             <plugin>

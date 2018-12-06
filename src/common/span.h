@@ -49,7 +49,7 @@
  *
  *   https://github.com/Microsoft/GSL/pull/664
  *
- * FIXME: Group these MSVC workarounds into a manageable place.
+ * TODO(trivialfis): Group these MSVC workarounds into a manageable place.
  */
 #if defined(_MSC_VER) && _MSC_VER < 1910
 
@@ -68,7 +68,7 @@ namespace xgboost {
 namespace common {
 
 // Usual logging facility is not available inside device code.
-// FIXME: Make dmlc check more generic.
+// TODO(trivialfis): Make dmlc check more generic.
 #define KERNEL_CHECK(cond)                                      \
   do {                                                          \
     if (!(cond)) {                                              \
@@ -104,10 +104,10 @@ constexpr detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
 
 enum class byte : unsigned char {};  // NOLINT
 
-namespace detail {
-
-template <class ElementType, detail::ptrdiff_t Extent = dynamic_extent>
+template <class ElementType, detail::ptrdiff_t Extent>
 class Span;
+
+namespace detail {
 
 template <typename SpanType, bool IsConst>
 class SpanIterator {
@@ -120,7 +120,7 @@ class SpanIterator {
 
   using reference = typename std::conditional<                    // NOLINT
     IsConst, const ElementType, ElementType>::type&;
-  using pointer = typename std::add_pointer<reference>::type&;    // NOLINT
+  using pointer = typename std::add_pointer<reference>::type;     // NOLINT
 
   XGBOOST_DEVICE constexpr SpanIterator() : span_{nullptr}, index_{0} {}
 

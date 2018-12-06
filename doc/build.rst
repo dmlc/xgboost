@@ -90,11 +90,11 @@ Building on OSX
 Install with pip: simple method
 --------------------------------
 
-First, make sure you obtained ``gcc-5`` (newer version does not work with this method yet). Note: installation of ``gcc`` can take a while (~ 30 minutes).
+First, obtain ``gcc-7`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
 
 .. code-block:: bash
 
-  brew install gcc@5
+  brew install gcc@7
 
 Then install XGBoost with ``pip``:
 
@@ -102,42 +102,30 @@ Then install XGBoost with ``pip``:
 
   pip3 install xgboost
 
-You might need to run the command with ``sudo`` if you run into permission errors.
+You might need to run the command with ``--user`` flag if you run into permission errors.
 
 Build from the source code - advanced method
 --------------------------------------------
 
-First, obtain ``gcc-7`` with homebrew (https://brew.sh/) if you want multi-threaded version. Clang is okay if multithreading is not required. Note: installation of ``gcc`` can take a while (~ 30 minutes).
+Obtain ``gcc-7`` from Homebrew:
 
 .. code-block:: bash
 
   brew install gcc@7
 
-Now, clone the repository:
+Now clone the repository:
 
 .. code-block:: bash
 
   git clone --recursive https://github.com/dmlc/xgboost
-  cd xgboost; cp make/config.mk ./config.mk
 
-Open ``config.mk`` and uncomment these two lines:
-
-.. code-block:: bash
-
-  export CC = gcc
-  export CXX = g++
-
-and replace these two lines as follows: (specify the GCC version)
+Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-7 CXX=g++-7`` so that Homebrew GCC is selected. After invoking CMake, you can build XGBoost with ``make``:
 
 .. code-block:: bash
 
-  export CC = gcc-7
-  export CXX = g++-7
-
-Now, you may build XGBoost using the following command:
-
-.. code-block:: bash
-
+  mkdir build
+  cd build
+  CC=gcc-7 CXX=g++-7 cmake ..
   make -j4
 
 You may now continue to `Python Package Installation`_.
@@ -173,6 +161,8 @@ To build with MinGW, type:
 
   cp make/mingw64.mk config.mk; make -j4
 
+See :ref:`mingw_python` for buildilng XGBoost for Python.
+
 Compile XGBoost with Microsoft Visual Studio
 --------------------------------------------
 To build with Visual Studio, we will need CMake. Make sure to install a recent version of CMake. Then run the following from the root of the XGBoost directory:
@@ -204,7 +194,7 @@ From the command line on Linux starting from the XGBoost directory:
   mkdir build
   cd build
   cmake .. -DUSE_CUDA=ON
-  make -j
+  make -j4
 
 .. note:: Enabling multi-GPU training
 
@@ -214,8 +204,8 @@ From the command line on Linux starting from the XGBoost directory:
 
     mkdir build
     cd build
-    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON
-    make -j
+    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
+    make -j4
 
 On Windows, see what options for generators you have for CMake, and choose one with ``[arch]`` replaced with Win64:
 
@@ -258,10 +248,12 @@ The configuration file ``config.mk`` modifies several compilation flags:
 
 To customize, first copy ``make/config.mk`` to the project root and then modify the copy.
 
+Alternatively, use CMake.
+
 Python Package Installation
 ===========================
 
-The python package is located at ``python-package/``.
+The Python package is located at ``python-package/``.
 There are several ways to install the package:
 
 1. Install system-wide, which requires root permission:
@@ -271,7 +263,7 @@ There are several ways to install the package:
   cd python-package; sudo python setup.py install
 
 You will however need Python ``distutils`` module for this to
-work. It is often part of the core python package or it can be installed using your
+work. It is often part of the core Python package or it can be installed using your
 package manager, e.g. in Debian use
 
 .. code-block:: bash
@@ -282,7 +274,7 @@ package manager, e.g. in Debian use
 
   If you recompiled XGBoost, then you need to reinstall it again to make the new library take effect.
 
-2. Only set the environment variable ``PYTHONPATH`` to tell python where to find
+2. Only set the environment variable ``PYTHONPATH`` to tell Python where to find
    the library. For example, assume we cloned `xgboost` on the home directory
    `~`. then we can added the following line in `~/.bashrc`.
    This option is **recommended for developers** who change the code frequently. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ``setup`` again)
@@ -304,6 +296,25 @@ package manager, e.g. in Debian use
     import os
     os.environ['PATH'] = os.environ['PATH'] + ';C:\\Program Files\\mingw-w64\\x86_64-5.3.0-posix-seh-rt_v4-rev0\\mingw64\\bin'
 
+.. _mingw_python:
+
+Building XGBoost library for Python for Windows with MinGW-w64
+--------------------------------------------------------------
+
+Windows versions of Python are built with Microsoft Visual Studio. Usually Python binary modules are built with the same compiler the interpreter is built with, raising several potential concerns.
+
+1. VS is proprietary and commercial software. Microsoft provides a freeware "Community" edition, but its licensing terms are unsuitable for many organizations.
+2. Visual Studio contains telemetry, as documented in `Microsoft Visual Studio Licensing Terms <https://visualstudio.microsoft.com/license-terms/mt736442/>`_. It `has been inserting telemetry <https://old.reddit.com/r/cpp/comments/4ibauu/visual_studio_adding_telemetry_function_calls_to/>`_ into apps for some time. In order to download VS distribution from MS servers one has to run the application containing telemetry. These facts have raised privacy and security concerns among some users and system administrators. Running software with telemetry may be against the policy of your organization.
+3. g++ usually generates faster code on ``-O3``.
+
+So you may want to build XGBoost with g++ own your own risk. This opens a can of worms, because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and the runtimes have different incompatible memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
+
+1. The Python interpreter will crash on exit if XGBoost was used. This is usually not a big issue.
+2. ``-O3`` is OK.
+3. ``-mtune=native`` is also OK.
+4. Don't use ``-march=native`` gcc flag. Using it causes the Python interpreter to crash if the dll was actually used.
+5. You may need to provide the lib with the runtime libs. If ``mingw32/bin`` is not in ``PATH``, build a wheel (``python setup.py bdist_wheel``), open it with an archiver and put the needed dlls to the directory where ``xgboost.dll`` is situated. Then you can install the wheel with ``pip``.
+
 R Package Installation
 ======================
 
@@ -316,35 +327,13 @@ You can install xgboost from CRAN just like any other R package:
 
   install.packages("xgboost")
 
-Or you can install it from our weekly updated drat repo:
-
-.. code-block:: R
-
-  install.packages("drat", repos="https://cran.rstudio.com")
-  drat:::addRepo("dmlc")
-  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
-
-For OSX users, single threaded version will be installed. To install multi-threaded version,
-first follow `Building on OSX`_ to get the OpenMP enabled compiler. Then
-
-- Set the ``Makevars`` file in highest piority for R.
-
-  The point is, there are three ``Makevars`` : ``~/.R/Makevars``, ``xgboost/R-package/src/Makevars``, and ``/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf`` (the last one obtained by running ``file.path(R.home("etc"), "Makeconf")`` in R), and ``SHLIB_OPENMP_CXXFLAGS`` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
-
-  Then inside R, run
-
-.. code-block:: R
-
-  install.packages("drat", repos="https://cran.rstudio.com")
-  drat:::addRepo("dmlc")
-  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+For OSX users, single-threaded version will be installed. So only one thread will be used for training. To enable use of multiple threads (and utilize capacity of multi-core CPUs), see the section :ref:`osx_multithread` to install XGBoost from source.
 
 Installing the development version
 ----------------------------------
 
 Make sure you have installed git and a recent C++ compiler supporting C++11 (e.g., g++-4.8 or higher).
-On Windows, Rtools must be installed, and its bin directory has to be added to PATH during the installation.
-And see the previous subsection for an OSX tip.
+On Windows, Rtools must be installed, and its bin directory has to be added to ``PATH`` during the installation.
 
 Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to install the latest version of R package.
 Thus, one has to run git to check out the code first:
@@ -370,6 +359,33 @@ The package could also be built and installed with cmake (and Visual C++ 2015 on
 
 If all fails, try `Building the shared library`_ to see whether a problem is specific to R package or not.
 
+.. _osx_multithread:
+
+Installing R package on Mac OSX with multi-threading
+----------------------------------------------------
+
+First, obtain ``gcc-7`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
+
+.. code-block:: bash
+
+  brew install gcc@7
+
+Now, clone the repository:
+
+.. code-block:: bash
+
+  git clone --recursive https://github.com/dmlc/xgboost
+
+Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make sure to add ``CC=gcc-7 CXX=g++-7`` so that Homebrew GCC is selected. After invoking CMake, you can install the R package by running ``make`` and ``make install``:
+
+.. code-block:: bash
+
+  mkdir build
+  cd build
+  CC=gcc-7 CXX=g++-7 cmake .. -DR_LIB=ON
+  make -j4
+  make install
+
 Installing R package with GPU support
 -------------------------------------
 
@@ -387,7 +403,7 @@ On Linux, starting from the XGBoost directory type:
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package``, and runs ``R CMD INSTALL``.
 
-On Windows, cmake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``gendef.exe`` and ``dlltool.exe`` would work, but that was not tested).
+On Windows, CMake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``gendef.exe`` and ``dlltool.exe`` would work, but that was not tested).
 
 .. code-block:: bash
 
