@@ -8,6 +8,7 @@
 #define XGBOOST_TREE_PARAM_H_
 
 #include <dmlc/parameter.h>
+#include <rabit/rabit.h>
 #include <xgboost/data.h>
 #include <cmath>
 #include <cstring>
