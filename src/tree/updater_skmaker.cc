@@ -128,9 +128,6 @@ class SketchMaker: public BaseMaker {
     inline static void Reduce(SKStats &a, const SKStats &b) { // NOLINT(*)
       a.Add(b);
     }
-    /*! \brief set leaf vector value based on statistics */
-    inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {
-    }
   };
   inline void BuildSketch(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
@@ -303,7 +300,6 @@ class SketchMaker: public BaseMaker {
   inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param_, p_tree->Leafvec(nid));
   }
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
                              const WXQSketch::Summary &neg_grad,
