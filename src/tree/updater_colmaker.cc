@@ -627,7 +627,7 @@ class ColMaker: public TreeUpdater {
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
       auto p_feature_set = column_sampler_.GetFeatureSet(depth);
-      const auto& feat_set = p_feature_set->ConstHostVector();
+      const auto& feat_set = *p_feature_set;
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         this->UpdateSolution(batch, feat_set, gpair, p_fmat);
       }

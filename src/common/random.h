@@ -15,7 +15,6 @@
 #include <memory>
 #include <numeric>
 #include <random>
-#include "host_device_vector.h"
 
 namespace xgboost {
 namespace common {
@@ -82,27 +81,27 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  */
 
 class ColumnSampler {
-  std::shared_ptr<HostDeviceVector<int>> feature_set_tree_;
-  std::map<int, std::shared_ptr<HostDeviceVector<int>>> feature_set_level_;
+  std::shared_ptr<std::vector<int>> feature_set_tree_;
+  std::map<int, std::shared_ptr<std::vector<int>>> feature_set_level_;
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
 
-  std::shared_ptr<HostDeviceVector<int>> ColSample
-    (std::shared_ptr<HostDeviceVector<int>> features, float colsample) const {
-    if (colsample == 1.0f) return features;
-    const auto& features_h = features->ConstHostVector();
-    CHECK_GT(features_h.size(), 0);
-    int n = std::max(1, static_cast<int>(colsample * features_h.size()));
-    auto new_features = std::make_shared<HostDeviceVector<int>>();
-    auto& new_features_h = new_features->HostVector();
-    new_features_h.resize(features_h.size());
-    std::copy(features_h.begin(), features_h.end(), new_features_h.begin());
-    std::shuffle(new_features_h.begin(), new_features_h.end(), common::GlobalRandom());
-    new_features_h.resize(n);
-    std::sort(new_features_h.begin(), new_features_h.end());
+  std::shared_ptr<std::vector<int>> ColSample
+    (std::shared_ptr<std::vector<int>> p_features, float colsample) const {
+    if (colsample == 1.0f) return p_features;
+    const auto& features = *p_features;
+    CHECK_GT(features.size(), 0);
+    int n = std::max(1, static_cast<int>(colsample * features.size()));
+    auto p_new_features = std::make_shared<std::vector<int>>();
+    auto& new_features = *p_new_features;
+    new_features.resize(features.size());
+    std::copy(features.begin(), features.end(), new_features.begin());
+    std::shuffle(new_features.begin(), new_features.end(), common::GlobalRandom());
+    new_features.resize(n);
+    std::sort(new_features.begin(), new_features.end());
 
-    return new_features;
+    return p_new_features;
   }
 
  public:
@@ -122,14 +121,13 @@ class ColumnSampler {
     colsample_bynode_ = colsample_bynode;
 
     if (feature_set_tree_ == nullptr) {
-      feature_set_tree_ = std::make_shared<HostDeviceVector<int>>();
+      feature_set_tree_ = std::make_shared<std::vector<int>>();
     }
     Reset();
 
     int begin_idx = skip_index_0 ? 1 : 0;
-    auto& feature_set_h = feature_set_tree_->HostVector();
-    feature_set_h.resize(num_col - begin_idx);
-    std::iota(feature_set_h.begin(), feature_set_h.end(), begin_idx);
+    feature_set_tree_->resize(num_col - begin_idx);
+    std::iota(feature_set_tree_->begin(), feature_set_tree_->end(), begin_idx);
 
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
   }
@@ -138,7 +136,7 @@ class ColumnSampler {
    * \brief Resets this object.
    */
   void Reset() {
-    feature_set_tree_->HostVector().clear();
+    feature_set_tree_->clear();
     feature_set_level_.clear();
   }
 
@@ -150,7 +148,7 @@ class ColumnSampler {
    * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
    * is called. Therefore, it should be called only once per node.
    */
-  std::shared_ptr<HostDeviceVector<int>> GetFeatureSet(int depth) {
+  std::shared_ptr<std::vector<int>> GetFeatureSet(int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
     }
