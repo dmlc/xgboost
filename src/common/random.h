@@ -76,9 +76,9 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
 /**
  * \class ColumnSampler
  *
- * \brief Handles selection of columns due to colsample_bytree and
- * colsample_bylevel parameters. Should be initialised before tree
- * construction and to reset when tree construction is completed.
+ * \brief Handles selection of columns due to colsample_bytree, colsample_bylevel and
+ * colsample_bynode parameters. Should be initialised before tree construction and to
+ * reset when tree construction is completed.
  */
 
 class ColumnSampler {
@@ -110,6 +110,7 @@ class ColumnSampler {
    * \brief Initialise this object before use.
    *
    * \param num_col
+   * \param colsample_bynode
    * \param colsample_bylevel
    * \param colsample_bytree
    * \param skip_index_0      (Optional) True to skip index 0.
@@ -141,6 +142,14 @@ class ColumnSampler {
     feature_set_level_.clear();
   }
 
+  /**
+   * \brief Samples a feature set.
+   * 
+   * \param depth The tree depth of the node at which to sample.
+   * \return The sampled feature set.
+   * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
+   * is called. Therefore, it should be called only once per node.
+   */
   std::shared_ptr<HostDeviceVector<int>> GetFeatureSet(int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
