@@ -48,7 +48,7 @@ class TreePruner: public TreeUpdater {
   inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
     if (tree[nid].IsRoot()) return npruned;
     int pid = tree[nid].Parent();
-    RegTree::NodeStat &s = tree.Stat(pid);
+    RegTree::NodeStatT &s = tree.Stat(pid);
     ++s.leaf_child_cnt;
     if (s.leaf_child_cnt >= 2 && param_.NeedPrune(s.loss_chg, depth - 1)) {
       // need to be pruned

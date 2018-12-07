@@ -14,10 +14,8 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
-#include <tuple>
 #include "./base.h"
 #include "./data.h"
-#include "./logging.h"
 #include "./feature_map.h"
 
 namespace xgboost {
@@ -25,7 +23,7 @@ namespace xgboost {
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief number of start root */
-  int num_roots;
+  int num_roots{1}; // DEPRECATED - always 1
   /*! \brief total number of nodes */
   int num_nodes;
   /*!\brief number of deleted nodes */
@@ -33,12 +31,12 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief maximum depth, this is a statistics of the tree */
   int max_depth;
   /*! \brief number of features used for tree construction */
-  int num_feature;
+  int num_feature; // DEPRECATED
   /*!
    * \brief leaf vector size, used for vector tree
    * used to store more than one dimensional information in tree
    */
-  int size_leaf_vector;
+  int size_leaf_vector;  // DEPRECATED
   /*! \brief reserved part, make sure alignment works for 64bit */
   int reserved[31];
   /*! \brief constructor */
@@ -50,30 +48,41 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     num_nodes = num_roots = 1;
   }
   // declare the parameters
-  DMLC_DECLARE_PARAMETER(TreeParam) {
-    // only declare the parameters that can be set by the user.
-    // other arguments are set by the algorithm.
-    DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1)
-        .describe("Number of start root of trees.");
-    DMLC_DECLARE_FIELD(num_feature)
-        .describe("Number of features used in tree construction.");
-    DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
-        .describe("Size of leaf vector, reserved for vector tree");
-  }
+  DMLC_DECLARE_PARAMETER(TreeParam) {}
 };
 
-/*!
- * \brief template class of TreeModel
- * \tparam TSplitCond data type to indicate split condition
- * \tparam TNodeStat auxiliary statistics of node to help tree building
- */
-template<typename TSplitCond, typename TNodeStat>
-class TreeModel {
+/*! \brief node statistics used in regression tree */
+struct RTreeNodeStat {
+  /*! \brief loss change caused by current split */
+  bst_float loss_chg;
+  /*! \brief sum of hessian values, used to measure coverage of data */
+  bst_float sum_hess;
+  /*! \brief weight of current node */
+  bst_float base_weight;
+  /*! \brief number of child that is leaf node known up to now */
+  int leaf_child_cnt;
+};
+
+// Used by TreeShap
+// data we keep about our decision path
+// note that pweight is included for convenience and is not tied with the other attributes
+// the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
+struct PathElement {
+  int feature_index;
+  bst_float zero_fraction;
+  bst_float one_fraction;
+  bst_float pweight;
+  PathElement() = default;
+  PathElement(int i, bst_float z, bst_float o, bst_float w) :
+    feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
+};
+
+class RegTree {
  public:
   /*! \brief data type to indicate split condition */
-  using NodeStat = TNodeStat;
+  using NodeStatT = RTreeNodeStat;
   /*! \brief auxiliary statistics of node to help tree building */
-  using SplitCond = TSplitCond;
+  using SplitCondT = float;
   /*! \brief tree node */
   class Node {
    public:
@@ -111,7 +120,7 @@ class TreeModel {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
-    inline TSplitCond SplitCond() const {
+    inline SplitCondT SplitCond() const {
       return (this->info_).split_cond;
     }
     /*! \brief get parent of the node */
@@ -143,7 +152,7 @@ class TreeModel {
      * \param split_cond  split condition
      * \param default_left the default direction when feature is unknown
      */
-    inline void SetSplit(unsigned split_index, TSplitCond split_cond,
+    inline void SetSplit(unsigned split_index, SplitCondT split_cond,
                           bool default_left = false) {
       if (default_left) split_index |= (1U << 31);
       this->sindex_ = split_index;
@@ -166,15 +175,16 @@ class TreeModel {
     }
 
    private:
-    friend class TreeModel<TSplitCond, TNodeStat>;
+    friend class RegTree;
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
      *        we have split condition
      */
     union Info{
       bst_float leaf_value;
-      TSplitCond split_cond;
+      SplitCondT split_cond;
     };
+
     // pointer to parent, highest bit is used to
     // indicate whether it's a left child or not
     int parent_;
@@ -191,15 +201,63 @@ class TreeModel {
     }
   };
 
+  struct FVec {
+   public:
+    /*!
+     * \brief initialize the vector with size vector
+     * \param size The size of the feature vector.
+     */
+    inline void Init(size_t size);
+    /*!
+     * \brief fill the vector with sparse vector
+     * \param inst The sparse instance to fill.
+     */
+    inline void Fill(const SparsePage::Inst& inst);
+    /*!
+     * \brief drop the trace after fill, must be called after fill.
+     * \param inst The sparse instance to drop.
+     */
+    inline void Drop(const SparsePage::Inst& inst);
+    /*!
+     * \brief returns the size of the feature vector
+     * \return the size of the feature vector
+     */
+    inline size_t Size() const;
+    /*!
+     * \brief get ith value
+     * \param i feature index.
+     * \return the i-th feature value
+     */
+    inline bst_float Fvalue(size_t i) const;
+    /*!
+     * \brief check whether i-th entry is missing
+     * \param i feature index.
+     * \return whether i-th value is missing.
+     */
+    inline bool IsMissing(size_t i) const;
+
+   private:
+    /*!
+     * \brief a union value of value and flag
+     *  when flag == -1, this indicate the value is missing
+     */
+    union Entry {
+      bst_float fvalue;
+      int flag;
+    };
+    std::vector<Entry> data_;
+  };
  protected:
   // vector of nodes
   std::vector<Node> nodes_;
   // free node space, used during training process
   std::vector<int>  deleted_nodes_;
   // stats of nodes
-  std::vector<TNodeStat> stats_;
+  std::vector<NodeStatT> stats_;
   // leaf vector, that is used to store additional information
   std::vector<bst_float> leaf_vector_;
+
+  std::vector<bst_float> node_mean_values_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   inline int AllocNode() {
@@ -258,7 +316,7 @@ class TreeModel {
   /*! \brief model parameter */
   TreeParam param;
   /*! \brief constructor */
-  TreeModel() {
+  RegTree() {
     param.num_nodes = 1;
     param.num_roots = 1;
     param.num_deleted = 0;
@@ -277,11 +335,11 @@ class TreeModel {
   inline const std::vector<Node>& GetNodes() const { return nodes_; }
 
   /*! \brief get node statistics given nid */
-  inline NodeStat& Stat(int nid) {
+  inline NodeStatT& Stat(int nid) {
     return stats_[nid];
   }
   /*! \brief get node statistics given nid */
-  inline const NodeStat& Stat(int nid) const {
+  inline const NodeStatT& Stat(int nid) const {
     return stats_[nid];
   }
   /*! \brief get leaf vector given nid */
@@ -316,8 +374,8 @@ class TreeModel {
     CHECK_NE(param.num_nodes, 0);
     CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
              sizeof(Node) * nodes_.size());
-    CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(NodeStat) * stats_.size()),
-             sizeof(NodeStat) * stats_.size());
+    CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(NodeStatT) * stats_.size()),
+             sizeof(NodeStatT) * stats_.size());
     if (param.size_leaf_vector != 0) {
       CHECK(fi->Read(&leaf_vector_));
     }
@@ -338,7 +396,7 @@ class TreeModel {
     fo->Write(&param, sizeof(TreeParam));
     CHECK_NE(param.num_nodes, 0);
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
-    fo->Write(dmlc::BeginPtr(stats_), sizeof(NodeStat) * nodes_.size());
+    fo->Write(dmlc::BeginPtr(stats_), sizeof(NodeStatT) * nodes_.size());
     if (param.size_leaf_vector != 0) fo->Write(leaf_vector_);
   }
   /*!
@@ -352,15 +410,6 @@ class TreeModel {
     nodes_[nid].cright_ = pright;
     nodes_[nodes_[nid].LeftChild() ].SetParent(nid, true);
     nodes_[nodes_[nid].RightChild()].SetParent(nid, false);
-  }
-  /*!
-   * \brief only add a right child to a leaf node
-   * \param nid node id to add right child
-   */
-  inline void AddRightChild(int nid) {
-    int pright = this->AllocNode();
-    nodes_[nid].right  = pright;
-    nodes_[nodes_[nid].right].SetParent(nid, false);
   }
   /*!
    * \brief get current depth
@@ -398,90 +447,16 @@ class TreeModel {
   inline int NumExtraNodes() const {
     return param.num_nodes - param.num_roots - param.num_deleted;
   }
-};
-
-/*! \brief node statistics used in regression tree */
-struct RTreeNodeStat {
-  /*! \brief loss change caused by current split */
-  bst_float loss_chg;
-  /*! \brief sum of hessian values, used to measure coverage of data */
-  bst_float sum_hess;
-  /*! \brief weight of current node */
-  bst_float base_weight;
-  /*! \brief number of child that is leaf node known up to now */
-  int leaf_child_cnt;
-};
-
-// Used by TreeShap
-// data we keep about our decision path
-// note that pweight is included for convenience and is not tied with the other attributes
-// the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
-struct PathElement {
-  int feature_index;
-  bst_float zero_fraction;
-  bst_float one_fraction;
-  bst_float pweight;
-  PathElement() = default;
-  PathElement(int i, bst_float z, bst_float o, bst_float w) :
-    feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
-};
-
-/*!
- * \brief define regression tree to be the most common tree model.
- *  This is the data structure used in xgboost's major tree models.
- */
-class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
- public:
   /*!
-   * \brief dense feature vector that can be taken by RegTree
-   * and can be construct from sparse feature vector.
+   * \brief dump the model in the requested format as a text string
+   * \param fmap feature map that may help give interpretations of feature
+   * \param with_stats whether dump out statistics as well
+   * \param format the format to dump the model in
+   * \return the string of dumped model
    */
-  struct FVec {
-   public:
-    /*!
-     * \brief initialize the vector with size vector
-     * \param size The size of the feature vector.
-     */
-    inline void Init(size_t size);
-    /*!
-     * \brief fill the vector with sparse vector
-     * \param inst The sparse instance to fill.
-     */
-    inline void Fill(const SparsePage::Inst& inst);
-    /*!
-     * \brief drop the trace after fill, must be called after fill.
-     * \param inst The sparse instance to drop.
-     */
-    inline void Drop(const SparsePage::Inst& inst);
-    /*!
-     * \brief returns the size of the feature vector
-     * \return the size of the feature vector
-     */
-    inline size_t Size() const;
-    /*!
-     * \brief get ith value
-     * \param i feature index.
-     * \return the i-th feature value
-     */
-    inline bst_float Fvalue(size_t i) const;
-    /*!
-     * \brief check whether i-th entry is missing
-     * \param i feature index.
-     * \return whether i-th value is missing.
-     */
-    inline bool IsMissing(size_t i) const;
-
-   private:
-    /*!
-     * \brief a union value of value and flag
-     *  when flag == -1, this indicate the value is missing
-     */
-    union Entry {
-      bst_float fvalue;
-      int flag;
-    };
-    std::vector<Entry> data_;
-  };
+  std::string DumpModel(const FeatureMap& fmap,
+                        bool with_stats,
+                        std::string format) const;
   /*!
    * \brief get the leaf index
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -489,13 +464,18 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    * \return the leaf index of the given feature
    */
   inline int GetLeafIndex(const FVec& feat, unsigned root_id = 0) const;
+
   /*!
-   * \brief get the prediction of regression tree, only accepts dense feature vector
-   * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
-   * \return the leaf index of the given feature
+   * \brief get next position of the tree given current pid
+   * \param pid Current node id.
+   * \param fvalue feature value if not missing.
+   * \param is_unknown Whether current required feature is missing.
    */
-  inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
+  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
+  /*!
+   * \brief calculate the mean value for each node, required for feature contributions
+   */
+  inline void FillNodeMeanValues();
   /*!
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -508,6 +488,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
                                      bst_float *out_contribs,
                                      int condition = 0,
                                      unsigned condition_feature = 0) const;
+  /*!
+   * \brief calculate the approximate feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+                                           bst_float *out_contribs) const;
+  inline bst_float FillNodeMeanValue(int nid);
   /*!
    * \brief Recursive function that computes the feature attributions for a single tree.
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -528,41 +517,6 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
                        bst_float parent_one_fraction, int parent_feature_index,
                        int condition, unsigned condition_feature,
                        bst_float condition_fraction) const;
-
-  /*!
-   * \brief calculate the approximate feature contributions for the given root
-   * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
-   * \param out_contribs output vector to hold the contributions
-   */
-  inline void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
-                                           bst_float *out_contribs) const;
-  /*!
-   * \brief get next position of the tree given current pid
-   * \param pid Current node id.
-   * \param fvalue feature value if not missing.
-   * \param is_unknown Whether current required feature is missing.
-   */
-  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
-  /*!
-   * \brief dump the model in the requested format as a text string
-   * \param fmap feature map that may help give interpretations of feature
-   * \param with_stats whether dump out statistics as well
-   * \param format the format to dump the model in
-   * \return the string of dumped model
-   */
-  std::string DumpModel(const FeatureMap& fmap,
-                        bool with_stats,
-                        std::string format) const;
-  /*!
-   * \brief calculate the mean value for each node, required for feature contributions
-   */
-  inline void FillNodeMeanValues();
-
- private:
-  inline bst_float FillNodeMeanValue(int nid);
-
-  std::vector<bst_float> node_mean_values_;
 };
 
 // implementations of inline functions
@@ -607,12 +561,12 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
   }
   return pid;
 }
-
-inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
-  int pid = this->GetLeafIndex(feat, root_id);
-  return (*this)[pid].LeafValue();
-}
-
+//
+//inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
+//  int pid = this->GetLeafIndex(feat, root_id);
+//  return (*this)[pid].LeafValue();
+//}
+//
 inline void RegTree::FillNodeMeanValues() {
   size_t num_nodes = this->param.num_nodes;
   if (this->node_mean_values_.size() == num_nodes) {
