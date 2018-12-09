@@ -30,7 +30,7 @@ void TestDeviceSketch(const GPUSet& devices) {
   p.gpu_id = 0;
   p.n_gpus = devices.Size();
   // ensure that the exact quantiles are found
-  p.gpu_batch_nrows = nrows * 10;
+  int gpu_batch_nrows = nrows * 10;
 
   // find quantiles on the CPU
   HistCutMatrix hmat_cpu;
@@ -39,7 +39,7 @@ void TestDeviceSketch(const GPUSet& devices) {
   // find the cuts on the GPU
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   HistCutMatrix hmat_gpu;
-  DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu);
+  DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu, gpu_batch_nrows);
 
   // compare the cuts
   double eps = 1e-2;

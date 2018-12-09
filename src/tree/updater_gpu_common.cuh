@@ -36,50 +36,16 @@ XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
 namespace xgboost {
 namespace tree {
 
-// Atomic add function for double precision gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1, static_cast<double>(gpair.GetHess()));
-}
-// used by shared-memory atomics code
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPairPrecise& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, gpair.GetGrad());
-  atomicAdd(dst_ptr + 1, gpair.GetHess());
-}
-
-// For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
-  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
-  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
+// Atomic add function for gradients
+template <typename OutputGradientT, typename InputGradientT>
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                                               const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,
-            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
   atomicAdd(dst_ptr + 1,
-            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
-}
-
-/**
- * \brief Check maximum gradient value is below 2^16. This is to prevent
- * overflow when using integer gradient summation.
- */
-
-inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
-  auto* ptr = reinterpret_cast<const float*>(gpair.data());
-  float abs_max =
-      std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
-                      [=](float a, float b) {
-                        return std::max(abs(a), abs(b)); });
-
-  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
-      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
 struct GPUTrainingParam {

@@ -17,7 +17,8 @@
 namespace xgboost {
 namespace tree {
 
-void BuildGidx(DeviceShard* shard, int n_rows, int n_cols,
+template <typename GradientSumT>
+void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
@@ -48,7 +49,7 @@ TEST(GpuHist, BuildGidxDense) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, n_rows, param);
+  DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
   BuildGidx(&shard, n_rows, n_cols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
@@ -87,7 +88,7 @@ TEST(GpuHist, BuildGidxSparse) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, n_rows, param);
+  DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
   BuildGidx(&shard, n_rows, n_cols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
@@ -122,7 +123,8 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
   return hist_gpair;
 }
 
-void TestBuildHist(GPUHistBuilderBase& builder) {
+template <typename GradientSumT>
+void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   int const n_rows = 16, n_cols = 8;
 
   TrainParam param;
@@ -130,7 +132,7 @@ void TestBuildHist(GPUHistBuilderBase& builder) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard shard(0, 0, n_rows, param);
+  DeviceShard<GradientSumT> shard(0, 0, n_rows, param);
 
   BuildGidx(&shard, n_rows, n_cols);
 
@@ -166,13 +168,14 @@ void TestBuildHist(GPUHistBuilderBase& builder) {
                    shard.ridx.CurrentDVec().tend());
 
   builder.Build(&shard, 0);
-  DeviceHistogram d_hist = shard.hist;
+  DeviceHistogram<GradientSumT> d_hist = shard.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);
   // d_hist.data stored in float, not gradient pair
-  thrust::host_vector<GradientPairSumT> h_result (d_hist.data.size()/2);
-  size_t data_size = sizeof(GradientPairSumT) / (
-      sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT));
+  thrust::host_vector<GradientSumT> h_result (d_hist.data.size()/2);
+  size_t data_size =
+      sizeof(GradientSumT) /
+      (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT));
   data_size *= d_hist.data.size();
   dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), data_size,
                            cudaMemcpyDeviceToHost));
@@ -186,13 +189,17 @@ void TestBuildHist(GPUHistBuilderBase& builder) {
 }
 
 TEST(GpuHist, BuildHistGlobalMem) {
-  GlobalMemHistBuilder builder;
-  TestBuildHist(builder);
+  GlobalMemHistBuilder<GradientPairPrecise> double_builder;
+  TestBuildHist(double_builder);
+  GlobalMemHistBuilder<GradientPair> float_builder;
+  TestBuildHist(float_builder);
 }
 
 TEST(GpuHist, BuildHistSharedMem) {
-  SharedMemHistBuilder builder;
-  TestBuildHist(builder);
+  SharedMemHistBuilder<GradientPairPrecise> double_builder;
+  TestBuildHist(double_builder);
+  SharedMemHistBuilder<GradientPair> float_builder;
+  TestBuildHist(float_builder);
 }
 
 common::HistCutMatrix GetHostCutMatrix () {
@@ -236,7 +243,7 @@ TEST(GpuHist, EvaluateSplits) {
   int max_bins = 4;
 
   // Initialize DeviceShard
-  std::unique_ptr<DeviceShard> shard {new DeviceShard(0, 0, n_rows, param)};
+  std::unique_ptr<DeviceShard<GradientPairPrecise>> shard {new DeviceShard<GradientPairPrecise>(0, 0, n_rows, param)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -244,7 +251,7 @@ TEST(GpuHist, EvaluateSplits) {
   common::HistCutMatrix cmat = GetHostCutMatrix();
 
   // Copy cut matrix to device.
-  DeviceShard::DeviceHistCutMatrix cut;
+  DeviceShard<GradientPairPrecise>::DeviceHistCutMatrix cut;
   shard->ba.Allocate(0, true,
                      &(shard->cut_.feature_segments), cmat.row_ptr.size(),
                      &(shard->cut_.min_fvalue), cmat.min_val.size(),
@@ -271,9 +278,9 @@ TEST(GpuHist, EvaluateSplits) {
   thrust::copy(hist.begin(), hist.end(),
                shard->hist.data.begin());
 
-
   // Initialize GPUHistMaker
-  GPUHistMaker hist_maker = GPUHistMaker();
+  GPUHistMakerSpecialised<GradientPairPrecise> hist_maker =
+      GPUHistMakerSpecialised<GradientPairPrecise>();
   hist_maker.param_ = param;
   hist_maker.shards_.push_back(std::move(shard));
   hist_maker.column_sampler_.Init(n_cols,
@@ -301,7 +308,8 @@ TEST(GpuHist, EvaluateSplits) {
 }
 
 TEST(GpuHist, ApplySplit) {
-  GPUHistMaker hist_maker = GPUHistMaker();
+  GPUHistMakerSpecialised<GradientPairPrecise> hist_maker =
+      GPUHistMakerSpecialised<GradientPairPrecise>();
   int constexpr nid = 0;
   int constexpr n_rows = 16;
   int constexpr n_cols = 8;
@@ -315,7 +323,7 @@ TEST(GpuHist, ApplySplit) {
   }
 
   hist_maker.shards_.resize(1);
-  hist_maker.shards_[0].reset(new DeviceShard(0, 0, n_rows, param));
+  hist_maker.shards_[0].reset(new DeviceShard<GradientPairPrecise>(0, 0, n_rows, param));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.
@@ -337,7 +345,7 @@ TEST(GpuHist, ApplySplit) {
                    0.59, 4,  // fvalue has to be equal to one of the cut field
                    GradientPair(8.2, 2.8), GradientPair(6.3, 3.6),
                    GPUTrainingParam(param));
-  GPUHistMaker::ExpandEntry candidate_entry {0, 0, candidate, 0};
+  GPUHistMakerSpecialised<GradientPairPrecise>::ExpandEntry candidate_entry {0, 0, candidate, 0};
   candidate_entry.nid = nid;
 
   auto const& nodes = tree.GetNodes();
