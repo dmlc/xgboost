@@ -22,7 +22,6 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
   float reg_alpha;
   int feature_selector;
   int top_k;
-  int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(CoordinateTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -50,10 +49,6 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
         .set_default(0)
         .describe("The number of top features to select in 'thrifty' feature_selector. "
                   "The value of zero means using all the features.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     // alias of parameters
     DMLC_DECLARE_ALIAS(learning_rate, eta);
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
@@ -82,7 +77,9 @@ class CoordinateUpdater : public LinearUpdater {
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param.InitAllowUnknown(args);
     selector.reset(FeatureSelector::Create(param.feature_selector));
-    monitor.Init("CoordinateUpdater", param.debug_verbose);
+    monitor.Init(
+        "CoordinateUpdater",
+        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {

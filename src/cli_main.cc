@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include "./common/common.h"
 #include "./common/config.h"
 
 
@@ -33,8 +34,6 @@ enum CLITask {
 struct CLIParam : public dmlc::Parameter<CLIParam> {
   /*! \brief the task name */
   int task;
-  /*! \brief whether silent */
-  int silent;
   /*! \brief whether evaluate training statistics */
   bool eval_train;
   /*! \brief number of boosting iterations */
@@ -82,8 +81,6 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
         .add_enum("dump", kDumpModel)
         .add_enum("pred", kPredict)
         .describe("Task to be performed by the CLI program.");
-    DMLC_DECLARE_FIELD(silent).set_default(0).set_range(0, 2)
-        .describe("Silent level during the task.");
     DMLC_DECLARE_FIELD(eval_train).set_default(false)
         .describe("Whether evaluate on training data during training.");
     DMLC_DECLARE_FIELD(num_round).set_default(10).set_lower_bound(1)
@@ -125,10 +122,10 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
     DMLC_DECLARE_ALIAS(name_fmap, fmap);
   }
   // customized configure function of CLIParam
-  inline void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
-    this->cfg = cfg;
-    this->InitAllowUnknown(cfg);
-    for (const auto& kv : cfg) {
+  inline void Configure(const std::vector<std::pair<std::string, std::string> >& _cfg) {
+    this->cfg = _cfg;
+    this->InitAllowUnknown(_cfg);
+    for (const auto& kv : _cfg) {
       if (!strncmp("eval[", kv.first.c_str(), 5)) {
         char evname[256];
         CHECK_EQ(sscanf(kv.first.c_str(), "eval[%[^]]", evname), 1)
@@ -140,13 +137,13 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
     // constraint.
     if (name_pred == "stdout") {
       save_period = 0;
-      silent = 1;
+      this->cfg.push_back(std::make_pair("silent", "0"));
     }
     if (dsplit == 0 && rabit::IsDistributed()) {
       dsplit = 2;
     }
     if (rabit::GetRank() != 0) {
-      silent = 2;
+      this->cfg.push_back(std::make_pair("silent", "1"));
     }
   }
 };
@@ -161,15 +158,20 @@ void CLITrain(const CLIParam& param) {
   }
   // load in data.
   std::shared_ptr<DMatrix> dtrain(
-      DMatrix::Load(param.train_path, param.silent != 0, param.dsplit == 2));
+      DMatrix::Load(
+          param.train_path,
+          ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
+          param.dsplit == 2));
   std::vector<std::shared_ptr<DMatrix> > deval;
   std::vector<std::shared_ptr<DMatrix> > cache_mats;
   std::vector<DMatrix*> eval_datasets;
   cache_mats.push_back(dtrain);
   for (size_t i = 0; i < param.eval_data_names.size(); ++i) {
     deval.emplace_back(
-        std::shared_ptr<DMatrix>(DMatrix::Load(param.eval_data_paths[i],
-                                               param.silent != 0, param.dsplit == 2)));
+        std::shared_ptr<DMatrix>(DMatrix::Load(
+            param.eval_data_paths[i],
+            ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
+            param.dsplit == 2)));
     eval_datasets.push_back(deval.back().get());
     cache_mats.push_back(deval.back());
   }
@@ -193,17 +195,14 @@ void CLITrain(const CLIParam& param) {
       learner->InitModel();
     }
   }
-  if (param.silent == 0) {
-    LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
-  }
+  LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
+
   // start training.
   const double start = dmlc::GetTime();
   for (int i = version / 2; i < param.num_round; ++i) {
     double elapsed = dmlc::GetTime() - start;
     if (version % 2 == 0) {
-      if (param.silent == 0) {
-        LOG(CONSOLE) << "boosting round " << i << ", " << elapsed << " sec elapsed";
-      }
+      LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
       learner->UpdateOneIter(i, dtrain.get());
       if (learner->AllowLazyCheckPoint()) {
         rabit::LazyCheckPoint(learner.get());
@@ -219,9 +218,7 @@ void CLITrain(const CLIParam& param) {
         LOG(TRACKER) << res;
       }
     } else {
-      if (param.silent < 2) {
-        LOG(CONSOLE) << res;
-      }
+      LOG(CONSOLE) << res;
     }
     if (param.save_period != 0 &&
         (i + 1) % param.save_period == 0 &&
@@ -260,10 +257,8 @@ void CLITrain(const CLIParam& param) {
     learner->Save(fo.get());
   }
 
-  if (param.silent == 0) {
-    double elapsed = dmlc::GetTime() - start;
-    LOG(CONSOLE) << "update end, " << elapsed << " sec in all";
-  }
+  double elapsed = dmlc::GetTime() - start;
+  LOG(INFO) << "update end, " << elapsed << " sec in all";
 }
 
 void CLIDumpModel(const CLIParam& param) {
@@ -310,7 +305,10 @@ void CLIPredict(const CLIParam& param) {
       << "Test dataset parameter test:data must be specified.";
   // load data
   std::unique_ptr<DMatrix> dtest(
-      DMatrix::Load(param.test_path, param.silent != 0, param.dsplit == 2));
+      DMatrix::Load(
+          param.test_path,
+          ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
+          param.dsplit == 2));
   // load model
   CHECK_NE(param.model_in, "NULL")
       << "Must specify model_in for predict";
@@ -320,14 +318,11 @@ void CLIPredict(const CLIParam& param) {
   learner->Load(fi.get());
   learner->Configure(param.cfg);
 
-  if (param.silent == 0) {
-    LOG(CONSOLE) << "start prediction...";
-  }
+  LOG(INFO) << "start prediction...";
   HostDeviceVector<bst_float> preds;
   learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
-  if (param.silent == 0) {
-    LOG(CONSOLE) << "writing prediction to " << param.name_pred;
-  }
+  LOG(CONSOLE) << "writing prediction to " << param.name_pred;
+
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());

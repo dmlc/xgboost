@@ -122,8 +122,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
   // flag to disable default metric
   int disable_default_eval_metric;
   // declare parameters
@@ -155,10 +153,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         "Internal test flag");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(0)
         .describe("flag to disable default metric. Set to >0 to disable");
@@ -245,8 +239,12 @@ class LearnerImpl : public Learner {
       const std::vector<std::pair<std::string, std::string> >& args) override {
     // add to configurations
     tparam_.InitAllowUnknown(args);
-    monitor_.Init("Learner", tparam_.debug_verbose);
+    ConsoleLogger::Configure(args);
+    monitor_.Init(
+        "Learner",
+        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
     cfg_.clear();
+
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {
         // check duplication
@@ -270,7 +268,6 @@ class LearnerImpl : public Learner {
     if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
-
     if (cfg_.count("num_class") != 0) {
       cfg_["num_output_group"] = cfg_["num_class"];
       if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
