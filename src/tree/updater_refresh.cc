@@ -34,10 +34,10 @@ class TreeRefresher: public TreeUpdater {
     // number of threads
     // thread temporal space
     std::vector<std::vector<TStats> > stemp;
-    std::vector<RegressionTree::FVec> fvec_temp;
+    std::vector<DenseFeatureVector> fvec_temp;
     // setup temp space for each thread
     const int nthread = omp_get_max_threads();
-    fvec_temp.resize(nthread, RegressionTree::FVec());
+    fvec_temp.resize(nthread, DenseFeatureVector());
     stemp.resize(nthread, std::vector<TStats>());
     #pragma omp parallel
     {
@@ -66,7 +66,7 @@ class TreeRefresher: public TreeUpdater {
           SparsePage::Inst inst = batch[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-          RegressionTree::FVec &feats = fvec_temp[tid];
+          DenseFeatureVector &feats = fvec_temp[tid];
           feats.Fill(inst);
           int offset = 0;
           for (auto tree : trees) {
@@ -105,7 +105,7 @@ class TreeRefresher: public TreeUpdater {
 
  private:
   inline static void AddStats(const RegressionTree &tree,
-                              const RegressionTree::FVec &feat,
+                              const DenseFeatureVector &feat,
                               const std::vector<GradientPair> &gpair,
                               const MetaInfo &info,
                               const bst_uint ridx,

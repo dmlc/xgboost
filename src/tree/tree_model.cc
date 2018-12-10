@@ -183,40 +183,7 @@ int RegressionTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
   }
 }
 
-// do not need to read if only use the model
-void RegressionTree::FVec::Init(size_t size) {
-  Entry e; e.flag = -1;
-  data_.resize(size);
-  std::fill(data_.begin(), data_.end(), e);
-}
-
-void RegressionTree::FVec::Fill(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].fvalue = inst[i].fvalue;
-  }
-}
-
-void RegressionTree::FVec::Drop(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].flag = -1;
-  }
-}
-
-size_t RegressionTree::FVec::Size() const {
-  return data_.size();
-}
-
-bst_float RegressionTree::FVec::Fvalue(size_t i) const {
-  return data_[i].fvalue;
-}
-
-bool RegressionTree::FVec::IsMissing(size_t i) const {
-  return data_[i].flag == -1;
-}
-
-int RegressionTree::GetLeafIndex(const RegressionTree::FVec& feat, unsigned root_id) const {
+int RegressionTree::GetLeafIndex(const DenseFeatureVector& feat, unsigned root_id) const {
   auto pid = static_cast<int>(root_id);
   while (!(*this).GetNode(pid).IsLeaf()) {
     unsigned split_index = (*this).GetNode(pid).SplitIndex();
@@ -248,7 +215,7 @@ bst_float RegressionTree::FillNodeMeanValue(int nid) {
   return result;
 }
 
-void RegressionTree::CalculateContributionsApprox(const RegressionTree::FVec& feat, unsigned root_id,
+void RegressionTree::CalculateContributionsApprox(const DenseFeatureVector& feat, unsigned root_id,
                                                   bst_float *out_contribs) {
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
@@ -352,7 +319,7 @@ bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
 }
 
 // recursive computation of SHAP values for a decision tree
-void RegressionTree::TreeShap(const RegressionTree::FVec& feat, bst_float *phi,
+void RegressionTree::TreeShap(const DenseFeatureVector& feat, bst_float *phi,
                               unsigned node_index, unsigned unique_depth,
                               PathElement *parent_unique_path, bst_float parent_zero_fraction,
                               bst_float parent_one_fraction, int parent_feature_index,
@@ -436,7 +403,7 @@ void RegressionTree::TreeShap(const RegressionTree::FVec& feat, bst_float *phi,
   }
 }
 
-void RegressionTree::CalculateContributions(const RegressionTree::FVec& feat, unsigned root_id,
+void RegressionTree::CalculateContributions(const DenseFeatureVector& feat, unsigned root_id,
                                             bst_float *out_contribs,
                                             int condition,
                                             unsigned condition_feature) {
@@ -453,6 +420,39 @@ void RegressionTree::CalculateContributions(const RegressionTree::FVec& feat, un
   TreeShap(feat, out_contribs, root_id, 0, unique_path_data,
            1, 1, -1, condition, condition_feature, 1);
   delete[] unique_path_data;
+}
+
+// do not need to read if only use the model
+void DenseFeatureVector::Init(size_t size) {
+  Entry e; e.flag = -1;
+  data_.resize(size);
+  std::fill(data_.begin(), data_.end(), e);
+}
+
+void DenseFeatureVector::Fill(const SparsePage::Inst& inst) {
+  for (bst_uint i = 0; i < inst.size(); ++i) {
+    if (inst[i].index >= data_.size()) continue;
+    data_[inst[i].index].fvalue = inst[i].fvalue;
+  }
+}
+
+void DenseFeatureVector::Drop(const SparsePage::Inst& inst) {
+  for (bst_uint i = 0; i < inst.size(); ++i) {
+    if (inst[i].index >= data_.size()) continue;
+    data_[inst[i].index].flag = -1;
+  }
+}
+
+size_t DenseFeatureVector::Size() const {
+  return data_.size();
+}
+
+bst_float DenseFeatureVector::Fvalue(size_t i) const {
+  return data_[i].fvalue;
+}
+
+bool DenseFeatureVector::IsMissing(size_t i) const {
+  return data_[i].flag == -1;
 }
 
 }  // namespace xgboost

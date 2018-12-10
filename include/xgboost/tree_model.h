@@ -19,12 +19,15 @@
 #include "./feature_map.h"
 
 namespace xgboost {
-  struct PathElement; // Forward declaration
 
-  /*! \brief meta parameters of the tree */
+// Forward declarations
+struct PathElement;
+struct DenseFeatureVector;
+
+/*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief number of start root */
-  int num_roots{1}; // DEPRECATED - always 1
+  int num_roots{1};  // DEPRECATED - always 1
   /*! \brief total number of nodes */
   int num_nodes;
   /*!\brief number of deleted nodes */
@@ -32,7 +35,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief maximum depth, this is a statistics of the tree */
   int max_depth;
   /*! \brief number of features used for tree construction */
-  int num_feature; // DEPRECATED
+  int num_feature;  // DEPRECATED
   /*!
    * \brief leaf vector size, used for vector tree
    * used to store more than one dimensional information in tree
@@ -192,59 +195,14 @@ class RegressionTree {
     Info info_;
   };
 
-  struct FVec {
-   public:
-    /*!
-     * \brief initialize the vector with size vector
-     * \param size The size of the feature vector.
-     */
-    void Init(size_t size);
-    /*!
-     * \brief fill the vector with sparse vector
-     * \param inst The sparse instance to fill.
-     */
-    void Fill(const SparsePage::Inst& inst);
-    /*!
-     * \brief drop the trace after fill, must be called after fill.
-     * \param inst The sparse instance to drop.
-     */
-    void Drop(const SparsePage::Inst& inst);
-    /*!
-     * \brief returns the size of the feature vector
-     * \return the size of the feature vector
-     */
-    size_t Size() const;
-    /*!
-     * \brief get ith value
-     * \param i feature index.
-     * \return the i-th feature value
-     */
-    bst_float Fvalue(size_t i) const;
-    /*!
-     * \brief check whether i-th entry is missing
-     * \param i feature index.
-     * \return whether i-th value is missing.
-     */
-    bool IsMissing(size_t i) const;
-
-   private:
-    /*!
-     * \brief a union value of value and flag
-     *  when flag == -1, this indicate the value is missing
-     */
-    union Entry {
-      bst_float fvalue;
-      int flag;
-    };
-    std::vector<Entry> data_;
-  };
- protected:
+ private:
   // vector of nodes
   std::vector<Node> nodes_;
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
 
-  std::vector<bst_float> node_mean_values_; // Cache mean values for generating contributions
+  std::vector<bst_float>
+      node_mean_values_;  // Cache mean values for generating contributions
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   inline int AllocNode() {
@@ -255,6 +213,26 @@ class RegressionTree {
     stats_.resize(param.num_nodes);
     return nd;
   }
+  /*!
+   * \brief Recursive function that computes the feature attributions for a single tree.
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param phi dense output vector of feature attributions
+   * \param node_index the index of the current node in the tree
+   * \param unique_depth how many unique features are above the current node in the tree
+   * \param parent_unique_path a vector of statistics about our current path through the tree
+   * \param parent_zero_fraction what fraction of the parent path weight is coming as 0 (integrated)
+   * \param parent_one_fraction what fraction of the parent path weight is coming as 1 (fixed)
+   * \param parent_feature_index what feature the parent node used to split
+   * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
+   * \param condition_feature the index of the feature to fix
+   * \param condition_fraction what fraction of the current weight matches our conditioning feature
+   */
+  void TreeShap(const DenseFeatureVector& feat, bst_float *phi,
+                       unsigned node_index, unsigned unique_depth,
+                       PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                       bst_float parent_one_fraction, int parent_feature_index,
+                       int condition, unsigned condition_feature,
+                       bst_float condition_fraction) const;
   // delete a tree node, keep the parent field to allow trace back
   inline void DeleteNode(int nid) {
     CHECK_GE(nid, param.num_roots);
@@ -262,20 +240,8 @@ class RegressionTree {
     ++param.num_deleted;
   }
 
- public:
-  /*!
-   * \brief change a non leaf node to a leaf node, delete its children
-   * \param rid node id of the node
-   * \param value new leaf value
-   */
-  inline void ChangeToLeaf(int rid, bst_float value) {
-    CHECK(nodes_[nodes_[rid].LeftChild() ].IsLeaf());
-    CHECK(nodes_[nodes_[rid].RightChild()].IsLeaf());
-    this->DeleteNode(nodes_[rid].LeftChild());
-    this->DeleteNode(nodes_[rid].RightChild());
-    nodes_[rid].SetLeaf(value);
-  }
-  inline bst_float FillNodeMeanValue(int nid);
+  bst_float FillNodeMeanValue(int nid);
+
  public:
   /*! \brief model parameter */
   TreeParam param;
@@ -291,6 +257,19 @@ class RegressionTree {
       nodes_[i].SetParent(-1);
     }
   }
+  /*!
+   * \brief change a non leaf node to a leaf node, delete its children
+   * \param rid node id of the node
+   * \param value new leaf value
+   */
+  inline void ChangeToLeaf(int rid, bst_float value) {
+    CHECK(nodes_[nodes_[rid].LeftChild()].IsLeaf());
+    CHECK(nodes_[nodes_[rid].RightChild()].IsLeaf());
+    this->DeleteNode(nodes_[rid].LeftChild());
+    this->DeleteNode(nodes_[rid].RightChild());
+    nodes_[rid].SetLeaf(value);
+  }
+
   /*! \brief get node given nid */
   inline const Node& GetNode(int nid) const {
     return nodes_[nid];
@@ -346,7 +325,7 @@ class RegressionTree {
     int pleft  = this->AllocNode();
     int pright = this->AllocNode();
     nodes_[nid].SetLeftChild(pleft);
-    nodes_[nid].SetRightChild(pright) ;
+    nodes_[nid].SetRightChild(pright);
     nodes_[nodes_[nid].LeftChild() ].SetParent(nid, true);
     nodes_[nodes_[nid].RightChild()].SetParent(nid, false);
   }
@@ -391,7 +370,7 @@ class RegressionTree {
    * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */
-  int GetLeafIndex(const FVec& feat, unsigned root_id = 0) const;
+  int GetLeafIndex(const DenseFeatureVector& feat, unsigned root_id = 0) const;
 
   /*!
    * \brief get next position of the tree given current pid
@@ -412,7 +391,7 @@ class RegressionTree {
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    */
-  void CalculateContributions(const RegressionTree::FVec& feat,
+  void CalculateContributions(const DenseFeatureVector& feat,
                                      unsigned root_id, bst_float* out_contribs,
                                      int condition = 0,
                                      unsigned condition_feature = 0);
@@ -422,30 +401,55 @@ class RegressionTree {
    * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    */
-  void CalculateContributionsApprox(const RegressionTree::FVec& feat,
-                                           unsigned root_id,
-                                           bst_float* out_contribs);
+  void CalculateContributionsApprox(const DenseFeatureVector& feat,
+                                    unsigned root_id, bst_float* out_contribs);
+};
 
+/** \brief Dense feature vector, used for efficient lookup of sparse data for prediction */
+struct DenseFeatureVector {
   /*!
-   * \brief Recursive function that computes the feature attributions for a single tree.
-   * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param phi dense output vector of feature attributions
-   * \param node_index the index of the current node in the tree
-   * \param unique_depth how many unique features are above the current node in the tree
-   * \param parent_unique_path a vector of statistics about our current path through the tree
-   * \param parent_zero_fraction what fraction of the parent path weight is coming as 0 (integrated)
-   * \param parent_one_fraction what fraction of the parent path weight is coming as 1 (fixed)
-   * \param parent_feature_index what feature the parent node used to split
-   * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
-   * \param condition_feature the index of the feature to fix
-   * \param condition_fraction what fraction of the current weight matches our conditioning feature
+   * \brief initialize the vector with size vector
+   * \param size The size of the feature vector.
    */
-  void TreeShap(const RegressionTree::FVec& feat, bst_float *phi,
-                       unsigned node_index, unsigned unique_depth,
-                       PathElement *parent_unique_path, bst_float parent_zero_fraction,
-                       bst_float parent_one_fraction, int parent_feature_index,
-                       int condition, unsigned condition_feature,
-                       bst_float condition_fraction) const;
+  void Init(size_t size);
+  /*!
+   * \brief fill the vector with sparse vector
+   * \param inst The sparse instance to fill.
+   */
+  void Fill(const SparsePage::Inst& inst);
+  /*!
+   * \brief drop the trace after fill, must be called after fill.
+   * \param inst The sparse instance to drop.
+   */
+  void Drop(const SparsePage::Inst& inst);
+  /*!
+   * \brief returns the size of the feature vector
+   * \return the size of the feature vector
+   */
+  size_t Size() const;
+  /*!
+   * \brief get ith value
+   * \param i feature index.
+   * \return the i-th feature value
+   */
+  bst_float Fvalue(size_t i) const;
+  /*!
+   * \brief check whether i-th entry is missing
+   * \param i feature index.
+   * \return whether i-th value is missing.
+   */
+  bool IsMissing(size_t i) const;
+
+ private:
+  /*!
+   * \brief a union value of value and flag
+   *  when flag == -1, this indicate the value is missing
+   */
+  union Entry {
+    bst_float fvalue;
+    int flag;
+  };
+  std::vector<Entry> data_;
 };
 
 }  // namespace xgboost

@@ -17,7 +17,7 @@ class CPUPredictor : public Predictor {
   static bst_float PredValue(const  SparsePage::Inst& inst,
                              const std::vector<std::unique_ptr<RegressionTree>>& trees,
                              const std::vector<int>& tree_info, int bst_group,
-                             unsigned root_index, RegressionTree::FVec* p_feats,
+                             unsigned root_index, DenseFeatureVector* p_feats,
                              unsigned tree_begin, unsigned tree_end) {
     bst_float psum = 0.0f;
     p_feats->Fill(inst);
@@ -35,7 +35,7 @@ class CPUPredictor : public Predictor {
   inline void InitThreadTemp(int nthread, int num_feature) {
     int prev_thread_temp_size = thread_temp.size();
     if (prev_thread_temp_size < nthread) {
-      thread_temp.resize(nthread, RegressionTree::FVec());
+      thread_temp.resize(nthread, DenseFeatureVector());
       for (int i = prev_thread_temp_size; i < nthread; ++i) {
         thread_temp[i].Init(num_feature);
       }
@@ -61,7 +61,7 @@ class CPUPredictor : public Predictor {
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
         const int tid = omp_get_thread_num();
-        RegressionTree::FVec& feats = thread_temp[tid];
+        DenseFeatureVector& feats = thread_temp[tid];
         int64_t ridx[kUnroll];
         SparsePage::Inst inst[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
@@ -80,7 +80,7 @@ class CPUPredictor : public Predictor {
         }
       }
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
-        RegressionTree::FVec& feats = thread_temp[0];
+        DenseFeatureVector& feats = thread_temp[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
          auto inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
@@ -200,7 +200,7 @@ class CPUPredictor : public Predictor {
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {
     if (thread_temp.size() == 0) {
-      thread_temp.resize(1, RegressionTree::FVec());
+      thread_temp.resize(1, DenseFeatureVector());
       thread_temp[0].Init(model.param.num_feature);
     }
     ntree_limit *= model.param.num_output_group;
@@ -237,7 +237,7 @@ class CPUPredictor : public Predictor {
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         auto ridx = static_cast<size_t>(batch.base_rowid + i);
-        RegressionTree::FVec& feats = thread_temp[tid];
+        DenseFeatureVector& feats = thread_temp[tid];
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
           int tid = model.trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
@@ -279,7 +279,7 @@ class CPUPredictor : public Predictor {
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         unsigned root_id = info.GetRoot(row_idx);
-        RegressionTree::FVec& feats = thread_temp[omp_get_thread_num()];
+        DenseFeatureVector& feats = thread_temp[omp_get_thread_num()];
         // loop over all classes
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float* p_contribs =
@@ -352,7 +352,7 @@ class CPUPredictor : public Predictor {
       }
     }
   }
-  std::vector<RegressionTree::FVec> thread_temp;
+  std::vector<DenseFeatureVector> thread_temp;
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
