@@ -8,8 +8,8 @@ TEST(cpu_predictor, Test) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
 
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+  std::vector<std::unique_ptr<RegressionTree>> trees;
+  trees.push_back(std::unique_ptr<RegressionTree>(new RegressionTree));
   trees.back()->GetNode(0).SetLeaf(1.5f);
   trees.back()->Stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);

@@ -288,8 +288,7 @@ TEST(GpuHist, EvaluateSplits) {
                                   param.colsample_bytree,
                                   false);
 
-  RegTree tree;
-  tree.InitModel();
+  RegressionTree tree;
 
   MetaInfo info;
   info.num_row_ = n_rows;
@@ -337,8 +336,7 @@ TEST(GpuHist, ApplySplit) {
                    shard->ridx.CurrentDVec().tend());
   // Initialize GPUHistMaker
   hist_maker.param_ = param;
-  RegTree tree;
-  tree.InitModel();
+  RegressionTree tree;
 
   DeviceSplitCandidate candidate;
   candidate.Update(2, kLeftDir,
@@ -385,10 +383,10 @@ TEST(GpuHist, ApplySplit) {
   hist_maker.ApplySplit(candidate_entry, &tree);
   hist_maker.UpdatePosition(candidate_entry, &tree);
 
-  ASSERT_FALSE(tree[nid].IsLeaf());
+  ASSERT_FALSE(tree.GetNode(nid).IsLeaf());
 
-  int left_nidx = tree[nid].LeftChild();
-  int right_nidx = tree[nid].RightChild();
+  int left_nidx = tree.GetNode(nid).LeftChild();
+  int right_nidx = tree.GetNode(nid).RightChild();
 
   ASSERT_EQ(shard->ridx_segments[left_nidx].begin, 0);
   ASSERT_EQ(shard->ridx_segments[left_nidx].end, 6);

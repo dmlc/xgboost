@@ -286,10 +286,10 @@ XGBOOST_DEVICE inline bool IsLeftChild(int nidx) {
 }
 
 // Copy gpu dense representation of tree to xgboost sparse representation
-inline void Dense2SparseTree(RegTree* p_tree,
+inline void Dense2SparseTree(RegressionTree* p_tree,
                               const dh::DVec<DeviceNodeStats>& nodes,
                               const TrainParam& param) {
-  RegTree& tree = *p_tree;
+  RegressionTree& tree = *p_tree;
   std::vector<DeviceNodeStats> h_nodes = nodes.AsVector();
 
   int nid = 0;
@@ -297,15 +297,15 @@ inline void Dense2SparseTree(RegTree* p_tree,
     const DeviceNodeStats& n = h_nodes[gpu_nid];
     if (!n.IsUnused() && !n.IsLeaf()) {
       tree.AddChilds(nid);
-      tree[nid].SetSplit(n.fidx, n.fvalue, n.dir == kLeftDir);
+      tree.GetNode(nid).SetSplit(n.fidx, n.fvalue, n.dir == kLeftDir);
       tree.Stat(nid).loss_chg = n.root_gain;
       tree.Stat(nid).base_weight = n.weight;
       tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
-      tree[tree[nid].LeftChild()].SetLeaf(0);
-      tree[tree[nid].RightChild()].SetLeaf(0);
+      tree.GetNode(tree.GetNode(nid).LeftChild()).SetLeaf(0);
+      tree.GetNode(tree.GetNode(nid).RightChild()).SetLeaf(0);
       nid++;
     } else if (n.IsLeaf()) {
-      tree[nid].SetLeaf(n.weight * param.learning_rate);
+      tree.GetNode(nid).SetLeaf(n.weight * param.learning_rate);
       tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
       nid++;
     }

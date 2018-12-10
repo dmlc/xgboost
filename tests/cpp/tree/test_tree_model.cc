@@ -31,7 +31,7 @@ TEST(Tree, Load) {
   fo->Write(reserved, sizeof(int) * 31);
 
   // Write 2 nodes
-  EXPECT_EQ(sizeof(RegTree::Node),
+  EXPECT_EQ(sizeof(RegressionTree::Node),
             3 * sizeof(int) + 1 * sizeof(unsigned) + sizeof(float));
   int parent = -1;
   int cleft = 1;
@@ -76,7 +76,7 @@ TEST(Tree, Load) {
   fo.reset();
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
 
-  xgboost::RegTree tree;
+  xgboost::RegressionTree tree;
   tree.Load(fi.get());
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree.GetNode(0).SplitCond(), 0.5f);

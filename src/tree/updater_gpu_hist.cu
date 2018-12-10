@@ -935,7 +935,7 @@ class GPUHistMakerSpecialised{
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) {
+              const std::vector<RegressionTree*>& trees) {
     monitor_.Start("Update", dist_.Devices());
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
@@ -1096,13 +1096,13 @@ class GPUHistMakerSpecialised{
     }
   }
 
-  DeviceSplitCandidate EvaluateSplit(int nidx, RegTree* p_tree) {
+  DeviceSplitCandidate EvaluateSplit(int nidx, RegressionTree* p_tree) {
     return shards_.front()->EvaluateSplit(
         nidx, column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
         node_value_constraints_[nidx]);
   }
 
-  void InitRoot(RegTree* p_tree) {
+  void InitRoot(RegressionTree* p_tree) {
     constexpr int root_nidx = 0;
     // Sum gradients
     std::vector<GradientPair> tmp_sums(shards_.size());
@@ -1130,7 +1130,7 @@ class GPUHistMakerSpecialised{
     p_tree->Stat(root_nidx).sum_hess = sum_gradient.GetHess();
     auto weight = CalcWeight(param_, sum_gradient);
     p_tree->Stat(root_nidx).base_weight = weight;
-    (*p_tree)[root_nidx].SetLeaf(param_.learning_rate * weight);
+    p_tree->GetNode(root_nidx).SetLeaf(param_.learning_rate * weight);
 
     // Store sum gradients
     for (auto& shard : shards_) {
@@ -1146,10 +1146,10 @@ class GPUHistMakerSpecialised{
         ExpandEntry(root_nidx, p_tree->GetDepth(root_nidx), split, 0));
   }
 
-  void UpdatePosition(const ExpandEntry& candidate, RegTree* p_tree) {
+  void UpdatePosition(const ExpandEntry& candidate, RegressionTree* p_tree) {
     int nidx = candidate.nid;
-    int left_nidx = (*p_tree)[nidx].LeftChild();
-    int right_nidx = (*p_tree)[nidx].RightChild();
+    int left_nidx = p_tree->GetNode(nidx).LeftChild();
+    int right_nidx = p_tree->GetNode(nidx).RightChild();
 
     // convert floating-point split_pt into corresponding bin_id
     // split_cond = -1 indicates that split_pt is less than all known cut points
@@ -1175,11 +1175,11 @@ class GPUHistMakerSpecialised{
         });
   }
 
-  void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
+  void ApplySplit(const ExpandEntry& candidate, RegressionTree* p_tree) {
     // Add new leaves
-    RegTree& tree = *p_tree;
+    RegressionTree& tree = *p_tree;
     tree.AddChilds(candidate.nid);
-    auto& parent = tree[candidate.nid];
+    auto& parent = tree.GetNode(candidate.nid);
     parent.SetSplit(candidate.split.findex, candidate.split.fvalue,
                     candidate.split.dir == kLeftDir);
     tree.Stat(candidate.nid).loss_chg = candidate.split.loss_chg;
@@ -1198,14 +1198,14 @@ class GPUHistMakerSpecialised{
     // Configure left child
     auto left_weight =
         node_value_constraints_[parent.LeftChild()].CalcWeight(param_, left_stats);
-    tree[parent.LeftChild()].SetLeaf(left_weight * param_.learning_rate, 0);
+    tree.GetNode(parent.LeftChild()).SetLeaf(left_weight * param_.learning_rate, 0);
     tree.Stat(parent.LeftChild()).base_weight = left_weight;
     tree.Stat(parent.LeftChild()).sum_hess = candidate.split.left_sum.GetHess();
 
     // Configure right child
     auto right_weight =
         node_value_constraints_[parent.RightChild()].CalcWeight(param_, right_stats);
-    tree[parent.RightChild()].SetLeaf(right_weight * param_.learning_rate, 0);
+    tree.GetNode(parent.RightChild()).SetLeaf(right_weight * param_.learning_rate, 0);
     tree.Stat(parent.RightChild()).base_weight = right_weight;
     tree.Stat(parent.RightChild()).sum_hess = candidate.split.right_sum.GetHess();
 
@@ -1217,7 +1217,7 @@ class GPUHistMakerSpecialised{
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
-                  RegTree* p_tree) {
+                  RegressionTree* p_tree) {
     auto& tree = *p_tree;
 
     monitor_.Start("InitData", dist_.Devices());
@@ -1241,8 +1241,8 @@ class GPUHistMakerSpecialised{
       monitor_.Stop("UpdatePosition", dist_.Devices());
       num_leaves++;
 
-      int left_child_nidx = tree[candidate.nid].LeftChild();
-      int right_child_nidx = tree[candidate.nid].RightChild();
+      int left_child_nidx = tree.GetNode(candidate.nid).LeftChild();
+      int right_child_nidx = tree.GetNode(candidate.nid).RightChild();
 
       // Only create child entries if needed
       if (ExpandEntry::ChildIsValid(param_, tree.GetDepth(left_child_nidx),
@@ -1374,7 +1374,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override {
+              const std::vector<RegressionTree*>& trees) override {
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_->Update(gpair, dmat, trees);
     } else {

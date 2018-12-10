@@ -63,7 +63,7 @@ struct DevicePredictionNode {
   int right_child_idx;
   NodeValue val;
 
-  DevicePredictionNode(const RegTree::Node& n) {  // NOLINT
+  DevicePredictionNode(const RegressionTree::Node& n) {  // NOLINT
     static_assert(sizeof(DevicePredictionNode) == 16, "Size is not 16 bytes");
     this->left_child_idx = n.LeftChild();
     this->right_child_idx = n.RightChild();

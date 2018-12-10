@@ -33,11 +33,10 @@ TEST(gpu_predictor, Test) {
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-  trees.back()->InitModel();
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
+  std::vector<std::unique_ptr<RegressionTree>> trees;
+  trees.push_back(std::unique_ptr<RegressionTree>(new RegressionTree()));
+  trees.back()->GetNode(0).SetLeaf(1.5f);
+  trees.back()->Stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);
   model.CommitModel(std::move(trees), 0);
   model.param.num_output_group = 1;
@@ -179,11 +178,10 @@ TEST(gpu_predictor, MGPU_Test) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
-    std::vector<std::unique_ptr<RegTree>> trees;
-    trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-    trees.back()->InitModel();
-    (*trees.back())[0].SetLeaf(1.5f);
-    (*trees.back()).Stat(0).sum_hess = 1.0f;
+    std::vector<std::unique_ptr<RegressionTree>> trees;
+    trees.push_back(std::unique_ptr<RegressionTree>(new RegressionTree()));
+    trees.back()->GetNode(0).SetLeaf(1.5f);
+    trees.back()->Stat(0).sum_hess = 1.0f;
     gbm::GBTreeModel model(0.5);
     model.CommitModel(std::move(trees), 0);
     model.param.num_output_group = 1;

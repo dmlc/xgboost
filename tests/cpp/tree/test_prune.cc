@@ -30,9 +30,9 @@ TEST(Updater, Prune) {
   auto dmat = CreateDMatrix(32, 16, 0.4, 3);
 
   // prepare tree
-  RegTree tree = RegTree();
+  RegressionTree tree = RegressionTree();
   tree.param.InitAllowUnknown(cfg);
-  std::vector<RegTree*> trees {&tree};
+  std::vector<RegressionTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune"));
   pruner->Init(cfg);

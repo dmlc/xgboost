@@ -521,7 +521,7 @@ class GPUMaker : public TreeUpdater {
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override {
+              const std::vector<RegressionTree*>& trees) override {
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -541,7 +541,7 @@ class GPUMaker : public TreeUpdater {
   }
   /// @note: Update should be only after Init!!
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-                  RegTree* hTree) {
+                  RegressionTree* hTree) {
     if (!allocated) {
       setupOneTimeData(dmat);
     }

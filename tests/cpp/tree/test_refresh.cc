@@ -24,9 +24,9 @@ TEST(Updater, Refresh) {
     {"num_feature", std::to_string(n_cols)},
     {"reg_lambda", "1"}};
 
-  RegTree tree = RegTree();
+  RegressionTree tree = RegressionTree();
   tree.param.InitAllowUnknown(cfg);
-  std::vector<RegTree*> trees {&tree};
+  std::vector<RegressionTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
 
   tree.AddChilds(0);
