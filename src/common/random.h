@@ -7,6 +7,7 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
+#include <rabit/rabit.h>
 #include <xgboost/logging.h>
 #include <algorithm>
 #include <vector>
@@ -101,6 +102,9 @@ class ColumnSampler {
     new_features.resize(n);
     std::sort(new_features.begin(), new_features.end());
 
+    // ensure that new_features are the same across ranks
+    rabit::Broadcast(&new_features, 0);
+    
     return p_new_features;
   }
 
