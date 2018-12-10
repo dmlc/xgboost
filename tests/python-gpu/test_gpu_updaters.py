@@ -31,12 +31,14 @@ class TestGPU(unittest.TestCase):
             assert_gpu_results(cpu_results, gpu_results)
 
     def test_gpu_hist(self):
-        variable_param = {'n_gpus': [-1], 'max_depth': [2, 8],
-                          'max_leaves': [255, 4],
-                          'max_bin': [2, 256], 'min_child_weight': [0, 1],
-                          'lambda': [0.0, 1.0],
-                          'grow_policy': ['lossguide']}
-        for param in parameter_combinations(variable_param):
+        test_param = parameter_combinations({'n_gpus': [1], 'max_depth': [2, 8],
+                                             'max_leaves': [255, 4],
+                                             'max_bin': [2, 256],
+                                             'grow_policy': ['lossguide']})
+        test_param.append({'single_precision_histogram': True})
+        test_param.append({'min_child_weight': 0,
+                           'lambda': 0})
+        for param in test_param:
             param['tree_method'] = 'gpu_hist'
             gpu_results = run_suite(param, select_datasets=datasets)
             assert_results_non_increasing(gpu_results, 1e-2)

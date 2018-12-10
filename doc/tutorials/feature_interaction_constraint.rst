@@ -143,11 +143,11 @@ first and second constraints (``[0, 1]``, ``[2, 3, 4]``).
 Enforcing Feature Interaction Constraints in XGBoost
 ****************************************************
 
-It is very simple to enforce monotonicity constraints in XGBoost.  Here we will
+It is very simple to enforce feature interaction constraints in XGBoost.  Here we will
 give an example using Python, but the same general idea generalizes to other
 platforms.
 
-Suppose the following code fits your model without monotonicity constraints:
+Suppose the following code fits your model without feature interaction constraints:
 
 .. code-block:: python
 
@@ -155,7 +155,7 @@ Suppose the following code fits your model without monotonicity constraints:
                                    num_boost_round = 1000, evals = evallist,
                                    early_stopping_rounds = 10)
 
-Then fitting with monotonicity constraints only requires adding a single
+Then fitting with feature interaction constraints only requires adding a single
 parameter:
 
 .. code-block:: python

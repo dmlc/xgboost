@@ -104,7 +104,7 @@ class ColumnSampler {
 
     // ensure that new_features are the same across ranks
     rabit::Broadcast(&new_features, 0);
-    
+
     return p_new_features;
   }
 
