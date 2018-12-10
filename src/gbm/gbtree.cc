@@ -206,15 +206,15 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat,
-               HostDeviceVector<bst_float>* out_preds,
-               unsigned ntree_limit) override {
+                    HostDeviceVector<bst_float>* out_preds,
+                    unsigned ntree_limit) override {
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
-               std::vector<bst_float>* out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
+                       std::vector<bst_float>* out_preds,
+                       unsigned ntree_limit,
+                       unsigned root_index) override {
     predictor_->PredictInstance(inst, out_preds, model_,
                                ntree_limit, root_index);
   }

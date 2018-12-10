@@ -24,6 +24,7 @@ TEST(Transform, MGPU_Basic) {
 
   in_vec.Reshard(GPUDistribution::Granular(devices, 8));
   out_vec.Reshard(GPUDistribution::Block(devices));
+  in_vec.DeviceSize(0);  // Push to devices to remove host write access.
 
   // Granularity is different, resharding will throw.
   EXPECT_ANY_THROW(
@@ -55,7 +56,7 @@ struct TestTransformRangeGranular {
 };
 
 TEST(Transform, MGPU_Granularity) {
-  GPUSet devices = GPUSet::All(0, -1);
+  GPUSet devices = GPUSet::Init(0, GPUSet::kAll);
 
   const size_t size {8990};
   const size_t granularity = 10;
@@ -85,7 +86,7 @@ TEST(Transform, MGPU_Granularity) {
 
 TEST(Transform, MGPU_SpecifiedGpuId) {
   // Use 1 GPU, Numbering of GPU starts from 1
-  auto devices = GPUSet::All(1, 1);
+  auto devices = GPUSet::Init(1, 1);
   const size_t size {256};
   std::vector<bst_float> h_in(size);
   std::vector<bst_float> h_out(size);
@@ -103,6 +104,29 @@ TEST(Transform, MGPU_SpecifiedGpuId) {
       .Eval(&out_vec, &in_vec));
   std::vector<bst_float> res = out_vec.HostVector();
   ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
+}
+
+TEST(Transform, MGPU_SmallData) {
+  auto const devices = GPUSet::AllVisible();
+
+  HostDeviceVector<int> flag_vec;
+  // Only size of devices.
+  flag_vec.Resize(devices.Size());
+  flag_vec.Fill(1);
+
+  std::vector<bst_float> h_vec(1);
+  HostDeviceVector<bst_float> vec(h_vec);
+  vec.Fill(1.0f);
+  vec.Reshard(devices);
+
+  Transform<>::Init([=](size_t _idx, Span<int> _flags, Span<bst_float> _vals) {
+      if (_vals[_idx] > 1.1 && _vals[_idx] < 1.2) { _flags[_idx] = 0; }
+    }, Range(0, vec.Size()), devices);
+
+  std::vector<int> h_flags = flag_vec.HostVector();
+  for (auto flag : h_flags) {
+    ASSERT_EQ(flag, 1);
+  }
 }
 
 }  // namespace xgboost

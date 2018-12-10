@@ -11,6 +11,7 @@ namespace xgboost {
 namespace common {
 
 void TestDeviceSketch(const GPUSet& devices) {
+  GPUSet::Init(*devices.begin(), devices.Size());
   // create the data
   int nrows = 10001;
   std::vector<float> test_data(nrows);
@@ -27,8 +28,6 @@ void TestDeviceSketch(const GPUSet& devices) {
   // parameters for finding quantiles
   tree::TrainParam p;
   p.max_bin = 20;
-  p.gpu_id = 0;
-  p.n_gpus = devices.Size();
   // ensure that the exact quantiles are found
   int gpu_batch_nrows = nrows * 10;
 

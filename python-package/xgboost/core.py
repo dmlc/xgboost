@@ -175,7 +175,10 @@ def _check_call(ret):
         return value from API calls
     """
     if ret != 0:
-        raise XGBoostError(_LIB.XGBGetLastError())
+        if sys.version_info.major == 3:
+            raise XGBoostError(_LIB.XGBGetLastError().decode('utf-8'))
+        else:
+            raise XGBoostError(_LIB.XGBGetLastError())
 
 
 def ctypes2numpy(cptr, length, dtype):

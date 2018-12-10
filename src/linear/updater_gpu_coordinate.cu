@@ -162,8 +162,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;
 
-    dist_ = GPUDistribution::Block(GPUSet::All(tparam_.gpu_id, tparam_.n_gpus,
-                                               p_fmat->Info().num_row_));
+    dist_ = GPUDistribution::Block(GPUSet::Global());
     auto devices = dist_.Devices();
 
     size_t n_devices = static_cast<size_t>(devices.Size());

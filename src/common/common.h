@@ -150,54 +150,27 @@ class GPUSet {
   using GpuIdType = int;
   static constexpr GpuIdType kAll = -1;
 
+ private:
+  common::Range devices_;
+  static GPUSet singleton_;
+  static bool initialized_;
+
+ public:
   explicit GPUSet(int start = 0, int ndevices = 0)
       : devices_(start, start + ndevices) {}
 
+  static GPUSet Init(GpuIdType gpu_id, GpuIdType n_gpus);
+  /*! \brief Return a GPUSet with zero device. */
   static GPUSet Empty() { return GPUSet(); }
+  /*! \brief Return a range of devices. */
+  static GPUSet Range(GpuIdType start, GpuIdType n_gpus);
+  /*! \brief All devices found by calling CUDA API. */
+  static GPUSet AllVisible();
+  /*! \brief Obtain global devices set. */
+  static GPUSet Global();
 
-  static GPUSet Range(GpuIdType start, GpuIdType n_gpus) {
-    return n_gpus <= 0 ? Empty() : GPUSet{start, n_gpus};
-  }
-  /*! \brief n_gpus and num_rows both are upper bounds. */
-  static GPUSet All(GpuIdType gpu_id, GpuIdType n_gpus,
-                    GpuIdType num_rows = std::numeric_limits<GpuIdType>::max()) {
-    CHECK_GE(gpu_id, 0) << "gpu_id must be >= 0.";
-    CHECK_GE(n_gpus, -1) << "n_gpus must be >= -1.";
-
-    GpuIdType const n_devices_visible = AllVisible().Size();
-    if (n_devices_visible == 0 || n_gpus == 0) { return Empty(); }
-
-    GpuIdType const n_available_devices = n_devices_visible - gpu_id;
-
-    if (n_gpus == kAll) {  // Use all devices starting from `gpu_id'.
-      CHECK(gpu_id < n_devices_visible)
-          << "\ngpu_id should be less than number of visible devices.\ngpu_id: "
-          << gpu_id
-          << ", number of visible devices: "
-          << n_devices_visible;
-      GpuIdType n_devices =
-          n_available_devices < num_rows ? n_available_devices : num_rows;
-      return Range(gpu_id, n_devices);
-    } else {  // Use devices in ( gpu_id, gpu_id + n_gpus ).
-      CHECK_LE(n_gpus, n_available_devices)
-          << "Starting from gpu id: " << gpu_id << ", there are only "
-          << n_available_devices << " available devices, while n_gpus is set to: "
-          << n_gpus;
-      GpuIdType n_devices = n_gpus < num_rows ? n_gpus : num_rows;
-      return Range(gpu_id, n_devices);
-    }
-  }
-
-  static GPUSet AllVisible() {
-    GpuIdType n =  AllVisibleImpl::AllVisible();
-    return Range(0, n);
-  }
-
-  size_t Size() const {
-    GpuIdType size = *devices_.end() - *devices_.begin();
-    GpuIdType res = size < 0 ? 0 : size;
-    return static_cast<size_t>(res);
-  }
+  /*! \brief Number of GPUs in GPUSet. */
+  size_t Size() const;
 
   /*
    * By default, we have two configurations of identifying device, one
@@ -208,21 +181,8 @@ class GPUSet {
    * Hence, `DeviceId' converts a zero-based index to actual device id,
    * `Index' converts a device id to a zero-based index.
    */
-  GpuIdType DeviceId(size_t index) const {
-    GpuIdType result = *devices_.begin() + static_cast<GpuIdType>(index);
-    CHECK(Contains(result)) << "\nDevice " << result << " is not in GPUSet."
-                            << "\nIndex: " << index
-                            << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
-                            << std::endl;
-    return result;
-  }
-  size_t Index(GpuIdType device) const {
-    CHECK(Contains(device)) << "\nDevice " << device << " is not in GPUSet."
-                            << "\nGPUSet: (" << *begin() << ", " << *end() << ")"
-                            << std::endl;
-    size_t result = static_cast<size_t>(device - *devices_.begin());
-    return result;
-  }
+  GpuIdType DeviceId(size_t index) const;
+  size_t Index(GpuIdType device) const;
 
   bool IsEmpty() const { return Size() == 0; }
 
@@ -239,9 +199,6 @@ class GPUSet {
   friend bool operator!=(const GPUSet& lhs, const GPUSet& rhs) {
     return !(lhs == rhs);
   }
-
- private:
-  common::Range devices_;
 };
 
 }  // namespace xgboost

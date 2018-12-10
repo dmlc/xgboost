@@ -5,9 +5,9 @@ import time
 import pytest
 
 sys.path.append("../../tests/python")
-import xgboost as xgb
-import numpy as np
-import unittest
+import xgboost as xgb           # noqa: E402
+import numpy as np              # noqa: E402
+import unittest                 # noqa: E402
 
 
 def eprint(*args, **kwargs):

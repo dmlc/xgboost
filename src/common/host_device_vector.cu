@@ -1,7 +1,6 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2018 XGBoost contributors
  */
-
 #include "./host_device_vector.h"
 #include <thrust/fill.h>
 #include <xgboost/data.h>
@@ -12,7 +11,6 @@
 
 
 namespace xgboost {
-
 // the handler to call instead of cudaSetDevice; only used for testing
 static void (*cudaSetDeviceHandler)(int) = nullptr;  // NOLINT
 
@@ -47,7 +45,7 @@ struct HostDeviceVectorImpl {
   struct DeviceShard {
     DeviceShard()
         : proper_size_(0), device_(-1), start_(0), perm_d_(false),
-        cached_size_(~0), vec_(nullptr) {}
+        vec_(nullptr) {}
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }
@@ -61,7 +59,6 @@ struct HostDeviceVectorImpl {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = other.device_;
-      cached_size_ = other.cached_size_;
       start_ = other.start_;
       proper_size_ = other.proper_size_;
       SetDevice();
@@ -102,14 +99,15 @@ struct HostDeviceVectorImpl {
 
     void LazySyncHost(GPUAccess access) {
       SetDevice();
-      dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
-                               data_.data().get(),  proper_size_ * sizeof(T),
-                               cudaMemcpyDeviceToHost));
+      if (perm_d_.CanAccess(access)) {
+        dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_,
+                                 data_.data().get(),  proper_size_ * sizeof(T),
+                                 cudaMemcpyDeviceToHost));
+      }
       perm_d_.DenyComplementary(access);
     }
 
     void LazyResize(size_t new_size) {
-      if (new_size == cached_size_) { return; }
       // resize is required
       int ndevices = vec_->distribution_.devices_.Size();
       int device_index = vec_->distribution_.devices_.Index(device_);
@@ -119,7 +117,6 @@ struct HostDeviceVectorImpl {
       size_t size_d = vec_->distribution_.ShardSize(new_size, device_index);
       SetDevice();
       data_.resize(size_d);
-      cached_size_ = new_size;
     }
 
     void LazySyncDevice(GPUAccess access) {
@@ -155,8 +152,6 @@ struct HostDeviceVectorImpl {
 
     int device_;
     thrust::device_vector<T> data_;
-    // cached vector size
-    size_t cached_size_;
     size_t start_;
     // size of the portion to copy back to the host
     size_t proper_size_;
@@ -229,7 +224,7 @@ struct HostDeviceVectorImpl {
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
     return {shards_.at(devices.Index(device)).data_.data().get(),
-        static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
+          static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
@@ -350,19 +345,25 @@ struct HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void Reshard(const GPUDistribution& distribution) {
-    if (distribution_ == distribution) { return; }
-    CHECK(distribution_.IsEmpty() || distribution.IsEmpty());
-    if (distribution.IsEmpty()) {
+  void Reshard(const GPUDistribution& new_distribution) {
+    if (distribution_ == new_distribution) { return; }
+    CHECK(distribution_.IsEmpty() ||
+          new_distribution.IsEmpty()  ||
+          perm_h_.CanWrite())  // Allow Reshard after Resize.
+        << distribution_ << "\n\t vs.\n"
+        << new_distribution
+        << "\n\tperm_h_.CanWrite(): " << static_cast<int>(perm_h_.CanWrite());
+    if (new_distribution.IsEmpty()) {
       LazySyncHost(GPUAccess::kWrite);
     }
-    distribution_ = distribution;
+    distribution_ = new_distribution;
     InitShards();
   }
 
   void Reshard(GPUSet new_devices) {
     if (distribution_.Devices() == new_devices) { return; }
-    Reshard(GPUDistribution::Block(new_devices));
+    auto const& dist = GPUDistribution::Block(new_devices);
+    Reshard(dist);
   }
 
   void Resize(size_t new_size, T v) {

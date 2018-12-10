@@ -39,7 +39,7 @@ TEST(GPUSet, GPUBasic) {
 #if defined(XGBOOST_USE_NCCL)
 TEST(GPUSet, MGPU_GPUBasic) {
   {
-    GPUSet devices = GPUSet::All(1, 1);
+    GPUSet devices = GPUSet::Init(1, 1);
     ASSERT_EQ(*(devices.begin()), 1);
     ASSERT_EQ(*(devices.end()), 2);
     ASSERT_EQ(devices.Size(), 1);
@@ -47,14 +47,8 @@ TEST(GPUSet, MGPU_GPUBasic) {
   }
 
   {
-    GPUSet devices = GPUSet::All(0, -1);
+    GPUSet devices = GPUSet::Init(0, -1);
     ASSERT_GE(devices.Size(), 2);
-  }
-
-  // Specify number of rows.
-  {
-    GPUSet devices = GPUSet::All(0, -1, 1);
-    ASSERT_EQ(devices.Size(), 1);
   }
 }
 #endif

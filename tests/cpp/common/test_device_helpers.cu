@@ -36,6 +36,7 @@ void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
 }
 
 void TestLbs() {
+  dh::safe_cuda(cudaSetDevice(0));
   srand(17);
   dh::CubMemory temp_memory;
 

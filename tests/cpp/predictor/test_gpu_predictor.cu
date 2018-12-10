@@ -166,6 +166,7 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
 // multi-GPU predictor test
 TEST(gpu_predictor, MGPU_Test) {
+  GPUSet::Init(0, GPUSet::kAll);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
   std::unique_ptr<Predictor> cpu_predictor =
@@ -177,7 +178,6 @@ TEST(gpu_predictor, MGPU_Test) {
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
-
     std::vector<std::unique_ptr<RegTree>> trees;
     trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
     (*trees.back())[0].SetLeaf(1.5f);

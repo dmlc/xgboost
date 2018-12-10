@@ -20,20 +20,6 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
-/*! \brief prediction parameters */
-struct GPUPredictionParam : public dmlc::Parameter<GPUPredictionParam> {
-  int gpu_id;
-  int n_gpus;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(GPUPredictionParam) {
-    DMLC_DECLARE_FIELD(gpu_id).set_lower_bound(0).set_default(0).describe(
-        "Device ordinal for GPU prediction.");
-    DMLC_DECLARE_FIELD(n_gpus).set_lower_bound(-1).set_default(1).describe(
-        "Number of devices to use for prediction.");
-  }
-};
-DMLC_REGISTER_PARAMETER(GPUPredictionParam);
-
 template <typename IterT>
 void IncrementOffset(IterT begin_itr, IterT end_itr, size_t amount) {
   thrust::transform(begin_itr, end_itr, begin_itr,
@@ -214,14 +200,9 @@ __global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
 }
 
 class GPUPredictor : public xgboost::Predictor {
- protected:
-  struct DevicePredictionCacheEntry {
-    std::shared_ptr<DMatrix> data;
-    HostDeviceVector<bst_float> predictions;
-  };
-
  private:
-  void DeviceOffsets(const HostDeviceVector<size_t>& data, std::vector<size_t>* out_offsets) {
+  void DeviceOffsets(const HostDeviceVector<size_t>& data,
+                     std::vector<size_t>* out_offsets) {
     auto& offsets = *out_offsets;
     offsets.resize(devices_.Size() + 1);
     offsets[0] = 0;
@@ -229,11 +210,19 @@ class GPUPredictor : public xgboost::Predictor {
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
       auto data_span = data.DeviceSpan(device);
-      dh::safe_cuda(cudaSetDevice(device));
-      // copy the last element from every shard
-      dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
-                               &data_span[data_span.size()-1],
-                               sizeof(size_t), cudaMemcpyDeviceToHost));
+      if (data_span.size() > 0) {
+        dh::safe_cuda(cudaSetDevice(device));
+        // copy the last element from every shard
+        dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
+                                 &data_span[data_span.size()-1],
+                                 sizeof(size_t), cudaMemcpyDeviceToHost));
+      }
+    }
+    // Fill empty devices.
+    for (size_t i = 1; i < offsets.size(); ++i) {
+      if (offsets[i] == 0) {
+        offsets[i] = offsets[i-1];
+      }
     }
   }
 
@@ -250,6 +239,7 @@ class GPUPredictor : public xgboost::Predictor {
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
      size_t tree_begin, size_t tree_end) {
+      if (info.num_row_ == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
       nodes.resize(h_nodes.size());
       dh::safe_cuda(cudaMemcpy(dh::Raw(nodes), h_nodes.data(),
@@ -267,10 +257,12 @@ class GPUPredictor : public xgboost::Predictor {
                                cudaMemcpyHostToDevice));
 
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.DeviceSize(device_) - 1;
-      if (num_rows < 1) { return; }
+      const size_t device_size = batch.offset.DeviceSize(device_);
+      if (device_size < 2) { return; }
+      const size_t num_rows = device_size - 1;
 
-      const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
+      const int GRID_SIZE =
+          static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
         (sizeof(float) * info.num_col_ * BLOCK_THREADS);
@@ -282,7 +274,6 @@ class GPUPredictor : public xgboost::Predictor {
       const auto& data_distr = batch.data.Distribution();
       size_t entry_start = data_distr.ShardStart(batch.data.Size(),
                                                  data_distr.Devices().Index(device_));
-
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
         (dh::ToSpan(nodes), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments),
          dh::ToSpan(tree_group), batch.offset.DeviceSpan(device_),
@@ -305,7 +296,6 @@ class GPUPredictor : public xgboost::Predictor {
                              const gbm::GBTreeModel& model, size_t tree_begin,
                              size_t tree_end) {
     if (tree_end - tree_begin == 0) { return; }
-
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
     thrust::host_vector<size_t> h_tree_segments;
@@ -326,32 +316,40 @@ class GPUPredictor : public xgboost::Predictor {
 
     size_t i_batch = 0;
 
-    for (const auto &batch : dmat->GetRowBatches()) {
+    for (SparsePage const &batch : dmat->GetRowBatches()) {
       CHECK_EQ(i_batch, 0) << "External memory not supported";
       size_t n_rows = batch.offset.Size() - 1;
       // out_preds have been resharded and resized in InitOutPredictions()
       batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
-      batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
+      batch.data.Reshard(
+          GPUDistribution::Explicit(devices_, device_offsets));
       dh::ExecuteIndexShards(&shards, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, dmat->Info(), out_preds, model,
-                              h_tree_segments, h_nodes, tree_begin, tree_end);
+          shard.PredictInternal(batch, dmat->Info(), out_preds, model,
+                                h_tree_segments, h_nodes, tree_begin, tree_end);
       });
       i_batch++;
     }
   }
 
  public:
-  GPUPredictor() : cpu_predictor(Predictor::Create("cpu_predictor")) {}
+  GPUPredictor() : cpu_predictor(Predictor::Create("cpu_predictor")) {
+    devices_ = GPUSet::Global();
+    shards.resize(devices_.Size());
+    dh::ExecuteIndexShards(&shards, [=](size_t i, DeviceShard& shard){
+        shard.Init(devices_.DeviceId(i));
+      });
+  }
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
-    GPUSet devices = GPUSet::All(
-        param.gpu_id, param.n_gpus, dmat->Info().num_row_);
-    ConfigureShards(devices);
-
+    if (dmat->Info().num_row_ < GPUSet::Global().Size()) {
+      cpu_predictor->PredictBatch(
+          dmat, out_preds, model, tree_begin, ntree_limit);
+      return;
+    }
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
       return;
     }
@@ -373,8 +371,8 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Reshard(GPUDistribution::Granular(devices_, n_classes));
     out_preds->Resize(n);
+    out_preds->Reshard(GPUDistribution::Granular(devices_, n_classes));
     if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
       out_preds->Copy(base_margin);
@@ -408,7 +406,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto old_ntree = model.trees.size() - num_new_trees;
     // update cache entry
     for (auto& kv : cache_) {
-      PredictionCacheEntry& e = kv.second;
+      Predictor::PredictionCacheEntry& e = kv.second;
       DMatrix* dmat = kv.first;
       HostDeviceVector<bst_float>& predictions = e.predictions;
 
@@ -461,29 +459,24 @@ class GPUPredictor : public xgboost::Predictor {
             const std::vector<std::shared_ptr<DMatrix>>& cache) override {
     Predictor::Init(cfg, cache);
     cpu_predictor->Init(cfg, cache);
-    param.InitAllowUnknown(cfg);
-
-    GPUSet devices = GPUSet::All(param.gpu_id, param.n_gpus);
-    ConfigureShards(devices);
   }
 
  private:
-  /*! \brief Re configure shards when GPUSet is changed. */
+  /*! \brief Re-configure shards when GPUSet is changed. */
   void ConfigureShards(GPUSet devices) {
-    if (devices_ == devices) return;
+    if (devices_ == devices) { return; }
 
     devices_ = devices;
     shards.clear();
-    shards.resize(devices_.Size());
+    shards.resize(devices.Size());
     dh::ExecuteIndexShards(&shards, [=](size_t i, DeviceShard& shard){
-        shard.Init(devices_.DeviceId(i));
+        shard.Init(devices.DeviceId(i));
       });
   }
 
-  GPUPredictionParam param;
+  GPUSet devices_;
   std::unique_ptr<Predictor> cpu_predictor;
   std::vector<DeviceShard> shards;
-  GPUSet devices_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")

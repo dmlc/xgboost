@@ -514,6 +514,7 @@ struct DeviceShard {
 
   std::unique_ptr<GPUHistBuilderBase<GradientSumT>> hist_builder;
 
+ public:
   // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int device_id, bst_uint row_begin, bst_uint row_end,
               TrainParam _param)
@@ -527,8 +528,12 @@ struct DeviceShard {
         param(_param),
         prediction_cache_initialised(false) {}
 
+  bool IsEmpty() const { return row_end_idx - row_begin_idx == 0; }
+
   /* Init row_ptrs and row_stride */
   void InitRowPtrs(const SparsePage& row_batch) {
+    if (IsEmpty()) { return; }
+
     dh::safe_cuda(cudaSetDevice(device_id_));
     const auto& offset_vec = row_batch.offset.HostVector();
     row_ptrs.resize(n_rows + 1);
@@ -560,11 +565,12 @@ struct DeviceShard {
 
   void CreateHistIndices(const SparsePage& row_batch);
 
-  ~DeviceShard() {
-  }
+  ~DeviceShard() {}
 
   // Reset values for each update iteration
   void Reset(HostDeviceVector<GradientPair>* dh_gpair) {
+    if (IsEmpty()) { return; }
+
     dh::safe_cuda(cudaSetDevice(device_id_));
     position.CurrentDVec().Fill(0);
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
@@ -583,6 +589,8 @@ struct DeviceShard {
   DeviceSplitCandidate EvaluateSplit(int nidx,
                                      const std::vector<int>& feature_set,
                                      ValueConstraint value_constraint) {
+    if (IsEmpty()) { return DeviceSplitCandidate(); }
+
     dh::safe_cuda(cudaSetDevice(device_id_));
     auto d_split_candidates = temp_memory.GetSpan<DeviceSplitCandidate>(feature_set.size());
     feature_set_d.resize(feature_set.size());
@@ -614,12 +622,15 @@ struct DeviceShard {
   }
 
   void BuildHist(int nidx) {
+    if ( IsEmpty() ) { return; }
+
     hist.AllocateHistogram(nidx);
     hist_builder->Build(this, nidx);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
                         int nidx_subtraction) {
+    if ( IsEmpty() ) { return; }
     auto d_node_hist_parent = hist.GetNodeHistogram(nidx_parent);
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
@@ -642,6 +653,7 @@ struct DeviceShard {
                       int64_t split_gidx, bool default_dir_left, bool is_dense,
                       int fidx_begin,  // cut.row_ptr[fidx]
                       int fidx_end) {  // cut.row_ptr[fidx + 1]
+    if ( IsEmpty() ) { return; }
     dh::safe_cuda(cudaSetDevice(device_id_));
     Segment segment = ridx_segments[nidx];
     bst_uint* d_ridx = ridx.Current();
@@ -802,6 +814,8 @@ struct GlobalMemHistBuilder : public GPUHistBuilderBase<GradientSumT> {
 template <typename GradientSumT>
 inline void DeviceShard<GradientSumT>::InitCompressedData(
     const common::HistCutMatrix& hmat, const SparsePage& row_batch) {
+  if (IsEmpty()) { return; }
+
   n_bins = hmat.row_ptr.back();
   null_gidx_value = hmat.row_ptr.back();
 
@@ -924,9 +938,6 @@ class GPUHistMakerSpecialised{
       const std::vector<std::pair<std::string, std::string>>& args) {
     param_.InitAllowUnknown(args);
     hist_maker_param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";
-    n_devices_ = param_.n_gpus;
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus));
 
     dh::CheckComputeCapability();
 
@@ -941,6 +952,7 @@ class GPUHistMakerSpecialised{
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
+    dist_ = GPUDistribution::Block(GPUSet::Global());
     monitor_.Start("Update", dist_.Devices());
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
@@ -962,16 +974,11 @@ class GPUHistMakerSpecialised{
 
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
+    CHECK(dist_.Devices().Size() != 0) << "Must have at least one device";
 
     int n_devices = dist_.Devices().Size();
 
-    device_list_.resize(n_devices);
-    for (int index = 0; index < n_devices; ++index) {
-      int device_id = dist_.Devices().DeviceId(index);
-      device_list_[index] = device_id;
-    }
-
-    reducer_.Init(device_list_);
+    std::vector<bool> empty_shards(n_devices, false);
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
@@ -980,11 +987,24 @@ class GPUHistMakerSpecialised{
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
         size_t start = dist_.ShardStart(info_->num_row_, i);
         size_t size = dist_.ShardSize(info_->num_row_, i);
+        if (size == 0) { empty_shards[i] = true; }
         shard = std::unique_ptr<DeviceShard<GradientSumT>>
                 (new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(i),
                                  start, start + size, param_));
         shard->InitRowPtrs(batch);
       });
+
+    int n_non_empty_shards = 0;
+    for (auto is_empty : empty_shards) {
+      if (!is_empty) { n_non_empty_shards++; }
+    }
+    device_list_.resize(n_non_empty_shards);
+    for (int index = 0; index < n_non_empty_shards; ++index) {
+      int device_id = dist_.Devices().DeviceId(index);
+      device_list_[index] = device_id;
+    }
+    if (n_non_empty_shards == 0) { return; }
+    reducer_.Init(device_list_);
 
     // Find the cuts.
     monitor_.Start("Quantiles", dist_.Devices());
@@ -1034,6 +1054,7 @@ class GPUHistMakerSpecialised{
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
+          if ( shard->IsEmpty() ) { return; }
           auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
           reducer_.AllReduceSum(
               dist_.Devices().Index(shard->device_id_),
@@ -1120,7 +1141,7 @@ class GPUHistMakerSpecialised{
           tmp_sums[i] = dh::SumReduction(
               shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
         });
-    GradientPair sum_gradient =
+    GradientPair const sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), GradientPair());
 
     // Generate root histogram
@@ -1140,7 +1161,8 @@ class GPUHistMakerSpecialised{
 
     // Store sum gradients
     for (auto& shard : shards_) {
-      shard->node_sum_gradients[root_nidx] = sum_gradient;
+      if (!(shard->IsEmpty()))
+        shard->node_sum_gradients[root_nidx] = sum_gradient;
     }
 
     // Initialise root constraint
@@ -1268,6 +1290,7 @@ class GPUHistMakerSpecialised{
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
+    dist_ = GPUDistribution::Block(GPUSet::Global());
     monitor_.Start("UpdatePredictionCache", dist_.Devices());
     if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
       return false;
@@ -1337,7 +1360,6 @@ class GPUHistMakerSpecialised{
   common::GHistIndexMatrix gmat_;
   MetaInfo* info_;
   bool initialised_;
-  int n_devices_;
   int n_bins_;
 
   std::vector<std::unique_ptr<DeviceShard<GradientSumT>>> shards_;

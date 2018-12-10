@@ -1,10 +1,12 @@
 /*!
  * Copyright 2017-2018 XGBoost contributors
  */
+#include <memory>
+#include <random>
+#include <vector>
 
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
-#include <random>
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
@@ -20,6 +22,7 @@ namespace tree {
 template <typename GradientSumT>
 void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
+  GPUSet::Init(0, 1);
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
 
@@ -46,7 +49,6 @@ TEST(GpuHist, BuildGidxDense) {
   int const n_rows = 16, n_cols = 8;
   TrainParam param;
   param.max_depth = 1;
-  param.n_gpus = 1;
   param.max_leaves = 0;
 
   DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
@@ -85,7 +87,6 @@ TEST(GpuHist, BuildGidxSparse) {
   int const n_rows = 16, n_cols = 8;
   TrainParam param;
   param.max_depth = 1;
-  param.n_gpus = 1;
   param.max_leaves = 0;
 
   DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
@@ -129,7 +130,6 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
 
   TrainParam param;
   param.max_depth = 6;
-  param.n_gpus = 1;
   param.max_leaves = 0;
 
   DeviceShard<GradientSumT> shard(0, 0, n_rows, param);
@@ -226,7 +226,7 @@ TEST(GpuHist, EvaluateSplits) {
 
   TrainParam param;
   param.max_depth = 1;
-  param.n_gpus = 1;
+
   param.colsample_bynode = 1;
   param.colsample_bylevel = 1;
   param.colsample_bytree = 1;
@@ -432,5 +432,21 @@ TEST(GpuHist, SortPosition) {
   TestSortPosition({2, 2, 2, 2}, 1, 2);
   TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
 }
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(GpuHist, MGPU_ZeroData) {
+  GPUSet::Init(0, GPUSet::kAll);
+
+  std::unique_ptr<TreeUpdater> updater{ TreeUpdater::Create("grow_gpu_hist") };
+  updater->Init({});
+  auto pp_dmat = CreateDMatrix(1, 16, 0, 3);
+  std::shared_ptr<DMatrix> p_dmat = *pp_dmat;
+  HostDeviceVector<GradientPair> gpair {{0.3, 0.2}};
+  RegTree tree;
+  std::vector<RegTree*> trees { &tree };
+  updater->Update(&gpair, p_dmat.get(), trees);
+}
+#endif
+
 }  // namespace tree
 }  // namespace xgboost

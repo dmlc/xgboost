@@ -127,51 +127,20 @@ class GPUDistribution {
 
   bool IsEmpty() const { return devices_.IsEmpty(); }
 
-  size_t ShardStart(size_t size, int index) const {
-    if (size == 0) { return 0; }
-    if (offsets_.size() > 0) {
-      // explicit offsets are provided
-      CHECK_EQ(offsets_.back(), size);
-      return offsets_.at(index);
-    }
-    // no explicit offsets
-    size_t begin = std::min(index * Portion(size), size);
-    begin = begin > size ? size : begin;
-    return begin;
-  }
-
-  size_t ShardSize(size_t size, int index) const {
-    if (size == 0) { return 0; }
-    if (offsets_.size() > 0) {
-      // explicit offsets are provided
-      CHECK_EQ(offsets_.back(), size);
-      return offsets_.at(index + 1)  - offsets_.at(index) +
-        (index == devices_.Size() - 1 ? overlap_ : 0);
-    }
-    size_t portion = Portion(size);
-    size_t begin = std::min(index * portion, size);
-    size_t end = std::min((index + 1) * portion + overlap_ * granularity_, size);
-    return end - begin;
-  }
-
-  size_t ShardProperSize(size_t size, int index) const {
-    if (size == 0) { return 0; }
-    return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
-  }
+  size_t ShardStart(size_t size, int index) const;
+  size_t ShardSize(size_t size, int index) const;
+  size_t ShardProperSize(size_t size, size_t index) const;
 
   bool IsFixedSize() const { return !offsets_.empty(); }
+
+  friend std::ostream& operator<<(
+      std::ostream& os, GPUDistribution const& dist);
 
  private:
   static size_t DivRoundUp(size_t a, size_t b) { return (a + b - 1) / b; }
   static size_t RoundUp(size_t a, size_t b) { return DivRoundUp(a, b) * b; }
 
-  size_t Portion(size_t size) const {
-    return RoundUp
-      (DivRoundUp
-       (std::max(static_cast<int64_t>(size - overlap_ * granularity_),
-                 static_cast<int64_t>(1)),
-        devices_.Size()), granularity_);
-  }
+  size_t Portion(size_t size) const;
 
   GPUSet devices_;
   int granularity_;

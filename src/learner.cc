@@ -124,6 +124,11 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   int nthread;
   // flag to disable default metric
   int disable_default_eval_metric;
+  // number of gpus to use
+  int n_gpus;
+  // first device.
+  int gpu_id;
+
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -156,6 +161,12 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(0)
         .describe("flag to disable default metric. Set to >0 to disable");
+    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
+        .describe("Number of GPUs to use for multi-gpu algorithms.");
+    DMLC_DECLARE_FIELD(gpu_id)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("ID of first GPU.");
   }
 };
 
@@ -244,7 +255,7 @@ class LearnerImpl : public Learner {
     ConsoleLogger::Configure(args.cbegin(), args.cend());
     monitor_.Init("Learner");
     cfg_.clear();
-
+    GPUSet::Init(tparam_.gpu_id, tparam_.n_gpus);
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {
         // check duplication

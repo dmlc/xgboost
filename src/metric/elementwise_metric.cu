@@ -342,9 +342,7 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
-    // Dealing with ndata < n_gpus.
-    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
+    GPUSet devices = GPUSet::Global();
 
     PackedReduceResult result =
         reducer_.Reduce(devices, info.weights_, info.labels_, preds);

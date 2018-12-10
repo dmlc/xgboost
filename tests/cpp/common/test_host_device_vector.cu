@@ -256,6 +256,23 @@ TEST(HostDeviceVector, MGPU_Reshard) {
   ASSERT_EQ(total_size, h_vec.size());
   ASSERT_EQ(total_size, vec.Size());
 }
+
+TEST(HostDeviceVector, MGPU_PartialSync) {
+  auto devices = GPUSet::AllVisible();
+  HostDeviceVector<int> vec;
+  vec.Resize(2);
+  vec.Reshard(devices);
+  vec.Fill(1);
+
+  // Only sync one device.
+  vec.DeviceSpan(0);
+
+  // Ensure host data is not overriten by device data (default 0).
+  std::vector<int> h_vec = vec.HostVector();
+  ASSERT_EQ(h_vec[0], 1);
+  ASSERT_EQ(h_vec[1], 1);
+}
+
 #endif
 
 }  // namespace common

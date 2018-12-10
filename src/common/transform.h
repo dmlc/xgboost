@@ -138,14 +138,16 @@ class Transform {
         // granularity is used in data vector.
         size_t shard_size = GPUDistribution::Block(devices).ShardSize(
             range_size, devices.Index(device));
-        Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
-        dh::safe_cuda(cudaSetDevice(device));
-        const int GRID_SIZE =
-            static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
-        detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
-            _func, shard_range, UnpackHDV(_vectors, device)...);
-        dh::safe_cuda(cudaGetLastError());
-        dh::safe_cuda(cudaDeviceSynchronize());
+        if (shard_size > 0) {
+          Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
+          dh::safe_cuda(cudaSetDevice(device));
+          const int GRID_SIZE =
+              static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
+          detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
+              _func, shard_range, UnpackHDV(_vectors, device)...);
+          dh::safe_cuda(cudaGetLastError());
+          dh::safe_cuda(cudaDeviceSynchronize());
+        }
       }
     }
 #else
@@ -153,15 +155,17 @@ class Transform {
     template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
-      LOG(FATAL) << "Not part of device code. WITH_CUDA: " << WITH_CUDA();
+      LOG(FATAL)
+          << "Not part of device code. WITH_CUDA: " << WITH_CUDA() << ", "
+          << distribution_;
     }
 #endif
 
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {
-      auto end = *(range_.end());
+      Range::DifferenceType end = *(range_.end());
 #pragma omp parallel for schedule(static)
-      for (omp_ulong idx = 0; idx < end; ++idx) {
+      for (omp_ulong idx = 0; idx < static_cast<omp_ulong>(end); ++idx) {
         func(idx, UnpackHDV(vectors)...);
       }
     }
@@ -171,8 +175,9 @@ class Transform {
     Functor func_;
     /*! \brief Range object specifying parallel threads index range. */
     Range range_;
-    /*! \brief Whether resharding for vectors is required. */
+    /*! Unified GPU distribution for all HostDeviceVectors. */
     GPUDistribution distribution_;
+    /*! \brief Whether resharding for vectors is required. */
     bool reshard_;
   };
 

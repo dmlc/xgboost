@@ -348,6 +348,7 @@ struct GPUSketcher {
 
   void Sketch(const SparsePage& batch, const MetaInfo& info,
               HistCutMatrix* hmat, int gpu_batch_nrows) {
+    dist_ = GPUDistribution::Block(GPUSet::Global());
     // create device shards
     shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -381,9 +382,8 @@ struct GPUSketcher {
     hmat->Init(&sketches, param_.max_bin);
   }
 
-  GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
-  }
+  GPUSketcher(tree::TrainParam param, size_t n_rows) :
+      param_(std::move(param)) {}
 
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   tree::TrainParam param_;

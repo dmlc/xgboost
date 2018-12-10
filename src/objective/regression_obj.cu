@@ -28,18 +28,10 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   float scale_pos_weight;
-  int n_gpus;
-  int gpu_id;
   // declare parameters
   DMLC_DECLARE_PARAMETER(RegLossParam) {
     DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
       .describe("Scale the weight of positive examples by this factor");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-      .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-      .set_lower_bound(0)
-      .set_default(0)
-      .describe("gpu to use for objective function evaluation");
   }
 };
 
@@ -53,8 +45,6 @@ class RegLossObj : public ObjFunction {
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -65,8 +55,13 @@ class RegLossObj : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "labels are not correctly provided"
         << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
+
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
+
+    auto const& devices = GPUSet::Global();
+    label_correct_.Reshard(devices);
+    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
@@ -91,7 +86,7 @@ class RegLossObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                           Loss::SecondOrderGradient(p, label) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices_).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -113,7 +108,7 @@ class RegLossObj : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
         }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        devices_).Eval(io_preds);
+        GPUSet::Global()).Eval(io_preds);
   }
 
   float ProbToMargin(float base_score) const override {
@@ -122,7 +117,6 @@ class RegLossObj : public ObjFunction {
 
  protected:
   RegLossParam param_;
-  GPUSet devices_;
 };
 
 // register the objective functions
@@ -175,18 +169,10 @@ XGBOOST_REGISTER_OBJECTIVE(GPULogisticRaw, "gpu:binary:logitraw")
 // declare parameter
 struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
   float max_delta_step;
-  int n_gpus;
-  int gpu_id;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
     DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
         .describe("Maximum delta step we allow each weight estimation to be." \
                   " This parameter is required for possion regression.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for objective function evaluation");
   }
 };
 
@@ -196,8 +182,6 @@ class PoissonRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -208,6 +192,9 @@ class PoissonRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
+
+    auto const& devices = GPUSet::Global();
+    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
@@ -228,7 +215,7 @@ class PoissonRegression : public ObjFunction {
           _out_gpair[_idx] = GradientPair{(expf(p) - y) * w,
                                           expf(p + max_delta_step) * w};
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices_).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
     // copy "label correct" flags back to host
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -243,7 +230,8 @@ class PoissonRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices_)
+        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        GPUSet::Global())
         .Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
@@ -257,7 +245,6 @@ class PoissonRegression : public ObjFunction {
   }
 
  private:
-  GPUSet devices_;
   PoissonRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };
@@ -357,29 +344,12 @@ XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
 .describe("Cox regression for censored survival data (negative labels are considered censored).")
 .set_body([]() { return new CoxRegression(); });
 
-
-struct GammaRegressionParam : public dmlc::Parameter<GammaRegressionParam> {
-  int n_gpus;
-  int gpu_id;
-  DMLC_DECLARE_PARAMETER(GammaRegressionParam) {
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for objective function evaluation");
-  }
-};
-
 // gamma regression
 class GammaRegression : public ObjFunction {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
-  }
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) override {}
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
@@ -389,6 +359,9 @@ class GammaRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
+
+    auto const& devices = GPUSet::Global();
+    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -407,7 +380,7 @@ class GammaRegression : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices_).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -423,7 +396,8 @@ class GammaRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices_)
+        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        GPUSet::Global())
         .Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
@@ -437,13 +411,9 @@ class GammaRegression : public ObjFunction {
   }
 
  private:
-  GPUSet devices_;
-  GammaRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };
 
-// register the objective functions
-DMLC_REGISTER_PARAMETER(GammaRegressionParam);
 // register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 .describe("Gamma regression for severity data.")
@@ -453,17 +423,9 @@ XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 // declare parameter
 struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
   float tweedie_variance_power;
-  int n_gpus;
-  int gpu_id;
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
     DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
       .describe("Tweedie variance power.  Must be between in range [1, 2).");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for objective function evaluation");
   }
 };
 
@@ -473,8 +435,6 @@ class TweedieRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -485,6 +445,10 @@ class TweedieRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
+
+    auto const& devices = GPUSet::Global();
+
+    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -508,7 +472,7 @@ class TweedieRegression : public ObjFunction {
               std::exp((1 - rho) * p) + (2 - rho) * expf((2 - rho) * p);
           _out_gpair[_idx] = GradientPair(grad * w, hess * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata), 1}, devices_)
+        common::Range{0, static_cast<int64_t>(ndata), 1}, devices)
         .Eval(&label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -524,7 +488,8 @@ class TweedieRegression : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices_)
+        common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        GPUSet::Global())
         .Eval(io_preds);
   }
 
@@ -540,7 +505,6 @@ class TweedieRegression : public ObjFunction {
   }
 
  private:
-  GPUSet devices_;
   TweedieRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };

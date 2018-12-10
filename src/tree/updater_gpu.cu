@@ -416,10 +416,12 @@ void ArgMaxByKey(common::Span<ExactSplitCandidate> nodeSplits,
                  common::Span<const NodeIdT> nodeAssigns,
                  common::Span<const DeviceNodeStats> nodes,
                  int nUniqKeys,
-                 NodeIdT nodeStart, int len, const TrainParam param,
+                 NodeIdT nodeStart, int len,
+                 const TrainParam param,
+                 const GPUSet::GpuIdType gpu_id,
                  ArgMaxByKeyAlgo algo) {
   dh::FillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
-      param.gpu_id, nodeSplits.data(), nUniqKeys,
+      gpu_id, nodeSplits.data(), nUniqKeys,
       ExactSplitCandidate());
   int nBlks = dh::DivRoundUp(len, ITEMS_PER_THREAD * BLKDIM);
   switch (algo) {
@@ -559,13 +561,13 @@ class GPUMaker : public TreeUpdater {
     param.InitAllowUnknown(args);
     maxNodes = (1 << (param.max_depth + 1)) - 1;
     maxLeaves = 1 << param.max_depth;
-
-    devices_ = GPUSet::All(param.gpu_id, param.n_gpus);
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->Info());
+    devices_ = GPUSet::Global();
+
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
@@ -617,7 +619,7 @@ class GPUMaker : public TreeUpdater {
     float min_split_loss = param.min_split_loss;
     auto gpu_param = GPUTrainingParam(param);
 
-    dh::LaunchN(param.gpu_id, nNodes, [=] __device__(int uid) {
+    dh::LaunchN(*devices_.begin(), nNodes, [=] __device__(int uid) {
       int absNodeId = uid + nodeStart;
       ExactSplitCandidate s = d_nodeSplits[uid];
       if (s.isSplittable(min_split_loss)) {
@@ -662,13 +664,14 @@ class GPUMaker : public TreeUpdater {
     ArgMaxByKey(nodeSplits.GetSpan(), gradScans.GetSpan(), gradSums.GetSpan(),
                 vals.CurrentSpan(), colIds.GetSpan(), nodeAssigns.CurrentSpan(),
                 nodes.GetSpan(), nNodes, nodeStart, nVals, param,
+                *devices_.begin(),
                 level <= kMaxAbkLevels ? kAbkSmem : kAbkGmem);
     split2node(nNodes, nodeStart);
   }
 
   void allocateAllData(int offsetSize) {
     int tmpBuffSize = ScanTempBufferSize(nVals);
-    ba.Allocate(param.gpu_id, &vals, nVals,
+    ba.Allocate(*devices_.begin(), &vals, nVals,
                 &vals_cached, nVals, &instIds, nVals, &instIds_cached, nVals,
                 &colOffsets, offsetSize, &gradsInst, nRows, &nodeAssigns, nVals,
                 &nodeLocations, nVals, &nodes, maxNodes, &nodeAssignsPerInst,
@@ -678,7 +681,7 @@ class GPUMaker : public TreeUpdater {
   }
 
   void SetupOneTimeData(DMatrix* dmat) {
-    size_t free_memory = dh::AvailableMemory(param.gpu_id);
+    size_t free_memory = dh::AvailableMemory(*devices_.begin());
     if (!dmat->SingleColBlock()) {
       LOG(FATAL) << "exact::GPUBuilder - must have 1 column block";
     }
@@ -750,7 +753,7 @@ class GPUMaker : public TreeUpdater {
       auto d_nodes = nodes.Data();
       auto d_sums = gradSums.Data();
       auto gpu_params = GPUTrainingParam(param);
-      dh::LaunchN(param.gpu_id, 1, [=] __device__(int idx) {
+      dh::LaunchN(*devices_.begin(), 1, [=] __device__(int idx) {
         d_nodes[0] = DeviceNodeStats(d_sums[0], 0, gpu_params);
       });
     } else {
@@ -767,7 +770,7 @@ class GPUMaker : public TreeUpdater {
           nodeAssigns.Current(), instIds.Current(), nodes.Data(),
           colOffsets.Data(), vals.Current(), nVals, nCols);
       // gather the node assignments across all other columns too
-      dh::Gather(param.gpu_id, nodeAssigns.Current(),
+      dh::Gather(*devices_.begin(), nodeAssigns.Current(),
                  nodeAssignsPerInst.Data(), instIds.Current(), nVals);
       SortKeys(level);
     }
@@ -778,7 +781,7 @@ class GPUMaker : public TreeUpdater {
     // but we don't need more than level+1 bits for sorting!
     SegmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,
                   colOffsets, 0, level + 1);
-    dh::Gather<float, int>(param.gpu_id, vals.other(),
+    dh::Gather<float, int>(*devices_.begin(), vals.other(),
                            vals.Current(), instIds.other(), instIds.Current(),
                            nodeLocations.Current(), nVals);
     vals.buff().selector ^= 1;

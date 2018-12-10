@@ -1,6 +1,70 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2018 XGBoost contributors
  */
+#include "./host_device_vector.h"
+
+namespace xgboost {
+
+size_t GPUDistribution::ShardStart(size_t size, int index) const {
+  if (size == 0) { return 0; }
+  if (offsets_.size() > 0) {
+    // explicit offsets are provided
+    CHECK_EQ(offsets_.back(), size) << *this;
+    return offsets_.at(index);
+  }
+  // no explicit offsets
+  size_t begin = std::min(index * Portion(size), size);
+  begin = begin > size ? size : begin;
+  return begin;
+}
+
+size_t GPUDistribution::ShardSize(size_t size, int index) const {
+  if (size == 0) { return 0; }
+  if (offsets_.size() > 0) {
+    // explicit offsets are provided
+    CHECK_EQ(offsets_.back(), size) << *this;
+    return offsets_.at(index + 1)  - offsets_.at(index) +
+        (index == devices_.Size() - 1 ? overlap_ : 0);
+  }
+  size_t portion = Portion(size);
+  size_t begin = std::min(index * portion, size);
+  size_t end = std::min((index + 1) * portion + overlap_ * granularity_, size);
+  return end - begin;
+}
+
+size_t GPUDistribution::ShardProperSize(size_t size, size_t index) const {
+  if (size == 0) { return 0; }
+  return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
+}
+
+size_t GPUDistribution::Portion(size_t size) const {
+  size_t res = RoundUp(
+      DivRoundUp(
+          std::max(static_cast<int64_t>(size - overlap_ * granularity_),
+                   static_cast<int64_t>(1)),
+          devices_.Size()), granularity_);
+  CHECK(size == 0 || size == 1 || !(devices_.Size() == size && size == res))
+      << "res: " << res
+      << *this;
+  return res;
+}
+
+std::ostream& operator<<(std::ostream& os, GPUDistribution const& dist) {
+  os << "\n"
+     << "\tgpu_id: " << *dist.Devices().begin() << ", "
+     << "n_gpus: " << dist.Devices().Size() << "\n"
+     << "\tgranularity: " << dist.granularity_ << "\n"
+     << "\toverlap:" << dist.overlap_ << "\n";
+  os << "\toffsets: [";
+  for (auto offset : dist.offsets_) {
+    os << offset << ", ";
+  }
+  os << "]\n";
+  return os;
+}
+
+}  // namespace xgboost
+
 #ifndef XGBOOST_USE_CUDA
 
 // dummy implementation of HostDeviceVector in case CUDA is not used
@@ -9,7 +73,6 @@
 #include <xgboost/data.h>
 #include <cstdint>
 #include <utility>
-#include "./host_device_vector.h"
 
 namespace xgboost {
 
