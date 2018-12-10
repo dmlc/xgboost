@@ -72,7 +72,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 void HistCutMatrix::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
   std::vector<WXQSketch>& sketchs = *in_sketchs;
-  constexpr int kFactor = 1;
+  constexpr int kFactor = 8;
   // gather the histogram data
   rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   std::vector<WXQSketch::SummaryContainer> summary_array;
