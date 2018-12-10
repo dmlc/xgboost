@@ -138,7 +138,7 @@ class ColMaker: public TreeUpdater {
     inline void InitData(const std::vector<GradientPair>& gpair,
                          const DMatrix& fmat,
                          const RegTree& tree) {
-      CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
+      CHECK_EQ(tree.param.num_nodes, 1)
           << "ColMaker: can only grow new tree";
       const std::vector<unsigned>& root_index = fmat.Info().root_index_;
       {
@@ -183,10 +183,9 @@ class ColMaker: public TreeUpdater {
       }
       {
         // expand query
-        qexpand_.reserve(256); qexpand_.clear();
-        for (int i = 0; i < tree.param.num_roots; ++i) {
-          qexpand_.push_back(i);
-        }
+        qexpand_.reserve(256);
+        qexpand_.clear();
+        qexpand_.push_back(0);
       }
     }
     /*!

@@ -165,9 +165,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
-  for (int i = 0; i < param.num_roots; ++i) {
-    DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
-  }
+  DumpRegTree(fo, *this, fmap, 0, 0, false, with_stats, format);
   return fo.str();
 }
 }  // namespace xgboost

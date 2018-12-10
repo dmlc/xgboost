@@ -117,27 +117,24 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
   time_init_data = dmlc::GetTime() - tstart;
 
-  // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
-  CHECK_EQ(p_tree->param.num_roots, 1)
-      << "tree_method=hist does not support multiple roots at this moment";
-  for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
-    tstart = dmlc::GetTime();
-    hist_.AddHistRow(nid);
-    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid]);
-    time_build_hist += dmlc::GetTime() - tstart;
+  // Setup root
+  int root_nid = 0;
+  tstart = dmlc::GetTime();
+  hist_.AddHistRow(root_nid);
+  BuildHist(gpair_h, row_set_collection_[root_nid], gmat, gmatb,
+            hist_[root_nid]);
+  time_build_hist += dmlc::GetTime() - tstart;
 
-    tstart = dmlc::GetTime();
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    time_init_new_node += dmlc::GetTime() - tstart;
+  tstart = dmlc::GetTime();
+  this->InitNewNode(root_nid, gmat, gpair_h, *p_fmat, *p_tree);
+  time_init_new_node += dmlc::GetTime() - tstart;
 
-    tstart = dmlc::GetTime();
-    this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    time_evaluate_split += dmlc::GetTime() - tstart;
-    qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
-                               snode_[nid].best.loss_chg,
-                               timestamp++));
-    ++num_leaves;
-  }
+  tstart = dmlc::GetTime();
+  this->EvaluateSplit(root_nid, gmat, hist_, *p_fmat, *p_tree);
+  time_evaluate_split += dmlc::GetTime() - tstart;
+  qexpand_->push(ExpandEntry(root_nid, p_tree->GetDepth(root_nid),
+                             snode_[root_nid].best.loss_chg, timestamp++));
+  ++num_leaves;
 
   while (!qexpand_->empty()) {
     const ExpandEntry candidate = qexpand_->top();
@@ -280,7 +277,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                                       const std::vector<GradientPair>& gpair,
                                       const DMatrix& fmat,
                                       const RegTree& tree) {
-  CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
+  CHECK_EQ(tree.param.num_nodes, 1)
       << "ColMakerHist: can only grow new tree";
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
       << "max_depth or max_leaves cannot be both 0 (unlimited); "

@@ -96,9 +96,7 @@ class TreeRefresher: public TreeUpdater {
     param_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
-      for (int rid = 0; rid < tree->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, tree);
-      }
+      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
       offset += tree->param.num_nodes;
     }
     // set learning rate back

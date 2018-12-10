@@ -72,8 +72,8 @@ class TreePruner: public TreeUpdater {
       }
     }
     if (!param_.silent) {
-      LOG(INFO) << "tree pruning end, " << tree.param.num_roots << " roots, "
-                << tree.NumExtraNodes() << " extra nodes, " << npruned
+      LOG(INFO) << "tree pruning end, " << tree.NumExtraNodes()
+                << " extra nodes, " << npruned
                 << " pruned nodes, max_depth=" << tree.MaxDepth();
     }
   }

@@ -379,20 +379,10 @@ class RegTree {
    * \brief get maximum depth
    * \param nid node id
    */
-  inline int MaxDepth(int nid) const {
+  inline int MaxDepth(int nid = 0) const {
     if (nodes_[nid].IsLeaf()) return 0;
     return std::max(MaxDepth(nodes_[nid].LeftChild())+1,
                      MaxDepth(nodes_[nid].RightChild())+1);
-  }
-  /*!
-   * \brief get maximum depth
-   */
-  inline int MaxDepth() {
-    int maxd = 0;
-    for (int i = 0; i < param.num_roots; ++i) {
-      maxd = std::max(maxd, MaxDepth(i));
-    }
-    return maxd;
   }
   /*! \brief number of extra nodes besides the root */
   inline int NumExtraNodes() const {
@@ -524,9 +514,7 @@ inline void RegTree::FillNodeMeanValues() {
     return;
   }
   this->node_mean_values_.resize(num_nodes);
-  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
-    this->FillNodeMeanValue(root_id);
-  }
+  this->FillNodeMeanValue(0);
 }
 
 inline bst_float RegTree::FillNodeMeanValue(int nid) {

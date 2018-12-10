@@ -129,9 +129,7 @@ class HistMaker: public BaseMaker {
     this->InitData(gpair, *p_fmat, *p_tree);
     this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.
-    for (int i = 0; i < p_tree->param.num_roots; ++i) {
-      p_tree->GetNode(i).SetLeaf(0.0f, 0);
-    }
+    p_tree->GetNode(0).SetLeaf(0.0f, 0);
 
     for (int depth = 0; depth < param_.max_depth; ++depth) {
       // reset and propose candidate split
