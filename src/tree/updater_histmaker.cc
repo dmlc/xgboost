@@ -24,7 +24,7 @@ class HistMaker: public BaseMaker {
  public:
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     TStats::CheckInfo(p_fmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -125,7 +125,7 @@ class HistMaker: public BaseMaker {
   // update function implementation
   virtual void Update(const std::vector<GradientPair> &gpair,
                       DMatrix *p_fmat,
-                      RegTree *p_tree) {
+                      RegressionTree *p_tree) {
     this->InitData(gpair, *p_fmat, *p_tree);
     this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.
@@ -155,10 +155,10 @@ class HistMaker: public BaseMaker {
   virtual void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                                   DMatrix *p_fmat,
                                   const std::vector <bst_uint> &fset,
-                                  const RegTree &tree) = 0;
+                                  const RegressionTree &tree) = 0;
   // initialize the current working set of features in this round
   virtual void InitWorkSet(DMatrix *p_fmat,
-                           const RegTree &tree,
+                           const RegressionTree &tree,
                            std::vector<bst_uint> *p_fset) {
     p_fset->resize(tree.param.num_feature);
     for (size_t i = 0; i < p_fset->size(); ++i) {
@@ -167,12 +167,12 @@ class HistMaker: public BaseMaker {
   }
   // reset position after split, this is not a must, depending on implementation
   virtual void ResetPositionAfterSplit(DMatrix *p_fmat,
-                                       const RegTree &tree) {
+                                       const RegressionTree &tree) {
   }
   virtual void CreateHist(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector <bst_uint> &fset,
-                          const RegTree &tree)  = 0;
+                          const RegressionTree &tree)  = 0;
 
  private:
   inline void EnumerateSplit(const HistUnit &hist,
@@ -214,7 +214,7 @@ class HistMaker: public BaseMaker {
                         const std::vector<GradientPair> &gpair,
                         DMatrix *p_fmat,
                         const std::vector <bst_uint> &fset,
-                        RegTree *p_tree) {
+                        RegressionTree *p_tree) {
     const size_t num_feature = fset.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
@@ -258,7 +258,7 @@ class HistMaker: public BaseMaker {
     }
   }
 
-  inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
+  inline void SetStats(RegressionTree *p_tree, int nid, const TStats &node_sum) {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
   }
@@ -311,7 +311,7 @@ class CQHistMaker: public HistMaker<TStats> {
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   // initialize the work set of tree
   void InitWorkSet(DMatrix *p_fmat,
-                   const RegTree &tree,
+                   const RegressionTree &tree,
                    std::vector<bst_uint> *p_fset) override {
     if (p_fmat != cache_dmatrix_) {
       feat_helper_.InitByCol(p_fmat, tree);
@@ -324,7 +324,7 @@ class CQHistMaker: public HistMaker<TStats> {
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
                   const std::vector<bst_uint> &fset,
-                  const RegTree &tree) override {
+                  const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
     feat2workindex_.resize(tree.param.num_feature);
@@ -377,13 +377,13 @@ class CQHistMaker: public HistMaker<TStats> {
 #endif
   }
   void ResetPositionAfterSplit(DMatrix *p_fmat,
-                               const RegTree &tree) override {
+                               const RegressionTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector<bst_uint> &fset,
-                          const RegTree &tree) override {
+                          const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
     feat2workindex_.resize(tree.param.num_feature);
@@ -490,7 +490,7 @@ class CQHistMaker: public HistMaker<TStats> {
   inline void UpdateHistCol(const std::vector<GradientPair> &gpair,
                             const SparsePage::Inst &col,
                             const MetaInfo &info,
-                            const RegTree &tree,
+                            const RegressionTree &tree,
                             const std::vector<bst_uint> &fset,
                             bst_uint fid_offset,
                             std::vector<HistEntry> *p_temp) {
@@ -541,7 +541,7 @@ class CQHistMaker: public HistMaker<TStats> {
   }
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
                               const SparsePage::Inst &col,
-                              const RegTree &tree,
+                              const RegressionTree &tree,
                               size_t work_set_size,
                               bst_uint offset,
                               std::vector<BaseMaker::SketchEntry> *p_temp) {
@@ -651,7 +651,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector<bst_uint> &fset,
-                          const RegTree &tree) override {
+                          const RegressionTree &tree) override {
     if (this->qexpand_.size() == 1) {
       cached_rptr_.clear();
       cached_cut_.clear();
@@ -682,7 +682,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
                   const std::vector<bst_uint> &fset,
-                  const RegTree &tree) override {
+                  const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
     this->feat2workindex_.resize(tree.param.num_feature);

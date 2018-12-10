@@ -28,16 +28,16 @@ class TreeRefresher: public TreeUpdater {
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     if (trees.size() == 0) return;
     const std::vector<GradientPair> &gpair_h = gpair->ConstHostVector();
     // number of threads
     // thread temporal space
     std::vector<std::vector<TStats> > stemp;
-    std::vector<RegTree::FVec> fvec_temp;
+    std::vector<RegressionTree::FVec> fvec_temp;
     // setup temp space for each thread
     const int nthread = omp_get_max_threads();
-    fvec_temp.resize(nthread, RegTree::FVec());
+    fvec_temp.resize(nthread, RegressionTree::FVec());
     stemp.resize(nthread, std::vector<TStats>());
     #pragma omp parallel
     {
@@ -66,7 +66,7 @@ class TreeRefresher: public TreeUpdater {
           SparsePage::Inst inst = batch[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
-          RegTree::FVec &feats = fvec_temp[tid];
+          RegressionTree::FVec &feats = fvec_temp[tid];
           feats.Fill(inst);
           int offset = 0;
           for (auto tree : trees) {
@@ -104,8 +104,8 @@ class TreeRefresher: public TreeUpdater {
   }
 
  private:
-  inline static void AddStats(const RegTree &tree,
-                              const RegTree::FVec &feat,
+  inline static void AddStats(const RegressionTree &tree,
+                              const RegressionTree::FVec &feat,
                               const std::vector<GradientPair> &gpair,
                               const MetaInfo &info,
                               const bst_uint ridx,
@@ -121,8 +121,8 @@ class TreeRefresher: public TreeUpdater {
     }
   }
   inline void Refresh(const TStats *gstats,
-                      int nid, RegTree *p_tree) {
-    RegTree &tree = *p_tree;
+                      int nid, RegressionTree *p_tree) {
+    RegressionTree &tree = *p_tree;
     tree.Stat(nid).base_weight = static_cast<bst_float>(gstats[nid].CalcWeight(param_));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree.GetNode(nid).IsLeaf()) {

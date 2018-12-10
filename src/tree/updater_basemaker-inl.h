@@ -40,7 +40,7 @@ class BaseMaker: public TreeUpdater {
    public:
     /*! \brief find type of each feature, use column format */
     inline void InitByCol(DMatrix* p_fmat,
-                          const RegTree& tree) {
+                          const RegressionTree& tree) {
       fminmax_.resize(tree.param.num_feature * 2);
       std::fill(fminmax_.begin(), fminmax_.end(),
                 -std::numeric_limits<bst_float>::max());
@@ -104,8 +104,8 @@ class BaseMaker: public TreeUpdater {
   // ------static helper functions ------
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
-  inline static int NextLevel(const SparsePage::Inst &inst, const RegTree &tree, int nid) {
-    const RegTree::Node &n = tree.GetNode(nid);
+  inline static int NextLevel(const SparsePage::Inst &inst, const RegressionTree &tree, int nid) {
+    const RegressionTree::Node &n = tree.GetNode(nid);
     bst_uint findex = n.SplitIndex();
     for (const auto& ins : inst) {
       if (findex == ins.index) {
@@ -122,7 +122,7 @@ class BaseMaker: public TreeUpdater {
   /*! \brief initialize temp data structure */
   inline void InitData(const std::vector<GradientPair> &gpair,
                        const DMatrix &fmat,
-                       const RegTree &tree) {
+                       const RegressionTree &tree) {
     CHECK_EQ(tree.param.num_nodes, 1)
         << "TreeMaker: can only grow new tree";
     const std::vector<unsigned> &root_index =  fmat.Info().root_index_;
@@ -160,7 +160,7 @@ class BaseMaker: public TreeUpdater {
     }
   }
   /*! \brief update queue expand add in new leaves */
-  inline void UpdateQueueExpand(const RegTree &tree) {
+  inline void UpdateQueueExpand(const RegressionTree &tree) {
     std::vector<int> newnodes;
     for (int nid : qexpand_) {
       if (!tree.GetNode(nid).IsLeaf()) {
@@ -194,7 +194,7 @@ class BaseMaker: public TreeUpdater {
    */
   inline void ResetPositionCol(const std::vector<int> &nodes,
                                DMatrix *p_fmat,
-                               const RegTree &tree) {
+                               const RegressionTree &tree) {
     // set the positions in the nondefault
     this->SetNonDefaultPositionCol(nodes, p_fmat, tree);
     this->SetDefaultPostion(p_fmat, tree);
@@ -206,7 +206,7 @@ class BaseMaker: public TreeUpdater {
    * \param tree the regression tree structure
    */
   inline void SetDefaultPostion(DMatrix *p_fmat,
-                                const RegTree &tree) {
+                                const RegressionTree &tree) {
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
@@ -240,7 +240,7 @@ class BaseMaker: public TreeUpdater {
    */
   inline void CorrectNonDefaultPositionByBatch(
       const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
-      const RegTree &tree) {
+      const RegressionTree &tree) {
     for (size_t fid = 0; fid < batch.Size(); ++fid) {
       auto col = batch[fid];
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
@@ -274,7 +274,7 @@ class BaseMaker: public TreeUpdater {
    * \param out_split_set The split index set
    */
   inline void GetSplitSet(const std::vector<int> &nodes,
-                          const RegTree &tree,
+                          const RegressionTree &tree,
                           std::vector<unsigned>* out_split_set) {
     std::vector<unsigned>& fsplits = *out_split_set;
     fsplits.clear();
@@ -296,7 +296,7 @@ class BaseMaker: public TreeUpdater {
    */
   virtual void SetNonDefaultPositionCol(const std::vector<int> &nodes,
                                         DMatrix *p_fmat,
-                                        const RegTree &tree) {
+                                        const RegressionTree &tree) {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
     for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
@@ -324,7 +324,7 @@ class BaseMaker: public TreeUpdater {
   template<typename TStats>
   inline void GetNodeStats(const std::vector<GradientPair> &gpair,
                            const DMatrix &fmat,
-                           const RegTree &tree,
+                           const RegressionTree &tree,
                            std::vector< std::vector<TStats> > *p_thread_temp,
                            std::vector<TStats> *p_node_stats) {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
@@ -461,7 +461,7 @@ class BaseMaker: public TreeUpdater {
   std::vector<int> position_;
 
  private:
-  inline void UpdateNode2WorkIndex(const RegTree &tree) {
+  inline void UpdateNode2WorkIndex(const RegressionTree &tree) {
     // update the node2workindex
     std::fill(node2workindex_.begin(), node2workindex_.end(), -1);
     node2workindex_.resize(tree.param.num_nodes);

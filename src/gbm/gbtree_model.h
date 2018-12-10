@@ -85,7 +85,7 @@ struct GBTreeModel {
     trees.clear();
     trees_to_update.clear();
     for (int i = 0; i < param.num_trees; ++i) {
-      std::unique_ptr<RegTree> ptr(new RegTree());
+      std::unique_ptr<RegressionTree> ptr(new RegressionTree());
       ptr->Load(fi);
       trees.push_back(std::move(ptr));
     }
@@ -116,7 +116,7 @@ struct GBTreeModel {
     }
     return dump;
   }
-  void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
+  void CommitModel(std::vector<std::unique_ptr<RegressionTree> >&& new_trees,
                    int bst_group) {
     for (auto & new_tree : new_trees) {
       trees.push_back(std::move(new_tree));
@@ -130,9 +130,9 @@ struct GBTreeModel {
   // model parameter
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */
-  std::vector<std::unique_ptr<RegTree> > trees;
+  std::vector<std::unique_ptr<RegressionTree> > trees;
   /*! \brief for the update process, a place to keep the initial trees */
-  std::vector<std::unique_ptr<RegTree> > trees_to_update;
+  std::vector<std::unique_ptr<RegressionTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
 };

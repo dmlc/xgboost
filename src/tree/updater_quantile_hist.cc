@@ -50,7 +50,7 @@ void QuantileHistMaker::Init(const std::vector<std::pair<std::string, std::strin
 
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                            DMatrix *dmat,
-                           const std::vector<RegTree *> &trees) {
+                           const std::vector<RegressionTree *> &trees) {
   GradStats::CheckInfo(dmat->Info());
   if (is_gmat_initialized_ == false) {
     double tstart = dmlc::GetTime();
@@ -96,7 +96,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
                                     const ColumnMatrix& column_matrix,
                                     HostDeviceVector<GradientPair>* gpair,
                                     DMatrix* p_fmat,
-                                    RegTree* p_tree) {
+                                    RegressionTree* p_tree) {
   double gstart = dmlc::GetTime();
 
   int num_leaves = 0;
@@ -202,7 +202,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
   }
 
-  pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
+  pruner_->Update(gpair, p_fmat, std::vector<RegressionTree*>{p_tree});
 
   if (param_.debug_verbose > 0) {
     double total_time = dmlc::GetTime() - gstart;
@@ -276,7 +276,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
 void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                                       const std::vector<GradientPair>& gpair,
                                       const DMatrix& fmat,
-                                      const RegTree& tree) {
+                                      const RegressionTree& tree) {
   CHECK_EQ(tree.param.num_nodes, 1)
       << "ColMakerHist: can only grow new tree";
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
@@ -393,7 +393,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(int nid,
                                            const GHistIndexMatrix& gmat,
                                            const HistCollection& hist,
                                            const DMatrix& fmat,
-                                           const RegTree& tree) {
+                                           const RegressionTree& tree) {
   // start enumeration
   const MetaInfo& info = fmat.Info();
   const auto& feature_set = column_sampler_.GetFeatureSet(
@@ -424,7 +424,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
                                         const ColumnMatrix& column_matrix,
                                         const HistCollection& hist,
                                         const DMatrix& fmat,
-                                        RegTree* p_tree) {
+                                        RegressionTree* p_tree) {
   // TODO(hcho3): support feature sampling by levels
 
   /* 1. Create child nodes */
@@ -611,7 +611,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
                                          const GHistIndexMatrix& gmat,
                                          const std::vector<GradientPair>& gpair,
                                          const DMatrix& fmat,
-                                         const RegTree& tree) {
+                                         const RegressionTree& tree) {
   {
     snode_.resize(tree.param.num_nodes, NodeEntry(param_));
   }

@@ -64,7 +64,7 @@ struct RTreeNodeStat {
   int leaf_child_cnt;
 };
 
-class RegTree {
+class RegressionTree {
  public:
   /*! \brief auxiliary statistics of node to help tree building */
   using SplitCondT = float;
@@ -280,7 +280,7 @@ class RegTree {
   /*! \brief model parameter */
   TreeParam param;
   /*! \brief constructor */
-  RegTree() {
+  RegressionTree() {
     param.num_nodes = 1;
     param.num_roots = 1;
     param.num_deleted = 0;
@@ -412,7 +412,7 @@ class RegTree {
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    */
-  void CalculateContributions(const RegTree::FVec& feat,
+  void CalculateContributions(const RegressionTree::FVec& feat,
                                      unsigned root_id, bst_float* out_contribs,
                                      int condition = 0,
                                      unsigned condition_feature = 0);
@@ -422,7 +422,7 @@ class RegTree {
    * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    */
-  void CalculateContributionsApprox(const RegTree::FVec& feat,
+  void CalculateContributionsApprox(const RegressionTree::FVec& feat,
                                            unsigned root_id,
                                            bst_float* out_contribs);
 
@@ -440,7 +440,7 @@ class RegTree {
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
    */
-  void TreeShap(const RegTree::FVec& feat, bst_float *phi,
+  void TreeShap(const RegressionTree::FVec& feat, bst_float *phi,
                        unsigned node_index, unsigned unique_depth,
                        PathElement *parent_unique_path, bst_float parent_zero_fraction,
                        bst_float parent_one_fraction, int parent_feature_index,

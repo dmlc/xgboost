@@ -45,7 +45,7 @@ class QuantileHistMaker: public TreeUpdater {
 
   void Update(HostDeviceVector<GradientPair>* gpair,
               DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override;
+              const std::vector<RegressionTree*>& trees) override;
 
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
@@ -93,7 +93,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const ColumnMatrix& column_matrix,
                         HostDeviceVector<GradientPair>* gpair,
                         DMatrix* p_fmat,
-                        RegTree* p_tree);
+                        RegressionTree* p_tree);
 
     inline void BuildHist(const std::vector<GradientPair>& gpair,
                           const RowSetCollection::Elem row_indices,
@@ -119,20 +119,20 @@ class QuantileHistMaker: public TreeUpdater {
     void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
-                  const RegTree& tree);
+                  const RegressionTree& tree);
 
     void EvaluateSplit(int nid,
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
-                       const RegTree& tree);
+                       const RegressionTree& tree);
 
     void ApplySplit(int nid,
                     const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
                     const HistCollection& hist,
                     const DMatrix& fmat,
-                    RegTree* p_tree);
+                    RegressionTree* p_tree);
 
     void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                              const GHistIndexMatrix& gmat,
@@ -154,7 +154,7 @@ class QuantileHistMaker: public TreeUpdater {
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
-                     const RegTree& tree);
+                     const RegressionTree& tree);
 
     // enumerate the split values of specific feature
     void EnumerateSplit(int d_step,
@@ -215,7 +215,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::unique_ptr<SplitEvaluator> spliteval_;
 
     // back pointers to tree and data matrix
-    const RegTree* p_last_tree_;
+    const RegressionTree* p_last_tree_;
     const DMatrix* p_last_fmat_;
 
     using ExpandQueue =

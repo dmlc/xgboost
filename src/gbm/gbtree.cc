@@ -183,11 +183,11 @@ class GBTree : public GradientBooster {
   void DoBoost(DMatrix* p_fmat,
                HostDeviceVector<GradientPair>* in_gpair,
                ObjFunction* obj) override {
-    std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
+    std::vector<std::vector<std::unique_ptr<RegressionTree> > > new_trees;
     const int ngroup = model_.param.num_output_group;
     monitor_.Start("BoostNewTrees");
     if (ngroup == 1) {
-      std::vector<std::unique_ptr<RegTree> > ret;
+      std::vector<std::unique_ptr<RegressionTree> > ret;
       BoostNewTrees(in_gpair, p_fmat, 0, &ret);
       new_trees.push_back(std::move(ret));
     } else {
@@ -205,7 +205,7 @@ class GBTree : public GradientBooster {
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp_h[i] = gpair_h[i * ngroup + gid];
         }
-        std::vector<std::unique_ptr<RegTree> > ret;
+        std::vector<std::unique_ptr<RegressionTree> > ret;
         BoostNewTrees(&tmp, p_fmat, gid, &ret);
         new_trees.push_back(std::move(ret));
       }
@@ -273,15 +273,15 @@ class GBTree : public GradientBooster {
   inline void BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
                             DMatrix *p_fmat,
                             int bst_group,
-                            std::vector<std::unique_ptr<RegTree> >* ret) {
+                            std::vector<std::unique_ptr<RegressionTree> >* ret) {
     this->InitUpdater();
-    std::vector<RegTree*> new_trees;
+    std::vector<RegressionTree*> new_trees;
     ret->clear();
     // create the trees
     for (int i = 0; i < tparam_.num_parallel_tree; ++i) {
       if (tparam_.process_type == kDefault) {
         // create new tree
-        std::unique_ptr<RegTree> ptr(new RegTree());
+        std::unique_ptr<RegressionTree> ptr(new RegressionTree());
         ptr->param.InitAllowUnknown(this->cfg_);
         new_trees.push_back(ptr.get());
         ret->push_back(std::move(ptr));
@@ -302,7 +302,7 @@ class GBTree : public GradientBooster {
 
   // commit new trees all at once
   virtual void
-  CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees) {
+  CommitModel(std::vector<std::vector<std::unique_ptr<RegressionTree>>>&& new_trees) {
     int num_new_trees = 0;
     for (int gid = 0; gid < model_.param.num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();
@@ -367,7 +367,7 @@ class Dart : public GBTree {
                unsigned root_index) override {
     DropTrees(1);
     if (thread_temp_.size() == 0) {
-      thread_temp_.resize(1, RegTree::FVec());
+      thread_temp_.resize(1, RegressionTree::FVec());
       thread_temp_[0].Init(model_.param.num_feature);
     }
     out_preds->resize(model_.param.num_output_group);
@@ -446,7 +446,7 @@ class Dart : public GBTree {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
         const int tid = omp_get_thread_num();
-        RegTree::FVec& feats = thread_temp_[tid];
+        RegressionTree::FVec& feats = thread_temp_[tid];
         int64_t ridx[kUnroll];
         SparsePage::Inst inst[kUnroll];
         for (int k = 0; k < kUnroll; ++k) {
@@ -465,7 +465,7 @@ class Dart : public GBTree {
         }
       }
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
-        RegTree::FVec& feats = thread_temp_[0];
+        RegressionTree::FVec& feats = thread_temp_[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
         const SparsePage::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
@@ -480,7 +480,7 @@ class Dart : public GBTree {
 
   // commit new trees all at once
   void
-  CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees) override {
+  CommitModel(std::vector<std::vector<std::unique_ptr<RegressionTree>>>&& new_trees) override {
     int num_new_trees = 0;
     for (int gid = 0; gid < model_.param.num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();
@@ -497,7 +497,7 @@ class Dart : public GBTree {
   inline bst_float PredValue(const SparsePage::Inst &inst,
                              int bst_group,
                              unsigned root_index,
-                             RegTree::FVec *p_feats,
+                             RegressionTree::FVec *p_feats,
                              unsigned tree_begin,
                              unsigned tree_end) {
     bst_float psum = 0.0f;
@@ -599,7 +599,7 @@ class Dart : public GBTree {
   inline void InitThreadTemp(int nthread) {
     int prev_thread_temp_size = thread_temp_.size();
     if (prev_thread_temp_size < nthread) {
-      thread_temp_.resize(nthread, RegTree::FVec());
+      thread_temp_.resize(nthread, RegressionTree::FVec());
       for (int i = prev_thread_temp_size; i < nthread; ++i) {
         thread_temp_[i].Init(model_.param.num_feature);
       }
@@ -614,7 +614,7 @@ class Dart : public GBTree {
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
   // temporal storage for per thread
-  std::vector<RegTree::FVec> thread_temp_;
+  std::vector<RegressionTree::FVec> thread_temp_;
 };
 
 // register the objective functions

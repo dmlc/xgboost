@@ -32,7 +32,7 @@ class ColMaker: public TreeUpdater {
 
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -95,7 +95,7 @@ class ColMaker: public TreeUpdater {
     // update one tree, growing
     virtual void Update(const std::vector<GradientPair>& gpair,
                         DMatrix* p_fmat,
-                        RegTree* p_tree) {
+                        RegressionTree* p_tree) {
       std::vector<int> newnodes;
       this->InitData(gpair, *p_fmat, *p_tree);
       this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
@@ -137,7 +137,7 @@ class ColMaker: public TreeUpdater {
     // initialize temp data structure
     inline void InitData(const std::vector<GradientPair>& gpair,
                          const DMatrix& fmat,
-                         const RegTree& tree) {
+                         const RegressionTree& tree) {
       CHECK_EQ(tree.param.num_nodes, 1)
           << "ColMaker: can only grow new tree";
       const std::vector<unsigned>& root_index = fmat.Info().root_index_;
@@ -195,7 +195,7 @@ class ColMaker: public TreeUpdater {
     inline void InitNewNode(const std::vector<int>& qexpand,
                             const std::vector<GradientPair>& gpair,
                             const DMatrix& fmat,
-                            const RegTree& tree) {
+                            const RegressionTree& tree) {
       {
         // setup statistics space for each tree node
         for (auto& i : stemp_) {
@@ -231,7 +231,7 @@ class ColMaker: public TreeUpdater {
       }
     }
     /*! \brief update queue expand add in new leaves */
-    inline void UpdateQueueExpand(const RegTree& tree,
+    inline void UpdateQueueExpand(const RegressionTree& tree,
                                   const std::vector<int> &qexpand,
                                   std::vector<int>* p_newnodes) {
       p_newnodes->clear();
@@ -623,7 +623,7 @@ class ColMaker: public TreeUpdater {
                           const std::vector<int> &qexpand,
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          RegTree *p_tree) {
+                          RegressionTree *p_tree) {
       const std::vector<int> &feat_set = column_sampler_.GetFeatureSet(depth).HostVector();
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         this->UpdateSolution(batch, feat_set, gpair, p_fmat);
@@ -648,7 +648,7 @@ class ColMaker: public TreeUpdater {
     // reset position of each data points after split is created in the tree
     inline void ResetPosition(const std::vector<int> &qexpand,
                               DMatrix* p_fmat,
-                              const RegTree& tree) {
+                              const RegressionTree& tree) {
       // set the positions in the nondefault
       this->SetNonDefaultPosition(qexpand, p_fmat, tree);
       // set rest of instances to default position
@@ -689,7 +689,7 @@ class ColMaker: public TreeUpdater {
     }
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,
                                        DMatrix *p_fmat,
-                                       const RegTree &tree) {
+                                       const RegressionTree &tree) {
       // step 1, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {
@@ -764,7 +764,7 @@ class DistColMaker : public ColMaker {
   }
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     GradStats::CheckInfo(dmat->Info());
     CHECK_EQ(trees.size(), 1U) << "DistColMaker: only support one tree at a time";
     Builder builder(
@@ -784,7 +784,7 @@ class DistColMaker : public ColMaker {
     explicit Builder(const TrainParam &param,
                      std::unique_ptr<SplitEvaluator> spliteval)
         : ColMaker::Builder(param, std::move(spliteval)) {}
-    inline void UpdatePosition(DMatrix* p_fmat, const RegTree &tree) {
+    inline void UpdatePosition(DMatrix* p_fmat, const RegressionTree &tree) {
       const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
@@ -802,7 +802,7 @@ class DistColMaker : public ColMaker {
 
    protected:
     void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
-                               const RegTree &tree) override {
+                               const RegressionTree &tree) override {
       // step 2, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {

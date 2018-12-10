@@ -42,7 +42,7 @@ class TreeUpdater {
    */
   virtual void Update(HostDeviceVector<GradientPair>* gpair,
                       DMatrix* data,
-                      const std::vector<RegTree*>& trees) = 0;
+                      const std::vector<RegressionTree*>& trees) = 0;
 
   /*!
    * \brief determines whether updater has enough knowledge about a given dataset

@@ -24,7 +24,7 @@ class SketchMaker: public BaseMaker {
  public:
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -38,7 +38,7 @@ class SketchMaker: public BaseMaker {
  protected:
   inline void Update(const std::vector<GradientPair> &gpair,
                      DMatrix *p_fmat,
-                     RegTree *p_tree) {
+                     RegressionTree *p_tree) {
     this->InitData(gpair, *p_fmat, *p_tree);
     for (int depth = 0; depth < param_.max_depth; ++depth) {
       this->GetNodeStats(gpair, *p_fmat, *p_tree,
@@ -131,7 +131,7 @@ class SketchMaker: public BaseMaker {
   };
   inline void BuildSketch(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const RegTree &tree) {
+                          const RegressionTree &tree) {
     const MetaInfo& info = p_fmat->Info();
     sketchs_.resize(this->qexpand_.size() * tree.param.num_feature * 3);
     for (auto & sketch : sketchs_) {
@@ -169,7 +169,7 @@ class SketchMaker: public BaseMaker {
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
                               const SparsePage::Inst &col,
-                              const RegTree &tree,
+                              const RegressionTree &tree,
                               const std::vector<SKStats> &nstats,
                               bst_uint fid,
                               bool col_full,
@@ -258,7 +258,7 @@ class SketchMaker: public BaseMaker {
   inline void FindSplit(int depth,
                         const std::vector<GradientPair> &gpair,
                         DMatrix *p_fmat,
-                        RegTree *p_tree) {
+                        RegressionTree *p_tree) {
     const bst_uint num_feature = p_tree->param.num_feature;
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
@@ -297,7 +297,7 @@ class SketchMaker: public BaseMaker {
     }
   }
   // set statistics on ptree
-  inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
+  inline void SetStats(int nid, const SKStats &node_sum, RegressionTree *p_tree) {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
   }

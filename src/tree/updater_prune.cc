@@ -32,7 +32,7 @@ class TreePruner: public TreeUpdater {
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) override {
+              const std::vector<RegressionTree*> &trees) override {
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -45,7 +45,7 @@ class TreePruner: public TreeUpdater {
 
  private:
   // try to prune off current leaf
-  inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
+  inline int TryPruneLeaf(RegressionTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
     if (tree.GetNode(nid).IsRoot()) return npruned;
     int pid = tree.GetNode(nid).Parent();
     RTreeNodeStat &s = tree.Stat(pid);
@@ -60,7 +60,7 @@ class TreePruner: public TreeUpdater {
     }
   }
   /*! \brief do pruning of a tree */
-  inline void DoPrune(RegTree &tree) { // NOLINT(*)
+  inline void DoPrune(RegressionTree &tree) { // NOLINT(*)
     int npruned = 0;
     // initialize auxiliary statistics
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {

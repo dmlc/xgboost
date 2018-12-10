@@ -19,7 +19,7 @@ DMLC_REGISTER_PARAMETER(TrainParam);
 }
 // internal function to dump regression tree to text
 void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
-                 const RegTree& tree,
+                 const RegressionTree& tree,
                  const FeatureMap& fmap,
                  int nid, int depth, int add_comma,
                  bool with_stats, std::string format) {
@@ -161,7 +161,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
   }
 }
 
-std::string RegTree::DumpModel(const FeatureMap& fmap,
+std::string RegressionTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
@@ -170,7 +170,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
 }
 
 /*! \brief get next position of the tree given current pid */
-int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
+int RegressionTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
   bst_float split_value = (*this).GetNode(pid).SplitCond();
   if (is_unknown) {
     return (*this).GetNode(pid).DefaultChild();
@@ -184,39 +184,39 @@ int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
 }
 
 // do not need to read if only use the model
-void RegTree::FVec::Init(size_t size) {
+void RegressionTree::FVec::Init(size_t size) {
   Entry e; e.flag = -1;
   data_.resize(size);
   std::fill(data_.begin(), data_.end(), e);
 }
 
-void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
+void RegressionTree::FVec::Fill(const SparsePage::Inst& inst) {
   for (bst_uint i = 0; i < inst.size(); ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].fvalue = inst[i].fvalue;
   }
 }
 
-void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
+void RegressionTree::FVec::Drop(const SparsePage::Inst& inst) {
   for (bst_uint i = 0; i < inst.size(); ++i) {
     if (inst[i].index >= data_.size()) continue;
     data_[inst[i].index].flag = -1;
   }
 }
 
-size_t RegTree::FVec::Size() const {
+size_t RegressionTree::FVec::Size() const {
   return data_.size();
 }
 
-bst_float RegTree::FVec::Fvalue(size_t i) const {
+bst_float RegressionTree::FVec::Fvalue(size_t i) const {
   return data_[i].fvalue;
 }
 
-bool RegTree::FVec::IsMissing(size_t i) const {
+bool RegressionTree::FVec::IsMissing(size_t i) const {
   return data_[i].flag == -1;
 }
 
-int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) const {
+int RegressionTree::GetLeafIndex(const RegressionTree::FVec& feat, unsigned root_id) const {
   auto pid = static_cast<int>(root_id);
   while (!(*this).GetNode(pid).IsLeaf()) {
     unsigned split_index = (*this).GetNode(pid).SplitIndex();
@@ -225,7 +225,7 @@ int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) const {
   return pid;
 }
 
-float RegTree::GetNodeMeanValue(int nid) {
+float RegressionTree::GetNodeMeanValue(int nid) {
   size_t num_nodes = this->param.num_nodes;
   if (this->node_mean_values_.size() != num_nodes) {
     this->node_mean_values_.resize(num_nodes);
@@ -234,7 +234,7 @@ float RegTree::GetNodeMeanValue(int nid) {
   return this->node_mean_values_[nid];
 }
 
-bst_float RegTree::FillNodeMeanValue(int nid) {
+bst_float RegressionTree::FillNodeMeanValue(int nid) {
   bst_float result;
   const auto& node = (*this).GetNode(nid);
   if (node.IsLeaf()) {
@@ -248,7 +248,7 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
   return result;
 }
 
-void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+void RegressionTree::CalculateContributionsApprox(const RegressionTree::FVec& feat, unsigned root_id,
                                                   bst_float *out_contribs) {
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
@@ -352,7 +352,7 @@ bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
 }
 
 // recursive computation of SHAP values for a decision tree
-void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
+void RegressionTree::TreeShap(const RegressionTree::FVec& feat, bst_float *phi,
                               unsigned node_index, unsigned unique_depth,
                               PathElement *parent_unique_path, bst_float parent_zero_fraction,
                               bst_float parent_one_fraction, int parent_feature_index,
@@ -436,7 +436,7 @@ void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
   }
 }
 
-void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+void RegressionTree::CalculateContributions(const RegressionTree::FVec& feat, unsigned root_id,
                                             bst_float *out_contribs,
                                             int condition,
                                             unsigned condition_feature) {
