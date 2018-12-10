@@ -192,16 +192,17 @@ int RegressionTree::GetLeafIndex(const DenseFeatureVector& feat, unsigned root_i
   return pid;
 }
 
-float RegressionTree::GetNodeMeanValue(int nid) {
-  size_t num_nodes = this->param.num_nodes;
-  if (this->node_mean_values_.size() != num_nodes) {
-    this->node_mean_values_.resize(num_nodes);
-    this->FillNodeMeanValue(0);
-  }
+float RegressionTree::GetNodeMeanValue(int nid) const {
+  CHECK_LT(nid, node_mean_values_.size());
   return this->node_mean_values_[nid];
 }
 
 bst_float RegressionTree::FillNodeMeanValue(int nid) {
+  size_t num_nodes = this->param.num_nodes;
+  if (this->node_mean_values_.size() == num_nodes) {
+    return this->node_mean_values_[nid];
+  }
+  this->node_mean_values_.resize(num_nodes);
   bst_float result;
   const auto& node = (*this).GetNode(nid);
   if (node.IsLeaf()) {
@@ -215,8 +216,9 @@ bst_float RegressionTree::FillNodeMeanValue(int nid) {
   return result;
 }
 
-void RegressionTree::CalculateContributionsApprox(const DenseFeatureVector& feat, unsigned root_id,
-                                                  bst_float *out_contribs) {
+void RegressionTree::CalculateContributionsApprox(
+    const DenseFeatureVector &feat, unsigned root_id, bst_float *out_contribs) {
+  CHECK_GT(this->node_mean_values_.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
   auto pid = static_cast<int>(root_id);
@@ -407,6 +409,7 @@ void RegressionTree::CalculateContributions(const DenseFeatureVector& feat, unsi
                                             bst_float *out_contribs,
                                             int condition,
                                             unsigned condition_feature) {
+  CHECK_GT(this->node_mean_values_.size(), 0U);
   // find the expected value of the tree's predictions
   if (condition == 0) {
     bst_float node_value = this->GetNodeMeanValue(root_id);
@@ -429,17 +432,17 @@ void DenseFeatureVector::Init(size_t size) {
   std::fill(data_.begin(), data_.end(), e);
 }
 
-void DenseFeatureVector::Fill(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].fvalue = inst[i].fvalue;
+void DenseFeatureVector::Fill(const SparsePage::Inst &inst) {
+  for (const auto &elem : inst) {
+    if (elem.index >= data_.size()) continue;
+    data_[elem.index].fvalue = elem.fvalue;
   }
 }
 
-void DenseFeatureVector::Drop(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].flag = -1;
+void DenseFeatureVector::Drop(const SparsePage::Inst &inst) {
+  for (const auto &elem : inst) {
+    if (elem.index >= data_.size()) continue;
+    data_[elem.index].flag = -1;
   }
 }
 

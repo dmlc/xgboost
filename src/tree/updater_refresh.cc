@@ -48,7 +48,7 @@ class TreeRefresher: public TreeUpdater {
       }
       stemp[tid].resize(num_nodes, TStats(param_));
       std::fill(stemp[tid].begin(), stemp[tid].end(), TStats(param_));
-      fvec_temp[tid].Init(trees[0]->param.num_feature);
+      fvec_temp[tid].Init(p_fmat->Info().num_col_);
     }
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery

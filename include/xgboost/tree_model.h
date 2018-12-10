@@ -240,8 +240,6 @@ class RegressionTree {
     ++param.num_deleted;
   }
 
-  bst_float FillNodeMeanValue(int nid);
-
  public:
   /*! \brief model parameter */
   TreeParam param;
@@ -382,7 +380,15 @@ class RegressionTree {
   /*!
    * \brief Get the mean value for node, required for feature contributions
    */
-  float GetNodeMeanValue(int nid);
+  float GetNodeMeanValue(int nid) const;
+
+  /**
+   * \brief Generate node mean values lazily.
+   * \param nid The nid.
+   * \return  A bst_float.
+   */
+  bst_float FillNodeMeanValue(int nid = 0);
+
   /*!
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN

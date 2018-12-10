@@ -41,7 +41,7 @@ class BaseMaker: public TreeUpdater {
     /*! \brief find type of each feature, use column format */
     inline void InitByCol(DMatrix* p_fmat,
                           const RegressionTree& tree) {
-      fminmax_.resize(tree.param.num_feature * 2);
+      fminmax_.resize(p_fmat->Info().num_col_ * 2);
       std::fill(fminmax_.begin(), fminmax_.end(),
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics

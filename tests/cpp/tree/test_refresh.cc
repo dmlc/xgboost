@@ -25,7 +25,6 @@ TEST(Updater, Refresh) {
     {"reg_lambda", "1"}};
 
   RegressionTree tree = RegressionTree();
-  tree.param.InitAllowUnknown(cfg);
   std::vector<RegressionTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
 

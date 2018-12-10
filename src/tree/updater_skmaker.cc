@@ -133,7 +133,7 @@ class SketchMaker: public BaseMaker {
                           DMatrix *p_fmat,
                           const RegressionTree &tree) {
     const MetaInfo& info = p_fmat->Info();
-    sketchs_.resize(this->qexpand_.size() * tree.param.num_feature * 3);
+    sketchs_.resize(this->qexpand_.size() * p_fmat->Info().num_col_ * 3);
     for (auto & sketch : sketchs_) {
       sketch.Init(info.num_row_, this->param_.sketch_eps);
     }
@@ -146,7 +146,7 @@ class SketchMaker: public BaseMaker {
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)
       for (bst_omp_uint fidx = 0; fidx < nsize; ++fidx) {
-        this->UpdateSketchCol(gpair, batch[fidx], tree,
+        this->UpdateSketchCol(p_fmat, gpair, batch[fidx], tree,
                               node_stats_,
                               fidx,
                               batch[fidx].size() == nrows,
@@ -167,7 +167,7 @@ class SketchMaker: public BaseMaker {
     sketch_reducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
   }
   // update sketch information in column fid
-  inline void UpdateSketchCol(const std::vector<GradientPair> &gpair,
+  inline void UpdateSketchCol(DMatrix *p_fmat, const std::vector<GradientPair> &gpair,
                               const SparsePage::Inst &col,
                               const RegressionTree &tree,
                               const std::vector<SKStats> &nstats,
@@ -182,7 +182,7 @@ class SketchMaker: public BaseMaker {
       const unsigned wid = this->node2workindex_[nid];
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].sum_total = 0.0f;
-        sbuilder[3 * nid + k].sketch = &sketchs_[(wid * tree.param.num_feature + fid) * 3 + k];
+        sbuilder[3 * nid + k].sketch = &sketchs_[(wid * p_fmat->Info().num_col_ + fid) * 3 + k];
       }
     }
     if (!col_full) {
@@ -259,7 +259,7 @@ class SketchMaker: public BaseMaker {
                         const std::vector<GradientPair> &gpair,
                         DMatrix *p_fmat,
                         RegressionTree *p_tree) {
-    const bst_uint num_feature = p_tree->param.num_feature;
+    const bst_uint num_feature = p_fmat->Info().num_col_;
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
     auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
@@ -269,7 +269,7 @@ class SketchMaker: public BaseMaker {
       CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
       for (bst_uint fid = 0; fid < num_feature; ++fid) {
-        unsigned base = (wid * p_tree->param.num_feature + fid) * 3;
+        unsigned base = (wid * p_fmat->Info().num_col_ + fid) * 3;
         EnumerateSplit(summary_array_[base + 0],
                        summary_array_[base + 1],
                        summary_array_[base + 2],

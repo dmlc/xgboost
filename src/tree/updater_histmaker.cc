@@ -160,7 +160,7 @@ class HistMaker: public BaseMaker {
   virtual void InitWorkSet(DMatrix *p_fmat,
                            const RegressionTree &tree,
                            std::vector<bst_uint> *p_fset) {
-    p_fset->resize(tree.param.num_feature);
+    p_fset->resize(p_fmat->Info().num_col_);
     for (size_t i = 0; i < p_fset->size(); ++i) {
       (*p_fset)[i] = static_cast<unsigned>(i);
     }
@@ -327,7 +327,7 @@ class CQHistMaker: public HistMaker<TStats> {
                   const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    feat2workindex_.resize(tree.param.num_feature);
+    feat2workindex_.resize(p_fmat->Info().num_col_);
     std::fill(feat2workindex_.begin(), feat2workindex_.end(), -1);
     for (size_t i = 0; i < fset.size(); ++i) {
       feat2workindex_[fset[i]] = static_cast<int>(i);
@@ -386,7 +386,7 @@ class CQHistMaker: public HistMaker<TStats> {
                           const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    feat2workindex_.resize(tree.param.num_feature);
+    feat2workindex_.resize(p_fmat->Info().num_col_);
     std::fill(feat2workindex_.begin(), feat2workindex_.end(), -1);
     work_set_.clear();
     for (auto fidx : fset) {
@@ -685,7 +685,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
                   const RegressionTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
-    this->feat2workindex_.resize(tree.param.num_feature);
+    this->feat2workindex_.resize(p_fmat->Info().num_col_);
     this->work_set_ = fset;
     std::fill(this->feat2workindex_.begin(), this->feat2workindex_.end(), -1);
     for (size_t i = 0; i < fset.size(); ++i) {
