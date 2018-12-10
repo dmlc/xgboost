@@ -254,8 +254,6 @@ class RegTree {
  protected:
   // vector of nodes
   std::vector<Node> nodes_;
-  // free node space, used during training process
-  std::vector<int>  deleted_nodes_;
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
 
@@ -263,12 +261,6 @@ class RegTree {
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   inline int AllocNode() {
-    if (param.num_deleted != 0) {
-      int nd = deleted_nodes_.back();
-      deleted_nodes_.pop_back();
-      --param.num_deleted;
-      return nd;
-    }
     int nd = param.num_nodes++;
     CHECK_LT(param.num_nodes, std::numeric_limits<int>::max())
         << "number of nodes in the tree exceed 2^31";
@@ -279,7 +271,6 @@ class RegTree {
   // delete a tree node, keep the parent field to allow trace back
   inline void DeleteNode(int nid) {
     CHECK_GE(nid, param.num_roots);
-    deleted_nodes_.push_back(nid);
     nodes_[nid].MarkDelete();
     ++param.num_deleted;
   }
@@ -346,12 +337,6 @@ class RegTree {
              sizeof(Node) * nodes_.size());
     CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
              sizeof(RTreeNodeStat) * stats_.size());
-    // chg deleted nodes
-    deleted_nodes_.resize(0);
-    for (int i = param.num_roots; i < param.num_nodes; ++i) {
-      if (nodes_[i].IsDeleted()) deleted_nodes_.push_back(i);
-    }
-    CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
   }
   /*!
    * \brief save model to stream
