@@ -270,10 +270,6 @@ class CPUPredictor : public Predictor {
     // allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < ntree_limit; ++i) {
-      model.trees[i]->FillNodeMeanValues();
-    }
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetRowBatches()) {
