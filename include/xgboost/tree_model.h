@@ -79,8 +79,6 @@ struct PathElement {
 
 class RegTree {
  public:
-  /*! \brief data type to indicate split condition */
-  using NodeStatT = RTreeNodeStat;
   /*! \brief auxiliary statistics of node to help tree building */
   using SplitCondT = float;
   /*! \brief tree node */
@@ -147,6 +145,13 @@ class RegTree {
       this->cright_ = nid;
     }
     /*!
+     * \brief set the left child
+     * \param nid node id to leftchild
+     */
+    inline void SetLeftChild(int nid) {
+      this->cleft_ = nid;
+    }
+    /*!
      * \brief set split condition of current node
      * \param split_index feature index to split
      * \param split_cond  split condition
@@ -157,6 +162,11 @@ class RegTree {
       if (default_left) split_index |= (1U << 31);
       this->sindex_ = split_index;
       (this->info_).split_cond = split_cond;
+    }
+    // set parent
+    inline void SetParent(int pidx, bool is_left_child = true) {
+      if (is_left_child) pidx |= (1U << 31);
+      this->parent_ = pidx;
     }
     /*!
      * \brief set the leaf value of the node
@@ -175,7 +185,6 @@ class RegTree {
     }
 
    private:
-    friend class RegTree;
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
      *        we have split condition
@@ -194,11 +203,6 @@ class RegTree {
     unsigned sindex_{0};
     // extra info
     Info info_;
-    // set parent
-    inline void SetParent(int pidx, bool is_left_child = true) {
-      if (is_left_child) pidx |= (1U << 31);
-      this->parent_ = pidx;
-    }
   };
 
   struct FVec {
@@ -253,7 +257,7 @@ class RegTree {
   // free node space, used during training process
   std::vector<int>  deleted_nodes_;
   // stats of nodes
-  std::vector<NodeStatT> stats_;
+  std::vector<RTreeNodeStat> stats_;
 
   std::vector<bst_float> node_mean_values_;
   // allocate a new node,
@@ -293,22 +297,6 @@ class RegTree {
     this->DeleteNode(nodes_[rid].RightChild());
     nodes_[rid].SetLeaf(value);
   }
-  /*!
-   * \brief collapse a non leaf node to a leaf node, delete its children
-   * \param rid node id of the node
-   * \param value new leaf value
-   */
-  inline void CollapseToLeaf(int rid, bst_float value) {
-    if (nodes_[rid].IsLeaf()) return;
-    if (!nodes_[nodes_[rid].LeftChild() ].IsLeaf()) {
-      CollapseToLeaf(nodes_[rid].LeftChild(), 0.0f);
-    }
-    if (!nodes_[nodes_[rid].RightChild() ].IsLeaf()) {
-      CollapseToLeaf(nodes_[rid].RightChild(), 0.0f);
-    }
-    this->ChangeToLeaf(rid, value);
-  }
-
  public:
   /*! \brief model parameter */
   TreeParam param;
@@ -317,14 +305,20 @@ class RegTree {
     param.num_nodes = 1;
     param.num_roots = 1;
     param.num_deleted = 0;
-    nodes_.resize(1);
+    nodes_.resize(param.num_nodes);
+    stats_.resize(param.num_nodes);
+    for (int i = 0; i < param.num_nodes; i ++) {
+      nodes_[i].SetLeaf(0.0f);
+      nodes_[i].SetParent(-1);
+    }
   }
   /*! \brief get node given nid */
-  inline Node& operator[](int nid) {
+  inline const Node& GetNode(int nid) const {
     return nodes_[nid];
   }
+
   /*! \brief get node given nid */
-  inline const Node& operator[](int nid) const {
+  inline Node& GetNode(int nid) {
     return nodes_[nid];
   }
 
@@ -332,22 +326,12 @@ class RegTree {
   inline const std::vector<Node>& GetNodes() const { return nodes_; }
 
   /*! \brief get node statistics given nid */
-  inline NodeStatT& Stat(int nid) {
+  inline RTreeNodeStat& Stat(int nid) {
     return stats_[nid];
   }
   /*! \brief get node statistics given nid */
-  inline const NodeStatT& Stat(int nid) const {
+  inline const RTreeNodeStat& Stat(int nid) const {
     return stats_[nid];
-  }
-  /*! \brief initialize the model */
-  inline void InitModel() {
-    param.num_nodes = param.num_roots;
-    nodes_.resize(param.num_nodes);
-    stats_.resize(param.num_nodes);
-    for (int i = 0; i < param.num_nodes; i ++) {
-      nodes_[i].SetLeaf(0.0f);
-      nodes_[i].SetParent(-1);
-    }
   }
   /*!
    * \brief load model from stream
@@ -360,8 +344,8 @@ class RegTree {
     CHECK_NE(param.num_nodes, 0);
     CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
              sizeof(Node) * nodes_.size());
-    CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(NodeStatT) * stats_.size()),
-             sizeof(NodeStatT) * stats_.size());
+    CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
+             sizeof(RTreeNodeStat) * stats_.size());
     // chg deleted nodes
     deleted_nodes_.resize(0);
     for (int i = param.num_roots; i < param.num_nodes; ++i) {
@@ -379,7 +363,7 @@ class RegTree {
     fo->Write(&param, sizeof(TreeParam));
     CHECK_NE(param.num_nodes, 0);
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
-    fo->Write(dmlc::BeginPtr(stats_), sizeof(NodeStatT) * nodes_.size());
+    fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
   }
   /*!
    * \brief add child nodes to node
@@ -388,8 +372,8 @@ class RegTree {
   inline void AddChilds(int nid) {
     int pleft  = this->AllocNode();
     int pright = this->AllocNode();
-    nodes_[nid].cleft_  = pleft;
-    nodes_[nid].cright_ = pright;
+    nodes_[nid].SetLeftChild(pleft);
+    nodes_[nid].SetRightChild(pright) ;
     nodes_[nodes_[nid].LeftChild() ].SetParent(nid, true);
     nodes_[nodes_[nid].RightChild()].SetParent(nid, false);
   }
@@ -537,8 +521,8 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
 
 inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) const {
   auto pid = static_cast<int>(root_id);
-  while (!(*this)[pid].IsLeaf()) {
-    unsigned split_index = (*this)[pid].SplitIndex();
+  while (!(*this).GetNode(pid).IsLeaf()) {
+    unsigned split_index = (*this).GetNode(pid).SplitIndex();
     pid = this->GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
   }
   return pid;
@@ -546,7 +530,7 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
 //
 //inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
 //  int pid = this->GetLeafIndex(feat, root_id);
-//  return (*this)[pid].LeafValue();
+//  return (*this).GetNode(pid).LeafValue();
 //}
 //
 inline void RegTree::FillNodeMeanValues() {
@@ -562,7 +546,7 @@ inline void RegTree::FillNodeMeanValues() {
 
 inline bst_float RegTree::FillNodeMeanValue(int nid) {
   bst_float result;
-  auto& node = (*this)[nid];
+  const auto& node = (*this).GetNode(nid);
   if (node.IsLeaf()) {
     result = node.LeafValue();
   } else {
@@ -583,19 +567,19 @@ inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, uns
   // update bias value
   bst_float node_value = this->node_mean_values_[pid];
   out_contribs[feat.Size()] += node_value;
-  if ((*this)[pid].IsLeaf()) {
+  if ((*this).GetNode(pid).IsLeaf()) {
     // nothing to do anymore
     return;
   }
-  while (!(*this)[pid].IsLeaf()) {
-    split_index = (*this)[pid].SplitIndex();
+  while (!(*this).GetNode(pid).IsLeaf()) {
+    split_index = (*this).GetNode(pid).SplitIndex();
     pid = this->GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
     bst_float new_value = this->node_mean_values_[pid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;
     node_value = new_value;
   }
-  bst_float leaf_value = (*this)[pid].LeafValue();
+  bst_float leaf_value = (*this).GetNode(pid).LeafValue();
   // update leaf feature weight
   out_contribs[split_index] += leaf_value - node_value;
 }
@@ -671,7 +655,7 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
                               bst_float parent_one_fraction, int parent_feature_index,
                               int condition, unsigned condition_feature,
                               bst_float condition_fraction) const {
-  const auto node = (*this)[node_index];
+  const auto node = this->GetNode(node_index);
 
   // stop if we have no weight coming down to us
   if (condition_fraction == 0) return;
@@ -770,14 +754,14 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
 
 /*! \brief get next position of the tree given current pid */
 inline int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
-  bst_float split_value = (*this)[pid].SplitCond();
+  bst_float split_value = (*this).GetNode(pid).SplitCond();
   if (is_unknown) {
-    return (*this)[pid].DefaultChild();
+    return (*this).GetNode(pid).DefaultChild();
   } else {
     if (fvalue < split_value) {
-      return (*this)[pid].LeftChild();
+      return (*this).GetNode(pid).LeftChild();
     } else {
-      return (*this)[pid].RightChild();
+      return (*this).GetNode(pid).RightChild();
     }
   }
 }

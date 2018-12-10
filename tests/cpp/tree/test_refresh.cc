@@ -25,17 +25,16 @@ TEST(Updater, Refresh) {
     {"reg_lambda", "1"}};
 
   RegTree tree = RegTree();
-  tree.InitModel();
   tree.param.InitAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
 
   tree.AddChilds(0);
-  int cleft = tree[0].LeftChild();
-  int cright = tree[0].RightChild();
-  tree[cleft].SetLeaf(0.2f, 0);
-  tree[cright].SetLeaf(0.8f, 0);
-  tree[0].SetSplit(2, 0.2f);
+  int cleft = tree.GetNode(0).LeftChild();
+  int cright = tree.GetNode(0).RightChild();
+  tree.GetNode(cleft).SetLeaf(0.2f, 0);
+  tree.GetNode(cright).SetLeaf(0.8f, 0);
+  tree.GetNode(0).SetSplit(2, 0.2f);
 
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;
@@ -44,7 +43,7 @@ TEST(Updater, Refresh) {
   refresher->Update(&gpair, dmat->get(), trees);
 
   bst_float constexpr kEps = 1e-6;
-  ASSERT_NEAR(-0.183392, tree[cright].LeafValue(), kEps);
+  ASSERT_NEAR(-0.183392, tree.GetNode(cright).LeafValue(), kEps);
   ASSERT_NEAR(-0.224489, tree.Stat(0).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(cleft).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(1).loss_chg, kEps);

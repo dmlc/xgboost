@@ -116,8 +116,8 @@ class TreeRefresher: public TreeUpdater {
     auto pid = static_cast<int>(info.GetRoot(ridx));
     gstats[pid].Add(gpair, info, ridx);
     // tranverse tree
-    while (!tree[pid].IsLeaf()) {
-      unsigned split_index = tree[pid].SplitIndex();
+    while (!tree.GetNode(pid).IsLeaf()) {
+      unsigned split_index = tree.GetNode(pid).SplitIndex();
       pid = tree.GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
       gstats[pid].Add(gpair, info, ridx);
     }
@@ -127,17 +127,17 @@ class TreeRefresher: public TreeUpdater {
     RegTree &tree = *p_tree;
     tree.Stat(nid).base_weight = static_cast<bst_float>(gstats[nid].CalcWeight(param_));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
-    if (tree[nid].IsLeaf()) {
+    if (tree.GetNode(nid).IsLeaf()) {
       if (param_.refresh_leaf) {
-        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param_.learning_rate);
+        tree.GetNode(nid).SetLeaf(tree.Stat(nid).base_weight * param_.learning_rate);
       }
     } else {
       tree.Stat(nid).loss_chg = static_cast<bst_float>(
-          gstats[tree[nid].LeftChild()].CalcGain(param_) +
-          gstats[tree[nid].RightChild()].CalcGain(param_) -
+          gstats[tree.GetNode(nid).LeftChild()].CalcGain(param_) +
+          gstats[tree.GetNode(nid).RightChild()].CalcGain(param_) -
           gstats[nid].CalcGain(param_));
-      this->Refresh(gstats, tree[nid].LeftChild(), p_tree);
-      this->Refresh(gstats, tree[nid].RightChild(), p_tree);
+      this->Refresh(gstats, tree.GetNode(nid).LeftChild(), p_tree);
+      this->Refresh(gstats, tree.GetNode(nid).RightChild(), p_tree);
     }
   }
   // training parameter

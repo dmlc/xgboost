@@ -283,7 +283,6 @@ class GBTree : public GradientBooster {
         // create new tree
         std::unique_ptr<RegTree> ptr(new RegTree());
         ptr->param.InitAllowUnknown(this->cfg_);
-        ptr->InitModel();
         new_trees.push_back(ptr.get());
         ret->push_back(std::move(ptr));
       } else if (tparam_.process_type == kUpdate) {
@@ -508,7 +507,7 @@ class Dart : public GBTree {
         bool drop = (std::binary_search(idx_drop_.begin(), idx_drop_.end(), i));
         if (!drop) {
           int tid = model_.trees[i]->GetLeafIndex(*p_feats, root_index);
-          psum += weight_drop_[i] * (*model_.trees[i])[tid].LeafValue();
+          psum += weight_drop_[i] * model_.trees[i]->GetNode(tid).LeafValue();
         }
       }
     }

@@ -59,16 +59,16 @@ class SketchMaker: public BaseMaker {
     // set all statistics correctly
     for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
       this->SetStats(nid, node_stats_[nid], p_tree);
-      if (!(*p_tree)[nid].IsLeaf()) {
+      if (!p_tree->GetNode(nid).IsLeaf()) {
         p_tree->Stat(nid).loss_chg = static_cast<bst_float>(
-            node_stats_[(*p_tree)[nid].LeftChild()].CalcGain(param_) +
-            node_stats_[(*p_tree)[nid].RightChild()].CalcGain(param_) -
+            node_stats_[p_tree->GetNode(nid).LeftChild()].CalcGain(param_) +
+            node_stats_[p_tree->GetNode(nid).RightChild()].CalcGain(param_) -
             node_stats_[nid].CalcGain(param_));
       }
     }
     // set left leaves
     for (int nid : qexpand_) {
-      (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
+      p_tree->GetNode(nid).SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
     }
   }
   // define the sketch we want to use
@@ -286,13 +286,13 @@ class SketchMaker: public BaseMaker {
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
         p_tree->AddChilds(nid);
-        (*p_tree)[nid].SetSplit(best.SplitIndex(),
+        p_tree->GetNode(nid).SetSplit(best.SplitIndex(),
                                  best.split_value, best.DefaultLeft());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+        p_tree->GetNode(p_tree->GetNode(nid).LeftChild()).SetLeaf(0.0f, 0);
+        p_tree->GetNode(p_tree->GetNode(nid).RightChild()).SetLeaf(0.0f, 0);
       } else {
-        (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
+        p_tree->GetNode(nid).SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }
     }
   }

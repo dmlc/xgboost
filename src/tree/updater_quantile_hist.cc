@@ -146,15 +146,15 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
     if (candidate.loss_chg <= kRtEps
         || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+      p_tree->GetNode(nid).SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
       tstart = dmlc::GetTime();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
       time_apply_split += dmlc::GetTime() - tstart;
 
       tstart = dmlc::GetTime();
-      const int cleft = (*p_tree)[nid].LeftChild();
-      const int cright = (*p_tree)[nid].RightChild();
+      const int cleft = p_tree->GetNode(nid).LeftChild();
+      const int cright = p_tree->GetNode(nid).RightChild();
       hist_.AddHistRow(cleft);
       hist_.AddHistRow(cright);
       if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
@@ -196,7 +196,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   while (!qexpand_->empty()) {
     const int nid = qexpand_->top().nid;
     qexpand_->pop();
-    (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+    p_tree->GetNode(nid).SetLeaf(snode_[nid].weight * param_.learning_rate);
   }
   // remember auxiliary statistics in the tree node
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -259,13 +259,13 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
       bst_float leaf_value;
       // if a node is marked as deleted by the pruner, traverse upward to locate
       // a non-deleted leaf.
-      if ((*p_last_tree_)[nid].IsDeleted()) {
-        while ((*p_last_tree_)[nid].IsDeleted()) {
-          nid = (*p_last_tree_)[nid].Parent();
+      if (p_last_tree_->GetNode(nid).IsDeleted()) {
+        while (p_last_tree_->GetNode(nid).IsDeleted()) {
+          nid = p_last_tree_->GetNode(nid).Parent();
         }
-        CHECK((*p_last_tree_)[nid].IsLeaf());
+        CHECK(p_last_tree_->GetNode(nid).IsLeaf());
       }
-      leaf_value = (*p_last_tree_)[nid].LeafValue();
+      leaf_value = p_last_tree_->GetNode(nid).LeafValue();
 
       for (const size_t* it = rowset.begin; it < rowset.end; ++it) {
         out_preds[*it] += leaf_value;
@@ -434,12 +434,12 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
   NodeEntry& e = snode_[nid];
 
   p_tree->AddChilds(nid);
-  (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
+  p_tree->GetNode(nid).SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
   // mark right child as 0, to indicate fresh leaf
-  int cleft = (*p_tree)[nid].LeftChild();
-  int cright = (*p_tree)[nid].RightChild();
-  (*p_tree)[cleft].SetLeaf(0.0f, 0);
-  (*p_tree)[cright].SetLeaf(0.0f, 0);
+  int cleft = p_tree->GetNode(nid).LeftChild();
+  int cright = p_tree->GetNode(nid).RightChild();
+  p_tree->GetNode(cleft).SetLeaf(0.0f, 0);
+  p_tree->GetNode(cright).SetLeaf(0.0f, 0);
 
   /* 2. Categorize member rows */
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
@@ -448,9 +448,9 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
     row_split_tloc_[i].left.clear();
     row_split_tloc_[i].right.clear();
   }
-  const bool default_left = (*p_tree)[nid].DefaultLeft();
-  const bst_uint fid = (*p_tree)[nid].SplitIndex();
-  const bst_float split_pt = (*p_tree)[nid].SplitCond();
+  const bool default_left = p_tree->GetNode(nid).DefaultLeft();
+  const bst_uint fid = p_tree->GetNode(nid).SplitIndex();
+  const bst_float split_pt = p_tree->GetNode(nid).SplitCond();
   const uint32_t lower_bound = gmat.cut.row_ptr[fid];
   const uint32_t upper_bound = gmat.cut.row_ptr[fid + 1];
   int32_t split_cond = -1;
@@ -476,7 +476,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
   }
 
   row_set_collection_.AddSplit(
-      nid, row_split_tloc_, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild());
+      nid, row_split_tloc_, p_tree->GetNode(nid).LeftChild(), p_tree->GetNode(nid).RightChild());
 }
 
 void QuantileHistMaker::Builder::ApplySplitDenseData(
@@ -644,7 +644,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 
   // calculating the weights
   {
-    bst_uint parentid = tree[nid].Parent();
+    bst_uint parentid = tree.GetNode(nid).Parent();
     snode_[nid].weight = static_cast<float>(
         spliteval_->ComputeWeight(parentid, snode_[nid].stats));
     snode_[nid].root_gain = static_cast<float>(

@@ -130,7 +130,7 @@ class HistMaker: public BaseMaker {
     this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.
     for (int i = 0; i < p_tree->param.num_roots; ++i) {
-      (*p_tree)[i].SetLeaf(0.0f, 0);
+      p_tree->GetNode(i).SetLeaf(0.0f, 0);
     }
 
     for (int depth = 0; depth < param_.max_depth; ++depth) {
@@ -148,7 +148,7 @@ class HistMaker: public BaseMaker {
     }
     for (size_t i = 0; i < qexpand_.size(); ++i) {
       const int nid = qexpand_[i];
-      (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
+      p_tree->GetNode(nid).SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
     }
   }
   // this function does two jobs
@@ -244,18 +244,18 @@ class HistMaker: public BaseMaker {
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
         p_tree->AddChilds(nid);
-        (*p_tree)[nid].SetSplit(best.SplitIndex(),
+        p_tree->GetNode(nid).SetSplit(best.SplitIndex(),
                                  best.split_value, best.DefaultLeft());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+        p_tree->GetNode(p_tree->GetNode(nid).LeftChild()).SetLeaf(0.0f, 0);
+        p_tree->GetNode(p_tree->GetNode(nid).RightChild()).SetLeaf(0.0f, 0);
         // right side sum
         TStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].LeftChild(), left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].RightChild(), right_sum);
+        this->SetStats(p_tree, p_tree->GetNode(nid).LeftChild(), left_sum[wid]);
+        this->SetStats(p_tree, p_tree->GetNode(nid).RightChild(), right_sum);
       } else {
-        (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
+        p_tree->GetNode(nid).SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }
     }
   }

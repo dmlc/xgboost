@@ -105,11 +105,11 @@ class ColMaker: public TreeUpdater {
         this->UpdateQueueExpand(*p_tree, qexpand_, &newnodes);
         this->InitNewNode(newnodes, gpair, *p_fmat, *p_tree);
         for (auto nid : qexpand_) {
-          if ((*p_tree)[nid].IsLeaf()) {
+          if (p_tree->GetNode(nid).IsLeaf()) {
             continue;
           }
-          int cleft = (*p_tree)[nid].LeftChild();
-          int cright = (*p_tree)[nid].RightChild();
+          int cleft = p_tree->GetNode(nid).LeftChild();
+          int cright = p_tree->GetNode(nid).RightChild();
           spliteval_->AddSplit(nid,
                                cleft,
                                cright,
@@ -123,7 +123,7 @@ class ColMaker: public TreeUpdater {
       }
       // set all the rest expanding nodes to leaf
       for (const int nid : qexpand_) {
-        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+        p_tree->GetNode(nid).SetLeaf(snode_[nid].weight * param_.learning_rate);
       }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -224,7 +224,7 @@ class ColMaker: public TreeUpdater {
       }
       // calculating the weights
       for (int nid : qexpand) {
-        bst_uint parentid = tree[nid].Parent();
+        bst_uint parentid = tree.GetNode(nid).Parent();
         snode_[nid].weight = static_cast<float>(
             spliteval_->ComputeWeight(parentid, snode_[nid].stats));
         snode_[nid].root_gain = static_cast<float>(
@@ -237,9 +237,9 @@ class ColMaker: public TreeUpdater {
                                   std::vector<int>* p_newnodes) {
       p_newnodes->clear();
       for (int nid : qexpand) {
-        if (!tree[ nid ].IsLeaf()) {
-          p_newnodes->push_back(tree[nid].LeftChild());
-          p_newnodes->push_back(tree[nid].RightChild());
+        if (!tree.GetNode(nid).IsLeaf()) {
+          p_newnodes->push_back(tree.GetNode(nid).LeftChild());
+          p_newnodes->push_back(tree.GetNode(nid).RightChild());
         }
       }
     }
@@ -637,12 +637,12 @@ class ColMaker: public TreeUpdater {
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
           p_tree->AddChilds(nid);
-          (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
+          p_tree->GetNode(nid).SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
           // mark right child as 0, to indicate fresh leaf
-          (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-          (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+          p_tree->GetNode(p_tree->GetNode(nid).LeftChild()).SetLeaf(0.0f, 0);
+          p_tree->GetNode(p_tree->GetNode(nid).RightChild()).SetLeaf(0.0f, 0);
         } else {
-          (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
+          p_tree->GetNode(nid).SetLeaf(e.weight * param_.learning_rate);
         }
       }
     }
@@ -663,17 +663,17 @@ class ColMaker: public TreeUpdater {
         CHECK_LT(ridx, position_.size())
             << "ridx exceed bound " << "ridx="<<  ridx << " pos=" << position_.size();
         const int nid = this->DecodePosition(ridx);
-        if (tree[nid].IsLeaf()) {
+        if (tree.GetNode(nid).IsLeaf()) {
           // mark finish when it is not a fresh leaf
-          if (tree[nid].RightChild() == -1) {
+          if (tree.GetNode(nid).RightChild() == -1) {
             position_[ridx] = ~nid;
           }
         } else {
           // push to default branch
-          if (tree[nid].DefaultLeft()) {
-            this->SetEncodePosition(ridx, tree[nid].LeftChild());
+          if (tree.GetNode(nid).DefaultLeft()) {
+            this->SetEncodePosition(ridx, tree.GetNode(nid).LeftChild());
           } else {
-            this->SetEncodePosition(ridx, tree[nid].RightChild());
+            this->SetEncodePosition(ridx, tree.GetNode(nid).RightChild());
           }
         }
       }
@@ -694,8 +694,8 @@ class ColMaker: public TreeUpdater {
       // step 1, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {
-        if (!tree[nid].IsLeaf()) {
-          fsplits.push_back(tree[nid].SplitIndex());
+        if (!tree.GetNode(nid).IsLeaf()) {
+          fsplits.push_back(tree.GetNode(nid).SplitIndex());
         }
       }
       std::sort(fsplits.begin(), fsplits.end());
@@ -710,11 +710,11 @@ class ColMaker: public TreeUpdater {
             const int nid = this->DecodePosition(ridx);
             const bst_float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
-            if (!tree[nid].IsLeaf() && tree[nid].SplitIndex() == fid) {
-              if (fvalue < tree[nid].SplitCond()) {
-                this->SetEncodePosition(ridx, tree[nid].LeftChild());
+            if (!tree.GetNode(nid).IsLeaf() && tree.GetNode(nid).SplitIndex() == fid) {
+              if (fvalue < tree.GetNode(nid).SplitCond()) {
+                this->SetEncodePosition(ridx, tree.GetNode(nid).LeftChild());
               } else {
-                this->SetEncodePosition(ridx, tree[nid].RightChild());
+                this->SetEncodePosition(ridx, tree.GetNode(nid).RightChild());
               }
             }
           }
@@ -790,8 +790,8 @@ class DistColMaker : public ColMaker {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
         int nid = this->DecodePosition(ridx);
-        while (tree[nid].IsDeleted()) {
-          nid = tree[nid].Parent();
+        while (tree.GetNode(nid).IsDeleted()) {
+          nid = tree.GetNode(nid).Parent();
           CHECK_GE(nid, 0);
         }
         this->position_[ridx] = nid;
@@ -807,8 +807,8 @@ class DistColMaker : public ColMaker {
       // step 2, classify the non-default data into right places
       std::vector<unsigned> fsplits;
       for (int nid : qexpand) {
-        if (!tree[nid].IsLeaf()) {
-          fsplits.push_back(tree[nid].SplitIndex());
+        if (!tree.GetNode(nid).IsLeaf()) {
+          fsplits.push_back(tree.GetNode(nid).SplitIndex());
         }
       }
       // get the candidate split index
@@ -835,11 +835,11 @@ class DistColMaker : public ColMaker {
             const bst_uint ridx = col[j].index;
             const bst_float fvalue = col[j].fvalue;
             const int nid = this->DecodePosition(ridx);
-            if (!tree[nid].IsLeaf() && tree[nid].SplitIndex() == fid) {
-              if (fvalue < tree[nid].SplitCond()) {
-                if (!tree[nid].DefaultLeft()) boolmap_[ridx] = 1;
+            if (!tree.GetNode(nid).IsLeaf() && tree.GetNode(nid).SplitIndex() == fid) {
+              if (fvalue < tree.GetNode(nid).SplitCond()) {
+                if (!tree.GetNode(nid).DefaultLeft()) boolmap_[ridx] = 1;
               } else {
-                if (tree[nid].DefaultLeft()) boolmap_[ridx] = 1;
+                if (tree.GetNode(nid).DefaultLeft()) boolmap_[ridx] = 1;
               }
             }
           }
@@ -855,11 +855,11 @@ class DistColMaker : public ColMaker {
       for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
         const int nid = this->DecodePosition(ridx);
         if (bitmap_.Get(ridx)) {
-          CHECK(!tree[nid].IsLeaf()) << "inconsistent reduce information";
-          if (tree[nid].DefaultLeft()) {
-            this->SetEncodePosition(ridx, tree[nid].RightChild());
+          CHECK(!tree.GetNode(nid).IsLeaf()) << "inconsistent reduce information";
+          if (tree.GetNode(nid).DefaultLeft()) {
+            this->SetEncodePosition(ridx, tree.GetNode(nid).RightChild());
           } else {
-            this->SetEncodePosition(ridx, tree[nid].LeftChild());
+            this->SetEncodePosition(ridx, tree.GetNode(nid).LeftChild());
           }
         }
       }

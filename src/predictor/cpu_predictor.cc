@@ -24,7 +24,7 @@ class CPUPredictor : public Predictor {
     for (size_t i = tree_begin; i < tree_end; ++i) {
       if (tree_info[i] == bst_group) {
         int tid = trees[i]->GetLeafIndex(*p_feats, root_index);
-        psum += (*trees[i])[tid].LeafValue();
+        psum += (*trees[i]).GetNode(tid).LeafValue();
       }
     }
     p_feats->Drop(inst);

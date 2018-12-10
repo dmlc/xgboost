@@ -105,7 +105,7 @@ class BaseMaker: public TreeUpdater {
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
   inline static int NextLevel(const SparsePage::Inst &inst, const RegTree &tree, int nid) {
-    const RegTree::Node &n = tree[nid];
+    const RegTree::Node &n = tree.GetNode(nid);
     bst_uint findex = n.SplitIndex();
     for (const auto& ins : inst) {
       if (findex == ins.index) {
@@ -165,9 +165,9 @@ class BaseMaker: public TreeUpdater {
   inline void UpdateQueueExpand(const RegTree &tree) {
     std::vector<int> newnodes;
     for (int nid : qexpand_) {
-      if (!tree[nid].IsLeaf()) {
-        newnodes.push_back(tree[nid].LeftChild());
-        newnodes.push_back(tree[nid].RightChild());
+      if (!tree.GetNode(nid).IsLeaf()) {
+        newnodes.push_back(tree.GetNode(nid).LeftChild());
+        newnodes.push_back(tree.GetNode(nid).RightChild());
       }
     }
     // use new nodes for qexpand
@@ -217,17 +217,17 @@ class BaseMaker: public TreeUpdater {
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = this->DecodePosition(ridx);
-      if (tree[nid].IsLeaf()) {
+      if (tree.GetNode(nid).IsLeaf()) {
         // mark finish when it is not a fresh leaf
-        if (tree[nid].RightChild() == -1) {
+        if (tree.GetNode(nid).RightChild() == -1) {
           position_[ridx] = ~nid;
         }
       } else {
         // push to default branch
-        if (tree[nid].DefaultLeft()) {
-          this->SetEncodePosition(ridx, tree[nid].LeftChild());
+        if (tree.GetNode(nid).DefaultLeft()) {
+          this->SetEncodePosition(ridx, tree.GetNode(nid).LeftChild());
         } else {
-          this->SetEncodePosition(ridx, tree[nid].RightChild());
+          this->SetEncodePosition(ridx, tree.GetNode(nid).RightChild());
         }
       }
     }
@@ -254,15 +254,15 @@ class BaseMaker: public TreeUpdater {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
-          CHECK(tree[nid].IsLeaf());
-          int pid = tree[nid].Parent();
+          CHECK(tree.GetNode(nid).IsLeaf());
+          int pid = tree.GetNode(nid).Parent();
 
           // go back to parent, correct those who are not default
-          if (!tree[nid].IsRoot() && tree[pid].SplitIndex() == fid) {
-            if (fvalue < tree[pid].SplitCond()) {
-              this->SetEncodePosition(ridx, tree[pid].LeftChild());
+          if (!tree.GetNode(nid).IsRoot() && tree.GetNode(pid).SplitIndex() == fid) {
+            if (fvalue < tree.GetNode(pid).SplitCond()) {
+              this->SetEncodePosition(ridx, tree.GetNode(pid).LeftChild());
             } else {
-              this->SetEncodePosition(ridx, tree[pid].RightChild());
+              this->SetEncodePosition(ridx, tree.GetNode(pid).RightChild());
             }
           }
         }
@@ -282,8 +282,8 @@ class BaseMaker: public TreeUpdater {
     fsplits.clear();
     // step 1, classify the non-default data into right places
     for (int nid : nodes) {
-      if (!tree[nid].IsLeaf()) {
-        fsplits.push_back(tree[nid].SplitIndex());
+      if (!tree.GetNode(nid).IsLeaf()) {
+        fsplits.push_back(tree.GetNode(nid).SplitIndex());
       }
     }
     std::sort(fsplits.begin(), fsplits.end());
@@ -311,11 +311,11 @@ class BaseMaker: public TreeUpdater {
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
           // go back to parent, correct those who are not default
-          if (!tree[nid].IsLeaf() && tree[nid].SplitIndex() == fid) {
-            if (fvalue < tree[nid].SplitCond()) {
-              this->SetEncodePosition(ridx, tree[nid].LeftChild());
+          if (!tree.GetNode(nid).IsLeaf() && tree.GetNode(nid).SplitIndex() == fid) {
+            if (fvalue < tree.GetNode(nid).SplitCond()) {
+              this->SetEncodePosition(ridx, tree.GetNode(nid).LeftChild());
             } else {
-              this->SetEncodePosition(ridx, tree[nid].RightChild());
+              this->SetEncodePosition(ridx, tree.GetNode(nid).RightChild());
             }
           }
         }

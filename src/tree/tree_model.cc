@@ -24,6 +24,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                  int nid, int depth, int add_comma,
                  bool with_stats, std::string format) {
   int float_max_precision = std::numeric_limits<bst_float>::max_digits10;
+  const auto &node = tree.GetNode(nid);
   if (format == "json") {
     if (add_comma) {
       fo << ",";
@@ -39,16 +40,16 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
       fo << '\t';
     }
   }
-  if (tree[nid].IsLeaf()) {
+  if (node.IsLeaf()) {
     if (format == "json") {
       fo << "{ \"nodeid\": " << nid
-         << ", \"leaf\": " << std::setprecision(float_max_precision) << tree[nid].LeafValue();
+         << ", \"leaf\": " << std::setprecision(float_max_precision) << node.LeafValue();
       if (with_stats) {
         fo << ", \"cover\": " << std::setprecision(float_max_precision) << tree.Stat(nid).sum_hess;
       }
       fo << " }";
     } else {
-      fo << nid << ":leaf=" << std::setprecision(float_max_precision) << tree[nid].LeafValue();
+      fo << nid << ":leaf=" << std::setprecision(float_max_precision) << node.LeafValue();
       if (with_stats) {
         fo << ",cover=" << std::setprecision(float_max_precision) << tree.Stat(nid).sum_hess;
       }
@@ -56,22 +57,22 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
     }
   } else {
     // right then left,
-    bst_float cond = tree[nid].SplitCond();
-    const unsigned split_index = tree[nid].SplitIndex();
+    bst_float cond = node.SplitCond();
+    const unsigned split_index = node.SplitIndex();
     if (split_index < fmap.Size()) {
       switch (fmap.type(split_index)) {
         case FeatureMap::kIndicator: {
-          int nyes = tree[nid].DefaultLeft() ?
-              tree[nid].RightChild() : tree[nid].LeftChild();
+          int nyes = node.DefaultLeft() ?
+              node.RightChild() : node.LeftChild();
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.Name(split_index) << "\""
                << ", \"yes\": " << nyes
-               << ", \"no\": " << tree[nid].DefaultChild();
+               << ", \"no\": " << node.DefaultChild();
           } else {
             fo << nid << ":[" << fmap.Name(split_index) << "] yes=" << nyes
-               << ",no=" << tree[nid].DefaultChild();
+               << ",no=" << node.DefaultChild();
           }
           break;
         }
@@ -85,15 +86,15 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.Name(split_index) << "\""
                << ", \"split_condition\": " << integer_threshold
-               << ", \"yes\": " << tree[nid].LeftChild()
-               << ", \"no\": " << tree[nid].RightChild()
-               << ", \"missing\": " << tree[nid].DefaultChild();
+               << ", \"yes\": " << node.LeftChild()
+               << ", \"no\": " << node.RightChild()
+               << ", \"missing\": " << node.DefaultChild();
           } else {
             fo << nid << ":[" << fmap.Name(split_index) << "<"
                << integer_threshold
-               << "] yes=" << tree[nid].LeftChild()
-               << ",no=" << tree[nid].RightChild()
-               << ",missing=" << tree[nid].DefaultChild();
+               << "] yes=" << node.LeftChild()
+               << ",no=" << node.RightChild()
+               << ",missing=" << node.DefaultChild();
           }
           break;
         }
@@ -104,15 +105,15 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.Name(split_index) << "\""
                << ", \"split_condition\": " << std::setprecision(float_max_precision) << cond
-               << ", \"yes\": " << tree[nid].LeftChild()
-               << ", \"no\": " << tree[nid].RightChild()
-               << ", \"missing\": " << tree[nid].DefaultChild();
+               << ", \"yes\": " << node.LeftChild()
+               << ", \"no\": " << node.RightChild()
+               << ", \"missing\": " << node.DefaultChild();
           } else {
             fo << nid << ":[" << fmap.Name(split_index)
                << "<" << std::setprecision(float_max_precision) << cond
-               << "] yes=" << tree[nid].LeftChild()
-               << ",no=" << tree[nid].RightChild()
-               << ",missing=" << tree[nid].DefaultChild();
+               << "] yes=" << node.LeftChild()
+               << ",no=" << node.RightChild()
+               << ",missing=" << node.DefaultChild();
           }
           break;
         }
@@ -124,14 +125,14 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
            << ", \"depth\": " << depth
            << ", \"split\": " << split_index
            << ", \"split_condition\": " << std::setprecision(float_max_precision) << cond
-           << ", \"yes\": " << tree[nid].LeftChild()
-           << ", \"no\": " << tree[nid].RightChild()
-           << ", \"missing\": " << tree[nid].DefaultChild();
+           << ", \"yes\": " << node.LeftChild()
+           << ", \"no\": " << node.RightChild()
+           << ", \"missing\": " << node.DefaultChild();
       } else {
         fo << nid << ":[f" << split_index << "<"<< std::setprecision(float_max_precision) << cond
-           << "] yes=" << tree[nid].LeftChild()
-           << ",no=" << tree[nid].RightChild()
-           << ",missing=" << tree[nid].DefaultChild();
+           << "] yes=" << node.LeftChild()
+           << ",no=" << node.RightChild()
+           << ",missing=" << node.DefaultChild();
       }
     }
     if (with_stats) {
@@ -148,8 +149,8 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
     } else {
       fo << '\n';
     }
-    DumpRegTree(fo, tree, fmap, tree[nid].LeftChild(), depth + 1, false, with_stats, format);
-    DumpRegTree(fo, tree, fmap, tree[nid].RightChild(), depth + 1, true, with_stats, format);
+    DumpRegTree(fo, tree, fmap, node.LeftChild(), depth + 1, false, with_stats, format);
+    DumpRegTree(fo, tree, fmap, node.RightChild(), depth + 1, true, with_stats, format);
     if (format == "json") {
       fo << std::endl;
       for (int i = 0; i < depth + 1; ++i) {
