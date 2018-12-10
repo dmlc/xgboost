@@ -55,6 +55,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   if (is_gmat_initialized_ == false) {
     double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
+    std::cout << "finished initialization of gmat_\n";
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
@@ -300,10 +301,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     leaf_value_cache_.clear();
     // initialize histogram collection
     uint32_t nbins = gmat.cut.row_ptr.back();
-      if (rabit::IsDistributed()) {
-          int rank = rabit::GetRank();
-          std::cout << "rank " << rank << ":" << nbins << "\n";
-      }
     hist_.Init(nbins);
 
     // initialize histogram builder
