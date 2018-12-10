@@ -106,7 +106,7 @@ class QuantileHistMaker: public TreeUpdater {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
 
-      this->histred_.Allreduce(hist.begin, hist.size);
+      //this->histred_.Allreduce(hist.begin, hist.size);
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
