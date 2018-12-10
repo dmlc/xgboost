@@ -72,7 +72,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 void HistCutMatrix::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
   std::vector<WXQSketch>& sketchs = *in_sketchs;
-  constexpr int kFactor = 8;
+  constexpr int kFactor = 1;
   // gather the histogram data
   rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   std::vector<WXQSketch::SummaryContainer> summary_array;
@@ -83,15 +83,16 @@ void HistCutMatrix::Init
     summary_array[i].Reserve(max_num_bins * kFactor);
     summary_array[i].SetPrune(out, max_num_bins * kFactor);
   }
+  CHECK_EQ(summary_array.size(), in_sketchs->size());
+  std::cout << "summary_array size: " << summary_array.size() << "\n";
+  //max_num_bins * kFactor
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
-  if (summary_array.size() != 0) {
-      sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-  }
-
+  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+  std::cout << "finished allreduce for summary_array\n";
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
-    WXQSketch::SummaryContainer a = summary_array[fid];
+    WXQSketch::SummaryContainer& a = summary_array[fid];
     // a.Reserve(max_num_bins * kFactor);
     // a.SetPrune(summary_array[fid], max_num_bins * kFactor);
     const bst_float mval = a.data[fid].value;
