@@ -385,7 +385,8 @@ class DMatrix(object):
         if isinstance(data, list):
             warnings.warn('Initializing DMatrix from List is deprecated.',
                           DeprecationWarning)
-        elif isinstance(data, STRING_TYPES):
+            
+        if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                                      ctypes.c_int(silent),
