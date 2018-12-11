@@ -36,47 +36,16 @@ XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
 namespace xgboost {
 namespace tree {
 
-// Atomic add function for double precision gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1, static_cast<double>(gpair.GetHess()));
-}
-// used by shared-memory atomics code
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPairPrecise& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, gpair.GetGrad());
-  atomicAdd(dst_ptr + 1, gpair.GetHess());
-}
-
-// For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
-                                               const GradientPairInteger& gpair) {
-  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
-  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
-  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
+// Atomic add function for gradients
+template <typename OutputGradientT, typename InputGradientT>
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                                               const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,
-            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
   atomicAdd(dst_ptr + 1,
-            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
-}
-
-// For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
-  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
-  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
-
-  atomicAdd(dst_ptr,
-            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
-  atomicAdd(dst_ptr + 1,
-            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
 /**
