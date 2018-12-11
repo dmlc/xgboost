@@ -51,7 +51,6 @@ struct GPUHistMakerTrainParam
 };
 
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
->>>>>>> upstream/master
 
 /*!
  * \brief
