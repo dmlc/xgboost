@@ -263,7 +263,6 @@ class HistMaker: public BaseMaker {
   inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param_, p_tree->Leafvec(nid));
   }
 };
 
