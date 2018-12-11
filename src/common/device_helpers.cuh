@@ -851,7 +851,8 @@ class AllReducer {
   std::vector<int> device_ordinals;
 #endif
  public:
-  AllReducer() : initialised_(false),debug_verbose_(false) {}
+  AllReducer() : initialised_(false),debug_verbose_(false), allreduce_bytes_(0),
+                 allreduce_calls_(0) {}
 
   /**
    * \fn  void Init(const std::vector<int> &device_ordinals)
