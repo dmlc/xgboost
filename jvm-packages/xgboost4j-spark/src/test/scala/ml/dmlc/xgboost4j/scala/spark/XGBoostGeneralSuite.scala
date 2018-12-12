@@ -117,9 +117,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1",
-      "max_depth" -> "6", "silent" -> "1",
+      "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
