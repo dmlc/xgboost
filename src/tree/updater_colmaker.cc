@@ -130,7 +130,6 @@ class ColMaker: public TreeUpdater {
         p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
         p_tree->Stat(nid).base_weight = snode_[nid].weight;
         p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
-        snode_[nid].stats.SetLeafVec(param_, p_tree->Leafvec(nid));
       }
     }
 

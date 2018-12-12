@@ -408,8 +408,6 @@ template <typename ParamT>
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
-  /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
   GradStats() = default;
   /*! \brief add statistics to the data */

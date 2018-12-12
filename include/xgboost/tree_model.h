@@ -198,8 +198,6 @@ class TreeModel {
   std::vector<int>  deleted_nodes_;
   // stats of nodes
   std::vector<TNodeStat> stats_;
-  // leaf vector, that is used to store additional information
-  std::vector<bst_float> leaf_vector_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   inline int AllocNode() {
@@ -214,7 +212,6 @@ class TreeModel {
         << "number of nodes in the tree exceed 2^31";
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
-    leaf_vector_.resize(param.num_nodes * param.size_leaf_vector);
     return nd;
   }
   // delete a tree node, keep the parent field to allow trace back
@@ -284,22 +281,11 @@ class TreeModel {
   inline const NodeStat& Stat(int nid) const {
     return stats_[nid];
   }
-  /*! \brief get leaf vector given nid */
-  inline bst_float* Leafvec(int nid) {
-    if (leaf_vector_.size() == 0) return nullptr;
-    return& leaf_vector_[nid * param.size_leaf_vector];
-  }
-  /*! \brief get leaf vector given nid */
-  inline const bst_float* Leafvec(int nid) const {
-    if (leaf_vector_.size() == 0) return nullptr;
-    return& leaf_vector_[nid * param.size_leaf_vector];
-  }
   /*! \brief initialize the model */
   inline void InitModel() {
     param.num_nodes = param.num_roots;
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
-    leaf_vector_.resize(param.num_nodes * param.size_leaf_vector, 0.0f);
     for (int i = 0; i < param.num_nodes; i ++) {
       nodes_[i].SetLeaf(0.0f);
       nodes_[i].SetParent(-1);
@@ -318,9 +304,6 @@ class TreeModel {
              sizeof(Node) * nodes_.size());
     CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(NodeStat) * stats_.size()),
              sizeof(NodeStat) * stats_.size());
-    if (param.size_leaf_vector != 0) {
-      CHECK(fi->Read(&leaf_vector_));
-    }
     // chg deleted nodes
     deleted_nodes_.resize(0);
     for (int i = param.num_roots; i < param.num_nodes; ++i) {
@@ -339,7 +322,6 @@ class TreeModel {
     CHECK_NE(param.num_nodes, 0);
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
     fo->Write(dmlc::BeginPtr(stats_), sizeof(NodeStat) * nodes_.size());
-    if (param.size_leaf_vector != 0) fo->Write(leaf_vector_);
   }
   /*!
    * \brief add child nodes to node
