@@ -283,7 +283,6 @@ class GBTree : public GradientBooster {
         // create new tree
         std::unique_ptr<RegTree> ptr(new RegTree());
         ptr->param.InitAllowUnknown(this->cfg_);
-        ptr->InitModel();
         new_trees.push_back(ptr.get());
         ret->push_back(std::move(ptr));
       } else if (tparam_.process_type == kUpdate) {
