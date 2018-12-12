@@ -175,7 +175,7 @@ class GHistIndexBlockMatrix {
 };
 
 /*!
- * \brief histogram of graident statistics for a single node.
+ * \brief histogram of gradient statistics for a single node.
  *  Consists of multiple GHistEntry's, each entry showing total graident statistics
  *     for that particular bin
  *  Uses global bin id so as to represent all features simultaneously

@@ -618,11 +618,16 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 
   {
     auto& stats = snode_[nid].stats;
+    GHistRow hist = hist_[nid];
+    for (size_t i = 0; i < hist.size; i++) {
+      stats.Add(hist.begin[i].sum_grad, hist.begin[i].sum_hess);
+    }
+    /*
     if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased ||
         rabit::IsDistributed()) {
-      /* specialized code for dense data
+       specialized code for dense data
          For dense data (with no missing value),
-         the sum of gradient histogram is equal to snode[nid] */
+         the sum of gradient histogram is equal to snode[nid]
       GHistRow hist = hist_[nid];
       const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
 
@@ -637,7 +642,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
       for (const size_t* it = e.begin; it < e.end; ++it) {
         stats.Add(gpair[*it]);
       }
-    }
+    }*/
   }
 
   // calculating the weights
