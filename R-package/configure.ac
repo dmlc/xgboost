@@ -8,12 +8,12 @@ OPENMP_CXXFLAGS=""
 
 if test `uname -s` = "Linux"
 then
-  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CFLAGS)"
+  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
 fi
 
 if test `uname -s` = "Darwin"
 then
-  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CFLAGS)"
+  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST(

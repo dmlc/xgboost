@@ -50,7 +50,7 @@ per tree with respect to tree number are created. And \code{which="med.weight"} 
 a tree's median absolute leaf weight changes through the iterations.
 
 This function was inspired by the blog post
-\url{http://aysent.github.io/2015/11/08/random-forest-leaf-visualization.html}.
+\url{https://github.com/aysent/random-forest-leaf-visualization}.
 }
 \examples{
 
