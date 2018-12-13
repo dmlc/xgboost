@@ -404,8 +404,8 @@ public class Booster implements Serializable, KryoSerializable {
    * TOTAL_GAIN = Total information gain over all splits of a feature
    * TOTAL_COVER = Total cover over all splits of a feature
    */
-
   public static class FeatureImportanceType {
+    public static final String WEIGHT = "weight";
     public static final String GAIN = "gain";
     public static final String COVER = "cover";
     public static final String TOTAL_GAIN = "total_gain";
@@ -438,7 +438,7 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the importance of each feature based purely on weights (number of splits)
    *
    * @return featureScoreMap key: feature index,
-   * value: feature importance score based on weight, can be null
+   * value: feature importance score based on weight
    * @throws XGBoostError native error
    */
   private Map<String, Integer> getFeatureWeightsFromModel(String[] modelInfos) throws XGBoostError {
@@ -465,12 +465,11 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the feature importances for gain or cover (average or total)
    *
    * @return featureImportanceMap key: feature index,
-   * values: feature importance score based on gain or cover, can be null
+   * values: feature importance score based on gain or cover
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-      String[] featureNames, String importanceType
-  ) throws XGBoostError {
+          String[] featureNames, String importanceType) throws XGBoostError {
     String[] modelInfos = getModelDump(featureNames, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
@@ -479,12 +478,11 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the feature importances for gain or cover (average or total), with feature names
    *
    * @return featureImportanceMap key: feature name,
-   * values: feature importance score based on gain or cover, can be null
+   * values: feature importance score based on gain or cover
    * @throws XGBoostError native error
    */
   public Map<String, Double> getScore(
-      String featureMap, String importanceType
-  ) throws XGBoostError {
+          String featureMap, String importanceType) throws XGBoostError {
     String[] modelInfos = getModelDump(featureMap, true);
     return getFeatureImportanceFromModel(modelInfos, importanceType);
   }
@@ -493,14 +491,28 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the importance of each feature based on information gain or cover
    *
    * @return featureImportanceMap key: feature index, value: feature importance score
-   * based on information gain or cover, can be null
+   * based on information gain or cover
    * @throws XGBoostError native error
    */
   private Map<String, Double> getFeatureImportanceFromModel(
-      String[] modelInfos, String importanceType
-  ) throws XGBoostError {
+          String[] modelInfos, String importanceType) throws XGBoostError {
+    if (importanceType != FeatureImportanceType.WEIGHT &&
+            importanceType != FeatureImportanceType.COVER &&
+            importanceType != FeatureImportanceType.TOTAL_COVER &&
+            importanceType != FeatureImportanceType.GAIN &&
+            importanceType != FeatureImportanceType.TOTAL_GAIN) {
+      throw new AssertionError(String.format("Importance type %s is not supported",
+              importanceType));
+    }
     Map<String, Double> importanceMap = new HashMap<>();
     Map<String, Double> weightMap = new HashMap<>();
+    if (importanceType == FeatureImportanceType.WEIGHT) {
+      Map<String, Integer> importanceWeights = getFeatureWeightsFromModel(modelInfos);
+      for (String feature: importanceWeights.keySet()) {
+        importanceMap.put(feature, new Double(importanceWeights.get(feature)));
+      }
+      return importanceMap;
+    }
     String splitter = "gain=";
     if (importanceType == FeatureImportanceType.COVER
         || importanceType == FeatureImportanceType.TOTAL_COVER) {
