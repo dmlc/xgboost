@@ -454,7 +454,7 @@ class RegTree {
    * \param fvalue feature value if not missing.
    * \param is_unknown Whether current required feature is missing.
    */
-  int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
+  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
   /*!
    * \brief dump the model in the requested format as a text string
    * \param fmap feature map that may help give interpretations of feature
