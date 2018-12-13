@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import pygdf.dataframe as gdf
+import cudf.dataframe as gdf
 from sklearn import datasets
 import sys
 import unittest
