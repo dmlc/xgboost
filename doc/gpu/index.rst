@@ -37,29 +37,33 @@ Supported parameters
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+--------------------------+---------------+--------------+
-| parameter                | ``gpu_exact`` | ``gpu_hist`` |
-+==========================+===============+==============+
-| ``subsample``            | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``colsample_bytree``     | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``colsample_bylevel``    | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``max_bin``              | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``gpu_id``               | |tick|        | |tick|       |
-+--------------------------+---------------+--------------+
-| ``n_gpus``               | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``predictor``            | |tick|        | |tick|       |
-+--------------------------+---------------+--------------+
-| ``grow_policy``          | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
-| ``monotone_constraints`` | |cross|       | |tick|       |
-+--------------------------+---------------+--------------+
++--------------------------------+---------------+--------------+
+| parameter                      | ``gpu_exact`` | ``gpu_hist`` |
++================================+===============+==============+
+| ``subsample``                  | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``colsample_bytree``           | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``colsample_bylevel``          | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``max_bin``                    | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``gpu_id``                     | |tick|        | |tick|       |
++--------------------------------+---------------+--------------+
+| ``n_gpus``                     | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``predictor``                  | |tick|        | |tick|       |
++--------------------------------+---------------+--------------+
+| ``grow_policy``                | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``monotone_constraints``       | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
+| ``single_precision_histogram`` | |cross|       | |tick|       |
++--------------------------------+---------------+--------------+
 
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
+
+The experimental parameter ``single_precision_histogram`` can be set to True to enable building histograms using single precision. This may improve speed, in particular on older architectures.
 
 The device ordinal can be selected using the ``gpu_id`` parameter, which defaults to 0.
 
@@ -121,6 +125,52 @@ For multi-gpu support, objective functions also honor the ``n_gpus`` parameter,
 which, by default is set to 1.  To disable running objectives on GPU, just set
 ``n_gpus`` to 0.
 
+Metric functions
+===================
+Following table shows current support status for evaluation metrics on the GPU.
+
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
+
++-----------------+-------------+
+| Metric          | GPU Support |
++=================+=============+
+| rmse            | |tick|      |
++-----------------+-------------+
+| mae             | |tick|      |
++-----------------+-------------+
+| logloss         | |tick|      |
++-----------------+-------------+
+| error           | |tick|      |
++-----------------+-------------+
+| merror          | |cross|     |
++-----------------+-------------+
+| mlogloss        | |cross|     |
++-----------------+-------------+
+| auc             | |cross|     |
++-----------------+-------------+
+| aucpr           | |cross|     |
++-----------------+-------------+
+| ndcg            | |cross|     |
++-----------------+-------------+
+| map             | |cross|     |
++-----------------+-------------+
+| poisson-nloglik | |tick|      |
++-----------------+-------------+
+| gamma-nloglik   | |tick|      |
++-----------------+-------------+
+| cox-nloglik     | |cross|     |
++-----------------+-------------+
+| gamma-deviance  | |tick|      |
++-----------------+-------------+
+| tweedie-nloglik | |tick|      |
++-----------------+-------------+
+
+As for objective functions, metrics honor the ``n_gpus`` parameter,
+which, by default is set to 1.  To disable running metrics on GPU, just set
+``n_gpus`` to 0.
+
+
 Benchmarks
 ==========
 You can run benchmarks on synthetic data for binary classification:
@@ -152,12 +202,15 @@ References
 
 `Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
-Authors
+Contributors
 =======
-* Rory Mitchell
+Many thanks to the following contributors (alphabetical order):
+* Andrey Adinets
+* Jiaming Yuan
 * Jonathan C. McKinney
+* Philip Cho
+* Rory Mitchell
 * Shankara Rao Thejaswi Nanditale
 * Vinay Deshpande
-* ... and the rest of the H2O.ai and NVIDIA team.
 
 Please report bugs to the user forum https://discuss.xgboost.ai/.

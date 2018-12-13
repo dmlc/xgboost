@@ -58,12 +58,12 @@ class ConfigReaderBase {
    * \brief to be implemented by subclass,
    * get next token, return EOF if end of file
    */
-  virtual char GetChar() = 0;
+  virtual int GetChar() = 0;
   /*! \brief to be implemented by child, check if end of stream */
   virtual bool IsEnd() = 0;
 
  private:
-  char ch_buf_;
+  int ch_buf_;
   std::string s_name_, s_val_, s_buf_;
 
   inline void SkipLine() {
@@ -79,7 +79,7 @@ class ConfigReaderBase {
         case '\"': return;
         case '\r':
         case '\n': LOG(FATAL)<< "ConfigReader: unterminated string";
-        default: *tok += ch_buf_;
+        default: *tok += static_cast<char>(ch_buf_);
       }
     }
     LOG(FATAL) << "ConfigReader: unterminated string";
@@ -89,7 +89,7 @@ class ConfigReaderBase {
       switch (ch_buf_) {
         case '\\': *tok += this->GetChar(); break;
         case '\'': return;
-        default: *tok += ch_buf_;
+        default: *tok += static_cast<char>(ch_buf_);
       }
     }
     LOG(FATAL) << "unterminated string";
@@ -128,7 +128,7 @@ class ConfigReaderBase {
           if (tok->length() != 0) return new_line;
           break;
         default:
-          *tok += ch_buf_;
+          *tok += static_cast<char>(ch_buf_);
           ch_buf_ = this->GetChar();
           break;
       }
@@ -152,7 +152,7 @@ class ConfigStreamReader: public ConfigReaderBase {
   explicit ConfigStreamReader(std::istream &fin) : fin_(fin) {}
 
  protected:
-  char GetChar() override {
+  int GetChar() override {
     return fin_.get();
   }
   /*! \brief to be implemented by child, check if end of stream */
