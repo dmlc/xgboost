@@ -292,7 +292,7 @@ public class BoosterImplTest {
   }
 
   @Test
-  public void testGetFeatureImportance() throws XGBoostError {
+  public void testGetFeatureImportanceGain() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
 
@@ -300,6 +300,42 @@ public class BoosterImplTest {
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
     Map<String, Double> scoreMap = booster.getScore(featureNames, "gain");
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportanceTotalGain() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Double> scoreMap = booster.getScore(featureNames, "total_gain");
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportanceCover() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Double> scoreMap = booster.getScore(featureNames, "cover");
+    for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
+  }
+
+  @Test
+  public void testGetFeatureImportanceTotalCover() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] featureNames = new String[126];
+    for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
+    Map<String, Double> scoreMap = booster.getScore(featureNames, "total_cover");
     for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
   }
 
