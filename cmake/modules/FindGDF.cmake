@@ -20,10 +20,10 @@
 # This module assumes that the user has already called find_package(CUDA)
 
 
-set(GDF_LIB_NAME gdf)
+set(GDF_LIB_NAME cudf)
 
 find_path(GDF_INCLUDE_DIR
-  NAMES gdf/gdf.h
+  NAMES cudf.h
   PATHS $ENV{GDF_ROOT}/include ${GDF_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
 
 find_library(GDF_LIBRARY
