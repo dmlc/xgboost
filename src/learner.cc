@@ -385,7 +385,7 @@ class LearnerImpl : public Learner {
           if (saved_param == "predictor" || saved_param == "n_gpus"
               || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
-            if(tparam_.debug_verbose > 3) {
+            if(false) {
             LOG(INFO)
               << "Parameter '" << saved_param << "' has been recovered from "
               << "the saved model. It will be set to "
