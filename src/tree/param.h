@@ -50,7 +50,9 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   float max_delta_step;
   // whether we want to do subsample
   float subsample;
-  // whether to subsample columns each split, in each level
+  // whether to subsample columns in each split (node)
+  float colsample_bynode;
+  // whether to subsample columns in each level
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
@@ -149,6 +151,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Row subsample ratio of training instance.");
+    DMLC_DECLARE_FIELD(colsample_bynode)
+        .set_range(0.0f, 1.0f)
+        .set_default(1.0f)
+        .describe("Subsample ratio of columns, resample on each node (split).");
     DMLC_DECLARE_FIELD(colsample_bylevel)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)

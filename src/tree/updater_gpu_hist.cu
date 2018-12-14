@@ -499,6 +499,8 @@ struct DeviceShard {
   dh::DVec<GradientPair> node_sum_gradients_d;
   /*! \brief row offset in SparsePage (the input data). */
   thrust::device_vector<size_t> row_ptrs;
+  /*! \brief On-device feature set, only actually used on one of the devices */
+  thrust::device_vector<int> feature_set_d;
   /*! The row offset for this shard. */
   bst_uint row_begin_idx;
   bst_uint row_end_idx;
@@ -579,28 +581,31 @@ struct DeviceShard {
   }
 
   DeviceSplitCandidate EvaluateSplit(int nidx,
-                                     const HostDeviceVector<int>& feature_set,
+                                     const std::vector<int>& feature_set,
                                      ValueConstraint value_constraint) {
     dh::safe_cuda(cudaSetDevice(device_id_));
-    auto d_split_candidates = temp_memory.GetSpan<DeviceSplitCandidate>(feature_set.Size());
+    auto d_split_candidates = temp_memory.GetSpan<DeviceSplitCandidate>(feature_set.size());
+    feature_set_d.resize(feature_set.size());
+    auto d_features = common::Span<int>(feature_set_d.data().get(),
+                                        feature_set_d.size());
+    dh::safe_cuda(cudaMemcpy(d_features.data(), feature_set.data(),
+                             d_features.size_bytes(), cudaMemcpyDefault));
     DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
-    feature_set.Reshard(GPUSet::Range(device_id_, 1));
 
     // One block for each feature
     int constexpr BLOCK_THREADS = 256;
     EvaluateSplitKernel<BLOCK_THREADS, GradientSumT>
-        <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0>>>(
-            hist.GetNodeHistogram(nidx), feature_set.DeviceSpan(device_id_), node,
-            cut_.feature_segments.GetSpan(), cut_.min_fvalue.GetSpan(),
-            cut_.gidx_fvalue_map.GetSpan(), GPUTrainingParam(param),
-            d_split_candidates, value_constraint, monotone_constraints.GetSpan());
+      <<<uint32_t(feature_set.size()), BLOCK_THREADS, 0>>>
+      (hist.GetNodeHistogram(nidx), d_features, node,
+       cut_.feature_segments.GetSpan(), cut_.min_fvalue.GetSpan(),
+       cut_.gidx_fvalue_map.GetSpan(), GPUTrainingParam(param),
+       d_split_candidates, value_constraint, monotone_constraints.GetSpan());
 
     dh::safe_cuda(cudaDeviceSynchronize());
-    std::vector<DeviceSplitCandidate> split_candidates(feature_set.Size());
-    dh::safe_cuda(
-        cudaMemcpy(split_candidates.data(), d_split_candidates.data(),
-                   split_candidates.size() * sizeof(DeviceSplitCandidate),
-                   cudaMemcpyDeviceToHost));
+    std::vector<DeviceSplitCandidate> split_candidates(feature_set.size());
+    dh::safe_cuda(cudaMemcpy(split_candidates.data(), d_split_candidates.data(),
+                             split_candidates.size() * sizeof(DeviceSplitCandidate),
+                             cudaMemcpyDeviceToHost));
     DeviceSplitCandidate best_split;
     for (auto candidate : split_candidates) {
       best_split.Update(candidate, param);
@@ -1009,7 +1014,8 @@ class GPUHistMakerSpecialised{
     }
     monitor_.Stop("InitDataOnce", dist_.Devices());
 
-    column_sampler_.Init(info_->num_col_, param_.colsample_bylevel, param_.colsample_bytree);
+    column_sampler_.Init(info_->num_col_, param_.colsample_bynode,
+                         param_.colsample_bylevel, param_.colsample_bytree);
 
     // Copy gpair & reset memory
     monitor_.Start("InitDataReset", dist_.Devices());
@@ -1100,7 +1106,7 @@ class GPUHistMakerSpecialised{
 
   DeviceSplitCandidate EvaluateSplit(int nidx, RegTree* p_tree) {
     return shards_.front()->EvaluateSplit(
-        nidx, column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
+        nidx, *column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
         node_value_constraints_[nidx]);
   }
 
