@@ -137,13 +137,13 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
     // constraint.
     if (name_pred == "stdout") {
       save_period = 0;
-      this->cfg.push_back(std::make_pair("silent", "0"));
+      this->cfg.emplace_back(std::make_pair("silent", "0"));
     }
     if (dsplit == 0 && rabit::IsDistributed()) {
       dsplit = 2;
     }
     if (rabit::GetRank() != 0) {
-      this->cfg.push_back(std::make_pair("silent", "1"));
+      this->cfg.emplace_back(std::make_pair("silent", "1"));
     }
   }
 };
