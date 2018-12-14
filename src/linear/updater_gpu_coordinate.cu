@@ -27,10 +27,8 @@ struct GPUCoordinateTrainParam
   float reg_alpha;
   int feature_selector;
   int top_k;
-  int debug_verbose;
   int n_gpus;
   int gpu_id;
-  bool silent;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUCoordinateTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -56,16 +54,10 @@ struct GPUCoordinateTrainParam
     DMLC_DECLARE_FIELD(top_k).set_lower_bound(0).set_default(0).describe(
         "The number of top features to select in 'thrifty' feature_selector. "
         "The value of zero means using all the features.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).describe(
         "Number of devices to use.");
     DMLC_DECLARE_FIELD(gpu_id).set_default(0).describe(
         "Primary device ordinal.");
-    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during trainig.");
     // alias of parameters
     DMLC_DECLARE_ALIAS(learning_rate, eta);
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
@@ -126,7 +118,7 @@ class DeviceShard {
           std::make_pair(column_begin - col.data(), column_end - col.data()));
       row_ptr_.push_back(row_ptr_.back() + column_end - column_begin);
     }
-    ba_.Allocate(device_id_, param.silent, &data_, row_ptr_.back(), &gpair_,
+    ba_.Allocate(device_id_, &data_, row_ptr_.back(), &gpair_,
                 (row_end - row_begin) * model_param.num_output_group);
 
     for (int fidx = 0; fidx < batch.Size(); fidx++) {
@@ -209,7 +201,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
       const std::vector<std::pair<std::string, std::string>> &args) override {
     param.InitAllowUnknown(args);
     selector.reset(FeatureSelector::Create(param.feature_selector));
-    monitor.Init("GPUCoordinateUpdater", param.debug_verbose);
+    monitor.Init("GPUCoordinateUpdater");
   }
 
   void LazyInitShards(DMatrix *p_fmat,

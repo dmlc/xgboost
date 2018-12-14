@@ -803,7 +803,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   int max_nodes =
       param.max_leaves > 0 ? param.max_leaves * 2 : MaxNodesDepth(param.max_depth);
 
-  ba.Allocate(device_id_, param.silent,
+  ba.Allocate(device_id_,
               &gpair, n_rows,
               &ridx, n_rows,
               &position, n_rows,
@@ -833,7 +833,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
       << "Max leaves and max depth cannot both be unconstrained for "
       "gpu_hist.";
-  ba.Allocate(device_id_, param.silent, &gidx_buffer, compressed_size_bytes);
+  ba.Allocate(device_id_, &gidx_buffer, compressed_size_bytes);
   gidx_buffer.Fill(0);
 
   int nbits = common::detail::SymbolBits(num_symbols);
@@ -931,7 +931,7 @@ class GPUHistMakerSpecialised{
       qexpand_.reset(new ExpandQueue(DepthWise));
     }
 
-    monitor_.Init("updater_gpu_hist", param_.debug_verbose);
+    monitor_.Init("updater_gpu_hist");
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
@@ -966,7 +966,9 @@ class GPUHistMakerSpecialised{
       device_list_[index] = device_id;
     }
 
-    reducer_.Init(device_list_, param_.debug_verbose);
+    reducer_.Init(
+        device_list_,
+        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;

@@ -252,7 +252,7 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Copy cut matrix to device.
   DeviceShard<GradientPairPrecise>::DeviceHistCutMatrix cut;
-  shard->ba.Allocate(0, true,
+  shard->ba.Allocate(0,
                      &(shard->cut_.feature_segments), cmat.row_ptr.size(),
                      &(shard->cut_.min_fvalue), cmat.min_val.size(),
                      &(shard->cut_.gidx_fvalue_map), 24,
@@ -315,7 +315,6 @@ TEST(GpuHist, ApplySplit) {
   int constexpr n_cols = 8;
 
   TrainParam param;
-  param.silent = true;
 
   // Initialize shard
   for (size_t i = 0; i < n_cols; ++i) {
@@ -330,7 +329,7 @@ TEST(GpuHist, ApplySplit) {
   shard->node_sum_gradients.resize(3);
 
   shard->ridx_segments[0] = Segment(0, n_rows);
-  shard->ba.Allocate(0, true, &(shard->ridx), n_rows,
+  shard->ba.Allocate(0, &(shard->ridx), n_rows,
                      &(shard->position), n_rows);
   shard->row_stride = n_cols;
   thrust::sequence(shard->ridx.CurrentDVec().tbegin(),
@@ -367,8 +366,7 @@ TEST(GpuHist, ApplySplit) {
   size_t compressed_size_bytes =
       common::CompressedBufferWriter::CalculateBufferSize(
           row_stride * n_rows, num_symbols);
-  shard->ba.Allocate(0, param.silent,
-                     &(shard->gidx_buffer), compressed_size_bytes);
+  shard->ba.Allocate(0, &(shard->gidx_buffer), compressed_size_bytes);
 
   common::CompressedBufferWriter wr(num_symbols);
   std::vector<int> h_gidx (n_rows * row_stride);

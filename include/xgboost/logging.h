@@ -9,8 +9,13 @@
 #define XGBOOST_LOGGING_H_
 
 #include <dmlc/logging.h>
+#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
 #include <sstream>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 #include "./base.h"
 
 namespace xgboost {
@@ -28,8 +33,54 @@ class BaseLogger {
   std::ostringstream log_stream_;
 };
 
+// Parsing both silent and debug_verbose is to provide backward compatibility.
+struct ConsoleLoggerParam : public dmlc::Parameter<ConsoleLoggerParam> {
+  bool silent;  // deprecated.
+  int verbosity;
+
+  DMLC_DECLARE_PARAMETER(ConsoleLoggerParam) {
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
+        .describe("Do not print information during training.");
+    DMLC_DECLARE_FIELD(verbosity)
+        .set_range(0, 3)
+        .set_default(1)  // shows only warning
+        .describe("Flag to print out detailed breakdown of runtime.");
+    DMLC_DECLARE_ALIAS(verbosity, debug_verbose);
+  }
+};
+
 class ConsoleLogger : public BaseLogger {
  public:
+  enum class LogVerbosity {
+    kSilent = 0,
+    kWarning = 1,
+    kInfo = 2,   // information may interests users.
+    kDebug = 3,  // information only interesting to developers.
+    kIgnore = 4  // ignore global setting
+  };
+  using LV = LogVerbosity;
+
+ private:
+  static LogVerbosity global_verbosity_;
+  static ConsoleLoggerParam param_;
+
+  LogVerbosity cur_verbosity_;
+  static void Configure(const std::map<std::string, std::string>& args);
+
+ public:
+  template <typename ArgIter>
+  static void Configure(ArgIter begin, ArgIter end) {
+    std::map<std::string, std::string> args(begin, end);
+    Configure(args);
+  }
+
+  static LogVerbosity GlobalVerbosity();
+  static LogVerbosity DefaultVerbosity();
+
+  ConsoleLogger();
+  explicit ConsoleLogger(LogVerbosity cur_verb);
+  ConsoleLogger(const std::string& file, int line, LogVerbosity cur_verb);
   ~ConsoleLogger();
 };
 
@@ -68,13 +119,34 @@ class LogCallbackRegistry {
 
 using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
+// Redefines LOG_WARNING for controling verbosity
+#if defined(LOG_WARNING)
+#undef  LOG_WARNING
+#endif
+#define LOG_WARNING ::xgboost::ConsoleLogger(                           \
+    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kWarning)
+
+// Redefines LOG_INFO for controling verbosity
+#if defined(LOG_INFO)
+#undef  LOG_INFO
+#endif
+#define LOG_INFO    ::xgboost::ConsoleLogger(                           \
+    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kInfo)
+
+#if defined(LOG_DEBUG)
+#undef LOG_DEBUG
+#endif
+#define LOG_DEBUG  ::xgboost::ConsoleLogger(                           \
+    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kDebug)
+
 // redefines the logging macro if not existed
 #ifndef LOG
 #define LOG(severity) LOG_##severity.stream()
 #endif
 
 // Enable LOG(CONSOLE) for print messages to console.
-#define LOG_CONSOLE ::xgboost::ConsoleLogger()
+#define LOG_CONSOLE ::xgboost::ConsoleLogger(   \
+  ::xgboost::ConsoleLogger::LogVerbosity::kIgnore)
 // Enable LOG(TRACKER) for print messages to tracker
 #define LOG_TRACKER ::xgboost::TrackerLogger()
 }  // namespace xgboost.
