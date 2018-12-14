@@ -45,7 +45,7 @@ struct ConsoleLoggerParam : public dmlc::Parameter<ConsoleLoggerParam> {
     DMLC_DECLARE_FIELD(verbosity)
         .set_lower_bound(0)
         .set_default(1)  // shows only warning
-        .describe("flag to print out detailed breakdown of runtime");
+        .describe("flag to print out detailed breakdown of runtime.");
     DMLC_DECLARE_ALIAS(verbosity, debug_verbose);
   }
 };

@@ -5,7 +5,6 @@
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
-#include "../../../src/common/timer.h"
 #include "gtest/gtest.h"
 
 struct Shard { int id; };

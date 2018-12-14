@@ -54,7 +54,7 @@ struct Monitor {
   Timer self_timer;
   bool IsVerbose() {
     // Don't cache debug verbosity in here to deal with changed parameter.
-    return ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LV::kDebug;
+    return (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LV::kDebug);
   }
 
  public:
