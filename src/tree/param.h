@@ -34,8 +34,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
+
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -67,8 +66,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int parallel_option;
   // option to open cacheline optimization
   bool cache_opt;
-  // whether to not print info during training.
-  bool silent;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
   // auxiliary data structure
@@ -107,10 +104,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(0.0f)
         .describe(
             "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(max_depth)
         .set_lower_bound(0)
         .set_default(6)
@@ -186,9 +179,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(cache_opt)
         .set_default(true)
         .describe("EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Do not print information during trainig.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");

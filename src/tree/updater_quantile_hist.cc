@@ -6,6 +6,7 @@
  */
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
+#include <xgboost/logging.h>
 #include <xgboost/tree_updater.h>
 
 #include <cmath>
@@ -60,9 +61,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
     is_gmat_initialized_ = true;
-    if (param_.debug_verbose > 0) {
-      LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
-    }
+    LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -207,32 +206,34 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
-  if (param_.debug_verbose > 0) {
-    double total_time = dmlc::GetTime() - gstart;
-    LOG(INFO) << "\nInitData:          "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_init_data / total_time * 100 << "%)\n"
-              << "InitNewNode:       "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_init_new_node / total_time * 100 << "%)\n"
-              << "BuildHist:         "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_build_hist / total_time * 100 << "%)\n"
-              << "EvaluateSplit:     "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_evaluate_split / total_time * 100 << "%)\n"
-              << "ApplySplit:        "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_apply_split / total_time * 100 << "%)\n"
-              << "========================================\n"
-              << "Total:             "
-              << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
+  if (ConsoleLogger::GlobalVerbosity() <= ConsoleLogger::DefaultVerbosity()) {
+    // Don't construct the following huge stream.
+    return;
   }
+  double total_time = dmlc::GetTime() - gstart;
+  LOG(INFO) << "\nInitData:          "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_init_data / total_time * 100 << "%)\n"
+            << "InitNewNode:       "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_init_new_node / total_time * 100 << "%)\n"
+            << "BuildHist:         "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_build_hist / total_time * 100 << "%)\n"
+            << "EvaluateSplit:     "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_evaluate_split / total_time * 100 << "%)\n"
+            << "ApplySplit:        "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_apply_split / total_time * 100 << "%)\n"
+            << "========================================\n"
+            << "Total:             "
+            << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
 }
 
 bool QuantileHistMaker::Builder::UpdatePredictionCache(

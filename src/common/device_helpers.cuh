@@ -480,7 +480,7 @@ class BulkAllocator {
   }
 
   template <typename... Args>
-  void Allocate(int device_idx, bool silent, Args... args) {
+  void Allocate(int device_idx, Args... args) {
     size_t size = GetSizeBytes(args...);
 
     char *ptr = AllocateDevice(device_idx, size, MemoryT);

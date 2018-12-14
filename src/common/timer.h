@@ -49,15 +49,19 @@ struct Monitor {
     Timer timer;
     size_t count{0};
   };
-  bool debug_verbose = false;
   std::string label = "";
   std::map<std::string, Statistics> statistics_map;
   Timer self_timer;
+  bool IsVerbose() {
+    // Don't cache debug verbosity in here to deal with changed parameter.
+    return (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LV::kDebug);
+  }
 
+ public:
   Monitor() { self_timer.Start(); }
 
   ~Monitor() {
-    if (!debug_verbose) return;
+    if (!IsVerbose()) return;
 
     LOG(CONSOLE) << "======== Monitor: " << label << " ========";
     for (auto &kv : statistics_map) {
@@ -70,13 +74,12 @@ struct Monitor {
     }
     self_timer.Stop();
   }
-  void Init(std::string label, bool debug_verbose) {
-    this->debug_verbose = debug_verbose;
+  void Init(std::string label) {
     this->label = label;
   }
   void Start(const std::string &name) { statistics_map[name].timer.Start(); }
   void Start(const std::string &name, GPUSet devices) {
-    if (debug_verbose) {
+    if (IsVerbose()) {
 #ifdef __CUDACC__
       for (auto device : devices) {
         cudaSetDevice(device);
@@ -91,7 +94,7 @@ struct Monitor {
     statistics_map[name].count++;
   }
   void Stop(const std::string &name, GPUSet devices) {
-    if (debug_verbose) {
+    if (IsVerbose()) {
 #ifdef __CUDACC__
       for (auto device : devices) {
         cudaSetDevice(device);

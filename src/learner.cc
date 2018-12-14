@@ -122,8 +122,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
   // flag to disable default metric
   int disable_default_eval_metric;
   // declare parameters
@@ -155,10 +153,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         "Internal test flag");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(0)
         .describe("flag to disable default metric. Set to >0 to disable");
@@ -196,7 +190,7 @@ class LearnerImpl : public Learner {
     }
     // `updater` parameter was manually specified
     if (cfg_.count("updater") > 0) {
-      LOG(CONSOLE) << "DANGER AHEAD: You have manually specified `updater` "
+      LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
                       "parameter. The `tree_method` parameter will be ignored. "
                       "Incorrect sequence of updaters will produce undefined "
                       "behavior. For common uses, we recommend using "
@@ -217,8 +211,9 @@ class LearnerImpl : public Learner {
       cfg_["updater"] = "grow_colmaker,prune";
       break;
      case TreeMethod::kHist:
-      LOG(CONSOLE) << "Tree method is selected to be 'hist', which uses a "
-                      "single updater grow_quantile_histmaker.";
+      LOG(INFO) <<
+          "Tree method is selected to be 'hist', which uses a "
+          "single updater grow_quantile_histmaker.";
       cfg_["updater"] = "grow_quantile_histmaker";
       break;
      case TreeMethod::kGPUExact:
@@ -245,8 +240,10 @@ class LearnerImpl : public Learner {
       const std::vector<std::pair<std::string, std::string> >& args) override {
     // add to configurations
     tparam_.InitAllowUnknown(args);
-    monitor_.Init("Learner", tparam_.debug_verbose);
+    ConsoleLogger::Configure(args.cbegin(), args.cend());
+    monitor_.Init("Learner");
     cfg_.clear();
+
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {
         // check duplication
@@ -270,7 +267,6 @@ class LearnerImpl : public Learner {
     if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
-
     if (cfg_.count("num_class") != 0) {
       cfg_["num_output_group"] = cfg_["num_class"];
       if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
@@ -612,15 +608,16 @@ class LearnerImpl : public Learner {
       }
       switch (current_tree_method) {
        case TreeMethod::kAuto:
-        LOG(CONSOLE) << "Tree method is automatically selected to be 'approx' "
-                        "for distributed training.";
+        LOG(WARNING) <<
+            "Tree method is automatically selected to be 'approx' "
+            "for distributed training.";
         break;
        case TreeMethod::kApprox:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
        case TreeMethod::kHist:
-        LOG(CONSOLE) << "Tree method was set to be '"
+        LOG(WARNING) << "Tree method was set to be '"
                      << (current_tree_method == TreeMethod::kExact ?
                         "exact" : "hist")
                      << "', but only 'approx' is available for distributed "
@@ -640,14 +637,14 @@ class LearnerImpl : public Learner {
       /* Some tree methods are not available for external-memory DMatrix */
       switch (current_tree_method) {
        case TreeMethod::kAuto:
-        LOG(CONSOLE) << "Tree method is automatically set to 'approx' "
+        LOG(WARNING) << "Tree method is automatically set to 'approx' "
                         "since external-memory data matrix is used.";
         break;
        case TreeMethod::kApprox:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
-        LOG(CONSOLE) << "Tree method was set to be 'exact', "
+        LOG(WARNING) << "Tree method was set to be 'exact', "
                         "but currently we are only able to proceed with "
                         "approximate algorithm ('approx') because external-"
                         "memory data matrix is used.";
@@ -668,7 +665,7 @@ class LearnerImpl : public Learner {
     } else if (p_train->Info().num_row_ >= (4UL << 20UL)
                && current_tree_method == TreeMethod::kAuto) {
       /* Choose tree_method='approx' automatically for large data matrix */
-      LOG(CONSOLE) << "Tree method is automatically selected to be "
+      LOG(WARNING) << "Tree method is automatically selected to be "
                       "'approx' for faster speed. To use old behavior "
                       "(exact greedy algorithm on single machine), "
                       "set tree_method to 'exact'.";

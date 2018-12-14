@@ -33,7 +33,7 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max_depth=2, eta=1, nthread = 2, silent=1, 
+param <- list(max_depth=2, eta=1, nthread = 2, verbosity=0, 
               objective=logregobj, eval_metric=evalerror)
 print ('start training with user customized objective')
 # training with customized objective, we can also do step by step training
@@ -57,7 +57,7 @@ logregobjattr <- function(preds, dtrain) {
   hess <- preds * (1 - preds)
   return(list(grad = grad, hess = hess))
 }
-param <- list(max_depth=2, eta=1, nthread = 2, silent=1, 
+param <- list(max_depth=2, eta=1, nthread = 2, verbosity=0, 
               objective=logregobjattr, eval_metric=evalerror)
 print ('start training with user customized objective, with additional attributes in DMatrix')
 # training with customized objective, we can also do step by step training

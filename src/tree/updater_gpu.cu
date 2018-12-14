@@ -625,7 +625,7 @@ class GPUMaker : public TreeUpdater {
 
   void allocateAllData(int offsetSize) {
     int tmpBuffSize = ScanTempBufferSize(nVals);
-    ba.Allocate(param.gpu_id, param.silent, &vals, nVals,
+    ba.Allocate(param.gpu_id, &vals, nVals,
                 &vals_cached, nVals, &instIds, nVals, &instIds_cached, nVals,
                 &colOffsets, offsetSize, &gradsInst, nRows, &nodeAssigns, nVals,
                 &nodeLocations, nVals, &nodes, maxNodes, &nodeAssignsPerInst,

@@ -290,7 +290,7 @@ class TestBasic(unittest.TestCase):
         assert len(cv) == (4)
 
     def test_cv_explicit_fold_indices_labels(self):
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective':
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'reg:linear'}
         N = 100
         F = 3
