@@ -201,9 +201,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
       const std::vector<std::pair<std::string, std::string>> &args) override {
     param.InitAllowUnknown(args);
     selector.reset(FeatureSelector::Create(param.feature_selector));
-    monitor.Init(
-        "GPUCoordinateUpdater",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor.Init("GPUCoordinateUpdater");
   }
 
   void LazyInitShards(DMatrix *p_fmat,

@@ -240,9 +240,7 @@ class LearnerImpl : public Learner {
     // add to configurations
     tparam_.InitAllowUnknown(args);
     ConsoleLogger::Configure(args);
-    monitor_.Init(
-        "Learner",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor_.Init("Learner");
     cfg_.clear();
 
     for (const auto& kv : args) {

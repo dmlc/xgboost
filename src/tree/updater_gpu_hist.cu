@@ -931,9 +931,7 @@ class GPUHistMakerSpecialised{
       qexpand_.reset(new ExpandQueue(DepthWise));
     }
 
-    monitor_.Init(
-        "updater_gpu_hist",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor_.Init("updater_gpu_hist");
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,

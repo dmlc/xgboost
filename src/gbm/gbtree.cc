@@ -149,9 +149,7 @@ class GBTree : public GradientBooster {
     // configure predictor
     predictor_ = std::unique_ptr<Predictor>(Predictor::Create(tparam_.predictor));
     predictor_->Init(cfg, cache_);
-    monitor_.Init(
-        "GBTree",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor_.Init("GBTree");
   }
 
   void Load(dmlc::Stream* fi) override {

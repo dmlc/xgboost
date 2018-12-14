@@ -77,9 +77,7 @@ class CoordinateUpdater : public LinearUpdater {
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param.InitAllowUnknown(args);
     selector.reset(FeatureSelector::Create(param.feature_selector));
-    monitor.Init(
-        "CoordinateUpdater",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor.Init("CoordinateUpdater");
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {

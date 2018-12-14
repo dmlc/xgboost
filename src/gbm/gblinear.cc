@@ -64,9 +64,7 @@ class GBLinear : public GradientBooster {
     param_.InitAllowUnknown(cfg);
     updater_.reset(LinearUpdater::Create(param_.updater));
     updater_->Init(cfg);
-    monitor_.Init(
-        "GBLinear ",
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    monitor_.Init("GBLinear");
   }
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
