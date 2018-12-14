@@ -46,9 +46,15 @@ ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
     ConsoleLogger::DefaultVerbosity();
 
 ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
-void ConsoleLogger::Configure(
-    const std::vector<std::pair<std::string, std::string> >& args) {
+void ConsoleLogger::Configure(const std::map<std::string, std::string>& args) {
   param_.InitAllowUnknown(args);
+  if (args.find("silent") != args.cend()) {
+    // Punch through, otherwise when silent == True is set this message will
+    // never get displayed.
+    LOG(CONSOLE)
+        << "Parameter `silent` is deprecated, please use `verbosity` instead.";
+  }
+
   if (param_.silent) {
     global_verbosity_ = LogVerbosity::kSilent;
     return;
@@ -69,10 +75,6 @@ void ConsoleLogger::Configure(
       // global verbosity doesn't require kIgnore
       break;
   }
-}
-void ConsoleLogger::Configure(ArgIter begin, ArgIter end) {
-  std::vector<std::pair<std::string, std::string> > args(begin, end);
-  Configure(args);
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {

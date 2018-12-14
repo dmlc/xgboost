@@ -23,9 +23,14 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
-* ``silent`` [default=0]
+* ``silent`` [default=0] [Deprecated]
 
-  - 0 means printing running messages, 1 means silent mode
+  - Deprecated.  Please use ``verbosity`` instead.
+
+* ``verbosity`` [default=1]
+
+  - Verbosity of printing messages.  Valid values are 0 (silent),
+    1 (warning), 2 (info), 3 (debug).
 
 * ``nthread`` [default to maximum number of threads available if not set]
 

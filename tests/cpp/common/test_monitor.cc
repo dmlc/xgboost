@@ -14,13 +14,15 @@ TEST(Monitor, Basic) {
         monitor_.Stop("basic");
       };
 
-  ConsoleLogger::Configure({std::make_pair("verbosity", "3")});
+  std::map<std::string, std::string> args = {std::make_pair("verbosity", "3")};
+  ConsoleLogger::Configure(args.cbegin(), args.cend());
   testing::internal::CaptureStderr();
   run_monitor();
   std::string output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Monitor"), std::string::npos);
 
-  ConsoleLogger::Configure({std::make_pair("verbosity", "2")});
+  args = {std::make_pair("verbosity", "2")};
+  ConsoleLogger::Configure(args.cbegin(), args.cend());
   testing::internal::CaptureStderr();
   run_monitor();
   output = testing::internal::GetCapturedStderr();

@@ -239,7 +239,7 @@ class LearnerImpl : public Learner {
       const std::vector<std::pair<std::string, std::string> >& args) override {
     // add to configurations
     tparam_.InitAllowUnknown(args);
-    ConsoleLogger::Configure(args);
+    ConsoleLogger::Configure(args.cbegin(), args.cend());
     monitor_.Init("Learner");
     cfg_.clear();
 

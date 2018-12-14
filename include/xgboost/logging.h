@@ -62,17 +62,18 @@ class ConsoleLogger : public BaseLogger {
   using LV = LogVerbosity;
 
  private:
-  using ArgIter = std::map<std::string, std::string>::const_iterator;
-
   static LogVerbosity global_verbosity_;
   static ConsoleLoggerParam param_;
 
   LogVerbosity cur_verbosity_;
+  static void Configure(const std::map<std::string, std::string>& args);
 
  public:
-  static void Configure(ArgIter begin, ArgIter end);
-  static void Configure(
-      const std::vector<std::pair<std::string, std::string> >& args);
+  template <typename ArgIter>
+  static void Configure(ArgIter begin, ArgIter end) {
+    std::map<std::string, std::string> args(begin, end);
+    Configure(args);
+  }
 
   static LogVerbosity GlobalVerbosity();
   static LogVerbosity DefaultVerbosity();
