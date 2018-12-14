@@ -48,13 +48,8 @@ ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
 ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
 void ConsoleLogger::Configure(const std::map<std::string, std::string>& args) {
   param_.InitAllowUnknown(args);
-  if (args.find("silent") != args.cend()) {
-    // Punch through, otherwise when silent == True is set this message will
-    // never get displayed.
-    LOG(CONSOLE)
-        << "Parameter `silent` is deprecated, please use `verbosity` instead.";
-  }
-
+  // Deprecated, but when trying to display deprecation message some R
+  // tests trying to catch stdout will fail.
   if (param_.silent) {
     global_verbosity_ = LogVerbosity::kSilent;
     return;

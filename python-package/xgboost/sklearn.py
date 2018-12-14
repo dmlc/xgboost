@@ -237,7 +237,7 @@ class XGBModel(XGBModelBase):
         else:
             xgb_params['nthread'] = n_jobs
 
-        xgb_params['silent'] = 1 if self.silent else 0
+        xgb_params['verbosity'] = 0 if self.silent else 0
 
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)

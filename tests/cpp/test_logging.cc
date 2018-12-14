@@ -32,11 +32,7 @@ TEST(Logging, Basic) {
   ASSERT_NE(output.find("DEBUG"), std::string::npos);
 
   args["silent"] = "True";
-  testing::internal::CaptureStderr();
   ConsoleLogger::Configure(args.cbegin(), args.cend());
-  output = testing::internal::GetCapturedStderr();
-  ASSERT_NE(output.find("deprecated"), std::string::npos);
-
   testing::internal::CaptureStderr();
   LOG(INFO) << "Test Log Info";
   output = testing::internal::GetCapturedStderr();
