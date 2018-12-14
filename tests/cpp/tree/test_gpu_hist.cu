@@ -227,6 +227,7 @@ TEST(GpuHist, EvaluateSplits) {
   TrainParam param;
   param.max_depth = 1;
   param.n_gpus = 1;
+  param.colsample_bynode = 1;
   param.colsample_bylevel = 1;
   param.colsample_bytree = 1;
   param.min_child_weight = 0.01;
@@ -284,6 +285,7 @@ TEST(GpuHist, EvaluateSplits) {
   hist_maker.param_ = param;
   hist_maker.shards_.push_back(std::move(shard));
   hist_maker.column_sampler_.Init(n_cols,
+                                  param.colsample_bynode,
                                   param.colsample_bylevel,
                                   param.colsample_bytree,
                                   false);

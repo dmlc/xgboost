@@ -168,8 +168,8 @@ class ColMaker: public TreeUpdater {
         }
       }
       {
-        column_sampler_.Init(fmat.Info().num_col_, param_.colsample_bylevel,
-                             param_.colsample_bytree);
+        column_sampler_.Init(fmat.Info().num_col_, param_.colsample_bynode,
+                             param_.colsample_bylevel, param_.colsample_bytree);
       }
       {
         // setup temp space for each thread
@@ -625,7 +625,8 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      const std::vector<int> &feat_set = column_sampler_.GetFeatureSet(depth).HostVector();
+      auto p_feature_set = column_sampler_.GetFeatureSet(depth);
+      const auto& feat_set = *p_feature_set;
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         this->UpdateSolution(batch, feat_set, gpair, p_fmat);
       }
