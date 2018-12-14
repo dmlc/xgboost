@@ -30,7 +30,9 @@ General Parameters
 * ``verbosity`` [default=1]
 
   - Verbosity of printing messages.  Valid values are 0 (silent),
-    1 (warning), 2 (info), 3 (debug).
+    1 (warning), 2 (info), 3 (debug).  Sometimes XGBoost tries to change
+    configurations based on heuristics, which is displayed as warning message.
+    If there's unexpected behaviour, please try to increase value of verbosity.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
