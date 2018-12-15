@@ -971,9 +971,7 @@ class GPUHistMakerSpecialised{
       device_list_[index] = device_id;
     }
 
-    reducer_.Init(
-        device_list_,
-        ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity());
+    reducer_.Init(device_list_);
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
