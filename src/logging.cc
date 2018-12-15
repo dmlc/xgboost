@@ -87,13 +87,20 @@ ConsoleLogger::ConsoleLogger(LogVerbosity cur_verb) :
 ConsoleLogger::ConsoleLogger(
     const std::string& file, int line, LogVerbosity cur_verb) {
   cur_verbosity_ = cur_verb;
+  auto add_msg = [&](std::string const& msg) {
+                   BaseLogger::log_stream_ << msg
+                                           << file << ":" << line << ": ";
+                 };
   switch (cur_verbosity_) {
     case LogVerbosity::kWarning:
-      BaseLogger::log_stream_ << "WARNING: ";
+      add_msg("WARNING: ");
+      break;
     case LogVerbosity::kDebug:
-      BaseLogger::log_stream_ << "DEBUG: ";
+      add_msg("DEBUG: ");
+      break;
     case LogVerbosity::kInfo:
-      BaseLogger::log_stream_ << "INFO: ";
+      add_msg("INFO: ");
+      break;
     case LogVerbosity::kIgnore:
       BaseLogger::log_stream_ << file << ":" << line << ": ";
       break;
