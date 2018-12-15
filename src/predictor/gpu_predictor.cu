@@ -201,29 +201,31 @@ __global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
 
 class GPUPredictor : public xgboost::Predictor {
  private:
-  void DeviceOffsets(const HostDeviceVector<size_t>& data,
-                     std::vector<size_t>* out_offsets) {
-    auto& offsets = *out_offsets;
-    offsets.resize(devices_.Size() + 1);
-    offsets[0] = 0;
+  void DeviceOffsets(const HostDeviceVector<size_t>& in_offsets,
+                     std::vector<size_t>* p_out_offsets) {
+    LOG(DEBUG) << "Start DeviceOffsets";
+    auto& out_offsets = *p_out_offsets;
+    out_offsets.resize(devices_.Size() + 1);
+    out_offsets[0] = 0;
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
-      auto data_span = data.DeviceSpan(device);
-      if (data_span.size() > 0) {
+      auto s_in_offsets = in_offsets.DeviceSpan(device);
+      if (s_in_offsets.size() > 0) {
         dh::safe_cuda(cudaSetDevice(device));
         // copy the last element from every shard
-        dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
-                                 &data_span[data_span.size()-1],
+        dh::safe_cuda(cudaMemcpy(&out_offsets.at(shard + 1),
+                                 &s_in_offsets[s_in_offsets.size()-1],
                                  sizeof(size_t), cudaMemcpyDeviceToHost));
       }
     }
     // Fill empty devices.
-    for (size_t i = 1; i < offsets.size(); ++i) {
-      if (offsets[i] == 0) {
-        offsets[i] = offsets[i-1];
+    for (size_t i = 1; i < out_offsets.size(); ++i) {
+      if (out_offsets[i] == 0) {
+        out_offsets[i] = out_offsets[i-1];
       }
     }
+    LOG(DEBUG) << "End DeviceOffsets";
   }
 
   struct DeviceShard {
@@ -239,6 +241,7 @@ class GPUPredictor : public xgboost::Predictor {
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
      size_t tree_begin, size_t tree_end) {
+      LOG(DEBUG) << "Start PredictInternal";
       if (info.num_row_ == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
       nodes.resize(h_nodes.size());
@@ -258,7 +261,10 @@ class GPUPredictor : public xgboost::Predictor {
 
       const int BLOCK_THREADS = 128;
       const size_t device_size = batch.offset.DeviceSize(device_);
-      if (device_size < 2) { return; }
+      if (device_size < 2) {
+        LOG(DEBUG) << "device_size < 2";
+        return;
+      }
       const size_t num_rows = device_size - 1;
 
       const int GRID_SIZE =
@@ -272,6 +278,7 @@ class GPUPredictor : public xgboost::Predictor {
         use_shared = false;
       }
       const auto& data_distr = batch.data.Distribution();
+      LOG(DEBUG) << "data_distr: " << data_distr;
       size_t entry_start = data_distr.ShardStart(batch.data.Size(),
                                                  data_distr.Devices().Index(device_));
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
@@ -282,6 +289,7 @@ class GPUPredictor : public xgboost::Predictor {
 
       dh::safe_cuda(cudaGetLastError());
       dh::safe_cuda(cudaDeviceSynchronize());
+      LOG(DEBUG) << "End PredictInternal";
     }
 
     int device_;
@@ -295,6 +303,7 @@ class GPUPredictor : public xgboost::Predictor {
                              HostDeviceVector<bst_float>* out_preds,
                              const gbm::GBTreeModel& model, size_t tree_begin,
                              size_t tree_end) {
+    LOG(DEBUG) << "Start DevicePredictInternal";
     if (tree_end - tree_begin == 0) { return; }
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
@@ -331,6 +340,7 @@ class GPUPredictor : public xgboost::Predictor {
       });
       i_batch++;
     }
+    LOG(DEBUG) << "End DevicePredictInternal";
   }
 
  public:
@@ -345,6 +355,7 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
+    LOG(DEBUG) << "Start InitOutPredictions";
     if (dmat->Info().num_row_ < GPUSet::Global().Size()) {
       cpu_predictor->PredictBatch(
           dmat, out_preds, model, tree_begin, ntree_limit);
@@ -362,12 +373,14 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
+    LOG(DEBUG) << "End InitOutPredictions";
   }
 
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
+    LOG(DEBUG) << "Start InitOutPredictions";
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
@@ -379,10 +392,12 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       out_preds->Fill(model.base_margin);
     }
+    LOG(DEBUG) << "End InitOutPredictions";
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                         const gbm::GBTreeModel& model, unsigned ntree_limit) {
+    LOG(DEBUG) << "Start InitOutPredictions";
     if (ntree_limit == 0 ||
         ntree_limit * model.param.num_output_group >= model.trees.size()) {
       auto it = cache_.find(dmat);
@@ -396,6 +411,7 @@ class GPUPredictor : public xgboost::Predictor {
         }
       }
     }
+    LOG(DEBUG) << "End InitOutPredictions";
     return false;
   }
 
@@ -403,6 +419,7 @@ class GPUPredictor : public xgboost::Predictor {
       const gbm::GBTreeModel& model,
       std::vector<std::unique_ptr<TreeUpdater>>* updaters,
       int num_new_trees) override {
+    LOG(DEBUG) << "Start UpdatePredictionCache";
     auto old_ntree = model.trees.size() - num_new_trees;
     // update cache entry
     for (auto& kv : cache_) {
@@ -422,6 +439,7 @@ class GPUPredictor : public xgboost::Predictor {
         DevicePredictInternal(dmat, &predictions, model, old_ntree, model.trees.size());
       }
     }
+    LOG(DEBUG) << "End UpdatePredictionCache";
   }
 
   void PredictInstance(const SparsePage::Inst& inst,

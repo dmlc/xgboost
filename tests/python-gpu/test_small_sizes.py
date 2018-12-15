@@ -21,6 +21,7 @@ class TestGPU(unittest.TestCase):
         'tree_method': 'gpu_hist',
         'n_gpus': -1,
         'gpu_id': 0,
+        'verbosity': '3'
     }
     N_COLS = 128
     MAX_ROWS = 16               # 16 GPUs should be a lot

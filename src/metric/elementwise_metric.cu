@@ -338,7 +338,7 @@ struct EvalEWiseBase : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    // CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";

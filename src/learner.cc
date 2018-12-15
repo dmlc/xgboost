@@ -492,12 +492,17 @@ class LearnerImpl : public Learner {
     }
     this->PerformTreeMethodHeuristic(train);
     monitor_.Start("PredictRaw");
+    LOG(DEBUG) << "Start PredictRaw";
     this->PredictRaw(train, &preds_);
+    LOG(DEBUG) << "End PredictRaw";
     monitor_.Stop("PredictRaw");
     monitor_.Start("GetGradient");
+    LOG(DEBUG) << "Start GetGradient";
     obj_->GetGradient(preds_, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
+    LOG(DEBUG) << "Start DoBoost";
     gbm_->DoBoost(train, &gpair_, obj_.get());
+    LOG(DEBUG) << "End DoBoost";
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -514,6 +519,7 @@ class LearnerImpl : public Learner {
 
   std::string EvalOneIter(int iter, const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names) override {
+    LOG(DEBUG) << "Start EvalOneIter";
     monitor_.Start("EvalOneIter");
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
@@ -522,16 +528,23 @@ class LearnerImpl : public Learner {
       metrics_.back()->Configure(cfg_.begin(), cfg_.end());
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
+      LOG(DEBUG) << "Start PredictRaw";
       this->PredictRaw(data_sets[i], &preds_);
+      LOG(DEBUG) << "End PredictRaw";
+      LOG(DEBUG) << "Start EvalTransform";
       obj_->EvalTransform(&preds_);
+      LOG(DEBUG) << "End EvalTransform";
       for (auto& ev : metrics_) {
+        LOG(DEBUG) << "Start Eval";
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
            << ev->Eval(preds_, data_sets[i]->Info(),
                        tparam_.dsplit == DataSplitMode::kRow);
+        LOG(DEBUG) << "End Eval";
       }
     }
 
     monitor_.Stop("EvalOneIter");
+    LOG(DEBUG) << "End EvalOneIter";
     return os.str();
   }
 
