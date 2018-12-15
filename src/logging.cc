@@ -87,7 +87,7 @@ ConsoleLogger::ConsoleLogger(LogVerbosity cur_verb) :
 ConsoleLogger::ConsoleLogger(
     const std::string& file, int line, LogVerbosity cur_verb) {
   cur_verbosity_ = cur_verb;
-  auto add_msg = [&](std::string const& msg) {
+  auto add_msg = [&, this](std::string const& msg) {
                    BaseLogger::log_stream_ << msg
                                            << file << ":" << line << ": ";
                  };
