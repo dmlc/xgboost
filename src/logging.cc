@@ -23,8 +23,7 @@ void dmlc::CustomLogMessage::Log(const std::string& msg) {
 namespace xgboost {
 
 ConsoleLogger::~ConsoleLogger() {
-  if (cur_verbosity_ == LogVerbosity::kIgnore ||
-      cur_verbosity_ <= global_verbosity_) {
+  if (ShouldLog(cur_verbosity_)) {
     dmlc::CustomLogMessage::Log(BaseLogger::log_stream_.str());
   }
 }
@@ -46,6 +45,11 @@ ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
     ConsoleLogger::DefaultVerbosity();
 
 ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
+
+bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
+  return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
+}
+
 void ConsoleLogger::Configure(const std::map<std::string, std::string>& args) {
   param_.InitAllowUnknown(args);
   // Deprecated, but when trying to display deprecation message some R

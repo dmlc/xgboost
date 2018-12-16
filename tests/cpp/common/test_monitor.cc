@@ -5,7 +5,7 @@
 
 namespace xgboost {
 namespace common {
-TEST(Monitor, Basic) {
+TEST(Monitor, Logging) {
   auto run_monitor =
       []() {
         Monitor monitor_;
@@ -21,12 +21,13 @@ TEST(Monitor, Basic) {
   std::string output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Monitor"), std::string::npos);
 
+  // Monitor only prints messages when set to DEBUG.
   args = {std::make_pair("verbosity", "2")};
   ConsoleLogger::Configure(args.cbegin(), args.cend());
   testing::internal::CaptureStderr();
   run_monitor();
   output = testing::internal::GetCapturedStderr();
-  ASSERT_EQ(output.find("Monitor"), std::string::npos);
+  ASSERT_EQ(output.size(), 0);
 }
 }  // namespace common
 }  // namespace xgboost

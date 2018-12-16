@@ -896,7 +896,7 @@ class AllReducer {
         ncclCommDestroy(comm);
       }
     }
-    if (IsVerbose()) {
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       LOG(CONSOLE) << "======== NCCL Statistics========";
       LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
       LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1000000;
