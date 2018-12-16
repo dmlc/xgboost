@@ -84,7 +84,6 @@ ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
   return global_verbosity_;
 }
 
-ConsoleLogger::ConsoleLogger() : cur_verbosity_{LogVerbosity::kInfo} {}
 ConsoleLogger::ConsoleLogger(LogVerbosity cur_verb) :
     cur_verbosity_{cur_verb} {}
 

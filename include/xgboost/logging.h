@@ -79,7 +79,7 @@ class ConsoleLogger : public BaseLogger {
   static LogVerbosity DefaultVerbosity();
   static bool ShouldLog(LogVerbosity verbosity);
 
-  ConsoleLogger();
+  ConsoleLogger() = delete;
   explicit ConsoleLogger(LogVerbosity cur_verb);
   ConsoleLogger(const std::string& file, int line, LogVerbosity cur_verb);
   ~ConsoleLogger();
