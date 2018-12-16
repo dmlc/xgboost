@@ -103,7 +103,7 @@ ConsoleLogger::ConsoleLogger(
       add_msg("INFO: ");
       break;
     case LogVerbosity::kIgnore:
-      BaseLogger::log_stream_ << file << ":" << line << ": ";
+      add_msg("");
       break;
     case LogVerbosity::kSilent:
       break;
