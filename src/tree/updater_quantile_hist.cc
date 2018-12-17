@@ -206,10 +206,6 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
-  if (ConsoleLogger::GlobalVerbosity() <= ConsoleLogger::DefaultVerbosity()) {
-    // Don't construct the following huge stream.
-    return;
-  }
   double total_time = dmlc::GetTime() - gstart;
   LOG(INFO) << "\nInitData:          "
             << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
