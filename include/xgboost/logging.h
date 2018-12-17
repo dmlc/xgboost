@@ -77,8 +77,9 @@ class ConsoleLogger : public BaseLogger {
 
   static LogVerbosity GlobalVerbosity();
   static LogVerbosity DefaultVerbosity();
+  static bool ShouldLog(LogVerbosity verbosity);
 
-  ConsoleLogger();
+  ConsoleLogger() = delete;
   explicit ConsoleLogger(LogVerbosity cur_verb);
   ConsoleLogger(const std::string& file, int line, LogVerbosity cur_verb);
   ~ConsoleLogger();
@@ -123,21 +124,30 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 #if defined(LOG_WARNING)
 #undef  LOG_WARNING
 #endif
-#define LOG_WARNING ::xgboost::ConsoleLogger(                           \
-    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kWarning)
+#define LOG_WARNING                                                            \
+  if (::xgboost::ConsoleLogger::ShouldLog(                                     \
+          ::xgboost::ConsoleLogger::LV::kWarning))                             \
+  ::xgboost::ConsoleLogger(__FILE__, __LINE__,                                 \
+                           ::xgboost::ConsoleLogger::LogVerbosity::kWarning)
 
 // Redefines LOG_INFO for controling verbosity
 #if defined(LOG_INFO)
 #undef  LOG_INFO
 #endif
-#define LOG_INFO    ::xgboost::ConsoleLogger(                           \
-    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kInfo)
+#define LOG_INFO                                                               \
+  if (::xgboost::ConsoleLogger::ShouldLog(                                     \
+          ::xgboost::ConsoleLogger::LV::kInfo))                                \
+  ::xgboost::ConsoleLogger(__FILE__, __LINE__,                                 \
+                           ::xgboost::ConsoleLogger::LogVerbosity::kInfo)
 
 #if defined(LOG_DEBUG)
 #undef LOG_DEBUG
 #endif
-#define LOG_DEBUG  ::xgboost::ConsoleLogger(                           \
-    __FILE__, __LINE__, ::xgboost::ConsoleLogger::LogVerbosity::kDebug)
+#define LOG_DEBUG                                                              \
+  if (::xgboost::ConsoleLogger::ShouldLog(                                     \
+          ::xgboost::ConsoleLogger::LV::kDebug))                               \
+  ::xgboost::ConsoleLogger(__FILE__, __LINE__,                                 \
+                           ::xgboost::ConsoleLogger::LogVerbosity::kDebug)
 
 // redefines the logging macro if not existed
 #ifndef LOG
@@ -145,8 +155,8 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 #endif
 
 // Enable LOG(CONSOLE) for print messages to console.
-#define LOG_CONSOLE ::xgboost::ConsoleLogger(   \
-  ::xgboost::ConsoleLogger::LogVerbosity::kIgnore)
+#define LOG_CONSOLE ::xgboost::ConsoleLogger(           \
+    ::xgboost::ConsoleLogger::LogVerbosity::kIgnore)
 // Enable LOG(TRACKER) for print messages to tracker
 #define LOG_TRACKER ::xgboost::TrackerLogger()
 }  // namespace xgboost.
