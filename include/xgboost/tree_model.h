@@ -93,65 +93,65 @@ class RegTree {
                     "Node: 64 bit align");
     }
     /*! \brief index of left child */
-    inline int LeftChild() const {
+    int LeftChild() const {
       return this->cleft_;
     }
     /*! \brief index of right child */
-    inline int RightChild() const {
+    int RightChild() const {
       return this->cright_;
     }
     /*! \brief index of default child when feature is missing */
-    inline int DefaultChild() const {
+    int DefaultChild() const {
       return this->DefaultLeft() ? this->LeftChild() : this->RightChild();
     }
     /*! \brief feature index of split condition */
-    inline unsigned SplitIndex() const {
+    unsigned SplitIndex() const {
       return sindex_ & ((1U << 31) - 1U);
     }
     /*! \brief when feature is unknown, whether goes to left child */
-    inline bool DefaultLeft() const {
+    bool DefaultLeft() const {
       return (sindex_ >> 31) != 0;
     }
     /*! \brief whether current node is leaf node */
-    inline bool IsLeaf() const {
+    bool IsLeaf() const {
       return cleft_ == -1;
     }
     /*! \return get leaf value of leaf node */
-    inline bst_float LeafValue() const {
+    bst_float LeafValue() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
-    inline SplitCondT SplitCond() const {
+    SplitCondT SplitCond() const {
       return (this->info_).split_cond;
     }
     /*! \brief get parent of the node */
-    inline int Parent() const {
+    int Parent() const {
       return parent_ & ((1U << 31) - 1);
     }
     /*! \brief whether current node is left child */
-    inline bool IsLeftChild() const {
+    bool IsLeftChild() const {
       return (parent_ & (1U << 31)) != 0;
     }
     /*! \brief whether this node is deleted */
-    inline bool IsDeleted() const {
+    bool IsDeleted() const {
       return sindex_ == std::numeric_limits<unsigned>::max();
     }
     /*! \brief whether current node is root */
-    inline bool IsRoot() const {
+    bool IsRoot() const {
       return parent_ == -1;
     }
     /*!
      * \brief set the left child
      * \param nid node id to right child
      */
-    inline void SetLeftChild(int nid) {
+    void SetLeftChild(int nid) {
       this->cleft_ = nid;
     }
     /*!
      * \brief set the right child
      * \param nid node id to right child
      */
-    inline void SetRightChild(int nid) {
+    void SetRightChild(int nid) {
       this->cright_ = nid;
     }
     /*!
@@ -160,7 +160,7 @@ class RegTree {
      * \param split_cond  split condition
      * \param default_left the default direction when feature is unknown
      */
-    inline void SetSplit(unsigned split_index, SplitCondT split_cond,
+    void SetSplit(unsigned split_index, SplitCondT split_cond,
                           bool default_left = false) {
       if (default_left) split_index |= (1U << 31);
       this->sindex_ = split_index;
@@ -172,17 +172,17 @@ class RegTree {
      * \param right right index, could be used to store
      *        additional information
      */
-    inline void SetLeaf(bst_float value, int right = -1) {
+    void SetLeaf(bst_float value, int right = -1) {
       (this->info_).leaf_value = value;
       this->cleft_ = -1;
       this->cright_ = right;
     }
     /*! \brief mark that this node is deleted */
-    inline void MarkDelete() {
+    void MarkDelete() {
       this->sindex_ = std::numeric_limits<unsigned>::max();
     }
     // set parent
-    inline void SetParent(int pidx, bool is_left_child = true) {
+    void SetParent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
       this->parent_ = pidx;
     }
@@ -212,7 +212,7 @@ class RegTree {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void ChangeToLeaf(int rid, bst_float value) {
+  void ChangeToLeaf(int rid, bst_float value) {
     CHECK(nodes_[nodes_[rid].LeftChild() ].IsLeaf());
     CHECK(nodes_[nodes_[rid].RightChild()].IsLeaf());
     this->DeleteNode(nodes_[rid].LeftChild());
@@ -224,7 +224,7 @@ class RegTree {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void CollapseToLeaf(int rid, bst_float value) {
+  void CollapseToLeaf(int rid, bst_float value) {
     if (nodes_[rid].IsLeaf()) return;
     if (!nodes_[nodes_[rid].LeftChild() ].IsLeaf()) {
       CollapseToLeaf(nodes_[rid].LeftChild(), 0.0f);
@@ -250,30 +250,30 @@ class RegTree {
     }
   }
   /*! \brief get node given nid */
-  inline Node& operator[](int nid) {
+  Node& operator[](int nid) {
     return nodes_[nid];
   }
   /*! \brief get node given nid */
-  inline const Node& operator[](int nid) const {
+  const Node& operator[](int nid) const {
     return nodes_[nid];
   }
 
   /*! \brief get const reference to nodes */
-  inline const std::vector<Node>& GetNodes() const { return nodes_; }
+  const std::vector<Node>& GetNodes() const { return nodes_; }
 
   /*! \brief get node statistics given nid */
-  inline RTreeNodeStat& Stat(int nid) {
+  RTreeNodeStat& Stat(int nid) {
     return stats_[nid];
   }
   /*! \brief get node statistics given nid */
-  inline const RTreeNodeStat& Stat(int nid) const {
+  const RTreeNodeStat& Stat(int nid) const {
     return stats_[nid];
   }
   /*!
    * \brief load model from stream
    * \param fi input stream
    */
-  inline void Load(dmlc::Stream* fi) {
+  void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
@@ -293,7 +293,7 @@ class RegTree {
    * \brief save model to stream
    * \param fo output stream
    */
-  inline void Save(dmlc::Stream* fo) const {
+  void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
     CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
     fo->Write(&param, sizeof(TreeParam));
@@ -305,7 +305,7 @@ class RegTree {
    * \brief add child nodes to node
    * \param nid node id to add children to
    */
-  inline void AddChilds(int nid) {
+  void AddChilds(int nid) {
     int pleft = this->AllocNode();
     int pright = this->AllocNode();
     nodes_[nid].SetLeftChild(pleft);
@@ -317,7 +317,7 @@ class RegTree {
    * \brief get current depth
    * \param nid node id
    */
-  inline int GetDepth(int nid) const {
+  int GetDepth(int nid) const {
     int depth = 0;
     while (!nodes_[nid].IsRoot()) {
       ++depth;
@@ -329,7 +329,7 @@ class RegTree {
    * \brief get maximum depth
    * \param nid node id
    */
-  inline int MaxDepth(int nid) const {
+  int MaxDepth(int nid) const {
     if (nodes_[nid].IsLeaf()) return 0;
     return std::max(MaxDepth(nodes_[nid].LeftChild())+1,
                      MaxDepth(nodes_[nid].RightChild())+1);
@@ -338,7 +338,7 @@ class RegTree {
   /*!
    * \brief get maximum depth
    */
-  inline int MaxDepth() {
+  int MaxDepth() {
     int maxd = 0;
     for (int i = 0; i < param.num_roots; ++i) {
       maxd = std::max(maxd, MaxDepth(i));
@@ -347,7 +347,7 @@ class RegTree {
   }
 
   /*! \brief number of extra nodes besides the root */
-  inline int NumExtraNodes() const {
+  int NumExtraNodes() const {
     return param.num_nodes - param.num_roots - param.num_deleted;
   }
 
@@ -416,9 +416,8 @@ class RegTree {
    * \param condition_feature the index of the feature to fix
    */
   void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
-                                     bst_float *out_contribs,
-                                     int condition = 0,
-                                     unsigned condition_feature = 0) const;
+                              bst_float* out_contribs, int condition = 0,
+                              unsigned condition_feature = 0) const;
   /*!
    * \brief Recursive function that computes the feature attributions for a single tree.
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -433,12 +432,11 @@ class RegTree {
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
    */
-  void TreeShap(const RegTree::FVec& feat, bst_float *phi,
-                       unsigned node_index, unsigned unique_depth,
-                       PathElement *parent_unique_path, bst_float parent_zero_fraction,
-                       bst_float parent_one_fraction, int parent_feature_index,
-                       int condition, unsigned condition_feature,
-                       bst_float condition_fraction) const;
+  void TreeShap(const RegTree::FVec& feat, bst_float* phi, unsigned node_index,
+                unsigned unique_depth, PathElement* parent_unique_path,
+                bst_float parent_zero_fraction, bst_float parent_one_fraction,
+                int parent_feature_index, int condition,
+                unsigned condition_feature, bst_float condition_fraction) const;
 
   /*!
    * \brief calculate the approximate feature contributions for the given root
@@ -447,7 +445,7 @@ class RegTree {
    * \param out_contribs output vector to hold the contributions
    */
   void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
-                                           bst_float *out_contribs) const;
+                                    bst_float* out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
@@ -480,7 +478,7 @@ class RegTree {
   std::vector<bst_float> node_mean_values_;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
-  inline int AllocNode() {
+  int AllocNode() {
     if (param.num_deleted != 0) {
       int nd = deleted_nodes_.back();
       deleted_nodes_.pop_back();
@@ -495,7 +493,7 @@ class RegTree {
     return nd;
   }
   // delete a tree node, keep the parent field to allow trace back
-  inline void DeleteNode(int nid) {
+  void DeleteNode(int nid) {
     CHECK_GE(nid, param.num_roots);
     deleted_nodes_.push_back(nid);
     nodes_[nid].MarkDelete();
@@ -536,7 +534,8 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
   return data_[i].flag == -1;
 }
 
-inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) const {
+inline int RegTree::GetLeafIndex(const RegTree::FVec& feat,
+                                 unsigned root_id) const {
   auto pid = static_cast<int>(root_id);
   while (!(*this)[pid].IsLeaf()) {
     unsigned split_index = (*this)[pid].SplitIndex();

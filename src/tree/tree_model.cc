@@ -194,8 +194,9 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
   return result;
 }
 
-void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
-                                                  bst_float *out_contribs) const {
+void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
+                                           unsigned root_id,
+                                           bst_float *out_contribs) const {
   CHECK_GT(this->node_mean_values_.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
@@ -236,7 +237,8 @@ struct PathElement {
 
 // extend our decision path with a fraction of one and zero extensions
 void ExtendPath(PathElement *unique_path, unsigned unique_depth,
-                       bst_float zero_fraction, bst_float one_fraction, int feature_index) {
+                bst_float zero_fraction, bst_float one_fraction,
+                int feature_index) {
   unique_path[unique_depth].feature_index = feature_index;
   unique_path[unique_depth].zero_fraction = zero_fraction;
   unique_path[unique_depth].one_fraction = one_fraction;
@@ -250,7 +252,8 @@ void ExtendPath(PathElement *unique_path, unsigned unique_depth,
 }
 
 // undo a previous extension of the decision path
-void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned path_index) {
+void UnwindPath(PathElement *unique_path, unsigned unique_depth,
+                unsigned path_index) {
   const bst_float one_fraction = unique_path[path_index].one_fraction;
   const bst_float zero_fraction = unique_path[path_index].zero_fraction;
   bst_float next_one_portion = unique_path[unique_depth].pweight;
@@ -278,7 +281,7 @@ void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned path_i
 // determine what the total permuation weight would be if
 // we unwound a previous extension in the decision path
 bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
-                                unsigned path_index) {
+                         unsigned path_index) {
   const bst_float one_fraction = unique_path[path_index].one_fraction;
   const bst_float zero_fraction = unique_path[path_index].zero_fraction;
   bst_float next_one_portion = unique_path[unique_depth].pweight;
@@ -299,12 +302,13 @@ bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
 }
 
 // recursive computation of SHAP values for a decision tree
-void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
-                              unsigned node_index, unsigned unique_depth,
-                              PathElement *parent_unique_path, bst_float parent_zero_fraction,
-                              bst_float parent_one_fraction, int parent_feature_index,
-                              int condition, unsigned condition_feature,
-                              bst_float condition_fraction) const {
+void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
+                       unsigned node_index, unsigned unique_depth,
+                       PathElement *parent_unique_path,
+                       bst_float parent_zero_fraction,
+                       bst_float parent_one_fraction, int parent_feature_index,
+                       int condition, unsigned condition_feature,
+                       bst_float condition_fraction) const {
   const auto node = (*this)[node_index];
 
   // stop if we have no weight coming down to us
@@ -383,10 +387,10 @@ void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
   }
 }
 
-void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
-                                            bst_float *out_contribs,
-                                            int condition,
-                                            unsigned condition_feature) const {
+void RegTree::CalculateContributions(const RegTree::FVec &feat,
+                                     unsigned root_id, bst_float *out_contribs,
+                                     int condition,
+                                     unsigned condition_feature) const {
   // find the expected value of the tree's predictions
   if (condition == 0) {
     bst_float node_value = this->node_mean_values_[static_cast<int>(root_id)];
