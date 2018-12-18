@@ -43,7 +43,7 @@ import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
   with BoosterParams with HasWeightCol with HasBaseMarginCol with HasNumClass with ParamMapFuncs
-  with HasLeafPredictionCol with HasContribPredictionCol
+  with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
 
 class XGBoostClassifier (
     override val uid: String,
@@ -182,23 +182,19 @@ class XGBoostClassifier (
       col($(baseMarginCol))
     }
 
-    val instances: RDD[XGBLabeledPoint] = dataset.select(
-      col($(featuresCol)),
-      col($(labelCol)).cast(FloatType),
-      baseMargin.cast(FloatType),
-      weight.cast(FloatType)
-    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float, weight: Float) =>
-      val (indices, values) = features match {
-        case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-        case v: DenseVector => (null, v.values.map(_.toFloat))
-      }
-      XGBLabeledPoint(label, indices, values, baseMargin = baseMargin, weight = weight)
+    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
+      col($(labelCol)), col($(featuresCol)), weight, baseMargin,
+      None, dataset.asInstanceOf[DataFrame]).head
+    val evalRDDMap = getEvalSets(xgboostParams).map {
+      case (name, dataFrame) => (name,
+        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
+          weight, baseMargin, None, dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
-      hasGroup = false)
+    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
+      hasGroup = false, evalRDDMap)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)

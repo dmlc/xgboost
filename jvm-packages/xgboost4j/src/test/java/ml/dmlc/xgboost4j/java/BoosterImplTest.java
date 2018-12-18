@@ -186,6 +186,51 @@ public class BoosterImplTest {
   }
 
   @Test
+  public void testEarlyStoppingForMultipleMetrics() {
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+        put("maximize_evaluation_metrics", "true");
+      }
+    };
+    int earlyStoppingRound = 3;
+    int totalIterations = 5;
+    int numOfMetrics = 3;
+    float[][] metrics = new float[numOfMetrics][totalIterations];
+    for (int i = 0; i < numOfMetrics; i++) {
+      for (int j = 0; j < totalIterations; j++) {
+        metrics[0][j] = j;
+      }
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      TestCase.assertTrue(onTrack);
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[0][i] = totalIterations - i;
+    }
+    // when we have multiple datasets, the training metrics is not considered
+    for (int i = 0; i < totalIterations; i++) {
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      TestCase.assertTrue(onTrack);
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      metrics[1][i] = totalIterations - i;
+    }
+    for (int i = 0; i < totalIterations; i++) {
+      // if any metrics off, we need to stop
+      boolean onTrack = XGBoost.judgeIfTrainingOnTrack(paramMap, earlyStoppingRound, metrics, i);
+      if (i >= earlyStoppingRound - 1) {
+        TestCase.assertFalse(onTrack);
+      } else {
+        TestCase.assertTrue(onTrack);
+      }
+    }
+  }
+
+  @Test
   public void testDescendMetrics() {
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
