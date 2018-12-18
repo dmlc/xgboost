@@ -18,12 +18,17 @@ package ml.dmlc.xgboost4j.scala.spark
 
 class XGBoostTrainingSummary private(
     val trainObjectiveHistory: Array[Float],
-    val testObjectiveHistory: Option[Array[Float]]
-) extends Serializable {
+    val validationObjectiveHistory: (String, Array[Float])*) extends Serializable {
+
   override def toString: String = {
-    val train = trainObjectiveHistory.toList
-    val test = testObjectiveHistory.map(_.toList)
-    s"XGBoostTrainingSummary(trainObjectiveHistory=$train, testObjectiveHistory=$test)"
+    val train = trainObjectiveHistory.mkString(",")
+    val vaidationObjectiveHistoryString = {
+      validationObjectiveHistory.map {
+        case (name, metrics) =>
+          s"${name}ObjectiveHistory=${metrics.mkString(",")}"
+      }.mkString(";")
+    }
+    s"XGBoostTrainingSummary(trainObjectiveHistory=$train; $vaidationObjectiveHistoryString)"
   }
 }
 
@@ -31,6 +36,6 @@ private[xgboost4j] object XGBoostTrainingSummary {
   def apply(metrics: Map[String, Array[Float]]): XGBoostTrainingSummary = {
     new XGBoostTrainingSummary(
       trainObjectiveHistory = metrics("train"),
-      testObjectiveHistory = metrics.get("test"))
+      metrics.filter(_._1 != "train").toSeq: _*)
   }
 }

@@ -200,6 +200,11 @@ In additional to ``num_early_stopping_rounds``, you also need to define ``maximi
 
 After specifying these two parameters, the training would stop when the metrics goes to the other direction against the one specified by ``maximize_evaluation_metrics`` for ``num_early_stopping_rounds`` iterations.
 
+Training with Evaluation Sets
+----------------
+
+You can also monitor the performance of the model during training with multiple evaluation datasets. By specifying ``eval_sets`` or call ``setEvalSets`` over a XGBoostClassifier or XGBoostRegressor, you can pass in multiple evaluation datasets typed as a Map from String to DataFrame.
+
 Prediction
 ==========
 

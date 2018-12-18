@@ -222,14 +222,19 @@ public class XGBoost {
     if (iter < earlyStoppingRounds - 1) {
       return true;
     }
-    float[] criterion = metrics[metrics.length - 1];
-    for (int shift = 0; shift < earlyStoppingRounds - 1; shift++) {
-      // the initial value of onTrack is false and if the metrics in any of `earlyStoppingRounds`
-      // iterations goes to the expected direction, we should consider these `earlyStoppingRounds`
-      // as `onTrack`
-      onTrack |= maximizeEvaluationMetrics ?
-              criterion[iter - shift] >= criterion[iter - shift - 1] :
-              criterion[iter - shift] <= criterion[iter - shift - 1];
+    for (int metricsId = metrics.length == 1 ? 0 : 1; metricsId < metrics.length; metricsId++) {
+      float[] criterion = metrics[metricsId];
+      for (int shift = 0; shift < earlyStoppingRounds - 1; shift++) {
+        // the initial value of onTrack is false and if the metrics in any of `earlyStoppingRounds`
+        // iterations goes to the expected direction, we should consider these `earlyStoppingRounds`
+        // as `onTrack`
+        onTrack |= maximizeEvaluationMetrics ?
+                criterion[iter - shift] >= criterion[iter - shift - 1] :
+                criterion[iter - shift] <= criterion[iter - shift - 1];
+      }
+      if (!onTrack) {
+        return false;
+      }
     }
     return onTrack;
   }

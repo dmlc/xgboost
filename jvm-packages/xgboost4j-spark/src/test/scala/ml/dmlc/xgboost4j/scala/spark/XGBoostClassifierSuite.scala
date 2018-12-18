@@ -137,7 +137,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(predictionDF.columns.contains("final_prediction") === false)
 
     assert(model.summary.trainObjectiveHistory.length === 5)
-    assert(model.summary.testObjectiveHistory.isEmpty)
+    assert(model.summary.validationObjectiveHistory.isEmpty)
   }
 
   test("XGBoost and Spark parameters synchronize correctly") {
@@ -189,31 +189,6 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       if (!r1.equals(r2)) count = count + 1
     }
     assert(count != 0)
-  }
-
-  test("training summary") {
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers)
-
-    val trainingDF = buildDataFrame(Classification.train)
-    val xgb = new XGBoostClassifier(paramMap)
-    val model = xgb.fit(trainingDF)
-
-    assert(model.summary.trainObjectiveHistory.length === 5)
-    assert(model.summary.testObjectiveHistory.isEmpty)
-  }
-
-  test("train/test split") {
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
-    val training = buildDataFrame(Classification.train)
-
-    val xgb = new XGBoostClassifier(paramMap)
-    val model = xgb.fit(training)
-    val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
-    assert(testObjectiveHistory.length === 5)
-    assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
   }
 
   test("test predictionLeaf") {

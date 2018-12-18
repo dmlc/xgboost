@@ -22,6 +22,14 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{Column, DataFrame, Row}
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.{FloatType, IntegerType}
+
 private[spark] trait GeneralParams extends Params {
 
   /**
@@ -154,8 +162,7 @@ private[spark] trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1
-  )
+    checkpointPath -> "", checkpointInterval -> -1)
 }
 
 trait HasLeafPredictionCol extends Params {

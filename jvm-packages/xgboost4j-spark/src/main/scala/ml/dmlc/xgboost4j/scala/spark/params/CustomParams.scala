@@ -22,26 +22,7 @@ import org.json4s.{DefaultFormats, Extraction, NoTypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
 
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
-
-class GroupDataParam(
-    parent: Params,
-    name: String,
-    doc: String) extends Param[Seq[Seq[Int]]](parent, name, doc) {
-
-  /** Creates a param pair with the given value (for Java). */
-  override def w(value: Seq[Seq[Int]]): ParamPair[Seq[Seq[Int]]] = super.w(value)
-
-  override def jsonEncode(value: Seq[Seq[Int]]): String = {
-    import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
-    compact(render(Extraction.decompose(value)))
-  }
-
-  override def jsonDecode(json: String): Seq[Seq[Int]] = {
-    implicit val formats = DefaultFormats
-    parse(json).extract[Seq[Seq[Int]]]
-  }
-}
+import org.apache.spark.sql.DataFrame
 
 class CustomEvalParam(
     parent: Params,
