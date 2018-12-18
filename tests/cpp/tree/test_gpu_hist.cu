@@ -291,8 +291,6 @@ TEST(GpuHist, EvaluateSplits) {
                                   false);
 
   RegTree tree;
-  tree.InitModel();
-
   MetaInfo info;
   info.num_row_ = n_rows;
   info.num_col_ = n_cols;
@@ -339,7 +337,6 @@ TEST(GpuHist, ApplySplit) {
   // Initialize GPUHistMaker
   hist_maker.param_ = param;
   RegTree tree;
-  tree.InitModel();
 
   DeviceSplitCandidate candidate;
   candidate.Update(2, kLeftDir,

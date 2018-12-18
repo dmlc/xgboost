@@ -25,7 +25,6 @@ TEST(Updater, Refresh) {
     {"reg_lambda", "1"}};
 
   RegTree tree = RegTree();
-  tree.InitModel();
   tree.param.InitAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
