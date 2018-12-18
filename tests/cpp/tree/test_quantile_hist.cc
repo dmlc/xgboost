@@ -122,7 +122,6 @@ class QuantileHistMock : public QuantileHistMaker {
     gmat.Init((*dmat).get(), max_bins);
 
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     std::vector<GradientPair> gpair =
@@ -134,7 +133,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestBuildHist() {
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     size_t constexpr max_bins = 4;
@@ -146,7 +144,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestEvaluateSplit() {
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     builder_->TestEvaluateSplit(gmatb_, tree);
