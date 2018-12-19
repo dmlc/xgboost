@@ -124,11 +124,11 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
-  ignore("test with fast histo lossguide") {
+  test("test with fast histo lossguide") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
       "max_leaves" -> "8", "num_round" -> 5,
       "num_workers" -> numWorkers)
@@ -137,7 +137,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo lossguide with max bin") {
+  test("test with fast histo lossguide with max bin") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
@@ -150,24 +150,24 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo depthwidth with max depth") {
+  test("test with fast histo depthwidth with max depth") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
-      "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
+      "grow_policy" -> "depthwise", "max_depth" -> "2",
       "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo depthwidth with max depth and max bin") {
+  test("test with fast histo depthwidth with max depth and max bin") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
       "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
