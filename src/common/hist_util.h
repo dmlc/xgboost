@@ -18,6 +18,49 @@
 namespace xgboost {
 namespace common {
 
+<<<<<<< HEAD
+=======
+/*! \brief sums of gradient statistics corresponding to a histogram bin */
+struct GHistEntry {
+  /*! \brief sum of first-order gradient statistics */
+  double sum_grad{0};
+  /*! \brief sum of second-order gradient statistics */
+  double sum_hess{0};
+  /*!
+   * \brief whether this is simply statistics and we only need to call
+   *   Add(gpair), instead of Add(gpair, info, ridx)
+   */
+    static const int kSimpleStats = 1;
+  GHistEntry()  = default;
+
+  inline void Clear() {
+    sum_grad = sum_hess = 0;
+  }
+
+  /*! \brief add a GradientPair to the sum */
+  inline void Add(const GradientPair& e) {
+    sum_grad += e.GetGrad();
+    sum_hess += e.GetHess();
+  }
+
+  /*! \brief add a GHistEntry to the sum */
+  inline void Add(const GHistEntry& e) {
+    sum_grad += e.sum_grad;
+    sum_hess += e.sum_hess;
+  }
+
+  inline static void Reduce(GHistEntry& a, const GHistEntry& b) { // NOLINT(*)
+    a.Add(b);
+  }
+
+  /*! \brief set sum to be difference of two GHistEntry's */
+  inline void SetSubtract(const GHistEntry& a, const GHistEntry& b) {
+    sum_grad = a.sum_grad - b.sum_grad;
+    sum_hess = a.sum_hess - b.sum_hess;
+  }
+};
+
+>>>>>>> update
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
