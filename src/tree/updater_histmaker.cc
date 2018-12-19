@@ -355,7 +355,7 @@ class CQHistMaker: public HistMaker<TStats> {
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
-#pragma omp parallel for schedule(dynamic, 1)
+        #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int fid = fset[i];
           int offset = feat2workindex_[fid];
@@ -387,7 +387,7 @@ class CQHistMaker: public HistMaker<TStats> {
 #endif
   }
 
-    void ResetPositionAfterSplit(DMatrix *p_fmat,
+  void ResetPositionAfterSplit(DMatrix *p_fmat,
                                  const RegTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
