@@ -620,7 +620,7 @@ class LearnerImpl : public Learner {
        case TreeMethod::kExact:
         LOG(CONSOLE) << "Tree method was set to be "
                      << "exact"
-                     << "', but only 'approx' is available for distributed "
+                     << "', but only 'approx' and 'hist' is available for distributed "
                         "training. The `tree_method` parameter is now being "
                         "changed to 'approx'";
         break;
