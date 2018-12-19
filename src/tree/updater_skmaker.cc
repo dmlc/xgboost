@@ -285,12 +285,8 @@ class SketchMaker: public BaseMaker {
       this->SetStats(nid, node_stats_[nid], p_tree);
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
-        p_tree->AddChilds(nid);
-        (*p_tree)[nid].SetSplit(best.SplitIndex(),
-                                 best.split_value, best.DefaultLeft());
-        // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+        p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
+                          best.DefaultLeft());
       } else {
         (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }

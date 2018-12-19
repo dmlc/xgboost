@@ -429,14 +429,8 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
   /* 1. Create child nodes */
   NodeEntry& e = snode_[nid];
-
-  p_tree->AddChilds(nid);
-  (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
-  // mark right child as 0, to indicate fresh leaf
-  int cleft = (*p_tree)[nid].LeftChild();
-  int cright = (*p_tree)[nid].RightChild();
-  (*p_tree)[cleft].SetLeaf(0.0f, 0);
-  (*p_tree)[cright].SetLeaf(0.0f, 0);
+  p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                    e.best.DefaultLeft());
 
   /* 2. Categorize member rows */
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);

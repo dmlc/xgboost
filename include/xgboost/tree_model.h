@@ -301,18 +301,31 @@ class RegTree {
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
     fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
   }
-  /*!
-   * \brief add child nodes to node
-   * \param nid node id to add children to
+
+  /**
+   * \brief Expands a leaf node into two additional leaf nodes
+   *
+   * \param nid           The node index to expand.
+   * \param split_index   Feature index of the split.
+   * \param split_value   The split condition.
+   * \param default_left  True to default left.
    */
-  void AddChilds(int nid) {
+  void ExpandNode(int nid, unsigned split_index, bst_float split_value, bool default_left) {
     int pleft = this->AllocNode();
     int pright = this->AllocNode();
-    nodes_[nid].SetLeftChild(pleft);
-    nodes_[nid].SetRightChild(pright);
-    nodes_[nodes_[nid].LeftChild() ].SetParent(nid, true);
-    nodes_[nodes_[nid].RightChild()].SetParent(nid, false);
+    auto &node = nodes_[nid];
+    CHECK(node.IsLeaf());
+    node.SetLeftChild(pleft);
+    node.SetRightChild(pright);
+    nodes_[node.LeftChild()].SetParent(nid, true);
+    nodes_[node.RightChild()].SetParent(nid, false);
+    node.SetSplit(split_index, split_value,
+                         default_left);
+    // mark right child as 0, to indicate fresh leaf
+    nodes_[pleft].SetLeaf(0.0f, 0);
+    nodes_[pright].SetLeaf(0.0f, 0);
   }
+
   /*!
    * \brief get current depth
    * \param nid node id
