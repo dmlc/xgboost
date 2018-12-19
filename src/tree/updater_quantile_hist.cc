@@ -55,7 +55,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   if (is_gmat_initialized_ == false) {
     double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-    std::cout << "finished initialization of gmat_\n";
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
@@ -493,7 +492,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
             param_.colsample_bytree,  false);
   }
-  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased || rabit::IsDistributed()) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
@@ -786,7 +785,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
         }
       }
     }
-
+    
     // calculating the weights
     {
       bst_uint parentid = tree[nid].Parent();
