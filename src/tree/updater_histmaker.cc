@@ -126,6 +126,7 @@ class HistMaker: public BaseMaker {
   virtual void Update(const std::vector<GradientPair> &gpair,
                       DMatrix *p_fmat,
                       RegTree *p_tree) {
+    CHECK(param_.max_depth > 0) << "max_depth must be larger than 0";
     this->InitData(gpair, *p_fmat, *p_tree);
     this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.

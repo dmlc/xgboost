@@ -50,9 +50,20 @@ private[spark] trait BoosterParams extends Params {
    * overfitting. [default=6] range: [1, Int.MaxValue]
    */
   final val maxDepth = new IntParam(this, "maxDepth", "maximum depth of a tree, increase this " +
-    "value will make model more complex/likely to be overfitting.", (value: Int) => value >= 1)
+    "value will make model more complex/likely to be overfitting.", (value: Int) => value >= 0)
 
   final def getMaxDepth: Int = $(maxDepth)
+
+
+  /**
+   * Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.
+   */
+  final val maxLeaves = new IntParam(this, "maxLeaves",
+    "Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.",
+    (value: Int) => value >= 0)
+
+  final def getMaxLeaves: Int = $(maxDepth)
+
 
   /**
    * minimum sum of instance weight(hessian) needed in a child. If the tree partition step results
@@ -147,7 +158,9 @@ private[spark] trait BoosterParams extends Params {
    * growth policy for fast histogram algorithm
    */
   final val growPolicy = new Param[String](this, "growPolicy",
-    "growth policy for fast histogram algorithm",
+    "Controls a way new nodes are added to the tree. Currently supported only if" +
+      " tree_method is set to hist. Choices: depthwise, lossguide. depthwise: split at nodes" +
+      " closest to the root. lossguide: split at nodes with highest loss change.",
     (value: String) => BoosterParams.supportedGrowthPolicies.contains(value))
 
   final def getGrowPolicy: String = $(growPolicy)

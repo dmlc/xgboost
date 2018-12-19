@@ -156,12 +156,17 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       const int cright = (*p_tree)[nid].RightChild();
       hist_.AddHistRow(cleft);
       hist_.AddHistRow(cright);
-      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+      if (rabit::IsDistributed()) {
         BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
         SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
       } else {
-        BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
-        SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+        if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
+          SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+        } else {
+          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
+          SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+        }
       }
       time_build_hist += dmlc::GetTime() - tstart;
 
@@ -628,14 +633,14 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
       strs << sum_grad[k] << ",";
     }
     if (rabit::IsDistributed()) {
-        std::cout << "node " << nid << ":" << strs.str() << "\n";
+       // std::cout << "node " << nid << ":" << strs.str() << "\n";
     }
     delete[] sum_grad;
     if (rabit::IsDistributed()) {
         for (size_t i = gmat.cut.row_ptr[gmat.cut.row_ptr.size() - 2]; i < gmat.cut.row_ptr[gmat.cut.row_ptr.size() - 1]; i++) {
             stats.Add(hist.begin[i].sum_grad, hist.begin[i].sum_hess);
         }
-        // std::cout << "node " << nid << " stat " << stats.sum_grad << "," << stats.sum_hess << "\n";
+       // std::cout << "node " << nid << " stat " << stats.sum_grad << "," << stats.sum_hess << "\n";
     } else {
         const RowSetCollection::Elem e = row_set_collection_[nid];
         for (const size_t* it = e.begin; it < e.end; ++it) {
