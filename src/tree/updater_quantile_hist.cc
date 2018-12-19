@@ -362,7 +362,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                            param_.colsample_bylevel, param_.colsample_bytree,  false);
     }
   }
-  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased || rabit::IsDistributed()) {
+  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
