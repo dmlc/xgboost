@@ -18,8 +18,10 @@ package ml.dmlc.xgboost4j.scala.example.spark
 
 import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
 
+import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
@@ -31,7 +33,6 @@ object SparkTraining {
       println("Usage: program input_path")
       sys.exit(1)
     }
-
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
     val schema = new StructType(Array(

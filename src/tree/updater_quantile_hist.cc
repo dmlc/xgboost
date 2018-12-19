@@ -56,7 +56,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   if (is_gmat_initialized_ == false) {
     double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-    std::cout << "finished initialization of gmat_\n";
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
@@ -358,7 +357,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                            param_.colsample_bylevel, param_.colsample_bytree,  false);
     }
   }
-  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased || rabit::IsDistributed()) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
@@ -619,8 +618,29 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
   {
     auto& stats = snode_[nid].stats;
     GHistRow hist = hist_[nid];
-    for (size_t i = 0; i < hist.size; i++) {
-      stats.Add(hist.begin[i].sum_grad, hist.begin[i].sum_hess);
+    double *sum_grad = new double[gmat.cut.row_ptr.size()];
+    std::ostringstream strs;
+    for (size_t k = 0; k < gmat.cut.row_ptr.size() - 1; k++) {
+        sum_grad[k] = 0.0;
+      for (size_t i = gmat.cut.row_ptr[k]; i < gmat.cut.row_ptr[k + 1]; i++) {
+          sum_grad[k] += hist.begin[i].sum_grad;
+      }
+      strs << sum_grad[k] << ",";
+    }
+    if (rabit::IsDistributed()) {
+        std::cout << "node " << nid << ":" << strs.str() << "\n";
+    }
+    delete[] sum_grad;
+    if (rabit::IsDistributed()) {
+        for (size_t i = gmat.cut.row_ptr[gmat.cut.row_ptr.size() - 2]; i < gmat.cut.row_ptr[gmat.cut.row_ptr.size() - 1]; i++) {
+            stats.Add(hist.begin[i].sum_grad, hist.begin[i].sum_hess);
+        }
+        // std::cout << "node " << nid << " stat " << stats.sum_grad << "," << stats.sum_hess << "\n";
+    } else {
+        const RowSetCollection::Elem e = row_set_collection_[nid];
+        for (const size_t* it = e.begin; it < e.end; ++it) {
+            stats.Add(gpair[*it]);
+        }
     }
     /*
     if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased ||

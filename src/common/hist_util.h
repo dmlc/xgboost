@@ -20,7 +20,7 @@ namespace xgboost {
 namespace common {
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
-struct XGBOOST_ALIGNAS(16) GHistEntry {
+struct GHistEntry {
   /*! \brief sum of first-order gradient statistics */
   double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
