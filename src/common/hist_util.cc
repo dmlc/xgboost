@@ -88,8 +88,8 @@ void HistCutMatrix::Init
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WXQSketch::SummaryContainer a;
-    a.Reserve(max_num_bins * kFactor);
-    a.SetPrune(summary_array[fid], max_num_bins * kFactor);
+    a.Reserve(max_num_bins);
+    a.SetPrune(summary_array[fid], max_num_bins);
     const bst_float mval = a.data[fid].value;
     this->min_val[fid] = mval - (fabs(mval) + 1e-5);
     if (a.size > 1 && a.size <= 16) {
