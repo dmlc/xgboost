@@ -261,7 +261,7 @@ class GHistBuilder {
 
   uint32_t GetNumBins() {
       return nbins_;
-  };
+  }
 
  private:
   /*! \brief number of threads for parallel computation */

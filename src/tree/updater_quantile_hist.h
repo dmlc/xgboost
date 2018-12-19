@@ -227,9 +227,7 @@ class QuantileHistMaker: public TreeUpdater {
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
-
     rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
-
   };
 
   std::unique_ptr<Builder> builder_;
