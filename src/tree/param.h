@@ -201,8 +201,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net")
-  //      .set_default("elastic_net,monotonic,interaction")
+        .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
 
     // ------ From cpu quantile histogram -------.

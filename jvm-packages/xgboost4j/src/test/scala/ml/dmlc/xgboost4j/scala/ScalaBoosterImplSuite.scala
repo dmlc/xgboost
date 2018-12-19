@@ -86,8 +86,7 @@ class ScalaBoosterImplSuite extends FunSuite {
     val metrics = Array.fill(watches.size, round)(0.0f)
     val booster = XGBoost.train(trainMat, paramMap, round, watches, metrics)
     for (i <- 0 until watches.size; j <- 1 until metrics(i).length) {
-      assert(metrics(i)(j) >= metrics(i)(j - 1) ||
-        math.abs(metrics(i)(j) - metrics(i)(j - 1)) < 0.1)
+      assert(metrics(i)(j) >= metrics(i)(j - 1))
     }
     for (metricsArray <- metrics; m <- metricsArray) {
       assert(m >= threshold)
