@@ -90,7 +90,7 @@ void HistCutMatrix::Init
     WXQSketch::SummaryContainer a;
     a.Reserve(max_num_bins);
     a.SetPrune(summary_array[fid], max_num_bins);
-    const bst_float mval = a.data[fid].value;
+    const bst_float mval = a.data[0].value;
     this->min_val[fid] = mval - (fabs(mval) + 1e-5);
     if (a.size > 1 && a.size <= 16) {
       /* specialized code categorial / ordinal data -- use midpoints */
