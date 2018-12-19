@@ -84,11 +84,8 @@ void HistCutMatrix::Init
     summary_array[i].SetPrune(out, max_num_bins * kFactor);
   }
   CHECK_EQ(summary_array.size(), in_sketchs->size());
-  std::cout << "summary_array size: " << summary_array.size() << "\n";
-  //max_num_bins * kFactor
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-  std::cout << "finished allreduce for summary_array\n";
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
