@@ -350,44 +350,45 @@ class CQHistMaker: public HistMaker<TStats> {
     auto lazy_get_hist = [&]()
 #endif
     {
-        thread_hist_.resize(omp_get_max_threads());
-        // start accumulating statistics
-        for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
-            // start enumeration
-            const auto nsize = static_cast<bst_omp_uint>(fset.size());
+      thread_hist_.resize(omp_get_max_threads());
+      // start accumulating statistics
+      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+        // start enumeration
+        const auto nsize = static_cast<bst_omp_uint>(fset.size());
 #pragma omp parallel for schedule(dynamic, 1)
-            for (bst_omp_uint i = 0; i < nsize; ++i) {
-                int fid = fset[i];
-                int offset = feat2workindex_[fid];
-                if (offset >= 0) {
-                    this->UpdateHistCol(gpair, batch[fid], info, tree,
-                                        fset, offset,
-                                        &thread_hist_[omp_get_thread_num()]);
-                }
-            }
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          int fid = fset[i];
+          int offset = feat2workindex_[fid];
+          if (offset >= 0) {
+            this->UpdateHistCol(gpair, batch[fid], info, tree,
+                                fset, offset,
+                                &thread_hist_[omp_get_thread_num()]);
+          }
         }
-        // update node statistics.
-        this->GetNodeStats(gpair, *p_fmat, tree,
-                           &thread_stats_, &node_stats_);
-        for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-            const int nid = this->qexpand_[i];
-            const int wid = this->node2workindex_[nid];
-            this->wspace_.hset[0][fset.size() + wid * (fset.size()+1)]
-                    .data[0] = node_stats_[nid];
-        }
+      }
+      // update node statistics.
+      this->GetNodeStats(gpair, *p_fmat, tree,
+                         &thread_stats_, &node_stats_);
+      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
+        const int nid = this->qexpand_[i];
+        const int wid = this->node2workindex_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)]
+                .data[0] = node_stats_[nid];
+      }
     };
     // sync the histogram
     // if it is C++11, use lazy evaluation for Allreduce
 #if __cplusplus >= 201103L
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
-                            this->wspace_.hset[0].data.size(), lazy_get_hist);
+                             this->wspace_.hset[0].data.size(), lazy_get_hist);
 #else
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                             this->wspace_.hset[0].data.size());
 #endif
   }
-  void ResetPositionAfterSplit(DMatrix *p_fmat,
-                               const RegTree &tree) override {
+
+    void ResetPositionAfterSplit(DMatrix *p_fmat,
+                                 const RegTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
