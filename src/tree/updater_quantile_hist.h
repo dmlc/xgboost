@@ -354,8 +354,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
-
-
 };
 
 }  // namespace tree

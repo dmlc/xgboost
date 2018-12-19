@@ -26,11 +26,7 @@ struct GHistEntry {
   double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
   double sum_hess{0};
-  /*!
-   * \brief whether this is simply statistics and we only need to call
-   *   Add(gpair), instead of Add(gpair, info, ridx)
-   */
-    static const int kSimpleStats = 1;
+
   GHistEntry()  = default;
 
   inline void Clear() {
