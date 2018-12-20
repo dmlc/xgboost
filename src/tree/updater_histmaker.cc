@@ -192,7 +192,8 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i],
+                           false, s, c)) {
             *left_sum = s;
           }
         }
@@ -205,7 +206,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true, s, c)) {
             *left_sum = c;
           }
         }

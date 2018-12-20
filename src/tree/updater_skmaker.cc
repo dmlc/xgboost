@@ -336,7 +336,9 @@ class SketchMaker: public BaseMaker {
       if (s.sum_hess >= param_.min_child_weight &&
           c.sum_hess >= param_.min_child_weight) {
         double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], false);
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], false,
+                     GradStats(s.pos_grad - s.neg_grad , s.sum_hess),
+                     GradStats(c.pos_grad - c.neg_grad, c.sum_hess));
       }
       // backward
       c.SetSubstract(feat_sum, s);
@@ -344,7 +346,9 @@ class SketchMaker: public BaseMaker {
       if (s.sum_hess >= param_.min_child_weight &&
           c.sum_hess >= param_.min_child_weight) {
         double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], true);
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], true,
+                     GradStats(s.pos_grad - s.neg_grad, s.sum_hess),
+                     GradStats(c.pos_grad - c.neg_grad, c.sum_hess));
       }
     }
     {
@@ -355,8 +359,10 @@ class SketchMaker: public BaseMaker {
           c.sum_hess >= param_.min_child_weight) {
         bst_float cpt = fsplits.back();
         double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-        best->Update(static_cast<bst_float>(loss_chg),
-                     fid, cpt + std::abs(cpt) + 1.0f, false);
+        best->Update(static_cast<bst_float>(loss_chg), fid,
+                     cpt + std::abs(cpt) + 1.0f, false,
+                     GradStats(s.pos_grad - s.neg_grad, s.sum_hess),
+                     GradStats(c.pos_grad - c.neg_grad, c.sum_hess));
       }
     }
   }

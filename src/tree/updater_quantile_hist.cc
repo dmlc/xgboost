@@ -698,6 +698,7 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
               spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
               snode.root_gain);
           split_pt = cut_val[i];
+          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg = static_cast<bst_float>(
@@ -709,8 +710,8 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           } else {
             split_pt = cut_val[i - 1];
           }
+          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
         }
-        best.Update(loss_chg, fid, split_pt, d_step == -1);
       }
     }
   }
