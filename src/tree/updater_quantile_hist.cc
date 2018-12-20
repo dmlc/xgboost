@@ -429,8 +429,13 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
   /* 1. Create child nodes */
   NodeEntry& e = snode_[nid];
+  bst_float left_leaf_weight =
+      spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
+  bst_float right_leaf_weight =
+      spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
   p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                    e.best.DefaultLeft());
+                     e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                     right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
 
   /* 2. Categorize member rows */
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);

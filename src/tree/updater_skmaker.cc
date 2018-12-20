@@ -281,12 +281,21 @@ class SketchMaker: public BaseMaker {
       const int nid = qexpand_[wid];
       const SplitEntry &best = sol[wid];
       // set up the values
-      p_tree->Stat(nid).loss_chg = best.loss_chg;
       this->SetStats(nid, node_stats_[nid], p_tree);
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
+        bst_float base_weight = node_stats_[nid].CalcWeight(param_);
+        bst_float left_leaf_weight =
+            CalcWeight(param_, best.left_sum.sum_grad, best.left_sum.sum_hess) *
+            param_.learning_rate;
+        bst_float right_leaf_weight =
+            CalcWeight(param_, best.right_sum.sum_grad,
+                       best.right_sum.sum_hess) *
+            param_.learning_rate;
         p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
-                          best.DefaultLeft());
+                           best.DefaultLeft(), base_weight, left_leaf_weight,
+                           right_leaf_weight, best.loss_chg,
+                           node_stats_[nid].sum_hess);
       } else {
         (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }

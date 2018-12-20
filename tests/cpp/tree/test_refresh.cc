@@ -29,12 +29,9 @@ TEST(Updater, Refresh) {
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
 
-  tree.ExpandNode(0, 0, 0, true);
+  tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f);
   int cleft = tree[0].LeftChild();
   int cright = tree[0].RightChild();
-  tree[cleft].SetLeaf(0.2f, 0);
-  tree[cright].SetLeaf(0.8f, 0);
-  tree[0].SetSplit(2, 0.2f);
 
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;
