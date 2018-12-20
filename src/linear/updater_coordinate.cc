@@ -4,6 +4,7 @@
  */
 
 #include <xgboost/linear_updater.h>
+#include "./param.h"
 #include "../common/timer.h"
 #include "coordinate_common.h"
 
@@ -13,57 +14,6 @@ namespace linear {
 DMLC_REGISTRY_FILE_TAG(updater_coordinate);
 
 // training parameter
-struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
-  /*! \brief learning_rate */
-  float learning_rate;
-  /*! \brief regularization weight for L2 norm */
-  float reg_lambda;
-  /*! \brief regularization weight for L1 norm */
-  float reg_alpha;
-  int feature_selector;
-  int top_k;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(CoordinateTrainParam) {
-    DMLC_DECLARE_FIELD(learning_rate)
-        .set_lower_bound(0.0f)
-        .set_default(0.5f)
-        .describe("Learning rate of each update.");
-    DMLC_DECLARE_FIELD(reg_lambda)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L2 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_alpha)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L1 regularization on weights.");
-    DMLC_DECLARE_FIELD(feature_selector)
-        .set_default(kCyclic)
-        .add_enum("cyclic", kCyclic)
-        .add_enum("shuffle", kShuffle)
-        .add_enum("thrifty", kThrifty)
-        .add_enum("greedy", kGreedy)
-        .add_enum("random", kRandom)
-        .describe("Feature selection or ordering method.");
-    DMLC_DECLARE_FIELD(top_k)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("The number of top features to select in 'thrifty' feature_selector. "
-                  "The value of zero means using all the features.");
-    // alias of parameters
-    DMLC_DECLARE_ALIAS(learning_rate, eta);
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-  }
-  /*! \brief Denormalizes the regularization penalties - to be called at each update */
-  void DenormalizePenalties(double sum_instance_weight) {
-    reg_lambda_denorm = reg_lambda * sum_instance_weight;
-    reg_alpha_denorm = reg_alpha * sum_instance_weight;
-  }
-  // denormalizated regularization penalties
-  float reg_lambda_denorm;
-  float reg_alpha_denorm;
-};
-
 /**
  * \class CoordinateUpdater
  *
@@ -124,12 +74,11 @@ class CoordinateUpdater : public LinearUpdater {
   }
 
   // training parameter
-  CoordinateTrainParam param;
+  LinearTrainParam param;
   std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;
 };
 
-DMLC_REGISTER_PARAMETER(CoordinateTrainParam);
 XGBOOST_REGISTER_LINEAR_UPDATER(CoordinateUpdater, "coord_descent")
     .describe("Update linear model according to coordinate descent algorithm.")
     .set_body([]() { return new CoordinateUpdater(); });

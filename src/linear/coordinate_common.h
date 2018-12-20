@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 #include <limits>
+
+#include "./param.h"
 #include "../common/random.h"
 
 namespace xgboost {
@@ -440,17 +442,6 @@ class ThriftyFeatureSelector : public FeatureSelector {
   std::vector<size_t> sorted_idx_;
   std::vector<bst_uint> counter_;
   std::vector<std::pair<double, double>> gpair_sums_;
-};
-
-/**
- * \brief A set of available FeatureSelector's
- */
-enum FeatureSelectorEnum {
-  kCyclic = 0,
-  kShuffle,
-  kThrifty,
-  kGreedy,
-  kRandom
 };
 
 inline FeatureSelector *FeatureSelector::Create(int choice) {
