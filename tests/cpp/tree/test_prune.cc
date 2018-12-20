@@ -38,7 +38,7 @@ TEST(Updater, Prune) {
   pruner->Init(cfg);
 
   // loss_chg < min_split_loss;
-  tree.AddChilds(0);
+  tree.ExpandNode(0, 0, 0, true);
   int cleft = tree[0].LeftChild();
   int cright = tree[0].RightChild();
   tree[cleft].SetLeaf(0.3f, 0);
@@ -48,7 +48,7 @@ TEST(Updater, Prune) {
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
   // loss_chg > min_split_loss;
-  tree.AddChilds(0);
+  tree.ExpandNode(0, 0, 0, true);
   cleft = tree[0].LeftChild();
   cright = tree[0].RightChild();
   tree[cleft].SetLeaf(0.3f, 0);

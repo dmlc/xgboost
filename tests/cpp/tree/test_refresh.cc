@@ -29,7 +29,7 @@ TEST(Updater, Refresh) {
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
 
-  tree.AddChilds(0);
+  tree.ExpandNode(0, 0, 0, true);
   int cleft = tree[0].LeftChild();
   int cright = tree[0].RightChild();
   tree[cleft].SetLeaf(0.2f, 0);

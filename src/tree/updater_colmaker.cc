@@ -637,11 +637,7 @@ class ColMaker: public TreeUpdater {
         NodeEntry &e = snode_[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
-          p_tree->AddChilds(nid);
-          (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
-          // mark right child as 0, to indicate fresh leaf
-          (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-          (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+          p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
         } else {
           (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
         }

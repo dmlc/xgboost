@@ -1184,10 +1184,9 @@ class GPUHistMakerSpecialised{
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     // Add new leaves
     RegTree& tree = *p_tree;
-    tree.AddChilds(candidate.nid);
-    auto& parent = tree[candidate.nid];
-    parent.SetSplit(candidate.split.findex, candidate.split.fvalue,
+    tree.ExpandNode(candidate.nid, candidate.split.findex, candidate.split.fvalue,
                     candidate.split.dir == kLeftDir);
+    auto& parent = tree[candidate.nid];
     tree.Stat(candidate.nid).loss_chg = candidate.split.loss_chg;
 
     // Set up child constraints
