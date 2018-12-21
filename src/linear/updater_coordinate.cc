@@ -11,6 +11,7 @@
 namespace xgboost {
 namespace linear {
 
+DMLC_REGISTER_PARAMETER(CoordinateParam);
 DMLC_REGISTRY_FILE_TAG(updater_coordinate);
 
 // training parameter
@@ -25,33 +26,37 @@ class CoordinateUpdater : public LinearUpdater {
   // set training parameter
   void Init(
       const std::vector<std::pair<std::string, std::string> > &args) override {
-    param.InitAllowUnknown(args);
-    selector.reset(FeatureSelector::Create(param.feature_selector));
+    const std::vector<std::pair<std::string, std::string> > rest {
+      tparam_.InitAllowUnknown(args)
+    };
+    cparam_.InitAllowUnknown(rest);
+    selector.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor.Init("CoordinateUpdater");
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    param.DenormalizePenalties(sum_instance_weight);
+    tparam_.DenormalizePenalties(sum_instance_weight);
     const int ngroup = model->param.num_output_group;
     // update bias
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       auto grad = GetBiasGradientParallel(group_idx, ngroup,
                                           in_gpair->ConstHostVector(), p_fmat);
-      auto dbias = static_cast<float>(param.learning_rate *
+      auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.first, grad.second));
       model->bias()[group_idx] += dbias;
       UpdateBiasResidualParallel(group_idx, ngroup,
                                  dbias, &in_gpair->HostVector(), p_fmat);
     }
     // prepare for updating the weights
-    selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat, param.reg_alpha_denorm,
-                    param.reg_lambda_denorm, param.top_k);
+    selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
+                    tparam_.reg_alpha_denorm,
+                    tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->param.num_feature; i++) {
         int fidx = selector->NextFeature
           (i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
-           param.reg_alpha_denorm, param.reg_lambda_denorm);
+           tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), p_fmat, model);
       }
@@ -66,15 +71,16 @@ class CoordinateUpdater : public LinearUpdater {
     auto gradient =
         GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);
     auto dw = static_cast<float>(
-        param.learning_rate *
-        CoordinateDelta(gradient.first, gradient.second, w, param.reg_alpha_denorm,
-                        param.reg_lambda_denorm));
+        tparam_.learning_rate *
+        CoordinateDelta(gradient.first, gradient.second, w, tparam_.reg_alpha_denorm,
+                        tparam_.reg_lambda_denorm));
     w += dw;
     UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
   }
 
+  CoordinateParam cparam_;
   // training parameter
-  LinearTrainParam param;
+  LinearTrainParam tparam_;
   std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;
 };

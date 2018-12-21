@@ -15,6 +15,17 @@
 namespace xgboost {
 namespace linear {
 
+struct CoordinateParam : public dmlc::Parameter<CoordinateParam> {
+  int top_k;
+  DMLC_DECLARE_PARAMETER(CoordinateParam) {
+    DMLC_DECLARE_FIELD(top_k)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("The number of top features to select in 'thrifty' feature_selector. "
+                  "The value of zero means using all the features.");
+  }
+};
+
 /**
  * \brief Calculate change in weight for a given feature. Applies l1/l2 penalty normalised by the
  *        number of training instances.

@@ -142,8 +142,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
   // set training parameter
   void Init(
       const std::vector<std::pair<std::string, std::string>> &args) override {
-    param_.InitAllowUnknown(args);
-    selector.reset(FeatureSelector::Create(param_.feature_selector));
+    tparam_.InitAllowUnknown(args);
+    selector.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor.Init("GPUCoordinateUpdater");
   }
 
@@ -151,7 +151,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;
 
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus,
+    dist_ = GPUDistribution::Block(GPUSet::All(tparam_.gpu_id, tparam_.n_gpus,
                                                p_fmat->Info().num_row_));
     auto devices = dist_.Devices();
 
@@ -180,13 +180,13 @@ class GPUCoordinateUpdater : public LinearUpdater {
                            [&](int i, std::unique_ptr<DeviceShard>& shard) {
         shard = std::unique_ptr<DeviceShard>(
             new DeviceShard(devices.DeviceId(i), batch, row_segments[i],
-                            row_segments[i + 1], param_, model_param));
+                            row_segments[i + 1], tparam_, model_param));
       });
   }
 
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    param_.DenormalizePenalties(sum_instance_weight);
+    tparam_.DenormalizePenalties(sum_instance_weight);
     monitor.Start("LazyInitShards");
     this->LazyInitShards(p_fmat, model->param);
     monitor.Stop("LazyInitShards");
@@ -203,15 +203,15 @@ class GPUCoordinateUpdater : public LinearUpdater {
     monitor.Stop("UpdateBias");
     // prepare for updating the weights
     selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
-                    param_.reg_alpha_denorm, param_.reg_lambda_denorm,
-                    param_.top_k);
+                    tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm,
+                    coord_param_.top_k);
     monitor.Start("UpdateFeature");
     for (auto group_idx = 0; group_idx < model->param.num_output_group;
          ++group_idx) {
       for (auto i = 0U; i < model->param.num_feature; i++) {
         auto fidx = selector->NextFeature(
             i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
-            param_.reg_alpha_denorm, param_.reg_lambda_denorm);
+            tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), model);
       }
@@ -230,7 +230,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
           });
 
       auto dbias = static_cast<float>(
-          param_.learning_rate *
+          tparam_.learning_rate *
           CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
       model->bias()[group_idx] += dbias;
 
@@ -253,10 +253,10 @@ class GPUCoordinateUpdater : public LinearUpdater {
                                     fidx);
         });
 
-    auto dw = static_cast<float>(param_.learning_rate *
+    auto dw = static_cast<float>(tparam_.learning_rate *
                                  CoordinateDelta(grad.GetGrad(), grad.GetHess(),
-                                                 w, param_.reg_alpha_denorm,
-                                                 param_.reg_lambda_denorm));
+                                                 w, tparam_.reg_alpha_denorm,
+                                                 tparam_.reg_lambda_denorm));
     w += dw;
 
     dh::ExecuteIndexShards(&shards, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
@@ -265,7 +265,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
   }
 
   // training parameter
-  LinearTrainParam param_;
+  LinearTrainParam tparam_;
+  CoordinateParam coord_param_;
   GPUDistribution dist_;
   std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;

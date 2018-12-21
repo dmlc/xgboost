@@ -28,7 +28,6 @@ struct LinearTrainParam : public dmlc::Parameter<LinearTrainParam> {
   /*! \brief regularization weight for L1 norm */
   float reg_alpha;
   int feature_selector;
-  int top_k;
   int n_gpus;
   int gpu_id;
   // declare parameters
@@ -53,11 +52,6 @@ struct LinearTrainParam : public dmlc::Parameter<LinearTrainParam> {
         .add_enum("greedy", kGreedy)
         .add_enum("random", kRandom)
         .describe("Feature selection or ordering method.");
-    DMLC_DECLARE_FIELD(top_k)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("The number of top features to select in 'thrifty' feature_selector. "
-                  "The value of zero means using all the features.");
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).describe(
         "Number of devices to use.");
     DMLC_DECLARE_FIELD(gpu_id).set_default(0).describe(
