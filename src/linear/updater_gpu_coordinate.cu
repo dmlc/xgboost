@@ -9,70 +9,13 @@
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
+#include "./param.h"
 #include "coordinate_common.h"
 
 namespace xgboost {
 namespace linear {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_coordinate);
-
-// training parameter
-struct GPUCoordinateTrainParam
-    : public dmlc::Parameter<GPUCoordinateTrainParam> {
-  /*! \brief learning_rate */
-  float learning_rate;
-  /*! \brief regularization weight for L2 norm */
-  float reg_lambda;
-  /*! \brief regularization weight for L1 norm */
-  float reg_alpha;
-  int feature_selector;
-  int top_k;
-  int n_gpus;
-  int gpu_id;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(GPUCoordinateTrainParam) {
-    DMLC_DECLARE_FIELD(learning_rate)
-        .set_lower_bound(0.0f)
-        .set_default(1.0f)
-        .describe("Learning rate of each update.");
-    DMLC_DECLARE_FIELD(reg_lambda)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L2 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_alpha)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L1 regularization on weights.");
-    DMLC_DECLARE_FIELD(feature_selector)
-        .set_default(kCyclic)
-        .add_enum("cyclic", kCyclic)
-        .add_enum("shuffle", kShuffle)
-        .add_enum("thrifty", kThrifty)
-        .add_enum("greedy", kGreedy)
-        .add_enum("random", kRandom)
-        .describe("Feature selection or ordering method.");
-    DMLC_DECLARE_FIELD(top_k).set_lower_bound(0).set_default(0).describe(
-        "The number of top features to select in 'thrifty' feature_selector. "
-        "The value of zero means using all the features.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).describe(
-        "Number of devices to use.");
-    DMLC_DECLARE_FIELD(gpu_id).set_default(0).describe(
-        "Primary device ordinal.");
-    // alias of parameters
-    DMLC_DECLARE_ALIAS(learning_rate, eta);
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-  }
-  /*! \brief Denormalizes the regularization penalties - to be called at each
-   * update */
-  void DenormalizePenalties(double sum_instance_weight) {
-    reg_lambda_denorm = reg_lambda * sum_instance_weight;
-    reg_alpha_denorm = reg_alpha * sum_instance_weight;
-  }
-  // denormalizated regularization penalties
-  float reg_lambda_denorm;
-  float reg_alpha_denorm;
-};
 
 void RescaleIndices(size_t ridx_begin, dh::DVec<Entry> *data) {
   auto d_data = data->Data();
@@ -93,7 +36,7 @@ class DeviceShard {
  public:
   DeviceShard(int device_id, const SparsePage &batch,
               bst_uint row_begin, bst_uint row_end,
-              const GPUCoordinateTrainParam &param,
+              const LinearTrainParam &param,
               const gbm::GBLinearModelParam &model_param)
       : device_id_(device_id),
         ridx_begin_(row_begin),
@@ -199,8 +142,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
   // set training parameter
   void Init(
       const std::vector<std::pair<std::string, std::string>> &args) override {
-    param.InitAllowUnknown(args);
-    selector.reset(FeatureSelector::Create(param.feature_selector));
+    tparam_.InitAllowUnknown(args);
+    selector.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor.Init("GPUCoordinateUpdater");
   }
 
@@ -208,7 +151,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards.empty()) return;
 
-    dist_ = GPUDistribution::Block(GPUSet::All(param.gpu_id, param.n_gpus,
+    dist_ = GPUDistribution::Block(GPUSet::All(tparam_.gpu_id, tparam_.n_gpus,
                                                p_fmat->Info().num_row_));
     auto devices = dist_.Devices();
 
@@ -237,13 +180,13 @@ class GPUCoordinateUpdater : public LinearUpdater {
                            [&](int i, std::unique_ptr<DeviceShard>& shard) {
         shard = std::unique_ptr<DeviceShard>(
             new DeviceShard(devices.DeviceId(i), batch, row_segments[i],
-                            row_segments[i + 1], param, model_param));
+                            row_segments[i + 1], tparam_, model_param));
       });
   }
 
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    param.DenormalizePenalties(sum_instance_weight);
+    tparam_.DenormalizePenalties(sum_instance_weight);
     monitor.Start("LazyInitShards");
     this->LazyInitShards(p_fmat, model->param);
     monitor.Stop("LazyInitShards");
@@ -260,15 +203,15 @@ class GPUCoordinateUpdater : public LinearUpdater {
     monitor.Stop("UpdateBias");
     // prepare for updating the weights
     selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
-                    param.reg_alpha_denorm, param.reg_lambda_denorm,
-                    param.top_k);
+                    tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm,
+                    coord_param_.top_k);
     monitor.Start("UpdateFeature");
     for (auto group_idx = 0; group_idx < model->param.num_output_group;
          ++group_idx) {
       for (auto i = 0U; i < model->param.num_feature; i++) {
         auto fidx = selector->NextFeature(
             i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
-            param.reg_alpha_denorm, param.reg_lambda_denorm);
+            tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), model);
       }
@@ -287,7 +230,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
           });
 
       auto dbias = static_cast<float>(
-          param.learning_rate *
+          tparam_.learning_rate *
           CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
       model->bias()[group_idx] += dbias;
 
@@ -310,10 +253,10 @@ class GPUCoordinateUpdater : public LinearUpdater {
                                     fidx);
         });
 
-    auto dw = static_cast<float>(param.learning_rate *
+    auto dw = static_cast<float>(tparam_.learning_rate *
                                  CoordinateDelta(grad.GetGrad(), grad.GetHess(),
-                                                 w, param.reg_alpha_denorm,
-                                                 param.reg_lambda_denorm));
+                                                 w, tparam_.reg_alpha_denorm,
+                                                 tparam_.reg_lambda_denorm));
     w += dw;
 
     dh::ExecuteIndexShards(&shards, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
@@ -322,7 +265,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
   }
 
   // training parameter
-  GPUCoordinateTrainParam param;
+  LinearTrainParam tparam_;
+  CoordinateParam coord_param_;
   GPUDistribution dist_;
   std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;
@@ -330,7 +274,6 @@ class GPUCoordinateUpdater : public LinearUpdater {
   std::vector<std::unique_ptr<DeviceShard>> shards;
 };
 
-DMLC_REGISTER_PARAMETER(GPUCoordinateTrainParam);
 XGBOOST_REGISTER_LINEAR_UPDATER(GPUCoordinateUpdater, "gpu_coord_descent")
     .describe(
         "Update linear model according to coordinate descent algorithm. GPU "
