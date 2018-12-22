@@ -11,54 +11,16 @@ namespace linear {
 
 DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 
-// training parameter
-struct ShotgunTrainParam : public dmlc::Parameter<ShotgunTrainParam> {
-  /*! \brief learning_rate */
-  float learning_rate;
-  /*! \brief regularization weight for L2 norm */
-  float reg_lambda;
-  /*! \brief regularization weight for L1 norm */
-  float reg_alpha;
-  int feature_selector;
-  // declare parameters
-  DMLC_DECLARE_PARAMETER(ShotgunTrainParam) {
-    DMLC_DECLARE_FIELD(learning_rate)
-        .set_lower_bound(0.0f)
-        .set_default(0.5f)
-        .describe("Learning rate of each update.");
-    DMLC_DECLARE_FIELD(reg_lambda)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L2 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_alpha)
-        .set_lower_bound(0.0f)
-        .set_default(0.0f)
-        .describe("L1 regularization on weights.");
-    DMLC_DECLARE_FIELD(feature_selector)
-        .set_default(kCyclic)
-        .add_enum("cyclic", kCyclic)
-        .add_enum("shuffle", kShuffle)
-        .describe("Feature selection or ordering method.");
-    // alias of parameters
-    DMLC_DECLARE_ALIAS(learning_rate, eta);
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-  }
-  /*! \brief Denormalizes the regularization penalties - to be called at each update */
-  void DenormalizePenalties(double sum_instance_weight) {
-    reg_lambda_denorm = reg_lambda * sum_instance_weight;
-    reg_alpha_denorm = reg_alpha * sum_instance_weight;
-  }
-  // denormalizated regularization penalties
-  float reg_lambda_denorm;
-  float reg_alpha_denorm;
-};
-
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
   void Init(const std::vector<std::pair<std::string, std::string> > &args) override {
     param_.InitAllowUnknown(args);
+    if (param_.feature_selector != kCyclic &&
+        param_.feature_selector != kShuffle) {
+      LOG(FATAL) << "Unsupported feature selector for shotgun updater.\n"
+                 << "Supported options are: {cyclic, shuffle}";
+    }
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
@@ -119,12 +81,10 @@ class ShotgunUpdater : public LinearUpdater {
 
  protected:
   // training parameters
-  ShotgunTrainParam param_;
+  LinearTrainParam param_;
 
   std::unique_ptr<FeatureSelector> selector_;
 };
-
-DMLC_REGISTER_PARAMETER(ShotgunTrainParam);
 
 XGBOOST_REGISTER_LINEAR_UPDATER(ShotgunUpdater, "shotgun")
     .describe(
