@@ -62,7 +62,7 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
  */
 template <int BLOCK_THREADS, typename ReduceT, typename TempStorageT, typename GradientSumT>
 __device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_histogram,
-                                          TempStorageT* temp_storage) {
+                                      TempStorageT* temp_storage) {
   __shared__ cub::Uninitialized<GradientSumT> uninitialized_sum;
   GradientSumT& shared_sum = uninitialized_sum.Alias();
 
