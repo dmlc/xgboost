@@ -52,7 +52,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .set_default(1)
         .set_lower_bound(1)
         .describe("Number of parallel trees constructed during each iteration."\
-                  " This option is used to support boosted random forest");
+                  " This option is used to support boosted random forest.");
     DMLC_DECLARE_FIELD(updater_seq)
         .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
