@@ -793,7 +793,7 @@ class GPUExactMakerImpl {
   }
 };
 
-GPUMaker::GPUMaker() : pimpl_{new GPUExactMakerImpl()} {}
+GPUMaker::GPUMaker() : pimpl_{new GPUExactMakerImpl()} {}  // NOLINT
 GPUMaker::~GPUMaker() {
   delete pimpl_;
 }
