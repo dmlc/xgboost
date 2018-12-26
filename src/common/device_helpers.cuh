@@ -378,6 +378,11 @@ class DVec2 {
   DVec<T> &D2() { return d2_; }
 
   T *Current() { return buff_.Current(); }
+  xgboost::common::Span<T> CurrentSpan() {
+    return xgboost::common::Span<T>{
+      buff_.Current(),
+      static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
+  }
 
   DVec<T> &CurrentDVec() { return buff_.selector == 0 ? D1() : D2(); }
 
@@ -791,7 +796,7 @@ typename std::iterator_traits<T>::value_type SumReduction(
 template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
 void FillConst(int device_idx, T *out, int len, T def) {
   dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, len,
-                                       [=] __device__(int i) { out[i] = def; });
+                                      [=] __device__(int i) { out[i] = def; });
 }
 
 /**
