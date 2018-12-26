@@ -37,7 +37,7 @@ TEST(learner, SelectTreeMethod) {
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_quantile_histmaker");
 #ifdef XGBOOST_USE_CUDA
-          learner->Configure({arg("tree_method", "gpu_exact")});
+  learner->Configure({arg("tree_method", "gpu_exact")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_gpu,prune");
   learner->Configure({arg("tree_method", "gpu_hist")});
