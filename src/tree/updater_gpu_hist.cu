@@ -25,7 +25,7 @@
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
-#define PRECISE 0
+#define PRECISE 1
 
 namespace xgboost {
 namespace tree {
