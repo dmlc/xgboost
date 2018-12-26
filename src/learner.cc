@@ -185,7 +185,8 @@ class LearnerImpl : public Learner {
   /*! \brief Map `tree_method` parameter to `updater` parameter */
   void ConfigureUpdaters() {
     // This method is not applicable to non-tree learners
-    if (cfg_.count("booster") > 0 && cfg_.at("booster") != "gbtree") {
+    if (cfg_.find("booster") != cfg_.cend() &&
+        (cfg_.at("booster") != "gbtree" && cfg_.at("booster") != "dart")) {
       return;
     }
     // `updater` parameter was manually specified
