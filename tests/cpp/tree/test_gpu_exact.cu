@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
+#include <xgboost/tree_updater.h>
 
 #include <vector>
 #include <string>
 #include <utility>
 
-#include "../../../src/tree/updater_gpu.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -17,8 +17,8 @@ TEST(GPUExact, Update) {
     {"gpu_id", "0"},
     {"max_depth", "1"}};
 
-  GPUMaker maker;
-  maker.Init(args);
+  auto* p_gpuexact_maker = TreeUpdater::Create("grow_gpu");
+  p_gpuexact_maker->Init(args);
 
   size_t constexpr n_rows = 4;
   size_t constexpr n_cols = 8;
@@ -32,7 +32,7 @@ TEST(GPUExact, Update) {
   HostDeviceVector<GradientPair> gpair (h_gpair);
   RegTree tree;
 
-  maker.Update(&gpair, (*dmat).get(), {&tree});
+  p_gpuexact_maker->Update(&gpair, (*dmat).get(), {&tree});
   auto const& nodes = tree.GetNodes();
   ASSERT_EQ(nodes.size(), 3);
 

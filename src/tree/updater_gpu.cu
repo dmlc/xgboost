@@ -9,7 +9,6 @@
 
 #include "../common/common.h"
 #include "param.h"
-#include "updater_gpu.h"
 #include "updater_gpu_common.cuh"
 
 namespace xgboost {
@@ -514,7 +513,7 @@ __global__ void markLeavesKernel(DeviceNodeStats* nodes, int len) {
   }
 }
 
-class GPUExactMakerImpl {
+class GPUMaker : public TreeUpdater {
  protected:
   TrainParam param;
   /** whether we have initialized memory already (so as not to repeat!) */
@@ -552,8 +551,8 @@ class GPUExactMakerImpl {
   dh::BulkAllocator<dh::MemoryType::kDevice> ba;
 
  public:
-  GPUExactMakerImpl() : allocated(false) {}
-  ~GPUExactMakerImpl() {}
+  GPUMaker() : allocated(false) {}
+  ~GPUMaker() {}
 
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) {
@@ -792,21 +791,6 @@ class GPUExactMakerImpl {
     markLeavesKernel<<<nBlks, BlkDim>>>(nodes.Data(), maxNodes);
   }
 };
-
-GPUMaker::GPUMaker() : pimpl_{new GPUExactMakerImpl()} {}  // NOLINT
-GPUMaker::~GPUMaker() {
-  delete pimpl_;
-}
-
-void GPUMaker::Init(
-    const std::vector<std::pair<std::string, std::string>> &args) {
-  this->pimpl_->Init(args);
-}
-
-void GPUMaker::Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
-                      const std::vector<RegTree *> &trees) {
-  this->pimpl_->Update(gpair, dmat, trees);
-}
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUMaker, "grow_gpu")
     .describe("Grow tree with GPU.")
