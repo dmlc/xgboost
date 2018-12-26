@@ -33,11 +33,17 @@ TEST(learner, SelectTreeMethod) {
   learner->Configure({arg("tree_method", "hist")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_quantile_histmaker");
+  learner->Configure({arg{"booster", "dart"}, arg{"tree_method", "hist"}});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
+            "grow_quantile_histmaker");
 #ifdef XGBOOST_USE_CUDA
-  learner->Configure({arg("tree_method", "gpu_exact")});
+          learner->Configure({arg("tree_method", "gpu_exact")});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_gpu,prune");
   learner->Configure({arg("tree_method", "gpu_hist")});
+  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
+            "grow_gpu_hist");
+  learner->Configure({arg{"booster", "dart"}, arg{"tree_method", "gpu_hist"}});
   ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
             "grow_gpu_hist");
 #endif
