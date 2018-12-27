@@ -576,8 +576,8 @@ print(class(rawVec))
 bst3 <- xgb.load(rawVec)
 pred3 <- predict(bst3, test$data)
 
-# pred2 should be identical to pred
-print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
+# pred3 should be identical to pred
+print(paste("sum(abs(pred3-pred))=", sum(abs(pred3-pred))))
 ```
 
 ```
