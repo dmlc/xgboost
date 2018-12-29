@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2018 by Contributors
+ */
 #include <xgboost/linear_updater.h>
 #include "../helpers.h"
 #include "xgboost/gbm.h"
