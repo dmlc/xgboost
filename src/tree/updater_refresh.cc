@@ -52,8 +52,7 @@ class TreeRefresher: public TreeUpdater {
     }
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
-    auto lazy_get_stats = [&]()
-    {
+    auto lazy_get_stats = [&]() {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetRowBatches()) {

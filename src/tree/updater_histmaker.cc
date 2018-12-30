@@ -346,8 +346,7 @@ class CQHistMaker: public HistMaker<TStats> {
     this->wspace_.Init(this->param_, 1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
-    auto lazy_get_hist = [&]()
-    {
+    auto lazy_get_hist = [&]() {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
