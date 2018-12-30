@@ -52,9 +52,7 @@ class TreeRefresher: public TreeUpdater {
     }
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
-#if __cplusplus >= 201103L
     auto lazy_get_stats = [&]()
-#endif
     {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
@@ -86,11 +84,7 @@ class TreeRefresher: public TreeUpdater {
         }
       }
     };
-#if __cplusplus >= 201103L
     reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
-#else
-    reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size());
-#endif
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
