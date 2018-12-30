@@ -285,12 +285,12 @@ class XGBoostClassificationModel private[ml](
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
+    val inputRDD = dataset.asInstanceOf[Dataset[Row]].rdd
+    val predictionRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
-        val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
+        val featuresIterator = rowIterator.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -307,19 +307,27 @@ class XGBoostClassificationModel private[ml](
           val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
             producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
-          produceResultIterator(rowItr1, rawPredictionItr, probabilityItr, predLeafItr,
+          Iterator(rawPredictionItr, probabilityItr, predLeafItr,
             predContribItr)
         } finally {
           dm.delete()
         }
       } else {
-        Iterator[Row]()
+        Iterator()
       }
+    }
+    val resultRDD = inputRDD.zipPartitions(predictionRDD, preservesPartitioning = true) {
+      case (inputIterator, predictionItr) =>
+        if (inputIterator.hasNext) {
+          produceResultIterator(inputIterator, predictionItr.next(), predictionItr.next(),
+            predictionItr.next(), predictionItr.next())
+        } else {
+          Iterator()
+        }
     }
 
     bBooster.unpersist(blocking = false)
-
-    dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
   }
 
   private def produceResultIterator(
