@@ -231,9 +231,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     * @return featureScoreMap  key: feature index, value: feature importance score
     */
   @throws(classOf[XGBoostError])
-  def getScore(featureMap: String,
-               importanceType: String
-              ): Map[String, Double] = {
+  def getScore(featureMap: String, importanceType: String): Map[String, Double] = {
     Map(booster.getScore(featureMap, importanceType)
         .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
@@ -246,9 +244,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     * @return featureScoreMap  key: feature name, value: feature importance score
     */
   @throws(classOf[XGBoostError])
-  def getScore(featureNames: Array[String],
-               importanceType: String
-              ): Map[String, Double] = {
+  def getScore(featureNames: Array[String], importanceType: String): Map[String, Double] = {
     Map(booster.getScore(featureNames, importanceType)
         .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
