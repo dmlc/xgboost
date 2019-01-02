@@ -204,7 +204,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
 
 
   /**
-   * Get importance of each feature
+   * Get importance of each feature based on weight only (number of splits)
    *
    * @return featureScoreMap  key: feature index, value: feature importance score
    */
@@ -214,13 +214,39 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   }
 
   /**
-    * Get importance of each feature with specified feature names.
+    * Get importance of each feature based on weight only
+    * (number of splits), with specified feature names.
     *
     * @return featureScoreMap  key: feature name, value: feature importance score
     */
   @throws(classOf[XGBoostError])
   def getFeatureScore(featureNames: Array[String]): mutable.Map[String, Integer] = {
     booster.getFeatureScore(featureNames).asScala
+  }
+
+  /**
+    * Get importance of each feature based on information gain or cover
+    * Supported: ["gain, "cover", "total_gain", "total_cover"]
+    *
+    * @return featureScoreMap  key: feature index, value: feature importance score
+    */
+  @throws(classOf[XGBoostError])
+  def getScore(featureMap: String, importanceType: String): Map[String, Double] = {
+    Map(booster.getScore(featureMap, importanceType)
+        .asScala.mapValues(_.doubleValue).toSeq: _*)
+  }
+
+  /**
+    * Get importance of each feature based on information gain or cover
+    * , with specified feature names.
+    * Supported: ["gain, "cover", "total_gain", "total_cover"]
+    *
+    * @return featureScoreMap  key: feature name, value: feature importance score
+    */
+  @throws(classOf[XGBoostError])
+  def getScore(featureNames: Array[String], importanceType: String): Map[String, Double] = {
+    Map(booster.getScore(featureNames, importanceType)
+        .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
 
   def getVersion: Int = booster.getVersion
