@@ -293,9 +293,12 @@ bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
       total += tmp;
       next_one_portion = unique_path[i].pweight - tmp * zero_fraction * ((unique_depth - i)
                          / static_cast<bst_float>(unique_depth + 1));
-    } else {
+    } else if (zero_fraction != 0) {
       total += (unique_path[i].pweight / zero_fraction) / ((unique_depth - i)
                / static_cast<bst_float>(unique_depth + 1));
+    } else {
+      CHECK_EQ(unique_path[i].pweight, 0)
+        << "Unique path " << i << " must have zero weight";
     }
   }
   return total;
