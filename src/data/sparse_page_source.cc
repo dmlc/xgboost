@@ -59,19 +59,19 @@ SparsePageSource::SparsePageSource(const std::string& cache_info,
   for (size_t i = 0; i < cache_shards.size(); ++i) {
     std::string name_row = cache_shards[i] + page_type;
     files_[i].reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
-    dmlc::SeekStream* fi = files_[i].get();
+    std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
     std::string format;
     CHECK(fi->Read(&format)) << "Invalid page format";
     formats_[i].reset(SparsePageFormat::Create(format));
-    SparsePageFormat* fmt = formats_[i].get();
+    std::unique_ptr<SparsePageFormat>& fmt = formats_[i];
     size_t fbegin = fi->Tell();
     prefetchers_[i].reset(new dmlc::ThreadedIter<SparsePage>(4));
-    prefetchers_[i]->Init([fi, fmt] (SparsePage** dptr) {
+    prefetchers_[i]->Init([&fi, &fmt] (SparsePage** dptr) {
         if (*dptr == nullptr) {
           *dptr = new SparsePage();
         }
-        return fmt->Read(*dptr, fi);
-      }, [fi, fbegin] () { fi->Seek(fbegin); });
+        return fmt->Read(*dptr, fi.get());
+      }, [&fi, fbegin] () { fi->Seek(fbegin); });
   }
 }
 
