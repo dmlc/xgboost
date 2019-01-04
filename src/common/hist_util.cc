@@ -14,11 +14,13 @@
 #include "./hist_util.h"
 #include "./quantile.h"
 
-#if defined(_MSC_VER) || defined(__INTEL_COMPILER)
-    #include <immintrin.h>
-    #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
-#else
-    #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
+#if defined(XGBOOST_MM_PREFETCH_PRESENT)
+  #include <xmmintrin.h>
+  #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+#elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
+  #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
+#else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
+  #define PREFETCH_READ_T0(addr) do {} while(0)
 #endif
 
 namespace xgboost {
