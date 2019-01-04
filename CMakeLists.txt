@@ -46,6 +46,26 @@ if (USE_AVX)
   message(WARNING "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from xgboost.")
 endif (USE_AVX)
 
+# Check existence of software pre-fetching
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("
+#include <xmmintrin.h>
+int main() {
+  char data = 0;
+  const char* address = &data;
+  _mm_prefetch(address, _MM_HINT_NTA);
+  return 0;
+}
+" XGBOOST_MM_PREFETCH_PRESENT)
+check_cxx_source_compiles("
+int main() {
+  char data = 0;
+  const char* address = &data;
+  __builtin_prefetch(address, 0, 0);
+  return 0;
+}
+" XGBOOST_BUILTIN_PREFETCH_PRESENT)
+
 # Sanitizer
 if (USE_SANITIZER)
   # Older CMake versions have had troubles with Sanitizer
