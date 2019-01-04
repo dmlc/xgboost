@@ -20,7 +20,7 @@
 #elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
   #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
-  #define PREFETCH_READ_T0(addr) do {} while(0)
+  #define PREFETCH_READ_T0(addr) do {} while (0)
 #endif
 
 namespace xgboost {
