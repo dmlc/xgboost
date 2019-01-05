@@ -17,10 +17,13 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
+
+import org.apache.spark.Partitioner
 
 class XGBoostClassifierSuite extends FunSuite with PerTest {
 
@@ -262,5 +265,49 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(resultDF.count == groundTruth)
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("infrequent features") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax",
+      "num_round" -> 5, "num_workers" -> 3, "num_class" -> 3)
+    import DataUtils._
+    val sparkSession = SparkSession.builder().getOrCreate()
+    sparkSession.sparkContext.setLogLevel("INFO")
+    import sparkSession.implicits._
+    val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
+      new Partitioner {
+        override def numPartitions: Int = 3
+
+        override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
+      }
+    ).map(_._2).zipWithIndex().map {
+      case (lp, id) =>
+        (id, lp.label, lp.features)
+    }.toDF("id", "label", "features")
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.fit(repartitioned)
+  }
+
+  test("infrequent features (use_external_memory)") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax",
+      "num_round" -> 5, "num_workers" -> 3, "num_class" -> 3, "use_external_memory" -> true)
+    import DataUtils._
+    val sparkSession = SparkSession.builder().getOrCreate()
+    sparkSession.sparkContext.setLogLevel("INFO")
+    import sparkSession.implicits._
+    val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
+      new Partitioner {
+        override def numPartitions: Int = 3
+
+        override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
+      }
+    ).map(_._2).zipWithIndex().map {
+      case (lp, id) =>
+        (id, lp.label, lp.features)
+    }.toDF("id", "label", "features")
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.fit(repartitioned)
   }
 }
