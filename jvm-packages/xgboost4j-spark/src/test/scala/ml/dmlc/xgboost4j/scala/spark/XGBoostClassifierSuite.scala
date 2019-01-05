@@ -269,15 +269,14 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
   test("infrequent features") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "multi:softmax",
-      "num_round" -> 5, "num_workers" -> 3, "num_class" -> 3)
+      "objective" -> "binary:logistic",
+      "num_round" -> 5, "num_workers" -> 2)
     import DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
-    sparkSession.sparkContext.setLogLevel("INFO")
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
       new Partitioner {
-        override def numPartitions: Int = 3
+        override def numPartitions: Int = 2
 
         override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
       }
@@ -291,15 +290,14 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
   test("infrequent features (use_external_memory)") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "multi:softmax",
-      "num_round" -> 5, "num_workers" -> 3, "num_class" -> 3, "use_external_memory" -> true)
+      "objective" -> "binary:logistic",
+      "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true)
     import DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
-    sparkSession.sparkContext.setLogLevel("INFO")
     import sparkSession.implicits._
     val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
       new Partitioner {
-        override def numPartitions: Int = 3
+        override def numPartitions: Int = 2
 
         override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
       }
