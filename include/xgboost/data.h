@@ -169,8 +169,14 @@ class SparsePage {
   inline Inst operator[](size_t i) const {
     const auto& data_vec = data.HostVector();
     const auto& offset_vec = offset.HostVector();
+    size_t size;
+    if (i + 1 >= offset_vec.size()) {
+      size = 0;
+    } else {
+      size = offset_vec[i + 1] - offset_vec[i];
+    }
     return {data_vec.data() + offset_vec[i],
-            static_cast<Inst::index_type>(offset_vec[i + 1] - offset_vec[i])};
+            static_cast<Inst::index_type>(size)};
   }
 
   /*! \brief constructor */
@@ -285,7 +291,6 @@ class SparsePage {
     auto& data_vec = data.HostVector();
     auto& offset_vec = offset.HostVector();
     offset_vec.push_back(offset_vec.back() + inst.size());
-
     size_t begin = data_vec.size();
     data_vec.resize(begin + inst.size());
     if (inst.size() != 0) {
