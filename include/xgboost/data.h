@@ -9,6 +9,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
+#include <rabit/rabit.h>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -170,7 +171,9 @@ class SparsePage {
     const auto& data_vec = data.HostVector();
     const auto& offset_vec = offset.HostVector();
     size_t size;
-    if (i + 1 >= offset_vec.size()) {
+    // in distributed mode, some partitions may not get any instance for a feature. Therefore
+    // we should set the size as zero
+    if (rabit::IsDistributed() && i + 1 >= offset_vec.size()) {
       size = 0;
     } else {
       size = offset_vec[i + 1] - offset_vec[i];
