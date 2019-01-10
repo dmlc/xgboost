@@ -7,6 +7,7 @@
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
 #include <numeric>
+#include <algorithm>
 #include <vector>
 
 #include "./random.h"
@@ -35,6 +36,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
 
   // when initialize CutMatrix, the depth is 0
   auto p_feature_set = column_sampler.GetFeatureSet(0);
+  std::cout << "p_feature_set size:" << p_feature_set -> size() << "\n";
   const int nthread = omp_get_max_threads();
 
   auto nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
@@ -54,8 +56,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
       unsigned end = std::min(nstep * (tid + 1), ncol);
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
-        auto feature_set_size = p_feature_set->size();
-        for (int i = 0; i < feature_set_size; i++) { // NOLINT(*)
+        auto n_features = p_feature_set->size();
+        for (int i = 0; i < n_features; i++) { // NOLINT(*)
           auto fid = (*p_feature_set)[i];
           size_t ridx = batch.base_rowid + fid;
           SparsePage::Inst inst = batch[fid];
@@ -137,7 +139,13 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   return idx;
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler column_sampler) {
+void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler& column_sampler) {
+  feature_set = column_sampler.GetFeatureSet(0);
+  feature_id_to_set_index.resize(p_fmat->Info().num_col_);
+  for (int i = 0; i < feature_set->size(); i++) {
+    int fid = (*feature_set)[i];
+    feature_id_to_set_index[fid] = i;
+  }
   cut.Init(p_fmat, max_num_bins, column_sampler);
 
   const int nthread = omp_get_max_threads();
@@ -147,23 +155,26 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
 
   row_ptr.push_back(0);
   for (const auto &batch : p_fmat->GetRowBatches()) {
+
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
-      row_ptr.push_back(batch[i].size() + row_ptr.back());
+      row_ptr.push_back(std::min((size_t) batch[i].size(), (size_t)feature_set -> size()) + row_ptr.back());
     }
     index.resize(row_ptr.back());
 
     CHECK_GT(cut.cut.size(), 0U);
     CHECK_EQ(cut.row_ptr.back(), cut.cut.size());
 
-    auto bsize = static_cast<omp_ulong>(batch.Size());
     #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (omp_ulong i = 0; i < bsize; ++i) { // NOLINT(*)
+    for (omp_ulong i = 0; i < feature_set->size(); ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
-      size_t ibegin = row_ptr[rbegin + i];
-      size_t iend = row_ptr[rbegin + i + 1];
-      SparsePage::Inst inst = batch[i];
-
+      const int fid = (*feature_set)[i];
+      std::cout << "feature id:" << fid << "\n";
+      const int feature_offset = feature_id_to_set_index[fid];
+      size_t ibegin = row_ptr[rbegin + feature_offset];
+      size_t iend = row_ptr[rbegin + feature_offset + 1];
+      SparsePage::Inst inst = batch[fid];
+      std::cout << inst.size() << "\n";
       CHECK_EQ(ibegin + inst.size(), iend);
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
