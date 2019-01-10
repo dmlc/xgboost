@@ -108,8 +108,12 @@ struct GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   HistCutMatrix cut;
+  /*! \brief id of features saved in this matrix */
+  std::shared_ptr<std::vector<int>> feature_set;
+  /*! \brief id of features to its index in feature_set */
+  std::vector<int> feature_id_to_set_index;
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler column_sampler);
+  void Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler& column_sampler);
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
     return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};

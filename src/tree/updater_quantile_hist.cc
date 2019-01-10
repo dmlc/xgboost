@@ -52,7 +52,8 @@ void QuantileHistMaker::Init(const std::vector<std::pair<std::string, std::strin
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                            DMatrix *dmat,
                            const std::vector<RegTree *> &trees) {
-  GradStats::CheckInfo(dmat->Info());
+  MetaInfo &info = dmat -> Info();
+  GradStats::CheckInfo(info);
   // build tree
   if (!builder_) {
     builder_.reset(new Builder(
@@ -61,7 +62,8 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
             std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
   }
   if (!is_gmat_initialized_) {
-    builder_ -> initColSampler(dmat->Info());
+    // initialization for column sampling case
+    builder_ -> initColSampler(info);
     double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin), builder_ -> column_sampler_);
     column_matrix_.Init(gmat_, param_.sparse_threshold);
