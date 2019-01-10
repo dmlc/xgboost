@@ -54,7 +54,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                const std::vector<RegTree *> &trees) {
   if (is_gmat_initialized_ == false) {
     double tstart = dmlc::GetTime();
-    gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
+    gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin), builder_ -> column_sampler_);
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
@@ -65,13 +65,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
-  // build tree
-  if (!builder_) {
-    builder_.reset(new Builder(
-        param_,
-        std::move(pruner_),
-        std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
-  }
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
   }
@@ -484,13 +477,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     p_last_tree_ = &tree;
     // store a pointer to training data
     p_last_fmat_ = &fmat;
-  }
-  if (data_layout_ == kDenseDataOneBased) {
-    column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
-            param_.colsample_bytree, true);
-  } else {
-    column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
-            param_.colsample_bytree,  false);
   }
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:

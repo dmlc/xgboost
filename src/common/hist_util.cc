@@ -24,13 +24,15 @@
 namespace xgboost {
 namespace common {
 
-void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
+void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnSampler column_sampler) {
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
   constexpr int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
+  // when initialize CutMatrix, the depth is 0
+  auto p_feature_set = column_sampler.GetFeatureSet(0);
   const int nthread = omp_get_max_threads();
 
   auto nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
@@ -50,9 +52,11 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
       unsigned end = std::min(nstep * (tid + 1), ncol);
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
-        for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-          size_t ridx = batch.base_rowid + i;
-          SparsePage::Inst inst = batch[i];
+        auto feature_set_size = p_feature_set->size();
+        for (int i = 0; i < feature_set_size; i++) { // NOLINT(*)
+          auto fid = (*p_feature_set)[i];
+          size_t ridx = batch.base_rowid + fid;
+          SparsePage::Inst inst = batch[fid];
           for (auto& ins : inst) {
             if (ins.index >= begin && ins.index < end) {
               sketchs[ins.index].Push(ins.fvalue,
@@ -131,8 +135,8 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   return idx;
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
-  cut.Init(p_fmat, max_num_bins);
+void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler column_sampler) {
+  cut.Init(p_fmat, max_num_bins, column_sampler);
 
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
