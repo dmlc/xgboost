@@ -13,6 +13,7 @@
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
+#include "random.h"
 #include "../include/rabit/rabit.h"
 
 namespace xgboost {
@@ -71,7 +72,7 @@ struct HistCutMatrix {
 
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
-  void Init(DMatrix* p_fmat, uint32_t max_num_bins);
+  void Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnSampler column_sampler);
 
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 };
@@ -102,7 +103,7 @@ struct GHistIndexMatrix {
   /*! \brief The corresponding cuts */
   HistCutMatrix cut;
   // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
+  void Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler column_sampler);
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
     return {&index[0] + row_ptr[i],
