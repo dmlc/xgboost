@@ -421,14 +421,16 @@ object XGBoost extends Serializable {
   }
 
   private def aggByGroupInfo(trainingData: RDD[XGBLabeledPoint]) = {
-    val normalGroups: RDD[Array[XGBLabeledPoint]] = trainingData.mapPartitions(
+    val baseGroups: RDD[XGBLabeledPointGroup] = trainingData.mapPartitions(
+      new LabeledPointGroupIterator(_))
+
+    val normalGroups: RDD[Array[XGBLabeledPoint]] = baseGroups.filter(
       // LabeledPointGroupIterator returns (Boolean, Array[XGBLabeledPoint])
-      new LabeledPointGroupIterator(_)).filter(!_.isEdgeGroup).map(_.points)
+      !_.isEdgeGroup).map(_.points)
 
     // edge groups with partition id.
-    val edgeGroups: RDD[(Int, XGBLabeledPointGroup)] = trainingData.mapPartitions(
-      new LabeledPointGroupIterator(_)).filter(_.isEdgeGroup).map(
-      group => (TaskContext.getPartitionId(), group))
+    val edgeGroups: RDD[(Int, XGBLabeledPointGroup)] = baseGroups.filter(
+      _.isEdgeGroup).map(group => (TaskContext.getPartitionId(), group))
 
     // group chunks from different partitions together by group id in XGBLabeledPoint.
     // use groupBy instead of aggregateBy since all groups within a partition have unique group ids.
