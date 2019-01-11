@@ -86,12 +86,14 @@ TEST(GPUSpan, FromOther) {
 }
 
 TEST(GPUSpan, Assignment) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestAssignment{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpan, TestStatus) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestTestStatus{status.data()});
   ASSERT_EQ(status.get(), -1);
@@ -112,6 +114,7 @@ struct TestEqual {
 };
 
 TEST(GPUSpan, WithTrust) {
+  dh::safe_cuda(cudaSetDevice(0));
   // Not adviced to initialize span with host_vector, since h_vec.data() is
   // a host function.
   thrust::host_vector<float> h_vec (16);
@@ -148,12 +151,14 @@ TEST(GPUSpan, WithTrust) {
 }
 
 TEST(GPUSpan, BeginEnd) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestBeginEnd{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpan, RBeginREnd) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestRBeginREnd{status.data()});
   ASSERT_EQ(status.get(), 1);
@@ -185,12 +190,14 @@ TEST(GPUSpan, Modify) {
 }
 
 TEST(GPUSpan, Observers) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestObservers{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpan, Compare) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestIterCompare{status.data()});
   ASSERT_EQ(status.get(), 1);
@@ -208,6 +215,7 @@ struct TestElementAccess {
 };
 
 TEST(GPUSpan, ElementAccess) {
+  dh::safe_cuda(cudaSetDevice(0));
   EXPECT_DEATH({
       thrust::host_vector<float> h_vec (16);
       InitializeRange(h_vec.begin(), h_vec.end());
@@ -318,36 +326,42 @@ TEST(GPUSpan, Subspan) {
 }
 
 TEST(GPUSpanIter, Construct) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestIterConstruct{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpanIter, Ref) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestIterRef{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpanIter, Calculate) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestIterCalculate{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpanIter, Compare) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestIterCompare{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpan, AsBytes) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestAsBytes{status.data()});
   ASSERT_EQ(status.get(), 1);
 }
 
 TEST(GPUSpan, AsWritableBytes) {
+  dh::safe_cuda(cudaSetDevice(0));
   TestStatus status;
   dh::LaunchN(0, 16, TestAsWritableBytes{status.data()});
   ASSERT_EQ(status.get(), 1);
