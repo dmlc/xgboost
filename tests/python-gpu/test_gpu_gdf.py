@@ -27,7 +27,7 @@ def get_gdf():
 
 class TestGPU(unittest.TestCase):
 
-    gdf_datasets = [Dataset("GDF", get_gdf, "gpu:reg:linear", "rmse")]
+    gdf_datasets = [Dataset("GDF", get_gdf, "reg:linear", "rmse")]
     
     def test_gdf(self):
         variable_param = {'n_gpus': [1], 'max_depth': [10], 'max_leaves': [255],
