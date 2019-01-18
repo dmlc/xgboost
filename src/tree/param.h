@@ -354,6 +354,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam& param) { this->Clear(); }
+  explicit GradStats(double sum_grad, double sum_hess)
+      : sum_grad(sum_grad), sum_hess(sum_hess) {}
 
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
@@ -490,8 +492,10 @@ struct SplitEntry {
   bst_float loss_chg{0.0f};
   /*! \brief split index */
   unsigned sindex{0};
-  /*! \brief split value */
   bst_float split_value{0.0f};
+  GradStats left_sum;
+  GradStats right_sum;
+
   /*! \brief constructor */
   SplitEntry()  = default;
   /*!
@@ -521,6 +525,8 @@ struct SplitEntry {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
+      this->left_sum = e.left_sum;
+      this->right_sum = e.right_sum;
       return true;
     } else {
       return false;
@@ -535,7 +541,8 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     bst_float new_split_value, bool default_left) {
+                     bst_float new_split_value, bool default_left,
+                     const GradStats &left_sum, const GradStats &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -543,6 +550,8 @@ struct SplitEntry {
       }
       this->sindex = split_index;
       this->split_value = new_split_value;
+      this->left_sum = left_sum;
+      this->right_sum = right_sum;
       return true;
     } else {
       return false;
