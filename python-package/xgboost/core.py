@@ -14,6 +14,7 @@ import ctypes
 import os
 import re
 import sys
+import warnings
 
 import cudf
 from libgdf_cffi import ffi
@@ -389,6 +390,10 @@ class DMatrix(object):
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)
+
+        if isinstance(data, list):
+            warnings.warn('Initializing DMatrix from List is deprecated.',
+                          DeprecationWarning)
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()

@@ -6,6 +6,7 @@
  */
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
+#include <xgboost/logging.h>
 #include <xgboost/tree_updater.h>
 
 #include <cmath>
@@ -60,9 +61,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
     is_gmat_initialized_ = true;
-    if (param_.debug_verbose > 0) {
-      LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
-    }
+    LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -207,32 +206,30 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
-  if (param_.debug_verbose > 0) {
-    double total_time = dmlc::GetTime() - gstart;
-    LOG(INFO) << "\nInitData:          "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_init_data / total_time * 100 << "%)\n"
-              << "InitNewNode:       "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_init_new_node / total_time * 100 << "%)\n"
-              << "BuildHist:         "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_build_hist / total_time * 100 << "%)\n"
-              << "EvaluateSplit:     "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_evaluate_split / total_time * 100 << "%)\n"
-              << "ApplySplit:        "
-              << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
-              << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-              << time_apply_split / total_time * 100 << "%)\n"
-              << "========================================\n"
-              << "Total:             "
-              << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
-  }
+  double total_time = dmlc::GetTime() - gstart;
+  LOG(INFO) << "\nInitData:          "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_init_data / total_time * 100 << "%)\n"
+            << "InitNewNode:       "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_init_new_node / total_time * 100 << "%)\n"
+            << "BuildHist:         "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_build_hist / total_time * 100 << "%)\n"
+            << "EvaluateSplit:     "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_evaluate_split / total_time * 100 << "%)\n"
+            << "ApplySplit:        "
+            << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+            << time_apply_split / total_time * 100 << "%)\n"
+            << "========================================\n"
+            << "Total:             "
+            << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
 }
 
 bool QuantileHistMaker::Builder::UpdatePredictionCache(
@@ -353,11 +350,11 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     p_last_fmat_ = &fmat;
     // initialize feature index
     if (data_layout_ == kDenseDataOneBased) {
-      column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
-                           param_.colsample_bytree, true);
+      column_sampler_.Init(info.num_col_, param_.colsample_bynode,
+                           param_.colsample_bylevel, param_.colsample_bytree, true);
     } else {
-      column_sampler_.Init(info.num_col_, param_.colsample_bylevel,
-                           param_.colsample_bytree, false);
+      column_sampler_.Init(info.num_col_, param_.colsample_bynode,
+                           param_.colsample_bylevel, param_.colsample_bytree,  false);
     }
   }
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
@@ -399,8 +396,8 @@ void QuantileHistMaker::Builder::EvaluateSplit(int nid,
                                            const RegTree& tree) {
   // start enumeration
   const MetaInfo& info = fmat.Info();
-  const auto& feature_set = column_sampler_.GetFeatureSet(
-      tree.GetDepth(nid)).HostVector();
+  auto p_feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
+  const auto& feature_set = *p_feature_set;
   const auto nfeature = static_cast<bst_uint>(feature_set.size());
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   best_split_tloc_.resize(nthread);
@@ -432,14 +429,13 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
   /* 1. Create child nodes */
   NodeEntry& e = snode_[nid];
-
-  p_tree->AddChilds(nid);
-  (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
-  // mark right child as 0, to indicate fresh leaf
-  int cleft = (*p_tree)[nid].LeftChild();
-  int cright = (*p_tree)[nid].RightChild();
-  (*p_tree)[cleft].SetLeaf(0.0f, 0);
-  (*p_tree)[cright].SetLeaf(0.0f, 0);
+  bst_float left_leaf_weight =
+      spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
+  bst_float right_leaf_weight =
+      spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
+  p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                     e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                     right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
 
   /* 2. Categorize member rows */
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
@@ -707,6 +703,7 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
               spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
               snode.root_gain);
           split_pt = cut_val[i];
+          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg = static_cast<bst_float>(
@@ -718,8 +715,8 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           } else {
             split_pt = cut_val[i - 1];
           }
+          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
         }
-        best.Update(loss_chg, fid, split_pt, d_step == -1);
       }
     }
   }

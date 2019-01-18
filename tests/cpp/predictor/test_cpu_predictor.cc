@@ -10,7 +10,6 @@ TEST(cpu_predictor, Test) {
 
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-  trees.back()->InitModel();
   (*trees.back())[0].SetLeaf(1.5f);
   (*trees.back()).Stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);

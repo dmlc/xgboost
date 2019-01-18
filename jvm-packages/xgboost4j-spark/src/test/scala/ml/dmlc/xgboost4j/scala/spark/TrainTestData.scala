@@ -98,3 +98,12 @@ object Ranking extends TrainTestData {
     getResourceLines(resource).map(_.toInt).toList
   }
 }
+
+object Synthetic extends {
+  val train: Seq[XGBLabeledPoint] = Seq(
+    XGBLabeledPoint(1.0f, Array(0, 1), Array(1.0f, 2.0f)),
+    XGBLabeledPoint(0.0f, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(0.0f, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(1.0f, Array(0, 1), Array(1.0f, 2.0f))
+  )
+}

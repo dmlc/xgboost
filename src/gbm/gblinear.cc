@@ -26,7 +26,6 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   std::string updater;
   float tolerance;
   size_t max_row_perbatch;
-  int debug_verbose;
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
         .set_default("shotgun")
@@ -38,10 +37,6 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
     DMLC_DECLARE_FIELD(max_row_perbatch)
         .set_default(std::numeric_limits<size_t>::max())
         .describe("Maximum rows per batch.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
   }
 };
 /*!
@@ -69,7 +64,7 @@ class GBLinear : public GradientBooster {
     param_.InitAllowUnknown(cfg);
     updater_.reset(LinearUpdater::Create(param_.updater));
     updater_->Init(cfg);
-    monitor_.Init("GBLinear ", param_.debug_verbose);
+    monitor_.Init("GBLinear");
   }
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);

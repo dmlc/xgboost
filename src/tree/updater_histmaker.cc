@@ -192,7 +192,8 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i],
+                           false, s, c)) {
             *left_sum = s;
           }
         }
@@ -205,7 +206,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
           double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true, c, s)) {
             *left_sum = c;
           }
         }
@@ -243,12 +244,18 @@ class HistMaker: public BaseMaker {
       p_tree->Stat(nid).loss_chg = best.loss_chg;
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
-        p_tree->AddChilds(nid);
-        (*p_tree)[nid].SetSplit(best.SplitIndex(),
-                                 best.split_value, best.DefaultLeft());
-        // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+        bst_float base_weight = node_sum.CalcWeight(param_);
+        bst_float left_leaf_weight =
+            CalcWeight(param_, best.left_sum.sum_grad, best.left_sum.sum_hess) *
+            param_.learning_rate;
+        bst_float right_leaf_weight =
+            CalcWeight(param_, best.right_sum.sum_grad,
+                       best.right_sum.sum_hess) *
+            param_.learning_rate;
+        p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
+                           best.DefaultLeft(), base_weight, left_leaf_weight,
+                           right_leaf_weight, best.loss_chg,
+                           node_sum.sum_hess);
         // right side sum
         TStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);

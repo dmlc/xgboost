@@ -296,13 +296,11 @@ inline void Dense2SparseTree(RegTree* p_tree,
   for (int gpu_nid = 0; gpu_nid < h_nodes.size(); gpu_nid++) {
     const DeviceNodeStats& n = h_nodes[gpu_nid];
     if (!n.IsUnused() && !n.IsLeaf()) {
-      tree.AddChilds(nid);
-      tree[nid].SetSplit(n.fidx, n.fvalue, n.dir == kLeftDir);
+      tree.ExpandNode(nid, n.fidx, n.fvalue, n.dir == kLeftDir, n.weight, 0.0f,
+                      0.0f, n.root_gain, n.sum_gradients.GetHess());
       tree.Stat(nid).loss_chg = n.root_gain;
       tree.Stat(nid).base_weight = n.weight;
       tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
-      tree[tree[nid].LeftChild()].SetLeaf(0);
-      tree[tree[nid].RightChild()].SetLeaf(0);
       nid++;
     } else if (n.IsLeaf()) {
       tree[nid].SetLeaf(n.weight * param.learning_rate);

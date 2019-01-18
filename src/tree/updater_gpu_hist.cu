@@ -62,7 +62,7 @@ DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
  */
 template <int BLOCK_THREADS, typename ReduceT, typename TempStorageT, typename GradientSumT>
 __device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_histogram,
-                                          TempStorageT* temp_storage) {
+                                      TempStorageT* temp_storage) {
   __shared__ cub::Uninitialized<GradientSumT> uninitialized_sum;
   GradientSumT& shared_sum = uninitialized_sum.Alias();
 
@@ -498,6 +498,10 @@ struct DeviceShard {
   std::vector<GradientPair> node_sum_gradients;
   dh::DVec<GradientPair> node_sum_gradients_d;
 
+  /*! \brief row offset in SparsePage (the input data). */
+  thrust::device_vector<size_t> row_ptrs;
+  /*! \brief On-device feature set, only actually used on one of the devices */
+  thrust::device_vector<int> feature_set_d;
   /*! The row offset for this shard. */
   bst_uint row_begin_idx;
   bst_uint row_end_idx;
@@ -573,28 +577,31 @@ struct DeviceShard {
   }
 
   DeviceSplitCandidate EvaluateSplit(int nidx,
-                                     const HostDeviceVector<int>& feature_set,
+                                     const std::vector<int>& feature_set,
                                      ValueConstraint value_constraint) {
     dh::safe_cuda(cudaSetDevice(device_id_));
-    auto d_split_candidates = temp_memory.GetSpan<DeviceSplitCandidate>(feature_set.Size());
+    auto d_split_candidates = temp_memory.GetSpan<DeviceSplitCandidate>(feature_set.size());
+    feature_set_d.resize(feature_set.size());
+    auto d_features = common::Span<int>(feature_set_d.data().get(),
+                                        feature_set_d.size());
+    dh::safe_cuda(cudaMemcpy(d_features.data(), feature_set.data(),
+                             d_features.size_bytes(), cudaMemcpyDefault));
     DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
-    feature_set.Reshard(GPUSet::Range(device_id_, 1));
 
     // One block for each feature
     int constexpr BLOCK_THREADS = 256;
     EvaluateSplitKernel<BLOCK_THREADS, GradientSumT>
-        <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0>>>(
-            hist.GetNodeHistogram(nidx), feature_set.DeviceSpan(device_id_), node,
-            cut_.feature_segments.GetSpan(), cut_.min_fvalue.GetSpan(),
-            cut_.gidx_fvalue_map.GetSpan(), GPUTrainingParam(param),
-            d_split_candidates, value_constraint, monotone_constraints.GetSpan());
+      <<<uint32_t(feature_set.size()), BLOCK_THREADS, 0>>>
+      (hist.GetNodeHistogram(nidx), d_features, node,
+       cut_.feature_segments.GetSpan(), cut_.min_fvalue.GetSpan(),
+       cut_.gidx_fvalue_map.GetSpan(), GPUTrainingParam(param),
+       d_split_candidates, value_constraint, monotone_constraints.GetSpan());
 
     dh::safe_cuda(cudaDeviceSynchronize());
-    std::vector<DeviceSplitCandidate> split_candidates(feature_set.Size());
-    dh::safe_cuda(
-        cudaMemcpy(split_candidates.data(), d_split_candidates.data(),
-                   split_candidates.size() * sizeof(DeviceSplitCandidate),
-                   cudaMemcpyDeviceToHost));
+    std::vector<DeviceSplitCandidate> split_candidates(feature_set.size());
+    dh::safe_cuda(cudaMemcpy(split_candidates.data(), d_split_candidates.data(),
+                             split_candidates.size() * sizeof(DeviceSplitCandidate),
+                             cudaMemcpyDeviceToHost));
     DeviceSplitCandidate best_split;
     for (auto candidate : split_candidates) {
       best_split.Update(candidate, param);
@@ -797,7 +804,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   int max_nodes =
       param.max_leaves > 0 ? param.max_leaves * 2 : MaxNodesDepth(param.max_depth);
 
-  ba.Allocate(device_id_, param.silent,
+  ba.Allocate(device_id_,
               &gpair, n_rows,
               &ridx, n_rows,
               &position, n_rows,
@@ -827,7 +834,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
       << "Max leaves and max depth cannot both be unconstrained for "
       "gpu_hist.";
-  ba.Allocate(device_id_, param.silent, &gidx_buffer, compressed_size_bytes);
+  ba.Allocate(device_id_, &gidx_buffer, compressed_size_bytes);
   gidx_buffer.Fill(0);
 
   int nbits = common::detail::SymbolBits(num_symbols);
@@ -918,7 +925,7 @@ class GPUHistMakerSpecialised{
       qexpand_.reset(new ExpandQueue(DepthWise));
     }
 
-    monitor_.Init("updater_gpu_hist", param_.debug_verbose);
+    monitor_.Init("updater_gpu_hist");
   }
 
   // void PrintDMatrixInfo(DMatrix* dmat) {
@@ -993,7 +1000,7 @@ class GPUHistMakerSpecialised{
       device_list_[index] = device_id;
     }
 
-    reducer_.Init(device_list_, param_.debug_verbose);
+    reducer_.Init(device_list_);
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
@@ -1038,7 +1045,8 @@ class GPUHistMakerSpecialised{
     }
     monitor_.Stop("InitDataOnce", dist_.Devices());
 
-    column_sampler_.Init(info_->num_col_, param_.colsample_bylevel, param_.colsample_bytree);
+    column_sampler_.Init(info_->num_col_, param_.colsample_bynode,
+                         param_.colsample_bylevel, param_.colsample_bytree);
 
     // Copy gpair & reset memory
     monitor_.Start("InitDataReset", dist_.Devices());
@@ -1129,7 +1137,7 @@ class GPUHistMakerSpecialised{
 
   DeviceSplitCandidate EvaluateSplit(int nidx, RegTree* p_tree) {
     return shards_.front()->EvaluateSplit(
-        nidx, column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
+        nidx, *column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
         node_value_constraints_[nidx]);
   }
 
@@ -1207,43 +1215,35 @@ class GPUHistMakerSpecialised{
   }
 
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
-    // Add new leaves
     RegTree& tree = *p_tree;
-    tree.AddChilds(candidate.nid);
-    auto& parent = tree[candidate.nid];
-    parent.SetSplit(candidate.split.findex, candidate.split.fvalue,
-                    candidate.split.dir == kLeftDir);
-    tree.Stat(candidate.nid).loss_chg = candidate.split.loss_chg;
-
-    // Set up child constraints
-    node_value_constraints_.resize(tree.GetNodes().size());
     GradStats left_stats(param_);
     left_stats.Add(candidate.split.left_sum);
     GradStats right_stats(param_);
     right_stats.Add(candidate.split.right_sum);
-    node_value_constraints_[candidate.nid].SetChild(
-        param_, parent.SplitIndex(), left_stats, right_stats,
-        &node_value_constraints_[parent.LeftChild()],
-        &node_value_constraints_[parent.RightChild()]);
-
-    // Configure left child
+    GradStats parent_sum(param_);
+    parent_sum.Add(left_stats);
+    parent_sum.Add(right_stats);
+    node_value_constraints_.resize(tree.GetNodes().size());
+    auto base_weight = node_value_constraints_[candidate.nid].CalcWeight(param_, parent_sum);
     auto left_weight =
-        node_value_constraints_[parent.LeftChild()].CalcWeight(param_, left_stats);
-    tree[parent.LeftChild()].SetLeaf(left_weight * param_.learning_rate, 0);
-    tree.Stat(parent.LeftChild()).base_weight = left_weight;
-    tree.Stat(parent.LeftChild()).sum_hess = candidate.split.left_sum.GetHess();
-
-    // Configure right child
+        node_value_constraints_[candidate.nid].CalcWeight(param_, left_stats)*param_.learning_rate;
     auto right_weight =
-        node_value_constraints_[parent.RightChild()].CalcWeight(param_, right_stats);
-    tree[parent.RightChild()].SetLeaf(right_weight * param_.learning_rate, 0);
-    tree.Stat(parent.RightChild()).base_weight = right_weight;
-    tree.Stat(parent.RightChild()).sum_hess = candidate.split.right_sum.GetHess();
+        node_value_constraints_[candidate.nid].CalcWeight(param_, right_stats)*param_.learning_rate;
+    tree.ExpandNode(candidate.nid, candidate.split.findex,
+                    candidate.split.fvalue, candidate.split.dir == kLeftDir,
+                    base_weight, left_weight, right_weight,
+                    candidate.split.loss_chg, parent_sum.sum_hess);
+    // Set up child constraints
+    node_value_constraints_.resize(tree.GetNodes().size());
+    node_value_constraints_[candidate.nid].SetChild(
+        param_, tree[candidate.nid].SplitIndex(), left_stats, right_stats,
+        &node_value_constraints_[tree[candidate.nid].LeftChild()],
+        &node_value_constraints_[tree[candidate.nid].RightChild()]);
 
     // Store sum gradients
     for (auto& shard : shards_) {
-      shard->node_sum_gradients[parent.LeftChild()] = candidate.split.left_sum;
-      shard->node_sum_gradients[parent.RightChild()] = candidate.split.right_sum;
+      shard->node_sum_gradients[tree[candidate.nid].LeftChild()] = candidate.split.left_sum;
+      shard->node_sum_gradients[tree[candidate.nid].RightChild()] = candidate.split.right_sum;
     }
   }
 

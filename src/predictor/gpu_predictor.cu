@@ -24,15 +24,12 @@ DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 struct GPUPredictionParam : public dmlc::Parameter<GPUPredictionParam> {
   int gpu_id;
   int n_gpus;
-  bool silent;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUPredictionParam) {
     DMLC_DECLARE_FIELD(gpu_id).set_lower_bound(0).set_default(0).describe(
         "Device ordinal for GPU prediction.");
     DMLC_DECLARE_FIELD(n_gpus).set_lower_bound(-1).set_default(1).describe(
         "Number of devices to use for prediction.");
-    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during trainig.");
   }
 };
 DMLC_REGISTER_PARAMETER(GPUPredictionParam);

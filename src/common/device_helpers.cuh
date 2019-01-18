@@ -408,6 +408,11 @@ class DVec2 {
   DVec<T> &D2() { return d2_; }
 
   T *Current() { return buff_.Current(); }
+  xgboost::common::Span<T> CurrentSpan() {
+    return xgboost::common::Span<T>{
+      buff_.Current(),
+      static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
+  }
 
   DVec<T> &CurrentDVec() { return buff_.selector == 0 ? D1() : D2(); }
 
@@ -510,7 +515,7 @@ class BulkAllocator {
   }
 
   template <typename... Args>
-  void Allocate(int device_idx, bool silent, Args... args) {
+  void Allocate(int device_idx, Args... args) {
     size_t size = GetSizeBytes(args...);
 
     char *ptr = AllocateDevice(device_idx, size, MemoryT);
@@ -821,7 +826,7 @@ typename std::iterator_traits<T>::value_type SumReduction(
 template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
 void FillConst(int device_idx, T *out, int len, T def) {
   dh::LaunchN<ItemsPerThread, BlkDim>(device_idx, len,
-                                       [=] __device__(int i) { out[i] = def; });
+                                      [=] __device__(int i) { out[i] = def; });
 }
 
 /**
@@ -872,7 +877,6 @@ void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
 
 class AllReducer {
   bool initialised_;
-  bool debug_verbose_;
   size_t allreduce_bytes_;  // Keep statistics of the number of bytes communicated
   size_t allreduce_calls_;  // Keep statistics of the number of reduce calls
 #ifdef XGBOOST_USE_NCCL
@@ -880,8 +884,9 @@ class AllReducer {
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;
 #endif
+
  public:
-  AllReducer() : initialised_(false),debug_verbose_(false), allreduce_bytes_(0),
+  AllReducer() : initialised_(false), allreduce_bytes_(0),
                  allreduce_calls_(0) {}
 
   /**
@@ -893,10 +898,9 @@ class AllReducer {
    * \param device_ordinals The device ordinals.
    */
 
-  void Init(const std::vector<int> &device_ordinals, bool debug_verbose) {
+  void Init(const std::vector<int> &device_ordinals) {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
-    this->debug_verbose_ = debug_verbose;
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
     dh::safe_nccl(ncclCommInitAll(comms.data(),
@@ -923,7 +927,7 @@ class AllReducer {
         ncclCommDestroy(comm);
       }
     }
-    if (debug_verbose_) {
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       LOG(CONSOLE) << "======== NCCL Statistics========";
       LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
       LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1000000;
