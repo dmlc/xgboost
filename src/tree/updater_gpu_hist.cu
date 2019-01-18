@@ -928,44 +928,6 @@ class GPUHistMakerSpecialised{
     monitor_.Init("updater_gpu_hist");
   }
 
-  // void PrintDMatrixInfo(DMatrix* dmat) {
-  //   const MetaInfo& info = dmat->Info();
-  //   dmlc::DataIter<SparsePage>* iter = dmat->RowIterator();
-  //   iter->BeforeFirst();
-  //   CHECK(iter->Next()) << "Empty batches are not supported";
-  //   const SparsePage& batch = iter->Value();
-
-  //   std::cerr << "n_rows = " << info.num_row_ << std::endl;
-  //   std::cerr << "n_cols = " << info.num_col_ << std::endl;
-  //   std::cerr << "n_nz = " << info.num_nonzero_ << std::endl;
-
-  //   size_t n_labels = 50;
-  //   const auto& labels = info.labels_.HostVector();
-  //   std::cerr << "labels = { ";
-  //   for (size_t i = 0; i < std::min(n_labels, labels.size()); ++i) {
-  //     std::cerr << labels[i] << " ";
-  //   }
-  //   std::cerr << "}" << std::endl;
-
-  //   size_t n_offsets = 30;
-  //   const auto& offsets = batch.offset.HostVector();
-  //   std::cerr << "offsets = { ";
-  //   for (size_t i = 0; i < std::min(n_offsets, offsets.size()); ++i) {
-  //     std::cerr << offsets[i] << " ";
-  //   }
-  //   std::cerr << "}" << std::endl;
-
-  //   size_t n_data = 50;
-  //   const auto& data = batch.data.HostVector();
-  //   std::cerr << "data = { ";
-  //   for (size_t i = 0; i < std::min(n_data, data.size()); ++i) {
-  //     std::cerr << data[i].index << ":" << data[i].fvalue << " ";
-  //   }
-  //   std::cerr << "}" << std::endl;
-    
-  //   CHECK(!iter->Next()) << "External memory not supported";
-  // }
-
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     monitor_.Start("Update", dist_.Devices());
