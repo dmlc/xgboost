@@ -47,6 +47,32 @@ except ImportError:
 
     PANDAS_INSTALLED = False
 
+# cudf
+try:
+    from cudf.dataframe import DataFrame as GDF
+    from cudf.dataframe.column import Column as GDFCOL
+    from libgdf_cffi import ffi as GDF_FFI
+    CUDF_INSTALLED = True
+except ImportError:
+
+    class GDF(object):
+        """ dummy object for cudf.dataframe.DataFrame """
+        pass
+
+    class GDFCOL(object):
+        """ dummy object for cudf.dataframe.column.Column """
+        pass
+
+    class GDF_FFI(object):
+        """ dummy object for libgdf_cffi.ffi ... FFI bindings to cudf """
+        def new(self, *args, **kwargs):
+            pass
+
+        def cast(self, *args, **kwargs):
+            pass
+
+    CUDF_INSTALLED = False
+
 # dt
 try:
     from datatable import DataTable
