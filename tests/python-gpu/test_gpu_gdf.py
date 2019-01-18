@@ -1,6 +1,11 @@
 import numpy as np
 import pandas as pd
-import cudf.dataframe as gdf
+try:
+    import cudf.dataframe as gdf
+except ImportError as e:
+    print("Failed to import cuDF: " + str(e))
+    print("Skipping this test")
+    return 0
 from sklearn import datasets
 import sys
 import unittest
