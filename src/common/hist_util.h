@@ -66,7 +66,11 @@ struct HistCutMatrix {
   std::vector<bst_float> min_val;
   /*! \brief the cut field */
   std::vector<bst_float> cut;
-  uint32_t GetBinIdx(const Entry &e);
+  /*! \brief id of features saved in this matrix */
+  std::shared_ptr<std::vector<int>> feature_set;
+  /*! \brief id of features to its index in feature_set */
+  std::vector<int> feature_id_to_set_index;
+  uint32_t GetBinIdx(const Entry& e);
 
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
