@@ -137,7 +137,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   unsigned fid = e.index;
   if (feature_id_to_set_index[fid] != -1) {
     auto cbegin = cut.begin() + row_ptr[feature_id_to_set_index[fid]];
-    auto cend = cut.begin() + row_ptr[fid + 1];
+    auto cend = cut.begin() + row_ptr[feature_id_to_set_index[fid] + 1];
     CHECK(cbegin != cend);
     auto it = std::upper_bound(cbegin, cend, e.fvalue);
     if (it == cend) it = cend - 1;
@@ -148,6 +148,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler& column_sampler) {
   feature_set = column_sampler.GetFeatureSet(0);
+  std::unordered_set<int> feature_set_temp(feature_set->begin(), feature_set->end());
   feature_id_to_set_index.resize(p_fmat->Info().num_col_);
   for (int i = 0; i < feature_set->size(); i++) {
     int fid = (*feature_set)[i];
@@ -182,14 +183,17 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
       CHECK_EQ(ibegin + inst.size(), iend);
 
       for (bst_uint j = 0; j < inst.size(); ++j) {
-        uint32_t idx = cut.GetBinIdx(inst[j]);
-
-        index[ibegin + j] = idx;
-        ++hit_count_tloc_[tid * nbins + idx];
+        if (feature_set_temp.find(inst[j].index) != feature_set_temp.end()) {
+          uint32_t idx = cut.GetBinIdx(inst[j]);
+          index[ibegin + j] = idx;
+          ++hit_count_tloc_[tid * nbins + idx];
+        }
       }
+
       /*
       for (size_t j = 0; j < feature_set->size(); j++) {
         int fid = (*feature_set)[j];
+
         uint32_t idx = cut.GetBinIdx(inst[fid]);
 
         index[ibegin + feature_id_to_set_index[fid]] = idx;
