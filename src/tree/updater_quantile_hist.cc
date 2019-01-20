@@ -675,7 +675,6 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
   const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
   const std::vector<bst_float>& cut_val = gmat.cut.cut;
 
-  // std::cout << "cut_ptr size: " << cut_ptr.size() << " fid=" << fid << "\n";
   int feature_set_index = gmat.feature_id_to_set_index[fid];
 
   // statistics on both sides of split
