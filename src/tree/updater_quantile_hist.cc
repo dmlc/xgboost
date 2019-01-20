@@ -667,6 +667,9 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
   const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
   const std::vector<bst_float>& cut_val = gmat.cut.cut;
 
+  // std::cout << "cut_ptr size: " << cut_ptr.size() << " fid=" << fid << "\n";
+  int feature_set_index = gmat.feature_id_to_set_index[fid];
+
   // statistics on both sides of split
   GradStats c;
   GradStats e;
@@ -674,22 +677,22 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
   SplitEntry best;
 
   // bin boundaries
-  CHECK_LE(cut_ptr[fid],
+  CHECK_LE(cut_ptr[feature_set_index],
            static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-  CHECK_LE(cut_ptr[fid + 1],
+  CHECK_LE(cut_ptr[feature_set_index + 1],
            static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   // imin: index (offset) of the minimum value for feature fid
   //       need this for backward enumeration
-  const auto imin = static_cast<int32_t>(cut_ptr[fid]);
+  const auto imin = static_cast<int32_t>(cut_ptr[feature_set_index]);
   // ibegin, iend: smallest/largest cut points for feature fid
   // use int to allow for value -1
   int32_t ibegin, iend;
   if (d_step > 0) {
-    ibegin = static_cast<int32_t>(cut_ptr[fid]);
-    iend = static_cast<int32_t>(cut_ptr[fid + 1]);
+    ibegin = static_cast<int32_t>(cut_ptr[feature_set_index]);
+    iend = static_cast<int32_t>(cut_ptr[feature_set_index + 1]);
   } else {
-    ibegin = static_cast<int32_t>(cut_ptr[fid + 1]) - 1;
-    iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
+    ibegin = static_cast<int32_t>(cut_ptr[feature_set_index + 1]) - 1;
+    iend = static_cast<int32_t>(cut_ptr[feature_set_index]) - 1;
   }
 
   for (int32_t i = ibegin; i != iend; i += d_step) {
