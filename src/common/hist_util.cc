@@ -41,7 +41,6 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
 
   // when initialize CutMatrix, the depth is 0
   auto p_feature_set = column_sampler.GetFeatureSet(0);
-  std::cout << "p_feature_set size:" << p_feature_set -> size() << "\n";
   const int nthread = omp_get_max_threads();
 
   auto nstep = static_cast<unsigned>((p_feature_set->size() + nthread - 1) / nthread);
