@@ -34,8 +34,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
+
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -51,7 +50,9 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   float max_delta_step;
   // whether we want to do subsample
   float subsample;
-  // whether to subsample columns each split, in each level
+  // whether to subsample columns in each split (node)
+  float colsample_bynode;
+  // whether to subsample columns in each level
   float colsample_bylevel;
   // whether to subsample columns during tree construction
   float colsample_bytree;
@@ -67,8 +68,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int parallel_option;
   // option to open cacheline optimization
   bool cache_opt;
-  // whether to not print info during training.
-  bool silent;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
   // auxiliary data structure
@@ -107,10 +106,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(0.0f)
         .describe(
             "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(debug_verbose)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(max_depth)
         .set_lower_bound(0)
         .set_default(6)
@@ -156,6 +151,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Row subsample ratio of training instance.");
+    DMLC_DECLARE_FIELD(colsample_bynode)
+        .set_range(0.0f, 1.0f)
+        .set_default(1.0f)
+        .describe("Subsample ratio of columns, resample on each node (split).");
     DMLC_DECLARE_FIELD(colsample_bylevel)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -186,9 +185,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(cache_opt)
         .set_default(true)
         .describe("EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Do not print information during trainig.");
     DMLC_DECLARE_FIELD(refresh_leaf)
         .set_default(true)
         .describe("Whether the refresh updater needs to update leaf values.");
@@ -358,6 +354,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam& param) { this->Clear(); }
+  explicit GradStats(double sum_grad, double sum_hess)
+      : sum_grad(sum_grad), sum_hess(sum_hess) {}
 
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
@@ -408,8 +406,6 @@ template <typename ParamT>
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
-  /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
   GradStats() = default;
   /*! \brief add statistics to the data */
@@ -496,8 +492,10 @@ struct SplitEntry {
   bst_float loss_chg{0.0f};
   /*! \brief split index */
   unsigned sindex{0};
-  /*! \brief split value */
   bst_float split_value{0.0f};
+  GradStats left_sum;
+  GradStats right_sum;
+
   /*! \brief constructor */
   SplitEntry()  = default;
   /*!
@@ -527,6 +525,8 @@ struct SplitEntry {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
       this->split_value = e.split_value;
+      this->left_sum = e.left_sum;
+      this->right_sum = e.right_sum;
       return true;
     } else {
       return false;
@@ -541,7 +541,8 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     bst_float new_split_value, bool default_left) {
+                     bst_float new_split_value, bool default_left,
+                     const GradStats &left_sum, const GradStats &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -549,6 +550,8 @@ struct SplitEntry {
       }
       this->sindex = split_index;
       this->split_value = new_split_value;
+      this->left_sum = left_sum;
+      this->right_sum = right_sum;
       return true;
     } else {
       return false;

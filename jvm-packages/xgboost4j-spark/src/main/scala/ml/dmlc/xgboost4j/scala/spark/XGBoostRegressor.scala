@@ -43,7 +43,7 @@ import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
   with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
+  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
 
 class XGBoostRegressor (
     override val uid: String,
@@ -174,26 +174,19 @@ class XGBoostRegressor (
       col($(baseMarginCol))
     }
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
-
-    val instances: RDD[XGBLabeledPoint] = dataset.select(
-      col($(labelCol)).cast(FloatType),
-      col($(featuresCol)),
-      weight.cast(FloatType),
-      group.cast(IntegerType),
-      baseMargin.cast(FloatType)
-    ).rdd.map {
-      case Row(label: Float, features: Vector, weight: Float, group: Int, baseMargin: Float) =>
-        val (indices, values) = features match {
-          case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-          case v: DenseVector => (null, v.values.map(_.toFloat))
-        }
-        XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
+    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
+      col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
+      dataset.asInstanceOf[DataFrame]).head
+    val evalRDDMap = getEvalSets(xgboostParams).map {
+      case (name, dataFrame) => (name,
+        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
+          weight, baseMargin, Some(group), dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(instances, derivedXGBParamMap,
-      hasGroup = group != lit(-1))
+    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
+      hasGroup = group != lit(-1), evalRDDMap)
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
@@ -264,13 +257,12 @@ class XGBoostRegressionModel private[ml] (
 
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
-
-    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
+    val inputRDD = dataset.asInstanceOf[Dataset[Row]].rdd
+    val predictionRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
-        val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
+        val featuresIterator = rowIterator.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -280,7 +272,6 @@ class XGBoostRegressionModel private[ml] (
             null
           }
         }
-
         val dm = new DMatrix(
           XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
           cacheInfo)
@@ -288,16 +279,25 @@ class XGBoostRegressionModel private[ml] (
           val Array(originalPredictionItr, predLeafItr, predContribItr) =
             producePredictionItrs(bBooster, dm)
           Rabit.shutdown()
-          produceResultIterator(rowItr1, originalPredictionItr, predLeafItr, predContribItr)
+          Iterator(originalPredictionItr, predLeafItr, predContribItr)
         } finally {
           dm.delete()
         }
       } else {
-        Iterator[Row]()
+        Iterator()
       }
     }
+    val resultRDD = inputRDD.zipPartitions(predictionRDD, preservesPartitioning = true) {
+      case (inputIterator, predictionItr) =>
+        if (inputIterator.hasNext) {
+          produceResultIterator(inputIterator, predictionItr.next(), predictionItr.next(),
+            predictionItr.next())
+        } else {
+          Iterator()
+        }
+    }
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(rdd, generateResultSchema(schema))
+    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
   }
 
   private def produceResultIterator(

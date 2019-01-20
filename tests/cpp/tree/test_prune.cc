@@ -31,7 +31,6 @@ TEST(Updater, Prune) {
 
   // prepare tree
   RegTree tree = RegTree();
-  tree.InitModel();
   tree.param.InitAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
@@ -39,22 +38,13 @@ TEST(Updater, Prune) {
   pruner->Init(cfg);
 
   // loss_chg < min_split_loss;
-  tree.AddChilds(0);
-  int cleft = tree[0].LeftChild();
-  int cright = tree[0].RightChild();
-  tree[cleft].SetLeaf(0.3f, 0);
-  tree[cright].SetLeaf(0.4f, 0);
+  tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 0.0f, 0.0f);
   pruner->Update(&gpair, dmat->get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
   // loss_chg > min_split_loss;
-  tree.AddChilds(0);
-  cleft = tree[0].LeftChild();
-  cright = tree[0].RightChild();
-  tree[cleft].SetLeaf(0.3f, 0);
-  tree[cright].SetLeaf(0.4f, 0);
-  tree.Stat(0).loss_chg = 11;
+  tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 11.0f, 0.0f);
   pruner->Update(&gpair, dmat->get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);

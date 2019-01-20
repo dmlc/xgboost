@@ -48,14 +48,14 @@ class QuantileHistMock : public QuantileHistMaker {
       BuildHist(gpair, row_set_collection_[nid],
                 gmat, quantile_index_block, hist_[nid]);
       std::vector<GradientPairPrecise> solution {
-        {0.27, 0.29}, {0.27, 0.29}, {0.47, 0.49},
-        {0.27, 0.29}, {0.57, 0.59}, {0.26, 0.27},
-        {0.37, 0.39}, {0.23, 0.24}, {0.37, 0.39},
-        {0.27, 0.28}, {0.27, 0.29}, {0.37, 0.39},
-        {0.26, 0.27}, {0.23, 0.24}, {0.57, 0.59},
-        {0.47, 0.49}, {0.47, 0.49}, {0.37, 0.39},
-        {0.26, 0.27}, {0.23, 0.24}, {0.27, 0.28},
-        {0.57, 0.59}, {0.23, 0.24}, {0.47, 0.49}};
+        {0.27f, 0.29f}, {0.27f, 0.29f}, {0.47f, 0.49f},
+        {0.27f, 0.29f}, {0.57f, 0.59f}, {0.26f, 0.27f},
+        {0.37f, 0.39f}, {0.23f, 0.24f}, {0.37f, 0.39f},
+        {0.27f, 0.28f}, {0.27f, 0.29f}, {0.37f, 0.39f},
+        {0.26f, 0.27f}, {0.23f, 0.24f}, {0.57f, 0.59f},
+        {0.47f, 0.49f}, {0.47f, 0.49f}, {0.37f, 0.39f},
+        {0.26f, 0.27f}, {0.23f, 0.24f}, {0.27f, 0.28f},
+        {0.57f, 0.59f}, {0.23f, 0.24f}, {0.47f, 0.49f}};
 
       for (size_t i = 0; i < hist_[nid].size; ++i) {
         GradientPairPrecise sol = solution[i];
@@ -122,7 +122,6 @@ class QuantileHistMock : public QuantileHistMaker {
     gmat.Init((*dmat).get(), max_bins);
 
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     std::vector<GradientPair> gpair =
@@ -134,7 +133,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestBuildHist() {
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     size_t constexpr max_bins = 4;
@@ -146,7 +144,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestEvaluateSplit() {
     RegTree tree = RegTree();
-    tree.InitModel();
     tree.param.InitAllowUnknown(cfg);
 
     builder_->TestEvaluateSplit(gmatb_, tree);

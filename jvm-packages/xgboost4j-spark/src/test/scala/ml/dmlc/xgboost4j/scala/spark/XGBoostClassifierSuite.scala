@@ -17,10 +17,13 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
+
+import org.apache.spark.Partitioner
 
 class XGBoostClassifierSuite extends FunSuite with PerTest {
 
@@ -137,7 +140,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(predictionDF.columns.contains("final_prediction") === false)
 
     assert(model.summary.trainObjectiveHistory.length === 5)
-    assert(model.summary.testObjectiveHistory.isEmpty)
+    assert(model.summary.validationObjectiveHistory.isEmpty)
   }
 
   test("XGBoost and Spark parameters synchronize correctly") {
@@ -189,31 +192,6 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       if (!r1.equals(r2)) count = count + 1
     }
     assert(count != 0)
-  }
-
-  test("training summary") {
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "nWorkers" -> numWorkers)
-
-    val trainingDF = buildDataFrame(Classification.train)
-    val xgb = new XGBoostClassifier(paramMap)
-    val model = xgb.fit(trainingDF)
-
-    assert(model.summary.trainObjectiveHistory.length === 5)
-    assert(model.summary.testObjectiveHistory.isEmpty)
-  }
-
-  test("train/test split") {
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
-    val training = buildDataFrame(Classification.train)
-
-    val xgb = new XGBoostClassifier(paramMap)
-    val model = xgb.fit(training)
-    val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
-    assert(testObjectiveHistory.length === 5)
-    assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
   }
 
   test("test predictionLeaf") {
@@ -287,5 +265,47 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(resultDF.count == groundTruth)
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+  test("infrequent features") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "num_round" -> 5, "num_workers" -> 2)
+    import DataUtils._
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
+      new Partitioner {
+        override def numPartitions: Int = 2
+
+        override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
+      }
+    ).map(_._2).zipWithIndex().map {
+      case (lp, id) =>
+        (id, lp.label, lp.features)
+    }.toDF("id", "label", "features")
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.fit(repartitioned)
+  }
+
+  test("infrequent features (use_external_memory)") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true)
+    import DataUtils._
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val repartitioned = sc.parallelize(Synthetic.train, 3).map(lp => (lp.label, lp)).partitionBy(
+      new Partitioner {
+        override def numPartitions: Int = 2
+
+        override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
+      }
+    ).map(_._2).zipWithIndex().map {
+      case (lp, id) =>
+        (id, lp.label, lp.features)
+    }.toDF("id", "label", "features")
+    val xgb = new XGBoostClassifier(paramMap)
+    xgb.fit(repartitioned)
   }
 }

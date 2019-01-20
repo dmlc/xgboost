@@ -20,6 +20,11 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
+import org.apache.spark.ml.param.Param
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{Column, DataFrame, Row}
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.{FloatType, IntegerType}
 
 object DataUtils extends Serializable {
   private[spark] implicit class XGBLabeledPointFeatures(
@@ -67,4 +72,38 @@ object DataUtils extends Serializable {
         XGBLabeledPoint(0.0f, v.indices, v.values.map(_.toFloat))
     }
   }
+
+  private[spark] def convertDataFrameToXGBLabeledPointRDDs(
+      labelCol: Column,
+      featuresCol: Column,
+      weight: Column,
+      baseMargin: Column,
+      group: Option[Column],
+      dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
+    val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
+      featuresCol,
+      weight.cast(FloatType),
+      groupCol.cast(IntegerType),
+      baseMargin.cast(FloatType))).getOrElse(Seq(labelCol.cast(FloatType),
+      featuresCol,
+      weight.cast(FloatType),
+      baseMargin.cast(FloatType)))
+    dataFrames.toArray.map {
+      df => df.select(selectedColumns: _*).rdd.map {
+        case Row(label: Float, features: Vector, weight: Float, group: Int, baseMargin: Float) =>
+          val (indices, values) = features match {
+            case v: SparseVector => (v.indices, v.values.map(_.toFloat))
+            case v: DenseVector => (null, v.values.map(_.toFloat))
+          }
+          XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
+        case Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
+          val (indices, values) = features match {
+            case v: SparseVector => (v.indices, v.values.map(_.toFloat))
+            case v: DenseVector => (null, v.values.map(_.toFloat))
+          }
+          XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
+      }
+    }
+  }
+
 }

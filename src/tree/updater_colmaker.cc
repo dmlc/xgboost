@@ -130,7 +130,6 @@ class ColMaker: public TreeUpdater {
         p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
         p_tree->Stat(nid).base_weight = snode_[nid].weight;
         p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
-        snode_[nid].stats.SetLeafVec(param_, p_tree->Leafvec(nid));
       }
     }
 
@@ -169,8 +168,8 @@ class ColMaker: public TreeUpdater {
         }
       }
       {
-        column_sampler_.Init(fmat.Info().num_col_, param_.colsample_bylevel,
-                             param_.colsample_bytree);
+        column_sampler_.Init(fmat.Info().num_col_, param_.colsample_bynode,
+                             param_.colsample_bylevel, param_.colsample_bytree);
       }
       {
         // setup temp space for each thread
@@ -312,7 +311,7 @@ class ColMaker: public TreeUpdater {
               auto loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                   snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, fsplit, false);
+              e.best.Update(loss_chg, fid, fsplit, false, e.stats, c);
             }
           }
           if (need_backward) {
@@ -323,7 +322,7 @@ class ColMaker: public TreeUpdater {
               auto loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, tmp, c) -
                   snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, fsplit, true);
+              e.best.Update(loss_chg, fid, fsplit, true, tmp, c);
             }
           }
         }
@@ -336,7 +335,7 @@ class ColMaker: public TreeUpdater {
             auto loss_chg = static_cast<bst_float>(
                 spliteval_->ComputeSplitScore(nid, fid, tmp, c) -
                 snode_[nid].root_gain);
-            e.best.Update(loss_chg, fid, e.last_fvalue + kRtEps, true);
+            e.best.Update(loss_chg, fid, e.last_fvalue + kRtEps, true, tmp, c);
           }
         }
       }
@@ -369,7 +368,7 @@ class ColMaker: public TreeUpdater {
                       spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                       snode_[nid].root_gain);
                   e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f,
-                                false);
+                                false, e.stats, c);
                 }
               }
               if (need_backward) {
@@ -380,7 +379,7 @@ class ColMaker: public TreeUpdater {
                   auto loss_chg = static_cast<bst_float>(
                       spliteval_->ComputeSplitScore(nid, fid, c, cright) -
                       snode_[nid].root_gain);
-                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, true);
+                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, true, c, cright);
                 }
               }
             }
@@ -411,13 +410,15 @@ class ColMaker: public TreeUpdater {
               loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, c, e.stats) -
                   snode_[nid].root_gain);
+              e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+                            d_step == -1, c, e.stats);
             } else {
               loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                   snode_[nid].root_gain);
+              e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+                            d_step == -1, e.stats, c);
             }
-            e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
-                          d_step == -1);
           }
         }
         // update the statistics
@@ -487,18 +488,21 @@ class ColMaker: public TreeUpdater {
         if (e.stats.sum_hess >= param_.min_child_weight &&
             c.sum_hess >= param_.min_child_weight) {
           bst_float loss_chg;
+          const bst_float gap = std::abs(e.last_fvalue) + kRtEps;
+          const bst_float delta = d_step == +1 ? gap: -gap;
           if (d_step == -1) {
             loss_chg = static_cast<bst_float>(
                 spliteval_->ComputeSplitScore(nid, fid, c, e.stats) -
                 snode_[nid].root_gain);
+            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, c,
+                          e.stats);
           } else {
             loss_chg = static_cast<bst_float>(
                 spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                 snode_[nid].root_gain);
+            e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1,
+                          e.stats, c);
           }
-          const bst_float gap = std::abs(e.last_fvalue) + kRtEps;
-          const bst_float delta = d_step == +1 ? gap: -gap;
-          e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
     }
@@ -546,12 +550,15 @@ class ColMaker: public TreeUpdater {
                 loss_chg = static_cast<bst_float>(
                     spliteval_->ComputeSplitScore(nid, fid, c, e.stats) -
                     snode_[nid].root_gain);
+                e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+                              d_step == -1, c, e.stats);
               } else {
                 loss_chg = static_cast<bst_float>(
                     spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                     snode_[nid].root_gain);
+                e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+                              d_step == -1, e.stats, c);
               }
-              e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, d_step == -1);
             }
           }
           // update the statistics
@@ -566,18 +573,21 @@ class ColMaker: public TreeUpdater {
         if (e.stats.sum_hess >= param_.min_child_weight &&
             c.sum_hess >= param_.min_child_weight) {
           bst_float loss_chg;
+          GradStats left_sum;
+          GradStats right_sum;
           if (d_step == -1) {
-            loss_chg = static_cast<bst_float>(
-                spliteval_->ComputeSplitScore(nid, fid, c, e.stats) -
-                snode_[nid].root_gain);
+            left_sum = c;
+            right_sum = e.stats;
           } else {
-            loss_chg = static_cast<bst_float>(
-                spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
-                snode_[nid].root_gain);
+            left_sum = e.stats;
+            right_sum = c;
           }
+          loss_chg = static_cast<bst_float>(
+              spliteval_->ComputeSplitScore(nid, fid, left_sum, right_sum) -
+              snode_[nid].root_gain);
           const bst_float gap = std::abs(e.last_fvalue) + kRtEps;
           const bst_float delta = d_step == +1 ? gap: -gap;
-          e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
+          e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1, left_sum, right_sum);
         }
       }
     }
@@ -626,7 +636,8 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      const std::vector<int> &feat_set = column_sampler_.GetFeatureSet(depth).HostVector();
+      auto p_feature_set = column_sampler_.GetFeatureSet(depth);
+      const auto& feat_set = *p_feature_set;
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         this->UpdateSolution(batch, feat_set, gpair, p_fmat);
       }
@@ -637,11 +648,16 @@ class ColMaker: public TreeUpdater {
         NodeEntry &e = snode_[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > kRtEps) {
-          p_tree->AddChilds(nid);
-          (*p_tree)[nid].SetSplit(e.best.SplitIndex(), e.best.split_value, e.best.DefaultLeft());
-          // mark right child as 0, to indicate fresh leaf
-          (*p_tree)[(*p_tree)[nid].LeftChild()].SetLeaf(0.0f, 0);
-          (*p_tree)[(*p_tree)[nid].RightChild()].SetLeaf(0.0f, 0);
+          bst_float left_leaf_weight =
+              spliteval_->ComputeWeight(nid, e.best.left_sum) *
+              param_.learning_rate;
+          bst_float right_leaf_weight =
+              spliteval_->ComputeWeight(nid, e.best.right_sum) *
+              param_.learning_rate;
+          p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                             e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                             right_leaf_weight, e.best.loss_chg,
+                             e.stats.sum_hess);
         } else {
           (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
         }

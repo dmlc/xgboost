@@ -237,7 +237,7 @@ class XGBModel(XGBModelBase):
         else:
             xgb_params['nthread'] = n_jobs
 
-        xgb_params['silent'] = 1 if self.silent else 0
+        xgb_params['verbosity'] = 0 if self.silent else 0
 
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
@@ -646,11 +646,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         early_stopping_rounds : int, optional
             Activates early stopping. Validation error needs to decrease at
             least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals.  If there's more than one,
-            will use the last. Returns the model from the last iteration
-            (not the best one). If early stopping occurs, the model will
-            have three additional fields: bst.best_score, bst.best_iteration
-            and bst.best_ntree_limit.
+            Requires at least one item in evals. If there's more than one,
+            will use the last. If early stopping occurs, the model will have
+            three additional fields: bst.best_score, bst.best_iteration and
+            bst.best_ntree_limit (bst.best_ntree_limit is the ntree_limit parameter
+            default value in predict method if not any other value is specified).
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
         early_stopping_threshold : float
