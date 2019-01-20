@@ -83,7 +83,7 @@ public class BoosterImplTest {
     //train a boost model
     return XGBoost.train(trainMat, paramMap, round, watches, null, null);
   }
-  
+
   @Test
   public void testBoosterBasic() throws XGBoostError, IOException {
 

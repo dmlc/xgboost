@@ -144,7 +144,7 @@ class ColumnMatrix {
       size_t fid = 0;
       for (size_t i = ibegin; i < iend; ++i) {
         const uint32_t bin_id = gmat.index[i];
-        while (bin_id >= gmat.cut.row_ptr[fid + 1]) {
+        while (fid + 1 <= gmat.cut.row_ptr.size() && bin_id >= gmat.cut.row_ptr[fid + 1]) {
           ++fid;
         }
         if (type_[fid] == kDenseColumn) {
