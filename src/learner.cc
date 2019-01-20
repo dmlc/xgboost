@@ -192,7 +192,7 @@ class LearnerImpl : public Learner {
     }
     // `updater` parameter was manually specified
     if (cfg_.count("updater") > 0) {
-      LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
+      LOG(INFO) << "DANGER AHEAD: You have manually specified `updater` "
                       "parameter. The `tree_method` parameter will be ignored. "
                       "Incorrect sequence of updaters will produce undefined "
                       "behavior. For common uses, we recommend using "
@@ -213,10 +213,8 @@ class LearnerImpl : public Learner {
       cfg_["updater"] = "grow_colmaker,prune";
       break;
      case TreeMethod::kHist:
-      if(tparam_.debug_verbose > 0) {
       LOG(INFO) << "Tree method is selected to be 'hist', which uses a "
                       "single updater grow_quantile_histmaker.";
-      }
       cfg_["updater"] = "grow_quantile_histmaker";
       break;
      case TreeMethod::kGPUExact:
@@ -398,10 +396,8 @@ class LearnerImpl : public Learner {
           }
 #else
           if (saved_param == "predictor" && kv.second == "gpu_predictor") {
-            if(tparam_.debug_verbose > 3) {
             LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
                       << "since XGBoost wasn't compiled with GPU support.";
-            }
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
@@ -627,24 +623,20 @@ class LearnerImpl : public Learner {
       }
       switch (current_tree_method) {
        case TreeMethod::kAuto:
-        if(tparam_.debug_verbose > 0) {
-        LOG(WARNING) << "Tree method is automatically selected to be 'approx' "
+        LOG(INFO) << "Tree method is automatically selected to be 'approx' "
                         "for distributed training.";
-                        }
         break;
        case TreeMethod::kApprox:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
        case TreeMethod::kHist:
-        if(tparam_.debug_verbose > 0) {
-        LOG(WARNING) << "Tree method was set to be '"
+        LOG(INFO) << "Tree method was set to be '"
                      << (current_tree_method == TreeMethod::kExact ?
                         "exact" : "hist")
                      << "', but only 'approx' is available for distributed "
                         "training. The `tree_method` parameter is now being "
                         "changed to 'approx'";
-                        }
         break;
        case TreeMethod::kGPUExact:
        case TreeMethod::kGPUHist:
@@ -660,21 +652,17 @@ class LearnerImpl : public Learner {
       /* Some tree methods are not available for external-memory DMatrix */
       switch (current_tree_method) {
        case TreeMethod::kAuto:
-        if(tparam_.debug_verbose > 0) {
-        LOG(WARNING) << "Tree method is automatically set to 'approx' "
+        LOG(INFO) << "Tree method is automatically set to 'approx' "
                         "since external-memory data matrix is used.";
-                        }
         break;
        case TreeMethod::kApprox:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
-        if(tparam_.debug_verbose > 0) {
-        LOG(WARNING) << "Tree method was set to be 'exact', "
+        LOG(INFO) << "Tree method was set to be 'exact', "
                         "but currently we are only able to proceed with "
                         "approximate algorithm ('approx') because external-"
                         "memory data matrix is used.";
-                        }
         break;
        case TreeMethod::kHist:
         // things are okay, do nothing
@@ -693,12 +681,10 @@ class LearnerImpl : public Learner {
     } else if (p_train->Info().num_row_ >= (4UL << 20UL)
                && current_tree_method == TreeMethod::kAuto) {
       /* Choose tree_method='approx' automatically for large data matrix */
-      if(tparam_.debug_verbose > 0) {
-      LOG(WARNING) << "Tree method is automatically selected to be "
+      LOG(INFO) << "Tree method is automatically selected to be "
                       "'approx' for faster speed. To use old behavior "
                       "(exact greedy algorithm on single machine), "
                       "set tree_method to 'exact'.";
-                      }
       tparam_.tree_method = TreeMethod::kApprox;
     }
 
