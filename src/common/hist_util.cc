@@ -65,10 +65,10 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
           size_t ridx = batch.base_rowid + i;
           SparsePage::Inst inst = batch[i];
           for (auto& ins : inst) {
+            int feature_set_idx = feature_id_to_set_index[ins.index];
             if (feature_set_temp.find(ins.index) != feature_set_temp.end() && (
-                ins.index >= begin && ins.index < end)) {
-              sketchs[feature_id_to_set_index[ins.index]].Push(ins.fvalue,
-                                      weights.size() > 0 ? weights[ridx] : 1.0f);
+                feature_set_idx >= begin && feature_set_idx < end)) {
+              sketchs[feature_set_idx].Push(ins.fvalue, weights.size() > 0 ? weights[ridx] : 1.0f);
             }
           }
         }
@@ -135,7 +135,6 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   unsigned fid = e.index;
   auto cbegin = cut.begin() + row_ptr[feature_id_to_set_index[fid]];
   auto cend = cut.begin() + row_ptr[feature_id_to_set_index[fid] + 1];
-  std::cout << "checking feature " << fid << "," << row_ptr[feature_id_to_set_index[fid]] << ","<< row_ptr[feature_id_to_set_index[fid] + 1] << "\n";
   CHECK(cbegin != cend);
   auto it = std::upper_bound(cbegin, cend, e.fvalue);
   if (it == cend) it = cend - 1;
