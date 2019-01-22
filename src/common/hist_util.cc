@@ -30,6 +30,7 @@ namespace common {
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnSampler column_sampler) {
   const MetaInfo& info = p_fmat->Info();
   feature_set = column_sampler.GetFeatureSet(0);
+  std::unordered_set<int> feature_set_temp(feature_set->begin(), feature_set->end());
   feature_id_to_set_index.resize(info.num_col_);
   std::fill(feature_id_to_set_index.begin(), feature_id_to_set_index.end(), -1);
   for (int i = 0; i < feature_set->size(); i++) {
@@ -41,13 +42,11 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
   constexpr int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
-  // when initialize CutMatrix, the depth is 0
-  auto p_feature_set = column_sampler.GetFeatureSet(0);
   const int nthread = omp_get_max_threads();
 
-  auto nstep = static_cast<unsigned>((p_feature_set->size() + nthread - 1) / nthread);
-  auto ncol = static_cast<unsigned>(info.num_col_);
-  sketchs.resize(p_feature_set->size());
+  auto nstep = static_cast<unsigned>((feature_set->size() + nthread - 1) / nthread);
+  auto ncol = static_cast<unsigned>(feature_set->size());
+  sketchs.resize(feature_set->size());
   for (auto& s : sketchs) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
@@ -58,15 +57,16 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
-      unsigned begin = std::min(nstep * tid, (unsigned) p_feature_set->size());
-      unsigned end = std::min(nstep * (tid + 1), (unsigned) p_feature_set->size());
+      unsigned begin = std::min(nstep * tid, (unsigned) feature_set->size());
+      unsigned end = std::min(nstep * (tid + 1), (unsigned) feature_set->size());
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
           size_t ridx = batch.base_rowid + i;
           SparsePage::Inst inst = batch[i];
           for (auto& ins : inst) {
-            if (feature_id_to_set_index[ins.index] != -1) {
+            if (feature_set_temp.find(ins.index) != feature_set_temp.end() && (
+                ins.index >= begin && ins.index < end)) {
               sketchs[feature_id_to_set_index[ins.index]].Push(ins.fvalue,
                                       weights.size() > 0 ? weights[ridx] : 1.0f);
             }
@@ -75,7 +75,6 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, common::ColumnS
       }
     }
   }
-
   Init(&sketchs, max_num_bins);
 }
 
@@ -134,15 +133,14 @@ void HistCutMatrix::Init
 
 uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   unsigned fid = e.index;
-  if (feature_id_to_set_index[fid] != -1) {
-    auto cbegin = cut.begin() + row_ptr[feature_id_to_set_index[fid]];
-    auto cend = cut.begin() + row_ptr[feature_id_to_set_index[fid] + 1];
-    CHECK(cbegin != cend);
-    auto it = std::upper_bound(cbegin, cend, e.fvalue);
-    if (it == cend) it = cend - 1;
-    uint32_t idx = static_cast<uint32_t>(it - cut.begin());
-    return idx;
-  }
+  auto cbegin = cut.begin() + row_ptr[feature_id_to_set_index[fid]];
+  auto cend = cut.begin() + row_ptr[feature_id_to_set_index[fid] + 1];
+  std::cout << "checking feature " << fid << "," << row_ptr[feature_id_to_set_index[fid]] << ","<< row_ptr[feature_id_to_set_index[fid] + 1] << "\n";
+  CHECK(cbegin != cend);
+  auto it = std::upper_bound(cbegin, cend, e.fvalue);
+  if (it == cend) it = cend - 1;
+  uint32_t idx = static_cast<uint32_t>(it - cut.begin());
+  return idx;
 }
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSampler& column_sampler) {
@@ -154,7 +152,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
     feature_id_to_set_index[fid] = i;
   }
   cut.Init(p_fmat, max_num_bins, column_sampler);
-
+  std::cout << "initialized cutmatrix\n";
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
@@ -168,7 +166,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
       // row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
-
+    std::cout << "cut.cut.size() == " << cut.cut.size() << "\n";
     CHECK_GT(cut.cut.size(), 0U);
     CHECK_EQ(cut.row_ptr.back(), cut.cut.size());
 
@@ -188,16 +186,6 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
           ++hit_count_tloc_[tid * nbins + idx];
         }
       }
-
-      /*
-      for (size_t j = 0; j < feature_set->size(); j++) {
-        int fid = (*feature_set)[j];
-
-        uint32_t idx = cut.GetBinIdx(inst[fid]);
-
-        index[ibegin + feature_id_to_set_index[fid]] = idx;
-        ++hit_count_tloc_[tid * nbins + idx];
-      }*/
       std::sort(index.begin() + ibegin, index.begin() + iend);
     }
 
