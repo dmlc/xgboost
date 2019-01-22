@@ -162,8 +162,11 @@ class ScalaBoosterImplSuite extends FunSuite {
     val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "eval_metric" -> "auc", "colsample_bytree" -> "0.8").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
-      round = 10, paramMap, 0.0f)
+    // trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
+    //   round = 10, paramMap, 0.0f)
+    val watches = Map("training" -> trainMat, "test" -> testMat)
+    XGBoost.train(trainMat, paramMap, 10, watches,
+      Array.fill(watches.size, 10)(0.0f))
   }
 
   test("test with fast histo lossguide") {
