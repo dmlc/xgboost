@@ -156,12 +156,12 @@ class ScalaBoosterImplSuite extends FunSuite {
       round = 10, paramMap, 0.0f)
   }
 
-  test("test with fast histo depthwise with column sampling") {
+  test("test with fast histo depthwise with per-tree column sampling") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
-      "grow_policy" -> "depthwise", "eval_metric" -> "auc", "colsample_bytree" -> "0.3").toMap
+      "grow_policy" -> "depthwise", "eval_metric" -> "auc", "colsample_bytree" -> "0.8").toMap
     trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
       round = 10, paramMap, 0.0f)
   }
