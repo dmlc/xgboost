@@ -1448,8 +1448,7 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
-
-        if getattr(self, 'booster', None) is not None and self.booster != 'gbtree':
+        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
 
