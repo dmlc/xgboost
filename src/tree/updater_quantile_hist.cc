@@ -438,8 +438,8 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
   const bool default_left = (*p_tree)[nid].DefaultLeft();
   const bst_uint fid = (*p_tree)[nid].SplitIndex();
   const bst_float split_pt = (*p_tree)[nid].SplitCond();
-  const uint32_t lower_bound = gmat.cut.row_ptr[fid];
-  const uint32_t upper_bound = gmat.cut.row_ptr[fid + 1];
+  const uint32_t lower_bound = gmat.cut.row_ptr[gmat.feature_id_to_set_index[fid]];
+  const uint32_t upper_bound = gmat.cut.row_ptr[gmat.feature_id_to_set_index[fid] + 1];
   int32_t split_cond = -1;
   // convert floating-point split_pt into corresponding bin_id
   // split_cond = -1 indicates that split_pt is less than all known cut points
@@ -453,7 +453,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
   const auto& rowset = row_set_collection_[nid];
 
-  Column column = column_matrix.GetColumn(fid);
+  Column column = column_matrix.GetColumn(gmat.feature_id_to_set_index[fid]);
   if (column.GetType() == xgboost::common::kDenseColumn) {
     ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
                         default_left);

@@ -147,6 +147,18 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
+  test("test with fast histo depthwise with colsample_bytree") {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
+      "num_round" -> 5, "num_workers" -> numWorkers, "colsample_bytree" -> 0.3)
+    val model = new XGBoostClassifier(paramMap).fit(training)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+  }
+
   test("test with fast histo lossguide") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)

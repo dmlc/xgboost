@@ -161,8 +161,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins, common::ColumnSam
   for (const auto &batch : p_fmat->GetRowBatches()) {
     const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.Size(); ++i) {
-      row_ptr.push_back(std::min((size_t) batch[i].size(), (size_t)feature_set -> size()) + row_ptr.back());
-      // row_ptr.push_back(batch[i].size() + row_ptr.back());
+      row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
     std::cout << "cut.cut.size() == " << cut.cut.size() << "\n";
