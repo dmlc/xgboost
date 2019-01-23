@@ -725,7 +725,7 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
               snode.root_gain);
           if (i == imin) {
             // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.min_val[fid];
+            split_pt = gmat.cut.min_val[feature_set_index];
           } else {
             split_pt = cut_val[i - 1];
           }
