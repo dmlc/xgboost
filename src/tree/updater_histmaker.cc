@@ -369,8 +369,7 @@ class CQHistMaker: public HistMaker<TStats> {
       for (size_t i = 0; i < this->qexpand_.size(); ++i) {
         const int nid = this->qexpand_[i];
         const int wid = this->node2workindex_[nid];
-        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)]
-                .data[0] = node_stats_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)].data[0] = node_stats_[nid];
       }
     };
     // sync the histogram
