@@ -364,8 +364,7 @@ class CQHistMaker: public HistMaker {
                          &thread_stats_, &node_stats_);
       for (int const nid : this->qexpand_) {
         const int wid = this->node2workindex_[nid];
-        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)]
-                .data[0] = node_stats_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)].data[0] = node_stats_[nid];
       }
     };
     // sync the histogram
