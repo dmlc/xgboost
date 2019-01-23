@@ -64,8 +64,8 @@ Parameters for Tree Booster
 
 * ``max_depth`` [default=6]
 
-  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit. Note that limit is required when ``grow_policy`` is set of ``depthwise``.
-  - range: [0,∞]
+  - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist`` and it indicates no limit on depth.
+  - range: [0,∞] (0 is only accepted in ``lossguided`` growing policy when tree_method is set as ``hist``)
 
 * ``min_child_weight`` [default=1]
 
