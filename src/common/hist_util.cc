@@ -92,6 +92,7 @@ void HistCutMatrix::Init
   }
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
+  std::cout << "bytes: " << nbytes << "\n";
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);

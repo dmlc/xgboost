@@ -346,7 +346,6 @@ class QuantileHistMaker: public TreeUpdater {
     DataLayout data_layout_;
 
     TreeGrowingPerfMonitor perf_monitor;
-
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
 
