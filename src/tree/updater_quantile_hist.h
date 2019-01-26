@@ -97,13 +97,16 @@ class QuantileHistMaker: public TreeUpdater {
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
-                          GHistRow hist) {
+                          GHistRow hist,
+                          bool sync_hist) {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
-      this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
+      if (sync_hist) {
+        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
+      }
     }
 
     inline void initColSampler(MetaInfo info) {
@@ -177,6 +180,20 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint fid,
                         bst_uint nodeID);
 
+    void ExpandWithDepthWide(const GHistIndexMatrix& gmat,
+                             const GHistIndexBlockMatrix& gmatb,
+                             const ColumnMatrix& column_matrix,
+                             DMatrix* p_fmat,
+                             RegTree* p_tree,
+                             const std::vector<GradientPair>& gpair_h);
+
+    void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
+                             const GHistIndexBlockMatrix& gmatb,
+                             const ColumnMatrix& column_matrix,
+                             DMatrix* p_fmat,
+                             RegTree* p_tree,
+                             const std::vector<GradientPair>& gpair_h);
+
     /* tree growing policies */
     struct ExpandEntry {
       int nid;
@@ -231,10 +248,20 @@ class QuantileHistMaker: public TreeUpdater {
     using ExpandQueue =
         std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
                             std::function<bool(ExpandEntry, ExpandEntry)>>;
-    std::unique_ptr<ExpandQueue> qexpand_;
+
+    std::unique_ptr<ExpandQueue> qexpand_loss_guided;
+    std::vector<ExpandEntry> qexpand_depth_wise;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
+
+    // performance counters
+    double tstart;
+    double time_init_data = 0;
+    double time_init_new_node = 0;
+    double time_build_hist = 0;
+    double time_evaluate_split = 0;
+    double time_apply_split = 0;
 
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };

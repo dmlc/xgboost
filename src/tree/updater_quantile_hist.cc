@@ -66,8 +66,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
   for (auto tree : trees) {
-    builder_->Update
-        (gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
+    builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
   }
   param_.learning_rate = lr;
 }
@@ -90,19 +89,96 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
                                         RegTree* p_tree) {
   double gstart = dmlc::GetTime();
 
-  int num_leaves = 0;
   unsigned timestamp = 0;
+  int num_leaves = 0;
 
-  double tstart;
-  double time_init_data = 0;
-  double time_init_new_node = 0;
-  double time_build_hist = 0;
-  double time_evaluate_split = 0;
-  double time_apply_split = 0;
+  tstart = dmlc::GetTime();
 
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
+  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
+  time_init_data = dmlc::GetTime() - tstart;
 
-  spliteval_->Reset();
+  // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
+  CHECK_EQ(p_tree->param.num_roots, 1) <<
+    "tree_method=hist does not support multiple roots at this moment";
+
+  // init the first node
+  // tstart = dmlc::GetTime();
+  // hist_.AddHistRow(0);
+  // BuildHist(gpair_h, row_set_collection_[0], gmat, gmatb, hist_[0]);
+  // time_build_hist += dmlc::GetTime() - tstart;
+
+  // tstart = dmlc::GetTime();
+  // this->InitNewNode(0, gmat, gpair_h, *p_fmat, *p_tree);
+  // time_init_new_node += dmlc::GetTime() - tstart;
+
+  // tstart = dmlc::GetTime();
+  // this->EvaluateSplit(0, gmat, hist_, *p_fmat, *p_tree);
+  // time_evaluate_split += dmlc::GetTime() - tstart;
+
+  // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
+  qexpand_depth_wise.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
+  ++num_leaves;
+  // get stats of node per depth
+  for (int depth = 0; depth < param_.max_depth; depth++) {
+    int starting_index = std::numeric_limits<int>::max();
+    int end_index = -1;
+    std::vector<ExpandEntry> temp_qexpand_depth;
+    // 0. build histogram for the nodes in current level
+    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
+      int nid = qexpand_depth_wise[k].nid;
+      hist_.AddHistRow(nid);
+      BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+      starting_index = std::min(starting_index, nid);
+      end_index = std::max(nid, end_index);
+    }
+    // 1. sync histogram
+    this->histred_.Allreduce(hist_[starting_index].data(),
+                             hist_builder_.GetNumBins() * (end_index - starting_index) + 1);
+    // 2. initNewNode to get it's stats
+    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
+      int nid = qexpand_depth_wise[k].nid;
+      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+    }
+  }
+
+    // 3. evaluateSplit
+    /*
+    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
+      int nid = qexpand_depth_wise[k].nid;
+      this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
+    }
+    // 4. decide if put more leafs to temp_qexpand
+    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
+      int nid = qexpand_depth_wise[k].nid;
+      if (snode_[nid].best.loss_chg > kRtEps && depth < param_.max_depth - 1 &&
+        num_leaves < param_.max_leaves) {
+        this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+        temp_qexpand_depth.push_back(ExpandEntry((*p_tree)[nid].LeftChild(),
+          p_tree->GetDepth(depth + 1), 0.0, timestamp++));
+        temp_qexpand_depth.push_back(ExpandEntry((*p_tree)[nid].RightChild(),
+          p_tree->GetDepth(depth + 1), 0.0, timestamp++));
+      }
+    }
+    // 5. if qexpand is empty and temp_qexpand is empty, break
+    if (temp_qexpand_depth.empty()) {
+      break;
+    } else {
+      qexpand_depth_wise = temp_qexpand_depth;
+    }*/
+
+}
+
+void QuantileHistMaker::Builder::ExpandWithLossGuide(
+    const GHistIndexMatrix& gmat,
+    const GHistIndexBlockMatrix& gmatb,
+    const ColumnMatrix& column_matrix,
+    DMatrix* p_fmat,
+    RegTree* p_tree,
+    const std::vector<GradientPair>& gpair_h) {
+
+  unsigned timestamp = 0;
+  int num_leaves = 0;
 
   tstart = dmlc::GetTime();
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
@@ -110,11 +186,12 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 
   // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
   CHECK_EQ(p_tree->param.num_roots, 1)
-      << "tree_method=hist does not support multiple roots at this moment";
+    << "tree_method=hist does not support multiple roots at this moment";
+
   for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
     tstart = dmlc::GetTime();
     hist_.AddHistRow(nid);
-    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid]);
+    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], true);
     time_build_hist += dmlc::GetTime() - tstart;
 
     tstart = dmlc::GetTime();
@@ -124,20 +201,22 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
     tstart = dmlc::GetTime();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
     time_evaluate_split += dmlc::GetTime() - tstart;
-    qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
+    qexpand_loss_guided->push(ExpandEntry(nid, p_tree->GetDepth(nid),
                                snode_[nid].best.loss_chg,
                                timestamp++));
     ++num_leaves;
   }
 
-  while (!qexpand_->empty()) {
-    const ExpandEntry candidate = qexpand_->top();
+  while (!qexpand_loss_guided->empty()) {
+    const ExpandEntry candidate = qexpand_loss_guided->top();
     const int nid = candidate.nid;
-    qexpand_->pop();
+    qexpand_loss_guided->pop();
+    std::cout << "candidate.loss_chg = " << candidate.loss_chg << "\n";
     if (candidate.loss_chg <= kRtEps
         || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+      std::cout << "set node " << nid << " as leaf\n";
     } else {
       tstart = dmlc::GetTime();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
@@ -150,14 +229,15 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       hist_.AddHistRow(cright);
       if (rabit::IsDistributed()) {
         // in distributed mode, we need to keep consistent across workers
-        BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
+        BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
+        std::cout << "get node " << cleft << "\n";
         SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
       } else {
         if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
+          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
           SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
         } else {
-          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
+          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright], true);
           SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
         }
       }
@@ -176,23 +256,46 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
       time_evaluate_split += dmlc::GetTime() - tstart;
 
-      qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
+      qexpand_loss_guided->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
                                  snode_[cleft].best.loss_chg,
                                  timestamp++));
-      qexpand_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
+      qexpand_loss_guided->push(ExpandEntry(cright, p_tree->GetDepth(cright),
                                  snode_[cright].best.loss_chg,
                                  timestamp++));
 
       ++num_leaves;  // give two and take one, as parent is no longer a leaf
     }
   }
+}
+
+void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
+                                    const GHistIndexBlockMatrix& gmatb,
+                                    const ColumnMatrix& column_matrix,
+                                    HostDeviceVector<GradientPair>* gpair,
+                                    DMatrix* p_fmat,
+                                    RegTree* p_tree) {
+  double gstart = dmlc::GetTime();
+
+  const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
+
+  spliteval_->Reset();
+
+  tstart = dmlc::GetTime();
+  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
+  time_init_data = dmlc::GetTime() - tstart;
+
+  // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
+  CHECK_EQ(p_tree->param.num_roots, 1)
+      << "tree_method=hist does not support multiple roots at this moment";
+
+  ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
 
   // set all the rest expanding nodes to leaf
   // This post condition is not needed in current code, but may be necessary
   // when there are stopping rule that leaves qexpand non-empty
-  while (!qexpand_->empty()) {
-    const int nid = qexpand_->top().nid;
-    qexpand_->pop();
+  while (!qexpand_loss_guided->empty()) {
+    const int nid = qexpand_loss_guided->top().nid;
+    qexpand_loss_guided->pop();
     (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
   }
   // remember auxiliary statistics in the tree node
@@ -372,9 +475,9 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   }
   {
     if (param_.grow_policy == TrainParam::kLossGuide) {
-      qexpand_.reset(new ExpandQueue(LossGuide));
+      qexpand_loss_guided.reset(new ExpandQueue(LossGuide));
     } else {
-      qexpand_.reset(new ExpandQueue(DepthWise));
+      qexpand_loss_guided.reset(new ExpandQueue(DepthWise));
     }
   }
 }
