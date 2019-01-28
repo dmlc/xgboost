@@ -83,8 +83,7 @@ public class BoosterImplTest {
     //train a boost model
     return XGBoost.train(trainMat, paramMap, round, watches, null, null);
   }
-
-  /*
+  
   @Test
   public void testBoosterBasic() throws XGBoostError, IOException {
 
@@ -374,7 +373,7 @@ public class BoosterImplTest {
         TestCase.assertEquals(0.0f, metrics[w][r]);
       }
     }
-  }*/
+  }
 
   private void testWithFastHisto(DMatrix trainingSet, Map<String, DMatrix> watches, int round,
                                       Map<String, Object> paramMap, float threshold) throws XGBoostError {
@@ -414,7 +413,6 @@ public class BoosterImplTest {
     testWithFastHisto(trainMat, watches, 10, paramMap, 0.0f);
   }
 
-/*
   @Test
   public void testFastHistoLossGuide() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
@@ -533,9 +531,8 @@ public class BoosterImplTest {
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
     Map<String, Double> scoreMap = booster.getScore(featureNames, "total_cover");
     for (String fName: scoreMap.keySet()) TestCase.assertTrue(fName.startsWith("test_feature_name_"));
-  }*/
+  }
 
-/*
   @Test
   public void testFastHistoDepthwiseMaxDepth() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
@@ -552,9 +549,8 @@ public class BoosterImplTest {
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     testWithFastHisto(trainMat, watches, 10, paramMap, 0.85f);
-  }*/
+  }
 
-  /*
   @Test
   public void testFastHistoDepthwiseMaxDepthMaxBin() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
@@ -575,14 +571,13 @@ public class BoosterImplTest {
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     testWithFastHisto(trainMat, watches, 10, paramMap, 0.85f);
-  }*/
+  }
 
   /**
    * test cross valiation
    *
    * @throws XGBoostError
    */
-  /*
   @Test
   public void testCV() throws XGBoostError {
     //load train mat
@@ -605,14 +600,13 @@ public class BoosterImplTest {
     int round = 2;
     int nfold = 5;
     String[] evalHist = XGBoost.crossValidation(trainMat, param, round, nfold, null, null, null);
-  }*/
+  }
 
   /**
    * test train from existing model
    *
    * @throws XGBoostError
    */
-  /*
   @Test
   public void testTrainFromExistingModel() throws XGBoostError, IOException {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
@@ -657,5 +651,5 @@ public class BoosterImplTest {
     float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
     TestCase.assertTrue(booster1error == booster2error);
     TestCase.assertTrue(tempBoosterError > booster2error);
-  }*/
+  }
 }
