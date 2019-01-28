@@ -111,6 +111,29 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
+  test("test with fast histo with monotone_constraints") {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
+      "num_round" -> 5, "num_workers" -> numWorkers, "monotone_constraints" -> "(1, 0)")
+    val model = new XGBoostClassifier(paramMap).fit(training)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+  }
+
+  test("test with fast histo with interaction_constraints") {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
+      "num_round" -> 5, "num_workers" -> numWorkers, "interaction_constraints" -> "[[1,2],[2,3,4]]")
+    val model = new XGBoostClassifier(paramMap).fit(training)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+  }
 
   test("test with fast histo depthwise") {
     val eval = new EvalError()
