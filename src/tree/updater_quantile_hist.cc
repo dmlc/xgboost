@@ -81,15 +81,6 @@ bool QuantileHistMaker::UpdatePredictionCache(
   }
 }
 
-<<<<<<< HEAD
-void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
-                                        const GHistIndexBlockMatrix& gmatb,
-                                        const ColumnMatrix& column_matrix,
-                                        HostDeviceVector<GradientPair>* gpair,
-                                        DMatrix* p_fmat,
-                                        RegTree* p_tree) {
-  double gstart = dmlc::GetTime();
-=======
 void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   const GHistIndexMatrix &gmat,
   const GHistIndexBlockMatrix &gmatb,
@@ -97,14 +88,12 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   DMatrix *p_fmat,
   RegTree *p_tree,
   const std::vector<GradientPair> &gpair_h) {
->>>>>>> temp
 
   unsigned timestamp = 0;
   int num_leaves = 0;
 
   tstart = dmlc::GetTime();
 
-  const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
   time_init_data = dmlc::GetTime() - tstart;
 
@@ -116,54 +105,63 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   qexpand_depth_wise.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
   // get stats of node per depth
-  for (int depth = 0; depth < param_.max_depth; depth++) {
+  for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    std::cout << "processing depth " << depth << "\n";
     // 0. build histogram for the nodes in current level
     for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
       int nid = qexpand_depth_wise[k].nid;
-      if (left_to_right_siblings.find(nid) != left_to_right_siblings.end()) {
-        if (row_set_collection_[nid].Size() <=
-          row_set_collection_[left_to_right_siblings[nid]].Size()) {
+      if (rabit::IsDistributed()) {
+        if ((left_to_right_siblings.find(nid) != left_to_right_siblings.end()) ||
+          (right_to_left_siblings.find(nid) == right_to_left_siblings.end() &&
+           left_to_right_siblings.find(nid) == left_to_right_siblings.end())) {
+          // in distributed setting, we always calcuate from left child or root node
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive[left_to_right_siblings[nid]] = nid;
+          if (left_to_right_siblings.find(nid) != left_to_right_siblings.end()) {
+            nodes_to_derive[left_to_right_siblings[nid]] = nid;
+          }
           sync_count++;
           starting_index = std::min(starting_index, nid);
         }
-      } else if (right_to_left_siblings.find(nid) != right_to_left_siblings.end()) {
-        if (row_set_collection_[nid].Size() <
-            row_set_collection_[right_to_left_siblings[nid]].Size()) {
+      } else {
+        if (left_to_right_siblings.find(nid) != left_to_right_siblings.end()) {
+          if (row_set_collection_[nid].Size() <
+              row_set_collection_[left_to_right_siblings[nid]].Size()) {
+            hist_.AddHistRow(nid);
+            BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+            nodes_to_derive[left_to_right_siblings[nid]] = nid;
+            sync_count++;
+            starting_index = std::min(starting_index, nid);
+          }
+        } else if (right_to_left_siblings.find(nid) != right_to_left_siblings.end()) {
+          if (row_set_collection_[nid].Size() <=
+              row_set_collection_[right_to_left_siblings[nid]].Size()) {
+            hist_.AddHistRow(nid);
+            BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+            nodes_to_derive[right_to_left_siblings[nid]] = nid;
+            sync_count++;
+            starting_index = std::min(starting_index, nid);
+          }
+        } else if (right_to_left_siblings.find(nid) == right_to_left_siblings.end() &&
+                   left_to_right_siblings.find(nid) == left_to_right_siblings.end()) {
+          // root node
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive[right_to_left_siblings[nid]] = nid;
           sync_count++;
           starting_index = std::min(starting_index, nid);
         }
-      } else if (right_to_left_siblings.find(nid) == right_to_left_siblings.end() &&
-        left_to_right_siblings.find(nid) == left_to_right_siblings.end()) {
-        // root node
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        sync_count++;
-        starting_index = std::min(starting_index, nid);
       }
     }
     // 1. sync histogram
-<<<<<<< HEAD
-    this->histred_.Allreduce(hist_[starting_index].data(),
-                             hist_builder_.GetNumBins() * (end_index - starting_index) + 1);
-=======
-    this->histred_.Allreduce(hist_[starting_index].begin, hist_builder_.GetNumBins() * sync_count);
+    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
     // use substracttricks
     for (auto local_it = nodes_to_derive.begin(); local_it != nodes_to_derive.end(); local_it++) {
       hist_.AddHistRow(local_it->first);
       SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
         hist_[(*p_tree)[local_it->first].Parent()]);
     }
->>>>>>> temp
     // 2. initNewNode to get it's stats
     for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
       int nid = qexpand_depth_wise[k].nid;
@@ -182,18 +180,11 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
       int nid = qexpand_depth_wise[k].nid;
       this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    }
-    std::cout << "finished evaluate split\n";
-    // 4. decide if put more leafs to temp_qexpand
-    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
-      int nid = qexpand_depth_wise[k].nid;
       if (snode_[nid].best.loss_chg < kRtEps ||
-          (param_.max_depth > 0 && depth == param_.max_depth - 1) ||
+          (param_.max_depth > 0 && depth == param_.max_depth) ||
           (param_.max_leaves > 0 && num_leaves == param_.max_leaves)) {
-        std::cout << "setting node " << nid << " as leaf\n";
         (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
       } else {
-        std::cout << "applying split at node " << nid << "\n";
         this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
         int left_id = (*p_tree)[nid].LeftChild();
         int right_id = (*p_tree)[nid].RightChild();
@@ -208,7 +199,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
         num_leaves++;
       }
     }
-    // 5. if qexpand is empty and temp_qexpand is empty, break
+    // 4. if qexpand is empty and temp_qexpand is empty, break
     if (temp_qexpand_depth.empty()) {
       qexpand_depth_wise.clear();
       nodes_to_derive.clear();
@@ -236,10 +227,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
   unsigned timestamp = 0;
   int num_leaves = 0;
-
-  tstart = dmlc::GetTime();
-  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-  time_init_data = dmlc::GetTime() - tstart;
 
   // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
   CHECK_EQ(p_tree->param.num_roots, 1)
@@ -349,7 +336,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     }
   } else {
-     ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   }
 
   // set all the rest expanding nodes to leaf
@@ -584,7 +571,6 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
       spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
   bst_float right_leaf_weight =
       spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
-  std::cout << "expanding node " << nid << "\n";
   p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                      e.best.DefaultLeft(), e.weight, left_leaf_weight,
                      right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
