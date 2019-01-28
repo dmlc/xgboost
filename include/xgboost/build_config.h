@@ -1,8 +1,6 @@
 /*!
- * Copyright (c) 2018 by Contributors
+ * Copyright 2019 by Contributors
  * \file build_config.h
- * \brief Fall-back logic for platform-specific feature detection.
- * \author Hyunsu Philip Cho
  */
 #ifndef XGBOOST_BUILD_CONFIG_H_
 #define XGBOOST_BUILD_CONFIG_H_
