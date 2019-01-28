@@ -229,6 +229,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
+
     if (temp_qexpand_depth.empty()) {
       break;
     } else {
@@ -276,7 +277,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
         || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-      std::cout << "set node " << nid << " as leaf\n";
     } else {
       perf_monitor.TickStart();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
@@ -315,17 +315,10 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
 
-<<<<<<< HEAD
       qexpand_loss_guided_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
                                  snode_[cleft].best.loss_chg,
                                  timestamp++));
       qexpand_loss_guided_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
-=======
-      qexpand_loss_guided->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
-                                 snode_[cleft].best.loss_chg,
-                                 timestamp++));
-      qexpand_loss_guided->push(ExpandEntry(cright, p_tree->GetDepth(cright),
->>>>>>> temp
                                  snode_[cright].best.loss_chg,
                                  timestamp++));
 
@@ -333,7 +326,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     }
   }
 }
-<<<<<<< HEAD
 
 void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
                                         const GHistIndexBlockMatrix& gmatb,
@@ -355,38 +347,6 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   } else {
     ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
-=======
-
-void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
-                                    const GHistIndexBlockMatrix& gmatb,
-                                    const ColumnMatrix& column_matrix,
-                                    HostDeviceVector<GradientPair>* gpair,
-                                    DMatrix* p_fmat,
-                                    RegTree* p_tree) {
-  double gstart = dmlc::GetTime();
-
-  const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
-
-  spliteval_->Reset();
-
-  tstart = dmlc::GetTime();
-  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-  time_init_data = dmlc::GetTime() - tstart;
-
-  // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
-  CHECK_EQ(p_tree->param.num_roots, 1)
-      << "tree_method=hist does not support multiple roots at this moment";
-
-  ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
-
-  // set all the rest expanding nodes to leaf
-  // This post condition is not needed in current code, but may be necessary
-  // when there are stopping rule that leaves qexpand non-empty
-  while (!qexpand_loss_guided->empty()) {
-    const int nid = qexpand_loss_guided->top().nid;
-    qexpand_loss_guided->pop();
-    (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
->>>>>>> temp
   }
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -542,15 +502,9 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   }
   {
     if (param_.grow_policy == TrainParam::kLossGuide) {
-<<<<<<< HEAD
       qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
     } else {
       qexpand_depth_wise_.clear();
-=======
-      qexpand_loss_guided.reset(new ExpandQueue(LossGuide));
-    } else {
-      qexpand_loss_guided.reset(new ExpandQueue(DepthWise));
->>>>>>> temp
     }
   }
 }
@@ -600,6 +554,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
       spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
   bst_float right_leaf_weight =
       spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
+  std::cout << "expanding node " << nid << "\n";
   p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                      e.best.DefaultLeft(), e.weight, left_leaf_weight,
                      right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
