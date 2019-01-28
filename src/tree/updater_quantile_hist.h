@@ -180,12 +180,12 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint fid,
                         bst_uint nodeID);
 
-    void ExpandWithDepthWide(const GHistIndexMatrix& gmat,
-                             const GHistIndexBlockMatrix& gmatb,
-                             const ColumnMatrix& column_matrix,
-                             DMatrix* p_fmat,
-                             RegTree* p_tree,
-                             const std::vector<GradientPair>& gpair_h);
+    void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
+                              const GHistIndexBlockMatrix &gmatb,
+                              const ColumnMatrix &column_matrix,
+                              DMatrix *p_fmat,
+                              RegTree *p_tree,
+                              const std::vector<GradientPair> &gpair_h);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
@@ -251,6 +251,11 @@ class QuantileHistMaker: public TreeUpdater {
 
     std::unique_ptr<ExpandQueue> qexpand_loss_guided;
     std::vector<ExpandEntry> qexpand_depth_wise;
+    // key is the node id which should be calculated by SubstractTrick, value is the node is which
+    // provides the evidence for substracts
+    std::unordered_map<int, int> nodes_to_derive;
+    std::unordered_map<int, int> left_to_right_siblings;
+    std::unordered_map<int, int> right_to_left_siblings;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
