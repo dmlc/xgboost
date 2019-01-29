@@ -62,7 +62,7 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install datatable --no-binary datatable
 
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
+    python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
     source activate python2
@@ -70,7 +70,7 @@ if [ ${TASK} == "python_test" ]; then
     python --version
     conda install numpy scipy pandas matplotlib scikit-learn
     python -m pip install graphviz
-    py.test -v --fulltrace -s tests/python || exit -1
+    python -m pytest -v --fulltrace -s tests/python || exit -1
     exit 0
 fi
 
@@ -82,7 +82,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
+    python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
     source activate python2
@@ -91,7 +91,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     conda install numpy scipy pytest
     python -m pip install graphviz
     python -m pip install flake8==3.4.1
-    py.test -v --fulltrace -s tests/python || exit -1
+    python -m pytest -v --fulltrace -s tests/python || exit -1
 
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1
