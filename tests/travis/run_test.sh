@@ -69,7 +69,7 @@ if [ ${TASK} == "python_test" ]; then
     echo "-------------------------------"
     python --version
     conda install numpy scipy pandas matplotlib scikit-learn
-    python -m pip install graphviz
+    python -m pip install graphviz pytest
     python -m pytest -v --fulltrace -s tests/python || exit -1
     exit 0
 fi
