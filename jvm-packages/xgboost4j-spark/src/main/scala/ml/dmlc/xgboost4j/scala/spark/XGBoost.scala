@@ -366,6 +366,7 @@ object XGBoost extends Serializable {
       hasGroup: Boolean = false,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
+    logger.info(s"XGBoost training with parameters:\n${params.mkString("\n")}")
     val (nWorkers, round, _, _, _, _, trackerConf, timeoutRequestWorkers,
       checkpointPath, checkpointInterval) = parameterFetchAndValidation(params,
       trainingData.sparkContext)
