@@ -53,7 +53,7 @@ pipeline {
                     parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
                         def buildName = utils.getBuildName(c)
                         utils.buildFactory(buildName, c, false, this.&buildPlatformCmake)
-                    })
+                    } + [ "clang-tidy" : { buildClangTidyJob() } ])
                 }
             }
         }
@@ -106,3 +106,33 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         }
     }
 }
+
+/**
+ * Run a clang-tidy job on a GPU machine
+ */
+def buildClangTidyJob() {
+    def nodeReq = "linux && gpu && unrestricted"
+    node(nodeReq) {
+        unstash name: 'srcs'
+        echo "Running clang-tidy job..."
+        // Install Google Test and Python yaml
+        sh """
+        pip3 install pyyaml
+
+        rm -rf gtest googletest-release-1.7.0
+        wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
+        jar -xf release-1.7.0.zip
+        mv googletest-release-1.7.0 gtest && cd gtest
+        cmake . && make
+        mkdir lib && mv libgtest.a lib
+        cd ..
+        rm -rf release-1.7.0.zip*
+        """
+        // Run clang-tidy job
+        sh """#!/bin/bash
+        source tests/ci_build/setup_cuda_path.sh
+        python3 tests/ci_build/tidy.py --gtest-path=${WORKSPACE}/gtest
+        """
+      }
+  }
+
