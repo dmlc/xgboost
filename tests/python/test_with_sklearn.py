@@ -619,7 +619,7 @@ def test_XGBClassifier_resume():
         model1_path = os.path.join(tempdir, 'test_XGBClassifier.model')
         model1_booster_path = os.path.join(tempdir, 'test_XGBClassifier.booster')
 
-        X, Y = sklearn.datasets.load_breast_cancer(return_X_y=True)
+        X, Y = load_breast_cancer(return_X_y=True)
 
         model1 = xgb.XGBClassifier(learning_rate=0.3, seed=0, n_estimators=8)
         model1.fit(X, Y)
