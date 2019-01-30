@@ -27,12 +27,15 @@ class ClangTidy(object):
     '''
     clang tidy wrapper.
     Args:
+      gtest_path: Full path of Google Test library.
       cpp_lint: Run linter on C++ source code.
       cuda_lint: Run linter on CUDA source code.
     '''
-    def __init__(self, cpp_lint, cuda_lint):
+    def __init__(self, gtest_path, cpp_lint, cuda_lint):
+        self.gtest_path = gtest_path
         self.cpp_lint = cpp_lint
         self.cuda_lint = cuda_lint
+        print('Using Google Test from {}'.format(self.gtest_path))
         print('Run linter on CUDA: ', self.cuda_lint)
         print('Run linter on C++:', self.cpp_lint)
         if not self.cpp_lint and not self.cuda_lint:
@@ -58,7 +61,7 @@ class ClangTidy(object):
         os.mkdir(self.cdb_path)
         os.chdir(self.cdb_path)
         cmake_args = ['cmake', '..', '-DGENERATE_COMPILATION_DATABASE=ON',
-                      '-DGOOGLE_TEST=ON']
+                      '-DGOOGLE_TEST=ON', '-DGTEST_ROOT={}'.format(self.gtest_path)]
         if self.cuda_lint:
             cmake_args.extend(['-DUSE_CUDA=ON', '-DUSE_NCCL=ON'])
         subprocess.run(cmake_args)
@@ -141,8 +144,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
     parser.add_argument('--cuda', type=int, default=1)
+    parser.add_argument('--gtest-path', required=True,
+                        help='Full path of Google Test library directory')
     args = parser.parse_args()
-    with ClangTidy(args.cpp, args.cuda) as linter:
+    with ClangTidy(args.gtest_path, args.cpp, args.cuda) as linter:
         passed = linter.run()
     # Uncomment it once the code base is clang-tidy conformant.
     # if not passed:

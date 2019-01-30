@@ -178,9 +178,11 @@ from the top level source tree:
 
   .. code-black:: bash
     cd /path/to/xgboost/
-    python3 tests/ci_build/tidy.py
+    python3 tests/ci_build/tidy.py --gtest-path=/path/to/google-test
 
-The script accepts two optional integer arguments, namely --cpp and --cuda.
+The script requires the full path of Google Test library via the ``--gtest-path`` argument.
+
+Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``.
 By default they are both set to 1.  If you want to exclude CUDA source from
 linting, use:
 
