@@ -19,6 +19,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 * `Documents`_
 * `Testcases`_
 * `Sanitizers`_
+* `clang-tidy`_
 * `Examples`_
 * `Core Library`_
 * `Python Package`_
@@ -169,6 +170,29 @@ environment variable:
 
 For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
 
+**********
+clang-tidy
+**********
+To run clang-tidy on both C++ and CUDA source code,  run the following command
+from the top level source tree:
+
+  .. code-black:: bash
+    cd /path/to/xgboost/
+    python tests/ci_build/tidy.py
+
+The script accepts two optional integer arguments, namely --cpp and --cuda.
+By default they are both set to 1.  If you want to exclude CUDA source from
+linting, use:
+
+  .. code-black:: bash
+    cd /path/to/xgboost/
+    python tests/ci_build/tidy.py --cuda=0
+
+Similarly, if you want to exclude C++ source from linting:
+
+  .. code-black:: bash
+    cd /path/to/xgboost/
+    python tests/ci_build/tidy.py --cpp=0
 
 ********
 Examples
