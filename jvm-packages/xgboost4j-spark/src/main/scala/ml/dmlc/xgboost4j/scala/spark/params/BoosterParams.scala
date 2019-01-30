@@ -277,8 +277,7 @@ private[spark] trait BoosterParams extends Params {
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
-    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0, monotoneConstraints -> null,
-    interactionConstraints -> null)
+    rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0, treeLimit -> 0)
 }
 
 private[spark] object BoosterParams {
