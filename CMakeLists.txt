@@ -7,20 +7,26 @@ find_package(OpenMP)
 set_default_configuration_release()
 msvc_use_static_runtime()
 
-# Options
-option(USE_CUDA  "Build with GPU acceleration")
+
+## GPUs
+option(USE_CUDA  "Build with GPU acceleration" OFF)
+option(USE_NCCL  "Build with multiple GPUs support; requires CUDA" OFF)
 option(USE_CUDF "Build with cuDF support. Requires USE_CUDA." OFF)
-option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA")
-option(JVM_BINDINGS "Build JVM bindings" OFF)
-option(GOOGLE_TEST "Build google tests" OFF)
-option(R_LIB "Build shared library for R package" OFF)
+
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+
+## Bindings
+option(JVM_BINDINGS "Build JVM bindings" OFF)
+option(R_LIB "Build shared library for R package" OFF)
+
+## Devs
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
 address, leak and thread.")
+option(GOOGLE_TEST "Build google tests" OFF)
 
 # Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
