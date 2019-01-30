@@ -638,7 +638,7 @@ def test_XGBClassifier_resume():
         assert np.any(pred1 != pred2)
         assert log_loss1 > log_loss2
         
-        # file name of ‘Booster’ instance Xgb model
+        # file name of 'Booster' instance Xgb model
         model1.get_booster().save_model(model1_booster_path)
         model2 = xgb.XGBClassifier(learning_rate=0.3, seed=0, n_estimators=8)
         model2.fit(X, Y, xgb_model=model1_booster_path)
