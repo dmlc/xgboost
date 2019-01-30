@@ -49,21 +49,21 @@ except ImportError:
 
 # cudf
 try:
-    from cudf.dataframe import DataFrame as GDF
-    from cudf.dataframe.column import Column as GDFCOL
-    from libgdf_cffi import ffi as GDF_FFI
+    from cudf.dataframe import DataFrame as CUDF
+    from cudf.dataframe.column import Column as CUDF_COL
+    from libgdf_cffi import ffi as CUDF_FFI
     CUDF_INSTALLED = True
 except ImportError:
 
-    class GDF(object):
+    class CUDF(object):
         """ dummy object for cudf.dataframe.DataFrame """
         pass
 
-    class GDFCOL(object):
+    class CUDF_COL(object):
         """ dummy object for cudf.dataframe.column.Column """
         pass
 
-    class GDF_FFI(object):
+    class CUDF_FFI(object):
         """ dummy object for libgdf_cffi.ffi ... FFI bindings to cudf """
         def new(self, *args, **kwargs):
             pass
