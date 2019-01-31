@@ -184,6 +184,9 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
       }
     }
     // 3. evaluateSplit
+    // clean previous levels to save memory
+    left_to_right_siblings.clear();
+    right_to_left_siblings.clear();
     for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
       int nid = qexpand_depth_wise[k].nid;
       this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
@@ -216,8 +219,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     } else {
       qexpand_depth_wise.clear();
       nodes_to_derive.clear();
-      left_to_right_siblings.clear();
-      right_to_left_siblings.clear();
       qexpand_depth_wise = temp_qexpand_depth;
       temp_qexpand_depth.clear();
     }
