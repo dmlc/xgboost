@@ -11,22 +11,6 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
-    # Rename cuda files for static analysis
-    for file in  $(find src -name '*.cu'); do
-        cp "$file" "${file/.cu/_tmp.cc}"
-    done
-
-    echo "Running clang tidy..."
-    header_filter='(xgboost\/src|xgboost\/include)'
-    for filename in $(find src -name '*.cc'); do
-	    clang-tidy $filename -header-filter=$header_filter -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
-    done
-
-    echo "---------clang-tidy failures----------"
-    # Fail only on warnings related to XGBoost source files
-    (cat logtidy.txt|grep -E 'xgboost.*warning'|grep -v dmlc-core) && exit -1
-    echo "----------------------------"
-
     if grep -R '<regex>' src include tests/cpp plugin jvm-packages amalgamation; then
         echo 'Do not use std::regex, since it is not supported by GCC 4.8.x'
         exit -1
@@ -62,15 +46,15 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install datatable --no-binary datatable
 
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
+    python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
     source activate python2
     echo "-------------------------------"
     python --version
     conda install numpy scipy pandas matplotlib scikit-learn
-    python -m pip install graphviz
-    py.test -v --fulltrace -s tests/python || exit -1
+    python -m pip install graphviz pytest
+    python -m pytest -v --fulltrace -s tests/python || exit -1
     exit 0
 fi
 
@@ -82,7 +66,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy
     python -m pip install graphviz pytest pytest-cov codecov
-    py.test -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
+    python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
     source activate python2
@@ -91,7 +75,7 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     conda install numpy scipy pytest
     python -m pip install graphviz
     python -m pip install flake8==3.4.1
-    py.test -v --fulltrace -s tests/python || exit -1
+    python -m pytest -v --fulltrace -s tests/python || exit -1
 
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1

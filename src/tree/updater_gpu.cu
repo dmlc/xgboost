@@ -1,9 +1,12 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2018 XGBoost contributors
  */
 #include <xgboost/tree_updater.h>
 #include <utility>
 #include <vector>
+#include <limits>
+#include <string>
+
 #include "../common/common.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -22,9 +25,9 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu);
  * @param nKeys number of nodes at this level.
  * @return the uniq key
  */
-
-static HOST_DEV_INLINE NodeIdT abs2uniqKey(int tid, const NodeIdT* abs,
-                                             const int* colIds,
+static HOST_DEV_INLINE NodeIdT Abs2UniqueKey(int tid,
+                                             common::Span<const NodeIdT> abs,
+                                             common::Span<const int> colIds,
                                              NodeIdT nodeStart, int nKeys) {
   int a = abs[tid];
   if (a == kUnusedNode) return a;
@@ -77,18 +80,24 @@ struct AddByKey {
  * @param instIds instance index buffer
  * @return the expected gradient value
  */
-HOST_DEV_INLINE GradientPair get(int id, const GradientPair* vals,
-                              const int* instIds) {
+HOST_DEV_INLINE GradientPair get(int id,
+                                 common::Span<const GradientPair> vals,
+                                 common::Span<const int> instIds) {
   id = instIds[id];
   return vals[id];
 }
 
 template <int BLKDIM_L1L3>
-__global__ void cubScanByKeyL1(GradientPair* scans, const GradientPair* vals,
-                               const int* instIds, GradientPair* mScans,
-                               int* mKeys, const NodeIdT* keys, int nUniqKeys,
-                               const int* colIds, NodeIdT nodeStart,
-                               const int size) {
+__global__ void CubScanByKeyL1(
+    common::Span<GradientPair> scans,
+    common::Span<const GradientPair> vals,
+    common::Span<const int> instIds,
+    common::Span<GradientPair> mScans,
+    common::Span<int> mKeys,
+    common::Span<const NodeIdT> keys,
+    int nUniqKeys,
+    common::Span<const int> colIds, NodeIdT nodeStart,
+    const int size) {
   Pair rootPair = {kNoneKey, GradientPair(0.f, 0.f)};
   int myKey;
   GradientPair myValue;
@@ -97,7 +106,7 @@ __global__ void cubScanByKeyL1(GradientPair* scans, const GradientPair* vals,
   Pair threadData;
   int tid = blockIdx.x * BLKDIM_L1L3 + threadIdx.x;
   if (tid < size) {
-    myKey = abs2uniqKey(tid, keys, colIds, nodeStart, nUniqKeys);
+    myKey = Abs2UniqueKey(tid, keys, colIds, nodeStart, nUniqKeys);
     myValue = get(tid, vals, instIds);
   } else {
     myKey = kNoneKey;
@@ -127,7 +136,8 @@ __global__ void cubScanByKeyL1(GradientPair* scans, const GradientPair* vals,
 }
 
 template <int BLKSIZE>
-__global__ void cubScanByKeyL2(GradientPair* mScans, int* mKeys, int mLength) {
+__global__ void CubScanByKeyL2(common::Span<GradientPair> mScans,
+                               common::Span<int> mKeys, int mLength) {
   typedef cub::BlockScan<Pair, BLKSIZE, cub::BLOCK_SCAN_WARP_SCANS> BlockScan;
   Pair threadData;
   __shared__ typename BlockScan::TempStorage temp_storage;
@@ -141,11 +151,15 @@ __global__ void cubScanByKeyL2(GradientPair* mScans, int* mKeys, int mLength) {
 }
 
 template <int BLKDIM_L1L3>
-__global__ void cubScanByKeyL3(GradientPair* sums, GradientPair* scans,
-                               const GradientPair* vals, const int* instIds,
-                               const GradientPair* mScans, const int* mKeys,
-                               const NodeIdT* keys, int nUniqKeys,
-                               const int* colIds, NodeIdT nodeStart,
+__global__ void CubScanByKeyL3(common::Span<GradientPair> sums,
+                               common::Span<GradientPair> scans,
+                               common::Span<const GradientPair> vals,
+                               common::Span<const int> instIds,
+                               common::Span<const GradientPair> mScans,
+                               common::Span<const int> mKeys,
+                               common::Span<const NodeIdT> keys,
+                               int nUniqKeys,
+                               common::Span<const int> colIds, NodeIdT nodeStart,
                                const int size) {
   int relId = threadIdx.x;
   int tid = (blockIdx.x * BLKDIM_L1L3) + relId;
@@ -161,10 +175,10 @@ __global__ void cubScanByKeyL3(GradientPair* sums, GradientPair* scans,
     s_mKeys = (blockIdx.x > 0) ? mKeys[blockIdx.x - 1] : kNoneKey;
     s_mScans[0] = (blockIdx.x > 0) ? mScans[blockIdx.x - 1] : GradientPair();
   }
-  int myKey = abs2uniqKey(tid, keys, colIds, nodeStart, nUniqKeys);
+  int myKey = Abs2UniqueKey(tid, keys, colIds, nodeStart, nUniqKeys);
   int previousKey =
       tid == 0 ? kNoneKey
-               : abs2uniqKey(tid - 1, keys, colIds, nodeStart, nUniqKeys);
+               : Abs2UniqueKey(tid - 1, keys, colIds, nodeStart, nUniqKeys);
   GradientPair myValue = scans[tid];
   __syncthreads();
   if (blockIdx.x > 0 && s_mKeys == previousKey) {
@@ -201,17 +215,22 @@ __global__ void cubScanByKeyL3(GradientPair* sums, GradientPair* scans,
  * @param nodeStart index of the leftmost node in the current level
  */
 template <int BLKDIM_L1L3 = 256, int BLKDIM_L2 = 512>
-void reduceScanByKey(GradientPair* sums, GradientPair* scans, const GradientPair* vals,
-                     const int* instIds, const NodeIdT* keys, int size,
-                     int nUniqKeys, int nCols, GradientPair* tmpScans,
-                     int* tmpKeys, const int* colIds, NodeIdT nodeStart) {
+void ReduceScanByKey(common::Span<GradientPair> sums,
+                     common::Span<GradientPair> scans,
+                     common::Span<GradientPair> vals,
+                     common::Span<const int> instIds,
+                     common::Span<const NodeIdT> keys,
+                     int size, int nUniqKeys, int nCols,
+                     common::Span<GradientPair> tmpScans,
+                     common::Span<int> tmpKeys,
+                     common::Span<const int> colIds, NodeIdT nodeStart) {
   int nBlks = dh::DivRoundUp(size, BLKDIM_L1L3);
-  cudaMemset(sums, 0, nUniqKeys * nCols * sizeof(GradientPair));
-  cubScanByKeyL1<BLKDIM_L1L3>
+  cudaMemset(sums.data(), 0, nUniqKeys * nCols * sizeof(GradientPair));
+  CubScanByKeyL1<BLKDIM_L1L3>
       <<<nBlks, BLKDIM_L1L3>>>(scans, vals, instIds, tmpScans, tmpKeys, keys,
                                nUniqKeys, colIds, nodeStart, size);
-  cubScanByKeyL2<BLKDIM_L2><<<1, BLKDIM_L2>>>(tmpScans, tmpKeys, nBlks);
-  cubScanByKeyL3<BLKDIM_L1L3>
+  CubScanByKeyL2<BLKDIM_L2><<<1, BLKDIM_L2>>>(tmpScans, tmpKeys, nBlks);
+  CubScanByKeyL3<BLKDIM_L1L3>
       <<<nBlks, BLKDIM_L1L3>>>(sums, scans, vals, instIds, tmpScans, tmpKeys,
                                keys, nUniqKeys, colIds, nodeStart, size);
 }
@@ -268,7 +287,7 @@ HOST_DEV_INLINE ExactSplitCandidate maxSplit(ExactSplitCandidate a,
   return out;
 }
 
-DEV_INLINE void atomicArgMax(ExactSplitCandidate* address,
+DEV_INLINE void AtomicArgMax(ExactSplitCandidate* address,
                              ExactSplitCandidate val) {
   unsigned long long* intAddress = (unsigned long long*)address;  // NOLINT
   unsigned long long old = *intAddress;                           // NOLINT
@@ -281,11 +300,17 @@ DEV_INLINE void atomicArgMax(ExactSplitCandidate* address,
   } while (assumed != old);
 }
 
-DEV_INLINE void argMaxWithAtomics(
-    int id, ExactSplitCandidate* nodeSplits, const GradientPair* gradScans,
-    const GradientPair* gradSums, const float* vals, const int* colIds,
-    const NodeIdT* nodeAssigns, const DeviceNodeStats* nodes, int nUniqKeys,
-    NodeIdT nodeStart, int len, const GPUTrainingParam& param) {
+DEV_INLINE void ArgMaxWithAtomics(
+    int id,
+    common::Span<ExactSplitCandidate> nodeSplits,
+    common::Span<const GradientPair> gradScans,
+    common::Span<const GradientPair> gradSums,
+    common::Span<const float> vals,
+    common::Span<const int> colIds,
+    common::Span<const NodeIdT> nodeAssigns,
+    common::Span<const DeviceNodeStats> nodes, int nUniqKeys,
+    NodeIdT nodeStart, int len,
+    const GPUTrainingParam& param) {
   int nodeId = nodeAssigns[id];
   // @todo: this is really a bad check! but will be fixed when we move
   //  to key-based reduction
@@ -293,45 +318,59 @@ DEV_INLINE void argMaxWithAtomics(
       !((nodeId == nodeAssigns[id - 1]) && (colIds[id] == colIds[id - 1]) &&
         (vals[id] == vals[id - 1]))) {
     if (nodeId != kUnusedNode) {
-      int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
+      int sumId = Abs2UniqueKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
       GradientPair colSum = gradSums[sumId];
       int uid = nodeId - nodeStart;
-      DeviceNodeStats n = nodes[nodeId];
-      GradientPair parentSum = n.sum_gradients;
-      float parentGain = n.root_gain;
+      DeviceNodeStats node_stat = nodes[nodeId];
+      GradientPair parentSum = node_stat.sum_gradients;
+      float parentGain = node_stat.root_gain;
       bool tmp;
       ExactSplitCandidate s;
       GradientPair missing = parentSum - colSum;
       s.score = LossChangeMissing(gradScans[id], missing, parentSum, parentGain,
-                                 param, tmp);
+                                  param, tmp);
       s.index = id;
-      atomicArgMax(nodeSplits + uid, s);
+      AtomicArgMax(&nodeSplits[uid], s);
     }  // end if nodeId != UNUSED_NODE
   }    // end if id == 0 ...
 }
 
-__global__ void atomicArgMaxByKeyGmem(
-    ExactSplitCandidate* nodeSplits, const GradientPair* gradScans,
-    const GradientPair* gradSums, const float* vals, const int* colIds,
-    const NodeIdT* nodeAssigns, const DeviceNodeStats* nodes, int nUniqKeys,
-    NodeIdT nodeStart, int len, const TrainParam param) {
+__global__ void AtomicArgMaxByKeyGmem(
+    common::Span<ExactSplitCandidate> nodeSplits,
+    common::Span<const GradientPair> gradScans,
+    common::Span<const GradientPair> gradSums,
+    common::Span<const float> vals,
+    common::Span<const int> colIds,
+    common::Span<const NodeIdT> nodeAssigns,
+    common::Span<const DeviceNodeStats> nodes,
+    int nUniqKeys,
+    NodeIdT nodeStart,
+    int len,
+    const TrainParam param) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
   for (; id < len; id += stride) {
-    argMaxWithAtomics(id, nodeSplits, gradScans, gradSums, vals, colIds,
+    ArgMaxWithAtomics(id, nodeSplits, gradScans, gradSums, vals, colIds,
                       nodeAssigns, nodes, nUniqKeys, nodeStart, len,
                       GPUTrainingParam(param));
   }
 }
 
-__global__ void atomicArgMaxByKeySmem(
-    ExactSplitCandidate* nodeSplits, const GradientPair* gradScans,
-    const GradientPair* gradSums, const float* vals, const int* colIds,
-    const NodeIdT* nodeAssigns, const DeviceNodeStats* nodes, int nUniqKeys,
-    NodeIdT nodeStart, int len, const GPUTrainingParam param) {
+__global__ void AtomicArgMaxByKeySmem(
+    common::Span<ExactSplitCandidate> nodeSplits,
+    common::Span<const GradientPair> gradScans,
+    common::Span<const GradientPair> gradSums,
+    common::Span<const float> vals,
+    common::Span<const int> colIds,
+    common::Span<const NodeIdT> nodeAssigns,
+    common::Span<const DeviceNodeStats> nodes,
+    int nUniqKeys, NodeIdT nodeStart, int len, const GPUTrainingParam param) {
   extern __shared__ char sArr[];
-  ExactSplitCandidate* sNodeSplits =
-      reinterpret_cast<ExactSplitCandidate*>(sArr);
+  common::Span<ExactSplitCandidate> sNodeSplits =
+      common::Span<ExactSplitCandidate>(
+          reinterpret_cast<ExactSplitCandidate*>(sArr),
+          static_cast<typename common::Span<ExactSplitCandidate>::index_type>(
+              nUniqKeys * sizeof(ExactSplitCandidate)));
   int tid = threadIdx.x;
   ExactSplitCandidate defVal;
 #pragma unroll 1
@@ -342,13 +381,13 @@ __global__ void atomicArgMaxByKeySmem(
   int id = tid + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
   for (; id < len; id += stride) {
-    argMaxWithAtomics(id, sNodeSplits, gradScans, gradSums, vals, colIds,
+    ArgMaxWithAtomics(id, sNodeSplits, gradScans, gradSums, vals, colIds,
                       nodeAssigns, nodes, nUniqKeys, nodeStart, len, param);
   }
   __syncthreads();
   for (int i = tid; i < nUniqKeys; i += blockDim.x) {
     ExactSplitCandidate s = sNodeSplits[i];
-    atomicArgMax(nodeSplits + i, s);
+    AtomicArgMax(&nodeSplits[i], s);
   }
 }
 
@@ -369,24 +408,28 @@ __global__ void atomicArgMaxByKeySmem(
  * @param algo which algorithm to use for argmax_by_key
  */
 template <int BLKDIM = 256, int ITEMS_PER_THREAD = 4>
-void argMaxByKey(ExactSplitCandidate* nodeSplits, const GradientPair* gradScans,
-                 const GradientPair* gradSums, const float* vals,
-                 const int* colIds, const NodeIdT* nodeAssigns,
-                 const DeviceNodeStats* nodes, int nUniqKeys,
+void ArgMaxByKey(common::Span<ExactSplitCandidate> nodeSplits,
+                 common::Span<const GradientPair> gradScans,
+                 common::Span<const GradientPair> gradSums,
+                 common::Span<const float> vals,
+                 common::Span<const int> colIds,
+                 common::Span<const NodeIdT> nodeAssigns,
+                 common::Span<const DeviceNodeStats> nodes,
+                 int nUniqKeys,
                  NodeIdT nodeStart, int len, const TrainParam param,
                  ArgMaxByKeyAlgo algo) {
   dh::FillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
-      param.gpu_id, nodeSplits, nUniqKeys,
+      param.gpu_id, nodeSplits.data(), nUniqKeys,
       ExactSplitCandidate());
   int nBlks = dh::DivRoundUp(len, ITEMS_PER_THREAD * BLKDIM);
   switch (algo) {
     case kAbkGmem:
-      atomicArgMaxByKeyGmem<<<nBlks, BLKDIM>>>(
+      AtomicArgMaxByKeyGmem<<<nBlks, BLKDIM>>>(
           nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
           nUniqKeys, nodeStart, len, param);
       break;
     case kAbkSmem:
-      atomicArgMaxByKeySmem<<<nBlks, BLKDIM,
+      AtomicArgMaxByKeySmem<<<nBlks, BLKDIM,
                               sizeof(ExactSplitCandidate) * nUniqKeys>>>(
           nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
           nUniqKeys, nodeStart, len, GPUTrainingParam(param));
@@ -512,7 +555,7 @@ class GPUMaker : public TreeUpdater {
   ~GPUMaker() {}
 
   void Init(
-      const std::vector<std::pair<std::string, std::string>>& args) override {
+      const std::vector<std::pair<std::string, std::string>>& args) {
     param.InitAllowUnknown(args);
     maxNodes = (1 << (param.max_depth + 1)) - 1;
     maxLeaves = 1 << param.max_depth;
@@ -521,7 +564,7 @@ class GPUMaker : public TreeUpdater {
   }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override {
+              const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -535,7 +578,7 @@ class GPUMaker : public TreeUpdater {
         UpdateTree(gpair, dmat, trees[i]);
       }
     } catch (const std::exception& e) {
-      LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
+      LOG(FATAL) << "grow_gpu exception: " << e.what() << std::endl;
     }
     param.learning_rate = lr;
   }
@@ -543,7 +586,7 @@ class GPUMaker : public TreeUpdater {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
                   RegTree* hTree) {
     if (!allocated) {
-      setupOneTimeData(dmat);
+      SetupOneTimeData(dmat);
     }
     for (int i = 0; i < param.max_depth; ++i) {
       if (i == 0) {
@@ -563,11 +606,11 @@ class GPUMaker : public TreeUpdater {
   }
 
   void split2node(int nNodes, NodeIdT nodeStart) {
-    auto d_nodes = nodes.Data();
-    auto d_gradScans = gradScans.Data();
-    auto d_gradSums = gradSums.Data();
-    auto d_nodeAssigns = nodeAssigns.Current();
-    auto d_colIds = colIds.Data();
+    auto d_nodes = nodes.GetSpan();
+    auto d_gradScans = gradScans.GetSpan();
+    auto d_gradSums = gradSums.GetSpan();
+    auto d_nodeAssigns = nodeAssigns.CurrentSpan();
+    auto d_colIds = colIds.GetSpan();
     auto d_vals = vals.Current();
     auto d_nodeSplits = nodeSplits.Data();
     int nUniqKeys = nNodes;
@@ -580,7 +623,7 @@ class GPUMaker : public TreeUpdater {
       if (s.isSplittable(min_split_loss)) {
         int idx = s.index;
         int nodeInstId =
-            abs2uniqKey(idx, d_nodeAssigns, d_colIds, nodeStart, nUniqKeys);
+            Abs2UniqueKey(idx, d_nodeAssigns, d_colIds, nodeStart, nUniqKeys);
         bool missingLeft = true;
         const DeviceNodeStats& n = d_nodes[absNodeId];
         GradientPair gradScan = d_gradScans[idx];
@@ -612,20 +655,20 @@ class GPUMaker : public TreeUpdater {
   }
 
   void findSplit(int level, NodeIdT nodeStart, int nNodes) {
-    reduceScanByKey(gradSums.Data(), gradScans.Data(), gradsInst.Data(),
-                    instIds.Current(), nodeAssigns.Current(), nVals, nNodes,
-                    nCols, tmpScanGradBuff.Data(), tmpScanKeyBuff.Data(),
-                    colIds.Data(), nodeStart);
-    argMaxByKey(nodeSplits.Data(), gradScans.Data(), gradSums.Data(),
-                vals.Current(), colIds.Data(), nodeAssigns.Current(),
-                nodes.Data(), nNodes, nodeStart, nVals, param,
+    ReduceScanByKey(gradSums.GetSpan(), gradScans.GetSpan(), gradsInst.GetSpan(),
+                    instIds.CurrentSpan(), nodeAssigns.CurrentSpan(), nVals, nNodes,
+                    nCols, tmpScanGradBuff.GetSpan(), tmpScanKeyBuff.GetSpan(),
+                    colIds.GetSpan(), nodeStart);
+    ArgMaxByKey(nodeSplits.GetSpan(), gradScans.GetSpan(), gradSums.GetSpan(),
+                vals.CurrentSpan(), colIds.GetSpan(), nodeAssigns.CurrentSpan(),
+                nodes.GetSpan(), nNodes, nodeStart, nVals, param,
                 level <= kMaxAbkLevels ? kAbkSmem : kAbkGmem);
     split2node(nNodes, nodeStart);
   }
 
   void allocateAllData(int offsetSize) {
     int tmpBuffSize = ScanTempBufferSize(nVals);
-    ba.Allocate(param.gpu_id, param.silent, &vals, nVals,
+    ba.Allocate(param.gpu_id, &vals, nVals,
                 &vals_cached, nVals, &instIds, nVals, &instIds_cached, nVals,
                 &colOffsets, offsetSize, &gradsInst, nRows, &nodeAssigns, nVals,
                 &nodeLocations, nVals, &nodes, maxNodes, &nodeAssignsPerInst,
@@ -634,7 +677,7 @@ class GPUMaker : public TreeUpdater {
                 &tmpScanKeyBuff, tmpBuffSize, &colIds, nVals);
   }
 
-  void setupOneTimeData(DMatrix* dmat) {
+  void SetupOneTimeData(DMatrix* dmat) {
     size_t free_memory = dh::AvailableMemory(param.gpu_id);
     if (!dmat->SingleColBlock()) {
       LOG(FATAL) << "exact::GPUBuilder - must have 1 column block";
@@ -726,11 +769,11 @@ class GPUMaker : public TreeUpdater {
       // gather the node assignments across all other columns too
       dh::Gather(param.gpu_id, nodeAssigns.Current(),
                  nodeAssignsPerInst.Data(), instIds.Current(), nVals);
-      sortKeys(level);
+      SortKeys(level);
     }
   }
 
-  void sortKeys(int level) {
+  void SortKeys(int level) {
     // segmented-sort the arrays based on node-id's
     // but we don't need more than level+1 bits for sorting!
     SegmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,

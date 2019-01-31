@@ -19,7 +19,7 @@ CONFIG = {
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
 
-    "PLUGIN_UPDATER_GPU": "OFF",
+    "USE_CUDA": "OFF",
     "JVM_BINDINGS": "ON"
 }
 

@@ -36,50 +36,16 @@ XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
 namespace xgboost {
 namespace tree {
 
-// Atomic add function for double precision gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1, static_cast<double>(gpair.GetHess()));
-}
-// used by shared-memory atomics code
-__device__ __forceinline__ void AtomicAddGpair(GradientPairPrecise* dest,
-                                               const GradientPairPrecise& gpair) {
-  auto dst_ptr = reinterpret_cast<double*>(dest);
-
-  atomicAdd(dst_ptr, gpair.GetGrad());
-  atomicAdd(dst_ptr + 1, gpair.GetHess());
-}
-
-// For integer gradients
-__device__ __forceinline__ void AtomicAddGpair(GradientPairInteger* dest,
-                                               const GradientPair& gpair) {
-  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
-  GradientPairInteger tmp(gpair.GetGrad(), gpair.GetHess());
-  auto src_ptr = reinterpret_cast<GradientPairInteger::ValueT*>(&tmp);
+// Atomic add function for gradients
+template <typename OutputGradientT, typename InputGradientT>
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                                               const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,
-            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
   atomicAdd(dst_ptr + 1,
-            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
-}
-
-/**
- * \brief Check maximum gradient value is below 2^16. This is to prevent
- * overflow when using integer gradient summation.
- */
-
-inline void CheckGradientMax(const std::vector<GradientPair>& gpair) {
-  auto* ptr = reinterpret_cast<const float*>(gpair.data());
-  float abs_max =
-      std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
-                      [=](float a, float b) {
-                        return std::max(abs(a), abs(b)); });
-
-  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
-      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
 struct GPUTrainingParam {
@@ -330,13 +296,11 @@ inline void Dense2SparseTree(RegTree* p_tree,
   for (int gpu_nid = 0; gpu_nid < h_nodes.size(); gpu_nid++) {
     const DeviceNodeStats& n = h_nodes[gpu_nid];
     if (!n.IsUnused() && !n.IsLeaf()) {
-      tree.AddChilds(nid);
-      tree[nid].SetSplit(n.fidx, n.fvalue, n.dir == kLeftDir);
+      tree.ExpandNode(nid, n.fidx, n.fvalue, n.dir == kLeftDir, n.weight, 0.0f,
+                      0.0f, n.root_gain, n.sum_gradients.GetHess());
       tree.Stat(nid).loss_chg = n.root_gain;
       tree.Stat(nid).base_weight = n.weight;
       tree.Stat(nid).sum_hess = n.sum_gradients.GetHess();
-      tree[tree[nid].LeftChild()].SetLeaf(0);
-      tree[tree[nid].RightChild()].SetLeaf(0);
       nid++;
     } else if (n.IsLeaf()) {
       tree[nid].SetLeaf(n.weight * param.learning_rate);

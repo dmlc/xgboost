@@ -1667,12 +1667,12 @@ OPENMP_CXXFLAGS=""
 
 if test `uname -s` = "Linux"
 then
-  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CFLAGS)"
+  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
 fi
 
 if test `uname -s` = "Darwin"
 then
-  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CFLAGS)"
+  OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
   ac_pkg_openmp=no
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether OpenMP will work in a package" >&5
 $as_echo_n "checking whether OpenMP will work in a package... " >&6; }
