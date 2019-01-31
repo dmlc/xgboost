@@ -610,7 +610,7 @@ def test_RFECV():
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
-    
+
 def test_XGBClassifier_resume():
     from sklearn.datasets import load_breast_cancer
     from sklearn.metrics import log_loss
