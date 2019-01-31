@@ -535,7 +535,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     if (param_.grow_policy == TrainParam::kLossGuide) {
       qexpand_loss_guided.reset(new ExpandQueue(LossGuide));
     } else {
-      qexpand_loss_guided.reset(new ExpandQueue(DepthWise));
+      qexpand_depth_wise.clear();
     }
   }
 }

@@ -1,13 +1,10 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2019 by Contributors
  * \file hist_util.h
- * \brief Utilities to store histograms
- * \author Philip Cho, Tianqi Chen
  */
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
 #include <numeric>
-#include <algorithm>
 #include <vector>
 
 #include "./random.h"
@@ -49,17 +46,16 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
-      unsigned begin = std::min(nstep * tid, (unsigned) ncol);
-      unsigned end = std::min(nstep * (tid + 1), (unsigned) ncol);
+      unsigned begin = std::min(nstep * tid, ncol);
+      unsigned end = std::min(nstep * (tid + 1), ncol);
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
           size_t ridx = batch.base_rowid + i;
           SparsePage::Inst inst = batch[i];
           for (auto& ins : inst) {
-            int feature_set_idx = feature_id_to_set_index[ins.index];
-            if (feature_set_idx >= begin && feature_set_idx < end)) {
-              sketchs[feature_set_idx].Push(ins.fvalue, weights.size() > 0 ? weights[ridx] : 1.0f);
+            if (ins.index >= begin && ins.index < end) {
+              sketchs[ins.index].Push(ins.fvalue, weights.size() > 0 ? weights[ridx] : 1.0f);
             }
           }
         }
@@ -147,7 +143,6 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
-    std::cout << "cut.cut.size() == " << cut.cut.size() << "\n";
     CHECK_GT(cut.cut.size(), 0U);
     CHECK_EQ(cut.row_ptr.back(), cut.cut.size());
 
