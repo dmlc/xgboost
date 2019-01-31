@@ -709,7 +709,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=None,
+                              verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
 
         self.objective = xgb_options["objective"]
