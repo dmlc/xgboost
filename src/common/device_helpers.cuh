@@ -1023,7 +1023,7 @@ class SaveCudaContext {
     // When compiled with CUDA but running on CPU only device,
     // cudaGetDevice will fail.
     try {
-      safe_cuda(cudaGetDevice(&saved_device_));
+      safe_cuda_nomsg(cudaGetDevice(&saved_device_));
     } catch (const dmlc::Error &except) {
       saved_device_ = -1;
     }
@@ -1031,7 +1031,7 @@ class SaveCudaContext {
   }
   ~SaveCudaContext() {
     if (saved_device_ != -1) {
-      safe_cuda(cudaSetDevice(saved_device_));
+      safe_cuda_nomsg(cudaSetDevice(saved_device_));
     }
   }
 };

@@ -44,6 +44,17 @@ inline cudaError_t ThrowOnCudaError(cudaError_t code, const char *file,
   }
   return code;
 }
+#define safe_cuda_nomsg(ans) ThrowOnCudaError_nomsg((ans), __FILE__, __LINE__)
+
+inline cudaError_t ThrowOnCudaError_nomsg(cudaError_t code, const char *file,
+                                    int line) {
+  if (code != cudaSuccess) {
+    thrust::system_error(code, thrust::cuda_category(),
+                                       std::string{file} + ": " +  // NOLINT
+                                       std::to_string(line)).what();
+  }
+  return code;
+}
 #endif
 }  // namespace dh
 
