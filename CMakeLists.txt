@@ -193,6 +193,7 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
   list(APPEND LINK_LIBRARIES gpuxgboost)
 
 elseif (USE_CUDA AND GENERATE_COMPILATION_DATABASE)
+  # Enable CUDA language to generate a compilation database.
   cmake_minimum_required(VERSION 3.8)
 
   find_package(CUDA 8.0 REQUIRED)
@@ -200,7 +201,7 @@ elseif (USE_CUDA AND GENERATE_COMPILATION_DATABASE)
   set(CMAKE_CUDA_COMPILER clang++)
   set(CUDA_SEPARABLE_COMPILATION ON)
   if (NOT CLANG_CUDA_GENCODE)
-    set(CLANG_CUDA_GENCODE "--cuda-gpu-arch=sm_70")
+    set(CLANG_CUDA_GENCODE "--cuda-gpu-arch=sm_35")
   endif (NOT CLANG_CUDA_GENCODE)
   set(CMAKE_CUDA_FLAGS " -Wno-deprecated  ${CLANG_CUDA_GENCODE} -fPIC ${GENCODE} -std=c++11 -x cuda")
   message(STATUS "CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")

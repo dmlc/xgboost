@@ -5,7 +5,6 @@ import json
 from multiprocessing import Pool, cpu_count
 import shutil
 import os
-# import sys
 import re
 import argparse
 
@@ -63,7 +62,8 @@ class ClangTidy(object):
         os.mkdir(self.cdb_path)
         os.chdir(self.cdb_path)
         cmake_args = ['cmake', '..', '-DGENERATE_COMPILATION_DATABASE=ON',
-                      '-DGOOGLE_TEST=ON', '-DGTEST_ROOT={}'.format(self.gtest_path)]
+                      '-DGOOGLE_TEST=ON', '-DGTEST_ROOT={}'.format(
+                          self.gtest_path)]
         if self.cuda_lint:
             cmake_args.extend(['-DUSE_CUDA=ON', '-DUSE_NCCL=ON'])
         subprocess.run(cmake_args)
@@ -71,7 +71,7 @@ class ClangTidy(object):
 
     def _configure_flags(self, path, command):
         common_args = ['clang-tidy',
-                       "-header-filter='(xgboost\\/src|xgboost\\/include)'",
+                       # "-header-filter='(xgboost\\/src|xgboost\\/include)'",
                        '-config='+str(self.clang_tidy)]
         common_args.append(path)
         common_args.append('--')
