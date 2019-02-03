@@ -703,6 +703,8 @@ class LearnerImpl : public Learner {
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;
     }
+    CHECK_NE(mparam_.num_feature, 0)
+        << "0 feature is supplied.  Are you using raw Booster?";
     // setup
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     CHECK(obj_ == nullptr && gbm_ == nullptr);

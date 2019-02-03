@@ -161,6 +161,10 @@ A saved model can be loaded as follows:
   bst = xgb.Booster({'nthread': 4})  # init model
   bst.load_model('model.bin')  # load data
 
+Methods including `update` and `boost` from `xgboost.Booster` are designed for
+internal usage only.  The wrapper function `xgboost.train` does some
+pre-configuration including setting up caches and some other parameters.
+
 Early Stopping
 --------------
 If you have a validation set, you can use early stopping to find the optimal number of boosting rounds.
@@ -215,4 +219,3 @@ When you use ``IPython``, you can use the :py:meth:`xgboost.to_graphviz` functio
 .. code-block:: python
 
   xgb.to_graphviz(bst, num_trees=2)
-
