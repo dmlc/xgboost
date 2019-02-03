@@ -1068,8 +1068,8 @@ class Booster(object):
 
     def boost(self, dtrain, grad, hess):
         """Boost the booster for one iteration, with customized gradient
-        statistics.  Like update, This function should not be called
-        directly by users.
+        statistics.  Like :func:`xgboost.core.Booster.update`, this
+        function should not be called directly by users.
 
         Parameters
         ----------
