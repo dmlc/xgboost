@@ -12,13 +12,15 @@ import argparse
 
 def call(args):
     '''Subprocess run wrapper.'''
-    completed = subprocess.run(args, stdout=subprocess.PIPE)
-    out = completed.stdout.decode('utf-8')
-    matched = re.match('.*xgboost.*warning.*', out)
+    completed = subprocess.run(args, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL)
+    error_msg = completed.stdout.decode('utf-8')
+    matched = re.match('.*xgboost.*warning.*', error_msg,
+                       re.MULTILINE | re.DOTALL)
     if matched is None:
         return_code = 0
     else:
-        print(out, '\n')
+        print(error_msg, '\n')
         return_code = 1
     return completed.returncode | return_code
 
