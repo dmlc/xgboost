@@ -71,6 +71,7 @@ class ClangTidy(object):
 
     def _configure_flags(self, path, command):
         common_args = ['clang-tidy',
+                       "-header-filter='(xgboost\\/src|xgboost\\/include)'",
                        '-config='+str(self.clang_tidy)]
         common_args.append(path)
         common_args.append('--')
