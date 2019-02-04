@@ -43,8 +43,6 @@ class ClangTidy(object):
             raise ValueError('Both --cpp and --cuda are set to 0.')
         self.root_path = os.path.abspath(os.path.curdir)
         print('Project root:', self.root_path)
-        if 'xgboost' not in os.path.basename(self.root_path.rstrip('/')):
-            raise ValueError('Linter should be invoked in project root.')
         self.cdb_path = os.path.join(self.root_path, 'cdb')
 
     def __enter__(self):

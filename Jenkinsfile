@@ -115,23 +115,12 @@ def buildClangTidyJob() {
     node(nodeReq) {
         unstash name: 'srcs'
         echo "Running clang-tidy job..."
+        // Invoke command inside docker
         // Install Google Test and Python yaml
+        dockerTarget = "gpu"
+        dockerArgs = "--build-arg CUDA_VERSION=9.2"
         sh """
-        pip3 install pyyaml
-
-        rm -rf gtest googletest-release-1.7.0
-        wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
-        jar -xf release-1.7.0.zip
-        mv googletest-release-1.7.0 gtest && cd gtest
-        cmake . && make
-        mkdir lib && mv libgtest.a lib
-        cd ..
-        rm -rf release-1.7.0.zip*
-        """
-        // Run clang-tidy job
-        sh """#!/bin/bash
-        source tests/ci_build/setup_cuda_path.sh
-        python3 tests/ci_build/tidy.py --gtest-path=${WORKSPACE}/gtest
+        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/clang_tidy.sh
         """
       }
   }
