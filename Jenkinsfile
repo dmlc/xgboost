@@ -117,7 +117,7 @@ def buildClangTidyJob() {
         echo "Running clang-tidy job..."
         // Invoke command inside docker
         // Install Google Test and Python yaml
-        dockerTarget = "gpu"
+        dockerTarget = "clang_tidy"
         dockerArgs = "--build-arg CUDA_VERSION=9.2"
         sh """
         ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/clang_tidy.sh
