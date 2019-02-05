@@ -231,10 +231,11 @@ private[spark] trait ParamMapFuncs extends Params {
   def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
-        (paramName == "updater" && paramValue != "grow_histmaker,prune")) {
+        (paramName == "updater" && (paramValue != "grow_histmaker,prune" ||
+          paramValue != "hist"))) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
           s" XGBoost-Spark only supports gbtree as booster type" +
-          " and grow_histmaker,prune as the updater type")
+          " and grow_histmaker,prune or hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name) match {

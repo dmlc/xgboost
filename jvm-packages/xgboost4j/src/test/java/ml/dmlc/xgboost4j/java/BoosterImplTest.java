@@ -382,11 +382,12 @@ public class BoosterImplTest {
             metrics, null, null, 0);
     for (int i = 0; i < metrics.length; i++)
       for (int j = 1; j < metrics[i].length; j++) {
-        TestCase.assertTrue(metrics[i][j] >= metrics[i][j - 1]);
+        TestCase.assertTrue(metrics[i][j] >= metrics[i][j - 1] ||
+                Math.abs(metrics[i][j] - metrics[i][j - 1]) < 0.1);
       }
     for (int i = 0; i < metrics.length; i++)
       for (int j = 0; j < metrics[i].length; j++) {
-      TestCase.assertTrue(metrics[i][j] >= threshold);
+        TestCase.assertTrue(metrics[i][j] >= threshold);
       }
     booster.dispose();
   }

@@ -13,6 +13,7 @@
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
+#include "../include/rabit/rabit.h"
 
 namespace xgboost {
 
@@ -41,6 +42,10 @@ struct GHistEntry {
   inline void Add(const GHistEntry& e) {
     sum_grad += e.sum_grad;
     sum_hess += e.sum_hess;
+  }
+
+  inline static void Reduce(GHistEntry& a, const GHistEntry& b) { // NOLINT(*)
+    a.Add(b);
   }
 
   /*! \brief set sum to be difference of two GHistEntry's */
@@ -166,7 +171,7 @@ class GHistIndexBlockMatrix {
 };
 
 /*!
- * \brief histogram of graident statistics for a single node.
+ * \brief histogram of gradient statistics for a single node.
  *  Consists of multiple GHistEntry's, each entry showing total graident statistics
  *     for that particular bin
  *  Uses global bin id so as to represent all features simultaneously
@@ -253,6 +258,10 @@ class GHistBuilder {
                       GHistRow hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
+
+  uint32_t GetNumBins() {
+      return nbins_;
+  }
 
  private:
   /*! \brief number of threads for parallel computation */

@@ -83,9 +83,9 @@ void HistCutMatrix::Init
     summary_array[i].Reserve(max_num_bins * kFactor);
     summary_array[i].SetPrune(out, max_num_bins * kFactor);
   }
+  CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
@@ -479,14 +479,14 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
 
     #pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
     for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
-      const size_t istart = iblock*block_size;
-      const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
+      const size_t istart = iblock * block_size;
+      const size_t iend = (((iblock + 1) * block_size > size) ? size : istart + block_size);
 
-      const size_t bin = 2*thread_init_[0]*nbins_;
-      memcpy(hist_data + istart, (data + bin + istart), sizeof(double)*(iend - istart));
+      const size_t bin = 2 * thread_init_[0] * nbins_;
+      memcpy(hist_data + istart, (data + bin + istart), sizeof(double) * (iend - istart));
 
       for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
-        const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
+        const size_t bin = 2 * thread_init_[i_bin_part] * nbins_;
         for (size_t i = istart; i < iend; i++) {
           hist_data[i] += data[bin + i];
         }

@@ -126,6 +126,7 @@ class HistMaker: public BaseMaker {
   virtual void Update(const std::vector<GradientPair> &gpair,
                       DMatrix *p_fmat,
                       RegTree *p_tree) {
+    CHECK(param_.max_depth > 0) << "max_depth must be larger than 0";
     this->InitData(gpair, *p_fmat, *p_tree);
     this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
     // mark root node as fresh.
@@ -345,10 +346,7 @@ class CQHistMaker: public HistMaker<TStats> {
     this->wspace_.Init(this->param_, 1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
-#if __cplusplus >= 201103L
-    auto lazy_get_hist = [&]()
-#endif
-    {
+    auto lazy_get_hist = [&]() {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
@@ -371,22 +369,18 @@ class CQHistMaker: public HistMaker<TStats> {
       for (size_t i = 0; i < this->qexpand_.size(); ++i) {
         const int nid = this->qexpand_[i];
         const int wid = this->node2workindex_[nid];
-        this->wspace_.hset[0][fset.size() + wid * (fset.size()+1)]
-            .data[0] = node_stats_[nid];
+        this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)]
+                .data[0] = node_stats_[nid];
       }
     };
     // sync the histogram
     // if it is C++11, use lazy evaluation for Allreduce
-#if __cplusplus >= 201103L
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
-                            this->wspace_.hset[0].data.size(), lazy_get_hist);
-#else
-    this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
-                            this->wspace_.hset[0].data.size());
-#endif
+                             this->wspace_.hset[0].data.size(), lazy_get_hist);
   }
+
   void ResetPositionAfterSplit(DMatrix *p_fmat,
-                               const RegTree &tree) override {
+                                 const RegTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
