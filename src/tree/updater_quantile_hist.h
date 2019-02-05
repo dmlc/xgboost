@@ -105,6 +105,7 @@ class QuantileHistMaker: public TreeUpdater {
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
+      this->histred_.Allreduce(hist.begin, hist_builder_.GetNumBins());
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
@@ -225,6 +226,8 @@ class QuantileHistMaker: public TreeUpdater {
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
+
+    rabit::Reducer<GHistEntry, GHistEntry::Reduce> histred_;
   };
 
   std::unique_ptr<Builder> builder_;

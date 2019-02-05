@@ -156,12 +156,18 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       const int cright = (*p_tree)[nid].RightChild();
       hist_.AddHistRow(cleft);
       hist_.AddHistRow(cright);
-      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+      if (rabit::IsDistributed()) {
+        // in distributed mode, we need to keep consistent across workers
         BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
         SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
       } else {
-        BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
-        SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+        if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft]);
+          SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+        } else {
+          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright]);
+          SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+        }
       }
       time_build_hist += dmlc::GetTime() - tstart;
 
@@ -617,23 +623,34 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 
   {
     auto& stats = snode_[nid].stats;
-    if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-      /* specialized code for dense data
-         For dense data (with no missing value),
-         the sum of gradient histogram is equal to snode[nid] */
-      GHistRow hist = hist_[nid];
-      const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
-
-      const uint32_t ibegin = row_ptr[fid_least_bins_];
-      const uint32_t iend = row_ptr[fid_least_bins_ + 1];
-      for (uint32_t i = ibegin; i < iend; ++i) {
-        const GHistEntry et = hist.begin[i];
-        stats.Add(et.sum_grad, et.sum_hess);
+    GHistRow hist = hist_[nid];
+    if (rabit::IsDistributed()) {
+      // in distributed mode, the node's stats should be calculated from histogram, otherwise,
+      // we will have wrong results in EnumerateSplit()
+      // here we take the last feature in cut
+      for (size_t i = gmat.cut.row_ptr[0]; i < gmat.cut.row_ptr[1]; i++) {
+        stats.Add(hist.begin[i].sum_grad, hist.begin[i].sum_hess);
       }
     } else {
-      const RowSetCollection::Elem e = row_set_collection_[nid];
-      for (const size_t* it = e.begin; it < e.end; ++it) {
-        stats.Add(gpair[*it]);
+      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased ||
+          rabit::IsDistributed()) {
+        /* specialized code for dense data
+         For dense data (with no missing value),
+         the sum of gradient histogram is equal to snode[nid]
+         GHistRow hist = hist_[nid];*/
+        const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
+
+        const uint32_t ibegin = row_ptr[fid_least_bins_];
+        const uint32_t iend = row_ptr[fid_least_bins_ + 1];
+        for (uint32_t i = ibegin; i < iend; ++i) {
+          const GHistEntry et = hist.begin[i];
+          stats.Add(et.sum_grad, et.sum_hess);
+        }
+      } else {
+        const RowSetCollection::Elem e = row_set_collection_[nid];
+        for (const size_t* it = e.begin; it < e.end; ++it) {
+          stats.Add(gpair[*it]);
+        }
       }
     }
   }

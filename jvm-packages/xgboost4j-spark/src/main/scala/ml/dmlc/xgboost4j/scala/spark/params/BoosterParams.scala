@@ -50,9 +50,20 @@ private[spark] trait BoosterParams extends Params {
    * overfitting. [default=6] range: [1, Int.MaxValue]
    */
   final val maxDepth = new IntParam(this, "maxDepth", "maximum depth of a tree, increase this " +
-    "value will make model more complex/likely to be overfitting.", (value: Int) => value >= 1)
+    "value will make model more complex/likely to be overfitting.", (value: Int) => value >= 0)
 
   final def getMaxDepth: Int = $(maxDepth)
+
+
+  /**
+   * Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.
+   */
+  final val maxLeaves = new IntParam(this, "maxLeaves",
+    "Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.",
+    (value: Int) => value >= 0)
+
+  final def getMaxLeaves: Int = $(maxDepth)
+
 
   /**
    * minimum sum of instance weight(hessian) needed in a child. If the tree partition step results
@@ -147,7 +158,9 @@ private[spark] trait BoosterParams extends Params {
    * growth policy for fast histogram algorithm
    */
   final val growPolicy = new Param[String](this, "growPolicy",
-    "growth policy for fast histogram algorithm",
+    "Controls a way new nodes are added to the tree. Currently supported only if" +
+      " tree_method is set to hist. Choices: depthwise, lossguide. depthwise: split at nodes" +
+      " closest to the root. lossguide: split at nodes with highest loss change.",
     (value: String) => BoosterParams.supportedGrowthPolicies.contains(value))
 
   final def getGrowPolicy: String = $(growPolicy)
@@ -241,6 +254,22 @@ private[spark] trait BoosterParams extends Params {
     doc = "number of trees used in the prediction; defaults to 0 (use all trees).")
 
   final def getTreeLimit: Int = $(treeLimit)
+
+  final val monotoneConstraints = new Param[String](this, name = "monotoneConstraints",
+    doc = "a list in length of number of features, 1 indicate monotonic increasing, - 1 means " +
+      "decreasing, 0 means no constraint. If it is shorter than number of features, 0 will be " +
+      "padded ")
+
+  final def getMonotoneConstraints: String = $(monotoneConstraints)
+
+  final val interactionConstraints = new Param[String](this,
+    name = "interactionConstraints",
+    doc = "Constraints for interaction representing permitted interactions. The constraints" +
+      " must be specified in the form of a nest list, e.g. [[0, 1], [2, 3, 4]]," +
+      " where each inner list is a group of indices of features that are allowed to interact" +
+      " with each other. See tutorial for more information")
+
+  final def getInteractionConstraints: String = $(interactionConstraints)
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,

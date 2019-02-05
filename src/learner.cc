@@ -598,8 +598,8 @@ class LearnerImpl : public Learner {
     }
 
     const TreeMethod current_tree_method = tparam_.tree_method;
+
     if (rabit::IsDistributed()) {
-      /* Choose tree_method='approx' when distributed training is activated */
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
@@ -614,14 +614,13 @@ class LearnerImpl : public Learner {
             "for distributed training.";
         break;
        case TreeMethod::kApprox:
+       case TreeMethod::kHist:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
-       case TreeMethod::kHist:
-        LOG(WARNING) << "Tree method was set to be '"
-                     << (current_tree_method == TreeMethod::kExact ?
-                        "exact" : "hist")
-                     << "', but only 'approx' is available for distributed "
+        LOG(CONSOLE) << "Tree method was set to be "
+                     << "exact"
+                     << "', but only 'approx' and 'hist' is available for distributed "
                         "training. The `tree_method` parameter is now being "
                         "changed to 'approx'";
         break;
@@ -633,7 +632,15 @@ class LearnerImpl : public Learner {
         LOG(FATAL) << "Unknown tree_method ("
                    << static_cast<int>(current_tree_method) << ") detected";
       }
-      tparam_.tree_method = TreeMethod::kApprox;
+      if (current_tree_method != TreeMethod::kHist) {
+        LOG(CONSOLE) << "Tree method is automatically selected to be 'approx'"
+                        " for distributed training.";
+        tparam_.tree_method = TreeMethod::kApprox;
+      } else {
+        LOG(CONSOLE) << "Tree method is specified to be 'hist'"
+                        " for distributed training.";
+        tparam_.tree_method = TreeMethod::kHist;
+      }
     } else if (!p_train->SingleColBlock()) {
       /* Some tree methods are not available for external-memory DMatrix */
       switch (current_tree_method) {
