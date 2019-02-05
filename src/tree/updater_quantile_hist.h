@@ -116,38 +116,34 @@ class QuantileHistMaker: public TreeUpdater {
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
 
-  protected:
-   // initialize temp data structure
-   void InitData(const GHistIndexMatrix& gmat,
+   protected:
+    // initialize temp data structure
+    void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-<<<<<<< HEAD
     void EvaluateSplit(const int nid,
-=======
-   void EvaluateSplit(int nid,
->>>>>>> fix test compilation issue
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
                        const RegTree& tree);
 
-   void ApplySplit(int nid,
-                    const GHistIndexMatrix& gmat,
-                    const ColumnMatrix& column_matrix,
-                    const HistCollection& hist,
-                    const DMatrix& fmat,
-                    RegTree* p_tree);
+    void ApplySplit(int nid,
+                     const GHistIndexMatrix& gmat,
+                     const ColumnMatrix& column_matrix,
+                     const HistCollection& hist,
+                     const DMatrix& fmat,
+                     RegTree* p_tree);
 
-   void ApplySplitDenseData(const RowSetCollection::Elem rowset,
-                             const GHistIndexMatrix& gmat,
-                             std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                             const Column& column,
-                             bst_int split_cond,
-                             bool default_left);
+    void ApplySplitDenseData(const RowSetCollection::Elem rowset,
+                              const GHistIndexMatrix& gmat,
+                              std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                              const Column& column,
+                              bst_int split_cond,
+                              bool default_left);
 
-   void ApplySplitSparseData(const RowSetCollection::Elem rowset,
+    void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                               const GHistIndexMatrix& gmat,
                               std::vector<RowSetCollection::Split>* p_row_split_tloc,
                               const Column& column,
@@ -156,14 +152,14 @@ class QuantileHistMaker: public TreeUpdater {
                               bst_int split_cond,
                               bool default_left);
 
-   void InitNewNode(int nid,
+    void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
                      const RegTree& tree);
 
-   // enumerate the split values of specific feature
-   void EnumerateSplit(int d_step,
+    // enumerate the split values of specific feature
+    void EnumerateSplit(int d_step,
                         const GHistIndexMatrix& gmat,
                         const GHistRow& hist,
                         const NodeEntry& snode,
@@ -172,14 +168,14 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint fid,
                         bst_uint nodeID);
 
-   void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
+    void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               const ColumnMatrix &column_matrix,
                               DMatrix *p_fmat,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-   void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
+    void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
                              const ColumnMatrix& column_matrix,
                              DMatrix* p_fmat,
@@ -239,8 +235,8 @@ class QuantileHistMaker: public TreeUpdater {
     const DMatrix* p_last_fmat_;
 
     using ExpandQueue =
-        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                            std::function<bool(ExpandEntry, ExpandEntry)>>;
+       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                           std::function<bool(ExpandEntry, ExpandEntry)>>;
 
     std::unique_ptr<ExpandQueue> qexpand_loss_guided;
     std::vector<ExpandEntry> qexpand_depth_wise;
