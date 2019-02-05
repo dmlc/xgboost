@@ -362,7 +362,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
   double total_time = dmlc::GetTime() - gstart;
-  LOG(CONSOLE) << "\nInitData:          "
+  LOG(INFO) << "\nInitData:          "
             << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
             << " (" << std::fixed << std::setw(5) << std::setprecision(2)
             << time_init_data / total_time * 100 << "%)\n"
