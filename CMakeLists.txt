@@ -123,8 +123,6 @@ file(GLOB_RECURSE SOURCES
 # Only add main function for executable target
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
-file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
-
 file(GLOB_RECURSE CUDA_SOURCES
     src/*.cu
     src/*.cuh
@@ -140,7 +138,7 @@ if(PLUGIN_DENSE_PARSER)
 endif()
 
 # rabit
-# TODO: Create rabit cmakelists.txt
+# TODO: Use CMakeLists.txt from rabit.
 set(RABIT_SOURCES
     rabit/src/allreduce_base.cc
     rabit/src/allreduce_robust.cc
@@ -151,6 +149,7 @@ set(RABIT_EMPTY_SOURCES
     rabit/src/engine_empty.cc
     rabit/src/c_api.cc
 )
+
 if(MINGW OR R_LIB)
   # build a dummy rabit library
   add_library(rabit STATIC ${RABIT_EMPTY_SOURCES})
@@ -158,7 +157,11 @@ else()
   add_library(rabit STATIC ${RABIT_SOURCES})
 endif()
 
-if(USE_CUDA)
+if (GENERATE_COMPILATION_DATABASE)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif (GENERATE_COMPILATION_DATABASE)
+
+if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
   find_package(CUDA 8.0 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
 
@@ -168,7 +171,7 @@ if(USE_CUDA)
 
   if(USE_NCCL)
     find_package(Nccl REQUIRED)
-    include_directories(${NCCL_INCLUDE_DIR})
+    cuda_include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
@@ -188,6 +191,39 @@ if(USE_CUDA)
     target_link_libraries(gpuxgboost ${NCCL_LIB_NAME})
   endif()
   list(APPEND LINK_LIBRARIES gpuxgboost)
+
+elseif (USE_CUDA AND GENERATE_COMPILATION_DATABASE)
+  # Enable CUDA language to generate a compilation database.
+  cmake_minimum_required(VERSION 3.8)
+
+  find_package(CUDA 8.0 REQUIRED)
+  enable_language(CUDA)
+  set(CMAKE_CUDA_COMPILER clang++)
+  set(CUDA_SEPARABLE_COMPILATION ON)
+  if (NOT CLANG_CUDA_GENCODE)
+    set(CLANG_CUDA_GENCODE "--cuda-gpu-arch=sm_35")
+  endif (NOT CLANG_CUDA_GENCODE)
+  set(CMAKE_CUDA_FLAGS " -Wno-deprecated  ${CLANG_CUDA_GENCODE} -fPIC ${GENCODE} -std=c++11 -x cuda")
+  message(STATUS "CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
+
+  add_library(gpuxgboost STATIC ${CUDA_SOURCES})
+
+  if(USE_NCCL)
+    find_package(Nccl REQUIRED)
+    target_include_directories(gpuxgboost PUBLIC ${NCCL_INCLUDE_DIR})
+    target_compile_definitions(gpuxgboost PUBLIC -DXGBOOST_USE_NCCL)
+    target_link_libraries(gpuxgboost PUBLIC ${NCCL_LIB_NAME})
+  endif()
+
+  target_compile_definitions(gpuxgboost PUBLIC -DXGBOOST_USE_CUDA)
+  # A hack for CMake to make arguments valid for clang++
+  string(REPLACE "-x cu" "-x cuda" CMAKE_CUDA_COMPILE_PTX_COMPILATION
+    ${CMAKE_CUDA_COMPILE_PTX_COMPILATION})
+  string(REPLACE "-x cu" "-x cuda" CMAKE_CUDA_COMPILE_WHOLE_COMPILATION
+    ${CMAKE_CUDA_COMPILE_WHOLE_COMPILATION})
+  string(REPLACE "-x cu" "-x cuda" CMAKE_CUDA_COMPILE_SEPARABLE_COMPILATION
+    ${CMAKE_CUDA_COMPILE_SEPARABLE_COMPILATION})
+  target_include_directories(gpuxgboost PUBLIC cub)
 endif()
 
 
@@ -203,7 +239,6 @@ endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
 
-
 # building shared library for R package
 if(R_LIB)
   find_package(LibR REQUIRED)
@@ -211,13 +246,13 @@ if(R_LIB)
   list(APPEND LINK_LIBRARIES "${LIBR_CORE_LIBRARY}")
   MESSAGE(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
 
-  include_directories(
+  # Shared library target for the R package
+  add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
+  include_directories(xgboost
     "${LIBR_INCLUDE_DIRS}"
     "${PROJECT_SOURCE_DIR}"
   )
 
-  # Shared library target for the R package
-  add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
   target_link_libraries(xgboost ${LINK_LIBRARIES})
   # R uses no lib prefix in shared library names of its packages
   set_target_properties(xgboost PROPERTIES PREFIX "")
@@ -229,7 +264,7 @@ if(R_LIB)
   # use a dummy location for any other remaining installs
   set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 
-# main targets: shared library & exe
+  # main targets: shared library & exe
 else()
   # Executable
   add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
@@ -252,20 +287,20 @@ else()
   add_dependencies(xgboost runxgboost)
 endif()
 
-
 # JVM
 if(JVM_BINDINGS)
     find_package(JNI QUIET REQUIRED)
 
-    include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
-
     add_library(xgboost4j SHARED
-        $<TARGET_OBJECTS:objxgboost>
-        jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
-    set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
+      $<TARGET_OBJECTS:objxgboost>
+      jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
+    target_include_directories(xgboost4j
+      PRIVATE ${JNI_INCLUDE_DIRS}
+      PRIVATE jvm-packages/xgboost4j/src/native)
     target_link_libraries(xgboost4j
-        ${LINK_LIBRARIES}
-        ${JAVA_JVM_LIBRARY})
+      ${LINK_LIBRARIES}
+      ${JAVA_JVM_LIBRARY})
+    set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
 endif()
 
 
@@ -274,18 +309,31 @@ if(GOOGLE_TEST)
   enable_testing()
   find_package(GTest REQUIRED)
 
+  file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
-  include_directories(${GTEST_INCLUDE_DIRS})
 
-  if(USE_CUDA)
+  if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
     file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
+    cuda_include_directories(${GTEST_INCLUDE_DIRS})
     cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
+  elseif (USE_CUDA AND GENERATE_COMPILATION_DATABASE)
+    file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
   else()
     set(CUDA_TEST_OBJS "")
   endif()
 
-  add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS} $<TARGET_OBJECTS:objxgboost>)
+  if (USE_CUDA AND GENERATE_COMPILATION_DATABASE)
+    add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_SOURCES}
+      $<TARGET_OBJECTS:objxgboost>)
+    target_include_directories(testxgboost PRIVATE cub)
+  else ()
+    add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS}
+      $<TARGET_OBJECTS:objxgboost>)
+  endif ()
+
   set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
+  target_include_directories(testxgboost
+    PRIVATE ${GTEST_INCLUDE_DIRS})
   target_link_libraries(testxgboost ${GTEST_LIBRARIES} ${LINK_LIBRARIES})
 
   add_test(TestXGBoost testxgboost)
