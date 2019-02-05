@@ -95,7 +95,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   DMatrix *p_fmat,
   RegTree *p_tree,
   const std::vector<GradientPair> &gpair_h) {
-
   unsigned timestamp = 0;
   int num_leaves = 0;
 
