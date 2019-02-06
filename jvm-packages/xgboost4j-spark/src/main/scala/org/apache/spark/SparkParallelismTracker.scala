@@ -123,7 +123,16 @@ private[spark] class TaskFailedListener extends SparkListener {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
             s"$taskEndReason, stopping SparkContext")
-        SparkContext.getOrCreate().stop()
+        // we have to create a new thread to stop SparkContext as Spark blocks listener thread
+        // from stopping application
+        val stopThread = new Thread() {
+          override def run() {
+            SparkContext.getOrCreate().stop()
+          }
+        }
+        stopThread.setDaemon(true)
+        stopThread.start()
+        stopThread.join()
       case _ =>
     }
   }
