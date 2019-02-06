@@ -318,6 +318,7 @@ object XGBoost extends Serializable {
     } else {
       coPartitionNoGroupSets(partitionedData, evalSetsMap, nWorkers).mapPartitions {
         nameAndLabeledPointSets =>
+          throw new Exception("intentional")
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
               case (name, iter) => (name, removeMissingValues(iter, missing))},
