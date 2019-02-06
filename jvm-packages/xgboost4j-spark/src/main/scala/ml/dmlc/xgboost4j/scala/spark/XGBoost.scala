@@ -308,9 +308,7 @@ object XGBoost extends Serializable {
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
       partitionedData.mapPartitions(labeledPoints => {
-        if (TaskContext.getPartitionId() == 0) {
-          throw new Exception("intentional")
-        }
+        throw new Exception("intentional")
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
           getCacheDirName(useExternalMemory))
