@@ -308,7 +308,6 @@ object XGBoost extends Serializable {
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
       partitionedData.mapPartitions(labeledPoints => {
-        throw new Exception("intentional")
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
           getCacheDirName(useExternalMemory))
@@ -318,7 +317,6 @@ object XGBoost extends Serializable {
     } else {
       coPartitionNoGroupSets(partitionedData, evalSetsMap, nWorkers).mapPartitions {
         nameAndLabeledPointSets =>
-          throw new Exception("intentional")
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
               case (name, iter) => (name, removeMissingValues(iter, missing))},
