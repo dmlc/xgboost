@@ -21,8 +21,9 @@ import org.apache.spark.sql.DataFrame
 trait NonParamVariables {
   protected var evalSetsMap: Map[String, DataFrame] = Map.empty
 
-  def setEvalSets(evalSets: Map[String, DataFrame]): Unit = {
+  def setEvalSets(evalSets: Map[String, DataFrame]): this.type = {
     evalSetsMap = evalSets
+    this
   }
 
   def getEvalSets(params: Map[String, Any]): Map[String, DataFrame] = {
