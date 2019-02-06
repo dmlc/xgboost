@@ -20,7 +20,7 @@ import java.net.URL
 
 import org.apache.commons.logging.LogFactory
 
-import org.apache.spark.scheduler.{SparkListener, SparkListenerExecutorRemoved, SparkListenerTaskEnd}
+import org.apache.spark.scheduler.{SparkListener, SparkListenerExecutorBlacklisted, SparkListenerExecutorRemoved, SparkListenerTaskEnd}
 import org.codehaus.jackson.map.ObjectMapper
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -114,21 +114,16 @@ class SparkParallelismTracker(
   }
 }
 
-private class ErrorInXGBoostTraining(msg: String) extends ControlThrowable {
-  override def toString: String = s"ErrorInXGBoostTraining: $msg"
-}
-
 private[spark] class TaskFailedListener extends SparkListener {
+
+  private[this] val logger = LogFactory.getLog("XGBoostTaskFailedListener")
+
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
     taskEnd.reason match {
-      case taskEnd: SparkListenerTaskEnd =>
-        if (taskEnd.reason.isInstanceOf[TaskFailedReason]) {
-          throw new ErrorInXGBoostTraining(s"TaskFailed during XGBoost Training: " +
-            s"${taskEnd.reason}")
-        }
-      case executorRemoved: SparkListenerExecutorRemoved =>
-        throw new ErrorInXGBoostTraining(s"Executor lost during XGBoost Training: " +
-          s"${executorRemoved.reason}")
+      case taskEndReason: TaskFailedReason =>
+        logger.error(s"Training Task Failed during XGBoost Training: " +
+            s"$taskEndReason, stopping SparkContext")
+        SparkContext.getOrCreate().stop()
       case _ =>
     }
   }
