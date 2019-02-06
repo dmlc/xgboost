@@ -130,6 +130,7 @@ private[spark] class TaskFailedListener extends SparkListener {
             }
           }
         }
+        sparkContextKiller.setDaemon(true)
         sparkContextKiller.start()
         sparkContextKiller.join()
       case _ =>
