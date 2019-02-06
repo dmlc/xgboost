@@ -20,7 +20,7 @@ import java.net.URL
 
 import org.apache.commons.logging.LogFactory
 
-import org.apache.spark.scheduler.{SparkListener, SparkListenerExecutorBlacklisted, SparkListenerExecutorRemoved, SparkListenerTaskEnd}
+import org.apache.spark.scheduler._
 import org.codehaus.jackson.map.ObjectMapper
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -123,16 +123,9 @@ private[spark] class TaskFailedListener extends SparkListener {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
             s"$taskEndReason, stopping SparkContext")
-        // we have to create a new thread to stop SparkContext as Spark blocks listener thread
-        // from stopping application
-        val stopThread = new Thread() {
-          override def run() {
-            SparkContext.getOrCreate().stop()
-          }
+        LiveListenerBus.withinListenerThread.withValue(true) {
+          SparkContext.getOrCreate().stop()
         }
-        stopThread.setDaemon(true)
-        stopThread.start()
-        stopThread.join()
       case _ =>
     }
   }
