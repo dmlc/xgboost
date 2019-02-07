@@ -17,7 +17,7 @@
 
 namespace xgboost {
 namespace common {
-    
+
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
