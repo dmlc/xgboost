@@ -852,7 +852,7 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
-  std::vector<int> device_ordinals;
+  std::vector<int> device_ordinals;  // device id from CUDA
 #endif
 
  public:

@@ -42,6 +42,9 @@ TEST(GPUExact, Update) {
   ASSERT_NEAR(tree.Stat(2).sum_hess, 2, kRtEps);
 
   ASSERT_NEAR(tree.Stat(0).loss_chg, 0.8f, kRtEps);
+
+  delete dmat;
+  delete p_gpuexact_maker;
 }
 
 }  // namespace tree

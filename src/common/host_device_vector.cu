@@ -459,9 +459,8 @@ HostDeviceVector<T>& HostDeviceVector<T>::operator=
 
 template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
-  HostDeviceVectorImpl<T>* tmp = impl_;
+  delete impl_;
   impl_ = nullptr;
-  delete tmp;
 }
 
 template <typename T>

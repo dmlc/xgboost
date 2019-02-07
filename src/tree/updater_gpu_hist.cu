@@ -1050,19 +1050,20 @@ class GPUHistMakerSpecialised{
 
   void AllReduceHist(int nidx) {
     if (shards_.size() == 1) return;
-
     monitor_.Start("AllReduce");
-    dh::ExecuteIndexShards(
-        &shards_,
-        [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-          auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
-          reducer_.AllReduceSum(
-              dist_.Devices().Index(shard->device_id_),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              n_bins_ * (sizeof(GradientSumT) /
-                         sizeof(typename GradientSumT::ValueT)));
-        });
+
+    reducer_.GroupStart();
+    for (auto& shard : shards_) {
+      auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
+      reducer_.AllReduceSum(
+          dist_.Devices().Index(shard->device_id_),
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          n_bins_ * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+    }
+    reducer_.GroupEnd();
+    reducer_.Synchronize();
+
     monitor_.Stop("AllReduce");
   }
 
