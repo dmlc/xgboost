@@ -153,6 +153,13 @@ struct HostDeviceVectorImpl {
       }
     }
 
+    T*     Raw()                    { return data_.data().get(); }
+    size_t Start()            const { return start_; }
+    size_t DataSize()         const { return data_.size(); }
+    Permissions& Perm()             { return perm_d_; }
+    Permissions const& Perm() const { return perm_d_; }
+
+  private:
     int device_;
     thrust::device_vector<T> data_;
     // cached vector size
@@ -215,41 +222,42 @@ struct HostDeviceVectorImpl {
   T* DevicePointer(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
-    return shards_.at(distribution_.devices_.Index(device)).data_.data().get();
+    return shards_.at(distribution_.devices_.Index(device)).Raw();
   }
 
   const T* ConstDevicePointer(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).data_.data().get();
+    return shards_.at(distribution_.devices_.Index(device)).Raw();
   }
 
   common::Span<T> DeviceSpan(int device) {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kWrite);
-    return {shards_.at(devices.Index(device)).data_.data().get(),
-        static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
+    return {shards_.at(devices.Index(device)).Raw(),
+          static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
     GPUSet devices = distribution_.devices_;
     CHECK(devices.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return {shards_.at(devices.Index(device)).data_.data().get(),
-        static_cast<typename common::Span<const T>::index_type>(DeviceSize(device))};
+    using SpanInd = typename common::Span<const T>::index_type;
+    return {shards_.at(devices.Index(device)).Raw(),
+          static_cast<SpanInd>(DeviceSize(device))};
   }
 
   size_t DeviceSize(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).data_.size();
+    return shards_.at(distribution_.devices_.Index(device)).DataSize();
   }
 
   size_t DeviceStart(int device) {
     CHECK(distribution_.devices_.Contains(device));
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).start_;
+    return shards_.at(distribution_.devices_.Index(device)).Start();
   }
 
   thrust::device_ptr<T> tbegin(int device) {  // NOLINT
@@ -388,7 +396,7 @@ struct HostDeviceVectorImpl {
     if (perm_h_.CanRead()) {
       // data is present, just need to deny access to the device
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-          shard.perm_d_.DenyComplementary(access);
+          shard.Perm().DenyComplementary(access);
         });
       perm_h_.Grant(access);
       return;
@@ -411,9 +419,10 @@ struct HostDeviceVectorImpl {
   bool DeviceCanAccess(int device, GPUAccess access) {
     GPUSet devices = distribution_.Devices();
     if (!devices.Contains(device)) { return false; }
-    return shards_.at(devices.Index(device)).perm_d_.CanAccess(access);
+    return shards_.at(devices.Index(device)).Perm().CanAccess(access);
   }
 
+ private:
   std::vector<T> data_h_;
   Permissions perm_h_;
   // the total size of the data stored on the devices

@@ -278,7 +278,7 @@ struct DeviceHistogram {
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map;
   thrust::device_vector<typename GradientSumT::ValueT> data;
-  const size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
+  static constexpr size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
   int n_bins;
   int device_id_;
 
@@ -1373,6 +1373,7 @@ class GPUHistMakerSpecialised{
   /*! List storing device id. */
   std::vector<int> device_list_;
 
+ private:
   DMatrix* p_last_fmat_;
   GPUDistribution dist_;
 };

@@ -43,20 +43,20 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
 }
 
 TEST(GpuHist, BuildGidxDense) {
-  int const n_rows = 16, n_cols = 8;
+  int constexpr kNRows = 16, kNCols = 8;
   TrainParam param;
   param.max_depth = 1;
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
-  BuildGidx(&shard, n_rows, n_cols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, kNRows, param);
+  BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
   h_gidx_buffer = shard.gidx_buffer.AsVector();
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
-  ASSERT_EQ(shard.row_stride, n_cols);
+  ASSERT_EQ(shard.row_stride, kNCols);
 
   std::vector<uint32_t> solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
@@ -76,20 +76,20 @@ TEST(GpuHist, BuildGidxDense) {
     2, 4, 8, 10, 14, 15, 19, 22,
     1, 4, 7, 10, 14, 16, 19, 21,
   };
-  for (size_t i = 0; i < n_rows * n_cols; ++i) {
+  for (size_t i = 0; i < kNRows * kNCols; ++i) {
     ASSERT_EQ(solution[i], gidx[i]);
   }
 }
 
 TEST(GpuHist, BuildGidxSparse) {
-  int const n_rows = 16, n_cols = 8;
+  int constexpr kNRows = 16, kNCols = 8;
   TrainParam param;
   param.max_depth = 1;
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, n_rows, param);
-  BuildGidx(&shard, n_rows, n_cols, 0.9f);
+  DeviceShard<GradientPairPrecise> shard(0, 0, kNRows, param);
+  BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer;
   h_gidx_buffer = shard.gidx_buffer.AsVector();
@@ -103,7 +103,7 @@ TEST(GpuHist, BuildGidxSparse) {
     24, 24, 24, 24, 24,  5, 24, 24,  0, 16, 24, 15, 24, 24, 24, 24,
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
-  for (size_t i = 0; i < n_rows * shard.row_stride; ++i) {
+  for (size_t i = 0; i < kNRows * shard.row_stride; ++i) {
     ASSERT_EQ(solution[i], gidx[i]);
   }
 }
@@ -125,27 +125,27 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
 
 template <typename GradientSumT>
 void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
-  int const n_rows = 16, n_cols = 8;
+  int const kNRows = 16, kNCols = 8;
 
   TrainParam param;
   param.max_depth = 6;
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientSumT> shard(0, 0, n_rows, param);
+  DeviceShard<GradientSumT> shard(0, 0, kNRows, param);
 
-  BuildGidx(&shard, n_rows, n_cols);
+  BuildGidx(&shard, kNRows, kNCols);
 
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(n_rows);
+  std::vector<GradientPair> h_gpair(kNRows);
   for (size_t i = 0; i < h_gpair.size(); ++i) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
     h_gpair[i] = GradientPair(grad, hess);
   }
 
-  thrust::device_vector<GradientPair> gpair (n_rows);
+  thrust::device_vector<GradientPair> gpair (kNRows);
   gpair = h_gpair;
 
   int num_symbols = shard.n_bins + 1;
@@ -161,7 +161,7 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
                                                    num_symbols);
 
   shard.ridx_segments.resize(1);
-  shard.ridx_segments[0] = Segment(0, n_rows);
+  shard.ridx_segments[0] = Segment(0, kNRows);
   shard.hist.AllocateHistogram(0);
   shard.gpair.copy(gpair.begin(), gpair.end());
   thrust::sequence(shard.ridx.CurrentDVec().tbegin(),
@@ -221,8 +221,8 @@ common::HistCutMatrix GetHostCutMatrix () {
 
 // TODO(trivialfis): This test is over simplified.
 TEST(GpuHist, EvaluateSplits) {
-  constexpr int n_rows = 16;
-  constexpr int n_cols = 8;
+  constexpr int kNRows = 16;
+  constexpr int kNCols = 8;
 
   TrainParam param;
   param.max_depth = 1;
@@ -237,14 +237,15 @@ TEST(GpuHist, EvaluateSplits) {
   param.reg_lambda = 0;
   param.max_delta_step = 0.0;
 
-  for (size_t i = 0; i < n_cols; ++i) {
+  for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
   }
 
   int max_bins = 4;
 
   // Initialize DeviceShard
-  std::unique_ptr<DeviceShard<GradientPairPrecise>> shard {new DeviceShard<GradientPairPrecise>(0, 0, n_rows, param)};
+  std::unique_ptr<DeviceShard<GradientPairPrecise>> shard {
+    new DeviceShard<GradientPairPrecise>(0, 0, kNRows, param)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -257,14 +258,14 @@ TEST(GpuHist, EvaluateSplits) {
                      &(shard->cut_.feature_segments), cmat.row_ptr.size(),
                      &(shard->cut_.min_fvalue), cmat.min_val.size(),
                      &(shard->cut_.gidx_fvalue_map), 24,
-                     &(shard->monotone_constraints), n_cols);
+                     &(shard->monotone_constraints), kNCols);
   shard->cut_.feature_segments.copy(cmat.row_ptr.begin(), cmat.row_ptr.end());
   shard->cut_.gidx_fvalue_map.copy(cmat.cut.begin(), cmat.cut.end());
   shard->monotone_constraints.copy(param.monotone_constraints.begin(),
                                    param.monotone_constraints.end());
 
   // Initialize DeviceShard::hist
-  shard->hist.Init(0, (max_bins - 1) * n_cols);
+  shard->hist.Init(0, (max_bins - 1) * kNCols);
   shard->hist.AllocateHistogram(0);
   // Each row of hist_gpair represents gpairs for one feature.
   // Each entry represents a bin.
@@ -284,7 +285,7 @@ TEST(GpuHist, EvaluateSplits) {
       GPUHistMakerSpecialised<GradientPairPrecise>();
   hist_maker.param_ = param;
   hist_maker.shards_.push_back(std::move(shard));
-  hist_maker.column_sampler_.Init(n_cols,
+  hist_maker.column_sampler_.Init(kNCols,
                                   param.colsample_bynode,
                                   param.colsample_bylevel,
                                   param.colsample_bytree,
@@ -292,8 +293,8 @@ TEST(GpuHist, EvaluateSplits) {
 
   RegTree tree;
   MetaInfo info;
-  info.num_row_ = n_rows;
-  info.num_col_ = n_cols;
+  info.num_row_ = kNRows;
+  info.num_col_ = kNCols;
 
   hist_maker.info_ = &info;
   hist_maker.node_value_constraints_.resize(1);
@@ -311,27 +312,27 @@ TEST(GpuHist, ApplySplit) {
   GPUHistMakerSpecialised<GradientPairPrecise> hist_maker =
       GPUHistMakerSpecialised<GradientPairPrecise>();
   int constexpr nid = 0;
-  int constexpr n_rows = 16;
-  int constexpr n_cols = 8;
+  int constexpr kNRows = 16;
+  int constexpr kNCols = 8;
 
   TrainParam param;
 
   // Initialize shard
-  for (size_t i = 0; i < n_cols; ++i) {
+  for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
   }
 
   hist_maker.shards_.resize(1);
-  hist_maker.shards_[0].reset(new DeviceShard<GradientPairPrecise>(0, 0, n_rows, param));
+  hist_maker.shards_[0].reset(new DeviceShard<GradientPairPrecise>(0, 0, kNRows, param));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.
   shard->node_sum_gradients.resize(3);
 
-  shard->ridx_segments[0] = Segment(0, n_rows);
-  shard->ba.Allocate(0, &(shard->ridx), n_rows,
-                     &(shard->position), n_rows);
-  shard->row_stride = n_cols;
+  shard->ridx_segments[0] = Segment(0, kNRows);
+  shard->ba.Allocate(0, &(shard->ridx), kNRows,
+                     &(shard->position), kNRows);
+  shard->row_stride = kNCols;
   thrust::sequence(shard->ridx.CurrentDVec().tbegin(),
                    shard->ridx.CurrentDVec().tend());
   // Initialize GPUHistMaker
@@ -354,21 +355,21 @@ TEST(GpuHist, ApplySplit) {
   hist_maker.hmat_ = cmat;
 
   MetaInfo info;
-  info.num_row_ = n_rows;
-  info.num_col_ = n_cols;
-  info.num_nonzero_ = n_rows * n_cols;  // Dense
+  info.num_row_ = kNRows;
+  info.num_col_ = kNCols;
+  info.num_nonzero_ = kNRows * kNCols;  // Dense
 
   // Initialize gidx
   int n_bins = 24;
-  int row_stride = n_cols;
+  int row_stride = kNCols;
   int num_symbols = n_bins + 1;
   size_t compressed_size_bytes =
       common::CompressedBufferWriter::CalculateBufferSize(
-          row_stride * n_rows, num_symbols);
+          row_stride * kNRows, num_symbols);
   shard->ba.Allocate(0, &(shard->gidx_buffer), compressed_size_bytes);
 
   common::CompressedBufferWriter wr(num_symbols);
-  std::vector<int> h_gidx (n_rows * row_stride);
+  std::vector<int> h_gidx (kNRows * row_stride);
   std::iota(h_gidx.begin(), h_gidx.end(), 0);
   std::vector<common::CompressedByteT> h_gidx_compressed (compressed_size_bytes);
 

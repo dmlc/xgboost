@@ -771,7 +771,7 @@ template <typename T>
 typename std::iterator_traits<T>::value_type SumReduction(
     dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
-  size_t tmpSize;
+  size_t tmpSize {0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
   // Allocate small extra memory for the return value

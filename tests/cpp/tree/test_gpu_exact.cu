@@ -20,13 +20,13 @@ TEST(GPUExact, Update) {
   auto* p_gpuexact_maker = TreeUpdater::Create("grow_gpu");
   p_gpuexact_maker->Init(args);
 
-  size_t constexpr n_rows = 4;
-  size_t constexpr n_cols = 8;
+  size_t constexpr kNRows = 4;
+  size_t constexpr kNCols = 8;
   bst_float constexpr sparsity = 0.0f;
 
-  auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
-  std::vector<GradientPair> h_gpair(n_rows);
-  for (size_t i = 0; i < n_rows; ++i) {
+  auto dmat = CreateDMatrix(kNRows, kNCols, sparsity, 3);
+  std::vector<GradientPair> h_gpair(kNRows);
+  for (size_t i = 0; i < kNRows; ++i) {
       h_gpair[i] = GradientPair(i % 2, 1);
   }
   HostDeviceVector<GradientPair> gpair (h_gpair);

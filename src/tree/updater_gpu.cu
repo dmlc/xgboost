@@ -102,7 +102,7 @@ struct AddByKey {
  * @param instIds instance index buffer
  * @return the expected gradient value
  */
-HOST_DEV_INLINE GradientPair get(int id,
+HOST_DEV_INLINE GradientPair Get(int id,
                                  common::Span<const GradientPair> vals,
                                  common::Span<const int> instIds) {
   id = instIds[id];
@@ -129,7 +129,7 @@ __global__ void CubScanByKeyL1(
   int tid = blockIdx.x * BLKDIM_L1L3 + threadIdx.x;
   if (tid < size) {
     myKey = Abs2UniqueKey(tid, keys, colIds, nodeStart, nUniqKeys);
-    myValue = get(tid, vals, instIds);
+    myValue = Get(tid, vals, instIds);
   } else {
     myKey = kNoneKey;
     myValue = {};
@@ -201,19 +201,19 @@ __global__ void CubScanByKeyL3(common::Span<GradientPair> sums,
   int previousKey =
       tid == 0 ? kNoneKey
                : Abs2UniqueKey(tid - 1, keys, colIds, nodeStart, nUniqKeys);
-  GradientPair myValue = scans[tid];
+  GradientPair my_value = scans[tid];
   __syncthreads();
   if (blockIdx.x > 0 && s_mKeys == previousKey) {
-    myValue += s_mScans[0];
+    my_value += s_mScans[0];
   }
   if (tid == size - 1) {
-    sums[previousKey] = myValue + get(tid, vals, instIds);
+    sums[previousKey] = my_value + Get(tid, vals, instIds);
   }
   if ((previousKey != myKey) && (previousKey >= 0)) {
-    sums[previousKey] = myValue;
-    myValue = GradientPair(0.0f, 0.0f);
+    sums[previousKey] = my_value;
+    my_value = GradientPair(0.0f, 0.0f);
   }
-  scans[tid] = myValue;
+  scans[tid] = my_value;
 }
 
 /**
