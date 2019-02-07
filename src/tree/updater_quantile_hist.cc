@@ -785,7 +785,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
         }
       }
     }
-    
+
     // calculating the weights
     {
       bst_uint parentid = tree[nid].Parent();
