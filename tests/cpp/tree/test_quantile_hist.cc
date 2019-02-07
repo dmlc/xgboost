@@ -57,10 +57,10 @@ class QuantileHistMock : public QuantileHistMaker {
         {0.26f, 0.27f}, {0.23f, 0.24f}, {0.27f, 0.28f},
         {0.57f, 0.59f}, {0.23f, 0.24f}, {0.47f, 0.49f}};
 
-      for (size_t i = 0; i < hist_[nid].size; ++i) {
+      for (size_t i = 0; i < hist_[nid].size(); ++i) {
         GradientPairPrecise sol = solution[i];
-        ASSERT_NEAR(sol.GetGrad(), hist_[nid].begin[i].sum_grad, kEps);
-        ASSERT_NEAR(sol.GetHess(), hist_[nid].begin[i].sum_hess, kEps);
+        ASSERT_NEAR(sol.GetGrad(), hist_[nid][i].GetGrad(), kEps);
+        ASSERT_NEAR(sol.GetHess(), hist_[nid][i].GetHess(), kEps);
       }
     }
 

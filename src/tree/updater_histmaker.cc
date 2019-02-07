@@ -19,13 +19,11 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_histmaker);
 
-template<typename TStats>
 class HistMaker: public BaseMaker {
  public:
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
-    TStats::CheckInfo(p_fmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -42,13 +40,13 @@ class HistMaker: public BaseMaker {
     /*! \brief cutting point of histogram, contains maximum point */
     const bst_float *cut;
     /*! \brief content of statistics data */
-    TStats *data;
+    GradStats *data;
     /*! \brief size of histogram */
     unsigned size;
     // default constructor
     HistUnit() = default;
     // constructor
-    HistUnit(const bst_float *cut, TStats *data, unsigned size)
+    HistUnit(const bst_float *cut, GradStats *data, unsigned size)
         : cut(cut), data(data), size(size) {}
     /*! \brief add a histogram to data */
     inline void Add(bst_float fv,
@@ -58,7 +56,7 @@ class HistMaker: public BaseMaker {
       unsigned i = std::upper_bound(cut, cut + size, fv) - cut;
       CHECK_NE(size, 0U) << "try insert into size=0";
       CHECK_LT(i, size);
-      data[i].Add(gpair, info, ridx);
+      data[i].Add(gpair[ridx]);
     }
   };
   /*! \brief a set of histograms from different index */
@@ -68,7 +66,7 @@ class HistMaker: public BaseMaker {
     /*! \brief cutting points in each histunit */
     const bst_float *cut;
     /*! \brief data in different hist unit */
-    std::vector<TStats> data;
+    std::vector<GradStats> data;
     /*! \brief */
     inline HistUnit operator[](size_t fid) {
       return HistUnit(cut + rptr[fid],
@@ -89,12 +87,10 @@ class HistMaker: public BaseMaker {
       hset.resize(nthread);
       // cleanup statistics
       for (int tid = 0; tid < nthread; ++tid) {
-        for (size_t i = 0; i < hset[tid].data.size(); ++i) {
-          hset[tid].data[i].Clear();
-        }
+        for (auto& d : hset[tid].data) { d = GradStats(); }
         hset[tid].rptr = dmlc::BeginPtr(rptr);
         hset[tid].cut = dmlc::BeginPtr(cut);
-        hset[tid].data.resize(cut.size(), TStats(param));
+        hset[tid].data.resize(cut.size(), GradStats());
       }
     }
     // aggregate all statistics to hset[0]
@@ -119,7 +115,7 @@ class HistMaker: public BaseMaker {
   // workspace of thread
   ThreadWSpace wspace_;
   // reducer for histogram
-  rabit::Reducer<TStats, TStats::Reduce> histred_;
+  rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   // set of working features
   std::vector<bst_uint> fwork_set_;
   // update function implementation
@@ -147,8 +143,7 @@ class HistMaker: public BaseMaker {
       // if nothing left to be expand, break
       if (qexpand_.size() == 0) break;
     }
-    for (size_t i = 0; i < qexpand_.size(); ++i) {
-      const int nid = qexpand_[i];
+    for (int const nid : qexpand_) {
       (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
     }
   }
@@ -179,34 +174,35 @@ class HistMaker: public BaseMaker {
 
  private:
   inline void EnumerateSplit(const HistUnit &hist,
-                             const TStats &node_sum,
+                             const GradStats &node_sum,
                              bst_uint fid,
                              SplitEntry *best,
-                             TStats *left_sum) {
+                             GradStats *left_sum) {
     if (hist.size == 0) return;
 
-    double root_gain = node_sum.CalcGain(param_);
-    TStats s(param_), c(param_);
+    double root_gain = CalcGain(param_, node_sum.GetGrad(), node_sum.GetHess());
+    GradStats s, c;
     for (bst_uint i = 0; i < hist.size; ++i) {
       s.Add(hist.data[i]);
       if (s.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
-          double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
-          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i],
-                           false, s, c)) {
+          double loss_chg = CalcGain(param_, s.GetGrad(), s.GetHess()) +
+                            CalcGain(param_, c.GetGrad(), c.GetHess()) - root_gain;
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false, s, c)) {
             *left_sum = s;
           }
         }
       }
     }
-    s.Clear();
+    s = GradStats();
     for (bst_uint i = hist.size - 1; i != 0; --i) {
       s.Add(hist.data[i]);
       if (s.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param_.min_child_weight) {
-          double loss_chg = s.CalcGain(param_) + c.CalcGain(param_) - root_gain;
+          double loss_chg = CalcGain(param_, s.GetGrad(), s.GetHess()) +
+                            CalcGain(param_, c.GetGrad(), c.GetHess()) - root_gain;
           if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true, c, s)) {
             *left_sum = c;
           }
@@ -222,14 +218,14 @@ class HistMaker: public BaseMaker {
     const size_t num_feature = fset.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
-    std::vector<TStats> left_sum(qexpand_.size());
+    std::vector<GradStats> left_sum(qexpand_.size());
     auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
     #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand_[wid];
       CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
-      TStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
+      GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
       for (size_t i = 0; i < fset.size(); ++i) {
         EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
                        node_sum, fset[i], &best, &left_sum[wid]);
@@ -239,13 +235,13 @@ class HistMaker: public BaseMaker {
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand_[wid];
       const SplitEntry &best = sol[wid];
-      const TStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
+      const GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
       this->SetStats(p_tree, nid, node_sum);
       // set up the values
       p_tree->Stat(nid).loss_chg = best.loss_chg;
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > kRtEps) {
-        bst_float base_weight = node_sum.CalcWeight(param_);
+        bst_float base_weight = CalcWeight(param_, node_sum);
         bst_float left_leaf_weight =
             CalcWeight(param_, best.left_sum.sum_grad, best.left_sum.sum_hess) *
             param_.learning_rate;
@@ -258,7 +254,7 @@ class HistMaker: public BaseMaker {
                            right_leaf_weight, best.loss_chg,
                            node_sum.sum_hess);
         // right side sum
-        TStats right_sum;
+        GradStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
         this->SetStats(p_tree, (*p_tree)[nid].LeftChild(), left_sum[wid]);
         this->SetStats(p_tree, (*p_tree)[nid].RightChild(), right_sum);
@@ -268,20 +264,20 @@ class HistMaker: public BaseMaker {
     }
   }
 
-  inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
-    p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
+  inline void SetStats(RegTree *p_tree, int nid, const GradStats &node_sum) {
+    p_tree->Stat(nid).base_weight =
+        static_cast<bst_float>(CalcWeight(param_, node_sum));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
   }
 };
 
-template<typename TStats>
-class CQHistMaker: public HistMaker<TStats> {
+class CQHistMaker: public HistMaker {
  public:
   CQHistMaker()  = default;
 
  protected:
   struct HistEntry {
-    typename HistMaker<TStats>::HistUnit hist;
+    HistMaker::HistUnit hist;
     unsigned istart;
     /*!
      * \brief add a histogram to data,
@@ -293,7 +289,7 @@ class CQHistMaker: public HistMaker<TStats> {
                     const bst_uint ridx) {
       while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
       CHECK_NE(istart, hist.size);
-      hist.data[istart].Add(gpair, info, ridx);
+      hist.data[istart].Add(gpair[ridx]);
     }
     /*!
      * \brief add a histogram to data,
@@ -352,7 +348,7 @@ class CQHistMaker: public HistMaker<TStats> {
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
-        #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int fid = fset[i];
           int offset = feat2workindex_[fid];
@@ -366,8 +362,7 @@ class CQHistMaker: public HistMaker<TStats> {
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
                          &thread_stats_, &node_stats_);
-      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-        const int nid = this->qexpand_[i];
+      for (int const nid : this->qexpand_) {
         const int wid = this->node2workindex_[nid];
         this->wspace_.hset[0][fset.size() + wid * (fset.size() + 1)]
                 .data[0] = node_stats_[nid];
@@ -403,8 +398,8 @@ class CQHistMaker: public HistMaker<TStats> {
     const size_t work_set_size = work_set_.size();
 
     sketchs_.resize(this->qexpand_.size() * work_set_size);
-    for (size_t i = 0; i < sketchs_.size(); ++i) {
-      sketchs_[i].Init(info.num_row_, this->param_.sketch_eps);
+    for (auto& sketch : sketchs_) {
+      sketch.Init(info.num_row_, this->param_.sketch_eps);
     }
     // intitialize the summary array
     summary_array_.resize(sketchs_.size());
@@ -501,13 +496,12 @@ class CQHistMaker: public HistMaker<TStats> {
     // initialize sbuilder for use
     std::vector<HistEntry> &hbuilder = *p_temp;
     hbuilder.resize(tree.param.num_nodes);
-    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-      const unsigned nid = this->qexpand_[i];
+    for (int const nid : this->qexpand_) {
       const unsigned wid = this->node2workindex_[nid];
       hbuilder[nid].istart = 0;
       hbuilder[nid].hist = this->wspace_.hset[0][fid_offset + wid * (fset.size()+1)];
     }
-    if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
+    if (this->param_.cache_opt != 0) {
       constexpr bst_uint kBuffer = 32;
       bst_uint align_length = col.size() / kBuffer * kBuffer;
       int buf_position[kBuffer];
@@ -552,13 +546,11 @@ class CQHistMaker: public HistMaker<TStats> {
     // initialize sbuilder for use
     std::vector<BaseMaker::SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes);
-    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-      const unsigned nid = this->qexpand_[i];
+    for (int const nid : this->qexpand_) {
       const unsigned wid = this->node2workindex_[nid];
       sbuilder[nid].sum_total = 0.0f;
       sbuilder[nid].sketch = &sketchs_[wid * work_set_size + offset];
     }
-
     // first pass, get sum of weight, TODO, optimization to skip first pass
     for (const auto& c : col) {
         const bst_uint ridx = c.index;
@@ -569,20 +561,19 @@ class CQHistMaker: public HistMaker<TStats> {
     }
     // if only one value, no need to do second pass
     if (col[0].fvalue  == col[col.size()-1].fvalue) {
-      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-        const int nid = this->qexpand_[i];
-        sbuilder[nid].sketch->Push(col[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
+      for (int const nid : this->qexpand_) {
+        sbuilder[nid].sketch->Push(
+            col[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
       }
       return;
     }
     // two pass scan
     unsigned max_size = this->param_.MaxSketchSize();
-    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-      const int nid = this->qexpand_[i];
+    for (int const nid : this->qexpand_) {
       sbuilder[nid].Init(max_size);
     }
     // second pass, build the sketch
-    if (TStats::kSimpleStats != 0 && this->param_.cache_opt != 0) {
+    if (this->param_.cache_opt != 0) {
       constexpr bst_uint kBuffer = 32;
       bst_uint align_length = col.size() / kBuffer * kBuffer;
       int buf_position[kBuffer];
@@ -616,10 +607,7 @@ class CQHistMaker: public HistMaker<TStats> {
         }
       }
     }
-    for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-      const int nid = this->qexpand_[i];
-      sbuilder[nid].Finalize(max_size);
-    }
+    for (int const nid : this->qexpand_) { sbuilder[nid].Finalize(max_size); }
   }
   // cached dmatrix where we initialized the feature on.
   const DMatrix* cache_dmatrix_{nullptr};
@@ -634,11 +622,11 @@ class CQHistMaker: public HistMaker<TStats> {
   // thread temp data
   std::vector<std::vector<BaseMaker::SketchEntry> > thread_sketch_;
   // used to hold statistics
-  std::vector<std::vector<TStats> > thread_stats_;
+  std::vector<std::vector<GradStats> > thread_stats_;
   // used to hold start pointer
   std::vector<std::vector<HistEntry> > thread_hist_;
   // node statistics
-  std::vector<TStats> node_stats_;
+  std::vector<GradStats> node_stats_;
   // summary array
   std::vector<WXQSketch::SummaryContainer> summary_array_;
   // reducer for summary
@@ -648,8 +636,7 @@ class CQHistMaker: public HistMaker<TStats> {
 };
 
 // global proposal
-template<typename TStats>
-class GlobalProposalHistMaker: public CQHistMaker<TStats> {
+class GlobalProposalHistMaker: public CQHistMaker {
  protected:
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
@@ -661,7 +648,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
     }
     if (cached_rptr_.size() == 0) {
       CHECK_EQ(this->qexpand_.size(), 1U);
-      CQHistMaker<TStats>::ResetPosAndPropose(gpair, p_fmat, fset, tree);
+      CQHistMaker::ResetPosAndPropose(gpair, p_fmat, fset, tree);
       cached_rptr_ = this->wspace_.rptr;
       cached_cut_ = this->wspace_.cut;
     } else {
@@ -730,8 +717,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
                          &(this->thread_stats_), &(this->node_stats_));
-      for (size_t i = 0; i < this->qexpand_.size(); ++i) {
-        const int nid = this->qexpand_[i];
+      for (const int nid : this->qexpand_) {
         const int wid = this->node2workindex_[nid];
         this->wspace_.hset[0][fset.size() + wid * (fset.size()+1)]
             .data[0] = this->node_stats_[nid];
@@ -750,19 +736,19 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
 XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
 .describe("Tree constructor that uses approximate histogram construction.")
 .set_body([]() {
-    return new CQHistMaker<GradStats>();
+    return new CQHistMaker();
   });
 
 XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_global_histmaker")
 .describe("Tree constructor that uses approximate global proposal of histogram construction.")
 .set_body([]() {
-    return new GlobalProposalHistMaker<GradStats>();
+    return new GlobalProposalHistMaker();
   });
 
 XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
 .describe("Tree constructor that uses approximate global of histogram construction.")
 .set_body([]() {
-    return new GlobalProposalHistMaker<GradStats>();
+    return new GlobalProposalHistMaker();
   });
 }  // namespace tree
 }  // namespace xgboost

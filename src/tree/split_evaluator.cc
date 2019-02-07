@@ -50,6 +50,7 @@ void SplitEvaluator::AddSplit(bst_uint nodeid,
                               bst_uint featureid,
                               bst_float leftweight,
                               bst_float rightweight) {}
+
 bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
                                             bst_uint featureid,
                                             const GradStats& left_stats,

@@ -1005,7 +1005,7 @@ class AllReducer {
    */
   void Synchronize() {
 #ifdef XGBOOST_USE_NCCL
-    for (int i = 0; i < device_ordinals.size(); i++) {
+    for (size_t i = 0; i < device_ordinals.size(); i++) {
       dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
     }
@@ -1051,7 +1051,7 @@ template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
 #pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-    for (int shard = 0; shard < shards->size(); ++shard) {
+    for (size_t shard = 0; shard < shards->size(); ++shard) {
       f(shard, shards->at(shard));
     }
   }};
