@@ -41,21 +41,20 @@ TEST(cpu_predictor, Test) {
   // Test predict leaf
   std::vector<float> leaf_out_predictions;
   cpu_predictor->PredictLeaf((*dmat).get(), &leaf_out_predictions, model);
-  for (int i = 0; i < leaf_out_predictions.size(); i++) {
-    ASSERT_EQ(leaf_out_predictions[i], 0);
+  for (auto v : leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
   }
 
   // Test predict contribution
   std::vector<float> out_contribution;
   cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model);
-  for (int i = 0; i < out_contribution.size(); i++) {
-    ASSERT_EQ(out_contribution[i], 1.5);
+  for (auto const& contri : out_contribution) {
+    ASSERT_EQ(contri, 1.5);
   }
-
   // Test predict contribution (approximate method)
   cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model, true);
-  for (int i = 0; i < out_contribution.size(); i++) {
-    ASSERT_EQ(out_contribution[i], 1.5);
+  for (auto const& contri : out_contribution) {
+    ASSERT_EQ(contri, 1.5);
   }
 
   delete dmat;

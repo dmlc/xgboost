@@ -5,23 +5,24 @@ import json
 from multiprocessing import Pool, cpu_count
 import shutil
 import os
+import sys
 import re
 import argparse
 
 
 def call(args):
     '''Subprocess run wrapper.'''
-    completed = subprocess.run(args, stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL)
+    completed = subprocess.run(args,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
     error_msg = completed.stdout.decode('utf-8')
-    matched = re.match('.*xgboost.*warning.*', error_msg,
+    matched = re.match('.*src.*warning.*', error_msg,
                        re.MULTILINE | re.DOTALL)
     if matched is None:
         return_code = 0
     else:
-        print(error_msg, '\n')
         return_code = 1
-    return completed.returncode | return_code
+    return (completed.returncode, return_code, error_msg)
 
 
 class ClangTidy(object):
@@ -69,7 +70,7 @@ class ClangTidy(object):
 
     def _configure_flags(self, path, command):
         common_args = ['clang-tidy',
-                       # "-header-filter='(xgboost\\/src|xgboost\\/include)'",
+                       "-header-filter='(xgboost\\/src|xgboost\\/include)'",
                        '-config='+str(self.clang_tidy)]
         common_args.append(path)
         common_args.append('--')
@@ -112,7 +113,10 @@ class ClangTidy(object):
         def should_lint(path):
             if not self.cpp_lint and path.endswith('.cc'):
                 return False
-            return True
+            isxgb = path.find('rabit') == -1
+            isxgb = isxgb and path.find('dmlc-core') == -1
+            if isxgb:
+                return True
 
         cdb_file = os.path.join(self.cdb_path, 'compile_commands.json')
         with open(cdb_file, 'r') as fd:
@@ -132,12 +136,22 @@ class ClangTidy(object):
     def run(self):
         '''Run clang-tidy.'''
         all_files = self._configure()
+        passed = True
+        BAR = '-'*32
         with Pool(cpu_count()) as pool:
             results = pool.map(call, all_files)
-        passed = True
-        if 1 in results:
+            for (process_status, tidy_status, msg) in results:
+                # Don't enforce clang-tidy to pass for now due to namespace
+                # for cub in thrust is not correct.
+                if tidy_status == 1:
+                    passed = False
+                    print(BAR, '\n'
+                          'Process return code:', process_status, ', ',
+                          'Tidy result code:', tidy_status, ', ',
+                          'Message:\n', msg,
+                          BAR, '\n')
+        if not passed:
             print('Please correct clang-tidy warnings.')
-            passed = False
         return passed
 
 
@@ -150,6 +164,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     with ClangTidy(args.gtest_path, args.cpp, args.cuda) as linter:
         passed = linter.run()
-    # Uncomment it once the code base is clang-tidy conformant.
-    # if not passed:
-    #     sys.exit(1)
+    if not passed:
+        sys.exit(1)
