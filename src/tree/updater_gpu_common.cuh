@@ -120,7 +120,7 @@ struct DeviceSplitCandidate {
 
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
-                                  const ParamT& param) {
+                             const ParamT& param) {
     if (other.loss_chg > loss_chg &&
         other.left_sum.GetHess() >= param.min_child_weight &&
         other.right_sum.GetHess() >= param.min_child_weight) {
@@ -233,51 +233,6 @@ XGBOOST_DEVICE inline float DeviceCalcLossChange(const GPUTrainingParam& param,
   float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
   float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
   return left_gain + right_gain - parent_gain;
-}
-
-// Without constraints
-template <typename GradientPairT>
-XGBOOST_DEVICE float inline LossChangeMissing(const GradientPairT& scan,
-                                         const GradientPairT& missing,
-                                         const GradientPairT& parent_sum,
-                                         const float& parent_gain,
-                                         const GPUTrainingParam& param,
-                                         bool& missing_left_out) {  // NOLINT
-  // Put gradients of missing values to left
-  float missing_left_loss =
-      DeviceCalcLossChange(param, scan + missing, parent_sum, parent_gain);
-  float missing_right_loss =
-      DeviceCalcLossChange(param, scan, parent_sum, parent_gain);
-
-  if (missing_left_loss >= missing_right_loss) {
-    missing_left_out = true;
-    return missing_left_loss;
-  } else {
-    missing_left_out = false;
-    return missing_right_loss;
-  }
-}
-
-// With constraints
-template <typename GradientPairT>
-XGBOOST_DEVICE float inline LossChangeMissing(
-    const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
-    const float& parent_gain, const GPUTrainingParam& param, int constraint,
-    const ValueConstraint& value_constraint,
-    bool& missing_left_out) {  // NOLINT
-  float missing_left_gain = value_constraint.CalcSplitGain(
-      param, constraint, GradStats(scan + missing),
-      GradStats(parent_sum - (scan + missing)));
-  float missing_right_gain = value_constraint.CalcSplitGain(
-      param, constraint, GradStats(scan), GradStats(parent_sum - scan));
-
-  if (missing_left_gain >= missing_right_gain) {
-    missing_left_out = true;
-    return missing_left_gain - parent_gain;
-  } else {
-    missing_left_out = false;
-    return missing_right_gain - parent_gain;
-  }
 }
 
 // Total number of nodes in tree, given depth

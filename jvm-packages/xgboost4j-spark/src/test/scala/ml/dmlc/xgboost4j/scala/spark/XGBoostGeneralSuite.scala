@@ -18,17 +18,20 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingDeque
-import ml.dmlc.xgboost4j.java.Rabit
+
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.hadoop.fs.{FileSystem, Path}
+
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 import scala.util.Random
+
+import ml.dmlc.xgboost4j.java.Rabit
 
 class XGBoostGeneralSuite extends FunSuite with PerTest {
 
@@ -108,66 +111,89 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
-
-  ignore("test with fast histo depthwise") {
+  test("test with fast histo with monotone_constraints") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
-      "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> math.min(numWorkers, 2))
-    // TODO: histogram algorithm seems to be very very sensitive to worker number
+      "num_round" -> 5, "num_workers" -> numWorkers, "monotone_constraints" -> "(1, 0)")
     val model = new XGBoostClassifier(paramMap).fit(training)
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }
 
-  ignore("test with fast histo lossguide") {
+  test("test with fast histo with interaction_constraints") {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
+      "num_round" -> 5, "num_workers" -> numWorkers, "interaction_constraints" -> "[[1,2],[2,3,4]]")
+    val model = new XGBoostClassifier(paramMap).fit(training)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+  }
+
+  test("test with fast histo depthwise") {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1",
+      "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "depthwise",
+      "num_round" -> 5, "num_workers" -> numWorkers)
+    val model = new XGBoostClassifier(paramMap).fit(training)
+    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+  }
+
+  test("test with fast histo lossguide") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist", "grow_policy" -> "lossguide",
-      "max_leaves" -> "8", "eval_metric" -> "error", "num_round" -> 5,
-      "num_workers" -> math.min(numWorkers, 2))
+      "max_leaves" -> "8", "num_round" -> 5,
+      "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo lossguide with max bin") {
+  test("test with fast histo lossguide with max bin") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
-      "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 5, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo depthwidth with max depth") {
+  test("test with fast histo depthwidth with max depth") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
-      "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
-      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> math.min(numWorkers, 2))
+      "grow_policy" -> "depthwise", "max_depth" -> "2",
+      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
   }
 
-  ignore("test with fast histo depthwidth with max depth and max bin") {
+  test("test with fast histo depthwidth with max depth and max bin") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
-      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> math.min(numWorkers, 2))
+      "eval_metric" -> "error", "num_round" -> 10, "num_workers" -> numWorkers)
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)

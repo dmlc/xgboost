@@ -554,8 +554,8 @@ class Span {
       detail::ptrdiff_t _offset,
       detail::ptrdiff_t _count = dynamic_extent) const {
     SPAN_CHECK(_offset >= 0 && _offset < size());
-    SPAN_CHECK(_count == dynamic_extent ||
-               _count >= 0 && _offset + _count <= size());
+    SPAN_CHECK((_count == dynamic_extent) ||
+               (_count >= 0 && _offset + _count <= size()));
 
     return {data() + _offset, _count ==
             dynamic_extent ? size() - _offset : _count};

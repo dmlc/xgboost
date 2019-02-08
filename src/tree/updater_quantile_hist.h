@@ -30,7 +30,6 @@ using xgboost::common::HistCutMatrix;
 using xgboost::common::GHistIndexMatrix;
 using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;
-using xgboost::common::GHistEntry;
 using xgboost::common::HistCollection;
 using xgboost::common::RowSetCollection;
 using xgboost::common::GHistRow;
@@ -73,8 +72,7 @@ class QuantileHistMaker: public TreeUpdater {
     SplitEntry best;
     // constructor
     explicit NodeEntry(const TrainParam& param)
-        : stats(param), root_gain(0.0f), weight(0.0f) {
-    }
+        : root_gain(0.0f), weight(0.0f) {}
   };
   // actual builder that runs the algorithm
 
@@ -105,6 +103,7 @@ class QuantileHistMaker: public TreeUpdater {
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
+      this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
@@ -121,7 +120,7 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-    void EvaluateSplit(int nid,
+    void EvaluateSplit(const int nid,
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
@@ -225,6 +224,8 @@ class QuantileHistMaker: public TreeUpdater {
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
+
+    rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
 
   std::unique_ptr<Builder> builder_;
