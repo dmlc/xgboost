@@ -62,7 +62,7 @@ private[spark] trait BoosterParams extends Params {
     "Maximum number of nodes to be added. Only relevant when grow_policy=lossguide is set.",
     (value: Int) => value >= 0)
 
-  final def getMaxLeaves: Int = $(maxDepth)
+  final def getMaxLeaves: Int = $(maxLeaves)
 
 
   /**
