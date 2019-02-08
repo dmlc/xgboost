@@ -24,7 +24,12 @@
 namespace xgboost {
 namespace common {
 
+HistCutMatrix::HistCutMatrix() {
+  monitor_.Init("HistCutMatrix");
+}
+
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
+  monitor_.Start("Init");
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -33,30 +38,61 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   const int nthread = omp_get_max_threads();
 
-  auto nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
-  auto ncol = static_cast<unsigned>(info.num_col_);
+  unsigned const nstep =
+      static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
+  unsigned const ncol = static_cast<unsigned>(info.num_col_);
   sketchs.resize(info.num_col_);
   for (auto& s : sketchs) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
   const auto& weights = info.weights_.HostVector();
+
+  // Data groups, used in ranking.
+  std::vector<bst_uint> const& group_ptr = info.group_ptr_;
+  size_t const num_groups = group_ptr.size() == 0 ? 0 : group_ptr.size() - 1;
+  // Use group index for weights?
+  bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
+
   for (const auto &batch : p_fmat->GetRowBatches()) {
-    #pragma omp parallel num_threads(nthread)
+    size_t group_ind = 0;
+    if (use_group_ind) {
+      monitor_.Start("search group");
+      size_t const base_rowid = batch.base_rowid;
+      using KIt = std::vector<bst_uint>::const_iterator;
+      KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+      // Cannot use CHECK_NE because it will try to print the iterator.
+      bool const found = res != group_ptr.cend() - 1;
+      if (!found) {
+        LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
+      }
+      group_ind = std::distance(group_ptr.cbegin(), res);
+      monitor_.Stop("search group");
+    }
+
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
+
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-          size_t ridx = batch.base_rowid + i;
-          SparsePage::Inst inst = batch[i];
-          for (auto& ins : inst) {
-            if (ins.index >= begin && ins.index < end) {
-              sketchs[ins.index].Push(ins.fvalue,
-                                      weights.size() > 0 ? weights[ridx] : 1.0f);
+          size_t const ridx = batch.base_rowid + i;
+          SparsePage::Inst const inst = batch[i];
+          if (use_group_ind &&
+              group_ptr[group_ind] == ridx &&
+              // maximum equals to weights.size() - 1
+              group_ind < num_groups - 1) {
+            // move to next group
+            group_ind++;
+          }
+          for (auto const& entry : inst) {
+            if (entry.index >= begin && entry.index < end) {
+              size_t w_idx = use_group_ind ? group_ind : ridx;
+              sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
         }
@@ -65,6 +101,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 
   Init(&sketchs, max_num_bins);
+  monitor_.Stop("Init");
 }
 
 void HistCutMatrix::Init
