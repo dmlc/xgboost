@@ -290,7 +290,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     })
     XGBoost.repartitionForTrainingGroup(trainingRDD, 4)
   }
-
+  
   test("distributed training with group data") {
     val trainingRDD = sc.parallelize(Ranking.train, 5)
     val (booster, _) = XGBoost.trainDistributed(
