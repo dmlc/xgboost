@@ -885,7 +885,7 @@ class XGBRanker(XGBModel):
             Whether to print messages while running boosting.
         objective : string
             Specify the learning task and the corresponding learning objective.
-            Only "rank:pairwise" is supported currently.
+            The objective name must start with "rank:".
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
         nthread : int
@@ -999,13 +999,29 @@ class XGBRanker(XGBModel):
         group : array_like
             group size of training data
         sample_weight : array_like
-            instance weights
+            group weights
+
+            .. note:: Weights are per-group for ranking tasks
+
+            In ranking task, one weight is assigned to each group (not each data
+            point). This is because we only care about the relative ordering of
+            data points within each group, so it doesn't make sense to assign
+            weights to individual data points.
+
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
+            group weights on the i-th validation set.
+
+            .. note:: Weights are per-group for ranking tasks
+
+            In ranking task, one weight is assigned to each group (not each data
+            point). This is because we only care about the relative ordering of
+            data points within each group, so it doesn't make sense to assign
+            weights to individual data points.
+
         eval_group : list of arrays, optional
             A list that contains the group size corresponds to each
             (X, y) pair in eval_set
