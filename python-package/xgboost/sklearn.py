@@ -1003,10 +1003,10 @@ class XGBRanker(XGBModel):
 
             .. note:: Weights are per-group for ranking tasks
 
-            In ranking task, one weight is assigned to each group (not each data
-            point). This is because we only care about the relative ordering of
-            data points within each group, so it doesn't make sense to assign
-            weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
 
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
@@ -1017,10 +1017,10 @@ class XGBRanker(XGBModel):
 
             .. note:: Weights are per-group for ranking tasks
 
-            In ranking task, one weight is assigned to each group (not each data
-            point). This is because we only care about the relative ordering of
-            data points within each group, so it doesn't make sense to assign
-            weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
 
         eval_group : list of arrays, optional
             A list that contains the group size corresponds to each

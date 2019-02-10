@@ -352,12 +352,12 @@ class DMatrix(object):
         weight : list or numpy 1-D array , optional
             Weight for each instance.
 
-            .. note:: For ranking task, Weights are per-group.
+            .. note:: For ranking task, weights are per-group.
 
-            In ranking task, one weight is assigned to each group (not each data
-            point). This is because we only care about the relative ordering of
-            data points within each group, so it doesn't make sense to assign
-            weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
 
         silent : boolean, optional
             Whether print messages during construction
@@ -664,12 +664,12 @@ class DMatrix(object):
         weight : array like
             Weight for each data point
 
-            .. note:: For ranking task, Weights are per-group.
+            .. note:: For ranking task, weights are per-group.
 
-            In ranking task, one weight is assigned to each group (not each data
-            point). This is because we only care about the relative ordering of
-            data points within each group, so it doesn't make sense to assign
-            weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         """
         self.set_float_info('weight', weight)
 
@@ -682,12 +682,12 @@ class DMatrix(object):
         weight : array like
             Weight for each data point in numpy 2D array
 
-            .. note:: For ranking task, Weights are per-group.
+            .. note:: For ranking task, weights are per-group.
 
-            In ranking task, one weight is assigned to each group (not each data
-            point). This is because we only care about the relative ordering of
-            data points within each group, so it doesn't make sense to assign
-            weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         """
         self.set_float_info_npy2d('weight', weight)
 
