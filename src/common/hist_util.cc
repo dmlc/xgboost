@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file hist_util.h
  */
 #include <rabit/rabit.h>

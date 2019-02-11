@@ -186,15 +186,15 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void BuildLocalHistograms(int &starting_index,
-                              int &sync_count,
+    void BuildLocalHistograms(int *starting_index,
+                              int *sync_count,
                               const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void SyncHistograms(int &starting_index,
-                        int &sync_count,
+    void SyncHistograms(int starting_index,
+                        int sync_count,
                         RegTree *p_tree);
 
     void BuildNodeStats(const GHistIndexMatrix &gmat,
@@ -206,10 +206,10 @@ class QuantileHistMaker: public TreeUpdater {
                        const ColumnMatrix &column_matrix,
                        DMatrix *p_fmat,
                        RegTree *p_tree,
-                       int &num_leaves,
+                       int *num_leaves,
                        int depth,
-                       unsigned &timestamp,
-                       std::vector<ExpandEntry> &temp_qexpand_depth);
+                       unsigned *timestamp,
+                       std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
@@ -260,9 +260,9 @@ class QuantileHistMaker: public TreeUpdater {
 
     std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
     std::vector<ExpandEntry> qexpand_depth_wise_;
-    // key is the node id which should be calculated by SubstractTrick, value is the node is which
+    // key is the node id which should be calculated by SubstractTrick, value is the node which
     // provides the evidence for substracts
-    std::unordered_map<int, int> nodes_to_derive_;
+    std::unordered_map<int, int> nodes_for_substrack_trick;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
@@ -281,7 +281,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
-
 };
 
 }  // namespace tree
