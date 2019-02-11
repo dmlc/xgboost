@@ -88,6 +88,125 @@ bool QuantileHistMaker::UpdatePredictionCache(
   }
 }
 
+void QuantileHistMaker::Builder::SyncHistograms(
+    int &starting_index,
+    int &sync_count,
+    RegTree *p_tree) {
+  this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
+  // use substracttricks
+  for (auto local_it = nodes_to_derive_.begin(); local_it != nodes_to_derive_.end(); local_it++) {
+    hist_.AddHistRow(local_it->first);
+    SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
+                     hist_[(*p_tree)[local_it->first].Parent()]);
+  }
+}
+
+void QuantileHistMaker::Builder::BuildLocalHistograms(
+    int &starting_index,
+    int &sync_count,
+    const GHistIndexMatrix &gmat,
+    const GHistIndexBlockMatrix &gmatb,
+    RegTree *p_tree,
+    const std::vector<GradientPair> &gpair_h) {
+  // 0. build histogram for the nodes in current level
+  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+    int nid = qexpand_depth_wise_[k].nid;
+    RegTree::Node &node = (*p_tree)[nid];
+    if (rabit::IsDistributed()) {
+      if (node.IsRoot() || node.IsLeftChild()) {
+        // in distributed setting, we always calcuate from left child or root node
+        hist_.AddHistRow(nid);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+        if (!node.IsRoot() && node.IsLeftChild()) {
+          nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
+        }
+        sync_count++;
+        starting_index = std::min(starting_index, nid);
+      }
+    } else {
+      if (!node.IsRoot() && node.IsLeftChild() &&
+          (row_set_collection_[nid].Size() <
+           row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
+        hist_.AddHistRow(nid);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+        nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
+        sync_count++;
+        starting_index = std::min(starting_index, nid);
+      } else if (!node.IsRoot() && !node.IsLeftChild() &&
+                 (row_set_collection_[nid].Size() <=
+                  row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
+        hist_.AddHistRow(nid);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+        nodes_to_derive_[(*p_tree)[node.Parent()].LeftChild()] = nid;
+        sync_count++;
+        starting_index = std::min(starting_index, nid);
+      } else if (node.IsRoot()) {
+        // root node
+        hist_.AddHistRow(nid);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+        sync_count++;
+        starting_index = std::min(starting_index, nid);
+      }
+    }
+  }
+}
+
+void QuantileHistMaker::Builder::BuildNodeStats(
+    const GHistIndexMatrix &gmat,
+    DMatrix *p_fmat,
+    RegTree *p_tree,
+    const std::vector<GradientPair> &gpair_h) {
+  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+    int nid = qexpand_depth_wise_[k].nid;
+    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+    // add constraints
+    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+      // it's a right child
+      auto parent_id = (*p_tree)[nid].Parent();
+      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
+      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
+      spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
+                           snode_[left_sibling_id].weight, snode_[nid].weight);
+    }
+  }
+}
+
+void QuantileHistMaker::Builder::EvaluateSplits(
+    const GHistIndexMatrix &gmat,
+    const ColumnMatrix &column_matrix,
+    DMatrix *p_fmat,
+    RegTree *p_tree,
+    int &num_leaves,
+    int depth,
+    unsigned &timestamp,
+    std::vector<ExpandEntry> &temp_qexpand_depth) {
+  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+    int nid = qexpand_depth_wise_[k].nid;
+    tstart = dmlc::GetTime();
+    this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
+    time_evaluate_split += dmlc::GetTime() - tstart;
+    if (snode_[nid].best.loss_chg < kRtEps ||
+        (param_.max_depth > 0 && depth == param_.max_depth) ||
+        (param_.max_leaves > 0 && num_leaves == param_.max_leaves)) {
+      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+    } else {
+      tstart = dmlc::GetTime();
+      this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+      time_apply_split += dmlc::GetTime() - tstart;
+      int left_id = (*p_tree)[nid].LeftChild();
+      int right_id = (*p_tree)[nid].RightChild();
+      temp_qexpand_depth.push_back(ExpandEntry(left_id,
+                                               p_tree->GetDepth(left_id), 0.0, timestamp++));
+      temp_qexpand_depth.push_back(ExpandEntry(right_id,
+                                               p_tree->GetDepth(right_id), 0.0, timestamp++));
+      // - 1 parent + 2 new children
+      num_leaves++;
+    }
+  }
+}
+
+
+
 void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   const GHistIndexMatrix &gmat,
   const GHistIndexBlockMatrix &gmatb,
@@ -110,102 +229,21 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
   qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
-  // get stats of node per depth
   tstart = dmlc::GetTime();
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    // 0. build histogram for the nodes in current level
-    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-      int nid = qexpand_depth_wise_[k].nid;
-      RegTree::Node &node = (*p_tree)[nid];
-      if (rabit::IsDistributed()) {
-        if (node.IsRoot() || node.IsLeftChild()) {
-          // in distributed setting, we always calcuate from left child or root node
-          hist_.AddHistRow(nid);
-          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          if (!node.IsRoot() && node.IsLeftChild()) {
-            nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
-          }
-          sync_count++;
-          starting_index = std::min(starting_index, nid);
-        }
-      } else {
-        if (!node.IsRoot() && node.IsLeftChild() &&
-            (row_set_collection_[nid].Size() <
-             row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
-          hist_.AddHistRow(nid);
-          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
-          sync_count++;
-          starting_index = std::min(starting_index, nid);
-        } else if (!node.IsRoot() && !node.IsLeftChild() &&
-            (row_set_collection_[nid].Size() <=
-            row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
-          hist_.AddHistRow(nid);
-          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive_[(*p_tree)[node.Parent()].LeftChild()] = nid;
-          sync_count++;
-          starting_index = std::min(starting_index, nid);
-        } else if (node.IsRoot()) {
-          // root node
-          hist_.AddHistRow(nid);
-          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          sync_count++;
-          starting_index = std::min(starting_index, nid);
-        }
-      }
-    }
-    // 1. sync histogram
-    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
-    // use substracttricks
-    for (auto local_it = nodes_to_derive_.begin(); local_it != nodes_to_derive_.end(); local_it++) {
-      hist_.AddHistRow(local_it->first);
-      SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
-        hist_[(*p_tree)[local_it->first].Parent()]);
-    }
+    BuildLocalHistograms(starting_index, sync_count, gmat, gmatb, p_tree, gpair_h);
+    SyncHistograms(starting_index, sync_count, p_tree);
     time_build_hist += dmlc::GetTime() - tstart;
     // 2. initNewNode to get it's stats
     tstart = dmlc::GetTime();
-    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-      int nid = qexpand_depth_wise_[k].nid;
-      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-      // add constraints
-      if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
-        // it's a right child
-        auto parent_id = (*p_tree)[nid].Parent();
-        auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-        auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
-        spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
-          snode_[left_sibling_id].weight, snode_[nid].weight);
-      }
-    }
+    BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
     time_init_new_node += dmlc::GetTime() - tstart;
     // 3. evaluateSplit
-    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-      int nid = qexpand_depth_wise_[k].nid;
-      tstart = dmlc::GetTime();
-      this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-      time_evaluate_split += dmlc::GetTime() - tstart;
-      if (snode_[nid].best.loss_chg < kRtEps ||
-          (param_.max_depth > 0 && depth == param_.max_depth) ||
-          (param_.max_leaves > 0 && num_leaves == param_.max_leaves)) {
-        (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-      } else {
-        tstart = dmlc::GetTime();
-        this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
-        time_apply_split += dmlc::GetTime() - tstart;
-        int left_id = (*p_tree)[nid].LeftChild();
-        int right_id = (*p_tree)[nid].RightChild();
-        temp_qexpand_depth.push_back(ExpandEntry(left_id,
-                                                 p_tree->GetDepth(left_id), 0.0, timestamp++));
-        temp_qexpand_depth.push_back(ExpandEntry(right_id,
-                                                 p_tree->GetDepth(right_id), 0.0, timestamp++));
-        // - 1 parent + 2 new children
-        num_leaves++;
-      }
-    }
+    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, num_leaves, depth, timestamp,
+            temp_qexpand_depth);
     // 4. if qexpand is empty and temp_qexpand is empty, break
     if (temp_qexpand_depth.empty()) {
       qexpand_depth_wise_.clear();

@@ -117,7 +117,18 @@ class QuantileHistMaker: public TreeUpdater {
                                HostDeviceVector<bst_float>* p_out_preds);
 
    protected:
-    // initialize temp data structure
+    /* tree growing policies */
+    struct ExpandEntry {
+        int nid;
+        int depth;
+        bst_float loss_chg;
+        unsigned timestamp;
+        ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
+                : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+    };
+
+
+      // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
@@ -175,6 +186,31 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
+    void BuildLocalHistograms(int &starting_index,
+                              int &sync_count,
+                              const GHistIndexMatrix &gmat,
+                              const GHistIndexBlockMatrix &gmatb,
+                              RegTree *p_tree,
+                              const std::vector<GradientPair> &gpair_h);
+
+    void SyncHistograms(int &starting_index,
+                        int &sync_count,
+                        RegTree *p_tree);
+
+    void BuildNodeStats(const GHistIndexMatrix &gmat,
+                        DMatrix *p_fmat,
+                        RegTree *p_tree,
+                        const std::vector<GradientPair> &gpair_h);
+
+    void EvaluateSplits(const GHistIndexMatrix &gmat,
+                       const ColumnMatrix &column_matrix,
+                       DMatrix *p_fmat,
+                       RegTree *p_tree,
+                       int &num_leaves,
+                       int depth,
+                       unsigned &timestamp,
+                       std::vector<ExpandEntry> &temp_qexpand_depth);
+
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
                              const ColumnMatrix& column_matrix,
@@ -182,22 +218,6 @@ class QuantileHistMaker: public TreeUpdater {
                              RegTree* p_tree,
                              const std::vector<GradientPair>& gpair_h);
 
-    /* tree growing policies */
-    struct ExpandEntry {
-      int nid;
-      int depth;
-      bst_float loss_chg;
-      unsigned timestamp;
-      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
-        : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
-    };
-    inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
-      if (lhs.depth == rhs.depth) {
-        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-      } else {
-        return lhs.depth > rhs.depth;  // favor small depth
-      }
-    }
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
         return lhs.timestamp > rhs.timestamp;  // favor small timestamp
@@ -261,6 +281,7 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
+
 };
 
 }  // namespace tree
