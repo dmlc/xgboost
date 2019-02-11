@@ -71,6 +71,7 @@ class ColumnMatrix {
                 double  sparse_threshold) {
     const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
+
     // identify type of each column
     feature_counts_.resize(nfeature);
     type_.resize(nfeature);
@@ -130,6 +131,7 @@ class ColumnMatrix {
         // max() indicates missing values
       }
     }
+
     // loop over all rows and fill column entries
     // num_nonzeros[fid] = how many nonzeros have this feature accumulated so far?
     std::vector<size_t> num_nonzeros;

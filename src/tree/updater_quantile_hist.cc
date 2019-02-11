@@ -68,9 +68,9 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   // build tree
   if (!builder_) {
     builder_.reset(new Builder(
-            param_,
-            std::move(pruner_),
-            std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
+        param_,
+        std::move(pruner_),
+        std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
   }
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
@@ -108,7 +108,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     "tree_method=hist does not support multiple roots at this moment";
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
+  qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
   // get stats of node per depth
   tstart = dmlc::GetTime();
@@ -117,15 +117,15 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
     // 0. build histogram for the nodes in current level
-    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
-      int nid = qexpand_depth_wise[k].nid;
+    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+      int nid = qexpand_depth_wise_[k].nid;
       if (rabit::IsDistributed()) {
         if (IsLeft(nid) || IsRoot(nid)) {
           // in distributed setting, we always calcuate from left child or root node
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          if (left_to_right_siblings.find(nid) != left_to_right_siblings.end()) {
-            nodes_to_derive[left_to_right_siblings[nid]] = nid;
+          if (left_to_right_siblings_.find(nid) != left_to_right_siblings_.end()) {
+            nodes_to_derive_[left_to_right_siblings_[nid]] = nid;
           }
           sync_count++;
           starting_index = std::min(starting_index, nid);
@@ -133,17 +133,17 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
       } else {
         if (IsLeft(nid) &&
             (row_set_collection_[nid].Size() <
-             row_set_collection_[left_to_right_siblings[nid]].Size())) {
+             row_set_collection_[left_to_right_siblings_[nid]].Size())) {
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive[left_to_right_siblings[nid]] = nid;
+          nodes_to_derive_[left_to_right_siblings_[nid]] = nid;
           sync_count++;
           starting_index = std::min(starting_index, nid);
         } else if (IsRight(nid) && (row_set_collection_[nid].Size() <=
-                                    row_set_collection_[right_to_left_siblings[nid]].Size())) {
+                                    row_set_collection_[right_to_left_siblings_[nid]].Size())) {
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive[right_to_left_siblings[nid]] = nid;
+          nodes_to_derive_[right_to_left_siblings_[nid]] = nid;
           sync_count++;
           starting_index = std::min(starting_index, nid);
         } else if (IsRoot(nid)) {
@@ -158,7 +158,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     // 1. sync histogram
     this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
     // use substracttricks
-    for (auto local_it = nodes_to_derive.begin(); local_it != nodes_to_derive.end(); local_it++) {
+    for (auto local_it = nodes_to_derive_.begin(); local_it != nodes_to_derive_.end(); local_it++) {
       hist_.AddHistRow(local_it->first);
       SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
         hist_[(*p_tree)[local_it->first].Parent()]);
@@ -166,14 +166,14 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     time_build_hist += dmlc::GetTime() - tstart;
     // 2. initNewNode to get it's stats
     tstart = dmlc::GetTime();
-    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
-      int nid = qexpand_depth_wise[k].nid;
+    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+      int nid = qexpand_depth_wise_[k].nid;
       this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
       // add constraints
-      if (right_to_left_siblings.find(nid) != right_to_left_siblings.end()) {
+      if (right_to_left_siblings_.find(nid) != right_to_left_siblings_.end()) {
         // it's a right child
         auto parent_id = (*p_tree)[nid].Parent();
-        auto left_sibling_id = right_to_left_siblings[nid];
+        auto left_sibling_id = right_to_left_siblings_[nid];
         auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
         spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
           snode_[left_sibling_id].weight, snode_[nid].weight);
@@ -182,10 +182,10 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     time_init_new_node += dmlc::GetTime() - tstart;
     // 3. evaluateSplit
     // clean previous levels to save memory
-    left_to_right_siblings.clear();
-    right_to_left_siblings.clear();
-    for (size_t k = 0; k < qexpand_depth_wise.size(); k++) {
-      int nid = qexpand_depth_wise[k].nid;
+    left_to_right_siblings_.clear();
+    right_to_left_siblings_.clear();
+    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+      int nid = qexpand_depth_wise_[k].nid;
       tstart = dmlc::GetTime();
       this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
       time_evaluate_split += dmlc::GetTime() - tstart;
@@ -204,23 +204,23 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
         temp_qexpand_depth.push_back(ExpandEntry(right_id,
                                                  p_tree->GetDepth(right_id), 0.0, timestamp++));
         // save sibling relationship
-        left_to_right_siblings[left_id] = right_id;
-        right_to_left_siblings[right_id] = left_id;
+        left_to_right_siblings_[left_id] = right_id;
+        right_to_left_siblings_[right_id] = left_id;
         // - 1 parent + 2 new children
         num_leaves++;
       }
     }
     // 4. if qexpand is empty and temp_qexpand is empty, break
     if (temp_qexpand_depth.empty()) {
-      qexpand_depth_wise.clear();
-      nodes_to_derive.clear();
-      left_to_right_siblings.clear();
-      right_to_left_siblings.clear();
+      qexpand_depth_wise_.clear();
+      nodes_to_derive_.clear();
+      left_to_right_siblings_.clear();
+      right_to_left_siblings_.clear();
       break;
     } else {
-      qexpand_depth_wise.clear();
-      nodes_to_derive.clear();
-      qexpand_depth_wise = temp_qexpand_depth;
+      qexpand_depth_wise_.clear();
+      nodes_to_derive_.clear();
+      qexpand_depth_wise_ = temp_qexpand_depth;
       temp_qexpand_depth.clear();
     }
   }
@@ -254,16 +254,16 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     tstart = dmlc::GetTime();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
     time_evaluate_split += dmlc::GetTime() - tstart;
-    qexpand_loss_guided->push(ExpandEntry(nid, p_tree->GetDepth(nid),
+    qexpand_loss_guided_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
                                snode_[nid].best.loss_chg,
                                timestamp++));
     ++num_leaves;
   }
 
-  while (!qexpand_loss_guided->empty()) {
-    const ExpandEntry candidate = qexpand_loss_guided->top();
+  while (!qexpand_loss_guided_->empty()) {
+    const ExpandEntry candidate = qexpand_loss_guided_->top();
     const int nid = candidate.nid;
-    qexpand_loss_guided->pop();
+    qexpand_loss_guided_->pop();
     if (candidate.loss_chg <= kRtEps
         || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
@@ -306,10 +306,10 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
       time_evaluate_split += dmlc::GetTime() - tstart;
 
-      qexpand_loss_guided->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
+      qexpand_loss_guided_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
                                  snode_[cleft].best.loss_chg,
                                  timestamp++));
-      qexpand_loss_guided->push(ExpandEntry(cright, p_tree->GetDepth(cright),
+      qexpand_loss_guided_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
                                  snode_[cright].best.loss_chg,
                                  timestamp++));
 
@@ -339,9 +339,9 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
       << "tree_method=hist does not support multiple roots at this moment";
   if (param_.grow_policy == TrainParam::kLossGuide) {
      ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
-    while (!qexpand_loss_guided->empty()) {
-      const int nid = qexpand_loss_guided->top().nid;
-      qexpand_loss_guided->pop();
+    while (!qexpand_loss_guided_->empty()) {
+      const int nid = qexpand_loss_guided_->top().nid;
+      qexpand_loss_guided_->pop();
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     }
   } else {
@@ -541,9 +541,9 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   }
   {
     if (param_.grow_policy == TrainParam::kLossGuide) {
-      qexpand_loss_guided.reset(new ExpandQueue(LossGuide));
+      qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
     } else {
-      qexpand_depth_wise.clear();
+      qexpand_depth_wise_.clear();
     }
   }
 }

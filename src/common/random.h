@@ -103,8 +103,10 @@ class ColumnSampler {
     std::shuffle(new_features.begin(), new_features.end(), common::GlobalRandom());
     new_features.resize(n);
     std::sort(new_features.begin(), new_features.end());
+
     // ensure that new_features are the same across ranks
     rabit::Broadcast(&new_features, 0);
+
     return p_new_features;
   }
 

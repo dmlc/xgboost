@@ -55,13 +55,15 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           SparsePage::Inst inst = batch[i];
           for (auto& ins : inst) {
             if (ins.index >= begin && ins.index < end) {
-              sketchs[ins.index].Push(ins.fvalue, weights.size() > 0 ? weights[ridx] : 1.0f);
+              sketchs[ins.index].Push(ins.fvalue,
+                                      weights.size() > 0 ? weights[ridx] : 1.0f);
             }
           }
         }
       }
     }
   }
+
   Init(&sketchs, max_num_bins);
 }
 
@@ -131,6 +133,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
+
   const int nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
@@ -143,6 +146,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       row_ptr.push_back(batch[i].size() + row_ptr.back());
     }
     index.resize(row_ptr.back());
+
     CHECK_GT(cut.cut.size(), 0U);
     CHECK_EQ(cut.row_ptr.back(), cut.cut.size());
 
@@ -153,10 +157,12 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
       SparsePage::Inst inst = batch[i];
+
       CHECK_EQ(ibegin + inst.size(), iend);
 
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
+
         index[ibegin + j] = idx;
         ++hit_count_tloc_[tid * nbins + idx];
       }
