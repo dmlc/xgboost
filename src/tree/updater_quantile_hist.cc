@@ -237,7 +237,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
-
     if (temp_qexpand_depth.empty()) {
       break;
     } else {
