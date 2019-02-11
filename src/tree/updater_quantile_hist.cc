@@ -119,34 +119,36 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     // 0. build histogram for the nodes in current level
     for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
       int nid = qexpand_depth_wise_[k].nid;
+      RegTree::Node &node = (*p_tree)[nid];
       if (rabit::IsDistributed()) {
-        if (IsLeft(nid) || IsRoot(nid)) {
+        if (node.IsRoot() || node.IsLeftChild()) {
           // in distributed setting, we always calcuate from left child or root node
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          if (left_to_right_siblings_.find(nid) != left_to_right_siblings_.end()) {
-            nodes_to_derive_[left_to_right_siblings_[nid]] = nid;
+          if (!node.IsRoot() && node.IsLeftChild()) {
+            nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
           }
           sync_count++;
           starting_index = std::min(starting_index, nid);
         }
       } else {
-        if (IsLeft(nid) &&
+        if (!node.IsRoot() && node.IsLeftChild() &&
             (row_set_collection_[nid].Size() <
-             row_set_collection_[left_to_right_siblings_[nid]].Size())) {
+             row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive_[left_to_right_siblings_[nid]] = nid;
+          nodes_to_derive_[(*p_tree)[node.Parent()].RightChild()] = nid;
           sync_count++;
           starting_index = std::min(starting_index, nid);
-        } else if (IsRight(nid) && (row_set_collection_[nid].Size() <=
-                                    row_set_collection_[right_to_left_siblings_[nid]].Size())) {
+        } else if (!node.IsRoot() && !node.IsLeftChild() &&
+            (row_set_collection_[nid].Size() <=
+            row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-          nodes_to_derive_[right_to_left_siblings_[nid]] = nid;
+          nodes_to_derive_[(*p_tree)[node.Parent()].LeftChild()] = nid;
           sync_count++;
           starting_index = std::min(starting_index, nid);
-        } else if (IsRoot(nid)) {
+        } else if (node.IsRoot()) {
           // root node
           hist_.AddHistRow(nid);
           BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
@@ -170,10 +172,10 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
       int nid = qexpand_depth_wise_[k].nid;
       this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
       // add constraints
-      if (right_to_left_siblings_.find(nid) != right_to_left_siblings_.end()) {
+      if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
         // it's a right child
         auto parent_id = (*p_tree)[nid].Parent();
-        auto left_sibling_id = right_to_left_siblings_[nid];
+        auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
         auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
         spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
           snode_[left_sibling_id].weight, snode_[nid].weight);
@@ -181,9 +183,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     }
     time_init_new_node += dmlc::GetTime() - tstart;
     // 3. evaluateSplit
-    // clean previous levels to save memory
-    left_to_right_siblings_.clear();
-    right_to_left_siblings_.clear();
     for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
       int nid = qexpand_depth_wise_[k].nid;
       tstart = dmlc::GetTime();
@@ -203,9 +202,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
                                                  p_tree->GetDepth(left_id), 0.0, timestamp++));
         temp_qexpand_depth.push_back(ExpandEntry(right_id,
                                                  p_tree->GetDepth(right_id), 0.0, timestamp++));
-        // save sibling relationship
-        left_to_right_siblings_[left_id] = right_id;
-        right_to_left_siblings_[right_id] = left_id;
         // - 1 parent + 2 new children
         num_leaves++;
       }
@@ -214,8 +210,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     if (temp_qexpand_depth.empty()) {
       qexpand_depth_wise_.clear();
       nodes_to_derive_.clear();
-      left_to_right_siblings_.clear();
-      right_to_left_siblings_.clear();
       break;
     } else {
       qexpand_depth_wise_.clear();

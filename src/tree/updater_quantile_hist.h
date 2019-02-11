@@ -243,21 +243,6 @@ class QuantileHistMaker: public TreeUpdater {
     // key is the node id which should be calculated by SubstractTrick, value is the node is which
     // provides the evidence for substracts
     std::unordered_map<int, int> nodes_to_derive_;
-    std::unordered_map<int, int> left_to_right_siblings_;
-    std::unordered_map<int, int> right_to_left_siblings_;
-
-    inline bool IsLeft(int nid) {
-      return left_to_right_siblings_.find(nid) != left_to_right_siblings_.end();
-    }
-
-    inline bool IsRight(int nid) {
-      return right_to_left_siblings_.find(nid) != right_to_left_siblings_.end();
-    }
-
-    inline bool IsRoot(int nid) {
-      return (right_to_left_siblings_.find(nid) == right_to_left_siblings_.end() &&
-       left_to_right_siblings_.find(nid) == left_to_right_siblings_.end());
-    }
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
