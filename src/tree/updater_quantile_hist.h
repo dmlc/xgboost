@@ -130,7 +130,6 @@ class QuantileHistMaker: public TreeUpdater {
     };
 
     struct TreeGrowingPerfMonitor {
-
         enum timer_name {INIT_DATA, INIT_NEW_NODE, BUILD_HIST, EVALUATE_SPLIT, APPLY_SPLIT};
 
         double global_start;
