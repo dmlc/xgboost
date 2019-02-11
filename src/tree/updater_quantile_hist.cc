@@ -92,6 +92,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
     int starting_index,
     int sync_count,
     RegTree *p_tree) {
+  perf_monitor.TickStart();
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use substracttricks
   for (auto local_it = nodes_for_substrack_trick.begin();
@@ -100,6 +101,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
   }
+  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
 
 void QuantileHistMaker::Builder::BuildLocalHistograms(
@@ -109,6 +111,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     const GHistIndexBlockMatrix &gmatb,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
+  perf_monitor.TickStart();
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
     RegTree::Node &node = (*p_tree)[nid];
@@ -149,6 +152,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
       }
     }
   }
+  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
 
 void QuantileHistMaker::Builder::BuildNodeStats(
@@ -156,6 +160,7 @@ void QuantileHistMaker::Builder::BuildNodeStats(
     DMatrix *p_fmat,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
+  perf_monitor.TickStart();
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
@@ -169,6 +174,7 @@ void QuantileHistMaker::Builder::BuildNodeStats(
                            snode_[left_sibling_id].weight, snode_[nid].weight);
     }
   }
+  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 }
 
 void QuantileHistMaker::Builder::EvaluateSplits(
@@ -182,17 +188,17 @@ void QuantileHistMaker::Builder::EvaluateSplits(
     std::vector<ExpandEntry> *temp_qexpand_depth) {
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
-    tstart = dmlc::GetTime();
+    perf_monitor.TickStart();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    time_evaluate_split += dmlc::GetTime() - tstart;
+    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
     if (snode_[nid].best.loss_chg < kRtEps ||
         (param_.max_depth > 0 && depth == param_.max_depth) ||
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
-      tstart = dmlc::GetTime();
+      perf_monitor.TickStart();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
-      time_apply_split += dmlc::GetTime() - tstart;
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
       temp_qexpand_depth->push_back(ExpandEntry(left_id,
@@ -220,17 +226,13 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
   qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
-  tstart = dmlc::GetTime();
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
-    time_build_hist += dmlc::GetTime() - tstart;
-    tstart = dmlc::GetTime();
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    time_init_new_node += dmlc::GetTime() - tstart;
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
             &temp_qexpand_depth);
     // clean up
@@ -257,18 +259,18 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   int num_leaves = 0;
 
   for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
-    tstart = dmlc::GetTime();
+    perf_monitor.TickStart();
     hist_.AddHistRow(nid);
     BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], true);
-    time_build_hist += dmlc::GetTime() - tstart;
+    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 
-    tstart = dmlc::GetTime();
+    perf_monitor.TickStart();
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    time_init_new_node += dmlc::GetTime() - tstart;
+    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 
-    tstart = dmlc::GetTime();
+    perf_monitor.TickStart();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    time_evaluate_split += dmlc::GetTime() - tstart;
+    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
     qexpand_loss_guided_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
                                snode_[nid].best.loss_chg,
                                timestamp++));
@@ -284,11 +286,11 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
-      tstart = dmlc::GetTime();
+      perf_monitor.TickStart();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
-      time_apply_split += dmlc::GetTime() - tstart;
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 
-      tstart = dmlc::GetTime();
+      perf_monitor.TickStart();
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
       hist_.AddHistRow(cleft);
@@ -306,20 +308,20 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
           SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
         }
       }
-      time_build_hist += dmlc::GetTime() - tstart;
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 
-      tstart = dmlc::GetTime();
+      perf_monitor.TickStart();
       this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
       this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
       bst_uint featureid = snode_[nid].best.SplitIndex();
       spliteval_->AddSplit(nid, cleft, cright, featureid,
                            snode_[cleft].weight, snode_[cright].weight);
-      time_init_new_node += dmlc::GetTime() - tstart;
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 
-      tstart = dmlc::GetTime();
+      perf_monitor.TickStart();
       this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
       this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
-      time_evaluate_split += dmlc::GetTime() - tstart;
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
 
       qexpand_loss_guided_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
                                  snode_[cleft].best.loss_chg,
@@ -339,15 +341,15 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
                                         HostDeviceVector<GradientPair>* gpair,
                                         DMatrix* p_fmat,
                                         RegTree* p_tree) {
-  double gstart = dmlc::GetTime();
+  perf_monitor.StartPerfMonitor();
 
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
 
   spliteval_->Reset();
 
-  tstart = dmlc::GetTime();
+  perf_monitor.TickStart();
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-  time_init_data = dmlc::GetTime() - tstart;
+  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_DATA);
 
   // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
   CHECK_EQ(p_tree->param.num_roots, 1)
@@ -375,36 +377,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
-  double total_time = dmlc::GetTime() - gstart;
-  LOG(INFO) << "\nInitData:          "
-            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
-            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-            << time_init_data / total_time * 100 << "%)\n"
-            << "InitNewNode:       "
-            << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
-            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-            << time_init_new_node / total_time * 100 << "%)\n"
-            << "BuildHist:         "
-            << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
-            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-            << time_build_hist / total_time * 100 << "%)\n"
-            << "EvaluateSplit:     "
-            << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
-            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-            << time_evaluate_split / total_time * 100 << "%)\n"
-            << "ApplySplit:        "
-            << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
-            << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-            << time_apply_split / total_time * 100 << "%)\n"
-            << "========================================\n"
-            << "Total:             "
-            << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
-  // clear performance counters
-  time_init_data = 0;
-  time_init_new_node = 0;
-  time_build_hist = 0;
-  time_evaluate_split = 0;
-  time_apply_split = 0;
+  perf_monitor.EndPerfMonitor();
 }
 
 bool QuantileHistMaker::Builder::UpdatePredictionCache(
