@@ -68,9 +68,9 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   // build tree
   if (!builder_) {
     builder_.reset(new Builder(
-            param_,
-            std::move(pruner_),
-            std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
+        param_,
+        std::move(pruner_),
+        std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
   }
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);

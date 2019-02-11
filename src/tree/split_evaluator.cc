@@ -412,6 +412,7 @@ class InteractionConstraint final : public SplitEvaluator {
     if (!CheckInteractionConstraint(featureid, nodeid)) {
       return -std::numeric_limits<bst_float>::infinity();
     }
+
     // Otherwise, get score from inner evaluator
     bst_float score = inner_->ComputeSplitScore(
       nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
