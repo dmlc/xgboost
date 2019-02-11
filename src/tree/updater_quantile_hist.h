@@ -220,18 +220,18 @@ class QuantileHistMaker: public TreeUpdater {
                        const RegTree& tree);
 
     void ApplySplit(int nid,
-                     const GHistIndexMatrix& gmat,
-                     const ColumnMatrix& column_matrix,
-                     const HistCollection& hist,
-                     const DMatrix& fmat,
-                     RegTree* p_tree);
+                    const GHistIndexMatrix& gmat,
+                    const ColumnMatrix& column_matrix,
+                    const HistCollection& hist,
+                    const DMatrix& fmat,
+                    RegTree* p_tree);
 
     void ApplySplitDenseData(const RowSetCollection::Elem rowset,
-                              const GHistIndexMatrix& gmat,
-                              std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                              const Column& column,
-                              bst_int split_cond,
-                              bool default_left);
+                             const GHistIndexMatrix& gmat,
+                             std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                             const Column& column,
+                             bst_int split_cond,
+                             bool default_left);
 
     void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                               const GHistIndexMatrix& gmat,
