@@ -94,7 +94,8 @@ void QuantileHistMaker::Builder::SyncHistograms(
     RegTree *p_tree) {
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use substracttricks
-  for (auto local_it = nodes_for_substrack_trick.begin(); local_it != nodes_for_substrack_trick.end(); local_it++) {
+  for (auto local_it = nodes_for_substrack_trick.begin();
+    local_it != nodes_for_substrack_trick.end(); local_it++) {
     hist_.AddHistRow(local_it->first);
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
@@ -333,11 +334,11 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 }
 
 void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
-                                    const GHistIndexBlockMatrix& gmatb,
-                                    const ColumnMatrix& column_matrix,
-                                    HostDeviceVector<GradientPair>* gpair,
-                                    DMatrix* p_fmat,
-                                    RegTree* p_tree) {
+                                        const GHistIndexBlockMatrix& gmatb,
+                                        const ColumnMatrix& column_matrix,
+                                        HostDeviceVector<GradientPair>* gpair,
+                                        DMatrix* p_fmat,
+                                        RegTree* p_tree) {
   double gstart = dmlc::GetTime();
 
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();

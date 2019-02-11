@@ -320,7 +320,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val (booster, _) = XGBoost.trainDistributed(
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "6",
-        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+        "objective" -> "rank:pairwise", "num_round" -> 5, "num_workers" -> numWorkers,
         "custom_eval" -> null, "custom_obj" -> null, "use_external_memory" -> false,
         "missing" -> Float.NaN).toMap,
       hasGroup = true)
