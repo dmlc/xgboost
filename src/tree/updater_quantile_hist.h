@@ -282,13 +282,13 @@ class QuantileHistMaker: public TreeUpdater {
                         const std::vector<GradientPair> &gpair_h);
 
     void EvaluateSplits(const GHistIndexMatrix &gmat,
-                       const ColumnMatrix &column_matrix,
-                       DMatrix *p_fmat,
-                       RegTree *p_tree,
-                       int *num_leaves,
-                       int depth,
-                       unsigned *timestamp,
-                       std::vector<ExpandEntry> *temp_qexpand_depth);
+                        const ColumnMatrix &column_matrix,
+                        DMatrix *p_fmat,
+                        RegTree *p_tree,
+                        int *num_leaves,
+                        int depth,
+                        unsigned *timestamp,
+                        std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
