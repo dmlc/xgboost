@@ -231,8 +231,8 @@ private[spark] trait ParamMapFuncs extends Params {
   def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
-        (paramName == "updater" && (paramValue != "grow_histmaker,prune" ||
-          paramValue != "hist"))) {
+        (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
+          paramValue != "hist")) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
           s" XGBoost-Spark only supports gbtree as booster type" +
           " and grow_histmaker,prune or hist as the updater type")
