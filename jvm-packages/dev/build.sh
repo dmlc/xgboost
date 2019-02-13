@@ -17,5 +17,5 @@ rm /usr/bin/python
 ln -s /opt/rh/python27/root/usr/bin/python /usr/bin/python
 
 # build xgboost
-cd /xgboost/jvm-packages;mvn package
+cd /xgboost/jvm-packages;ulimit -c unlimited;mvn package
 

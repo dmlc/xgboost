@@ -342,7 +342,6 @@ public class BoosterImplTest {
   public void testBoosterEarlyStop() throws XGBoostError, IOException {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -375,7 +374,7 @@ public class BoosterImplTest {
     }
   }
 
-  private void testWithFastHisto(DMatrix trainingSet, Map<String, DMatrix> watches, int round,
+  private void testWithQuantileHisto(DMatrix trainingSet, Map<String, DMatrix> watches, int round,
                                       Map<String, Object> paramMap, float threshold) throws XGBoostError {
     float[][] metrics = new float[watches.size()][round];
     Booster booster = XGBoost.train(trainingSet, paramMap, round, watches,
@@ -393,10 +392,9 @@ public class BoosterImplTest {
   }
 
   @Test
-  public void testFastHistoDepthWise() throws XGBoostError {
+  public void testQuantileHistoDepthWise() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -410,14 +408,13 @@ public class BoosterImplTest {
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     watches.put("test", testMat);
-    testWithFastHisto(trainMat, watches, 10, paramMap, 0.0f);
+    testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
   }
 
   @Test
-  public void testFastHistoLossGuide() throws XGBoostError {
+  public void testQuantileHistoLossGuide() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 0);
@@ -432,14 +429,13 @@ public class BoosterImplTest {
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     watches.put("test", testMat);
-    testWithFastHisto(trainMat, watches, 10, paramMap, 0.0f);
+    testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
   }
 
   @Test
-  public void testFastHistoLossGuideMaxBin() throws XGBoostError {
+  public void testQuantileHistoLossGuideMaxBin() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 0);
@@ -454,7 +450,7 @@ public class BoosterImplTest {
     };
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
-    testWithFastHisto(trainMat, watches, 10, paramMap, 0.0f);
+    testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
   }
 
   @Test
@@ -534,38 +530,33 @@ public class BoosterImplTest {
   }
 
   @Test
-  public void testFastHistoDepthwiseMaxDepth() throws XGBoostError {
+  public void testQuantileHistoDepthwiseMaxDepth() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
         put("tree_method", "hist");
-        put("max_depth", 2);
         put("grow_policy", "depthwise");
         put("eval_metric", "auc");
       }
     };
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
-    testWithFastHisto(trainMat, watches, 10, paramMap, 0.85f);
+    testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
   }
 
   @Test
-  public void testFastHistoDepthwiseMaxDepthMaxBin() throws XGBoostError {
+  public void testQuantileHistoDepthwiseMaxDepthMaxBin() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-    // testBoosterWithFastHistogram(trainMat, testMat);
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
         put("tree_method", "hist");
-        put("max_depth", 2);
         put("max_bin", 2);
         put("grow_policy", "depthwise");
         put("eval_metric", "auc");
@@ -573,7 +564,7 @@ public class BoosterImplTest {
     };
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
-    testWithFastHisto(trainMat, watches, 10, paramMap, 0.85f);
+    testWithQuantileHisto(trainMat, watches, 10, paramMap, 0.95f);
   }
 
   /**
