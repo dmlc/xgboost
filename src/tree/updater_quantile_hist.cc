@@ -95,8 +95,8 @@ void QuantileHistMaker::Builder::SyncHistograms(
   perf_monitor.TickStart();
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use Subtraction Trick
-  for (auto local_it = nodes_for_substrack_trick.begin();
-    local_it != nodes_for_substrack_trick.end(); local_it++) {
+  for (auto local_it = nodes_for_subtraction_trick_.begin();
+    local_it != nodes_for_subtraction_trick_.end(); local_it++) {
     hist_.AddHistRow(local_it->first);
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
@@ -121,7 +121,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
         if (!node.IsRoot()) {
-          nodes_for_substrack_trick[(*p_tree)[node.Parent()].RightChild()] = nid;
+          nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
         }
         (*sync_count)++;
         (*starting_index) = std::min((*starting_index), nid);
@@ -132,17 +132,23 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
            row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_substrack_trick[(*p_tree)[node.Parent()].RightChild()] = nid;
+        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
+        (*sync_count)++;
+        (*starting_index) = std::min((*starting_index), nid);
       } else if (!node.IsRoot() && !node.IsLeftChild() &&
                  (row_set_collection_[nid].Size() <=
                   row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_substrack_trick[(*p_tree)[node.Parent()].LeftChild()] = nid;
+        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].LeftChild()] = nid;
+        (*sync_count)++;
+        (*starting_index) = std::min((*starting_index), nid);
       } else if (node.IsRoot()) {
         // root node
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
+        (*sync_count)++;
+        (*starting_index) = std::min((*starting_index), nid);
       }
     }
   }
@@ -231,7 +237,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
             &temp_qexpand_depth);
     // clean up
     qexpand_depth_wise_.clear();
-    nodes_for_substrack_trick.clear();
+    nodes_for_subtraction_trick_.clear();
     if (temp_qexpand_depth.empty()) {
       break;
     } else {

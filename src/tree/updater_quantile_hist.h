@@ -341,7 +341,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<ExpandEntry> qexpand_depth_wise_;
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for substracts
-    std::unordered_map<int, int> nodes_for_subtraction_trick;
+    std::unordered_map<int, int> nodes_for_subtraction_trick_;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
