@@ -94,7 +94,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
     RegTree *p_tree) {
   perf_monitor.TickStart();
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
-  // use substracttricks
+  // use Subtraction Trick
   for (auto local_it = nodes_for_substrack_trick.begin();
     local_it != nodes_for_substrack_trick.end(); local_it++) {
     hist_.AddHistRow(local_it->first);
