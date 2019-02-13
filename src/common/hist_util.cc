@@ -1,8 +1,6 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file hist_util.h
- * \brief Utilities to store histograms
- * \author Philip Cho, Tianqi Chen
  */
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
@@ -161,6 +159,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       SparsePage::Inst inst = batch[i];
 
       CHECK_EQ(ibegin + inst.size(), iend);
+
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
 
