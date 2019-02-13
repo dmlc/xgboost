@@ -355,7 +355,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   CHECK_EQ(p_tree->param.num_roots, 1)
       << "tree_method=hist does not support multiple roots at this moment";
   if (param_.grow_policy == TrainParam::kLossGuide) {
-     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
     while (!qexpand_loss_guided_->empty()) {
       const int nid = qexpand_loss_guided_->top().nid;
       qexpand_loss_guided_->pop();
