@@ -202,7 +202,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
       temp_qexpand_depth->push_back(ExpandEntry(left_id,
-                                               p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
+                                                p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
       temp_qexpand_depth->push_back(ExpandEntry(right_id,
                                                 p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
       // - 1 parent + 2 new children
