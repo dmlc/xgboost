@@ -2,6 +2,8 @@
 
 ignore=tests
 
+extension-pkg-whitelist=numpy
+
 disiable=unexpected-special-method-signature,too-many-nested-blocks
 
 dummy-variables-rgx=(unused|)_.*
@@ -19,3 +21,6 @@ attr-naming-style=snake_case
 argument-naming-style=snake_case
 variable-naming-style=snake_case
 class-attribute-naming-style=snake_case
+
+# Allow single-letter variables
+variable-rgx=[a-zA-Z_][a-z0-9_]{0,30}$
