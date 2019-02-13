@@ -17,6 +17,8 @@
 #include <numeric>
 #include <random>
 
+#include "io.h"
+
 namespace xgboost {
 namespace common {
 /*!

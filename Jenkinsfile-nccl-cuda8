@@ -37,7 +37,7 @@ pipeline {
 
         stage('Build on Linux CUDA8 NCCL') {
             agent {
-                label "nvidia-docker"
+                label "nvidia-docker && !mr-dl8"
             }
 
             steps {

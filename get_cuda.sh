@@ -9,6 +9,6 @@ fi
 
 export cuda=`cat cuda_short.txt`
 export arch=`arch`
-if [[ $cuda == '9.2' ]] && [[ $arch == 'ppc64le' ]] || [[ $arch == 'x86_64' ]]; then export NCCL=-DUSE_NCCL=ON ; else export NCCL= ; fi
+export NCCL='-DUSE_NCCL=ON -DNCCL_ROOT=../nccl/build'
 
 echo ${NCCL}

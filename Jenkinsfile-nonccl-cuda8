@@ -37,7 +37,7 @@ pipeline {
 
         stage('Build on Linux CUDA8 noNCCL') {
             agent {
-                label "nvidia-docker"
+                label "nvidia-docker && !mr-dl8"
             }
 
             steps {
@@ -83,7 +83,7 @@ pipeline {
 
         stage('Fast Test on Linux CUDA8 noNCCL') {
             agent {
-                label "gpu && nvidia-docker && (mr-dl11 || mr-dl16 || mr-dl10 || mr-dl8)"
+                label "gpu && nvidia-docker && !2gpu && !mr-dl8"
             }
             steps {
                 dumpInfo 'Linux Test Info'

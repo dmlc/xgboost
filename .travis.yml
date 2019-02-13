@@ -6,9 +6,7 @@ os:
   - linux
   - osx
 
-osx_image: xcode8
-
-group: deprecated-2017Q4
+osx_image: xcode9.3
 
 # Use Build Matrix to do lint and build seperately
 env:
@@ -68,6 +66,10 @@ addons:
       - g++-4.8
       - gcc-7
       - g++-7
+  homebrew:
+    packages:
+      - graphviz
+    update: true
 
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh

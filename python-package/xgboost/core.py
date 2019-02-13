@@ -1044,8 +1044,8 @@ class Booster(object):
             _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val))))
 
     def update(self, dtrain, iteration, fobj=None):
-        """
-        Update for one iteration, with objective function calculated internally.
+        """Update for one iteration, with objective function calculated
+        internally.  This function should not be called directly by users.
 
         Parameters
         ----------
@@ -1055,6 +1055,7 @@ class Booster(object):
             Current iteration number.
         fobj : function
             Customized objective function.
+
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
@@ -1069,8 +1070,9 @@ class Booster(object):
             self.boost(dtrain, grad, hess)
 
     def boost(self, dtrain, grad, hess):
-        """
-        Boost the booster for one iteration, with customized gradient statistics.
+        """Boost the booster for one iteration, with customized gradient
+        statistics.  Like :func:`xgboost.core.Booster.update`, this
+        function should not be called directly by users.
 
         Parameters
         ----------
@@ -1080,6 +1082,7 @@ class Booster(object):
             The first order of gradient.
         hess : list
             The second order of gradient.
+
         """
         if len(grad) != len(hess):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
