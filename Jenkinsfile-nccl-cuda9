@@ -83,7 +83,7 @@ pipeline {
 
         stage('Test on Linux CUDA9 NCCL') {
             agent {
-                label "gpu && nvidia-docker && (mr-dl11 || mr-dl16 || mr-dl10 || mr-dl8)"
+                label "gpu && nvidia-docker && (mr-dl11 || mr-dl16 || mr-dl10)"
             }
             steps {
                 dumpInfo 'Linux Test Info'
