@@ -141,7 +141,11 @@ class HistCollection {
     CHECK_NE(row_ptr_[nid], kMax);
     tree::GradStats* ptr =
         const_cast<tree::GradStats*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
-    return {ptr, nbins_};
+    if (rabit::IsDistributed()) {
+      return {ptr, nbins_ + 1};
+    } else {
+      return {ptr, nbins_};
+    }
   }
 
   // have we computed a histogram for i-th node?
@@ -166,17 +170,21 @@ class HistCollection {
     CHECK_EQ(row_ptr_[nid], kMax);
 
     row_ptr_[nid] = data_.size();
-    data_.resize(data_.size() + nbins_);
+    // add an additional slot for syncing node stats
+    if (rabit::IsDistributed()) {
+      data_.resize(data_.size() + nbins_ + 1);
+    } else {
+      data_.resize(data_.size() + nbins_);
+    }
   }
 
+  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
+  std::vector<size_t> row_ptr_;
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_;
 
   std::vector<tree::GradStats> data_;
-
-  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
-  std::vector<size_t> row_ptr_;
 };
 
 /*!

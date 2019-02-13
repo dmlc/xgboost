@@ -93,10 +93,12 @@ void QuantileHistMaker::Builder::SyncHistograms(
     int sync_count,
     RegTree *p_tree) {
   perf_monitor.TickStart();
-  this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
+  this->histred_.Allreduce(hist_[starting_index].data(),
+          (hist_builder_.GetNumBins() + 1) * sync_count);
   // use Subtraction Trick
   for (auto local_it = nodes_for_subtraction_trick_.begin();
-    local_it != nodes_for_subtraction_trick_.end(); local_it++) {
+    local_it != nodes_for_subtraction_trick_.end();
+    local_it++) {
     hist_.AddHistRow(local_it->first);
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
@@ -117,7 +119,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     RegTree::Node &node = (*p_tree)[nid];
     if (rabit::IsDistributed()) {
       if (node.IsRoot() || node.IsLeftChild()) {
-        // in distributed setting, we always calcuate from left child or root node
+        // in distributed setting, we always calculate from left child or root node
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
         if (!node.IsRoot()) {
@@ -163,15 +165,10 @@ void QuantileHistMaker::Builder::BuildNodeStats(
   perf_monitor.TickStart();
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    // add constraints
-    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
-      // it's a right child
-      auto parent_id = (*p_tree)[nid].Parent();
-      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
-      spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
-                           snode_[left_sibling_id].weight, snode_[nid].weight);
+    auto &node = (*p_tree)[nid];
+    if (!rabit::IsDistributed() ||
+      nodes_for_subtraction_trick_.find(nid) == nodes_for_subtraction_trick_.end()) {
+      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
     }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
@@ -229,8 +226,24 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
-    SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
+    SyncHistograms(starting_index, sync_count, p_tree);
+    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+      int nid = qexpand_depth_wise_[k].nid;
+      this->CalculateWeight(nid, *p_tree, hist_[nid]);
+    }
+    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+      int nid = qexpand_depth_wise_[k].nid;
+      // add constraints
+      if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+        // it's a right child
+        auto parent_id = (*p_tree)[nid].Parent();
+        auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
+        auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
+        spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
+                             snode_[left_sibling_id].weight, snode_[nid].weight);
+      }
+    }
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
             &temp_qexpand_depth);
     // clean up
@@ -257,14 +270,17 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   int num_leaves = 0;
 
   for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
+
     perf_monitor.TickStart();
     hist_.AddHistRow(nid);
+    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
+
+    perf_monitor.TickStart();
     BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], true);
     perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 
-    perf_monitor.TickStart();
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
+    this->CalculateWeight(nid, *p_tree, hist_[nid]);
 
     perf_monitor.TickStart();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
@@ -288,11 +304,18 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 
-      perf_monitor.TickStart();
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
       hist_.AddHistRow(cleft);
       hist_.AddHistRow(cright);
+
+      perf_monitor.TickStart();
+      this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
+      this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
+      bst_uint featureid = snode_[nid].best.SplitIndex();
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
+
+      perf_monitor.TickStart();
       if (rabit::IsDistributed()) {
         // in distributed mode, we need to keep consistent across workers
         BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
@@ -308,13 +331,10 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       }
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 
-      perf_monitor.TickStart();
-      this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
-      this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
-      bst_uint featureid = snode_[nid].best.SplitIndex();
+      this->CalculateWeight(cleft, *p_tree, hist_[cleft]);
+      this->CalculateWeight(cright, *p_tree, hist_[cright]);
       spliteval_->AddSplit(nid, cleft, cright, featureid,
                            snode_[cleft].weight, snode_[cright].weight);
-      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 
       perf_monitor.TickStart();
       this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
@@ -740,6 +760,21 @@ void QuantileHistMaker::Builder::ApplySplitSparseData(
   }
 }
 
+void QuantileHistMaker::Builder::CalculateWeight(int nid,
+                                                 const RegTree &tree,
+                                                 GHistRow hist) {
+  // sync node stats from synced histogram in distributed setting or
+  // in depthwidth growing policy where we calculate only one side
+  if (rabit::IsDistributed()) {
+    snode_[nid].stats = hist[hist_builder_.GetNumBins()];
+  }
+  bst_uint parentid = tree[nid].Parent();
+  snode_[nid].weight = static_cast<float>(
+          spliteval_->ComputeWeight(parentid, snode_[nid].stats));
+  snode_[nid].root_gain = static_cast<float>(
+          spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
+}
+
 void QuantileHistMaker::Builder::InitNewNode(int nid,
                                              const GHistIndexMatrix& gmat,
                                              const std::vector<GradientPair>& gpair,
@@ -753,16 +788,12 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
     auto& stats = snode_[nid].stats;
     GHistRow hist = hist_[nid];
     if (rabit::IsDistributed()) {
-      // in distributed mode, the node's stats should be calculated from histogram, otherwise,
-      // we will have wrong results in EnumerateSplit()
-      // here we take the last feature in cut
-      auto begin = hist.data();
-      for (size_t i = gmat.cut.row_ptr[0]; i < gmat.cut.row_ptr[1]; i++) {
-        stats.Add(begin[i].sum_grad, begin[i].sum_hess);
+      const RowSetCollection::Elem e = row_set_collection_[nid];
+      for (const size_t* it = e.begin; it < e.end; ++it) {
+        stats.Add(gpair[*it]);
       }
     } else {
-      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased ||
-          rabit::IsDistributed()) {
+      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         /* specialized code for dense data
            For dense data (with no missing value),
            the sum of gradient histogram is equal to snode[nid]
@@ -784,13 +815,9 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
       }
     }
 
-    // calculating the weights
-    {
-      bst_uint parentid = tree[nid].Parent();
-      snode_[nid].weight = static_cast<float>(
-          spliteval_->ComputeWeight(parentid, snode_[nid].stats));
-      snode_[nid].root_gain = static_cast<float>(
-          spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
+    // if in distributed mode we put the node stats in the last bin of HistRow for syncing
+    if (rabit::IsDistributed()) {
+      hist_[nid].data()[hist_builder_.GetNumBins()] = snode_[nid].stats;
     }
   }
 }

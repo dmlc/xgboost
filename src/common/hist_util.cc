@@ -545,7 +545,8 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
 }
 
 void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
+  const uint32_t nbins = static_cast<bst_omp_uint>(
+          rabit::IsDistributed() ? nbins_ + 1: nbins_);
   constexpr int kUnroll = 8;  // loop unrolling factor
   const uint32_t rest = nbins % kUnroll;
 
