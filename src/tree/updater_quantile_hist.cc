@@ -133,22 +133,16 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
         nodes_for_substrack_trick[(*p_tree)[node.Parent()].RightChild()] = nid;
-        sync_count++;
-        (*starting_index) = std::min((*starting_index), nid);
       } else if (!node.IsRoot() && !node.IsLeftChild() &&
                  (row_set_collection_[nid].Size() <=
                   row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
         nodes_for_substrack_trick[(*p_tree)[node.Parent()].LeftChild()] = nid;
-        sync_count++;
-        (*starting_index) = std::min((*starting_index), nid);
       } else if (node.IsRoot()) {
         // root node
         hist_.AddHistRow(nid);
         BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        sync_count++;
-        (*starting_index) = std::min((*starting_index), nid);
       }
     }
   }
@@ -351,24 +345,12 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_DATA);
 
-  // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
-  CHECK_EQ(p_tree->param.num_roots, 1)
-      << "tree_method=hist does not support multiple roots at this moment";
   if (param_.grow_policy == TrainParam::kLossGuide) {
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
-    while (!qexpand_loss_guided_->empty()) {
-      const int nid = qexpand_loss_guided_->top().nid;
-      qexpand_loss_guided_->pop();
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-    }
   } else {
     ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   }
 
-  // set all the rest expanding nodes to leaf
-  // This post condition is not needed in current code, but may be necessary
-  // when there are stopping rule that leaves qexpand non-empty
-  // remember auxiliary statistics in the tree node
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
     p_tree->Stat(nid).base_weight = snode_[nid].weight;

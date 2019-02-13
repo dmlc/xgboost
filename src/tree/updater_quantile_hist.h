@@ -121,90 +121,90 @@ class QuantileHistMaker: public TreeUpdater {
    protected:
     /* tree growing policies */
     struct ExpandEntry {
-        int nid;
-        int depth;
-        bst_float loss_chg;
-        unsigned timestamp;
-        ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
-                : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+      int nid;
+      int depth;
+      bst_float loss_chg;
+      unsigned timestamp;
+      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
+              : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
     };
 
     struct TreeGrowingPerfMonitor {
-        enum timer_name {INIT_DATA, INIT_NEW_NODE, BUILD_HIST, EVALUATE_SPLIT, APPLY_SPLIT};
+      enum timer_name {INIT_DATA, INIT_NEW_NODE, BUILD_HIST, EVALUATE_SPLIT, APPLY_SPLIT};
 
-        double global_start;
+      double global_start;
 
-        // performance counters
-        double tstart;
-        double time_init_data = 0;
-        double time_init_new_node = 0;
-        double time_build_hist = 0;
-        double time_evaluate_split = 0;
-        double time_apply_split = 0;
+      // performance counters
+      double tstart;
+      double time_init_data = 0;
+      double time_init_new_node = 0;
+      double time_build_hist = 0;
+      double time_evaluate_split = 0;
+      double time_apply_split = 0;
 
-        inline void StartPerfMonitor() {
-          global_start = dmlc::GetTime();
+      inline void StartPerfMonitor() {
+        global_start = dmlc::GetTime();
+      }
+
+      inline void EndPerfMonitor() {
+        CHECK_GT(global_start, 0);
+        double total_time = dmlc::GetTime() - global_start;
+        LOG(INFO) << "\nInitData:          "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_data / total_time * 100 << "%)\n"
+                  << "InitNewNode:       "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_new_node / total_time * 100 << "%)\n"
+                  << "BuildHist:         "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_build_hist / total_time * 100 << "%)\n"
+                  << "EvaluateSplit:     "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_evaluate_split / total_time * 100 << "%)\n"
+                  << "ApplySplit:        "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_apply_split / total_time * 100 << "%)\n"
+                  << "========================================\n"
+                  << "Total:             "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
+        // clear performance counters
+        time_init_data = 0;
+        time_init_new_node = 0;
+        time_build_hist = 0;
+        time_evaluate_split = 0;
+        time_apply_split = 0;
+      }
+
+      inline void TickStart() {
+        tstart = dmlc::GetTime();
+      }
+
+      inline void UpdatePerfTimer(const timer_name &timer_name) {
+        CHECK_GT(tstart, 0);
+        switch (timer_name) {
+          case INIT_DATA:
+            time_init_data += dmlc::GetTime() - tstart;
+            break;
+          case INIT_NEW_NODE:
+            time_init_new_node += dmlc::GetTime() - tstart;
+            break;
+          case BUILD_HIST:
+            time_build_hist += dmlc::GetTime() - tstart;
+            break;
+          case EVALUATE_SPLIT:
+            time_evaluate_split += dmlc::GetTime() - tstart;
+            break;
+          case APPLY_SPLIT:
+            time_apply_split += dmlc::GetTime() - tstart;
+            break;
         }
-
-        inline void EndPerfMonitor() {
-          CHECK_GT(global_start, 0);
-          double total_time = dmlc::GetTime() - global_start;
-          LOG(INFO) << "\nInitData:          "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
-                    << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                    << time_init_data / total_time * 100 << "%)\n"
-                    << "InitNewNode:       "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
-                    << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                    << time_init_new_node / total_time * 100 << "%)\n"
-                    << "BuildHist:         "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
-                    << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                    << time_build_hist / total_time * 100 << "%)\n"
-                    << "EvaluateSplit:     "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
-                    << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                    << time_evaluate_split / total_time * 100 << "%)\n"
-                    << "ApplySplit:        "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
-                    << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                    << time_apply_split / total_time * 100 << "%)\n"
-                    << "========================================\n"
-                    << "Total:             "
-                    << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
-          // clear performance counters
-          time_init_data = 0;
-          time_init_new_node = 0;
-          time_build_hist = 0;
-          time_evaluate_split = 0;
-          time_apply_split = 0;
-        }
-
-        inline void TickStart() {
-          tstart = dmlc::GetTime();
-        }
-
-        inline void UpdatePerfTimer(const timer_name &timer_name) {
-          CHECK_GT(tstart, 0);
-          switch (timer_name) {
-            case INIT_DATA:
-              time_init_data += dmlc::GetTime() - tstart;
-              break;
-            case INIT_NEW_NODE:
-              time_init_new_node += dmlc::GetTime() - tstart;
-              break;
-            case BUILD_HIST:
-              time_build_hist += dmlc::GetTime() - tstart;
-              break;
-            case EVALUATE_SPLIT:
-              time_evaluate_split += dmlc::GetTime() - tstart;
-              break;
-            case APPLY_SPLIT:
-              time_apply_split += dmlc::GetTime() - tstart;
-              break;
-          }
-          tstart = -1;
-        }
+        tstart = -1;
+      }
     };
 
     // initialize temp data structure
