@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then	
+    brew link gcc --force
+fi
+
 if [ ${TASK} == "lint" ]; then
     pip install --user  cpplint 'pylint==1.4.4' 'astroid==1.3.6' 
 fi
