@@ -87,6 +87,11 @@ if [ ${TASK} == "r_test" ]; then
     export _R_CHECK_TIMINGS_=0
     export R_BUILD_ARGS="--no-build-vignettes --no-manual"
     export R_CHECK_ARGS="--no-vignettes --no-manual"
+    if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+        export CC='gcc-7'
+        export CXX='g++-7'
+        export FC='gfortran-7'
+    fi
 
     curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
     chmod 755 ./travis-tool.sh
