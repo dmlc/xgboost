@@ -88,9 +88,8 @@ if [ ${TASK} == "r_test" ]; then
     export R_BUILD_ARGS="--no-build-vignettes --no-manual"
     export R_CHECK_ARGS="--no-vignettes --no-manual"
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        export CC='gcc-7'
-        export CXX='g++-7'
-        export FC='gfortran-7'
+        # Work-around to fix "gfortran command not found" error
+        sudo ln -s $(which gfortran-7) /usr/bin/gfortran
     fi
 
     curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
