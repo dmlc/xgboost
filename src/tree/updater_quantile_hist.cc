@@ -251,13 +251,25 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
-    BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    SyncHistograms(starting_index, sync_count, p_tree);
-    CalculateNodeWeights(p_tree);
-    AddNodeSplits(p_tree);
-    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
-            &temp_qexpand_depth);
+    // we use different flow in distributed and single node version because we need to sync node's
+    // stats in distributed mode
+    if (rabit::IsDistributed()) {
+      BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
+      BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
+      SyncHistograms(starting_index, sync_count, p_tree);
+      CalculateNodeWeights(p_tree);
+      AddNodeSplits(p_tree);
+      EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
+                     &temp_qexpand_depth);
+    } else {
+      BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
+      SyncHistograms(starting_index, sync_count, p_tree);
+      BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
+      CalculateNodeWeights(p_tree);
+      AddNodeSplits(p_tree);
+      EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
+                     &temp_qexpand_depth);
+    }
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
@@ -282,7 +294,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   int num_leaves = 0;
 
   for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
-
     perf_monitor.TickStart();
     hist_.AddHistRow(nid);
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
