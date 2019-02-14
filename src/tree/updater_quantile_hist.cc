@@ -251,7 +251,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    // we use different flow in distributed and single node version because we need to sync node's
+    // we use different flow in distributed because we need to sync node's
     // stats in distributed mode
     if (rabit::IsDistributed()) {
       BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
