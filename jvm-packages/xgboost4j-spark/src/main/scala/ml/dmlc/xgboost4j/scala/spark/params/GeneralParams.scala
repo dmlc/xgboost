@@ -65,13 +65,26 @@ private[spark] trait GeneralParams extends Params {
   final def getUseExternalMemory: Boolean = $(useExternalMemory)
 
   /**
+   * Deprecated. Please use verbosity instead.
    * 0 means printing running messages, 1 means silent mode. default: 0
    */
   final val silent = new IntParam(this, "silent",
+    "Deprecated. Please use verbosity instead. " +
     "0 means printing running messages, 1 means silent mode.",
     (value: Int) => value >= 0 && value <= 1)
 
   final def getSilent: Int = $(silent)
+
+  /**
+   * Verbosity of printing messages. Valid values are 0 (silent), 1 (warning), 2 (info), 3 (debug).
+   * default: 1
+   */
+  final val verbosity = new IntParam(this, "verbosity",
+    "Verbosity of printing messages. Valid values are 0 (silent), 1 (warning), 2 (info), " +
+    "3 (debug).",
+    (value: Int) => value >= 0 && value <= 3)
+
+  final def getVerbosity: Int = $(verbosity)
 
   /**
    * customized objective function provided by user. default: null
@@ -159,7 +172,7 @@ private[spark] trait GeneralParams extends Params {
   final def getSeed: Long = $(seed)
 
   setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
-    useExternalMemory -> false, silent -> 0,
+    useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
     checkpointPath -> "", checkpointInterval -> -1)
