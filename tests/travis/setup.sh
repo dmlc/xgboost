@@ -1,7 +1,9 @@
 #!/bin/bash
 
-if [ ${TRAVIS_OS_NAME} == "osx" ]; then	
-    brew link gcc@7 --force
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+    export CC='gcc-7'
+    export CXX='g++-7'
+    export FC='gfortran-7'
 fi
 
 if [ ${TASK} == "lint" ]; then
