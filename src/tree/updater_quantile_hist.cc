@@ -189,6 +189,9 @@ void QuantileHistMaker::Builder::BuildNodeStats(
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
     auto &node = (*p_tree)[nid];
+    // in single node mode, we need init stats for all nodes, but in distributed mode,
+    // we only need to calculate stats for nodes which contain less samples and substract
+    // for its sibling
     if (!rabit::IsDistributed() ||
       nodes_for_subtraction_trick_.find(nid) == nodes_for_subtraction_trick_.end()) {
       this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);

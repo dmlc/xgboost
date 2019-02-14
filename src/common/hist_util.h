@@ -179,13 +179,14 @@ class HistCollection {
     }
   }
 
-  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
-  std::vector<size_t> row_ptr_;
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_;
 
   std::vector<tree::GradStats> data_;
+
+  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
+  std::vector<size_t> row_ptr_;
 };
 
 /*!
