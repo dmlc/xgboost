@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then	
-    brew link gcc --force
+    brew link gcc@7 --force
 fi
 
 if [ ${TASK} == "lint" ]; then
