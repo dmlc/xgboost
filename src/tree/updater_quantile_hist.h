@@ -242,6 +242,10 @@ class QuantileHistMaker: public TreeUpdater {
                               bst_int split_cond,
                               bool default_left);
 
+    void AddNodeSplits(RegTree *p_tree);
+
+    void CalculateNodeWeights(RegTree *p_tree);
+
     void CalculateWeight(int nid,
                          const RegTree &tree,
                          GHistRow hist);

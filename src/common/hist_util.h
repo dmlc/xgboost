@@ -141,6 +141,7 @@ class HistCollection {
     CHECK_NE(row_ptr_[nid], kMax);
     tree::GradStats* ptr =
         const_cast<tree::GradStats*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
+    // the last slot is used for syncing node stats in distributed mode
     if (rabit::IsDistributed()) {
       return {ptr, nbins_ + 1};
     } else {

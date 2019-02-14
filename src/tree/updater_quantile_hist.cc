@@ -99,6 +99,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
   for (auto local_it = nodes_for_subtraction_trick_.begin();
     local_it != nodes_for_subtraction_trick_.end();
     local_it++) {
+    // in distributed mode, we only add histrow for nodes whose stats are directly calculated
     if (rabit::IsDistributed()) {
       hist_.AddHistRow(local_it->first);
     }
@@ -155,6 +156,28 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
+}
+
+void QuantileHistMaker::Builder::CalculateNodeWeights(RegTree *p_tree) {
+  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+    int nid = qexpand_depth_wise_[k].nid;
+    this->CalculateWeight(nid, *p_tree, hist_[nid]);
+  }
+}
+
+void QuantileHistMaker::Builder::AddNodeSplits(RegTree *p_tree) {
+  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+    int nid = qexpand_depth_wise_[k].nid;
+    // add constraints
+    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+      // it's a right child
+      auto parent_id = (*p_tree)[nid].Parent();
+      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
+      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
+      spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
+                           snode_[left_sibling_id].weight, snode_[nid].weight);
+    }
+  }
 }
 
 void QuantileHistMaker::Builder::BuildNodeStats(
@@ -228,22 +251,8 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
-    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-      int nid = qexpand_depth_wise_[k].nid;
-      this->CalculateWeight(nid, *p_tree, hist_[nid]);
-    }
-    for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-      int nid = qexpand_depth_wise_[k].nid;
-      // add constraints
-      if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
-        // it's a right child
-        auto parent_id = (*p_tree)[nid].Parent();
-        auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-        auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
-        spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
-                             snode_[left_sibling_id].weight, snode_[nid].weight);
-      }
-    }
+    CalculateNodeWeights(p_tree);
+    AddNodeSplits(p_tree);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
             &temp_qexpand_depth);
     // clean up
