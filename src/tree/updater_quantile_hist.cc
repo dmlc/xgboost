@@ -99,6 +99,9 @@ void QuantileHistMaker::Builder::SyncHistograms(
   for (auto local_it = nodes_for_subtraction_trick_.begin();
     local_it != nodes_for_subtraction_trick_.end();
     local_it++) {
+    if (rabit::IsDistributed()) {
+      hist_.AddHistRow(local_it->first);
+    }
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
   }
@@ -163,7 +166,10 @@ void QuantileHistMaker::Builder::BuildNodeStats(
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
     auto &node = (*p_tree)[nid];
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+    if (!rabit::IsDistributed() ||
+      nodes_for_subtraction_trick_.find(nid) == nodes_for_subtraction_trick_.end()) {
+      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+    }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 }
@@ -760,7 +766,6 @@ void QuantileHistMaker::Builder::CalculateWeight(int nid,
   // sync node stats from synced histogram in distributed setting
   if (rabit::IsDistributed()) {
     snode_[nid].stats = hist[hist_builder_.GetNumBins()];
-    std::cout << "node " << nid << " stats: " << snode_[nid].stats.sum_grad << "\n";
   }
   bst_uint parentid = tree[nid].Parent();
   snode_[nid].weight = static_cast<float>(
