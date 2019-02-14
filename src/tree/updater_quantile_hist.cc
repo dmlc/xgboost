@@ -257,19 +257,15 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
       BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
       BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
       SyncHistograms(starting_index, sync_count, p_tree);
-      CalculateNodeWeights(p_tree);
-      AddNodeSplits(p_tree);
-      EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
-                     &temp_qexpand_depth);
     } else {
       BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
       SyncHistograms(starting_index, sync_count, p_tree);
       BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-      CalculateNodeWeights(p_tree);
-      AddNodeSplits(p_tree);
-      EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
-                     &temp_qexpand_depth);
     }
+    CalculateNodeWeights(p_tree);
+    AddNodeSplits(p_tree);
+    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
+                   &temp_qexpand_depth);
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
