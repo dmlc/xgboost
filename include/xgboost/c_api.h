@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2019 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -10,6 +10,7 @@
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
+#include <cstdint>
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
@@ -283,6 +284,16 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 /*!
+ * \brief `XGDMatrixSetFloatInfo' with strided array as input.
+ * \param stride stride of input vector
+ */
+XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
+                                         const char *field,
+                                         const float *array,
+                                         const bst_ulong stride,
+                                         bst_ulong len);
+
+/*!
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
  * \param field field name
@@ -294,6 +305,16 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const char *field,
                                  const unsigned *array,
                                  bst_ulong len);
+
+/*!
+ * \brief `XGDMatrixSetUIntInfo' with strided array as input.
+ * \param stride stride of input vector
+ */
+XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
+                                        const char* field,
+                                        const unsigned* info,
+                                        const bst_ulong stride,
+                                        bst_ulong len);
 /*!
  * \brief set label of the training matrix
  * \param handle a instance of data matrix
@@ -562,7 +583,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
  *
  * \param handle handle
  * \param key The key of the attribute.
- * \param value The value to be saved. 
+ * \param value The value to be saved.
  *              If nullptr, the attribute would be deleted.
  * \return 0 when success, -1 when failure happens
  */
