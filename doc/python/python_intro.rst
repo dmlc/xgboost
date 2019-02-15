@@ -101,6 +101,10 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
     w = np.random.rand(5, 1)
     dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
 
+When performing ranking tasks, the number of weights should be equal
+to number of groups.
+
+
 Setting Parameters
 ------------------
 XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters </parameter>`. For instance:
