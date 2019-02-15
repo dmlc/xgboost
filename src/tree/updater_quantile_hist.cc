@@ -770,6 +770,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
           stats.Add(gpair[*it]);
         }
       }
+      histred_.Allreduce(&snode_[nid].stats, 1);
     } else {
       int parent_id = tree[nid].Parent();
       if (tree[nid].IsLeftChild()) {
@@ -780,9 +781,6 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
     }
   }
 
-  if (rabit::IsDistributed() && tree[nid].IsRoot()) {
-    histred_.Allreduce(&snode_[nid].stats, 1);
-  }
   // calculating the weights
   {
     bst_uint parentid = tree[nid].Parent();
