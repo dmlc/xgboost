@@ -326,7 +326,6 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<float> leaf_value_cache_;
 
     GHistBuilder hist_builder_;
-    GradStats root_stats;
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<SplitEvaluator> spliteval_;
 

@@ -781,8 +781,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
   }
 
   if (rabit::IsDistributed() && tree[nid].IsRoot()) {
-    histred_.Allreduce(&root_stats, 1);
-    snode_[nid].stats = root_stats;
+    histred_.Allreduce(&snode_[nid].stats, 1);
   }
   // calculating the weights
   {
