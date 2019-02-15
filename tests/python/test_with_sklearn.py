@@ -29,13 +29,14 @@ def test_binary_classification():
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-        preds = xgb_model.predict(X[test_index])
-        labels = y[test_index]
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-        assert err < 0.1
+    for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
+        for train_index, test_index in kf.split(X, y):
+            xgb_model = cls(random_state=42).fit(X[train_index], y[train_index])
+            preds = xgb_model.predict(X[test_index])
+            labels = y[test_index]
+            err = sum(1 for i in range(len(preds))
+                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            assert err < 0.1
 
 
 def test_multiclass_classification():
@@ -197,6 +198,23 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds2, labels) < 350
         assert mean_squared_error(preds3, labels) < 25
         assert mean_squared_error(preds4, labels) < 350
+
+
+def test_boston_housing_rf_regression():
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.model_selection import KFold
+
+    boston = load_boston()
+    y = boston['target']
+    X = boston['data']
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBRFRegressor(random_state=42).fit(
+            X[train_index], y[train_index])
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        assert mean_squared_error(preds, labels) < 35
 
 
 def test_parameter_tuning():
