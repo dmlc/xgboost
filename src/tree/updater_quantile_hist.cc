@@ -227,8 +227,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    // we use different flow in distributed because we need to sync node's
-    // stats in distributed mode
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
