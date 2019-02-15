@@ -89,7 +89,7 @@ if [ ${TASK} == "r_test" ]; then
     export R_CHECK_ARGS="--no-vignettes --no-manual"
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         # Work-around to fix "gfortran command not found" error
-        sudo ln -s $(which gfortran-7) /usr/bin/gfortran
+        sudo ln -s $(which gfortran-7) /usr/local/bin/gfortran
     fi
 
     curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
