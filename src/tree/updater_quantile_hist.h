@@ -244,12 +244,6 @@ class QuantileHistMaker: public TreeUpdater {
 
     void AddNodeSplits(RegTree *p_tree);
 
-    void CalculateNodeWeights(RegTree *p_tree);
-
-    void CalculateWeight(int nid,
-                         const RegTree &tree,
-                         GHistRow hist);
-
     void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,

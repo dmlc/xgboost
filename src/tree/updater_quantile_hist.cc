@@ -96,8 +96,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use Subtraction Trick
   for (auto local_it = nodes_for_subtraction_trick_.begin();
-    local_it != nodes_for_subtraction_trick_.end();
-    local_it++) {
+    local_it != nodes_for_subtraction_trick_.end(); local_it++) {
     hist_.AddHistRow(local_it->first);
     SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
                      hist_[(*p_tree)[local_it->first].Parent()]);
@@ -153,13 +152,6 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
-}
-
-void QuantileHistMaker::Builder::CalculateNodeWeights(RegTree *p_tree) {
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
-    this->CalculateWeight(nid, *p_tree, hist_[nid]);
-  }
 }
 
 void QuantileHistMaker::Builder::AddNodeSplits(RegTree *p_tree) {
@@ -247,7 +239,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    CalculateNodeWeights(p_tree);
     AddNodeSplits(p_tree);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
@@ -282,7 +273,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
     perf_monitor.TickStart();
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    this->CalculateWeight(nid, *p_tree, hist_[nid]);
     perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 
     perf_monitor.TickStart();
@@ -332,12 +322,9 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
       this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
       bst_uint featureid = snode_[nid].best.SplitIndex();
-      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
-
-      this->CalculateWeight(cleft, *p_tree, hist_[cleft]);
-      this->CalculateWeight(cright, *p_tree, hist_[cright]);
       spliteval_->AddSplit(nid, cleft, cright, featureid,
                            snode_[cleft].weight, snode_[cright].weight);
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 
       perf_monitor.TickStart();
       this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
@@ -763,20 +750,6 @@ void QuantileHistMaker::Builder::ApplySplitSparseData(
   }
 }
 
-void QuantileHistMaker::Builder::CalculateWeight(int nid,
-                                                 const RegTree &tree,
-                                                 GHistRow hist) {
-  // sync node stats from synced histogram in distributed setting
-  if (rabit::IsDistributed() && tree[nid].IsRoot()) {
-    snode_[nid].stats = hist[hist_builder_.GetNumBins()];
-  }
-  bst_uint parentid = tree[nid].Parent();
-  snode_[nid].weight = static_cast<float>(
-          spliteval_->ComputeWeight(parentid, snode_[nid].stats));
-  snode_[nid].root_gain = static_cast<float>(
-          spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
-}
-
 void QuantileHistMaker::Builder::InitNewNode(int nid,
                                              const GHistIndexMatrix& gmat,
                                              const std::vector<GradientPair>& gpair,
@@ -817,6 +790,15 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 
   if (rabit::IsDistributed() && tree[nid].IsRoot()) {
     histred_.Allreduce(&root_stats, 1);
+    snode_[nid].stats = root_stats;
+  }
+  // calculating the weights
+  {
+    bst_uint parentid = tree[nid].Parent();
+    snode_[nid].weight = static_cast<float>(
+            spliteval_->ComputeWeight(parentid, snode_[nid].stats));
+    snode_[nid].root_gain = static_cast<float>(
+            spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
   }
 }
 
