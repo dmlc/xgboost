@@ -242,8 +242,6 @@ class QuantileHistMaker: public TreeUpdater {
                               bst_int split_cond,
                               bool default_left);
 
-    void AddNodeSplits(RegTree *p_tree);
-
     void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,

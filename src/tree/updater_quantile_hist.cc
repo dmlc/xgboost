@@ -154,9 +154,15 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
 
-void QuantileHistMaker::Builder::AddNodeSplits(RegTree *p_tree) {
+void QuantileHistMaker::Builder::BuildNodeStats(
+    const GHistIndexMatrix &gmat,
+    DMatrix *p_fmat,
+    RegTree *p_tree,
+    const std::vector<GradientPair> &gpair_h) {
+  perf_monitor.TickStart();
   for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
     int nid = qexpand_depth_wise_[k].nid;
+    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
     // add constraints
     if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
       // it's a right child
@@ -166,19 +172,6 @@ void QuantileHistMaker::Builder::AddNodeSplits(RegTree *p_tree) {
       spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
                            snode_[left_sibling_id].weight, snode_[nid].weight);
     }
-  }
-}
-
-void QuantileHistMaker::Builder::BuildNodeStats(
-    const GHistIndexMatrix &gmat,
-    DMatrix *p_fmat,
-    RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h) {
-  perf_monitor.TickStart();
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
-    auto &node = (*p_tree)[nid];
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 }
@@ -239,7 +232,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    AddNodeSplits(p_tree);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
     // clean up
