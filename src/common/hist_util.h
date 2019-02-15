@@ -141,12 +141,7 @@ class HistCollection {
     CHECK_NE(row_ptr_[nid], kMax);
     tree::GradStats* ptr =
         const_cast<tree::GradStats*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
-    // the last slot is used for syncing node stats in distributed mode
-    if (rabit::IsDistributed()) {
-      return {ptr, nbins_ + 1};
-    } else {
-      return {ptr, nbins_};
-    }
+    return {ptr, nbins_};
   }
 
   // have we computed a histogram for i-th node?
@@ -171,12 +166,7 @@ class HistCollection {
     CHECK_EQ(row_ptr_[nid], kMax);
 
     row_ptr_[nid] = data_.size();
-    // add an additional slot for syncing node stats
-    if (rabit::IsDistributed()) {
-      data_.resize(data_.size() + nbins_ + 1);
-    } else {
-      data_.resize(data_.size() + nbins_);
-    }
+    data_.resize(data_.size() + nbins_);
   }
 
  private:

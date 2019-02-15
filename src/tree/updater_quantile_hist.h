@@ -107,7 +107,7 @@ class QuantileHistMaker: public TreeUpdater {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
       if (sync_hist) {
-        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins() + 1);
+        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
       }
     }
 
@@ -334,6 +334,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<float> leaf_value_cache_;
 
     GHistBuilder hist_builder_;
+    GradStats root_stats;
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<SplitEvaluator> spliteval_;
 
