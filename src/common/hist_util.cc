@@ -28,6 +28,19 @@ HistCutMatrix::HistCutMatrix() {
   monitor_.Init("HistCutMatrix");
 }
 
+size_t HistCutMatrix::SearchGroupIndFromBaseRow(
+    std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const {
+  using KIt = std::vector<bst_uint>::const_iterator;
+  KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+  // Cannot use CHECK_NE because it will try to print the iterator.
+  bool const found = res != group_ptr.cend() - 1;
+  if (!found) {
+    LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
+  }
+  size_t group_ind = std::distance(group_ptr.cbegin(), res);
+  return group_ind;
+}
+
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   monitor_.Start("Init");
   const MetaInfo& info = p_fmat->Info();
@@ -57,19 +70,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   for (const auto &batch : p_fmat->GetRowBatches()) {
     size_t group_ind = 0;
     if (use_group_ind) {
-      monitor_.Start("search group");
-      size_t const base_rowid = batch.base_rowid;
-      using KIt = std::vector<bst_uint>::const_iterator;
-      KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-      // Cannot use CHECK_NE because it will try to print the iterator.
-      bool const found = res != group_ptr.cend() - 1;
-      if (!found) {
-        LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
-      }
-      group_ind = std::distance(group_ptr.cbegin(), res);
-      monitor_.Stop("search group");
+      group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
     }
-
 #pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
     {
       CHECK_EQ(nthread, omp_get_num_threads());

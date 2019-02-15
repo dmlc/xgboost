@@ -39,7 +39,10 @@ struct HistCutMatrix {
 
   HistCutMatrix();
 
- private:
+ protected:
+  virtual size_t SearchGroupIndFromBaseRow(
+      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const;
+
   Monitor monitor_;
 };
 

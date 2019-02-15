@@ -9,7 +9,15 @@
 namespace xgboost {
 namespace common {
 
-TEST(HistCutMatrix, Init) {
+class HistCutMatrixMock : public HistCutMatrix {
+ public:
+  size_t SearchGroupIndFromBaseRow(
+      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) {
+    return HistCutMatrix::SearchGroupIndFromBaseRow(group_ptr, base_rowid);
+  }
+};
+
+TEST(HistCutMatrix, SearchGroupInd) {
   size_t constexpr kNumGroups = 4;
   size_t constexpr kNumRows = 17;
   size_t constexpr kNumCols = 15;
@@ -26,9 +34,15 @@ TEST(HistCutMatrix, Init) {
   p_mat->Info().SetInfo(
       "group", group.data(), DataType::kUInt32, kNumGroups);
 
-  HistCutMatrix hmat;
-  // Don't throw when finding group
-  EXPECT_NO_THROW(hmat.Init(p_mat.get(), 4));
+  HistCutMatrixMock hmat;
+
+  size_t group_ind = hmat.SearchGroupIndFromBaseRow(p_mat->Info().group_ptr_, 0);
+  ASSERT_EQ(group_ind, 0);
+
+  group_ind = hmat.SearchGroupIndFromBaseRow(p_mat->Info().group_ptr_, 5);
+  ASSERT_EQ(group_ind, 2);
+
+  EXPECT_ANY_THROW(hmat.SearchGroupIndFromBaseRow(p_mat->Info().group_ptr_, 17));
 
   delete pp_mat;
 }
