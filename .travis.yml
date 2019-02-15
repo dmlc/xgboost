@@ -68,6 +68,7 @@ addons:
       - g++-7
   homebrew:
     packages:
+      - gcc@7
       - graphviz
     update: true
 
