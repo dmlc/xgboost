@@ -4,11 +4,13 @@
 """Core XGBoost Library."""
 from __future__ import absolute_import
 import collections
+from IPython.core.debugger import set_trace
 # pylint: disable=no-name-in-module,import-error
 try:
     from collections.abc import Mapping  # Python 3
 except ImportError:
     from collections import Mapping  # Python 2
+
 # pylint: enable=no-name-in-module,import-error
 import ctypes
 import os
@@ -287,10 +289,10 @@ def _maybe_dt_data(data, feature_names, feature_types):
         return data, feature_names, feature_types
 
     data_types_names = tuple(lt.name for lt in data.ltypes)
-    bad_fields = [data.names[i]
-                  for i, type_name in enumerate(data_types_names)
-                  if type_name not in DT_TYPE_MAPPER]
-    if bad_fields:
+    if not all(type_name in DT_TYPE_MAPPER for type_name in data_types_names):
+        bad_fields = [data.names[i] for i, type_name in
+                      enumerate(data_types_names) if type_name not in DT_TYPE_MAPPER]
+
         msg = """DataFrame.types for data must be int, float or bool.
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
@@ -317,7 +319,7 @@ def _maybe_dt_array(array):
 
     # below requires new dt version
     # extract first column
-    array = array.to_numpy()[:, 0].astype('float')
+    array = array.tonumpy()[:, 0].astype('float')
 
     return array
 
@@ -340,7 +342,7 @@ class DMatrix(object):
         """
         Parameters
         ----------
-        data : string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame
+        data : string/numpy array/scipy.sparse/pd.DataFrame/DataTable
             Data source of DMatrix.
             When data is string type, it represents the path libsvm format txt file,
             or binary file that xgboost can read from.
@@ -497,20 +499,16 @@ class DMatrix(object):
 
     def _init_from_dt(self, data, nthread):
         """
-        Initialize data from a datatable Frame.
+        Initialize data from a DataTable
         """
+        cols = []
         ptrs = (ctypes.c_void_p * data.ncols)()
-        if hasattr(data, "internal") and hasattr(data.internal, "column"):
-            # datatable>0.8.0
-            for icol in range(data.ncols):
-                col = data.internal.column(icol)
-                ptr = col.data_pointer
-                ptrs[icol] = ctypes.c_void_p(ptr)
-        else:
-            # datatable<=0.8.0
-            from datatable.internal import frame_column_data_r
-            for icol in range(data.ncols):
-                ptrs[icol] = frame_column_data_r(data, icol)
+        for icol in range(data.ncols):
+            col = data.internal.column(icol)
+            cols.append(col)
+            # int64_t (void*)
+            ptr = col.data_pointer
+            ptrs[icol] = ctypes.c_void_p(ptr)
 
         # always return stypes for dt ingestion
         feature_type_strings = (ctypes.c_char_p * data.ncols)()
@@ -1557,6 +1555,86 @@ class Booster(object):
                     gmap[fid] = gmap[fid] / fmap[fid]
 
             return gmap
+    
+    def trees_to_dataframe(self, fmap=''):
+        """Parse a boosted tree model text dump into a pandas DataFrame structure.
+        
+        This feature is only defined when the decision tree model is chosen as base
+        learner (`booster in {gbtree, dart}`). It is not defined for other base learner 
+        types, such as linear learners (`booster=gblinear`).
+
+        Parameters
+        ----------
+        fmap: str (optional)
+           The name of feature map file.
+        """
+        if not PANDAS_INSTALLED:
+            raise Exception(('pandas must be available to use this method.' 
+                             'Install pandas before calling again.'))
+            
+        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
+                raise ValueError('This method is not defined for Booster type {}'
+                                .format(self.booster))
+        
+        tree_ids = []
+        node_ids = []
+        fids = []
+        splits = []
+        y_directs = []
+        n_directs = []
+        missings = []
+        gains = []
+        covers = []
+
+        trees = self.get_dump(fmap, with_stats=True)
+        for i,tree in enumerate(trees):
+            for line in tree.split('\n'):
+                arr = line.split('[')
+                # Leaf node
+                if len(arr) == 1:
+                    # Last element of line.split is an empy string
+                    if arr == ['']:
+                        continue
+                    # parse string
+                    parse = arr[0].split(':')
+                    stats = re.split('=|,', parse[1])
+                    
+                    # append to lists
+                    tree_ids.append(i)
+                    node_ids.append(int(re.findall(r'\b\d+\b', parse[0])[0]))
+                    fids.append('Leaf')
+                    splits.append(float('NAN'))
+                    y_directs.append(float('NAN'))
+                    n_directs.append(float('NAN'))
+                    missings.append(float('NAN'))
+                    gains.append(float(stats[1]))
+                    covers.append(float(stats[3]))
+                # Not a Leaf Node
+                else:
+                    # parse string
+                    fid = arr[1].split(']')
+                    parse = fid[0].split('<')
+                    stats = re.split('=|,', fid[1])
+            
+                    # append to lists
+                    tree_ids.append(i)
+                    node_ids.append(int(re.findall(r'\b\d+\b', arr[0])[0]))
+                    fids.append(parse[0])
+                    splits.append(float(parse[1]))
+                    str_i = str(i)
+                    y_directs.append(str_i+'-'+stats[1])
+                    n_directs.append(str_i+'-'+stats[3])
+                    missings.append(str_i+'-'+stats[5])
+                    gains.append(float(stats[7]))
+                    covers.append(float(stats[9]))
+                    
+        ids = [str(t_id)+'-'+str(n_id) for t_id,n_id in zip(tree_ids, node_ids)]
+        df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
+                        'Feature': fids, 'Split': splits, 'Yes': y_directs, 
+                        'No': n_directs, 'Missing': missings, 'Gain': gains, 
+                        'Cover': covers})
+
+        return df.sort_values(['Tree', 'Node']).reset_index(drop = True)
 
     def _validate_features(self, data):
         """
