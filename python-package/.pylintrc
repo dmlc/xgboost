@@ -3,6 +3,7 @@
 ignore=tests
 
 extension-pkg-whitelist=numpy
+generated-members=pandas.*
 
 disiable=unexpected-special-method-signature,too-many-nested-blocks
 
