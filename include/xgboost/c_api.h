@@ -325,8 +325,8 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
-                                        const char* field,
-                                        const unsigned* info,
+                                        const char *field,
+                                        const unsigned *array,
                                         const bst_ulong stride,
                                         bst_ulong len);
 /*!

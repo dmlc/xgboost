@@ -792,24 +792,24 @@ XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const char* field,
-                                 const unsigned* info,
+                                 const unsigned* array,
                                  xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, kUInt32, len);
+      ->get()->Info().SetInfo(field, array, kUInt32, len);
   API_END();
 }
 
 XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
                                         const char* field,
-                                        const unsigned* info,
+                                        const unsigned* array,
                                         const xgboost::bst_ulong stride,
                                         xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, kUInt32, stride, len);
+      ->get()->Info().SetInfo(field, array, kUInt32, stride, len);
   API_END();
 }
 
