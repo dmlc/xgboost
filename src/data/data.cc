@@ -129,7 +129,7 @@ void StridedCopy(IterIn in_beg, IterIn in_end, IterOut out_beg, size_t stride) {
     IterOut out_iter = out_beg;
     for (IterIn in_iter = in_beg; in_iter < in_end; in_iter += stride) {
       *out_iter = *in_iter;
-      out_iter ++;
+      out_iter++;
     }
   } else {
     // There can be builtin optimization in std::copy
