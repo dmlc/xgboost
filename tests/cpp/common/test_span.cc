@@ -419,5 +419,29 @@ TEST(Span, AsWritableBytes) {
   ASSERT_EQ(status, 1);
 }
 
+TEST(Span, Empty) {
+  {
+    Span<float> s {nullptr, static_cast<Span<float>::index_type>(0)};
+    auto res = s.subspan(0);
+    ASSERT_EQ(res.data(), nullptr);
+    ASSERT_EQ(res.size(), 0);
+
+    res = s.subspan(0, 0);
+    ASSERT_EQ(res.data(), nullptr);
+    ASSERT_EQ(res.size(), 0);
+  }
+
+  {
+    Span<float, 0> s {nullptr, static_cast<Span<float>::index_type>(0)};
+    auto res = s.subspan(0);
+    ASSERT_EQ(res.data(), nullptr);
+    ASSERT_EQ(res.size(), 0);
+
+    res = s.subspan(0, 0);
+    ASSERT_EQ(res.data(), nullptr);
+    ASSERT_EQ(res.size(), 0);
+  }
+}
+
 }  // namespace common
 }  // namespace xgboost
