@@ -285,7 +285,14 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   bst_ulong len);
 /*!
  * \brief `XGDMatrixSetFloatInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name, can be label, weight
+ * \param array pointer to float vector
  * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
                                          const char *field,
@@ -308,7 +315,14 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
 
 /*!
  * \brief `XGDMatrixSetUIntInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name
+ * \param array pointer to unsigned int vector
  * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
                                         const char* field,
