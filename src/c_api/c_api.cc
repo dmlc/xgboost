@@ -769,7 +769,7 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const char* field,
-                                  const bst_float* info,
+                                  const xgboost::bst_float* info,
                                   xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
@@ -780,8 +780,8 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
                                          const char* field,
-                                         const bst_float* info,
-                                         const bst_ulong stride,
+                                         const xgboost::bst_float* info,
+                                         const xgboost::bst_ulong stride,
                                          xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
@@ -804,7 +804,7 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
 XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
                                         const char* field,
                                         const unsigned* info,
-                                        const bst_ulong stride,
+                                        const xgboost::bst_ulong stride,
                                         xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
