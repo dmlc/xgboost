@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014 by Contributors
+ *  Copyright (c) 2014-2018 by Contributors
  * \file allreduce_robust.cc
  * \brief Robust implementation of Allreduce
  *
@@ -53,7 +53,7 @@ void AllreduceRobust::Shutdown(void) {
 #ifdef __APPLE__
   // In OSX, one worker shutdowns and closes sockets while rest still run kCheckAck
   // This cause rest workers checkandrecover and hang inf, https://github.com/dmlc/xgboost/pull/3818
-  // TODO: a fundamental fix for this
+  // TODO(Chen Qin): a fundamental fix for this
   sleep(2);
 #endif
   AllreduceBase::Shutdown();

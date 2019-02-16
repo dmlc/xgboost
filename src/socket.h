@@ -28,8 +28,11 @@
 #include <unordered_map>
 #include "../include/rabit/internal/utils.h"
 
-#if defined(_WIN32)
+#if defined(_WIN32) && not defined(__MINGW32__)
 typedef int ssize_t;
+#endif
+
+#if defined(_WIN32)
 typedef int sock_size_t;
 
 static inline int poll(struct pollfd *pfd, int nfds,
