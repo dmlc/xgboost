@@ -66,7 +66,7 @@ class TestBasic(unittest.TestCase):
     def test_np_view(self):
         y = np.array([12, 34, 56], np.float32)[::2]
         from_view = xgb.DMatrix([], label=y).get_label()
-        from_array = xgb.DMatrix([], label=y+0).get_label()
+        from_array = xgb.DMatrix([], label=y + 0).get_label()
         assert (from_view == from_array).all()
 
     def test_record_results(self):
