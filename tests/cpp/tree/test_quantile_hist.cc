@@ -184,7 +184,6 @@ class QuantileHistMock : public QuantileHistMaker {
                  offset < gmat.row_ptr[rid + 1]; ++offset) {
               const size_t bin_id = gmat.index[offset];
               if (bin_id >= bin_id_min && bin_id < bin_id_max) {
-                // this row has a value for feature fid
                 if (bin_id <= split_thresh) {
                   left_sum += GradientPairPrecise(row_gpairs[rid]);
                 } else {
