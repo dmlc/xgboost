@@ -11,7 +11,8 @@
 #include <istream>
 #include <ostream>
 #include <streambuf>
-#include "./logging.h"
+
+#include "dmlc/base.h"
 
 // include uint64_t only to make io standalone
 #ifdef _MSC_VER

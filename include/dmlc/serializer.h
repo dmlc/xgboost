@@ -17,7 +17,6 @@
 
 #include "./base.h"
 #include "./io.h"
-#include "./logging.h"
 #include "./type_traits.h"
 
 #if DMLC_USE_CXX11

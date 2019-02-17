@@ -24,11 +24,11 @@ if(RABIT_BUILD_TESTS)
 endif()
 
 foreach(lib ${rabit_libs})
-  #include "./internal/utils.h"  
+  #include "./internal/utils.h"
   target_include_directories(${lib} PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"    
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/rabit>"
-    ) 
+    )
 endforeach()
 
 if(RABIT_BUILD_TESTS)
@@ -42,7 +42,7 @@ if(RABIT_BUILD_TESTS)
   if(RABIT_BUILD_MPI)
     add_executable(speed_test_mpi test/speed_test.cc)
     target_link_libraries(speed_test_mpi rabit_mpi)
-    install(TARGETS speed_test_mpi DESTINATION bin)    
+    install(TARGETS speed_test_mpi DESTINATION bin)
   endif()
 endif()
 

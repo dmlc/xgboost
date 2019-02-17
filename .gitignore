@@ -33,7 +33,6 @@
 *tmp*
 *.rabit
 *.mock
-dmlc-core
 recommonmark
 recom
 _*
