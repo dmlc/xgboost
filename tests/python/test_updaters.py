@@ -2,6 +2,7 @@ import testing as tm
 import unittest
 import pytest
 import xgboost as xgb
+import numpy as np
 
 try:
     from regression_test_utilities import run_suite, parameter_combinations, \
@@ -59,3 +60,16 @@ class TestUpdaters(unittest.TestCase):
                   evals_result=exact_res)
         assert hist_res['train']['auc'] == exact_res['train']['auc']
         assert hist_res['test']['auc'] == exact_res['test']['auc']
+
+    def test_fast_histmaker_degenerate_case(self):
+        # Test a degenerate case where the quantile sketcher won't return any
+        # quantile points for a particular feature (the second feature in
+        # this example). Source: https://github.com/dmlc/xgboost/issues/2943
+        nan = np.nan
+        param = {'missing': nan, 'tree_method': 'hist'}
+        model = xgb.XGBRegressor(**param)
+        X = [[6.18827160e+05, 1.73000000e+02], [6.37345679e+05, nan],
+             [6.38888889e+05, nan], [6.28086420e+05, nan]]
+        y = [1000000., 0., 0., 500000.]
+        w = [0, 0, 1, 0]
+        model.fit(X, y, sample_weight=w)
