@@ -148,7 +148,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), tree);
 
-      /* Compute correct split (expected_split) using the computed histogram */
+      /* Compute correct split (best_split) using the computed histogram */
       const size_t num_row = dmat->get()->Info().num_row_;
       const size_t num_feature = dmat->get()->Info().num_col_;
       CHECK_EQ(num_row, row_gpairs.size());
@@ -267,9 +267,6 @@ class QuantileHistMock : public QuantileHistMaker {
     builder_->TestEvaluateSplit(gmatb_, tree);
   }
 };
-
-/* Note that all tests using QuantileHistMock will use the identical dataset,
- * due to a fixed seed. This is intentional. */
 
 TEST(Updater, QuantileHist_InitData) {
   std::vector<std::pair<std::string, std::string>> cfg
