@@ -11,6 +11,7 @@
 #include <rabit/rabit.h>
 #include <utility>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 #include "./base.h"

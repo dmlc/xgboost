@@ -11,6 +11,7 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>

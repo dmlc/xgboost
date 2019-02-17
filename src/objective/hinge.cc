@@ -15,4 +15,4 @@ DMLC_REGISTRY_FILE_TAG(hinge_obj);
 
 #ifndef XGBOOST_USE_CUDA
 #include "hinge.cu"
-#endif
+#endif  // XGBOOST_USE_CUDA

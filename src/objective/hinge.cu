@@ -16,7 +16,7 @@ namespace obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(hinge_obj_gpu);
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
 
 struct HingeObjParam : public dmlc::Parameter<HingeObjParam> {
   int n_gpus;

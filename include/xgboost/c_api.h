@@ -10,11 +10,12 @@
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
+#include <cstdint>
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
 #include <stdint.h>
-#endif
+#endif  // __cplusplus
 
 // XGBoost C API will include APIs in Rabit C API
 #include <rabit/c_api.h>
@@ -23,7 +24,7 @@
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
 #define XGB_DLL XGB_EXTERN_C
-#endif
+#endif  // defined(_MSC_VER) || defined(_WIN32)
 
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
@@ -49,7 +50,7 @@ typedef struct {  // NOLINT(*)
   long* offset; // NOLINT(*)
 #else
   int64_t* offset;  // NOLINT(*)
-#endif
+#endif  // __APPLE__
   /*! \brief labels of each instance */
   float* label;
   /*! \brief weight of each instance, can be NULL */
@@ -562,7 +563,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
  *
  * \param handle handle
  * \param key The key of the attribute.
- * \param value The value to be saved. 
+ * \param value The value to be saved.
  *              If nullptr, the attribute would be deleted.
  * \return 0 when success, -1 when failure happens
  */

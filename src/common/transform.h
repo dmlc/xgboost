@@ -6,6 +6,7 @@
 
 #include <dmlc/omp.h>
 #include <xgboost/data.h>
+#include <utility>
 #include <vector>
 #include <type_traits>  // enable_if
 
@@ -15,7 +16,7 @@
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
-#endif
+#endif  // defined (__CUDACC__)
 
 namespace xgboost {
 namespace common {
@@ -32,7 +33,7 @@ __global__ void LaunchCUDAKernel(Functor _func, Range _range,
     _func(i, _spans...);
   }
 }
-#endif
+#endif  // defined(__CUDACC__)
 
 }  // namespace detail
 
@@ -155,7 +156,7 @@ class Transform {
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
       LOG(FATAL) << "Not part of device code. WITH_CUDA: " << WITH_CUDA();
     }
-#endif
+#endif  // defined(__CUDACC__)
 
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {

@@ -144,7 +144,7 @@ class MetricsReduction {
         result.weights_sum_ += res_per_device[i].weights_sum_;
       }
     }
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
     return result;
   }
 
@@ -152,7 +152,7 @@ class MetricsReduction {
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
   std::vector<dh::CubMemory> allocators_;
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
 };
 
 struct EvalRowRMSE {

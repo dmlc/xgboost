@@ -15,7 +15,7 @@
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
@@ -264,7 +264,7 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
     return nullptr;
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   }
 }
 
@@ -285,7 +285,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
     return nullptr;
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   }
 }
 }  // namespace xgboost

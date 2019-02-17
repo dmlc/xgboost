@@ -21,7 +21,7 @@ namespace obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_gpu);
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
 
 struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
   int num_class;

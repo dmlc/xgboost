@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 #include <limits>
+#include <memory>
 #include <string>
 #include <sstream>
 #include <utility>

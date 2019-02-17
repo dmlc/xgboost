@@ -178,7 +178,7 @@ class LearnerImpl : public Learner {
   static void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
     LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif
+#endif  // XGBOOST_USE_CUDA
   }
 
 
@@ -387,7 +387,7 @@ class LearnerImpl : public Learner {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
-#endif
+#endif  // XGBOOST_USE_CUDA
         }
       }
       attributes_ =

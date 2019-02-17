@@ -9,9 +9,13 @@
 
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+
 #include <algorithm>
 #include <cstring>
+#include <memory>
+#include <utility>
 #include <vector>
+
 #include "simple_csr_source.h"
 
 namespace xgboost {

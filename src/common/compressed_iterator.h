@@ -10,7 +10,7 @@
 
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
-#endif
+#endif  // __CUDACC__
 
 namespace xgboost {
 namespace common {
@@ -115,7 +115,7 @@ class CompressedBufferWriter {
       symbol >>= 8;
     }
   }
-#endif
+#endif  // __CUDACC__
 
   template <typename IterT>
   void Write(CompressedByteT *buffer, IterT input_begin, IterT input_end) {

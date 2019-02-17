@@ -66,7 +66,7 @@ typedef CustomGlobalRandomEngine GlobalRandomEngine;
  * \brief global random engine
  */
 using GlobalRandomEngine = RandomEngine;
-#endif
+#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 
 /*!
  * \brief global singleton of a random engine.

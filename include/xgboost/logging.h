@@ -25,7 +25,7 @@ class BaseLogger {
   BaseLogger() {
 #if XGBOOST_LOG_WITH_TIME
     log_stream_ << "[" << dmlc::DateLogger().HumanDate() << "] ";
-#endif
+#endif  // XGBOOST_LOG_WITH_TIME
   }
   std::ostream& stream() { return log_stream_; }  // NOLINT
 
@@ -116,14 +116,14 @@ class LogCallbackRegistry {
     return nullptr;
   }
 };
-#endif
+#endif  // !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 
 using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
 // Redefines LOG_WARNING for controling verbosity
 #if defined(LOG_WARNING)
 #undef  LOG_WARNING
-#endif
+#endif  // defined(LOG_WARNING)
 #define LOG_WARNING                                                            \
   if (::xgboost::ConsoleLogger::ShouldLog(                                     \
           ::xgboost::ConsoleLogger::LV::kWarning))                             \
@@ -133,7 +133,7 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 // Redefines LOG_INFO for controling verbosity
 #if defined(LOG_INFO)
 #undef  LOG_INFO
-#endif
+#endif  // defined(LOG_INFO)
 #define LOG_INFO                                                               \
   if (::xgboost::ConsoleLogger::ShouldLog(                                     \
           ::xgboost::ConsoleLogger::LV::kInfo))                                \
@@ -142,7 +142,7 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 
 #if defined(LOG_DEBUG)
 #undef LOG_DEBUG
-#endif
+#endif  // defined(LOG_DEBUG)
 #define LOG_DEBUG                                                              \
   if (::xgboost::ConsoleLogger::ShouldLog(                                     \
           ::xgboost::ConsoleLogger::LV::kDebug))                               \
@@ -152,7 +152,7 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
 // redefines the logging macro if not existed
 #ifndef LOG
 #define LOG(severity) LOG_##severity.stream()
-#endif
+#endif  // LOG
 
 // Enable LOG(CONSOLE) for print messages to console.
 #define LOG_CONSOLE ::xgboost::ConsoleLogger(           \

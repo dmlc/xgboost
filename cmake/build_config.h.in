@@ -1,3 +1,7 @@
+/*!
+ * Copyright 2019 by Contributors
+ * \file build_config.h
+ */
 #ifndef XGBOOST_BUILD_CONFIG_H_
 #define XGBOOST_BUILD_CONFIG_H_
 

@@ -15,4 +15,4 @@ DMLC_REGISTRY_FILE_TAG(regression_obj);
 
 #ifndef XGBOOST_USE_CUDA
 #include "regression_obj.cu"
-#endif
+#endif  // XGBOOST_USE_CUDA

@@ -24,7 +24,7 @@ namespace obj {
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
-#endif
+#endif  // defined(XGBOOST_USE_CUDA)
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   float scale_pos_weight;

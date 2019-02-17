@@ -27,6 +27,6 @@ GlobalRandomEngine& GlobalRandom() {
 int AllVisibleImpl::AllVisible() {
   return 0;
 }
-#endif
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 }  // namespace xgboost

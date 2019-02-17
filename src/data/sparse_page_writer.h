@@ -19,7 +19,7 @@
 #if DMLC_ENABLE_STD_THREAD
 #include <dmlc/concurrency.h>
 #include <thread>
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
 
 namespace xgboost {
 namespace data {

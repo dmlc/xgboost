@@ -30,6 +30,6 @@ DMLC_REGISTRY_LINK_TAG(updater_shotgun);
 DMLC_REGISTRY_LINK_TAG(updater_coordinate);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(updater_gpu_coordinate);
-#endif
+#endif  // XGBOOST_USE_CUDA
 }  // namespace linear
 }  // namespace xgboost

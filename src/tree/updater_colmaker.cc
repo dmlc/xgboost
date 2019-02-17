@@ -597,7 +597,7 @@ class ColMaker: public TreeUpdater {
       const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
-      #endif
+      #endif  // defined(_OPENMP)
       int poption = param_.parallel_option;
       if (poption == 2) {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;

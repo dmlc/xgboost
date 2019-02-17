@@ -15,4 +15,4 @@ DMLC_REGISTRY_FILE_TAG(multiclass_obj);
 
 #ifndef XGBOOST_USE_CUDA
 #include "multiclass_obj.cu"
-#endif
+#endif  // XGBOOST_USE_CUDA

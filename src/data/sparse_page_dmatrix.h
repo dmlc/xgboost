@@ -9,9 +9,11 @@
 
 #include <xgboost/data.h>
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+
 #include "sparse_page_source.h"
 
 namespace xgboost {

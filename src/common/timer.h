@@ -81,7 +81,7 @@ struct Monitor {
         cudaSetDevice(device);
         cudaDeviceSynchronize();
       }
-#endif
+#endif  // __CUDACC__
     }
     statistics_map[name].timer.Start();
   }
@@ -96,7 +96,7 @@ struct Monitor {
         cudaSetDevice(device);
         cudaDeviceSynchronize();
       }
-#endif
+#endif  // __CUDACC__
     }
     this->Stop(name);
   }
