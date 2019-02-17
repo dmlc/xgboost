@@ -19,7 +19,7 @@
   #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
   #define PREFETCH_READ_T0(addr) do {} while (0)
-#endif
+#endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost {
 namespace common {
@@ -544,7 +544,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_hist = hist.data();
 
 #pragma omp parallel for num_threads(nthread) schedule(guided)
@@ -590,7 +590,7 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();
   tree::GradStats* p_parent = parent.data();

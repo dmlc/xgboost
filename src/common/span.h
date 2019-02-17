@@ -62,7 +62,7 @@
 
 #define __span_noexcept noexcept
 
-#endif
+#endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
 namespace xgboost {
 namespace common {
@@ -84,7 +84,7 @@ namespace common {
 #define SPAN_CHECK KERNEL_CHECK
 #else
 #define SPAN_CHECK CHECK  // check from dmlc
-#endif
+#endif  // __CUDA_ARCH__
 
 namespace detail {
 /*!
@@ -100,7 +100,7 @@ using ptrdiff_t = int64_t;  // NOLINT
 constexpr const detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
 #else
 constexpr detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
-#endif
+#endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
 enum class byte : unsigned char {};  // NOLINT
 

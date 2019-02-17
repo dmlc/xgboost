@@ -16,7 +16,7 @@
  */
 #ifndef XGBOOST_STRICT_R_MODE
 #define XGBOOST_STRICT_R_MODE 0
-#endif
+#endif  // XGBOOST_STRICT_R_MODE
 
 /*!
  * \brief Whether always log console message with time.
@@ -26,21 +26,21 @@
  */
 #ifndef XGBOOST_LOG_WITH_TIME
 #define XGBOOST_LOG_WITH_TIME 1
-#endif
+#endif  // XGBOOST_LOG_WITH_TIME
 
 /*!
  * \brief Whether customize the logger outputs.
  */
 #ifndef XGBOOST_CUSTOMIZE_LOGGER
 #define XGBOOST_CUSTOMIZE_LOGGER XGBOOST_STRICT_R_MODE
-#endif
+#endif  // XGBOOST_CUSTOMIZE_LOGGER
 
 /*!
  * \brief Whether to customize global PRNG.
  */
 #ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 #define XGBOOST_CUSTOMIZE_GLOBAL_PRNG XGBOOST_STRICT_R_MODE
-#endif
+#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 
 /*!
  * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
@@ -49,7 +49,7 @@
 #define XGBOOST_ALIGNAS(X) alignas(X)
 #else
 #define XGBOOST_ALIGNAS(X)
-#endif
+#endif  // defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 
 #if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
     !defined(__CUDACC__)
@@ -64,7 +64,7 @@
 #else
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
-#endif
+#endif  // GLIBC VERSION
 
 /*!
  * \brief Tag function as usable by device
@@ -73,7 +73,7 @@
 #define XGBOOST_DEVICE __host__ __device__
 #else
 #define XGBOOST_DEVICE
-#endif
+#endif  // defined (__CUDA__) || defined(__NVCC__)
 
 /*! \brief namespace of xgboost*/
 namespace xgboost {
@@ -215,8 +215,8 @@ using bst_omp_uint = dmlc::omp_uint;  // NOLINT
 #if __GNUC__ == 4 && __GNUC_MINOR__ < 8
 #define override
 #define final
-#endif
-#endif
+#endif  // __GNUC__ == 4 && __GNUC_MINOR__ < 8
+#endif  // DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
 }  // namespace xgboost
 
 /* Always keep this #include at the bottom of xgboost/base.h */
