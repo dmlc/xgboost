@@ -61,6 +61,7 @@ class TestUpdaters(unittest.TestCase):
         assert hist_res['train']['auc'] == exact_res['train']['auc']
         assert hist_res['test']['auc'] == exact_res['test']['auc']
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_fast_histmaker_degenerate_case(self):
         # Test a degenerate case where the quantile sketcher won't return any
         # quantile points for a particular feature (the second feature in
