@@ -1,5 +1,5 @@
 /* Copyright (c) 2015 by Contributors
- * 
+ *
  * This file was initially generated using the following R command:
  * tools::package_native_routine_registration_skeleton('.', con = 'src/init.c', character_only = F)
  * and edited to conform to xgboost C linter requirements. For details, see
@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <R_ext/Rdynload.h>
 
-/* FIXME: 
+/* FIXME:
 Check these declarations against the C/Fortran source code.
 */
 
@@ -70,7 +70,7 @@ static const R_CallMethodDef CallEntries[] = {
 
 #if defined(_WIN32)
 __declspec(dllexport)
-#endif
+#endif  /* defined(_WIN32) */
 void R_init_xgboost(DllInfo *dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
