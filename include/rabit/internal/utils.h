@@ -14,32 +14,35 @@
 
 #ifndef RABIT_STRICT_CXX98_
 #include <cstdarg>
-#endif
+#endif  // RABIT_STRICT_CXX98_
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
 #define fopen64 std::fopen
-#endif
+#endif  // !defined(__GNUC__) || defined(__FreeBSD__)
+
 #ifdef _MSC_VER
 // NOTE: sprintf_s is not equivalent to snprintf,
 // they are equivalent when success, which is sufficient for our case
 #define snprintf sprintf_s
 #define vsnprintf vsprintf_s
+
 #else
+
 #ifdef _FILE_OFFSET_BITS
 #if _FILE_OFFSET_BITS == 32
 #pragma message("Warning: FILE OFFSET BITS defined to be 32 bit")
-#endif
-#endif
+#endif  // _FILE_OFFSET_BITS == 32
+#endif  // _FILE_OFFSET_BITS
 
 #ifdef __APPLE__
 #define off64_t off_t
 #define fopen64 std::fopen
-#endif
+#endif  // __APPLE__
 
 extern "C" {
 #include <sys/types.h>
 }
-#endif
+#endif  // _MSC_VER
 
 #ifdef _MSC_VER
 typedef unsigned char uint8_t;
@@ -49,7 +52,7 @@ typedef unsigned __int64 uint64_t;
 typedef __int64 int64_t;
 #else
 #include <inttypes.h>
-#endif
+#endif  // _MSC_VER
 
 namespace rabit {
 /*! \brief namespace for helper utils of the project */
@@ -88,8 +91,8 @@ inline void HandleLogPrint(const char *msg) {
 void HandleAssertError(const char *msg);
 void HandleCheckError(const char *msg);
 void HandlePrint(const char *msg);
-#endif
-#endif
+#endif  // RABIT_STRICT_CXX98_
+#endif  // RABIT_CUSTOMIZE_MSG_
 #ifdef RABIT_STRICT_CXX98_
 // these function pointers are to be assigned
 extern "C" void (*Printf)(const char *fmt, ...);
@@ -151,7 +154,7 @@ inline void Error(const char *fmt, ...) {
     HandleCheckError(msg.c_str());
   }
 }
-#endif
+#endif  // RABIT_STRICT_CXX98_
 
 /*! \brief replace fopen, report error when the file open fails */
 inline std::FILE *FopenCheck(const char *fname, const char *flag) {

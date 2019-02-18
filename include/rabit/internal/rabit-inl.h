@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors
+ * Copyright (c) 2014-2019 by Contributors
  * \file rabit-inl.h
  * \brief implementation of inline template function for rabit interface
  *
@@ -188,7 +188,7 @@ inline void TrackerPrintf(const char *fmt, ...) {
   msg.resize(strlen(msg.c_str()));
   TrackerPrint(msg);
 }
-#endif
+#endif  // RABIT_STRICT_CXX98_
 // load latest check point
 inline int LoadCheckPoint(Serializable *global_model,
                           Serializable *local_model) {
@@ -323,6 +323,6 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
                                                std::function<void()> prepare_fun) {
   this->Allreduce(sendrecvobj, max_nbytes, count, InvokeLambda_, &prepare_fun);
 }
-#endif
+#endif  // DMLC_USE_CXX11
 }  // namespace rabit
 #endif  // RABIT_INTERNAL_RABIT_INL_H_

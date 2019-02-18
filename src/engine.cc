@@ -24,10 +24,10 @@ namespace engine {
 typedef AllreduceRobust Manager;
 #else
 typedef AllreduceMock Manager;
-#endif
+#endif  // RABIT_USE_MOCK
 #else
 typedef AllreduceBase Manager;
-#endif
+#endif  // RABIT_USE_BASE
 
 /*! \brief entry to to easily hold returning information */
 struct ThreadLocalEntry {

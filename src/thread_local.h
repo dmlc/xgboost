@@ -10,7 +10,7 @@
 
 #if DMLC_ENABLE_STD_THREAD
 #include <mutex>
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
 
 #include <memory>
 #include <vector>
@@ -24,11 +24,11 @@ namespace rabit {
   #define  MX_TREAD_LOCAL _Thread_local
 #elif defined(_MSC_VER)
   #define MX_TREAD_LOCAL __declspec(thread)
-#endif
+#endif  // __GNUC__
 
 #ifndef MX_TREAD_LOCAL
 #message("Warning: Threadlocal is not enabled");
-#endif
+#endif  // MX_TREAD_LOCAL
 
 /*!
  * \brief A threadlocal store to store threadlocal variables.
@@ -73,13 +73,13 @@ class ThreadLocalStore {
     lock.unlock();
 #else
     data_.push_back(str);
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   }
 
 #if DMLC_ENABLE_STD_THREAD
   /*! \brief internal mutex */
   std::mutex mutex_;
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   /*!\brief internal data */
   std::vector<T*> data_;
 };

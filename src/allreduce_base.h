@@ -240,7 +240,7 @@ class AllreduceBase : public IEngine {
 #ifdef _WIN32
     if (errsv == WSAEWOULDBLOCK) return kSuccess;
     if (errsv == WSAECONNRESET) return kConnReset;
-#endif
+#endif  // _WIN32
     if (errsv == ECONNRESET) return kConnReset;
     return kSockError;
   }

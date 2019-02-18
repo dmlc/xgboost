@@ -19,8 +19,8 @@
 #define DMLC_USE_CXX11 1
 #else
 #define DMLC_USE_CXX11 (__cplusplus >= 201103L)
-#endif
-#endif
+#endif  // defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
+#endif  // DMLC_USE_CXX11
 
 // optionally support of lambda functions in C++11, if available
 #if DMLC_USE_CXX11
@@ -108,7 +108,7 @@ inline void TrackerPrint(const std::string &msg);
  * \param fmt the format string
  */
 inline void TrackerPrintf(const char *fmt, ...);
-#endif
+#endif  // RABIT_STRICT_CXX98_
 /*!
  * \brief broadcasts a memory region to every node from the root
  *
@@ -297,7 +297,7 @@ class Reducer {
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         std::function<void()> prepare_fun);
-#endif
+#endif  // DMLC_USE_CXX11
 
  private:
   /*! \brief function handle to do reduce */
@@ -345,7 +345,7 @@ class SerializeReducer {
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
                         std::function<void()> prepare_fun);
-#endif
+#endif  // DMLC_USE_CXX11
 
  private:
   /*! \brief function handle to do reduce */

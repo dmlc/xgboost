@@ -9,7 +9,7 @@
 #include "./base.h"
 #if DMLC_USE_CXX11
 #include <type_traits>
-#endif
+#endif  // DMLC_USE_CXX11
 #include <string>
 
 namespace dmlc {
@@ -25,7 +25,7 @@ struct is_pod {
 #else
   /*! \brief the value of the traits */
   static const bool value = false;
-#endif
+#endif  // DMLC_USE_CXX11
 };
 
 
@@ -41,7 +41,7 @@ struct is_integral {
 #else
   /*! \brief the value of the traits */
   static const bool value = false;
-#endif
+#endif  // DMLC_USE_CXX11
 };
 
 /*!
@@ -56,7 +56,7 @@ struct is_floating_point {
 #else
   /*! \brief the value of the traits */
   static const bool value = false;
-#endif
+#endif  // DMLC_USE_CXX11
 };
 
 /*!
@@ -72,7 +72,7 @@ struct is_arithmetic {
   /*! \brief the value of the traits */
   static const bool value = (dmlc::is_integral<T>::value ||
                              dmlc::is_floating_point<T>::value);
-#endif
+#endif  // DMLC_USE_CXX11
 };
 
 /*!
@@ -147,7 +147,7 @@ DMLC_DECLARE_TRAITS(is_integral, uint64_t, true);
 DMLC_DECLARE_TRAITS(is_floating_point, float, true);
 DMLC_DECLARE_TRAITS(is_floating_point, double, true);
 
-#endif
+#endif  // DMLC_USE_CXX11
 
 DMLC_DECLARE_TYPE_NAME(float, "float");
 DMLC_DECLARE_TYPE_NAME(double, "double");

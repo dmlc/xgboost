@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014-2018 by Contributors
+ *  Copyright (c) 2014-2019 by Contributors
  * \file allreduce_robust.cc
  * \brief Robust implementation of Allreduce
  *
@@ -55,7 +55,7 @@ void AllreduceRobust::Shutdown(void) {
   // This cause rest workers checkandrecover and hang inf, https://github.com/dmlc/xgboost/pull/3818
   // TODO(Chen Qin): a fundamental fix for this
   sleep(2);
-#endif
+#endif  // __APPLE__
   AllreduceBase::Shutdown();
 }
 /*!

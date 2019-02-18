@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014 by Contributors
+ *  Copyright (c) 2014-2019 by Contributors
  * \file socket.h
  * \brief this file aims to provide a wrapper of sockets
  * \author Tianqi Chen
@@ -11,7 +11,7 @@
 #include <ws2tcpip.h>
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
-#endif
+#endif  // _MSC_VER
 #else
 #include <fcntl.h>
 #include <netdb.h>
@@ -21,16 +21,16 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#endif
+#endif  // defined(_WIN32)
 #include <string>
 #include <cstring>
 #include <vector>
 #include <unordered_map>
 #include "../include/rabit/internal/utils.h"
 
-#if defined(_WIN32) && not defined(__MINGW32__)
+#if defined(_WIN32) || defined(__MINGW32__)
 typedef int ssize_t;
-#endif
+#endif  // defined(_WIN32) || defined(__MINGW32__)
 
 #if defined(_WIN32)
 typedef int sock_size_t;
@@ -42,7 +42,7 @@ static inline int poll(struct pollfd *pfd, int nfds,
 typedef int SOCKET;
 typedef size_t sock_size_t;
 const int INVALID_SOCKET = -1;
-#endif
+#endif  // defined(_WIN32)
 
 namespace rabit {
 namespace utils {
@@ -90,7 +90,7 @@ struct SockAddr {
 #else
     const char *s = inet_ntop(AF_INET, &addr.sin_addr,
                               &buf[0], buf.length());
-#endif
+#endif  // _WIN32
     Assert(s != NULL, "cannot decode address");
     return std::string(s);
   }
@@ -115,7 +115,7 @@ class Socket {
     return WSAGetLastError();
 #else
     return errno;
-#endif
+#endif  // _WIN32
   }
   /*! \return whether last error was would block */
   inline static bool LastErrorWouldBlock(void) {
@@ -124,7 +124,7 @@ class Socket {
     return errsv == WSAEWOULDBLOCK;
 #else
     return errsv == EAGAIN || errsv == EWOULDBLOCK;
-#endif
+#endif  // _WIN32
   }
   /*!
    * \brief start up the socket module
@@ -140,7 +140,7 @@ class Socket {
     WSACleanup();
     utils::Error("Could not find a usable version of Winsock.dll\n");
     }
-#endif
+#endif  // _WIN32
   }
   /*!
    * \brief shutdown the socket module after use, all sockets need to be closed
@@ -148,7 +148,7 @@ class Socket {
   inline static void Finalize(void) {
 #ifdef _WIN32
     WSACleanup();
-#endif
+#endif  // _WIN32
   }
   /*!
    * \brief set this socket to use non-blocking mode
@@ -174,7 +174,7 @@ class Socket {
     if (fcntl(sockfd, F_SETFL, flag) == -1) {
       Socket::Error("SetNonBlock-2");
     }
-#endif
+#endif  // _WIN32
   }
   /*!
    * \brief bind the socket to an address
@@ -208,7 +208,7 @@ class Socket {
       if (errno != EADDRINUSE) {
         Socket::Error("TryBindHost");
       }
-#endif
+#endif  // defined(_WIN32)
     }
 
     return -1;
@@ -319,7 +319,7 @@ class TCPSocket : public Socket{
 #else
     int atmark;
     if (ioctl(sockfd, SIOCATMARK, &atmark) == -1) return -1;
-#endif
+#endif  // _WIN32
     return static_cast<int>(atmark);
   }
   /*!
