@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2019 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -10,11 +10,12 @@
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
+#include <cstdint>
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
 #include <stdint.h>
-#endif
+#endif  // __cplusplus
 
 // XGBoost C API will include APIs in Rabit C API
 #include <rabit/c_api.h>
@@ -23,7 +24,7 @@
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
 #define XGB_DLL XGB_EXTERN_C
-#endif
+#endif  // defined(_MSC_VER) || defined(_WIN32)
 
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
@@ -49,7 +50,7 @@ typedef struct {  // NOLINT(*)
   long* offset; // NOLINT(*)
 #else
   int64_t* offset;  // NOLINT(*)
-#endif
+#endif  // __APPLE__
   /*! \brief labels of each instance */
   float* label;
   /*! \brief weight of each instance, can be NULL */
@@ -283,6 +284,23 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 /*!
+ * \brief `XGDMatrixSetFloatInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name, can be label, weight
+ * \param array pointer to float vector
+ * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
+                                         const char *field,
+                                         const float *array,
+                                         const bst_ulong stride,
+                                         bst_ulong len);
+
+/*!
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
  * \param field field name
@@ -294,6 +312,23 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const char *field,
                                  const unsigned *array,
                                  bst_ulong len);
+
+/*!
+ * \brief `XGDMatrixSetUIntInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name
+ * \param array pointer to unsigned int vector
+ * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
+                                        const char *field,
+                                        const unsigned *array,
+                                        const bst_ulong stride,
+                                        bst_ulong len);
 /*!
  * \brief set label of the training matrix
  * \param handle a instance of data matrix
@@ -562,7 +597,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
  *
  * \param handle handle
  * \param key The key of the attribute.
- * \param value The value to be saved. 
+ * \param value The value to be saved.
  *              If nullptr, the attribute would be deleted.
  * \return 0 when success, -1 when failure happens
  */

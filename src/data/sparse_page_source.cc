@@ -29,7 +29,7 @@ GetCacheShards(const std::string& cache_info) {
     cache_shards[0] = cache_info.substr(0, 2) + cache_shards[0];
     return cache_shards;
   }
-#endif
+#endif  // (defined _WIN32) || (defined __CYGWIN__)
   return xgboost::common::Split(cache_info, ':');
 }
 
@@ -291,4 +291,4 @@ void SparsePageSource::CreateColumnPage(DMatrix* src,
 }
 }  // namespace data
 }  // namespace xgboost
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD

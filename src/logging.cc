@@ -35,7 +35,7 @@ TrackerLogger::~TrackerLogger() {
 
 }  // namespace xgboost
 
-#endif
+#endif  // !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 
 namespace xgboost {
 

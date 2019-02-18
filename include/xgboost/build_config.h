@@ -13,6 +13,6 @@
 #elif defined(__GNUC__)
 // Enable __builtin_prefetch for GCC
 #define XGBOOST_BUILTIN_PREFETCH_PRESENT
-#endif
+#endif  // GUARDS
 
 #endif  // XGBOOST_BUILD_CONFIG_H_

@@ -53,7 +53,7 @@ bool CheckNAN(double v) {
 double LogGamma(double v) {
   return lgammafn(v);
 }
-#endif
+#endif  // !defined(XGBOOST_USE_CUDA)
 // customize random engine.
 void CustomGlobalRandomEngine::seed(CustomGlobalRandomEngine::result_type val) {
   // ignore the seed
