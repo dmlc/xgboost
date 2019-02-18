@@ -1025,7 +1025,7 @@ class AllReducer {
    * \brief Synchronizes the entire communication group.
    */
   void Synchronize() {
-  #ifdef XGBOOST_USE_NCCL
+#ifdef XGBOOST_USE_NCCL
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
@@ -1094,8 +1094,9 @@ class SaveCudaContext {
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
-#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-    for (size_t shard = 0; shard < shards->size(); ++shard) {
+    const long shards_size = static_cast<long>(shards->size());
+#pragma omp parallel for schedule(static, 1) if (shards_size > 1)
+    for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
   }};

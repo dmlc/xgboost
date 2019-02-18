@@ -216,15 +216,20 @@ struct TestElementAccess {
 
 TEST(GPUSpan, ElementAccess) {
   dh::safe_cuda(cudaSetDevice(0));
-  EXPECT_DEATH({
-      thrust::host_vector<float> h_vec (16);
-      InitializeRange(h_vec.begin(), h_vec.end());
+  auto test_element_access = []() {
+    thrust::host_vector<float> h_vec (16);
+    InitializeRange(h_vec.begin(), h_vec.end());
 
-      thrust::device_vector<float> d_vec (h_vec.size());
-      thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
+    thrust::device_vector<float> d_vec (h_vec.size());
+    thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
 
-      Span<float> span (d_vec.data().get(), d_vec.size());
-      dh::LaunchN(0, 17, TestElementAccess{span});}, "");
+    Span<float> span (d_vec.data().get(), d_vec.size());
+    dh::LaunchN(0, 17, TestElementAccess{span});
+  };
+
+  testing::internal::CaptureStdout();
+  EXPECT_DEATH(test_element_access(), "");
+  std::string output = testing::internal::GetCapturedStdout();
 }
 
 __global__ void test_first_dynamic_kernel(Span<float> _span) {
@@ -253,7 +258,9 @@ TEST(GPUSpan, FirstLast) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_first_dynamic_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_first_dy(), "");
+  std::string output = testing::internal::GetCapturedStdout();
 
   auto lambda_first_static = []() {
     thrust::host_vector<float> h_vec (4);
@@ -265,7 +272,9 @@ TEST(GPUSpan, FirstLast) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_first_static_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_first_static(), "");
+  output = testing::internal::GetCapturedStdout();
 
   auto lambda_last_dy = []() {
     thrust::host_vector<float> h_vec (4);
@@ -277,7 +286,9 @@ TEST(GPUSpan, FirstLast) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_last_dynamic_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_last_dy(), "");
+  output = testing::internal::GetCapturedStdout();
 
   auto lambda_last_static = []() {
     thrust::host_vector<float> h_vec (4);
@@ -289,7 +300,9 @@ TEST(GPUSpan, FirstLast) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_last_static_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_last_static(), "");
+  output = testing::internal::GetCapturedStdout();
 }
 
 
@@ -310,7 +323,9 @@ TEST(GPUSpan, Subspan) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_subspan_dynamic_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_subspan_dynamic(), "");
+  std::string output = testing::internal::GetCapturedStdout();
 
   auto lambda_subspan_static = []() {
     thrust::host_vector<float> h_vec (4);
@@ -322,7 +337,9 @@ TEST(GPUSpan, Subspan) {
     Span<float> span (d_vec.data().get(), d_vec.size());
     test_subspan_static_kernel<<<1, 1>>>(span);
   };
+  testing::internal::CaptureStdout();
   EXPECT_DEATH(lambda_subspan_static(), "");
+  output = testing::internal::GetCapturedStdout();
 }
 
 TEST(GPUSpanIter, Construct) {

@@ -19,7 +19,7 @@
   #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
   #define PREFETCH_READ_T0(addr) do {} while (0)
-#endif
+#endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost {
 namespace common {
@@ -148,14 +148,17 @@ void HistCutMatrix::Init
       }
     }
     // push a value that is greater than anything
-    if (a.size != 0) {
-      bst_float cpt = a.data[a.size - 1].value;
-      // this must be bigger than last value in a scale
-      bst_float last = cpt + (fabs(cpt) + 1e-5);
-      cut.push_back(last);
-    }
+    const bst_float cpt
+      = (a.size > 0) ? a.data[a.size - 1].value : this->min_val[fid];
+    // this must be bigger than last value in a scale
+    const bst_float last = cpt + (fabs(cpt) + 1e-5);
+    cut.push_back(last);
 
-    row_ptr.push_back(static_cast<bst_uint>(cut.size()));
+    // Ensure that every feature gets at least one quantile point
+    CHECK_LE(cut.size(), std::numeric_limits<uint32_t>::max());
+    auto cut_size = static_cast<uint32_t>(cut.size());
+    CHECK_GT(cut_size, row_ptr.back());
+    row_ptr.push_back(cut_size);
   }
 }
 
@@ -165,7 +168,9 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   auto cend = cut.begin() + row_ptr[fid + 1];
   CHECK(cbegin != cend);
   auto it = std::upper_bound(cbegin, cend, e.fvalue);
-  if (it == cend) it = cend - 1;
+  if (it == cend) {
+    it = cend - 1;
+  }
   uint32_t idx = static_cast<uint32_t>(it - cut.begin());
   return idx;
 }
@@ -544,7 +549,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_hist = hist.data();
 
 #pragma omp parallel for num_threads(nthread) schedule(guided)
@@ -590,7 +595,7 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();
   tree::GradStats* p_parent = parent.data();

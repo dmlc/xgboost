@@ -100,4 +100,4 @@ bool SparsePageDMatrix::SingleColBlock() const {
 }
 }  // namespace data
 }  // namespace xgboost
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
