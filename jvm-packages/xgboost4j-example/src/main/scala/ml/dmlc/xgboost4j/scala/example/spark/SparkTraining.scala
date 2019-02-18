@@ -31,7 +31,6 @@ object SparkTraining {
       println("Usage: program input_path")
       sys.exit(1)
     }
-
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
     val schema = new StructType(Array(

@@ -1,21 +1,18 @@
 ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu18.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install all basic requirements
 RUN \
-    yum -y update && \
-    yum install -y tar unzip wget xz git && \
-    wget http://people.centos.org/tru/devtools-2/devtools-2.repo -O /etc/yum.repos.d/devtools-2.repo && \
-    yum install -y devtoolset-2-gcc devtoolset-2-binutils devtoolset-2-gcc-c++ && \
-    # Python
-    wget https://repo.continuum.io/miniconda/Miniconda2-4.3.27-Linux-x86_64.sh && \
-    bash Miniconda2-4.3.27-Linux-x86_64.sh -b -p /opt/python && \
-    # CMake
-    wget -nv -nc https://cmake.org/files/v3.5/cmake-3.5.2-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.5.2-Linux-x86_64.sh --skip-license --prefix=/usr
+    apt-get update && \
+    apt-get install -y tar unzip wget git build-essential cmake python3 python3-pip llvm-7 clang-tidy-7 clang-7
+
+# Set default clang-tidy version
+RUN \
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-7 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
@@ -28,14 +25,9 @@ RUN \
     rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
     rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; fi
 
-ENV PATH=/opt/python/bin:$PATH
-ENV CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-2/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
-
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn wheel
+    pip3 install pyyaml
 
 ENV GOSU_VERSION 1.10
 

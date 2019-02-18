@@ -53,7 +53,7 @@ pipeline {
                     parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
                         def buildName = utils.getBuildName(c)
                         utils.buildFactory(buildName, c, false, this.&buildPlatformCmake)
-                    })
+                    } + [ "clang-tidy" : { buildClangTidyJob() } ])
                 }
             }
         }
@@ -106,3 +106,22 @@ def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
         }
     }
 }
+
+/**
+ * Run a clang-tidy job on a GPU machine
+ */
+def buildClangTidyJob() {
+    def nodeReq = "linux && gpu && unrestricted"
+    node(nodeReq) {
+        unstash name: 'srcs'
+        echo "Running clang-tidy job..."
+        // Invoke command inside docker
+        // Install Google Test and Python yaml
+        dockerTarget = "clang_tidy"
+        dockerArgs = "--build-arg CUDA_VERSION=9.2"
+        sh """
+        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/clang_tidy.sh
+        """
+      }
+  }
+

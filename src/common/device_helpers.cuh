@@ -853,14 +853,14 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
-  std::vector<int> device_ordinals;
-  // use nccl one-process-per-gpu type initialization?
-  bool use_nccl_opg;
+  std::vector<int> device_ordinals;  // device id from CUDA
+  bool use_nccl_opg; // NCCL single process per GPU
 #endif
 
  public:
   AllReducer() : initialised_(false), allreduce_bytes_(0),
                  allreduce_calls_(0), use_nccl_opg(false) {}
+
   /**
    * \fn  void Init(const std::vector<int> &device_ordinals)
    *
@@ -868,28 +868,31 @@ class AllReducer {
    * group.
    *
    * \param device_ordinals The device ordinals.
-   * \param opg whether to use nccl one-process-per-gpu type initialization
+   * \param opg Whether to initialize AllReducer with a single process per GPU
    */
 
   void Init(const std::vector<int> &device_ordinals, bool opg=false) {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
-    this->use_nccl_opg = opg;
     this->device_ordinals = device_ordinals;
+    this->use_nccl_opg = opg;
     comms.resize(device_ordinals.size());
+
     if (use_nccl_opg) {
       CHECK_EQ(device_ordinals.size(), 1)
-          << "NCCL-OPG version currently supports only 1 GPU in a process.";
+        << "NCCL-OPG version currently supports only 1 GPU in a process.";
       auto id = GetUniqueId();
-      dh::safe_nccl(ncclCommInitRank(&(comms[0]),
-                                     rabit::GetWorldSize(),
-                                     id,
-                                     rabit::GetRank()));
+      dh::safe_nccl(ncclCommInitRank(
+      	&(comms[0]),
+      	rabit::GetWorldSize(),
+      	id, rabit::GetRank()));
     } else {
-      dh::safe_nccl(ncclCommInitAll(comms.data(),
-                                    static_cast<int>(device_ordinals.size()),
-                                    device_ordinals.data()));
+      dh::safe_nccl(ncclCommInitAll(
+      	comms.data(),
+      	static_cast<int>(device_ordinals.size()),
+      	device_ordinals.data()));
     }
+
     streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
@@ -901,7 +904,6 @@ class AllReducer {
         << "XGBoost must be compiled with NCCL to use more than one GPU.";
 #endif
   }
-
   ~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
     if (initialised_) {
@@ -936,9 +938,9 @@ class AllReducer {
    */
   void GroupEnd() {
 #ifdef XGBOOST_USE_NCCL
-    if (!use_nccl_opg) {
-      dh::safe_nccl(ncclGroupEnd());
-    }
+	if (!use_nccl_opg) {
+	  dh::safe_nccl(ncclGroupEnd());
+	}
 #endif
   }
 
@@ -1018,21 +1020,38 @@ class AllReducer {
   }
 
   /**
-   * \fn ncclUniqueId GetUniqueId()
+   * \fn  void Synchronize()
    *
-   * \brief Gets unique ID from nccl to be used to setup inter-process nccl
-   * communication.
+   * \brief Synchronizes the entire communication group.
+   */
+  void Synchronize() {
+  #ifdef XGBOOST_USE_NCCL
+    for (size_t i = 0; i < device_ordinals.size(); i++) {
+      dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
+      dh::safe_cuda(cudaStreamSynchronize(streams[i]));
+    }
+  #endif
+  };
+
+  /**
+   * \fn  ncclUniqueID GetUniqueId()
    *
-   * \return the unique id
+   * \brief Gets the Unique ID from NCCL to be used in setting up interprocess
+   * communication
+   *
+   * \return the Unique ID
    */
   ncclUniqueId GetUniqueId() {
 #ifdef XGBOOST_USE_NCCL
     static const int RootRank = 0;
     ncclUniqueId id;
-    if(rabit::GetRank() == RootRank) {
+    if (rabit::GetRank() == RootRank) {
       dh::safe_nccl(ncclGetUniqueId(&id));
     }
-    rabit::Broadcast((void*)&id, (size_t)sizeof(ncclUniqueId), (int)RootRank);
+    rabit::Broadcast(
+      (void*)&id,
+      (size_t)sizeof(ncclUniqueId),
+      (int)RootRank);
     return id;
 #endif
   }
@@ -1076,7 +1095,7 @@ template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
 #pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-    for (int shard = 0; shard < shards->size(); ++shard) {
+    for (size_t shard = 0; shard < shards->size(); ++shard) {
       f(shard, shards->at(shard));
     }
   }};

@@ -20,15 +20,10 @@
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/host_device_vector.h"
-#include "../common/sync.h"
 #include "../common/timer.h"
 #include "../common/span.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
-#include <unistd.h>
-
-//#define DBGPRINTF(...) printf(__VA_ARGS__)
-#define DBGPRINTF(...)
 
 namespace xgboost {
 namespace tree {
@@ -54,6 +49,28 @@ struct GPUHistMakerTrainParam
 };
 
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
+
+// With constraints
+template <typename GradientPairT>
+XGBOOST_DEVICE float inline LossChangeMissing(
+    const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
+    const float& parent_gain, const GPUTrainingParam& param, int constraint,
+    const ValueConstraint& value_constraint,
+    bool& missing_left_out) {  // NOLINT
+  float missing_left_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan + missing),
+      GradStats(parent_sum - (scan + missing)));
+  float missing_right_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan), GradStats(parent_sum - scan));
+
+  if (missing_left_gain >= missing_right_gain) {
+    missing_left_out = true;
+    return missing_left_gain - parent_gain;
+  } else {
+    missing_left_out = false;
+    return missing_right_gain - parent_gain;
+  }
+}
 
 /*!
  * \brief
@@ -947,7 +964,6 @@ class GPUHistMakerSpecialised{
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     monitor_.Start("Update", dist_.Devices());
-    GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -976,7 +992,7 @@ class GPUHistMakerSpecialised{
       device_list_[index] = device_id;
     }
 
-    reducer_.Init(device_list_, param_.distributed_dask);
+    reducer_.Init(device_list_, param_.distributed);
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
@@ -1033,22 +1049,21 @@ class GPUHistMakerSpecialised{
   }
 
   void AllReduceHist(int nidx) {
-	  monitor_.Start("AllReduce");
+    monitor_.Start("AllReduce");
     dh::safe_cuda(cudaDeviceSynchronize());
-    monitor_.Start("SyncHist", devices_);
-    DBGPRINTF("rank:%d nidx=%d: AllReduceHist\n", rabit::GetRank(), nidx);
+
     reducer_.GroupStart();
     for (auto& shard : shards_) {
       auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
       reducer_.AllReduceSum(
           dist_.Devices().Index(shard->device_id_),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              n_bins_ * (sizeof(GradientSumT) /
-                         sizeof(typename GradientSumT::ValueT)));
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          n_bins_ * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     }
     reducer_.GroupEnd();
-    monitor_.Stop("SyncHist", devices_);
+    reducer_.Synchronize();
+
     monitor_.Stop("AllReduce");
   }
 
@@ -1064,8 +1079,8 @@ class GPUHistMakerSpecialised{
       right_node_max_elements = (std::max)(
         right_node_max_elements, shard->ridx_segments[nidx_right].Size());
     }
-    
-    if (param_.distributed_dask) {
+
+    if (param_.distributed) {
       rabit::Allreduce<rabit::op::Max,size_t>(&left_node_max_elements, 1);
       rabit::Allreduce<rabit::op::Max,size_t>(&right_node_max_elements, 1);
     }
@@ -1120,61 +1135,6 @@ class GPUHistMakerSpecialised{
         node_value_constraints_[nidx]);
   }
 
-  // Returns best loss
-  std::vector<DeviceSplitCandidate> EvaluateSplits(
-      const std::vector<int>& nidx_set, RegTree* p_tree) {
-    auto columns = info_->num_col_;
-    std::vector<DeviceSplitCandidate> best_splits(nidx_set.size());
-    DeviceSplitCandidate* candidate_splits;
-    dh::safe_cuda(cudaMallocHost(&candidate_splits, nidx_set.size() *
-      columns * sizeof(DeviceSplitCandidate)));
-    // Use first device
-    auto& shard = shards_.front();
-    dh::safe_cuda(cudaSetDevice(shard->device_idx));
-    shard->temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
-                                    nidx_set.size());
-    auto d_split = shard->temp_memory.Pointer<DeviceSplitCandidate>();
-
-    auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
-
-    // Use streams to process nodes concurrently
-    for (auto i = 0; i < nidx_set.size(); i++) {
-      auto nidx = nidx_set[i];
-      DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param_);
-      auto depth = p_tree->GetDepth(nidx);
-
-      auto& feature_set = column_sampler_.GetFeatureSet(depth);
-      feature_set.Reshard(GPUSet(shard->device_idx, 1));
-
-      const int BLOCK_THREADS = 256;
-      evaluate_split_kernel<BLOCK_THREADS>
-          <<<uint32_t(feature_set.Size()), BLOCK_THREADS, 0, streams[i]>>>(
-              shard->hist.GetHistPtr(nidx), nidx, info_->num_col_,
-              feature_set.DevicePointer(shard->device_idx), node,
-              shard->feature_segments.Data(), shard->min_fvalue.Data(),
-              shard->gidx_fvalue_map.Data(), GPUTrainingParam(param_),
-              d_split + i * columns, node_value_constraints_[nidx],
-              shard->monotone_constraints.Data());
-    }
-
-    dh::safe_cuda(cudaDeviceSynchronize());
-    dh::safe_cuda(
-        cudaMemcpy(candidate_splits, shard->temp_memory.d_temp_storage,
-                   sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
-                   cudaMemcpyDeviceToHost));
-    for (auto i = 0; i < nidx_set.size(); i++) {
-      auto depth = p_tree->GetDepth(nidx_set[i]);
-      DeviceSplitCandidate nidx_best;
-      for (auto fidx : column_sampler_.GetFeatureSet(depth).HostVector()) {
-        auto& candidate = candidate_splits[i * columns + fidx];
-        nidx_best.Update(candidate, param_);
-      }
-      best_splits[i] = nidx_best;
-    }
-    dh::safe_cuda(cudaFreeHost(candidate_splits));
-    return std::move(best_splits);
-  }
-
   void InitRoot(RegTree* p_tree) {
     constexpr int root_nidx = 0;
     // Sum gradients
@@ -1188,8 +1148,8 @@ class GPUHistMakerSpecialised{
               shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
         });
 
-    if (param_.distributed_dask) {
-      // TODO: add an "official" way to reduce GradientPair
+    if (param_.distributed) {
+      // TODO: add support for GradientPair reduction
       rabit::Allreduce<rabit::op::Sum>((GradientPair::ValueT*)&tmp_sums[0], 2);
     }
 
@@ -1256,11 +1216,12 @@ class GPUHistMakerSpecialised{
 
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
-    GradStats left_stats(param_);
+
+    GradStats left_stats;
     left_stats.Add(candidate.split.left_sum);
-    GradStats right_stats(param_);
+    GradStats right_stats;
     right_stats.Add(candidate.split.right_sum);
-    GradStats parent_sum(param_);
+    GradStats parent_sum;
     parent_sum.Add(left_stats);
     parent_sum.Add(right_stats);
     node_value_constraints_.resize(tree.GetNodes().size());
@@ -1305,15 +1266,7 @@ class GPUHistMakerSpecialised{
       ExpandEntry candidate = qexpand_->top();
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
-      DBGPRINTF("rank:%d nid=%d working on\n", rabit::GetRank(), candidate.nid);
 
-      if (!candidate.IsValid(param_, num_leaves)) {
-          DBGPRINTF("rank:%d nid=%d candidate invalid\n", rabit::GetRank(), candidate.nid);
-          continue;
-      }
-      // std::cout << candidate;
-      
-      monitor_.Start("ApplySplit", devices_);
       this->ApplySplit(candidate, p_tree);
       monitor_.Start("UpdatePosition", dist_.Devices());
       this->UpdatePosition(candidate, p_tree);
@@ -1322,30 +1275,23 @@ class GPUHistMakerSpecialised{
 
       int left_child_nidx = tree[candidate.nid].LeftChild();
       int right_child_nidx = tree[candidate.nid].RightChild();
-      DBGPRINTF("rank:%d left,right=%d,%d depth=%d num_leaves=%d child validity check\n",
-                rabit::GetRank(), left_child_nidx, right_child_nidx,
-                tree.GetDepth(left_child_nidx), num_leaves);
 
       // Only create child entries if needed
       if (ExpandEntry::ChildIsValid(param_, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
-
-        DBGPRINTF("rank:%d left=%d child valid\n", rabit::GetRank(), left_child_nidx);
         monitor_.Start("BuildHist", dist_.Devices());
         this->BuildHistLeftRight(candidate.nid, left_child_nidx,
                                  right_child_nidx);
         monitor_.Stop("BuildHist", dist_.Devices());
 
         monitor_.Start("EvaluateSplits", dist_.Devices());
-        auto splits =
-            this->EvaluateSplits({left_child_nidx, right_child_nidx}, p_tree);
-        DBGPRINTF("rank:%d nid=%d left=%d depth=%d timestamp=%lu\n", rabit::GetRank(),
-                  candidate.nid, left_child_nidx, tree.GetDepth(left_child_nidx), timestamp);
+        auto left_child_split =
+            this->EvaluateSplit(left_child_nidx, p_tree);
+        auto right_child_split =
+            this->EvaluateSplit(right_child_nidx, p_tree);
         qexpand_->push(ExpandEntry(left_child_nidx,
                                    tree.GetDepth(left_child_nidx), left_child_split,
                                    timestamp++));
-        DBGPRINTF("rank:%d nid=%d right=%d depth=%d timestamp=%lu\n", rabit::GetRank(),
-                  candidate.nid, right_child_nidx, tree.GetDepth(right_child_nidx), timestamp);
         qexpand_->push(ExpandEntry(right_child_nidx,
                                    tree.GetDepth(right_child_nidx), right_child_split,
                                    timestamp++));
@@ -1379,9 +1325,6 @@ class GPUHistMakerSpecialised{
                 uint64_t timestamp)
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
-        DBGPRINTF("rank:%d nid=%d depth=%d loss_chg=%lf kRtEps=%lf, left,right=%lf,%lf timestamp=%lu\n",
-                  rabit::GetRank(), nid, depth, (double)split.loss_chg, (double)kRtEps,
-                  (double)split.left_sum.GetHess(), (double)split.right_sum.GetHess(), timestamp);
       if (split.loss_chg <= kRtEps) return false;
       if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
         return false;

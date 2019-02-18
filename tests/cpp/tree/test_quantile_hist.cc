@@ -46,7 +46,7 @@ class QuantileHistMock : public QuantileHistMaker {
       GHistIndexBlockMatrix quantile_index_block;
       hist_.AddHistRow(nid);
       BuildHist(gpair, row_set_collection_[nid],
-                gmat, quantile_index_block, hist_[nid]);
+                gmat, quantile_index_block, hist_[nid], false);
       std::vector<GradientPairPrecise> solution {
         {0.27f, 0.29f}, {0.27f, 0.29f}, {0.47f, 0.49f},
         {0.27f, 0.29f}, {0.57f, 0.59f}, {0.26f, 0.27f},
@@ -57,10 +57,10 @@ class QuantileHistMock : public QuantileHistMaker {
         {0.26f, 0.27f}, {0.23f, 0.24f}, {0.27f, 0.28f},
         {0.57f, 0.59f}, {0.23f, 0.24f}, {0.47f, 0.49f}};
 
-      for (size_t i = 0; i < hist_[nid].size; ++i) {
+      for (size_t i = 0; i < hist_[nid].size(); ++i) {
         GradientPairPrecise sol = solution[i];
-        ASSERT_NEAR(sol.GetGrad(), hist_[nid].begin[i].sum_grad, kEps);
-        ASSERT_NEAR(sol.GetHess(), hist_[nid].begin[i].sum_hess, kEps);
+        ASSERT_NEAR(sol.GetGrad(), hist_[nid][i].GetGrad(), kEps);
+        ASSERT_NEAR(sol.GetHess(), hist_[nid][i].GetHess(), kEps);
       }
     }
 
@@ -79,7 +79,7 @@ class QuantileHistMock : public QuantileHistMaker {
       hist_.AddHistRow(0);
 
       BuildHist(row_gpairs, row_set_collection_[0],
-                gmat, quantile_index_block, hist_[0]);
+                gmat, quantile_index_block, hist_[0], false);
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), tree);
       // Manipulate the root_gain so that I don't have to invent an actual

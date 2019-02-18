@@ -110,7 +110,7 @@ Parameters for Tree Booster
 * ``tree_method`` string [default= ``auto``]
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
-  - Distributed and external memory version only support ``tree_method=approx``.
+  - XGBoost supports ``hist`` and ``approx`` for distributed training and only support ``approx`` for external memory version.
   - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_exact``, ``gpu_hist``
 
     - ``auto``: Use heuristic to choose the fastest method.
@@ -152,7 +152,7 @@ Parameters for Tree Booster
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma).
 
-  - In a distributed setting, the implicit updater sequence value would be adjusted to ``grow_histmaker,prune``.
+  - In a distributed setting, the implicit updater sequence value would be adjusted to ``grow_histmaker,prune`` by default, and you can set ``tree_method`` as ``hist`` to use ``grow_histmaker``. 
 
 * ``refresh_leaf`` [default=1]
 

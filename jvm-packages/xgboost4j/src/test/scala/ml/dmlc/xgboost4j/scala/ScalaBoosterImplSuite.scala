@@ -77,7 +77,7 @@ class ScalaBoosterImplSuite extends FunSuite {
     XGBoost.train(trainMat, paramMap, round, watches)
   }
 
-  private def trainBoosterWithFastHisto(
+  private def trainBoosterWithQuantileHisto(
       trainMat: DMatrix,
       watches: Map[String, DMatrix],
       round: Int,
@@ -146,57 +146,57 @@ class ScalaBoosterImplSuite extends FunSuite {
     XGBoost.crossValidation(trainMat, params, round, nfold)
   }
 
-  test("test with fast histo depthwise") {
+  test("test with quantile histo depthwise") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "eval_metric" -> "auc").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
-      round = 10, paramMap, 0.0f)
+    trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
+      round = 10, paramMap, 0.95f)
   }
 
-  test("test with fast histo lossguide") {
+  test("test with quantile histo lossguide") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
-      round = 10, paramMap, 0.0f)
+    trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
+      round = 10, paramMap, 0.95f)
   }
 
-  test("test with fast histo lossguide with max bin") {
+  test("test with quantile histo lossguide with max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
       "eval_metric" -> "auc").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
-      round = 10, paramMap, 0.0f)
+    trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.95f)
   }
 
-  test("test with fast histo depthwidth with max depth") {
+  test("test with quantile histo depthwidth with max depth") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
       "eval_metric" -> "auc").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
-      round = 10, paramMap, 0.85f)
+    trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.95f)
   }
 
-  test("test with fast histo depthwidth with max depth and max bin") {
+  test("test with quantile histo depthwidth with max depth and max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
       "eval_metric" -> "auc").toMap
-    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
-      round = 10, paramMap, 0.85f)
+    trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.95f)
   }
 
   test("test training from existing model in scala") {

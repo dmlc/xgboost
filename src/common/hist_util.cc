@@ -1,8 +1,6 @@
 /*!
- * Copyright 2017 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file hist_util.h
- * \brief Utilities to store histograms
- * \author Philip Cho, Tianqi Chen
  */
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
@@ -26,7 +24,25 @@
 namespace xgboost {
 namespace common {
 
+HistCutMatrix::HistCutMatrix() {
+  monitor_.Init("HistCutMatrix");
+}
+
+size_t HistCutMatrix::SearchGroupIndFromBaseRow(
+    std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const {
+  using KIt = std::vector<bst_uint>::const_iterator;
+  KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+  // Cannot use CHECK_NE because it will try to print the iterator.
+  bool const found = res != group_ptr.cend() - 1;
+  if (!found) {
+    LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
+  }
+  size_t group_ind = std::distance(group_ptr.cbegin(), res);
+  return group_ind;
+}
+
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
+  monitor_.Start("Init");
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -35,30 +51,50 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   const int nthread = omp_get_max_threads();
 
-  auto nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
-  auto ncol = static_cast<unsigned>(info.num_col_);
+  unsigned const nstep =
+      static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
+  unsigned const ncol = static_cast<unsigned>(info.num_col_);
   sketchs.resize(info.num_col_);
   for (auto& s : sketchs) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
   const auto& weights = info.weights_.HostVector();
+
+  // Data groups, used in ranking.
+  std::vector<bst_uint> const& group_ptr = info.group_ptr_;
+  size_t const num_groups = group_ptr.size() == 0 ? 0 : group_ptr.size() - 1;
+  // Use group index for weights?
+  bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
+
   for (const auto &batch : p_fmat->GetRowBatches()) {
-    #pragma omp parallel num_threads(nthread)
+    size_t group_ind = 0;
+    if (use_group_ind) {
+      group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
+    }
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
+
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-          size_t ridx = batch.base_rowid + i;
-          SparsePage::Inst inst = batch[i];
-          for (auto& ins : inst) {
-            if (ins.index >= begin && ins.index < end) {
-              sketchs[ins.index].Push(ins.fvalue,
-                                      weights.size() > 0 ? weights[ridx] : 1.0f);
+          size_t const ridx = batch.base_rowid + i;
+          SparsePage::Inst const inst = batch[i];
+          if (use_group_ind &&
+              group_ptr[group_ind] == ridx &&
+              // maximum equals to weights.size() - 1
+              group_ind < num_groups - 1) {
+            // move to next group
+            group_ind++;
+          }
+          for (auto const& entry : inst) {
+            if (entry.index >= begin && entry.index < end) {
+              size_t w_idx = use_group_ind ? group_ind : ridx;
+              sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
         }
@@ -67,6 +103,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 
   Init(&sketchs, max_num_bins);
+  monitor_.Stop("Init");
 }
 
 void HistCutMatrix::Init
@@ -83,9 +120,9 @@ void HistCutMatrix::Init
     summary_array[i].Reserve(max_num_bins * kFactor);
     summary_array[i].SetPrune(out, max_num_bins * kFactor);
   }
+  CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
@@ -161,6 +198,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       SparsePage::Inst inst = batch[i];
 
       CHECK_EQ(ibegin + inst.size(), iend);
+
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
 
@@ -417,7 +455,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t* row_ptr =  gmat.row_ptr.data();
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
 
-  double* hist_data = reinterpret_cast<double*>(hist.begin);
+  double* hist_data = reinterpret_cast<double*>(hist.data());
   double* data = reinterpret_cast<double*>(data_.data());
 
   const size_t block_size = 512;
@@ -432,11 +470,11 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
-  #pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
+#pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
   for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
     dmlc::omp_uint tid = omp_get_thread_num();
     double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
-            reinterpret_cast<double*>(data_.data() + tid * nbins_));
+                               reinterpret_cast<double*>(data_.data() + tid * nbins_));
 
     if (!thread_init_[tid]) {
       memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
@@ -477,16 +515,16 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
       }
     }
 
-    #pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
+#pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
     for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
-      const size_t istart = iblock*block_size;
-      const size_t iend = (((iblock+1)*block_size > size) ? size : istart + block_size);
+      const size_t istart = iblock * block_size;
+      const size_t iend = (((iblock + 1) * block_size > size) ? size : istart + block_size);
 
-      const size_t bin = 2*thread_init_[0]*nbins_;
-      memcpy(hist_data + istart, (data + bin + istart), sizeof(double)*(iend - istart));
+      const size_t bin = 2 * thread_init_[0] * nbins_;
+      memcpy(hist_data + istart, (data + bin + istart), sizeof(double) * (iend - istart));
 
       for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
-        const size_t bin = 2*thread_init_[i_bin_part]*nbins_;
+        const size_t bin = 2 * thread_init_[i_bin_part] * nbins_;
         for (size_t i = istart; i < iend; i++) {
           hist_data[i] += data[bin + i];
         }
@@ -507,8 +545,9 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
 #endif
+  tree::GradStats* p_hist = hist.data();
 
-  #pragma omp parallel for num_threads(nthread) schedule(guided)
+#pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
     auto gmat = gmatb[bid];
 
@@ -517,20 +556,17 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
       size_t ibegin[kUnroll];
       size_t iend[kUnroll];
       GradientPair stat[kUnroll];
+
       for (int k = 0; k < kUnroll; ++k) {
         rid[k] = row_indices.begin[i + k];
-      }
-      for (int k = 0; k < kUnroll; ++k) {
         ibegin[k] = gmat.row_ptr[rid[k]];
         iend[k] = gmat.row_ptr[rid[k] + 1];
-      }
-      for (int k = 0; k < kUnroll; ++k) {
         stat[k] = gpair[rid[k]];
       }
       for (int k = 0; k < kUnroll; ++k) {
         for (size_t j = ibegin[k]; j < iend[k]; ++j) {
           const uint32_t bin = gmat.index[j];
-          hist.begin[bin].Add(stat[k]);
+          p_hist[bin].Add(stat[k]);
         }
       }
     }
@@ -541,7 +577,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
       const GradientPair stat = gpair[rid];
       for (size_t j = ibegin; j < iend; ++j) {
         const uint32_t bin = gmat.index[j];
-        hist.begin[bin].Add(stat);
+        p_hist[bin].Add(stat);
       }
     }
   }
@@ -555,24 +591,27 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
 #endif
+  tree::GradStats* p_self = self.data();
+  tree::GradStats* p_sibling = sibling.data();
+  tree::GradStats* p_parent = parent.data();
 
-  #pragma omp parallel for num_threads(nthread) schedule(static)
+#pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint bin_id = 0;
        bin_id < static_cast<bst_omp_uint>(nbins - rest); bin_id += kUnroll) {
-    GHistEntry pb[kUnroll];
-    GHistEntry sb[kUnroll];
+    tree::GradStats pb[kUnroll];
+    tree::GradStats sb[kUnroll];
     for (int k = 0; k < kUnroll; ++k) {
-      pb[k] = parent.begin[bin_id + k];
+      pb[k] = p_parent[bin_id + k];
     }
     for (int k = 0; k < kUnroll; ++k) {
-      sb[k] = sibling.begin[bin_id + k];
+      sb[k] = p_sibling[bin_id + k];
     }
     for (int k = 0; k < kUnroll; ++k) {
-      self.begin[bin_id + k].SetSubtract(pb[k], sb[k]);
+      p_self[bin_id + k].SetSubstract(pb[k], sb[k]);
     }
   }
   for (uint32_t bin_id = nbins - rest; bin_id < nbins; ++bin_id) {
-    self.begin[bin_id].SetSubtract(parent.begin[bin_id], sibling.begin[bin_id]);
+    p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
   }
 }
 
