@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2019 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -284,6 +284,23 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 /*!
+ * \brief `XGDMatrixSetFloatInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name, can be label, weight
+ * \param array pointer to float vector
+ * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetFloatInfoStrided(DMatrixHandle handle,
+                                         const char *field,
+                                         const float *array,
+                                         const bst_ulong stride,
+                                         bst_ulong len);
+
+/*!
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
  * \param field field name
@@ -295,6 +312,23 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const char *field,
                                  const unsigned *array,
                                  bst_ulong len);
+
+/*!
+ * \brief `XGDMatrixSetUIntInfo' with strided array as input.
+ *
+ * \param handle a instance of data matrix
+ * \param field field name
+ * \param array pointer to unsigned int vector
+ * \param stride stride of input vector
+ * \param len length of array
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetUIntInfoStrided(DMatrixHandle handle,
+                                        const char *field,
+                                        const unsigned *array,
+                                        const bst_ulong stride,
+                                        bst_ulong len);
 /*!
  * \brief set label of the training matrix
  * \param handle a instance of data matrix
