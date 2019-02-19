@@ -880,8 +880,6 @@ class AllReducer {
     comms.resize(device_ordinals.size());
 
     if (1 < rabit::GetWorldSize()) {
-      CHECK_EQ(device_ordinals.size(), 1)
-        << "NCCL-OPG version currently supports only 1 GPU in a process.";
       auto id = GetUniqueId();
       dh::safe_nccl(ncclCommInitRank(
       	&(comms[0]),

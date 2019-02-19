@@ -201,9 +201,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_lower_bound(-1)
         .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
-    DMLC_DECLARE_FIELD(distributed)
-        .set_default(false)
-        .describe("EXP Param: Set this to True to enable a single process per GPU.");
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
