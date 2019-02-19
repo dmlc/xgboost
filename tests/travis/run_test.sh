@@ -94,7 +94,7 @@ if [ ${TASK} == "r_test" ]; then
         sudo ln -s /usr/local/lib/gcc/7 /usr/local/gfortran/lib/gcc/x86_64-apple-darwin15/6.1.0
     fi
 
-    curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
+    curl -OL https://raw.githubusercontent.com/craigcitro/r-travis/master/scripts/travis-tool.sh
     chmod 755 ./travis-tool.sh
     ./travis-tool.sh bootstrap
     make Rpack

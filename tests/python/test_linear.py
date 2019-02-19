@@ -72,7 +72,7 @@ class TestLinear(unittest.TestCase):
                           'feature_selector': ['cyclic', 'shuffle',
                                                'greedy', 'thrifty']}
         for param in parameter_combinations(variable_param):
-            results = run_suite(param, 200, self.datasets, scale_features=True)
+            results = run_suite(param, 150, self.datasets, scale_features=True)
             assert_regression_result(results, 1e-2)
             assert_classification_result(results)
 
