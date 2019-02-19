@@ -584,6 +584,9 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        if data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            raise ValueError('Should use set_float_info_npy2d() to use sliced data')
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -602,7 +605,13 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        data = np.array(data, copy=False, dtype=np.float32)
+        if data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " + \
+                          "because it will generate extra copies and increase memory consumption")
+            data = np.array(data, copy=True, dtype=np.float32)
+        else:
+            data = np.array(data, copy=False, dtype=np.float32)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -620,6 +629,9 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        if data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            raise ValueError('Sliced data is not allowed for uint property')
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
                                               c_array(ctypes.c_uint, data),

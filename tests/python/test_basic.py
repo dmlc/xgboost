@@ -63,6 +63,14 @@ class TestBasic(unittest.TestCase):
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
+    def test_np_view(self):
+        y = np.array([12, 34, 56], np.float32)[::2]
+        from_view = xgb.DMatrix([], label=y).get_label()
+        from_array = xgb.DMatrix([], label=y + 0).get_label()
+        print(from_view)
+        print(from_array)
+        assert (from_view == from_array).all()
+
     def test_record_results(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
