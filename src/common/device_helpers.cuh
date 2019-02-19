@@ -24,10 +24,10 @@
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
 #include "../common/io.h"
-#endif
-
+#else
 #define NCCL_UNIQUE_ID_BYTES 128
 typedef struct { char internal[NCCL_UNIQUE_ID_BYTES]; } ncclUniqueId;
+#endif
 
 // Uncomment to enable
 #define TIMERS
