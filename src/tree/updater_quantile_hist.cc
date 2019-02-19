@@ -291,7 +291,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       const int cright = (*p_tree)[nid].RightChild();
       hist_.AddHistRow(cleft);
       hist_.AddHistRow(cright);
-      
+
       perf_monitor.TickStart();
       if (rabit::IsDistributed()) {
         // in distributed mode, we need to keep consistent across workers
@@ -777,6 +777,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
         snode_[nid].stats = snode_[parent_id].best.right_sum;
       }
     }
+  }
 
   // calculating the weights
   {
