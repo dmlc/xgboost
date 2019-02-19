@@ -29,13 +29,14 @@ def run_benchmark(args):
         print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
         tmp = time.time()
         X, y = make_classification(args.rows, n_features=args.columns, n_redundant=0,
-                                   n_informative=args.columns, n_repeated=0, random_state=7)
-        if args.sparsity < 1.0:
+                                   n_informative=args.columns, n_repeated=0, shuffle=False,
+                                   random_state=7)
+        if 0.0 < args.sparsity < 1.0:
             X = np.array([[np.nan if RNG.uniform(0, 1) < args.sparsity else x for x in x_row]
                           for x_row in X])
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size,
-                                                            random_state=7)
+                                                            random_state=7, shuffle=False)
         print("Generate Time: %s seconds" % (str(time.time() - tmp)))
         tmp = time.time()
         print("DMatrix Start")
