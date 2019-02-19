@@ -857,7 +857,6 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;  // device id from CUDA
-  bool use_nccl_opg{false}; // NCCL single process per GPU
 #endif
 
  public:
@@ -874,14 +873,13 @@ class AllReducer {
    * \param opg Whether to initialize AllReducer with a single process per GPU
    */
 
-  void Init(const std::vector<int> &device_ordinals, bool opg=false) {
+  void Init(const std::vector<int> &device_ordinals) {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
-    this->use_nccl_opg = opg;
     comms.resize(device_ordinals.size());
 
-    if (use_nccl_opg) {
+    if (1 < rabit::GetWorldSize()) {
       CHECK_EQ(device_ordinals.size(), 1)
         << "NCCL-OPG version currently supports only 1 GPU in a process.";
       auto id = GetUniqueId();
@@ -930,7 +928,7 @@ class AllReducer {
    */
   void GroupStart() {
 #ifdef XGBOOST_USE_NCCL
-    if (!use_nccl_opg) {
+    if (rabit::GetWorldSize() == 1) {
       dh::safe_nccl(ncclGroupStart());
     }
 #endif
@@ -941,7 +939,7 @@ class AllReducer {
    */
   void GroupEnd() {
 #ifdef XGBOOST_USE_NCCL
-	if (!use_nccl_opg) {
+	if (rabit::GetWorldSize() == 1) {
 	  dh::safe_nccl(ncclGroupEnd());
 	}
 #endif
