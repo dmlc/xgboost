@@ -26,6 +26,9 @@
 #include "../common/io.h"
 #endif
 
+#define NCCL_UNIQUE_ID_BYTES 128
+typedef struct { char internal[NCCL_UNIQUE_ID_BYTES]; } ncclUniqueId;
+
 // Uncomment to enable
 #define TIMERS
 
@@ -1034,7 +1037,7 @@ class AllReducer {
   };
 
   /**
-   * \fn  ncclUniqueID GetUniqueId()
+   * \fn  ncclUniqueId GetUniqueId()
    *
    * \brief Gets the Unique ID from NCCL to be used in setting up interprocess
    * communication
