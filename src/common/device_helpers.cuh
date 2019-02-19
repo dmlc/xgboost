@@ -854,12 +854,12 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;  // device id from CUDA
-  bool use_nccl_opg; // NCCL single process per GPU
+  bool use_nccl_opg{false}; // NCCL single process per GPU
 #endif
 
  public:
   AllReducer() : initialised_(false), allreduce_bytes_(0),
-                 allreduce_calls_(0), use_nccl_opg(false) {}
+                 allreduce_calls_(0) {}
 
   /**
    * \fn  void Init(const std::vector<int> &device_ordinals)
