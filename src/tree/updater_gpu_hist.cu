@@ -1081,8 +1081,8 @@ class GPUHistMakerSpecialised{
         right_node_max_elements, shard->ridx_segments[nidx_right].Size());
     }
 
-    rabit::Allreduce<rabit::op::Max,size_t>(&left_node_max_elements, 1);
-    rabit::Allreduce<rabit::op::Max,size_t>(&right_node_max_elements, 1);
+    rabit::Allreduce<rabit::op::Max, size_t>(&left_node_max_elements, 1);
+    rabit::Allreduce<rabit::op::Max, size_t>(&right_node_max_elements, 1);
 
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
@@ -1147,7 +1147,6 @@ class GPUHistMakerSpecialised{
               shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
         });
 
-    // TODO: add support for GradientPair reduction
     rabit::Allreduce<rabit::op::Sum>((GradientPair::ValueT*)&tmp_sums[0], 2);
 
     GradientPair sum_gradient =
