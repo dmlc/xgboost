@@ -1,8 +1,6 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file hist_util.h
- * \brief Utilities to store histograms
- * \author Philip Cho, Tianqi Chen
  */
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
@@ -21,12 +19,30 @@
   #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
   #define PREFETCH_READ_T0(addr) do {} while (0)
-#endif
+#endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost {
 namespace common {
 
+HistCutMatrix::HistCutMatrix() {
+  monitor_.Init("HistCutMatrix");
+}
+
+size_t HistCutMatrix::SearchGroupIndFromBaseRow(
+    std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const {
+  using KIt = std::vector<bst_uint>::const_iterator;
+  KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+  // Cannot use CHECK_NE because it will try to print the iterator.
+  bool const found = res != group_ptr.cend() - 1;
+  if (!found) {
+    LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
+  }
+  size_t group_ind = std::distance(group_ptr.cbegin(), res);
+  return group_ind;
+}
+
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
+  monitor_.Start("Init");
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -35,30 +51,50 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   const int nthread = omp_get_max_threads();
 
-  auto nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
-  auto ncol = static_cast<unsigned>(info.num_col_);
+  unsigned const nstep =
+      static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
+  unsigned const ncol = static_cast<unsigned>(info.num_col_);
   sketchs.resize(info.num_col_);
   for (auto& s : sketchs) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
   const auto& weights = info.weights_.HostVector();
+
+  // Data groups, used in ranking.
+  std::vector<bst_uint> const& group_ptr = info.group_ptr_;
+  size_t const num_groups = group_ptr.size() == 0 ? 0 : group_ptr.size() - 1;
+  // Use group index for weights?
+  bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
+
   for (const auto &batch : p_fmat->GetRowBatches()) {
-    #pragma omp parallel num_threads(nthread)
+    size_t group_ind = 0;
+    if (use_group_ind) {
+      group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
+    }
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
+
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-          size_t ridx = batch.base_rowid + i;
-          SparsePage::Inst inst = batch[i];
-          for (auto& ins : inst) {
-            if (ins.index >= begin && ins.index < end) {
-              sketchs[ins.index].Push(ins.fvalue,
-                                      weights.size() > 0 ? weights[ridx] : 1.0f);
+          size_t const ridx = batch.base_rowid + i;
+          SparsePage::Inst const inst = batch[i];
+          if (use_group_ind &&
+              group_ptr[group_ind] == ridx &&
+              // maximum equals to weights.size() - 1
+              group_ind < num_groups - 1) {
+            // move to next group
+            group_ind++;
+          }
+          for (auto const& entry : inst) {
+            if (entry.index >= begin && entry.index < end) {
+              size_t w_idx = use_group_ind ? group_ind : ridx;
+              sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
         }
@@ -67,6 +103,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 
   Init(&sketchs, max_num_bins);
+  monitor_.Stop("Init");
 }
 
 void HistCutMatrix::Init
@@ -111,14 +148,17 @@ void HistCutMatrix::Init
       }
     }
     // push a value that is greater than anything
-    if (a.size != 0) {
-      bst_float cpt = a.data[a.size - 1].value;
-      // this must be bigger than last value in a scale
-      bst_float last = cpt + (fabs(cpt) + 1e-5);
-      cut.push_back(last);
-    }
+    const bst_float cpt
+      = (a.size > 0) ? a.data[a.size - 1].value : this->min_val[fid];
+    // this must be bigger than last value in a scale
+    const bst_float last = cpt + (fabs(cpt) + 1e-5);
+    cut.push_back(last);
 
-    row_ptr.push_back(static_cast<bst_uint>(cut.size()));
+    // Ensure that every feature gets at least one quantile point
+    CHECK_LE(cut.size(), std::numeric_limits<uint32_t>::max());
+    auto cut_size = static_cast<uint32_t>(cut.size());
+    CHECK_GT(cut_size, row_ptr.back());
+    row_ptr.push_back(cut_size);
   }
 }
 
@@ -128,7 +168,9 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
   auto cend = cut.begin() + row_ptr[fid + 1];
   CHECK(cbegin != cend);
   auto it = std::upper_bound(cbegin, cend, e.fvalue);
-  if (it == cend) it = cend - 1;
+  if (it == cend) {
+    it = cend - 1;
+  }
   uint32_t idx = static_cast<uint32_t>(it - cut.begin());
   return idx;
 }
@@ -161,6 +203,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       SparsePage::Inst inst = batch[i];
 
       CHECK_EQ(ibegin + inst.size(), iend);
+
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
 
@@ -506,7 +549,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_hist = hist.data();
 
 #pragma omp parallel for num_threads(nthread) schedule(guided)
@@ -552,7 +595,7 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
 
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif
+#endif  // defined(_OPENMP)
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();
   tree::GradStats* p_parent = parent.data();

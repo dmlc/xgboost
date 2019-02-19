@@ -13,6 +13,7 @@
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
+#include "./timer.h"
 #include "../include/rabit/rabit.h"
 
 namespace xgboost {
@@ -35,6 +36,14 @@ struct HistCutMatrix {
   void Init(DMatrix* p_fmat, uint32_t max_num_bins);
 
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
+
+  HistCutMatrix();
+
+ protected:
+  virtual size_t SearchGroupIndFromBaseRow(
+      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const;
+
+  Monitor monitor_;
 };
 
 /*! \brief Builds the cut matrix on the GPU */

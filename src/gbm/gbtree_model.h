@@ -6,6 +6,8 @@
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/model_visitor.h>
+
+#include <memory>
 #include <utility>
 #include <string>
 #include <vector>

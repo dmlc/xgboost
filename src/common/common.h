@@ -26,7 +26,7 @@
 
 #define WITH_CUDA() false
 
-#endif
+#endif  // defined(__CUDACC__)
 
 namespace dh {
 #if defined(__CUDACC__)
@@ -55,7 +55,7 @@ inline cudaError_t ThrowOnCudaError_nomsg(cudaError_t code, const char *file,
   }
   return code;
 }
-#endif
+#endif  // defined(__CUDACC__)
 }  // namespace dh
 
 namespace xgboost {

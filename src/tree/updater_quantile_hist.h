@@ -7,6 +7,7 @@
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 
+#include <dmlc/timer.h>
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
@@ -14,6 +15,8 @@
 #include <vector>
 #include <string>
 #include <queue>
+#include <iomanip>
+#include <unordered_map>
 #include <utility>
 
 #include "./param.h"
@@ -97,13 +100,16 @@ class QuantileHistMaker: public TreeUpdater {
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
-                          GHistRow hist) {
+                          GHistRow hist,
+                          bool sync_hist) {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
-      this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
+      if (sync_hist) {
+        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
+      }
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
@@ -114,6 +120,94 @@ class QuantileHistMaker: public TreeUpdater {
                                HostDeviceVector<bst_float>* p_out_preds);
 
    protected:
+    /* tree growing policies */
+    struct ExpandEntry {
+      int nid;
+      int depth;
+      bst_float loss_chg;
+      unsigned timestamp;
+      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
+              : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+    };
+
+    struct TreeGrowingPerfMonitor {
+      enum timer_name {INIT_DATA, INIT_NEW_NODE, BUILD_HIST, EVALUATE_SPLIT, APPLY_SPLIT};
+
+      double global_start;
+
+      // performance counters
+      double tstart;
+      double time_init_data = 0;
+      double time_init_new_node = 0;
+      double time_build_hist = 0;
+      double time_evaluate_split = 0;
+      double time_apply_split = 0;
+
+      inline void StartPerfMonitor() {
+        global_start = dmlc::GetTime();
+      }
+
+      inline void EndPerfMonitor() {
+        CHECK_GT(global_start, 0);
+        double total_time = dmlc::GetTime() - global_start;
+        LOG(INFO) << "\nInitData:          "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_data / total_time * 100 << "%)\n"
+                  << "InitNewNode:       "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_new_node / total_time * 100 << "%)\n"
+                  << "BuildHist:         "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_build_hist / total_time * 100 << "%)\n"
+                  << "EvaluateSplit:     "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_evaluate_split / total_time * 100 << "%)\n"
+                  << "ApplySplit:        "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_apply_split / total_time * 100 << "%)\n"
+                  << "========================================\n"
+                  << "Total:             "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
+        // clear performance counters
+        time_init_data = 0;
+        time_init_new_node = 0;
+        time_build_hist = 0;
+        time_evaluate_split = 0;
+        time_apply_split = 0;
+      }
+
+      inline void TickStart() {
+        tstart = dmlc::GetTime();
+      }
+
+      inline void UpdatePerfTimer(const timer_name &timer_name) {
+        CHECK_GT(tstart, 0);
+        switch (timer_name) {
+          case INIT_DATA:
+            time_init_data += dmlc::GetTime() - tstart;
+            break;
+          case INIT_NEW_NODE:
+            time_init_new_node += dmlc::GetTime() - tstart;
+            break;
+          case BUILD_HIST:
+            time_build_hist += dmlc::GetTime() - tstart;
+            break;
+          case EVALUATE_SPLIT:
+            time_evaluate_split += dmlc::GetTime() - tstart;
+            break;
+          case APPLY_SPLIT:
+            time_apply_split += dmlc::GetTime() - tstart;
+            break;
+        }
+        tstart = -1;
+      }
+    };
+
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
@@ -165,22 +259,45 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint fid,
                         bst_uint nodeID);
 
-    /* tree growing policies */
-    struct ExpandEntry {
-      int nid;
-      int depth;
-      bst_float loss_chg;
-      unsigned timestamp;
-      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
-        : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
-    };
-    inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
-      if (lhs.depth == rhs.depth) {
-        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-      } else {
-        return lhs.depth > rhs.depth;  // favor small depth
-      }
-    }
+    void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
+                              const GHistIndexBlockMatrix &gmatb,
+                              const ColumnMatrix &column_matrix,
+                              DMatrix *p_fmat,
+                              RegTree *p_tree,
+                              const std::vector<GradientPair> &gpair_h);
+
+    void BuildLocalHistograms(int *starting_index,
+                              int *sync_count,
+                              const GHistIndexMatrix &gmat,
+                              const GHistIndexBlockMatrix &gmatb,
+                              RegTree *p_tree,
+                              const std::vector<GradientPair> &gpair_h);
+
+    void SyncHistograms(int starting_index,
+                        int sync_count,
+                        RegTree *p_tree);
+
+    void BuildNodeStats(const GHistIndexMatrix &gmat,
+                        DMatrix *p_fmat,
+                        RegTree *p_tree,
+                        const std::vector<GradientPair> &gpair_h);
+
+    void EvaluateSplits(const GHistIndexMatrix &gmat,
+                        const ColumnMatrix &column_matrix,
+                        DMatrix *p_fmat,
+                        RegTree *p_tree,
+                        int *num_leaves,
+                        int depth,
+                        unsigned *timestamp,
+                        std::vector<ExpandEntry> *temp_qexpand_depth);
+
+    void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
+                             const GHistIndexBlockMatrix& gmatb,
+                             const ColumnMatrix& column_matrix,
+                             DMatrix* p_fmat,
+                             RegTree* p_tree,
+                             const std::vector<GradientPair>& gpair_h);
+
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
         return lhs.timestamp > rhs.timestamp;  // favor small timestamp
@@ -218,13 +335,19 @@ class QuantileHistMaker: public TreeUpdater {
     const DMatrix* p_last_fmat_;
 
     using ExpandQueue =
-        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                            std::function<bool(ExpandEntry, ExpandEntry)>>;
-    std::unique_ptr<ExpandQueue> qexpand_;
+       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                           std::function<bool(ExpandEntry, ExpandEntry)>>;
+
+    std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
+    std::vector<ExpandEntry> qexpand_depth_wise_;
+    // key is the node id which should be calculated by Subtraction Trick, value is the node which
+    // provides the evidence for substracts
+    std::unordered_map<int, int> nodes_for_subtraction_trick_;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
+    TreeGrowingPerfMonitor perf_monitor;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
 

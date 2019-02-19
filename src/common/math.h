@@ -123,7 +123,7 @@ inline bool CheckNAN(T v) {
   return (_isnan(v) != 0);
 #else
   return std::isnan(v);
-#endif
+#endif  // _MSC_VER
 }
 #endif  // XGBOOST_STRICT_R_MODE_
 
@@ -149,7 +149,7 @@ XGBOOST_DEVICE inline T LogGamma(T v) {
 
 #else
   return lgamma(v);
-#endif
+#endif  // _MSC_VER
 }
 
 #endif  // XGBOOST_STRICT_R_MODE && !defined(XGBOOST_USE_CUDA)

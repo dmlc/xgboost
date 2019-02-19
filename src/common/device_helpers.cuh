@@ -1050,8 +1050,9 @@ class SaveCudaContext {
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
-#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-    for (size_t shard = 0; shard < shards->size(); ++shard) {
+    const long shards_size = static_cast<long>(shards->size());
+#pragma omp parallel for schedule(static, 1) if (shards_size > 1)
+    for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
   }};
