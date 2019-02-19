@@ -16,7 +16,6 @@ class TestGPULinear(unittest.TestCase):
         'eta': [0.5],
         'top_k': [10],
         'tolerance': [1e-5],
-        'nthread': [2],
         'alpha': [.005, .1],
         'lambda': [0.005],
         'coordinate_selection': ['cyclic', 'random', 'greedy']}
