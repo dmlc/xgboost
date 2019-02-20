@@ -64,9 +64,22 @@ class TestBasic(unittest.TestCase):
         assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_np_view(self):
+        # Sliced Float32 array
         y = np.array([12, 34, 56], np.float32)[::2]
         from_view = xgb.DMatrix([], label=y).get_label()
         from_array = xgb.DMatrix([], label=y + 0).get_label()
+        assert (from_view.shape == from_array.shape)
+        assert (from_view == from_array).all()
+
+        # Sliced UInt array
+        z = np.array([12, 34, 56], np.uint32)[::2]
+        dmat = xgb.DMatrix([])
+        dmat.set_uint_info('root_index', z)
+        from_view = dmat.get_uint_info('root_index')
+        dmat = xgb.DMatrix([])
+        dmat.set_uint_info('root_index', z + 0)
+        from_array = dmat.get_uint_info('root_index')
+        assert (from_view.shape == from_array.shape)
         assert (from_view == from_array).all()
 
     def test_record_results(self):
