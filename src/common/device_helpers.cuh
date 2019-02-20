@@ -879,7 +879,7 @@ class AllReducer {
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
     auto id = GetUniqueId();
-    
+
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int rank = rabit::GetRank() + device_ordinals[i];
       dh::safe_cuda(cudaSetDevice(dev));
@@ -929,7 +929,7 @@ class AllReducer {
    */
   void GroupEnd() {
 #ifdef XGBOOST_USE_NCCL
-	dh::safe_nccl(ncclGroupEnd());
+    dh::safe_nccl(ncclGroupEnd());
 #endif
   }
 
