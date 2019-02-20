@@ -884,7 +884,7 @@ class AllReducer {
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals[i];
       int ndevs = device_ordinals.size();
-	  int nccl_rank = rabit::GetRank() * ndevs + dev;
+      int nccl_rank = rabit::GetRank() * ndevs + dev;
       int nccl_nranks = rabit::GetWorldSize() * ndevs;
       
       dh::safe_cuda(cudaSetDevice(dev));
