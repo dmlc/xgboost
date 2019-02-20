@@ -878,18 +878,20 @@ class AllReducer {
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
-
+    auto id = GetUniqueId();
     if (1 < rabit::GetWorldSize()) {
-      auto id = GetUniqueId();
       dh::safe_nccl(ncclCommInitRank(
       	&(comms[0]),
       	rabit::GetWorldSize(),
       	id, rabit::GetRank()));
     } else {
-      dh::safe_nccl(ncclCommInitAll(
-      	comms.data(),
-      	static_cast<int>(device_ordinals.size()),
-      	device_ordinals.data()));
+      for (auto dev : device_ordinals) {
+        dh::safe_cuda(cudaSetDevice(dev));
+        dh::safe_nccl(ncclCommInitRank(
+          &(comms[0]),
+          static_cast<int>(device_ordinals.size()),
+          id, dev));
+      }
     }
 
     streams.resize(device_ordinals.size());
@@ -898,9 +900,6 @@ class AllReducer {
       safe_cuda(cudaStreamCreate(&streams[i]));
     }
     initialised_ = true;
-#else
-    CHECK_EQ(device_ordinals.size(), 1)
-        << "XGBoost must be compiled with NCCL to use more than one GPU.";
 #endif
   }
   ~AllReducer() {
@@ -926,9 +925,7 @@ class AllReducer {
    */
   void GroupStart() {
 #ifdef XGBOOST_USE_NCCL
-    if (rabit::GetWorldSize() == 1) {
-      dh::safe_nccl(ncclGroupStart());
-    }
+    dh::safe_nccl(ncclGroupStart());
 #endif
   }
 
@@ -937,9 +934,7 @@ class AllReducer {
    */
   void GroupEnd() {
 #ifdef XGBOOST_USE_NCCL
-	if (rabit::GetWorldSize() == 1) {
-	  dh::safe_nccl(ncclGroupEnd());
-	}
+	dh::safe_nccl(ncclGroupEnd());
 #endif
   }
 
