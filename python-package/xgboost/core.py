@@ -635,7 +635,7 @@ class DMatrix(object):
         if getattr(data, 'base', None) is not None and \
            data.base is not None and isinstance(data, np.ndarray) \
            and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
-            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " + \
+            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
                           "because it will generate extra copies and increase memory consumption")
             data = np.array(data, copy=True, dtype=ctypes.c_uint)
         else:
