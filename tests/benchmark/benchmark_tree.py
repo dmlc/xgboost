@@ -38,11 +38,14 @@ def run_benchmark(args):
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size,
                                                             random_state=7, shuffle=False)
         print("Generate Time: %s seconds" % (str(time.time() - tmp)))
+        del X, y
+
         tmp = time.time()
         print("DMatrix Start")
-        dtrain = xgb.DMatrix(X_train, y_train)
+        dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
         dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
         print("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+        del X_train, y_train, X_test, y_test
 
         dtest.save_binary('dtest.dm')
         dtrain.save_binary('dtrain.dm')
