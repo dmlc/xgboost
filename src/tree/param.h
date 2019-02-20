@@ -76,8 +76,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_id;
   // number of GPUs to use
   int n_gpus;
-  // enable single process per GPU in NCCL
-  bool distributed;
   // the criteria to use for ranking splits
   std::string split_evaluator;
 
