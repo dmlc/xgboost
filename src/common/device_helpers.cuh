@@ -880,14 +880,20 @@ class AllReducer {
     comms.resize(device_ordinals.size());
     auto id = GetUniqueId();
 
+    GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
-      int rank = rabit::GetRank() + device_ordinals[i];
+      int dev = device_ordinals[i];
+      int ndevs = device_ordinals.size();
+	  int nccl_rank = rabit::GetRank() * ndevs + dev;
+      int nccl_nranks = rabit::GetWorldSize() * ndevs;
+      
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &(comms[i]),
-        rabit::GetWorldSize() * static_cast<int>(device_ordinals.size()),
-        id, rank));
+        nccl_nranks, id, 
+        nccl_rank));
     }
+    GroupEnd();
 
     streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
