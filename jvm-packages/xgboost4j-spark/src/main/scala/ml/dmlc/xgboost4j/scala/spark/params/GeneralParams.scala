@@ -57,6 +57,14 @@ private[spark] trait GeneralParams extends Params {
   final def getNthread: Int = $(nthread)
 
   /**
+   * number of GPUs to use per worker: -1=use all GPUs. default 1
+   */
+  final val nGpus = new IntParam(this, "nGpus", "number of GPUs to use per worker",
+    ParamValidators.gtEq(-1))
+
+  final def getNGpus: Int = $(nGpus)
+
+  /**
    * whether to use external memory as cache. default: false
    */
   final val useExternalMemory = new BooleanParam(this, "useExternalMemory",
@@ -171,7 +179,7 @@ private[spark] trait GeneralParams extends Params {
 
   final def getSeed: Long = $(seed)
 
-  setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1,
+  setDefault(numRound -> 1, numWorkers -> 1, nthread -> 1, nGpus -> 1,
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,

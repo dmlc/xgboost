@@ -264,9 +264,10 @@ object XGBoost extends Serializable {
 
     if (params.contains("tree_method")) {
       require(params("tree_method") == "hist" ||
+        params("tree_method") == "gpu_hist" ||
         params("tree_method") == "approx" ||
         params("tree_method") == "auto", "xgboost4j-spark only supports tree_method as 'hist'," +
-        " 'approx' and 'auto'")
+        " 'gpu_hist', 'approx' and 'auto'")
     }
     if (params.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +

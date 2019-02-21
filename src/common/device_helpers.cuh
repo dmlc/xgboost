@@ -873,13 +873,42 @@ class AllReducer {
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
-    dh::safe_nccl(ncclCommInitAll(comms.data(),
-                                  static_cast<int>(device_ordinals.size()),
-                                  device_ordinals.data()));
     streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
       safe_cuda(cudaStreamCreate(&streams[i]));
+    }
+
+    if (rabit::IsDistributed()) {
+      int rank = rabit::GetRank();
+      int nproc = rabit::GetWorldSize();
+
+      // Create a unique id and share it with all workers.
+      ncclUniqueId id;
+      if (rank == 0) {
+        dh::safe_nccl(ncclGetUniqueId(&id));
+      }
+      rabit::Broadcast(&id, sizeof(id), 0);
+
+      // Compute the cumulative sum of the number of GPUs.
+      std::vector<int> n_devices(nproc, 0);
+      n_devices[rank] = device_ordinals.size();
+      rabit::Allreduce<rabit::op::Sum>(&n_devices[0], n_devices.size());
+      std::partial_sum(n_devices.begin(), n_devices.end(), n_devices.begin());
+
+      // Create the communicators.
+      int nccl_rank = rank == 0 ? 0 : n_devices[rank-1];
+      int nccl_ranks = n_devices.back();
+      GroupStart();
+      for (size_t i = 0; i < device_ordinals.size(); i++) {
+        safe_cuda(cudaSetDevice(device_ordinals[i]));
+        dh::safe_nccl(ncclCommInitRank(&comms[i], nccl_ranks, id, nccl_rank+i));
+      }
+      GroupEnd();
+    } else {
+      dh::safe_nccl(ncclCommInitAll(comms.data(),
+                                    static_cast<int>(device_ordinals.size()),
+                                    device_ordinals.data()));
     }
     initialised_ = true;
 #else
@@ -937,7 +966,6 @@ class AllReducer {
                     double *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-    dh::safe_cuda(cudaSetDevice(device_ordinals.at(communication_group_idx)));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum,
                                 comms.at(communication_group_idx),
                                 streams.at(communication_group_idx)));
@@ -963,7 +991,6 @@ class AllReducer {
                     float *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-    dh::safe_cuda(cudaSetDevice(device_ordinals.at(communication_group_idx)));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum,
                                 comms.at(communication_group_idx),
                                 streams.at(communication_group_idx)));
@@ -990,8 +1017,6 @@ class AllReducer {
                     int64_t *recvbuff, int count) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
-
-    dh::safe_cuda(cudaSetDevice(device_ordinals[communication_group_idx]));
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum,
                                 comms[communication_group_idx],
                                 streams[communication_group_idx]));
@@ -1006,7 +1031,6 @@ class AllReducer {
   void Synchronize() {
 #ifdef XGBOOST_USE_NCCL
     for (size_t i = 0; i < device_ordinals.size(); i++) {
-      dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
     }
 #endif
