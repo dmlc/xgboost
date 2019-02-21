@@ -857,6 +857,7 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;  // device id from CUDA
+  ncclUniqueId id;
 #endif
 
  public:
@@ -877,25 +878,40 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
-    comms.resize(device_ordinals.size());
-    auto id = GetUniqueId();
+    this->id = GetUniqueId();
 
-    GroupStart();
-    for (size_t i = 0; i < device_ordinals.size(); i++) {
-      int dev = device_ordinals.at(i);
-      int ndevs = device_ordinals.size();
-      int nccl_rank = rabit::GetRank() * ndevs + dev;
-      int nccl_nranks = rabit::GetWorldSize() * ndevs;
-      
-      printf("dev: %d, ndevs: %d, nccl_rank: %d, nccl_nranks: %d \n", dev, ndevs, nccl_rank, nccl_nranks);
-
-      dh::safe_cuda(cudaSetDevice(dev));
-      dh::safe_nccl(ncclCommInitRank(
-        &(comms.at(i)),
-        nccl_nranks, id, 
-        nccl_rank));
+    std::vector<int> ndevs(rabit::GetWorldSize(), 0);
+    ndevs.at(rabit::GetRank()) = dh::safe_cuda(cudaGetDeviceCount());
+    for (size_t i = 0; i < ndevs.size(); i++) {
+      int rabit_rank = i;
+      rabit::Broadcast(
+        (void*)&(ndevs.at(rabit_rank)),
+        sizeof(size_t),
+        rabit_rank);
     }
-    GroupEnd();
+
+    if (rabit::GetRank() == 0) {
+      for (size_t i = 0; i < ndevs.size(); i++) {
+        printf("node: %d, devices: %d \n", rabit::GetRank(), ndevs.at(i));
+      }
+    }
+
+    // GroupStart();
+    // for (size_t i = 0; i < device_ordinals.size(); i++) {
+    //   int dev = device_ordinals.at(i);
+    //   int ndevs = device_ordinals.size();
+    //   int nccl_rank = rabit::GetRank() * ndevs + dev;
+    //   int nccl_nranks = rabit::GetWorldSize() * ndevs;
+    //   
+    //   printf("dev: %d, ndevs: %d, nccl_rank: %d, nccl_nranks: %d \n", dev, ndevs, nccl_rank, nccl_nranks);
+    // 
+    //   dh::safe_cuda(cudaSetDevice(dev));
+    //   dh::safe_nccl(ncclCommInitRank(
+    //     &(comms.at(i)),
+    //     nccl_nranks, id, 
+    //     nccl_rank));
+    // }
+    // GroupEnd();
 
     streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
