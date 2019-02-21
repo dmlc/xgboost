@@ -122,7 +122,6 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
-  void SetInfo(const char* key, const void* dptr, DataType dtype, size_t stride, size_t num);
 
  private:
   /*! \brief argsort of labels */
