@@ -96,7 +96,9 @@ class XGBModel(XGBModelBase):
     colsample_bytree : float
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : float
-        Subsample ratio of columns for each split, in each level.
+        Subsample ratio of columns for each level.
+    colsample_bynode : float
+        Subsample ratio of columns for each split.
     reg_alpha : float (xgb's alpha)
         L1 regularization term on weights
     reg_lambda : float (xgb's lambda)
@@ -546,6 +548,7 @@ class XGBModel(XGBModelBase):
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
+        print(self.importance_type)
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
@@ -966,6 +969,8 @@ class XGBRanker(XGBModel):
             The objective name must start with "rank:".
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
+        tree_method: string
+            Specify which tree method to use: auto, exact, approx, hist, gpu_exact or gpu_hist.
         nthread : int
             Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
         n_jobs : int
@@ -981,7 +986,9 @@ class XGBRanker(XGBModel):
         colsample_bytree : float
             Subsample ratio of columns when constructing each tree.
         colsample_bylevel : float
-            Subsample ratio of columns for each split, in each level.
+            Subsample ratio of columns for each level.
+        colsample_bynode : float
+            Subsample ratio of columns for each split.
         reg_alpha : float (xgb's alpha)
             L1 regularization term on weights
         reg_lambda : float (xgb's lambda)
@@ -1044,18 +1051,23 @@ class XGBRanker(XGBModel):
         """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="rank:pairwise", booster='gbtree',
-                 n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 silent=True, objective="rank:pairwise", booster='gbtree', tree_method='hist',
+                 n_jobs=-1, nthread=None, n_gpus=0, gpu_id=0,
+                 gamma=0, min_child_weight=1, max_delta_step=0,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
 
-        super(XGBRanker, self).__init__(max_depth, learning_rate,
-                                        n_estimators, silent, objective, booster,
-                                        n_jobs, nthread, gamma, min_child_weight, max_delta_step,
-                                        subsample, colsample_bytree, colsample_bylevel,
-                                        reg_alpha, reg_lambda, scale_pos_weight,
-                                        base_score, random_state, seed, missing)
+        super(XGBRanker, self).__init__(
+            max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
+            silent=silent, objective=objective, booster=booster, tree_method=tree_method,
+            n_jobs=n_jobs, nthread=nthread, n_gpus=n_gpus, gpu_id=gpu_id,
+            gamma=gamma, min_child_weight=min_child_weight,
+            max_delta_step=max_delta_step, subsample=subsample,
+            colsample_bytree=colsample_bytree, colsample_bylevel=colsample_bylevel,
+            colsample_bynode=colsample_bynode, reg_alpha=reg_alpha, reg_lambda=reg_lambda,
+            scale_pos_weight=scale_pos_weight, base_score=base_score,
+            random_state=random_state, seed=seed, missing=missing, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
         elif "rank:" not in self.objective:

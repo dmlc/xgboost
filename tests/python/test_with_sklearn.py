@@ -84,8 +84,8 @@ def test_ranking():
     valid_group = np.repeat(50, 4)
     x_test = np.random.rand(100, 10)
 
-    params = {'objective': 'rank:pairwise', 'learning_rate': 0.1,
-              'gamma': 1.0, 'min_child_weight': 0.1,
+    params = {'tree_method': 'exact', 'objective': 'rank:pairwise',
+              'learning_rate': 0.1, 'gamma': 1.0, 'min_child_weight': 0.1,
               'max_depth': 6, 'n_estimators': 4}
     model = xgb.sklearn.XGBRanker(**params)
     model.fit(x_train, y_train, train_group,
@@ -98,7 +98,8 @@ def test_ranking():
     train_data.set_group(train_group)
     valid_data.set_group(valid_group)
 
-    params_orig = {'objective': 'rank:pairwise', 'eta': 0.1, 'gamma': 1.0,
+    params_orig = {'tree_method':'exact', 'objective': 'rank:pairwise',
+                   'eta': 0.1, 'gamma': 1.0,
                    'min_child_weight': 0.1, 'max_depth': 6}
     xgb_model_orig = xgb.train(params_orig, train_data, num_boost_round=4,
                                evals=[(valid_data, 'validation')])
@@ -114,7 +115,7 @@ def test_feature_importances_weight():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
@@ -131,11 +132,11 @@ def test_feature_importances_weight():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -146,7 +147,7 @@ def test_feature_importances_gain():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -164,11 +165,11 @@ def test_feature_importances_gain():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
