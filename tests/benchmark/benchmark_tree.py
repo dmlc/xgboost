@@ -5,8 +5,6 @@ import ast
 import time
 
 import numpy as np
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
 import xgboost as xgb
 
 RNG = np.random.RandomState(1994)
@@ -28,20 +26,27 @@ def run_benchmark(args):
         print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
         print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
         tmp = time.time()
-        X, y = make_classification(args.rows, n_features=args.columns, n_redundant=0,
-                                   n_informative=args.columns, n_repeated=0, random_state=7)
-        if args.sparsity < 1.0:
+        X = RNG.rand(args.rows, args.columns)
+        y = RNG.randint(0, 2, args.rows)
+        if 0.0 < args.sparsity < 1.0:
             X = np.array([[np.nan if RNG.uniform(0, 1) < args.sparsity else x for x in x_row]
                           for x_row in X])
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size,
-                                                            random_state=7)
+        train_rows = int(args.rows * (1.0 - args.test_size))
+        test_rows = int(args.rows * args.test_size)
+        X_train = X[:train_rows, :]
+        X_test = X[-test_rows:, :]
+        y_train = y[:train_rows]
+        y_test = y[-test_rows:]
         print("Generate Time: %s seconds" % (str(time.time() - tmp)))
+        del X, y
+
         tmp = time.time()
         print("DMatrix Start")
-        dtrain = xgb.DMatrix(X_train, y_train)
+        dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
         dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
         print("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+        del X_train, y_train, X_test, y_test
 
         dtest.save_binary('dtest.dm')
         dtrain.save_binary('dtrain.dm')

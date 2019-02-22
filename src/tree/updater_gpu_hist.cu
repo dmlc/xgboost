@@ -302,6 +302,7 @@ struct DeviceHistogram {
   void AllocateHistogram(int nidx) {
     if (HistogramExists(nidx)) return;
 
+    dh::safe_cuda(cudaSetDevice(device_id_));
     if (data.size() > kStopGrowingSize) {
       // Recycle histogram memory
       std::pair<int, size_t> old_entry = *nidx_map.begin();
@@ -312,7 +313,6 @@ struct DeviceHistogram {
     } else {
       // Append new node histogram
       nidx_map[nidx] = data.size();
-      dh::safe_cuda(cudaSetDevice(device_id_));
       // x 2: Hess and Grad.
       data.resize(data.size() + (n_bins * 2));
     }
