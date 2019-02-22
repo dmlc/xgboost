@@ -877,32 +877,31 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
+    this->comms.resize(device_ordinals.size());
+    this->streams.resize(device_ordinals.size());
     this->id = GetUniqueId();
 
     int nccl_rank = 0;
-    int nccl_nranks = rabit::GetWorldSize() * device_ordinals.size();  // assume device_ordinals is the same for ever node
+    int nccl_nranks = rabit::GetWorldSize() * device_ordinals.size();  // assume device_ordinals is the same for every node
     
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals.at(i);
-      nccl_rank += rabit::GetRank() * device_ordinals.size();  // offset NCCL Rank based on rabit::GetRank()
-      
-      printf("dev: %d, ndevs: %d, nccl_rank: %d, nccl_nranks: %d \n", dev, ndevs, nccl_rank, nccl_nranks);
+      nccl_rank += rabit::GetRank() * device_ordinals.size();  // offset NCCL Rank based on rabit::GetRank(), assume device_ordinals is the same for every node
     
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &(comms.at(i)),
-        nccl_nranks, this->id, 
+        nccl_nranks, id, 
         nccl_rank));
 
       nccl_rank++;
     }
     GroupEnd();
 
-    streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
-      safe_cuda(cudaStreamCreate(&streams[i]));
+      safe_cuda(cudaStreamCreate(&(streams[i])));
     }
     initialised_ = true;
 #endif
