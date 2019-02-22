@@ -892,11 +892,11 @@ class AllReducer {
     }
 
     int nccl_rank = 0;
-    int nccl_offset = std::accumulate(device_counts.begin(),
-                                      device_counts.begin() + rabit::GetRank(), 0);
+    int nccl_rank_offset = std::accumulate(device_counts.begin(),
+                             device_counts.begin() + rabit::GetRank(), 0);
     int nccl_nranks = std::accumulate(device_counts.begin(),
-                                      device_counts.end(), 0);
-    nccl_rank += nccl_offset;
+                        device_counts.end(), 0);
+    nccl_rank += nccl_rank_offset;
     
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
@@ -913,8 +913,8 @@ class AllReducer {
     GroupEnd();
 
     for (size_t i = 0; i < device_ordinals.size(); i++) {
-      safe_cuda(cudaSetDevice(device_ordinals[i]));
-      safe_cuda(cudaStreamCreate(&(streams[i])));
+      safe_cuda(cudaSetDevice(device_ordinals.at(i)));
+      safe_cuda(cudaStreamCreate(&(streams.at(i))));
     }
     initialised_ = true;
 #else
