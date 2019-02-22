@@ -25,4 +25,5 @@ with open(VERSION_FILE) as f:
 __all__ = ['DMatrix', 'Booster',
            'train', 'cv',
            'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',
+           'XGBRFClassifier', 'XGBRFRegressor',
            'plot_importance', 'plot_tree', 'to_graphviz']
