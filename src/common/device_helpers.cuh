@@ -857,6 +857,7 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;  // device id from CUDA
+  std::vector<int> device_counts;  // device count from CUDA
   ncclUniqueId id;
 #endif
 
@@ -877,17 +878,29 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
+    this->device_counts.resize(rabit::GetWorldSize());
     this->comms.resize(device_ordinals.size());
     this->streams.resize(device_ordinals.size());
     this->id = GetUniqueId();
 
+    device_counts.at(rabit::GetRank()) = device_ordinals.size();
+    for (size_t i = 0; i < device_counts.size(); i++) {
+      rabit::Broadcast(
+        (void*)&(device_counts.at(rabit::GetRank())),
+        (size_t)sizeof(device_counts.at(rabit::GetRank())),
+        (int)rabit::GetRank());
+    }
+
     int nccl_rank = 0;
-    int nccl_nranks = rabit::GetWorldSize() * device_ordinals.size();  // assume device_ordinals is the same for every node
+    int nccl_offset = std::accumulate(device_counts.begin(),
+                                      device_counts.begin() + rabit::GetRank(), 0);
+    int nccl_nranks = std::accumulate(device_counts.begin(),
+                                      device_counts.end(), 0);
+    nccl_rank += nccl_offset;
     
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals.at(i);
-      nccl_rank += rabit::GetRank() * device_ordinals.size();  // offset NCCL Rank based on rabit::GetRank(), assume device_ordinals is the same for every node
     
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
@@ -904,6 +917,9 @@ class AllReducer {
       safe_cuda(cudaStreamCreate(&(streams[i])));
     }
     initialised_ = true;
+#else
+    CHECK_EQ(device_ordinals.size(), 1)
+        << "XGBoost must be compiled with NCCL to use more than one GPU.";
 #endif
   }
   ~AllReducer() {
