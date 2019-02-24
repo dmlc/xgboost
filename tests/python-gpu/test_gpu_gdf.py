@@ -42,5 +42,4 @@ class TestGPU(unittest.TestCase):
             param['tree_method'] = 'gpu_hist'
             gpu_results = run_suite(param, num_rounds=20,
                                     select_datasets=self.gdf_datasets)
-            print(gpu_results)
             assert_results_non_increasing(gpu_results, 1e-2)

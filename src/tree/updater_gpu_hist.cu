@@ -951,7 +951,6 @@ class GPUHistMakerSpecialised{
 
   void InitDataOnce(DMatrix* dmat) {
 
-    //PrintDMatrixInfo(dmat);
     info_ = &dmat->Info();
 
     int n_devices = dist_.Devices().Size();

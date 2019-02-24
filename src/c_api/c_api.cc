@@ -261,7 +261,6 @@ int XGDMatrixCreateFromDataIter(
 }
 
 #ifdef XGBOOST_USE_CUDF
-
 int XGDMatrixCreateFromCUDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
   API_BEGIN();
@@ -270,7 +269,6 @@ int XGDMatrixCreateFromCUDF
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
-
 #endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
@@ -793,14 +791,14 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
 
 #ifdef XGBOOST_USE_CUDF
 
-XGB_DLL int XGDMatrixSetInfoCUDF(DMatrixHandle handle,
+XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column **cols,
                                 size_t n_cols) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-    ->get()->Info().SetInfoCUDF(field, cols, n_cols);
+    ->get()->Info().SetCUDFInfo(field, cols, n_cols);
   API_END();
 }
 

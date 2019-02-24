@@ -23,7 +23,7 @@ __global__ void unpack_cudf_column_k
   data[n_cols * i] = ConvertDataElement(col.data, i, col.dtype);
 }
 
-void MetaInfo::SetInfoCUDF(const char* key, gdf_column** cols, size_t n_cols) {
+void MetaInfo::SetCUDFInfo(const char* key, gdf_column** cols, size_t n_cols) {
   CHECK_GT(n_cols, 0);
   size_t n_rows = cols[0]->size;
   for (size_t i = 0; i < n_cols; ++i) {

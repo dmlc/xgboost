@@ -13,28 +13,28 @@ namespace data {
 __device__ inline float ConvertDataElement(void* data, int tid, gdf_dtype dtype) {
   switch(dtype) {
     case gdf_dtype::GDF_INT8: {
-      int8_t* a = (int8_t*)data;
-      return float(a[tid]);
+      int8_t * d = (int8_t*)data;
+      return float(d[tid]]);
     }
     case gdf_dtype::GDF_INT16: {
-      int16_t* a = (int16_t*)data;
-      return float(a[tid]);
+      int16_t * d = (int16_t*)data;
+      return float(d[tid]]);
     }
     case gdf_dtype::GDF_INT32: {
-      int32_t* a = (int32_t*)data;
-      return float(a[tid]);
+      int32_t * d = (int32_t*)data;
+      return float(d[tid]]);
     }
     case gdf_dtype::GDF_INT64: {
-      int64_t* a = (int64_t*)data;
-      return float(a[tid]);
+      int64_t * d = (int64_t*)data;
+      return float(d[tid]]);
     }
     case gdf_dtype::GDF_FLOAT32: {
-      float *a = (float *)data;
-      return float(a[tid]);
+      float * d = (float *)data;
+      return float(d[tid]]);
     }
     case gdf_dtype::GDF_FLOAT64: {
-      double *a = (double *)data;
-      return float(a[tid]);
+      double * d = (double *)data;
+      return float(d[tid]]);
     }
   }
   return nanf(nullptr);

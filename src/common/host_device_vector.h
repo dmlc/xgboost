@@ -204,11 +204,9 @@ class HostDeviceVector {
   size_t Size() const;
   GPUSet Devices() const;
   const GPUDistribution& Distribution() const;
-
   common::Span<T> DeviceSpan(int device);
   common::Span<const T> ConstDeviceSpan(int device) const;
   common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
-  
   T* DevicePointer(int device);
   const T* ConstDevicePointer(int device) const;
   const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
@@ -241,9 +239,12 @@ class HostDeviceVector {
   void Copy(const std::vector<T>& other);
   void Copy(std::initializer_list<T> other);
 
-  // copies data from the host if not present on the GPU;
-  // otherwise, syncs to the device and copies the data from there;
-  // useful when there may be not enough memory to copy all of the data to the GPU
+  /*!
+   * \brief Conditional GPU memory copy.
+   *
+   *   If host data is not available on the target GPU, copy it; otherwise,
+   *     the host will sync with the target GPU
+   */
   void CopyTo(int device, size_t offset, T* dst, size_t n) const;
 
   std::vector<T>& HostVector();

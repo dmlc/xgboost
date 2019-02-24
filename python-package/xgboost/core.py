@@ -228,7 +228,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 def _maybe_pandas_data(data, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame for DMatrix data """
 
-    if not isinstance(data, (DataFrame, CUDF)):
+    if not isinstance(data, DataFrame):
         return data, feature_names, feature_types
 
     data_dtypes = data.dtypes
@@ -241,24 +241,18 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        data_columns = data.columns
-        if isinstance(data_columns, MultiIndex):
+        if isinstance(data.columns, MultiIndex):
             feature_names = [
                 ' '.join(map(str, i))
-                for i in data_columns
+                for i in data.columns
             ]
-        elif (isinstance(data_columns, (tuple, list)) and len(data_columns) > 0 and
-              isinstance(data_columns[0], str)):
-            feature_names = list(data_columns)
         else:
-            feature_names = data_columns.format()
+            feature_names = data.columns.format()
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
 
-    # only convert pandas.DataFrame, CUDF conversion happens elsewhere
-    if isinstance(data, DataFrame):
-        data = data.values.astype('float')
+    data = data.values.astype('float')
 
     return data, feature_names, feature_types
 
@@ -278,7 +272,6 @@ def _maybe_pandas_label(label):
     # pd.Series can be passed to xgb as it is
 
     return label
-
 
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
@@ -418,19 +411,15 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
-            elif isinstance(label, CUDF_COL):
-                self.set_info_cudf('label', label)
-            elif isinstance(label, CUDF):
-                self.set_info_cudf('label', label)
+            elif isinstance(label, (CUDF, CUDF_COL)):
+                self.set_cudf_info('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
-            elif isinstance(weight, CUDF_COL):
-                self.set_info_cudf('weight', weight)
-            elif isinstance(weight, CUDF):
-                self.set_info_cudf('weight', weight)
+            elif isinstance(weight, (CUDF, CUDF_COL)):
+                self.set_cudf_info('weight', weight)
             else:
                 self.set_weight(weight)
 
@@ -625,7 +614,7 @@ class DMatrix(object):
                                                c_data,
                                                c_bst_ulong(len(data))))
 
-    def set_info_cudf(self, field, data):
+    def set_cudf_info(self, field, data):
         col_ptrs = []
         if isinstance(data, CUDF):
             col_ptrs = [data[col]._column.cffi_view for col in data.columns]
@@ -633,7 +622,7 @@ class DMatrix(object):
             # data is a single CUDF column
             col_ptrs = [data.cffi_view]
         col_ptr_arr = CUDF_FFI.new('gdf_column*[]', col_ptrs)
-        _check_call(_LIB.XGDMatrixSetInfoCUDF
+        _check_call(_LIB.XGDMatrixSetCUDFInfo
                     (self.handle, c_str(field),
                      ctypes.c_void_p(int(CUDF_FFI.cast('uintptr_t', col_ptr_arr))),
                      ctypes.c_size_t(len(col_ptrs))))

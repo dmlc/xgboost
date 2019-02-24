@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #endif
-
 #ifdef XGBOOST_USE_CUDF
 #include <cudf/types.h>
 #endif
@@ -31,6 +30,7 @@
 
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
+
 
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
@@ -109,7 +109,6 @@ XGB_DLL const char *XGBGetLastError(void);
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 #ifdef XGBOOST_USE_CUDF
-
 /*!
  * \bried create a data matrix from a CUDA data frame (CUDF)
  * \param cols array of CUDF columns
@@ -119,7 +118,6 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
  */
 XGB_DLL int XGDMatrixCreateFromCUDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out);
-
 #endif
 
 /*!
@@ -301,7 +299,6 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   bst_ulong len);
 
 #ifdef XGBOOST_USE_CUDF
-
 /*!
  * \brief set a vector to 
  * \param handle a instance of data matrix
@@ -311,11 +308,10 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
  * \return 0 when success, -1 when failure happens
  */
 
-XGB_DLL int XGDMatrixSetInfoCUDF(DMatrixHandle handle,
+XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column** gdf,
                                 size_t n_cols);
-
 #endif
 
 /*!

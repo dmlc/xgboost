@@ -40,6 +40,7 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
 
   shard->InitRowPtrs(batch);
   shard->InitCompressedData(cmat, batch);
+  
   delete dmat;
 }
 

@@ -135,7 +135,7 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
         Dataset("Boston", get_boston, "reg:linear", "rmse"),
         Dataset("Digits", get_digits, "multi:softmax", "merror"),
         Dataset("Cancer", get_cancer, "binary:logistic", "error"),
-        Dataset("Sparse regression", get_sparse, "reg:linear", "rmse"),        
+        Dataset("Sparse regression", get_sparse, "reg:linear", "rmse"),
         Dataset("Sparse regression with weights", get_sparse_weights,
                 "reg:linear", "rmse", has_weights=True),
         Dataset("Small weights regression", get_small_weights,

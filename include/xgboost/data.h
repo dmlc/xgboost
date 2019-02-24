@@ -9,9 +9,6 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
-#ifdef XGBOOST_USE_CUDF
-#include <cudf/types.h>
-#endif
 #include <rabit/rabit.h>
 #include <cstring>
 #include <memory>
@@ -19,7 +16,12 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#ifdef XGBOOST_USE_CUDF
+#include <cudf/types.h>
+#endif
+
 #include "./base.h"
+
 #include "../../src/common/span.h"
 #include "../../src/common/group_data.h"
 #include "../../src/common/host_device_vector.h"
@@ -132,7 +134,7 @@ class MetaInfo {
    * \param cols The CUDF columns used to set the info.
    * \param n_cols The number of CUDF columns.
    */
-  void SetInfoCUDF(const char* key, gdf_column** cols, size_t n_cols);
+  void SetCUDFInfo(const char* key, gdf_column** cols, size_t n_cols);
 #endif
 
  private:

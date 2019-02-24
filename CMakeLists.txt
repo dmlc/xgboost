@@ -7,11 +7,12 @@ find_package(OpenMP)
 set_default_configuration_release()
 msvc_use_static_runtime()
 
+# Options
 
 ## GPUs
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with multiple GPUs support; requires CUDA" OFF)
-option(USE_CUDF "Build with cuDF support. Requires USE_CUDA." OFF)
+option(USE_CUDF "Build with cuDF support; requires CUDA." OFF)
 
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
