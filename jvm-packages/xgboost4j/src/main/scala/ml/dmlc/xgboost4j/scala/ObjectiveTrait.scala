@@ -27,7 +27,7 @@ trait ObjectiveTrait extends IObjective {
    *
    * @param predicts untransformed margin predicts
    * @param dtrain   training data
-   * @return List with two float array, correspond to first order grad and second order grad
+   * @return List with two float array, correspond to grad and hess
    */
   def getGradient(predicts: Array[Array[Float]], dtrain: DMatrix): List[Array[Float]]
 

@@ -328,7 +328,7 @@ class RegTree {
     nodes_[node.LeftChild()].SetParent(nid, true);
     nodes_[node.RightChild()].SetParent(nid, false);
     node.SetSplit(split_index, split_value,
-                         default_left);
+                  default_left);
     // mark right child as 0, to indicate fresh leaf
     nodes_[pleft].SetLeaf(left_leaf_weight, 0);
     nodes_[pright].SetLeaf(right_leaf_weight, 0);

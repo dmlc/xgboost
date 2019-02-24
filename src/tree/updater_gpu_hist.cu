@@ -50,6 +50,28 @@ struct GPUHistMakerTrainParam
 
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
 
+// With constraints
+template <typename GradientPairT>
+XGBOOST_DEVICE float inline LossChangeMissing(
+    const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
+    const float& parent_gain, const GPUTrainingParam& param, int constraint,
+    const ValueConstraint& value_constraint,
+    bool& missing_left_out) {  // NOLINT
+  float missing_left_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan + missing),
+      GradStats(parent_sum - (scan + missing)));
+  float missing_right_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan), GradStats(parent_sum - scan));
+
+  if (missing_left_gain >= missing_right_gain) {
+    missing_left_out = true;
+    return missing_left_gain - parent_gain;
+  } else {
+    missing_left_out = false;
+    return missing_right_gain - parent_gain;
+  }
+}
+
 /*!
  * \brief
  *
@@ -278,6 +300,7 @@ struct DeviceHistogram {
   void AllocateHistogram(int nidx) {
     if (HistogramExists(nidx)) return;
 
+    dh::safe_cuda(cudaSetDevice(device_id_));
     if (data.size() > kStopGrowingSize) {
       // Recycle histogram memory
       std::pair<int, size_t> old_entry = *nidx_map.begin();
@@ -288,7 +311,6 @@ struct DeviceHistogram {
     } else {
       // Append new node histogram
       nidx_map[nidx] = data.size();
-      dh::safe_cuda(cudaSetDevice(device_id_));
       // x 2: Hess and Grad.
       data.resize(data.size() + (n_bins * 2));
     }
@@ -931,7 +953,6 @@ class GPUHistMakerSpecialised{
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     monitor_.Start("Update", dist_.Devices());
-    GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -1023,19 +1044,20 @@ class GPUHistMakerSpecialised{
 
   void AllReduceHist(int nidx) {
     if (shards_.size() == 1) return;
-
     monitor_.Start("AllReduce");
-    dh::ExecuteIndexShards(
-        &shards_,
-        [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-          auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
-          reducer_.AllReduceSum(
-              dist_.Devices().Index(shard->device_id_),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-              n_bins_ * (sizeof(GradientSumT) /
-                         sizeof(typename GradientSumT::ValueT)));
-        });
+
+    reducer_.GroupStart();
+    for (auto& shard : shards_) {
+      auto d_node_hist = shard->hist.GetNodeHistogram(nidx).data();
+      reducer_.AllReduceSum(
+          dist_.Devices().Index(shard->device_id_),
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
+          n_bins_ * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+    }
+    reducer_.GroupEnd();
+    reducer_.Synchronize();
+
     monitor_.Stop("AllReduce");
   }
 
@@ -1177,11 +1199,12 @@ class GPUHistMakerSpecialised{
 
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
-    GradStats left_stats(param_);
+
+    GradStats left_stats;
     left_stats.Add(candidate.split.left_sum);
-    GradStats right_stats(param_);
+    GradStats right_stats;
     right_stats.Add(candidate.split.right_sum);
-    GradStats parent_sum(param_);
+    GradStats parent_sum;
     parent_sum.Add(left_stats);
     parent_sum.Add(right_stats);
     node_value_constraints_.resize(tree.GetNodes().size());

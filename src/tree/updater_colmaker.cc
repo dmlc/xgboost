@@ -33,7 +33,6 @@ class ColMaker: public TreeUpdater {
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
-    GradStats::CheckInfo(dmat->Info());
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -66,9 +65,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    explicit ThreadEntry(const TrainParam &param)
-        : stats(param), stats_extra(param) {
-    }
+    ThreadEntry() : last_fvalue{0}, first_fvalue{0} {}
   };
   struct NodeEntry {
     /*! \brief statics for node entry */
@@ -80,9 +77,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    explicit NodeEntry(const TrainParam& param)
-        : stats(param), root_gain(0.0f), weight(0.0f){
-    }
+    NodeEntry() : root_gain(0.0f), weight(0.0f) {}
   };
   // actual builder that runs the algorithm
   class Builder {
@@ -200,9 +195,9 @@ class ColMaker: public TreeUpdater {
       {
         // setup statistics space for each tree node
         for (auto& i : stemp_) {
-          i.resize(tree.param.num_nodes, ThreadEntry(param_));
+          i.resize(tree.param.num_nodes, ThreadEntry());
         }
-        snode_.resize(tree.param.num_nodes, NodeEntry(param_));
+        snode_.resize(tree.param.num_nodes, NodeEntry());
       }
       const MetaInfo& info = fmat.Info();
       // setup position
@@ -211,11 +206,11 @@ class ColMaker: public TreeUpdater {
       for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
         const int tid = omp_get_thread_num();
         if (position_[ridx] < 0) continue;
-        stemp_[tid][position_[ridx]].stats.Add(gpair, info, ridx);
+        stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
       }
       // sum the per thread statistics together
       for (int nid : qexpand) {
-        GradStats stats(param_);
+        GradStats stats;
         for (auto& s : stemp_) {
           stats.Add(s[nid].stats);
         }
@@ -261,7 +256,7 @@ class ColMaker: public TreeUpdater {
         std::vector<ThreadEntry> &temp = stemp_[tid];
         // cleanup temp statistics
         for (int j : qexpand) {
-          temp[j].stats.Clear();
+          temp[j].stats = GradStats();
         }
         bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
         bst_uint end = std::min(static_cast<bst_uint>(col.size()), step * (tid + 1));
@@ -273,7 +268,7 @@ class ColMaker: public TreeUpdater {
           if (temp[nid].stats.Empty()) {
             temp[nid].first_fvalue = fvalue;
           }
-          temp[nid].stats.Add(gpair, info, ridx);
+          temp[nid].stats.Add(gpair[ridx]);
           temp[nid].last_fvalue = fvalue;
         }
       }
@@ -282,7 +277,7 @@ class ColMaker: public TreeUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint j = 0; j < nnode; ++j) {
         const int nid = qexpand[j];
-        GradStats sum(param_), tmp(param_), c(param_);
+        GradStats sum, tmp, c;
         for (int tid = 0; tid < this->nthread_; ++tid) {
           tmp = stemp_[tid][nid].stats;
           stemp_[tid][nid].stats = sum;
@@ -342,7 +337,7 @@ class ColMaker: public TreeUpdater {
       // rescan, generate candidate split
       #pragma omp parallel
       {
-        GradStats c(param_), cright(param_);
+        GradStats c, cright;
         const int tid = omp_get_thread_num();
         std::vector<ThreadEntry> &temp = stemp_[tid];
         bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
@@ -355,7 +350,7 @@ class ColMaker: public TreeUpdater {
           // get the statistics of nid
           ThreadEntry &e = temp[nid];
           if (e.stats.Empty()) {
-            e.stats.Add(gpair, info, ridx);
+            e.stats.Add(gpair[ridx]);
             e.first_fvalue = fvalue;
           } else {
             // forward default right
@@ -383,7 +378,7 @@ class ColMaker: public TreeUpdater {
                 }
               }
             }
-            e.stats.Add(gpair, info, ridx);
+            e.stats.Add(gpair[ridx]);
             e.first_fvalue = fvalue;
           }
         }
@@ -436,10 +431,10 @@ class ColMaker: public TreeUpdater {
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
       for (auto nid : qexpand) {
-        temp[nid].stats.Clear();
+        temp[nid].stats = GradStats();
       }
       // left statistics
-      GradStats c(param_);
+      GradStats c;
       // local cache buffer for position and gradient pair
       constexpr int kBuffer = 32;
       int buf_position[kBuffer] = {};
@@ -516,17 +511,17 @@ class ColMaker: public TreeUpdater {
                                const MetaInfo &info,
                                std::vector<ThreadEntry> &temp) { // NOLINT(*)
       // use cacheline aware optimization
-      if (GradStats::kSimpleStats != 0 && param_.cache_opt != 0) {
+      if (param_.cache_opt != 0) {
         EnumerateSplitCacheOpt(begin, end, d_step, fid, gpair, temp);
         return;
       }
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
       for (auto nid : qexpand) {
-        temp[nid].stats.Clear();
+        temp[nid].stats = GradStats();
       }
       // left statistics
-      GradStats c(param_);
+      GradStats c;
       for (const Entry *it = begin; it != end; it += d_step) {
         const bst_uint ridx = it->index;
         const int nid = position_[ridx];
@@ -537,7 +532,7 @@ class ColMaker: public TreeUpdater {
         ThreadEntry &e = temp[nid];
         // test if first hit, this is fine, because we set 0 during init
         if (e.stats.Empty()) {
-          e.stats.Add(gpair, info, ridx);
+          e.stats.Add(gpair[ridx]);
           e.last_fvalue = fvalue;
         } else {
           // try to find a split
@@ -562,7 +557,7 @@ class ColMaker: public TreeUpdater {
             }
           }
           // update the statistics
-          e.stats.Add(gpair, info, ridx);
+          e.stats.Add(gpair[ridx]);
           e.last_fvalue = fvalue;
         }
       }
@@ -602,7 +597,7 @@ class ColMaker: public TreeUpdater {
       const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
-      #endif
+      #endif  // defined(_OPENMP)
       int poption = param_.parallel_option;
       if (poption == 2) {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
@@ -783,7 +778,6 @@ class DistColMaker : public ColMaker {
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
-    GradStats::CheckInfo(dmat->Info());
     CHECK_EQ(trees.size(), 1U) << "DistColMaker: only support one tree at a time";
     Builder builder(
       param_,

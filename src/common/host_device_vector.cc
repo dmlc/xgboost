@@ -165,4 +165,4 @@ template class HostDeviceVector<size_t>;
 
 }  // namespace xgboost
 
-#endif
+#endif  // XGBOOST_USE_CUDA

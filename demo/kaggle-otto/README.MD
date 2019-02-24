@@ -1,4 +1,4 @@
-Benckmark for Otto Group Competition
+Benchmark for Otto Group Competition
 =========
 
 This is a folder containing the benchmark for the [Otto Group Competition on Kaggle](http://www.kaggle.com/c/otto-group-product-classification-challenge).
@@ -20,5 +20,3 @@ devtools::install_github('tqchen/xgboost',subdir='R-package')
 ```
 
 Windows users may need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
-
-

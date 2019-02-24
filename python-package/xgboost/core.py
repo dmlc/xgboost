@@ -286,10 +286,10 @@ def _maybe_dt_data(data, feature_names, feature_types):
         return data, feature_names, feature_types
 
     data_types_names = tuple(lt.name for lt in data.ltypes)
-    if not all(type_name in DT_TYPE_MAPPER for type_name in data_types_names):
-        bad_fields = [data.names[i] for i, type_name in
-                      enumerate(data_types_names) if type_name not in DT_TYPE_MAPPER]
-
+    bad_fields = [data.names[i]
+                  for i, type_name in enumerate(data_types_names)
+                  if type_name not in DT_TYPE_MAPPER]
+    if bad_fields:
         msg = """DataFrame.types for data must be int, float or bool.
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
@@ -316,7 +316,7 @@ def _maybe_dt_array(array):
 
     # below requires new dt version
     # extract first column
-    array = array.tonumpy()[:, 0].astype('float')
+    array = array.to_numpy()[:, 0].astype('float')
 
     return array
 
@@ -339,7 +339,7 @@ class DMatrix(object):
         """
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse/pd.DataFrame/DataTable
+        data : string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame
             Data source of DMatrix.
             When data is string type, it represents the path libsvm format txt file,
             or binary file that xgboost can read from.
@@ -350,6 +350,14 @@ class DMatrix(object):
             None, defaults to np.nan.
         weight : list or numpy 1-D array , optional
             Weight for each instance.
+
+            .. note:: For ranking task, weights are per-group.
+
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
+
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
@@ -506,16 +514,20 @@ class DMatrix(object):
 
     def _init_from_dt(self, data, nthread):
         """
-        Initialize data from a DataTable
+        Initialize data from a datatable Frame.
         """
-        cols = []
         ptrs = (ctypes.c_void_p * data.ncols)()
-        for icol in range(data.ncols):
-            col = data.internal.column(icol)
-            cols.append(col)
-            # int64_t (void*)
-            ptr = col.data_pointer
-            ptrs[icol] = ctypes.c_void_p(ptr)
+        if hasattr(data, "internal") and hasattr(data.internal, "column"):
+            # datatable>0.8.0
+            for icol in range(data.ncols):
+                col = data.internal.column(icol)
+                ptr = col.data_pointer
+                ptrs[icol] = ctypes.c_void_p(ptr)
+        else:
+            # datatable<=0.8.0
+            from datatable.internal import frame_column_data_r
+            for icol in range(data.ncols):
+                ptrs[icol] = frame_column_data_r(data, icol)
 
         # always return stypes for dt ingestion
         feature_type_strings = (ctypes.c_char_p * data.ncols)()
@@ -589,6 +601,11 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        if getattr(data, 'base', None) is not None and \
+           data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            self.set_float_info_npy2d(field, data)
+            return
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -607,7 +624,14 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        data = np.array(data, copy=False, dtype=np.float32)
+        if getattr(data, 'base', None) is not None and \
+           data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
+                          "because it will generate extra copies and increase memory consumption")
+            data = np.array(data, copy=True, dtype=np.float32)
+        else:
+            data = np.array(data, copy=False, dtype=np.float32)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -638,6 +662,14 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        if getattr(data, 'base', None) is not None and \
+           data.base is not None and isinstance(data, np.ndarray) \
+           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
+                          "because it will generate extra copies and increase memory consumption")
+            data = np.array(data, copy=True, dtype=ctypes.c_uint)
+        else:
+            data = np.array(data, copy=False, dtype=ctypes.c_uint)
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
                                               c_array(ctypes.c_uint, data),
@@ -685,6 +717,13 @@ class DMatrix(object):
         ----------
         weight : array like
             Weight for each data point
+
+            .. note:: For ranking task, weights are per-group.
+
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         """
         self.set_float_info('weight', weight)
 
@@ -696,6 +735,13 @@ class DMatrix(object):
         ----------
         weight : array like
             Weight for each data point in numpy 2D array
+
+            .. note:: For ranking task, weights are per-group.
+
+                In ranking task, one weight is assigned to each group (not each data
+                point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         """
         self.set_float_info_npy2d('weight', weight)
 
@@ -1071,8 +1117,8 @@ class Booster(object):
             _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val))))
 
     def update(self, dtrain, iteration, fobj=None):
-        """
-        Update for one iteration, with objective function calculated internally.
+        """Update for one iteration, with objective function calculated
+        internally.  This function should not be called directly by users.
 
         Parameters
         ----------
@@ -1082,6 +1128,7 @@ class Booster(object):
             Current iteration number.
         fobj : function
             Customized objective function.
+
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
@@ -1096,8 +1143,9 @@ class Booster(object):
             self.boost(dtrain, grad, hess)
 
     def boost(self, dtrain, grad, hess):
-        """
-        Boost the booster for one iteration, with customized gradient statistics.
+        """Boost the booster for one iteration, with customized gradient
+        statistics.  Like :func:`xgboost.core.Booster.update`, this
+        function should not be called directly by users.
 
         Parameters
         ----------
@@ -1107,6 +1155,7 @@ class Booster(object):
             The first order of gradient.
         hess : list
             The second order of gradient.
+
         """
         if len(grad) != len(hess):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))

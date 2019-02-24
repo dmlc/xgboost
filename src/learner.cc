@@ -178,7 +178,7 @@ class LearnerImpl : public Learner {
   static void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
     LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif
+#endif  // XGBOOST_USE_CUDA
   }
 
 
@@ -387,7 +387,7 @@ class LearnerImpl : public Learner {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
-#endif
+#endif  // XGBOOST_USE_CUDA
         }
       }
       attributes_ =
@@ -474,12 +474,16 @@ class LearnerImpl : public Learner {
 
   void UpdateOneIter(int iter, DMatrix* train) override {
     monitor_.Start("UpdateOneIter");
+
+    // TODO(trivialfis): Merge the duplicated code with BoostOneIter
     CHECK(ModelInitialized())
         << "Always call InitModel or LoadModel before update";
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
+    this->ValidateDMatrix(train);
     this->PerformTreeMethodHeuristic(train);
+
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
     monitor_.Stop("PredictRaw");
@@ -493,10 +497,15 @@ class LearnerImpl : public Learner {
   void BoostOneIter(int iter, DMatrix* train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
+
+    CHECK(ModelInitialized())
+        << "Always call InitModel or LoadModel before boost.";
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
+    this->ValidateDMatrix(train);
     this->PerformTreeMethodHeuristic(train);
+
     gbm_->DoBoost(train, in_gpair);
     monitor_.Stop("BoostOneIter");
   }
@@ -598,8 +607,8 @@ class LearnerImpl : public Learner {
     }
 
     const TreeMethod current_tree_method = tparam_.tree_method;
+
     if (rabit::IsDistributed()) {
-      /* Choose tree_method='approx' when distributed training is activated */
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
@@ -614,14 +623,13 @@ class LearnerImpl : public Learner {
             "for distributed training.";
         break;
        case TreeMethod::kApprox:
+       case TreeMethod::kHist:
         // things are okay, do nothing
         break;
        case TreeMethod::kExact:
-       case TreeMethod::kHist:
-        LOG(WARNING) << "Tree method was set to be '"
-                     << (current_tree_method == TreeMethod::kExact ?
-                        "exact" : "hist")
-                     << "', but only 'approx' is available for distributed "
+        LOG(CONSOLE) << "Tree method was set to be "
+                     << "exact"
+                     << "', but only 'approx' and 'hist' is available for distributed "
                         "training. The `tree_method` parameter is now being "
                         "changed to 'approx'";
         break;
@@ -633,7 +641,15 @@ class LearnerImpl : public Learner {
         LOG(FATAL) << "Unknown tree_method ("
                    << static_cast<int>(current_tree_method) << ") detected";
       }
-      tparam_.tree_method = TreeMethod::kApprox;
+      if (current_tree_method != TreeMethod::kHist) {
+        LOG(CONSOLE) << "Tree method is automatically selected to be 'approx'"
+                        " for distributed training.";
+        tparam_.tree_method = TreeMethod::kApprox;
+      } else {
+        LOG(CONSOLE) << "Tree method is specified to be 'hist'"
+                        " for distributed training.";
+        tparam_.tree_method = TreeMethod::kHist;
+      }
     } else if (!p_train->SingleColBlock()) {
       /* Some tree methods are not available for external-memory DMatrix */
       switch (current_tree_method) {
@@ -703,6 +719,8 @@ class LearnerImpl : public Learner {
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;
     }
+    CHECK_NE(mparam_.num_feature, 0)
+        << "0 feature is supplied.  Are you using raw Booster interface?";
     // setup
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     CHECK(obj_ == nullptr && gbm_ == nullptr);
@@ -725,6 +743,19 @@ class LearnerImpl : public Learner {
     CHECK(gbm_ != nullptr)
         << "Predict must happen after Load or InitModel";
     gbm_->PredictBatch(data, out_preds, ntree_limit);
+  }
+
+  void ValidateDMatrix(DMatrix* p_fmat) {
+    MetaInfo const& info = p_fmat->Info();
+    auto const& weights = info.weights_.HostVector();
+    if (info.group_ptr_.size() != 0 && weights.size() != 0) {
+      CHECK(weights.size() == info.group_ptr_.size() - 1)
+          << "\n"
+          << "weights size: " << weights.size()            << ", "
+          << "groups size: "  << info.group_ptr_.size() -1 << ", "
+          << "num rows: "     << p_fmat->Info().num_row_   << "\n"
+          << "Number of weights should be equal to number of groups in ranking task.";
+    }
   }
 
   // model parameter

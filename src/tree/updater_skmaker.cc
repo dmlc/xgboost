@@ -83,26 +83,17 @@ class SketchMaker: public BaseMaker {
     double neg_grad;
     /*! \brief sum of hessian statistics */
     double sum_hess;
-    SKStats() = default;
-    // constructor
-    explicit SKStats(const TrainParam &param) {
-      this->Clear();
-    }
-    /*! \brief clear the statistics */
-    inline void Clear() {
-      neg_grad = pos_grad = sum_hess = 0.0f;
-    }
+
+    SKStats() : pos_grad{0}, neg_grad{0}, sum_hess{0} {}
+
     // accumulate statistics
-    inline void Add(const std::vector<GradientPair> &gpair,
-                    const MetaInfo &info,
-                    bst_uint ridx) {
-      const GradientPair &b = gpair[ridx];
-      if (b.GetGrad() >= 0.0f) {
-        pos_grad += b.GetGrad();
+    void Add(const GradientPair& gpair) {
+      if (gpair.GetGrad() >= 0.0f) {
+        pos_grad += gpair.GetGrad();
       } else {
-        neg_grad -= b.GetGrad();
+        neg_grad -= gpair.GetGrad();
       }
-      sum_hess += b.GetHess();
+      sum_hess += gpair.GetHess();
     }
     /*! \brief calculate gain of the solution */
     inline double CalcGain(const TrainParam &param) const {

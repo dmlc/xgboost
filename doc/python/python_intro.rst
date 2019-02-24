@@ -101,6 +101,10 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
     w = np.random.rand(5, 1)
     dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
 
+When performing ranking tasks, the number of weights should be equal
+to number of groups.
+
+
 Setting Parameters
 ------------------
 XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters </parameter>`. For instance:
@@ -161,6 +165,10 @@ A saved model can be loaded as follows:
   bst = xgb.Booster({'nthread': 4})  # init model
   bst.load_model('model.bin')  # load data
 
+Methods including `update` and `boost` from `xgboost.Booster` are designed for
+internal usage only.  The wrapper function `xgboost.train` does some
+pre-configuration including setting up caches and some other parameters.
+
 Early Stopping
 --------------
 If you have a validation set, you can use early stopping to find the optimal number of boosting rounds.
@@ -215,4 +223,3 @@ When you use ``IPython``, you can use the :py:meth:`xgboost.to_graphviz` functio
 .. code-block:: python
 
   xgb.to_graphviz(bst, num_trees=2)
-

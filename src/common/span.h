@@ -62,13 +62,14 @@
 
 #define __span_noexcept noexcept
 
-#endif
+#endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
 namespace xgboost {
 namespace common {
 
 // Usual logging facility is not available inside device code.
 // TODO(trivialfis): Make dmlc check more generic.
+// assert is not supported in mac as of CUDA 10.0
 #define KERNEL_CHECK(cond)                                      \
   do {                                                          \
     if (!(cond)) {                                              \
@@ -84,7 +85,7 @@ namespace common {
 #define SPAN_CHECK KERNEL_CHECK
 #else
 #define SPAN_CHECK CHECK  // check from dmlc
-#endif
+#endif  // __CUDA_ARCH__
 
 namespace detail {
 /*!
@@ -100,7 +101,7 @@ using ptrdiff_t = int64_t;  // NOLINT
 constexpr const detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
 #else
 constexpr detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
-#endif
+#endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
 enum class byte : unsigned char {};  // NOLINT
 
@@ -543,7 +544,7 @@ class Span {
   XGBOOST_DEVICE auto subspan() const ->                   // NOLINT
       Span<element_type,
            detail::ExtentValue<Extent, Offset, Count>::value> {
-    SPAN_CHECK(Offset >= 0 && Offset < size());
+    SPAN_CHECK(Offset >= 0 && (Offset < size() || size() == 0));
     SPAN_CHECK(Count == dynamic_extent ||
                Count >= 0 && Offset + Count <= size());
 
@@ -553,9 +554,9 @@ class Span {
   XGBOOST_DEVICE Span<element_type, dynamic_extent> subspan(  // NOLINT
       detail::ptrdiff_t _offset,
       detail::ptrdiff_t _count = dynamic_extent) const {
-    SPAN_CHECK(_offset >= 0 && _offset < size());
-    SPAN_CHECK(_count == dynamic_extent ||
-               _count >= 0 && _offset + _count <= size());
+    SPAN_CHECK(_offset >= 0 && (_offset < size() || size() == 0));
+    SPAN_CHECK((_count == dynamic_extent) ||
+               (_count >= 0 && _offset + _count <= size()));
 
     return {data() + _offset, _count ==
             dynamic_extent ? size() - _offset : _count};

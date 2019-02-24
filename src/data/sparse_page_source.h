@@ -10,9 +10,12 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <dmlc/threadediter.h>
-#include <vector>
+
 #include <algorithm>
+#include <memory>
 #include <string>
+#include <vector>
+
 #include "sparse_page_writer.h"
 
 namespace xgboost {
