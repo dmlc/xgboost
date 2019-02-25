@@ -98,7 +98,7 @@ def test_ranking():
     train_data.set_group(train_group)
     valid_data.set_group(valid_group)
 
-    params_orig = {'tree_method':'exact', 'objective': 'rank:pairwise',
+    params_orig = {'tree_method': 'exact', 'objective': 'rank:pairwise',
                    'eta': 0.1, 'gamma': 1.0,
                    'min_child_weight': 0.1, 'max_depth': 6}
     xgb_model_orig = xgb.train(params_orig, train_data, num_boost_round=4,

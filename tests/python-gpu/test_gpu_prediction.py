@@ -93,7 +93,6 @@ class TestGPUPredict(unittest.TestCase):
         params = {'tree_method': 'gpu_hist',
                   'predictor': 'cpu_predictor',
                   'n_jobs': -1,
-                  'n_gpus': 1,
                   'seed': 123}
         m = xgb.XGBRegressor(**params).fit(X_train, y_train)
         cpu_train_score = m.score(X_train, y_train)

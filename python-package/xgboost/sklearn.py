@@ -72,19 +72,10 @@ class XGBModel(XGBModelBase):
         Specify which booster to use: gbtree, gblinear or dart.
     tree_method: string
         Specify which tree method to use: auto, exact, approx, hist, gpu_exact or gpu_hist.
-    mode: string
-        An internal parameter that specifies whether a random forest (rf)
-        or gradient-boosted forest (gbm) is being constructed.
     nthread : int
         Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
     n_jobs : int
         Number of parallel threads used to run xgboost.  (replaces ``nthread``)
-    n_gpus : int
-        Number of GPUs to use, or -1 to use all available GPUs.
-        Only used if the updater, predictor or objectve function support using GPUs.
-    gpu_id : int
-        The first GPU to use. Only used if the updater,
-        predictor or objectve function support using GPUs.
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
@@ -147,10 +138,9 @@ class XGBModel(XGBModelBase):
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear", booster='gbtree', tree_method='hist',
-                 mode='gbm', n_jobs=1, nthread=None, n_gpus=0, gpu_id=0,
-                 gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
-                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
+                 max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None,
                  importance_type="gain", **kwargs):
         if not SKLEARN_INSTALLED:
@@ -162,7 +152,6 @@ class XGBModel(XGBModelBase):
         self.objective = objective
         self.booster = booster
         self.tree_method = tree_method
-        self.mode = mode
         self.gamma = gamma
         self.min_child_weight = min_child_weight
         self.max_delta_step = max_delta_step
@@ -181,8 +170,6 @@ class XGBModel(XGBModelBase):
         self.random_state = random_state
         self.nthread = nthread
         self.n_jobs = n_jobs
-        self.n_gpus = n_gpus
-        self.gpu_id = gpu_id
         self.importance_type = importance_type
 
     def __setstate__(self, state):
@@ -262,6 +249,10 @@ class XGBModel(XGBModelBase):
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
         return xgb_params
+
+    def get_num_boosting_rounds(self):
+        """Gets the number of xgboost boosting rounds."""
+        return self.n_estimators
 
     def save_model(self, fname):
         """
@@ -390,14 +381,8 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({'eval_metric': eval_metric})
 
-        n_boosting_rounds = self.n_estimators
-        params.pop('n_estimators', None)
-        if self.mode == 'rf':
-            n_boosting_rounds = 1
-            params['num_parallel_tree'] = self.n_estimators
-
         self._Booster = train(params, trainDmatrix,
-                              n_boosting_rounds, evals=evals,
+                              self.get_num_boosting_rounds(), evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
@@ -548,7 +533,6 @@ class XGBModel(XGBModelBase):
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
-        print(self.importance_type)
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
@@ -611,16 +595,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True,
-                 objective="binary:logistic", booster='gbtree', tree_method='hist', mode='gbm',
-                 n_jobs=1, nthread=None, n_gpus=0, gpu_id=0, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 objective="binary:logistic", booster='gbtree', tree_method='hist',
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
             silent=silent, objective=objective, booster=booster, tree_method=tree_method,
-            mode=mode, n_jobs=n_jobs, nthread=nthread, n_gpus=n_gpus, gpu_id=gpu_id,
-            gamma=gamma, min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
             colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
             reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
@@ -733,13 +717,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             train_dmatrix = DMatrix(X, label=training_labels,
                                     missing=self.missing, nthread=self.n_jobs)
 
-        n_boosting_rounds = self.n_estimators
-        xgb_options.pop('n_estimators', None)
-        if self.mode == 'rf':
-            n_boosting_rounds = 1
-            xgb_options['num_parallel_tree'] = self.n_estimators
-
-        self._Booster = train(xgb_options, train_dmatrix, n_boosting_rounds,
+        self._Booster = train(xgb_options, train_dmatrix, self.get_num_boosting_rounds(),
                               evals=evals, early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
@@ -904,20 +882,28 @@ class XGBRFClassifier(XGBClassifier):
 
     def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, silent=True,
                  objective="binary:logistic", tree_method='hist',
-                 n_jobs=1, nthread=None, n_gpus=0, gpu_id=0, gamma=0, min_child_weight=1,
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=0.8, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=0.8, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBRFClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
             silent=silent, objective=objective, booster='gbtree', tree_method=tree_method,
-            mode='rf', n_jobs=n_jobs, nthread=nthread, n_gpus=n_gpus, gpu_id=gpu_id,
-            gamma=gamma, min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
             colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
             reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
             base_score=base_score, random_state=random_state, seed=seed, missing=missing,
             **kwargs)
+
+    def get_xgb_params(self):
+        params = super(XGBRFClassifier, self).get_xgb_params()
+        params['num_parallel_tree'] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self):
+        return 1
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
@@ -934,20 +920,28 @@ class XGBRFRegressor(XGBRegressor):
 
     def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, silent=True,
                  objective="reg:linear", tree_method='hist',
-                 n_jobs=1, nthread=None, n_gpus=0, gpu_id=0, gamma=0, min_child_weight=1,
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=0.8, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=0.8, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBRFRegressor, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
             silent=silent, objective=objective, booster='gbtree', tree_method=tree_method,
-            mode='rf', n_jobs=n_jobs, nthread=nthread, n_gpus=n_gpus, gpu_id=gpu_id,
-            gamma=gamma, min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
             colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
             reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
             base_score=base_score, random_state=random_state, seed=seed, missing=missing,
             **kwargs)
+
+    def get_xgb_params(self):
+        params = super(XGBRFRegressor, self).get_xgb_params()
+        params['num_parallel_tree'] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self):
+        return 1
 
 
 class XGBRanker(XGBModel):
@@ -1052,8 +1046,7 @@ class XGBRanker(XGBModel):
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="rank:pairwise", booster='gbtree', tree_method='hist',
-                 n_jobs=-1, nthread=None, n_gpus=0, gpu_id=0,
-                 gamma=0, min_child_weight=1, max_delta_step=0,
+                 n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
@@ -1061,11 +1054,11 @@ class XGBRanker(XGBModel):
         super(XGBRanker, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
             silent=silent, objective=objective, booster=booster, tree_method=tree_method,
-            n_jobs=n_jobs, nthread=nthread, n_gpus=n_gpus, gpu_id=gpu_id,
-            gamma=gamma, min_child_weight=min_child_weight,
-            max_delta_step=max_delta_step, subsample=subsample,
-            colsample_bytree=colsample_bytree, colsample_bylevel=colsample_bylevel,
-            colsample_bynode=colsample_bynode, reg_alpha=reg_alpha, reg_lambda=reg_lambda,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            subsample=subsample, colsample_bytree=colsample_bytree,
+            colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
+            reg_alpha=reg_alpha, reg_lambda=reg_lambda,
             scale_pos_weight=scale_pos_weight, base_score=base_score,
             random_state=random_state, seed=seed, missing=missing, **kwargs)
         if callable(self.objective):
