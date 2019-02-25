@@ -356,10 +356,6 @@ struct GPUSketcher {
     info.weights_.Reshard(dist_);
     batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
 
-    // ensure that the data is distributed properly
-    info.weights_.Reshard(devices_);
-    batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
-
     // create device shards
     shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
