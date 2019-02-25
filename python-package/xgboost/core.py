@@ -1659,7 +1659,9 @@ class Booster(object):
                         'Cover': covers})
 
         if callable(getattr(df, 'sort_values', None)):
+            # pylint: disable=no-member
             return df.sort_values(['Tree', 'Node']).reset_index(drop=True)
+        # pylint: disable=no-member
         return df.sort(['Tree', 'Node']).reset_index(drop=True)
 
     def _validate_features(self, data):
