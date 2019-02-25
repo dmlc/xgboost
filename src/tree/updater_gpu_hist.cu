@@ -1050,7 +1050,6 @@ class GPUHistMakerSpecialised{
 
   void AllReduceHist(int nidx) {
     if (shards_.size() == 1) return;
-    dh::safe_cuda(cudaDeviceSynchronize());
     monitor_.Start("AllReduce");
 
     reducer_.GroupStart();

@@ -24,9 +24,6 @@
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
 #include "../common/io.h"
-#else
-#define NCCL_UNIQUE_ID_BYTES 128
-typedef struct { char internal[NCCL_UNIQUE_ID_BYTES]; } ncclUniqueId;
 #endif
 
 // Uncomment to enable
@@ -904,7 +901,7 @@ class AllReducer {
     
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
-        &(comms.at(i)),
+        &comms.at(i),
         nccl_nranks, id, 
         nccl_rank));
 
@@ -914,7 +911,7 @@ class AllReducer {
 
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals.at(i)));
-      safe_cuda(cudaStreamCreate(&(streams.at(i))));
+      safe_cuda(cudaStreamCreate(&streams.at(i)));
     }
     initialised_ = true;
 #else
@@ -1047,6 +1044,7 @@ class AllReducer {
   #endif
   };
 
+#ifdef XGBOOST_USE_NCCL
   /**
    * \fn  ncclUniqueId GetUniqueId()
    *
@@ -1056,7 +1054,6 @@ class AllReducer {
    * \return the Unique ID
    */
   ncclUniqueId GetUniqueId() {
-#ifdef XGBOOST_USE_NCCL
     static const int RootRank = 0;
     ncclUniqueId id;
     if (rabit::GetRank() == RootRank) {
@@ -1067,9 +1064,9 @@ class AllReducer {
       (size_t)sizeof(ncclUniqueId),
       (int)RootRank);
     return id;
-#endif
   }
 };
+#endif
 
 class SaveCudaContext {
  private:
