@@ -11,9 +11,6 @@
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
 #include <cstdint>
-#ifdef XGBOOST_USE_CUDF
-#include <cudf/types.h>
-#endif
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
@@ -109,7 +106,7 @@ XGB_DLL const char *XGBGetLastError(void);
  */
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
-#ifdef XGBOOST_USE_CUDF
+#ifdef XGBOOST_USE_CUDA
 /*!
  * \bried create a data matrix from a CUDA data frame (CUDF)
  * \param cols array of CUDF columns
@@ -118,7 +115,7 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCUDF
-(gdf_column **cols, size_t n_cols, DMatrixHandle *out);
+(void **cols, size_t n_cols, DMatrixHandle *out);
 #endif
 
 /*!
@@ -299,7 +296,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const float *array,
                                   bst_ulong len);
 
-#ifdef XGBOOST_USE_CUDF
+#ifdef XGBOOST_USE_CUDA
 /*!
  * \brief set a vector to 
  * \param handle a instance of data matrix
@@ -311,7 +308,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle,
                                 const char *field,
-                                gdf_column** gdf,
+                                void ** gdf,
                                 size_t n_cols);
 #endif
 

@@ -19,7 +19,6 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
-
 namespace xgboost {
 // booster wrapper for backward compatible reason.
 class Booster {
@@ -259,17 +258,6 @@ int XGDMatrixCreateFromDataIter(
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
   API_END();
 }
-
-#ifdef XGBOOST_USE_CUDF
-int XGDMatrixCreateFromCUDF
-(gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
-  API_BEGIN();
-  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-  source->InitFromCUDF(cols, n_cols);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
-  API_END();
-}
-#endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
@@ -788,21 +776,6 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
       ->get()->Info().SetInfo(field, info, kFloat32, len);
   API_END();
 }
-
-#ifdef XGBOOST_USE_CUDF
-
-XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle,
-                                const char *field,
-                                gdf_column **cols,
-                                size_t n_cols) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-    ->get()->Info().SetCUDFInfo(field, cols, n_cols);
-  API_END();
-}
-
-#endif
 
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const char* field,

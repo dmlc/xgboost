@@ -8,12 +8,9 @@ set_default_configuration_release()
 msvc_use_static_runtime()
 
 # Options
-
 ## GPUs
 option(USE_CUDA  "Build with GPU acceleration" OFF)
-option(USE_NCCL  "Build with multiple GPUs support; requires CUDA" OFF)
-option(USE_CUDF "Build with cuDF support; requires CUDA." OFF)
-
+option(USE_NCCL  "Build with multiple GPUs support" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
 
@@ -176,12 +173,6 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
     find_package(Nccl REQUIRED)
     cuda_include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
-  endif()
-
-  if(USE_CUDF)
-    find_package(CUDF REQUIRED)
-    include_directories(${CUDF_INCLUDE_DIR})
-    add_definitions(-DXGBOOST_USE_CUDF)
   endif()
 
   set(GENCODE_FLAGS "")
