@@ -632,6 +632,19 @@ struct DeviceShard {
     for (auto candidate : split_candidates) {
       best_split.Update(candidate, param);
     }
+
+    if (rabit::IsDistributed()) {
+      double g_left = best_split.left_sum.GetGrad();
+      double h_left = best_split.left_sum.GetHess();
+      double g_right = best_split.right_sum.GetGrad();
+      double h_right = best_split.right_sum.GetHess();
+      rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+      rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+      rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+      rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+      best_split.left_sum = GradientPair(g_left, h_left);
+      best_split.right_sum = GradientPair(g_right, h_right);
+    }
     return best_split;
   }
 
@@ -1049,7 +1062,8 @@ class GPUHistMakerSpecialised{
   }
 
   void AllReduceHist(int nidx) {
-    if (shards_.size() == 1) return;
+    if (shards_.size() == 1 && !rabit::IsDistributed())
+      return;
     monitor_.Start("AllReduce");
 
     reducer_.GroupStart();
@@ -1261,6 +1275,19 @@ class GPUHistMakerSpecialised{
       ExpandEntry candidate = qexpand_->top();
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
+      
+      if (rabit::IsDistributed()) {
+          double g_left = candidate.split.left_sum.GetGrad();
+          double h_left = candidate.split.left_sum.GetHess();
+          double g_right = candidate.split.right_sum.GetGrad();
+          double h_right = candidate.split.right_sum.GetHess();
+          rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+          rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+          rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+          rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+          candidate.split.left_sum = GradientPair(g_left, h_left);
+          candidate.split.right_sum = GradientPair(g_right, h_right);
+        }
 
       this->ApplySplit(candidate, p_tree);
       monitor_.Start("UpdatePosition", dist_.Devices());

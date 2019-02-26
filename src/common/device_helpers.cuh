@@ -882,10 +882,9 @@ class AllReducer {
 
     device_counts.at(rabit::GetRank()) = device_ordinals.size();
     for (size_t i = 0; i < device_counts.size(); i++) {
-      rabit::Broadcast(
-        (void*)&(device_counts.at(rabit::GetRank())),
-        (size_t)sizeof(device_counts.at(rabit::GetRank())),
-        (int)rabit::GetRank());
+      int dev_count = device_counts.at(i);
+      rabit::Allreduce<rabit::op::Sum, int>(&dev_count, 1);
+      device_counts.at(i) = dev_count;
     }
 
     int nccl_rank = 0;
@@ -898,7 +897,6 @@ class AllReducer {
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals.at(i);
-    
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &comms.at(i),
@@ -1041,7 +1039,7 @@ class AllReducer {
       dh::safe_cuda(cudaSetDevice(device_ordinals[i]));
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
     }
-  #endif
+#endif
   };
 
 #ifdef XGBOOST_USE_NCCL
