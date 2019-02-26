@@ -153,7 +153,7 @@ public class XGBoost {
     evalNames = names.toArray(new String[names.size()]);
     evalMats = mats.toArray(new DMatrix[mats.size()]);
     if (isMaximizeEvaluation(params)) {
-      bestScore = Float.MIN_VALUE;
+      bestScore = -Float.MAX_VALUE;
     } else {
       bestScore = Float.MAX_VALUE;
     }
