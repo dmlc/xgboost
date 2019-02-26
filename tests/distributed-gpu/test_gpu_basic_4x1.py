@@ -24,7 +24,7 @@ bst = xgb.train(param, dtrain, num_round, watchlist, early_stopping_rounds=2)
 # Have root save its model
 if(rank == 0):
     model_name = "test.model.4x1." + str(rank)
-    bst.dump_model(model_name)
+    bst.dump_model(model_name, with_stats=True)
 xgb.rabit.tracker_print("Finished training\n")
 
 # Notify the tracker all training has been successful

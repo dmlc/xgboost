@@ -26,7 +26,7 @@ bst = xgb.train(param, dtrain, num_round, watchlist, early_stopping_rounds=2)
 
 # Have each worker save its model
 model_name = "test.model.asym." + str(rank)
-bst.dump_model(model_name)
+bst.dump_model(model_name, with_stats=True)
 xgb.rabit.tracker_print("Finished training\n")
 
 if (rank == 0):
