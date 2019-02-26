@@ -279,7 +279,6 @@ struct GPUSketcher {
     void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
                      const thrust::host_vector<size_t>& batch_segments,
                      size_t gpu_batch) {
-      
       // compute start and end indices
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
       size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
@@ -288,15 +287,15 @@ struct GPUSketcher {
       size_t batch_entry_end = batch_segments[gpu_batch + 1];
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries = batch_entry_end - batch_entry_begin;
-      
+
       // copy the batch to the GPU
       row_batch.data.CopyTo(device_, batch_entry_begin, entries_.data().get(),
                             n_entries);
-      
+
       // copy the weights if necessary
       if (has_weights_) {
-        dh::safe_cuda(cudaMemcpy
-                      (weights_.data().get(),
+        dh::safe_cuda(
+            cudaMemcpy(weights_.data().get(),
                        info.weights_.DevicePointer(device_) + batch_row_begin,
                        batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
@@ -347,7 +346,6 @@ struct GPUSketcher {
 
   void Sketch(const SparsePage& batch, const MetaInfo& info,
               HistCutMatrix* hmat, int gpu_batch_nrows) {
-
     // partition input matrix into row segments
     std::vector<size_t> row_segments;
     dh::RowSegments(info.num_row_, dist_.Devices().Size(), &row_segments);

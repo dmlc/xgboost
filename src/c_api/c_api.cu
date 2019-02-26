@@ -16,8 +16,8 @@
 namespace xgboost {
 typedef unsigned char cudf_interchange_valid_type;
 typedef int32_t
-    cudf_interchange_size_type; /**< Limits the maximum size of a
-                                   cudf_interchange_column to 2^31-1 */
+    cudf_interchange_size_type;  // Limits the maximum size of a
+                                 // cudf_interchange_column to 2^31-1
 typedef enum {
   invalid = 0,
   INT8,
@@ -28,22 +28,22 @@ typedef enum {
   FLOAT64,
 } cudf_interchange_dtype;
 
-/** We define a simple interchange format loosely based on the internal column
- * structure of cudf (cuda data frame). cudf is responsible for passing this
- * exact structure to the xgboost C API for DMatrix construction. The decoupled
- * interchange format means xgboost does not depend on the specific internal
- * structure of cudf which may change. */
+// We define a simple interchange format loosely based on the internal column
+// structure of cudf (cuda data frame). cudf is responsible for passing this
+// exact structure to the xgboost C API for DMatrix construction. The decoupled
+// interchange format means xgboost does not depend on the specific internal
+// structure of cudf which may change.
 
 typedef struct cudf_interchange_column_ {
-  void* data; /**< Pointer to the columns data */
+  void* data;  // Pointer to the columns data
   cudf_interchange_valid_type*
-      valid; /**< Pointer to the columns validity bit mask where the
-  'i'th bit indicates if the 'i'th row is NULL */
-  cudf_interchange_size_type size; /**< Number of data elements in the columns
-               data buffer. Limited to 2^31 - 1.*/
-  cudf_interchange_dtype dtype;    /**< The datatype of the column's data */
-  int32_t null_count; /**< The number of NULL values in the column's data */
-  char* col_name;     // host-side:	null terminated string
+      valid;  // Pointer to the columns validity bit mask where the
+              // 'i'th bit indicates if the 'i'th row is NULL
+  cudf_interchange_size_type size;  // Number of data elements in the columns
+                                    // data buffer. Limited to 2^31 - 1.
+  cudf_interchange_dtype dtype;     // The datatype of the column's data
+  int32_t null_count;  // The number of NULL values in the column's data
+  char* col_name;      // host-side: null terminated string
   cudf_interchange_column_() {
     static_assert(sizeof(cudf_interchange_column_) == 40,
                   "If this static assert fails, the compiler is not supported "
@@ -66,28 +66,28 @@ __device__ inline float ConvertDataElement(void* data, int tid,
                                            cudf_interchange_dtype dtype) {
   switch (dtype) {
     case cudf_interchange_dtype::INT8: {
-      int8_t* d = (int8_t*)data;
-      return float(d[tid]);
+      int8_t* d = reinterpret_cast<int8_t*>(data);
+      return static_cast<float>(d[tid]);
     }
     case cudf_interchange_dtype::INT16: {
-      int16_t* d = (int16_t*)data;
-      return float(d[tid]);
+      int16_t* d = reinterpret_cast<int16_t*>(data);
+      return static_cast<float>(d[tid]);
     }
     case cudf_interchange_dtype::INT32: {
-      int32_t* d = (int32_t*)data;
-      return float(d[tid]);
+      int32_t* d = reinterpret_cast<int32_t*>(data);
+      return static_cast<float>(d[tid]);
     }
     case cudf_interchange_dtype::INT64: {
-      int64_t* d = (int64_t*)data;
-      return float(d[tid]);
+      int64_t* d = reinterpret_cast<int64_t*>(data);
+      return static_cast<float>(d[tid]);
     }
     case cudf_interchange_dtype::FLOAT32: {
-      float* d = (float*)data;
-      return float(d[tid]);
+      float* d = reinterpret_cast<float*>(data);
+      return static_cast<float>(d[tid]);
     }
     case cudf_interchange_dtype::FLOAT64: {
-      double* d = (double*)data;
-      return float(d[tid]);
+      double* d = reinterpret_cast<double*>(data);
+      return static_cast<float>(d[tid]);
     }
   }
   return nanf(nullptr);
@@ -291,7 +291,7 @@ XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle, const char* field,
   API_BEGIN();
   CHECK_HANDLE();
   MetaInfo* info =
-      &static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
+      &(static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info());
   SetCUDFInfo(info, field, reinterpret_cast<cudf_interchange_column**>(cols),
               n_cols);
   API_END();

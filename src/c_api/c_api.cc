@@ -19,6 +19,7 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
+
 namespace xgboost {
 // booster wrapper for backward compatible reason.
 class Booster {

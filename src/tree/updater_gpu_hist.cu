@@ -573,9 +573,9 @@ struct DeviceShard {
      min_fvalue, feature_segments, node_sum_gradients, ridx_segments,
      hist
   */
-  void InitCompressedData(
-      const common::HistCutMatrix& hmat, const SparsePage& row_batch);
-  
+  void InitCompressedData(const common::HistCutMatrix& hmat,
+                          const SparsePage& row_batch);
+
   void CreateHistIndices(const SparsePage& row_batch);
 
   ~DeviceShard() {
@@ -908,13 +908,13 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(const SparsePage& row_b
     dim3 block3(32, 8, 1);
     dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
                dh::DivRoundUp(row_stride, block3.y), 1);
-    compress_bin_ellpack_k<<<grid3, block3>>>
-        (common::CompressedBufferWriter(num_symbols), gidx_buffer.Data(),
-         row_batch.offset.DevicePointer(device_id_) + batch_row_begin,
-         entries_d.data().get(), cut_.gidx_fvalue_map.Data(),
-         cut_.feature_segments.Data(), batch_row_begin, batch_nrows,
-         batch_entry_begin, row_stride, null_gidx_value);
-    
+    compress_bin_ellpack_k<<<grid3, block3>>>(
+        common::CompressedBufferWriter(num_symbols), gidx_buffer.Data(),
+        row_batch.offset.DevicePointer(device_id_) + batch_row_begin,
+        entries_d.data().get(), cut_.gidx_fvalue_map.Data(),
+        cut_.feature_segments.Data(), batch_row_begin, batch_nrows,
+        batch_entry_begin, row_stride, null_gidx_value);
+
     dh::safe_cuda(cudaGetLastError());
     dh::safe_cuda(cudaDeviceSynchronize());
   }
@@ -971,7 +971,6 @@ class GPUHistMakerSpecialised{
   }
 
   void InitDataOnce(DMatrix* dmat) {
-
     info_ = &dmat->Info();
 
     int n_devices = dist_.Devices().Size();
@@ -989,17 +988,19 @@ class GPUHistMakerSpecialised{
 
     // Ensure proper data distribution
     batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
-    
+
     // Create device shards
     shards_.resize(n_devices);
-    dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-        size_t start = dist_.ShardStart(info_->num_row_, i);
-        size_t size = dist_.ShardSize(info_->num_row_, i);
-        shard = std::unique_ptr<DeviceShard<GradientSumT>>
-                (new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(i),
-                                 start, start + size, param_));
-        shard->InitRowPtrs(batch);
-      });
+    dh::ExecuteIndexShards(
+        &shards_,
+        [&](int i, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
+          size_t start = dist_.ShardStart(info_->num_row_, i);
+          size_t size = dist_.ShardSize(info_->num_row_, i);
+          shard = std::unique_ptr<DeviceShard<GradientSumT>>(
+              new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(i), start,
+                                            start + size, param_));
+          shard->InitRowPtrs(batch);
+        });
 
     // Find the cuts.
     monitor_.Start("Quantiles", dist_.Devices());

@@ -156,8 +156,8 @@ struct HostDeviceVectorImpl {
     void CopyTo(size_t offset, T* dst, size_t n) {
       LazySyncDevice(GPUAccess::kRead);
       CHECK_GE(offset, start_);
-      CHECK_LE(offset + n, start_ + data_.size()); 
-      dh::safe_cuda(cudaSetDevice(device_));      
+      CHECK_LE(offset + n, start_ + data_.size());
+      dh::safe_cuda(cudaSetDevice(device_));
       dh::safe_cuda(cudaMemcpy(dst, data_.data().get() + (offset - start_),
                                n * sizeof(T), cudaMemcpyDefault));
     }
