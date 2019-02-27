@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import xgboost as xgb
+from collections import OrderedDict
 
 # Always call this before using distributed module
 xgb.rabit.init()
