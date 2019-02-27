@@ -35,7 +35,7 @@ ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
 
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn wheel kubernetes
+    pip install numpy pytest scipy scikit-learn wheel kubernetes urllib3==1.22
 
 ENV GOSU_VERSION 1.10
 
