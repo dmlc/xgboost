@@ -93,18 +93,6 @@ __device__ inline float ConvertDataElement(void* data, int tid,
   return nanf(nullptr);
 }
 
-void RunConverter(cudf_interchange_column** gdf_data, CsrCudf* csr);
-
-//--- private CUDA functions / kernels
-__global__ void cuda_create_csr_k(void* cudf_data,
-                                  cudf_interchange_valid_type* valid,
-                                  cudf_interchange_dtype dtype, int col,
-                                  Entry* data, size_t* offsets, size_t n_rows);
-
-__global__ void determine_valid_rec_count_k(cudf_interchange_valid_type* valid,
-                                            size_t n_rows, size_t n_cols,
-                                            size_t* offset);
-
 __device__ int WhichBitmap(int record) { return record / 8; }
 __device__ int WhichBit(int bit) { return bit % 8; }
 __device__ int CheckBit(cudf_interchange_valid_type data, int bit) {
@@ -120,44 +108,28 @@ __device__ bool IsValid(cudf_interchange_valid_type* valid, int tid) {
   return CheckBit(bitmap, bit_idx);
 }
 
-// Convert a CUDF into a CSR CUDF
-void CUDFToCSR(cudf_interchange_column** cudf_data, int n_cols, CsrCudf* csr) {
-  size_t n_rows = cudf_data[0]->size;
-
-  // the first step is to create an array that counts the number of valid
-  // entries per row this is done by each thread looking across its row and
-  // checking the valid bits
-  int threads = 1024;
-  int blocks = (n_rows + threads - 1) / threads;
-
-  size_t* offsets = csr->offsets;
-  dh::safe_cuda(cudaMemset(offsets, 0,
-                           sizeof(cudf_interchange_size_type) * (n_rows + 1)));
-
-  if (blocks > 0) {
-    for (int i = 0; i < n_cols; ++i) {
-      determine_valid_rec_count_k<<<blocks, threads>>>(cudf_data[i]->valid,
-                                                       n_rows, n_cols, offsets);
-      dh::safe_cuda(cudaGetLastError());
-      dh::safe_cuda(cudaDeviceSynchronize());
-    }
+// move data over into CSR and possibly convert the format
+__global__ void cuda_create_csr_k(void* cudf_data,
+                                  cudf_interchange_valid_type* valid,
+                                  cudf_interchange_dtype dtype, int col,
+                                  Entry* data, size_t* offsets, size_t n_rows) {
+  int tid = threadIdx.x + blockDim.x * blockIdx.x;
+  if (tid >= n_rows) return;
+  cudf_interchange_size_type offset_idx = offsets[tid];
+  if (IsValid(valid, tid)) {
+    data[offset_idx].fvalue = ConvertDataElement(cudf_data, tid, dtype);
+    data[offset_idx].index = col;
+    ++offsets[tid];
   }
+}
 
-  // compute the number of elements
-  thrust::device_ptr<size_t> offsets_begin(offsets);
-  int64_t n_elements = thrust::reduce(offsets_begin, offsets_begin + n_rows,
-                                      0ull, thrust::plus<size_t>());
-
-  // now do an exclusive scan to compute the offsets for where to write data
-  thrust::exclusive_scan(offsets_begin, offsets_begin + n_rows + 1,
-                         offsets_begin);
-
-  csr->n_rows = n_rows;
-  csr->n_cols = n_cols;
-  csr->n_nz = n_elements;
-
-  // process based on data type
-  RunConverter(cudf_data, csr);
+// compute the number of valid entries per row
+__global__ void determine_valid_rec_count_k(
+    cudf_interchange_valid_type* valid, size_t n_rows, size_t n_cols,
+    size_t* offset) {
+  int tid = threadIdx.x + blockDim.x * blockIdx.x;
+  if (tid >= n_rows) return;
+  if (IsValid(valid, tid)) ++offset[tid];
 }
 
 void RunConverter(cudf_interchange_column** cudf_data, CsrCudf* csr) {
@@ -184,28 +156,45 @@ void RunConverter(cudf_interchange_column** cudf_data, CsrCudf* csr) {
   }
 }
 
-// move data over into CSR and possibly convert the format
-__global__ void cuda_create_csr_k(void* cudf_data,
-                                  cudf_interchange_valid_type* valid,
-                                  cudf_interchange_dtype dtype, int col,
-                                  Entry* data, size_t* offsets, size_t n_rows) {
-  int tid = threadIdx.x + blockDim.x * blockIdx.x;
-  if (tid >= n_rows) return;
-  cudf_interchange_size_type offset_idx = offsets[tid];
-  if (IsValid(valid, tid)) {
-    data[offset_idx].fvalue = ConvertDataElement(cudf_data, tid, dtype);
-    data[offset_idx].index = col;
-    ++offsets[tid];
-  }
-}
 
-// compute the number of valid entries per row
-__global__ void determine_valid_rec_count_k(
-    cudf_interchange_valid_type* valid, size_t n_rows, size_t n_cols,
-    cudf_interchange_size_type* offset) {
-  int tid = threadIdx.x + blockDim.x * blockIdx.x;
-  if (tid >= n_rows) return;
-  if (IsValid(valid, tid)) ++offset[tid];
+// Convert a CUDF into a CSR CUDF
+void CUDFToCSR(cudf_interchange_column** cudf_data, int n_cols, CsrCudf* csr) {
+  size_t n_rows = cudf_data[0]->size;
+
+  // the first step is to create an array that counts the number of valid
+  // entries per row this is done by each thread looking across its row and
+  // checking the valid bits
+  int threads = 1024;
+  int blocks = (n_rows + threads - 1) / threads;
+
+  size_t* offsets = csr->offsets;
+  dh::safe_cuda(cudaMemset(offsets, 0,
+                           sizeof(size_t) * (n_rows + 1)));
+
+  if (blocks > 0) {
+    for (int i = 0; i < n_cols; ++i) {
+      determine_valid_rec_count_k<<<blocks, threads>>>(cudf_data[i]->valid,
+                                                       n_rows, n_cols, offsets);
+      dh::safe_cuda(cudaGetLastError());
+      dh::safe_cuda(cudaDeviceSynchronize());
+    }
+  }
+
+  // compute the number of elements
+  thrust::device_ptr<size_t> offsets_begin(offsets);
+  int64_t n_elements = thrust::reduce(offsets_begin, offsets_begin + n_rows,
+                                      0ull, thrust::plus<size_t>());
+
+  // now do an exclusive scan to compute the offsets for where to write data
+  thrust::exclusive_scan(offsets_begin, offsets_begin + n_rows + 1,
+                         offsets_begin);
+
+  csr->n_rows = n_rows;
+  csr->n_cols = n_cols;
+  csr->n_nz = n_elements;
+
+  // process based on data type
+  RunConverter(cudf_data, csr);
 }
 
 void InitFromCUDF(data::SimpleCSRSource* source, cudf_interchange_column** cols,
@@ -290,8 +279,9 @@ XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle, const char* field,
                                  void** cols, size_t n_cols) {
   API_BEGIN();
   CHECK_HANDLE();
-  MetaInfo* info =
-      &(static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info());
+  std::shared_ptr<xgboost::DMatrix> *dmat =
+      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  MetaInfo* info = &(*dmat)->Info();
   SetCUDFInfo(info, field, reinterpret_cast<cudf_interchange_column**>(cols),
               n_cols);
   API_END();
