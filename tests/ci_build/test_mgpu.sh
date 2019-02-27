@@ -7,5 +7,5 @@ cd ..
 pytest -v -s --fulltrace -m "(not slow) and mgpu" tests/python-gpu
 ./testxgboost --gtest_filter=*.MGPU_*
 
-# cd tests/distributed-gpu
-# ./runtests-gpu.sh
+cd tests/distributed-gpu
+./runtests-gpu.sh
