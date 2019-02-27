@@ -1264,7 +1264,7 @@ class GPUHistMakerSpecialised{
       ExpandEntry candidate = qexpand_->top();
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
-      
+
       this->ApplySplit(candidate, p_tree);
       monitor_.Start("UpdatePosition", dist_.Devices());
       this->UpdatePosition(candidate, p_tree);
