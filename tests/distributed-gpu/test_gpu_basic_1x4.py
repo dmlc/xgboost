@@ -36,6 +36,7 @@ if (rank == 0):
                     with open(model_name_rank, 'r') as model_rank:
                         diff = set(model_root).difference(model_rank)
                 if len(diff) != 0:
+                    xgb.rabit.finalize()
                     raise Exception('Worker models diverged: test.model.1x4.{} differs from test.model.1x4.{}'.format(i, j))
 
 # Notify the tracker all training has been successful

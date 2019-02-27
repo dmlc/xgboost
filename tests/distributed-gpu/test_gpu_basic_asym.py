@@ -31,15 +31,16 @@ xgb.rabit.tracker_print("Finished training\n")
 
 if (rank == 0):
     for i in range(0, world):
-        model_name_root = "test.model.2x2." + str(i)
+        model_name_root = "test.model.asym." + str(i)
         for j in range(0, world):
             if i != j:
-                model_name_rank = "test.model.2x2." + str(j)
+                model_name_rank = "test.model.asym." + str(j)
                 with open(model_name_root, 'r') as model_root:
                     with open(model_name_rank, 'r') as model_rank:
                         diff = set(model_root).difference(model_rank)
                 if len(diff) != 0:
-                    raise Exception('Worker models diverged: test.model.2x2.{} differs from test.model.2x2.{}'.format(i, j))
+                    xgb.rabit.finalize()
+                    raise Exception('Worker models diverged: test.model.asym.{} differs from test.model.asym.{}'.format(i, j))
 
 # Notify the tracker all training has been successful
 # This is only needed in distributed training.
