@@ -1063,8 +1063,8 @@ class AllReducer {
       (int)RootRank);
     return id;
   }
-};
 #endif
+};
 
 class SaveCudaContext {
  private:
