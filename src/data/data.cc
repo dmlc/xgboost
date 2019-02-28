@@ -358,6 +358,9 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   auto const& other_data = batch.data.ConstHostVector();
   auto const& other_offset = batch.offset.ConstHostVector();
 
+  if (other_data.empty()) {
+    return;
+  }
   if (!self_data.empty()) {
     CHECK_EQ(self_offset.size(), other_offset.size())
         << "self_data.size(): " << this->data.Size() << ", "
@@ -368,10 +371,10 @@ void SparsePage::PushCSC(const SparsePage &batch) {
     return;
   }
 
-  std::vector<size_t> offset (other_offset.size());
+  std::vector<size_t> offset(other_offset.size());
   offset[0] = 0;
 
-  std::vector<xgboost::Entry> data (self_data.size() + batch.data.Size());
+  std::vector<xgboost::Entry> data(self_data.size() + batch.data.Size());
 
   // n_cols in original csr data matrix, here in csc is n_rows
   size_t const n_features = other_offset.size() - 1;
