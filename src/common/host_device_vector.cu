@@ -296,7 +296,8 @@ struct HostDeviceVectorImpl {
                                data_h_.size() * sizeof(T),
                                cudaMemcpyHostToDevice));
     } else {
-      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) { shard.GatherTo(begin); });
+      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
+          shard.GatherTo(begin); });
     }
   }
 
@@ -411,7 +412,9 @@ struct HostDeviceVectorImpl {
   void LazySyncDevice(int device, GPUAccess access) {
     GPUSet devices = distribution_.Devices();
     CHECK(devices.Contains(device));
-    shards_.at(devices.Index(device)).LazySyncDevice(access);
+    dh::SaveCudaContext{[&]() {
+        shards_.at(devices.Index(device)).LazySyncDevice(access);
+      }};
   }
 
   bool HostCanAccess(GPUAccess access) { return perm_h_.CanAccess(access); }

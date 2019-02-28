@@ -452,7 +452,7 @@ struct CalcWeightTrainParam {
 // Bin each input data entry, store the bin indices in compressed form.
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
-    common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
+    common::Span<common::CompressedByteT> buffer,  // gidx_buffer
     const size_t* __restrict__ row_ptrs,           // row offset of input data
     const Entry* __restrict__ entries,      // One batch of input data
     const float* __restrict__ cuts,         // HistCutMatrix::cut
@@ -1128,7 +1128,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
                      dh::DivRoundUp(row_stride, block3.y), 1);
     CompressBinEllpackKernel<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols),
-         gidx_buffer.data(),
+         gidx_buffer,
          row_ptrs.data().get() + batch_row_begin,
          entries_d.data().get(),
          gidx_fvalue_map.data(), feature_segments.data(),
@@ -1414,6 +1414,7 @@ class GPUHistMakerSpecialised{
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
+          dh::safe_cuda(cudaSetDevice(shard->device_id));
           shard->FinalisePosition(p_tree);
         });
   }

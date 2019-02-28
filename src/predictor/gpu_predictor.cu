@@ -242,7 +242,7 @@ class GPUPredictor : public xgboost::Predictor {
     void Init(int device) {
       this->device_ = device;
       max_shared_memory_bytes_ = dh::MaxSharedMemory(this->device_);
-     }
+    }
     void PredictInternal
     (const SparsePage& batch, const MetaInfo& info,
      HostDeviceVector<bst_float>* predictions,

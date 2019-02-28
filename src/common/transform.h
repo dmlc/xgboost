@@ -132,20 +132,22 @@ class Transform {
       // Extract index to deal with possible old OpenMP.
       size_t device_beg = *(devices.begin());
       size_t device_end = *(devices.end());
-#pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (omp_ulong device = device_beg; device < device_end; ++device) {  // NOLINT
-        // Ignore other attributes of GPUDistribution for spliting index.
-        // This deals with situation like multi-class setting where
-        // granularity is used in data vector.
-        size_t shard_size = GPUDistribution::Block(devices).ShardSize(
-            range_size, devices.Index(device));
-        Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
-        dh::safe_cuda(cudaSetDevice(device));
-        const int GRID_SIZE =
-            static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
-        detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
-            _func, shard_range, UnpackHDV(_vectors, device)...);
-      }
+      dh::ExecutePerDevice(
+          devices.Size(),
+          [&](int index) {
+            // Ignore other attributes of GPUDistribution for spliting index.
+            // This deals with situation like multi-class setting where
+            // granularity is used in data vector.
+            GPUSet::GpuIdType device = devices.DeviceId(index);
+            size_t shard_size = GPUDistribution::Block(devices).ShardSize(
+                range_size, index);
+            Range shard_range{0, static_cast<Range::DifferenceType>(shard_size)};
+            dh::safe_cuda(cudaSetDevice(device));
+            const int GRID_SIZE =
+                static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
+            detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
+                _func, shard_range, UnpackHDV(_vectors, device)...);
+          });
     }
 #else
     /*! \brief Dummy funtion defined when compiling for CPU.  */

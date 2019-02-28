@@ -15,9 +15,11 @@
 #include <chrono>
 #include <ctime>
 #include <cub/cub.cuh>
+#include <functional>
 #include <numeric>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 #include "timer.h"
 
@@ -56,20 +58,64 @@ T *Raw(thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
+inline void CudaPrintCurDevice(std::string s="") {
+  int cur_device = -1;
+  cudaGetDevice(&cur_device);
+  std::cout << s << "current device:" << cur_device << std::endl;
+}
+
 inline void CudaCheckPointerDevice(void* ptr) {
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
   int ptr_device = attr.device;
   int cur_device = -1;
   cudaGetDevice(&cur_device);
-  CHECK_EQ(ptr_device, cur_device) << "pointer device: " << ptr_device
+  CHECK_EQ(ptr_device, cur_device) << "pointer device: " << ptr_device << ", "
                                    << "current device: " << cur_device;
 }
 
+class CudaCheckDeviceUnchanged {
+ private:
+  int cur_device_;
+
+ public:
+  CudaCheckDeviceUnchanged() : cur_device_{-1} {
+    cudaGetDevice(&cur_device_);
+  }
+  ~CudaCheckDeviceUnchanged() {
+    int device = -1;
+    cudaGetDevice(&device);
+    CHECK_EQ(cur_device_, device);
+  }
+};
+
 template <typename T>
-const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
+const T *Raw(const thrust::device_vector<T> &v) { //  NOLINT
   return raw_pointer_cast(v.data());
 }
+
+class SaveCudaContext {
+ private:
+  int saved_device_;
+
+ public:
+  template <typename Functor>
+  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
+    // When compiled with CUDA but running on CPU only device,
+    // cudaGetDevice will fail.
+    try {
+      safe_cuda(cudaGetDevice(&saved_device_));
+    } catch (const dmlc::Error &except) {
+      saved_device_ = -1;
+    }
+    func();
+  }
+  ~SaveCudaContext() {
+    if (saved_device_ != -1) {
+      safe_cuda(cudaSetDevice(saved_device_));
+    }
+  }
+};
 
 // if n_devices=-1, then use all visible devices
 inline void SynchronizeNDevices(xgboost::GPUSet devices) {
@@ -129,7 +175,8 @@ inline void CheckComputeCapability() {
   }
 }
 
-DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+DEV_INLINE void AtomicOrByte(xgboost::common::Span<unsigned int> buffer,
+                             size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
@@ -338,8 +385,12 @@ class BulkAllocator {
 
   char *AllocateDevice(int device_idx, size_t bytes) {
     char *ptr;
-    safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaMalloc(&ptr, bytes));
+    SaveCudaContext{
+      [&](){
+        safe_cuda(cudaSetDevice(device_idx));
+        safe_cuda(cudaMalloc(&ptr, bytes));
+      }
+    };
     return ptr;
   }
 
@@ -382,13 +433,17 @@ class BulkAllocator {
   void operator=(BulkAllocator&&) = delete;
 
   ~BulkAllocator() {
-    for (size_t i = 0; i < d_ptr_.size(); i++) {
-      if (!(d_ptr_[i] == nullptr)) {
-        safe_cuda(cudaSetDevice(device_idx_[i]));
-        safe_cuda(cudaFree(d_ptr_[i]));
-        d_ptr_[i] = nullptr;
+    SaveCudaContext {
+      [&]() {
+        for (size_t i = 0; i < d_ptr_.size(); i++) {
+          if (!(d_ptr_[i] == nullptr)) {
+            safe_cuda(cudaSetDevice(device_idx_[i]));
+            safe_cuda(cudaFree(d_ptr_[i]));
+            d_ptr_[i] = nullptr;
+          }
+        }
       }
-    }
+    };
   }
 
   // returns sum of bytes for all allocations
@@ -488,7 +543,8 @@ struct CubMemory {
 // Load balancing search
 
 template <typename CoordinateT, typename SegmentT, typename OffsetT>
-void FindMergePartitions(int device_idx, CoordinateT *d_tile_coordinates,
+void FindMergePartitions(int device_idx,
+                         xgboost::common::Span<CoordinateT> d_tile_coordinates,
                          size_t num_tiles, int tile_size, SegmentT segments,
                          OffsetT num_rows, OffsetT num_elements) {
   dh::LaunchN(device_idx, num_tiles + 1, [=] __device__(int idx) {
@@ -510,7 +566,7 @@ void FindMergePartitions(int device_idx, CoordinateT *d_tile_coordinates,
 template <int TILE_SIZE, int ITEMS_PER_THREAD, int BLOCK_THREADS,
           typename OffsetT, typename CoordinateT, typename FunctionT,
           typename SegmentIterT>
-__global__ void LbsKernel(CoordinateT *d_coordinates,
+__global__ void LbsKernel(xgboost::common::Span<CoordinateT> d_coordinates,
                           SegmentIterT segment_end_offsets, FunctionT f,
                           OffsetT num_segments) {
   int tile = blockIdx.x;
@@ -575,8 +631,8 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(CoordinateT) * (num_tiles + 1));
-  CoordinateT *tmp_tile_coordinates =
-      reinterpret_cast<CoordinateT *>(temp_memory->d_temp_storage);
+  xgboost::common::Span<CoordinateT> tmp_tile_coordinates {
+    temp_memory->GetSpan<CoordinateT>(sizeof(CoordinateT) * (num_tiles + 1))};
 
   FindMergePartitions(device_idx, tmp_tile_coordinates, num_tiles,
                       BLOCK_THREADS, segments, num_segments, count);
@@ -625,12 +681,16 @@ template <typename FunctionT, typename SegmentIterT, typename OffsetT>
 void TransformLbs(int device_idx, dh::CubMemory *temp_memory, OffsetT count,
                   SegmentIterT segments, OffsetT num_segments, bool is_dense,
                   FunctionT f) {
-  if (is_dense) {
-    DenseTransformLbs(device_idx, count, num_segments, f);
-  } else {
-    SparseTransformLbs(device_idx, temp_memory, count, segments, num_segments,
-                       f);
-  }
+  SaveCudaContext {
+    [&]() {
+      if (is_dense) {
+        DenseTransformLbs(device_idx, count, num_segments, f);
+      } else {
+        SparseTransformLbs(device_idx, temp_memory, count, segments, num_segments,
+                           f);
+      }
+    }
+  };
 }
 
 /**
@@ -980,28 +1040,23 @@ class AllReducer {
 #endif
 };
 
-class SaveCudaContext {
- private:
-  int saved_device_;
-
- public:
-  template <typename Functor>
-  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
-    // When compiled with CUDA but running on CPU only device,
-    // cudaGetDevice will fail.
-    try {
-      safe_cuda(cudaGetDevice(&saved_device_));
-    } catch (const dmlc::Error &except) {
-      saved_device_ = -1;
+template <typename FunctionT>
+void ExecutePerDevice(size_t n_devices, FunctionT f) {
+  SaveCudaContext {
+    [&]() {
+      std::vector<std::thread> threads (n_devices);
+      for (long i = 0; i < n_devices; ++i) {
+        std::thread t(std::bind(f, i));
+        threads[i] = std::move(t);
+      }
+      for (auto& t : threads) {
+        if (t.joinable()) {
+          t.join();
+        }
+      }
     }
-    func();
-  }
-  ~SaveCudaContext() {
-    if (saved_device_ != -1) {
-      safe_cuda(cudaSetDevice(saved_device_));
-    }
-  }
-};
+  };
+}
 
 /**
  * \brief Executes some operation on each element of the input vector, using a
@@ -1016,14 +1071,12 @@ class SaveCudaContext {
 
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
-  SaveCudaContext{[&]() {
-    const long shards_size = static_cast<long>(shards->size());
-#pragma omp parallel for schedule(static, 1) if (shards_size > 1)
-    for (long shard = 0; shard < shards_size; ++shard) {
-      f(shard, shards->at(shard));
-    }
-  }};
+  const long shards_size = static_cast<long>(shards->size());
+  ExecutePerDevice(shards_size, [&](int i){
+      f(i, shards->at(i));
+    });
 }
+
 
 /**
  * \brief Executes some operation on each element of the input vector, using a single controlling
@@ -1041,13 +1094,9 @@ void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
 template <typename ReduceT, typename ShardT, typename FunctionT>
 ReduceT ReduceShards(std::vector<ShardT> *shards, FunctionT f) {
   std::vector<ReduceT> sums(shards->size());
-  SaveCudaContext {
-    [&](){
-#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-      for (int shard = 0; shard < shards->size(); ++shard) {
-        sums[shard] = f(shards->at(shard));
-      }}
-  };
+  ExecutePerDevice(shards->size(), [&](long shard) {
+      sums[shard] = f(shards->at(shard));
+  });
   return std::accumulate(sums.begin(), sums.end(), ReduceT());
 }
 

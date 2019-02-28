@@ -135,15 +135,12 @@ class MetricsReduction {
       labels.Reshard(devices);
       weights.Reshard(devices);
       std::vector<PackedReduceResult> res_per_device(devices.Size());
-
-#pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (GPUSet::GpuIdType id = *devices.begin(); id < *devices.end(); ++id) {
-        dh::safe_cuda(cudaSetDevice(id));
-        size_t index = devices.Index(id);
-        res_per_device.at(index) =
-            DeviceReduceMetrics(id, index, weights, labels, preds);
-      }
-
+      dh::ExecutePerDevice(devices.Size(), [&](int index) {
+          GPUSet::GpuIdType device_id = devices.DeviceId(index);
+          dh::safe_cuda(cudaSetDevice(device_id));
+          res_per_device.at(index) =
+              DeviceReduceMetrics(device_id, index, weights, labels, preds);
+        });
       for (size_t i = 0; i < devices.Size(); ++i) {
         result.residue_sum_ += res_per_device[i].residue_sum_;
         result.weights_sum_ += res_per_device[i].weights_sum_;

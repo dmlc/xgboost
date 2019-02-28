@@ -52,12 +52,16 @@ void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
 }
 
 void PlusOne(HostDeviceVector<int> *v) {
-  int n_devices = v->Devices().Size();
-  for (int i = 0; i < n_devices; ++i) {
-    SetDevice(i);
-    thrust::transform(v->tbegin(i), v->tend(i), v->tbegin(i),
-                      [=]__device__(unsigned int a){ return a + 1; });
-  }
+  // Workaround for CUDA-8.x:
+  // error: An extended __device__ lambda must not be defined in a function that
+  // is defined within another function
+  // error: An extended __device__ lambda cannot be defined within a member
+  // function of a class that is unnamed
+  auto op = []__device__(unsigned int a) { return a + 1; };
+  dh::ExecutePerDevice(v->Devices().Size(), [&](int i) {
+      SetDevice(i);
+      thrust::transform(v->tbegin(i), v->tend(i), v->tbegin(i), op);
+    });
 }
 
 void CheckDevice(HostDeviceVector<int> *v,

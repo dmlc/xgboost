@@ -41,10 +41,10 @@ class DeviceShard {
               bst_uint row_begin, bst_uint row_end,
               const LinearTrainParam &param,
               const gbm::GBLinearModelParam &model_param)
-      : device_id_(device_id),
-        ridx_begin_(row_begin),
-        ridx_end_(row_end) {
-    if ( IsEmpty() ) { return; }
+      : device_id_(device_id), ridx_begin_(row_begin), ridx_end_(row_end) {
+    if (IsEmpty()) {
+      return;
+    }
     dh::safe_cuda(cudaSetDevice(device_id_));
     // The begin and end indices for the section of each column associated with
     // this shard
@@ -53,17 +53,13 @@ class DeviceShard {
     // iterate through columns
     for (auto fidx = 0; fidx < batch.Size(); fidx++) {
       common::Span<Entry const> col = batch[fidx];
-      auto cmp = [](Entry e1, Entry e2) {
-        return e1.index < e2.index;
-      };
-      auto column_begin =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(row_begin, 0.0f), cmp);
-      auto column_end =
-          std::lower_bound(col.cbegin(), col.cend(),
-                           xgboost::Entry(row_end, 0.0f), cmp);
-      column_segments.emplace_back(
-          std::make_pair(column_begin - col.cbegin(), column_end - col.cbegin()));
+      auto cmp = [](Entry e1, Entry e2) { return e1.index < e2.index; };
+      auto column_begin = std::lower_bound(
+          col.cbegin(), col.cend(), xgboost::Entry(row_begin, 0.0f), cmp);
+      auto column_end = std::lower_bound(col.cbegin(), col.cend(),
+                                         xgboost::Entry(row_end, 0.0f), cmp);
+      column_segments.emplace_back(std::make_pair(column_begin - col.cbegin(),
+                                                  column_end - col.cbegin()));
       row_ptr_.push_back(row_ptr_.back() + (column_end - column_begin));
     }
     ba_.Allocate(device_id_, &data_, row_ptr_.back(), &gpair_,
@@ -163,7 +159,6 @@ class GPUCoordinateUpdater : public LinearUpdater {
   void LazyInitShards(DMatrix *p_fmat,
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards_.empty()) return;
-
     dist_ = GPUDistribution::Block(GPUSet::All(tparam_.gpu_id, tparam_.n_gpus,
                                                p_fmat->Info().num_row_));
     auto devices = dist_.Devices();

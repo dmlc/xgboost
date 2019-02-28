@@ -1,5 +1,6 @@
 // Copyright by Contributors
 #include <xgboost/linear_updater.h>
+#include "../../../src/common/device_helpers.cuh"
 #include "../helpers.h"
 #include "xgboost/gbm.h"
 
@@ -39,7 +40,6 @@ TEST(Linear, MGPU_GPUCoordinate) {
     model.param.num_output_group = 1;
     model.LazyInitModel();
     updater->Update(&gpair, (*mat).get(), &model, gpair.Size());
-
     ASSERT_EQ(model.bias()[0], 5.0f);
     delete mat;
   }

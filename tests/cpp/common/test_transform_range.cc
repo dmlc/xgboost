@@ -51,8 +51,8 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   out_vec.Fill(0);
 
   Transform<>::Init(TestTransformRange<bst_float>{},
-	                Range{0, static_cast<Range::DifferenceType>(size)},
-	                TRANSFORM_GPU_RANGE)
+                    Range{0, static_cast<Range::DifferenceType>(size)},
+                    TRANSFORM_GPU_RANGE)
       .Eval(&out_vec, &in_vec);
   std::vector<bst_float> res = out_vec.HostVector();
 

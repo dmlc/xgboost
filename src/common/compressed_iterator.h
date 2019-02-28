@@ -103,14 +103,19 @@ class CompressedBufferWriter {
 
 #ifdef __CUDACC__
   __device__ void AtomicWriteSymbol
-    (CompressedByteT* buffer, uint64_t symbol, size_t offset) {
+  (xgboost::common::Span<CompressedByteT> buffer, uint64_t symbol, size_t offset) {
     size_t ibit_start = offset * symbol_bits_;
     size_t ibit_end = (offset + 1) * symbol_bits_ - 1;
     size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
 
     symbol <<= 7 - ibit_end % 8;
+    auto subspan_tmp = buffer.subspan(detail::kPadding);
+    xgboost::common::Span<unsigned int> subspan {
+      reinterpret_cast<unsigned int*>(subspan_tmp.data()),
+      subspan_tmp.size()
+    };
     for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
-      dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
+      dh::AtomicOrByte(subspan,
                        ibyte, symbol & 0xff);
       symbol >>= 8;
     }

@@ -1,18 +1,20 @@
-#include "../../../src/common/compressed_iterator.h"
-#include "../../../src/common/device_helpers.cuh"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include <algorithm>
 #include <thrust/device_vector.h>
+
+#include "../../../src/common/compressed_iterator.h"
+#include "../../../src/common/device_helpers.cuh"
+
 
 namespace xgboost {
 namespace common {
 
 struct WriteSymbolFunction {
   CompressedBufferWriter cbw;
-  unsigned char* buffer_data_d;
-  int* input_data_d;
-  WriteSymbolFunction(CompressedBufferWriter cbw, unsigned char* buffer_data_d,
-                      int* input_data_d)
+  Span<unsigned char> buffer_data_d;
+  Span<int> input_data_d;
+  WriteSymbolFunction(CompressedBufferWriter cbw, Span<unsigned char> buffer_data_d,
+                      Span<int> input_data_d)
     : cbw(cbw), buffer_data_d(buffer_data_d), input_data_d(input_data_d) {}
 
   __device__ void operator()(size_t i) {
@@ -33,7 +35,7 @@ struct ReadSymbolFunction {
 
 TEST(CompressedIterator, TestGPU) {
   dh::safe_cuda(cudaSetDevice(0));
-  std::vector<int> test_cases = {1, 3, 426, 21, 64, 256, 100000, INT32_MAX};
+  std::vector<int> test_cases = {1, 3, 426, 21, 64, 256, 100000};
   int num_elements = 1000;
   int repetitions = 1000;
   srand(9);
@@ -51,10 +53,10 @@ TEST(CompressedIterator, TestGPU) {
           alphabet_size));
 
       // write the data on device
-      auto input_data_d = input_d.data().get();
-      auto buffer_data_d = buffer_d.data().get();
+      auto input_data_d = dh::ToSpan(input_d);
+      auto buffer_data_d = dh::ToSpan(buffer_d);
       dh::LaunchN(0, input_d.size(),
-                        WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
+                  WriteSymbolFunction(cbw, buffer_data_d, input_data_d));
 
       // read the data on device
       CompressedIterator<int> ci(buffer_d.data().get(), alphabet_size);
