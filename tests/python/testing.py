@@ -1,5 +1,5 @@
 # coding: utf-8
-from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
+from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED, CUDF_INSTALLED
 
 
 def no_sklearn():
@@ -15,6 +15,11 @@ def no_pandas():
 def no_dt():
     return {'condition': not DT_INSTALLED,
             'reason': 'Datatable is not installed.'}
+
+
+def no_cudf():
+    return {'condition': not CUDF_INSTALLED,
+            'reason': 'cudf is not installed.'}
 
 
 def no_matplotlib():

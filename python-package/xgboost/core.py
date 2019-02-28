@@ -19,7 +19,7 @@ import warnings
 import numpy as np
 import scipy.sparse
 
-from .compat import (STRING_TYPES, PY3, DataFrame, CUDF, CUDF_COL, CUDF_FFI, MultiIndex, py_str,
+from .compat import (STRING_TYPES, PY3, DataFrame, CudfDataFrame, CudfColumn, MultiIndex, py_str,
                      PANDAS_INSTALLED, DataTable)
 from .libpath import find_lib_path
 
@@ -273,6 +273,7 @@ def _maybe_pandas_label(label):
 
     return label
 
+
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
@@ -398,7 +399,7 @@ class DMatrix(object):
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(self.handle)))
-        elif isinstance(data, CUDF):
+        elif isinstance(data, CudfDataFrame):
             self._init_from_cudf(data)
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
@@ -419,14 +420,14 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
-            elif isinstance(label, (CUDF, CUDF_COL)):
-                self.set_cudf_info('label', label)
+            elif isinstance(label, (CudfDataFrame, CudfColumn)):
+                self._set_cudf_info('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
-            elif isinstance(weight, (CUDF, CUDF_COL)):
+            elif isinstance(weight, (CudfDataFrame, CudfColumn)):
                 self.set_cudf_info('weight', weight)
             else:
                 self.set_weight(weight)
@@ -434,18 +435,31 @@ class DMatrix(object):
         self.feature_names = feature_names
         self.feature_types = feature_types
 
+    def _set_cudf_info(self, field, data):
+        """
+        Initialize info field from a GPU data frame or column.
+        """
+        if isinstance(data, CudfDataFrame):
+            col_ptrs = data.to_interchange()
+        else:
+            # data is a single CUDF column
+            col_ptrs = ctypes.c_void_p * 1
+            col_ptrs[0] = data.to_interchange()
+        _check_call(_LIB.XGDMatrixSetCUDFInfo
+                    (self.handle, c_str(field),
+                     col_ptrs,
+                     ctypes.c_size_t(len(col_ptrs))))
+
     def _init_from_cudf(self, df):
         """
         Initialize data from a GPU data frame.
         """
         self.handle = ctypes.c_void_p()
-        col_ptrs = [df[col]._column.cffi_view for col in df.columns]
-        col_ptr_arr = CUDF_FFI.new('gdf_column*[]', col_ptrs)
         _check_call(_LIB.XGDMatrixCreateFromCUDF
-                    (ctypes.c_void_p(int(CUDF_FFI.cast('uintptr_t', col_ptr_arr))),
+                    (df.to_interchange(),
                      ctypes.c_size_t(len(df.columns)),
                      ctypes.byref(self.handle)))
-        
+
     def _init_from_csr(self, csr):
         """
         Initialize data from a CSR matrix.
@@ -606,6 +620,8 @@ class DMatrix(object):
            and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
             self.set_float_info_npy2d(field, data)
             return
+        elif isinstance(data, (CudfDataFrame, CudfColumn)):
+            self._set_cudf_info(field, data)
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -637,19 +653,6 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
-
-    def set_cudf_info(self, field, data):
-        col_ptrs = []
-        if isinstance(data, CUDF):
-            col_ptrs = [data[col]._column.cffi_view for col in data.columns]
-        else:
-            # data is a single CUDF column
-            col_ptrs = [data.cffi_view]
-        col_ptr_arr = CUDF_FFI.new('gdf_column*[]', col_ptrs)
-        _check_call(_LIB.XGDMatrixSetCUDFInfo
-                    (self.handle, c_str(field),
-                     ctypes.c_void_p(int(CUDF_FFI.cast('uintptr_t', col_ptr_arr))),
-                     ctypes.c_size_t(len(col_ptrs))))
 
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.

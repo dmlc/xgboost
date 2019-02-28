@@ -49,27 +49,18 @@ except ImportError:
 
 # cudf
 try:
-    from cudf.dataframe import DataFrame as CUDF
-    from cudf.dataframe.column import Column as CUDF_COL
-    from libgdf_cffi import ffi as CUDF_FFI
+    from cudf.dataframe import DataFrame as CudfDataFrame
+    from cudf.dataframe.column import Column as CudfColumn
     CUDF_INSTALLED = True
 except ImportError:
 
-    class CUDF(object):
+    class CudfDataFrame(object):
         """ dummy object for cudf.dataframe.DataFrame """
         pass
 
-    class CUDF_COL(object):
+    class CudfColumn(object):
         """ dummy object for cudf.dataframe.column.Column """
         pass
-
-    class CUDF_FFI(object):
-        """ dummy object for libgdf_cffi.ffi ... FFI bindings to cudf """
-        def new(self, *args, **kwargs):
-            pass
-
-        def cast(self, *args, **kwargs):
-            pass
 
     CUDF_INSTALLED = False
 
