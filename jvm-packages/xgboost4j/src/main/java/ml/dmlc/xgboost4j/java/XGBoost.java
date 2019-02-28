@@ -209,12 +209,13 @@ public class XGBoost {
         // to determinate early stop.
         float score = metricsOut[metricsOut.length - 1];
         if (isMaximizeEvaluation(params)) {
-          if (score >= bestScore) {
+          // Update best score if the current score is better (no update when equal)
+          if (score > bestScore) {
             bestScore = score;
             bestIteration = iter;
           }
         } else {
-          if (score <= bestScore) {
+          if (score < bestScore) {
             bestScore = score;
             bestIteration = iter;
           }
