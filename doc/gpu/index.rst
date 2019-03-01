@@ -208,6 +208,7 @@ Many thanks to the following contributors (alphabetical order):
 * Andrey Adinets
 * Jiaming Yuan
 * Jonathan C. McKinney
+* Matthew Jones
 * Philip Cho
 * Rory Mitchell
 * Shankara Rao Thejaswi Nanditale

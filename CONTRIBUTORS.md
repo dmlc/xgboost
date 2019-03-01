@@ -85,5 +85,6 @@ List of Contributors
 * [Andrew Thia](https://github.com/BlueTea88)
   - Andrew Thia implemented feature interaction constraints
 * [Wei Tian](https://github.com/weitian)
-* [Chen Qin] (https://github.com/chenqin)
+* [Chen Qin](https://github.com/chenqin)
 * [Sam Wilkinson](https://samwilkinson.io)
+* [Matthew Jones](https://github.com/mt-jones)
