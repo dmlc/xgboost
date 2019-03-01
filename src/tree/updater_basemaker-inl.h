@@ -49,6 +49,7 @@ class BaseMaker: public TreeUpdater {
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
           auto c = batch[fid];
           if (c.size() != 0) {
+            CHECK_LT(fid * 2, fminmax_.size());
             fminmax_[fid * 2 + 0] =
                 std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
             fminmax_[fid * 2 + 1] =

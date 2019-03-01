@@ -23,7 +23,7 @@ namespace common {
  * \tparam ValueType type of entries in the sparse matrix
  * \tparam SizeType type of the index range holder
  */
-template<typename ValueType, typename SizeType = size_t>
+template<typename ValueType, typename SizeType = std::size_t>
 struct ParallelGroupBuilder {
  public:
   // parallel group builder of data
@@ -44,9 +44,9 @@ struct ParallelGroupBuilder {
    * \param nkeys number of keys in the matrix, can be smaller than expected
    * \param nthread number of thread that will be used in construction
    */
-  inline void InitBudget(size_t nkeys, int nthread) {
+  inline void InitBudget(std::size_t nkeys, int nthread) {
     thread_rptr_.resize(nthread);
-    for (size_t i = 0;  i < thread_rptr_.size(); ++i) {
+    for (std::size_t i = 0;  i < thread_rptr_.size(); ++i) {
       thread_rptr_[i].resize(nkeys);
       std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
     }
@@ -57,7 +57,7 @@ struct ParallelGroupBuilder {
    * \param threadid the id of thread that calls this function
    * \param nelem number of element budget add to this row
    */
-  inline void AddBudget(size_t key, int threadid, SizeType nelem = 1) {
+  inline void AddBudget(std::size_t key, int threadid, SizeType nelem = 1) {
     std::vector<SizeType> &trptr = thread_rptr_[threadid];
     if (trptr.size() < key + 1) {
       trptr.resize(key + 1, 0);
@@ -67,23 +67,23 @@ struct ParallelGroupBuilder {
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
     // set rptr to correct size
-    for (size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+    for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
       if (rptr_.size() <= thread_rptr_[tid].size()) {
-        rptr_.resize(thread_rptr_[tid].size() + 1);
+        rptr_.resize(thread_rptr_[tid].size() + 1);  // key + 1
       }
     }
     // initialize rptr to be beginning of each segment
-    size_t start = 0;
-    for (size_t i = 0; i + 1 < rptr_.size(); ++i) {
-      for (size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+    std::size_t start = 0;
+    for (std::size_t i = 0; i + 1 < rptr_.size(); ++i) {
+      for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
         std::vector<SizeType> &trptr = thread_rptr_[tid];
-        if (i < trptr.size()) {
-          size_t ncnt = trptr[i];
+        if (i < trptr.size()) {         // i^th row is assigned for this thread
+          std::size_t ncnt = trptr[i];  // how many entries in this row
           trptr[i] = start;
           start += ncnt;
         }
       }
-      rptr_[i + 1] = start;
+      rptr_[i + 1] = start;  // pointer accumulated from all thread
     }
     data_.resize(start);
   }
@@ -95,7 +95,7 @@ struct ParallelGroupBuilder {
    * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
-  inline void Push(size_t key, ValueType value, int threadid) {
+  void Push(std::size_t key, ValueType value, int threadid) {
     SizeType &rp = thread_rptr_[threadid][key];
     data_[rp++] = value;
   }
