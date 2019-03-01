@@ -126,7 +126,7 @@ bool SparsePageSource::CacheExist(const std::string& cache_info,
 }
 
 void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
-                              const std::string& cache_info) {
+                                     const std::string& cache_info) {
   const std::string page_type = ".row.page";
   std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
@@ -216,7 +216,8 @@ void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
     CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
     info.SaveBinary(fo.get());
   }
-  LOG(CONSOLE) << "SparsePageSource: Finished writing to " << name_info;
+  LOG(CONSOLE) << "SparsePageSource::CreateRowPage Finished writing to "
+             << name_info;
 }
 
 void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
@@ -246,9 +247,9 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
       } else if (page_type == ".col.page") {
         page->Push(batch.GetTranspose(src->Info().num_col_));
       } else if (page_type == ".sorted.col.page") {
-        auto tmp = batch.GetTranspose(src->Info().num_col_);
-        tmp.SortRows();
-        page->Push(tmp);
+        SparsePage tmp = batch.GetTranspose(src->Info().num_col_);
+        page->PushCSC(tmp);
+        page->SortRows();
       } else {
         LOG(FATAL) << "Unknown page type: " << page_type;
       }
