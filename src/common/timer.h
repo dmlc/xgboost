@@ -63,7 +63,7 @@ struct Monitor {
     for (auto &kv : statistics_map) {
       if (kv.second.count == 0) {
         LOG(WARNING) <<
-            "Timer for " << kv.first << " did not get stoped properly.";
+            "Timer for " << kv.first << " did not get stopped properly.";
         continue;
       }
       LOG(CONSOLE) << kv.first << ": " << kv.second.timer.ElapsedSeconds()

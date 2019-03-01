@@ -34,7 +34,7 @@ TEST(SparsePage, PushCSC) {
   page.PushCSC(other);
   ASSERT_EQ(page.offset.HostVector().size(), offset.size());
   ASSERT_EQ(page.data.Size(), data.size() * 2);
-  std::vector<size_t> offset_sol {0, 2, 8};
+
   for (size_t i = 0; i < offset.size(); ++i) {
     ASSERT_EQ(page.offset.HostVector()[i], offset[i] * 2);
   }
