@@ -57,7 +57,7 @@ and then refer to the snapshot dependency by adding:
 
   <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j</artifactId>
+      <artifactId>xgboost4j-spark</artifactId>
       <version>next_version_num-SNAPSHOT</version>
   </dependency>
 
