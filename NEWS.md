@@ -3,6 +3,165 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.82 (2019.03.03)
+This release is packed with many new features and bug fixes.
+
+### Roadmap: better performance scaling for multi-core CPUs (#3957)
+* Poor performance scaling of the `hist` algorithm for multi-core CPUs has been under investigation (#3810). #3957 marks an important step toward better performance scaling, by using software pre-fetching and replacing STL vectors with C-style arrays. Special thanks to @Laurae2 and @SmirnovEgorRu.
+* See #3810 for latest progress on this roadmap.
+
+### New feature: Distributed Fast Histogram Algorithm (`hist`) (#4011, #4102, #4140, #4128)
+* It is now possible to run the `hist` algorithm in distributed setting. Special thanks to @CodingCat. The benefits include:
+  1. Faster local computation via feature binning
+  2. Support for monotonic constraints and feature interaction constraints
+  3. Simpler codebase than `approx`, allowing for future improvement
+* Depth-wise tree growing is now performed in a separate code path, so that cross-node syncronization is performed only once per level.
+
+### New feature: Multi-Node, Multi-GPU training (#4095)
+* Distributed training is now able to utilize clusters equipped with NVIDIA GPUs. In particular, the rabit AllReduce layer will communicate GPU device information. Special thanks to @mt-jones, @RAMitchell, @rongou, @trivialfis, @canonizer, and @jeffdk.
+* Resource management systems will be able to assign a rank for each GPU in the cluster.
+* In Dask, users will be able to construct a collection of XGBoost processes over an inhomogeneous device cluster (i.e. workers with different number and/or kinds of GPUs).
+
+### New feature: Multiple validation datasets in XGBoost4J-Spark (#3904, #3910)
+* You can now track the performance of the model during training with multiple evaluation datasets. By specifying `eval_sets` or call `setEvalSets` over a `XGBoostClassifier` or `XGBoostRegressor`, you can pass in multiple evaluation datasets typed as a `Map` from `String` to `DataFrame`. Special thanks to @CodingCat.
+* See the usage of multiple validation datasets [here](https://github.com/dmlc/xgboost/blob/0c1d5f1120c0a159f2567b267f0ec4ffadee00d0/jvm-packages/xgboost4j-example/src/main/scala/ml/dmlc/xgboost4j/scala/example/spark/SparkTraining.scala#L66-L78)
+
+### New feature: Additional metric functions for GPUs (#3952)
+* Element-wise metrics have been ported to GPU: `rmse`, `mae`, `logloss`, `poisson-nloglik`, `gamma-deviance`, `gamma-nloglik`, `error`, `tweedie-nloglik`. Special thanks to @trivialfis and @RAMitchell.
+* With supported metrics, XGBoost will select the correct devices based on your system and `n_gpus` parameter.
+
+### New feature: Column sampling at individual nodes (splits) (#3971)
+* Columns (features) can now be sampled at individual tree nodes, in addition to per-tree and per-level sampling. To enable per-node sampling, set `colsample_bynode` parameter, which represents the fraction of columns sampled at each node. This parameter is set to 1.0 by default (i.e. no sampling per node). Special thanks to @canonizer.
+* The `colsample_bynode` parameter works cumulatively with other `colsample_by*` parameters: for example, `{'colsample_bynode':0.5, 'colsample_bytree':0.5}` with 100 columns will give 25 features to choose from at each split.
+
+### Major API change: consistent logging level via `verbosity` (#3982, #4002, #4138)
+* XGBoost now allows fine-grained control over logging. You can set `verbosity` to 0 (silent), 1 (warning), 2 (info), and 3 (debug). This is useful for controlling the amount of logging outputs. Special thanks to @trivialfis.
+* Parameters `silent` and `debug_verbose` are now deprecated.
+* Note: Sometimes XGBoost tries to change configurations based on heuristics, which is displayed as warning message.  If there's unexpected behaviour, please try to increase value of verbosity.
+
+### Major bug fix: external memory (#4040, #4193)
+* Clarify object ownership in multi-threaded prefetcher, to avoid memory error.
+* Correctly merge two column batches (which uses [CSC layout](https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS))).
+* Add unit tests for external memory.
+* Special thanks to @trivialfis and @hcho3.
+
+### Major bug fix: early stopping fixed in XGBoost4J and XGBoost4J-Spark (#3928, #4176)
+* Early stopping in XGBoost4J and XGBoost4J-Spark is now consistent with its counterpart in the Python package. Training stops if the current iteration is `earlyStoppingSteps` away from the best iteration. If there are multiple evaluation sets, only the last one is used to determinate early stop.
+* See the updated documentation [here](https://xgboost.readthedocs.io/en/release_0.82/jvm/xgboost4j_spark_tutorial.html#early-stopping)
+* Special thanks to @CodingCat, @yanboliang, and @mingyang.
+
+### Major bug fix: infrequent features should not crash distributed training (#4045)
+* For infrequently occuring features, some partitions may not get any instance. This scenario used to crash distributed training due to mal-formed ranges. The problem has now been fixed.
+* In practice, one-hot-encoded categorical variables tend to produce rare features, particularly when the cardinality is high.
+* Special thanks to @CodingCat.
+
+### Performance improvements
+* Faster, more space-efficient radix sorting in `gpu_hist` (#3895)
+* Subtraction trick in histogram calculation in `gpu_hist` (#3945)
+* More performant re-partition in XGBoost4J-Spark (#4049)
+
+### Bug-fixes
+* Fix semantics of `gpu_id` when running multiple XGBoost processes on a multi-GPU machine (#3851)
+* Fix page storage path for external memory on Windows (#3869)
+* Fix configuration setup so that DART utilizes GPU (#4024)
+* Eliminate NAN values from SHAP prediction (#3943)
+* Prevent empty quantile sketches in `hist` (#4155)
+* Enable running objectives with 0 GPU (#3878)
+* Parameters are no longer dependent on system locale (#3891, #3907)
+* Use consistent data type in the GPU coordinate descent code (#3917)
+* Remove undefined behavior in the CLI config parser on the ARM platform (#3976)
+* Initialize counters in GPU AllReduce (#3987)
+* Prevent deadlocks in GPU AllReduce (#4113)
+* Load correct values from sliced NumPy arrays (#4147, #4165)
+* Fix incorrect GPU device selection (#4161)
+* Make feature binning logic in `hist` aware of query groups when running a ranking task (#4115). For ranking task, query groups are weighted, not individual instances.
+* Generate correct C++ exception type for `LOG(FATAL)` macro (#4159)
+* Python package
+  - Python package should run on system without `PATH` environment variable (#3845)
+  - Fix `coef_` and `intercept_` signature to be compatible with `sklearn.RFECV` (#3873)
+  - Use UTF-8 encoding in Python package README, to support non-English locale (#3867)
+  - Add AUC-PR to list of metrics to maximize for early stopping (#3936)
+  - Allow loading pickles without `self.booster` attribute, for backward compatibility (#3938, #3944)
+  - White-list DART for feature importances (#4073)
+  - Update usage of [h2oai/datatable](https://github.com/h2oai/datatable) (#4123)
+* XGBoost4J-Spark
+  - Address scalability issue in prediction (#4033)
+  - Enforce the use of per-group weights for ranking task (#4118)
+  - Fix vector size of `rawPredictionCol` in `XGBoostClassificationModel` (#3932)
+  - More robust error handling in Spark tracker (#4046, #4108)
+  - Fix return type of `setEvalSets` (#4105)
+  - Return correct value of `getMaxLeaves` (#4114)
+
+### API changes
+* Add experimental parameter `single_precision_histogram` to use single-precision histograms for the `gpu_hist` algorithm (#3965)
+* Python package
+  - Add option to select type of feature importances in the scikit-learn inferface (#3876)
+  - Add `trees_to_df()` method to dump decision trees as Pandas data frame (#4153)
+  - Add options to control node shapes in the GraphViz plotting function (#3859)
+  - Add `xgb_model` option to `XGBClassifier`, to load previously saved model (#4092)
+  - Passing lists into `DMatrix` is now deprecated (#3970)
+* XGBoost4J
+  - Support multiple feature importance features (#3801)
+
+### Maintenance: Refactor C++ code for legibility and maintainability
+* Refactor `hist` algorithm code and add unit tests (#3836)
+* Minor refactoring of split evaluator in `gpu_hist` (#3889)
+* Removed unused leaf vector field in the tree model (#3989)
+* Simplify the tree representation by combining `TreeModel` and `RegTree` classes (#3995)
+* Simplify and harden tree expansion code (#4008, #4015)
+* De-duplicate parameter classes in the linear model algorithms (#4013)
+* Robust handling of ranges with C++20 span in `gpu_exact` and `gpu_coord_descent` (#4020, #4029)
+* Simplify tree training code (#3825). Also use Span class for robust handling of ranges.
+
+### Maintenance: testing, continuous integration, build system
+* Disallow `std::regex` since it's not supported by GCC 4.8.x (#3870)
+* Add multi-GPU tests for coordinate descent algorithm for linear models (#3893, #3974)
+* Enforce naming style in Python lint (#3896)
+* Refactor Python tests (#3897, #3901): Use pytest exclusively, display full trace upon failure
+* Address `DeprecationWarning` when using Python collections (#3909)
+* Use correct group for maven site plugin (#3937)
+* Jenkins CI is now using on-demand EC2 instances exclusively, due to unreliability of Spot instances (#3948)
+* Better GPU performance logging (#3945)
+* Fix GPU tests on machines with only 1 GPU (#4053)
+* Eliminate CRAN check warnings and notes (#3988)
+* Add unit tests for tree serialization (#3989)
+* Add unit tests for tree fitting functions in `hist` (#4155)
+* Add a unit test for `gpu_exact` algorithm (#4020)
+* Correct JVM CMake GPU flag (#4071)
+* Fix failing Travis CI on Mac (#4086)
+* Speed up Jenkins by not compiling CMake (#4099)
+* Analyze C++ and CUDA code using clang-tidy, as part of Jenkins CI pipeline (#4034)
+* Fix broken R test: Install Homebrew GCC (#4142)
+* Check for empty datasets in GPU unit tests (#4151)
+* Fix Windows compilation (#4139)
+* Comply with latest convention of cpplint (#4157)
+* Fix a unit test in `gpu_hist` (#4158)
+* Speed up data generation in Python tests (#4164)
+
+### Usability Improvements
+* Add link to [InfoWorld 2019 Technology of the Year Award](https://www.infoworld.com/article/3336072/application-development/infoworlds-2019-technology-of-the-year-award-winners.html) (#4116)
+* Remove outdated AWS YARN tutorial (#3885)
+* Document current limitation in number of features (#3886)
+* Remove unnecessary warning when `gblinear` is selected (#3888)
+* Document limitation of CSV parser: header not supported (#3934)
+* Log training parameters in XGBoost4J-Spark (#4091)
+* Clarify early stopping behavior in the scikit-learn interface (#3967)
+* Clarify behavior of `max_depth` parameter (#4078)
+* Revise Python docstrings for ranking task (#4121). In particular, weights must be per-group in learning-to-rank setting.
+* Document parameter `num_parallel_tree` (#4022)
+* Add Jenkins status badge (#4090)
+* Warn users against using internal functions of `Booster` object (#4066)
+* Reformat `benchmark_tree.py` to comply with Python style convention (#4126)
+* Clarify a comment in `objectiveTrait` (#4174)
+* Fix typos and broken links in documentation (#3890, #3872, #3902, #3919, #3975, #4027, #4156, #4167)
+
+### Acknowledgement
+**Contributors** (in no particular order): Jiaming Yuan (@trivialfis), Hyunsu Cho (@hcho3), Nan Zhu (@CodingCat), Rory Mitchell (@RAMitchell), Yanbo Liang (@yanboliang), Andy Adinets (@canonizer), Tong He (@hetong007), Yuan Tang (@terrytangyuan)
+
+**First-time Contributors** (in no particular order): Jelle Zijlstra (@JelleZijlstra), Jiacheng Xu (@jiachengxu), @ajing, Kashif Rasul (@kashif), @theycallhimavi, Joey Gao (@pjgao), Prabakaran Kumaresshan (@nixphix), Huafeng Wang (@huafengw), @lyxthe, Sam Wilkinson (@scwilkinson), Tatsuhito Kato (@stabacov), Shayak Banerjee (@shayakbanerjee), Kodi Arfer (@Kodiologist), @KyleLi1985, Egor Smirnov (@SmirnovEgorRu), @tmitanitky, Pasha Stetsenko (@st-pasha), Kenichi Nagahara (@keni-chi), Abhai Kollara Dilip (@abhaikollara), Patrick Ford (@pford221), @hshujuan, Matthew Jones (@mt-jones), Thejaswi Rao (@teju85), Adam November (@anovember)
+
+**First-time Reviewers** (in no particular order): Mingyang Hu (@mingyang), Theodore Vasiloudis (@thvasilo), Jakub Troszok (@troszok), Rong Ou (@rongou), @Denisevi4, Matthew Jones (@mt-jones), Jeff Kaplan (@jeffdk)
+
 ## v0.81 (2018.11.04)
 ### New feature: feature interaction constraints
 * Users are now able to control which features (independent variables) are allowed to interact by specifying feature interaction constraints (#3466).
@@ -179,7 +338,7 @@ This file records the changes in xgboost library in reverse chronological order.
   - Latest master: https://xgboost.readthedocs.io/en/latest
   - 0.80 stable: https://xgboost.readthedocs.io/en/release_0.80
   - 0.72 stable: https://xgboost.readthedocs.io/en/release_0.72
-* Ranking task now uses instance weights (#3379)
+* Support for per-group weights in ranking objective (#3379)
 * Fix inaccurate decimal parsing (#3546)
 * New functionality
   - Query ID column support in LIBSVM data files (#2749). This is convenient for performing ranking task in distributed setting.
