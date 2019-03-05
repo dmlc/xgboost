@@ -289,8 +289,9 @@ struct DeviceHistogram {
 
   void Reset() {
     dh::safe_cuda(cudaSetDevice(device_id_));
-    dh::safe_cuda(cudaMemsetAsync(data.data().get(), 0,
-                                  data.size() * sizeof(decltype(data)::value_type)));
+    dh::safe_cuda(cudaMemsetAsync(
+        data.data().get(), 0,
+        data.size() * sizeof(typename decltype(data)::value_type)));
     nidx_map.clear();
   }
 

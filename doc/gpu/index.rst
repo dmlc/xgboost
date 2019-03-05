@@ -197,7 +197,7 @@ See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgbo
 
 Developer notes
 ==========
-The application may be profiled with annotations by specifying INSTRUMENT_CUDA to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
+The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
 
 **********
 References

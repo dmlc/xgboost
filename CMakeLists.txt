@@ -10,7 +10,7 @@ msvc_use_static_runtime()
 # Options
 ## GPUs
 option(USE_CUDA  "Build with GPU acceleration" OFF)
-option(INSTRUMENT_CUDA  "Build with cuda profiling annotations. Developers only." OFF)
+option(USE_NVTX  "Build with cuda profiling annotations. Developers only." OFF)
 option(USE_NCCL  "Build with multiple GPUs support" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
@@ -178,9 +178,9 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
-  if(INSTRUMENT_CUDA)
+  if(USE_NVTX)
     cuda_include_directories("${NVTX_HEADER_DIR}")
-    add_definitions(-DXGBOOST_INSTRUMENT_CUDA)
+    add_definitions(-DXGBOOST_USE_NVTX)
   endif()
 
   set(GENCODE_FLAGS "")

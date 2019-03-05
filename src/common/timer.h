@@ -8,7 +8,7 @@
 #include <map>
 #include <string>
 
-#if defined(XGBOOST_INSTRUMENT_CUDA) && defined(__CUDACC__)
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
 #include <nvToolsExt.h>
 #endif
 
@@ -96,7 +96,7 @@ struct Monitor {
     if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
       auto &stats = statistics_map[name];
       stats.timer.Start();
-#if defined(XGBOOST_INSTRUMENT_CUDA) && defined(__CUDACC__)
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
       stats.nvtx_id = nvtxRangeStartA(name.c_str());
 #endif
     }
@@ -106,7 +106,7 @@ struct Monitor {
       auto &stats = statistics_map[name];
       stats.timer.Stop();
       stats.count++;
-#if defined(XGBOOST_INSTRUMENT_CUDA) && defined(__CUDACC__)
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
       nvtxRangeEnd(stats.nvtx_id);
 #endif
     }
