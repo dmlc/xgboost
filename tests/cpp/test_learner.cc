@@ -3,6 +3,7 @@
 #include <vector>
 #include "helpers.h"
 #include "xgboost/learner.h"
+#include "dmlc/filesystem.h"
 
 namespace xgboost {
 
@@ -90,6 +91,28 @@ TEST(Learner, CheckGroup) {
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat.get()));
 
   delete pp_mat;
+}
+
+TEST(Learner, SLOW_CheckMultiBatch) {
+  using Arg = std::pair<std::string, std::string>;
+  // Create sufficiently large data to make two row pages
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/big.libsvm";
+  CreateBigTestData(tmp_file, 5000000);
+  std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load( tmp_file + "#" + tmp_file + ".cache", true, false));
+  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+  EXPECT_FALSE(dmat->SingleColBlock());
+  size_t num_row = dmat->Info().num_row_;
+  std::vector<bst_float> labels(num_row);
+  for (size_t i = 0; i < num_row; ++i) {
+    labels[i] = i % 2;
+  }
+  dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
+  std::vector<std::shared_ptr<DMatrix>> mat{dmat};
+  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+  learner->Configure({Arg{"objective", "binary:logistic"}});
+  learner->InitModel();
+  learner->UpdateOneIter(0, dmat.get());
 }
 
 }  // namespace xgboost
