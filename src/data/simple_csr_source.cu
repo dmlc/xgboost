@@ -32,7 +32,7 @@ void RunConverter(gdf_column** gdf_data, CsrCudf* csr);
 //--- private CUDA functions / kernels
 __global__ void cuda_create_csr_k
 (void *cudf_data, gdf_valid_type* valid, gdf_dtype dtype, int col, Entry* data,
- gdf_size_type *offsets, size_t n_rows);
+ size_t *offsets, size_t n_rows);
 
 __global__ void determine_valid_rec_count_k
 (gdf_valid_type* valid, size_t n_rows, size_t n_cols, size_t* offset);
@@ -130,7 +130,7 @@ __global__ void cuda_create_csr_k
 
 // compute the number of valid entries per row
 __global__ void determine_valid_rec_count_k
-(gdf_valid_type *valid, size_t n_rows, size_t n_cols, gdf_size_type* offset) {
+(gdf_valid_type *valid, size_t n_rows, size_t n_cols, size_t *offset) {
 
   int tid = threadIdx.x + blockDim.x * blockIdx.x;
   if (tid >= n_rows)
