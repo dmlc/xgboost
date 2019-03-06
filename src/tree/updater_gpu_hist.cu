@@ -628,10 +628,12 @@ struct DeviceShard {
     dh::safe_cuda(cudaMemcpy(split_candidates.data(), d_split_candidates.data(),
                              split_candidates.size() * sizeof(DeviceSplitCandidate),
                              cudaMemcpyDeviceToHost));
+
     DeviceSplitCandidate best_split;
     for (auto candidate : split_candidates) {
       best_split.Update(candidate, param);
     }
+
     return best_split;
   }
 
@@ -1049,7 +1051,8 @@ class GPUHistMakerSpecialised{
   }
 
   void AllReduceHist(int nidx) {
-    if (shards_.size() == 1) return;
+    if (shards_.size() == 1 && !rabit::IsDistributed())
+      return;
     monitor_.Start("AllReduce");
 
     reducer_.GroupStart();
@@ -1079,6 +1082,9 @@ class GPUHistMakerSpecialised{
       right_node_max_elements = (std::max)(
         right_node_max_elements, shard->ridx_segments[nidx_right].Size());
     }
+
+    rabit::Allreduce<rabit::op::Max, size_t>(&left_node_max_elements, 1);
+    rabit::Allreduce<rabit::op::Max, size_t>(&right_node_max_elements, 1);
 
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
@@ -1142,8 +1148,11 @@ class GPUHistMakerSpecialised{
           tmp_sums[i] = dh::SumReduction(
               shard->temp_memory, shard->gpair.Data(), shard->gpair.Size());
         });
+
     GradientPair sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), GradientPair());
+
+    rabit::Allreduce<rabit::op::Sum>((GradientPair::ValueT*)&sum_gradient, 2);
 
     // Generate root histogram
     dh::ExecuteIndexShards(

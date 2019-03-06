@@ -57,7 +57,7 @@ and then refer to the snapshot dependency by adding:
 
   <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j</artifactId>
+      <artifactId>xgboost4j-spark</artifactId>
       <version>next_version_num-SNAPSHOT</version>
   </dependency>
 
@@ -194,11 +194,11 @@ After we set XGBoostClassifier parameters and feature/label column, we can build
 Early Stopping
 ----------------
 
-Early stopping is a feature to prevent the unnecessary training iterations. By specifying ``num_early_stopping_rounds`` or directly call ``setNumEarlyStoppingRounds`` over a XGBoostClassifier or XGBoostRegressor, we can define number of rounds for the evaluation metric going to the unexpected direction to tolerate before stopping the training.
+Early stopping is a feature to prevent the unnecessary training iterations. By specifying ``num_early_stopping_rounds`` or directly call ``setNumEarlyStoppingRounds`` over a XGBoostClassifier or XGBoostRegressor, we can define number of rounds if the evaluation metric going away from the best iteration and early stop training iterations.
 
 In additional to ``num_early_stopping_rounds``, you also need to define ``maximize_evaluation_metrics`` or call ``setMaximizeEvaluationMetrics`` to specify whether you want to maximize or minimize the metrics in training.
 
-After specifying these two parameters, the training would stop when the metrics goes to the other direction against the one specified by ``maximize_evaluation_metrics`` for ``num_early_stopping_rounds`` iterations.
+For example, we need to maximize the evaluation metrics (set ``maximize_evaluation_metrics`` with true), and set ``num_early_stopping_rounds`` with 5. The evaluation metric of 10th iteration is the maximum one until now. In the following iterations, if there is no evaluation metric greater than the 10th iteration's (best one), the traning would be early stopped at 15th iteration.  
 
 Training with Evaluation Sets
 ----------------
