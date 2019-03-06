@@ -125,6 +125,18 @@ struct DeviceSplitCandidate {
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 };
 
+struct DeviceSplitCandidateReduceOp {
+  GPUTrainingParam param;
+  DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(param) {}
+  XGBOOST_DEVICE DeviceSplitCandidate operator()(
+      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
+    DeviceSplitCandidate best;
+    best.Update(a, param);
+    best.Update(b, param);
+    return best;
+  }
+};
+
 struct DeviceNodeStats {
   GradientPair sum_gradients;
   float root_gain;

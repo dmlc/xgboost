@@ -528,8 +528,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
                                                const RegTree& tree) {
   // start enumeration
   const MetaInfo& info = fmat.Info();
-  auto p_feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
-  const auto& feature_set = *p_feature_set;
+  auto &feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid))->HostVector();
   const auto nfeature = static_cast<bst_uint>(feature_set.size());
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   best_split_tloc_.resize(nthread);
