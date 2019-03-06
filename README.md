@@ -28,6 +28,13 @@ Contribute to XGBoost
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
 Checkout the [Community Page](https://xgboost.ai/community)
 
+Sponsors
+--------
+Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Project](https://xgboost.ai/sponsors). The funds are used to defray the cost of continuous integration and testing infrastructure (https://xgboost-ci.net).
+
+[![Amazon Web Services](https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png "Amazon Web Services")](https://aws.amazon.com/)
+[![NVIDIA](https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg "NVIDIA")](https://www.nvidia.com/en-us/)
+
 Reference
 ---------
 - Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016
