@@ -175,7 +175,6 @@ private[scala] class RabitTrackerHandler(numWorkers: Int)
 
       if (shutdownWorkers.size == numWorkers) {
         promisedShutdownWorkers.success(shutdownWorkers.size)
-        context.stop(self)
       }
 
     case WorkerRecover(prevRank, worldSize, jobId) =>
