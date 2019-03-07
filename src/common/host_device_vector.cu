@@ -53,7 +53,8 @@ struct HostDeviceVectorImpl {
       if (vec_ == nullptr) { vec_ = vec; }
       CHECK_EQ(vec, vec_);
       device_ = device;
-      LazyResize(vec_->Size());
+      // TODO(rongou): remove pointer dereference once CUDA 10.1 is fixed.
+      LazyResize((*vec_).Size());
       perm_d_ = vec_->perm_h_.Complementary();
     }
 
