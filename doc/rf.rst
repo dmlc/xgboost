@@ -58,9 +58,9 @@ A random forest model can then be trained as follows::
   bst = train(params, dmatrix, num_boost_round=1)
 
 
-*****************
-With SKL-Like API
-*****************
+**************************
+With Scikit-Learn-Like API
+**************************
 
 ``XGBRFClassifier`` and ``XGBRFRegressor`` are SKL-like classes that provide random forest
 functionality. They are basically versions of ``XGBClassifier`` and ``XGBRegressor`` that

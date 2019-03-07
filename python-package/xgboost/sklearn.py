@@ -61,17 +61,14 @@ class XGBModel(XGBModelBase):
     learning_rate : float
         Boosting learning rate (xgb's "eta")
     n_estimators : int
-        Number of trees to fit. If the mode is gbm, this is the number of boosted rounds.
-        If the mode is rf, this is the number of trees trained in parallel.
-    silent : boolean
-        Whether to print messages while running boosting.
+        Number of trees to fit.
+    verbosity : int
+        The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
     booster: string
         Specify which booster to use: gbtree, gblinear or dart.
-    tree_method: string
-        Specify which tree method to use: auto, exact, approx, hist, gpu_exact or gpu_hist.
     nthread : int
         Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
     n_jobs : int
@@ -137,7 +134,7 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear", booster='gbtree', tree_method='hist',
+                 verbosity=1, objective="reg:linear", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -148,10 +145,9 @@ class XGBModel(XGBModelBase):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
-        self.silent = silent
+        self.verbosity = verbosity
         self.objective = objective
         self.booster = booster
-        self.tree_method = tree_method
         self.gamma = gamma
         self.min_child_weight = min_child_weight
         self.max_delta_step = max_delta_step
@@ -243,8 +239,6 @@ class XGBModel(XGBModelBase):
                           'nthread is deprecated.', DeprecationWarning)
         else:
             xgb_params['nthread'] = n_jobs
-
-        xgb_params['verbosity'] = 0 if self.silent else 0
 
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
@@ -594,15 +588,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True,
-                 objective="binary:logistic", booster='gbtree', tree_method='hist',
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, verbosity=1,
+                 objective="binary:logistic", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            silent=silent, objective=objective, booster=booster, tree_method=tree_method,
+            verbosity=verbosity, objective=objective, booster=booster,
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -880,15 +874,15 @@ class XGBRFClassifier(XGBClassifier):
               + "for XGBoost random forest classification.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, silent=True,
-                 objective="binary:logistic", tree_method='hist',
-                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=0.8, colsample_bytree=1, colsample_bylevel=1,
-                 colsample_bynode=0.8, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+                 objective="binary:logistic", n_jobs=1, nthread=None, gamma=0,
+                 min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
+                 missing=None, **kwargs):
         super(XGBRFClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            silent=silent, objective=objective, booster='gbtree', tree_method=tree_method,
+            verbosity=verbosity, objective=objective, booster='gbtree',
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -918,15 +912,15 @@ class XGBRFRegressor(XGBRegressor):
               + "for XGBoost random forest regression.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, silent=True,
-                 objective="reg:linear", tree_method='hist',
-                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=0.8, colsample_bytree=1, colsample_bylevel=1,
-                 colsample_bynode=0.8, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+                 objective="reg:linear", n_jobs=1, nthread=None, gamma=0,
+                 min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
+                 missing=None, **kwargs):
         super(XGBRFRegressor, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            silent=silent, objective=objective, booster='gbtree', tree_method=tree_method,
+            verbosity=verbosity, objective=objective, booster='gbtree',
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -956,15 +950,13 @@ class XGBRanker(XGBModel):
             Boosting learning rate (xgb's "eta")
         n_estimators : int
             Number of boosted trees to fit.
-        silent : boolean
-            Whether to print messages while running boosting.
+        verbosity : int
+            The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
         objective : string
             Specify the learning task and the corresponding learning objective.
             The objective name must start with "rank:".
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
-        tree_method: string
-            Specify which tree method to use: auto, exact, approx, hist, gpu_exact or gpu_hist.
         nthread : int
             Number of parallel threads used to run xgboost.  (Deprecated, please use ``n_jobs``)
         n_jobs : int
@@ -1045,7 +1037,7 @@ class XGBRanker(XGBModel):
         """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="rank:pairwise", booster='gbtree', tree_method='hist',
+                 verbosity=1, objective="rank:pairwise", booster='gbtree',
                  n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -1053,7 +1045,7 @@ class XGBRanker(XGBModel):
 
         super(XGBRanker, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            silent=silent, objective=objective, booster=booster, tree_method=tree_method,
+            verbosity=verbosity, objective=objective, booster=booster,
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
