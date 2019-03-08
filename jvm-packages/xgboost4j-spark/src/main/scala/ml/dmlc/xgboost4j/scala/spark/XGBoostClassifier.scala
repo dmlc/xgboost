@@ -113,6 +113,8 @@ class XGBoostClassifier (
 
   def setMaxBins(value: Int): this.type = set(maxBins, value)
 
+  def setMaxLeaves(value: Int): this.type = set(maxLeaves, value)
+
   def setSketchEps(value: Double): this.type = set(sketchEps, value)
 
   def setScalePosWeight(value: Double): this.type = set(scalePosWeight, value)
