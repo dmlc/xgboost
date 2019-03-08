@@ -12,4 +12,4 @@ def params_fun(rank):
         'n_gpus': 1 if rank == 0 else 3
     }
 
-dgpu.run_test('asym', params_fun)
+dgpu.run_test('asym', params_fun, 20)

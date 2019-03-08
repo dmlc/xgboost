@@ -12,4 +12,4 @@ def params_fun(rank):
         'objective': 'binary:logistic'
     }
 
-dgpu.run_test('1x4', params_fun)
+dgpu.run_test('1x4', params_fun, 20)

@@ -3,7 +3,7 @@ import time
 import xgboost as xgb
 
 
-def run_test(name, params_fun):
+def run_test(name, params_fun, num_round):
     """Runs a distributed GPU test."""
     # Always call this before using distributed module
     xgb.rabit.init()
@@ -18,7 +18,6 @@ def run_test(name, params_fun):
 
     # Specify validations set to watch performance
     watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-    num_round = 20
 
     # Run training, all the features in training API is available.
     # Currently, this script only support calling train once for fault recovery purpose.

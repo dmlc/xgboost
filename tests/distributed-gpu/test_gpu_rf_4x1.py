@@ -11,7 +11,8 @@ def params_fun(rank):
         'silent': 1,
         'objective': 'binary:logistic',
         'subsample': 0.5,
-        'colsample_bynode': 0.5
+        'colsample_bynode': 0.5,
+        'num_parallel_tree': 20
     }
 
-dgpu.run_test('rf.4x1', params_fun)
+dgpu.run_test('rf.4x1', params_fun, 1)
