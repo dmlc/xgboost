@@ -9,7 +9,9 @@ def params_fun(rank):
         'max_depth': 2,
         'eta': 1,
         'silent': 1,
-        'objective': 'binary:logistic'
+        'objective': 'binary:logistic',
+        'subsample': 0.5,
+        'colsample_bynode': 0.5
     }
 
-dgpu.run_test('1x4', params_fun)
+dgpu.run_test('rf.1x4', params_fun)
