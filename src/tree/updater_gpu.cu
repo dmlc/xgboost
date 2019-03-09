@@ -140,7 +140,11 @@ __global__ void CubScanByKeyL1(
   // in order to pass on the partial scan values.
   // this statement MUST appear before the checks below!
   // else, the result of this shuffle operation will be undefined
+#if (__CUDACC_VER_MAJOR__ >= 9)
+  int previousKey = __shfl_up_sync(0xFFFFFFFF, myKey, 1);
+#else
   int previousKey = __shfl_up(myKey, 1);
+#endif
   // Collectively compute the block-wide exclusive prefix sum
   BlockScan(temp_storage)
       .ExclusiveScan(threadData, threadData, rootPair, AddByKey());

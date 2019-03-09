@@ -193,8 +193,7 @@ Parameters for Tree Booster
     - ``gpu_predictor``: Prediction using GPU. Default when ``tree_method`` is ``gpu_exact`` or ``gpu_hist``.
 
 * ``num_parallel_tree``, [default=1]
-  - Number of parallel trees constructed during each iteration. This
-     option is used to support boosted random forest
+  - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

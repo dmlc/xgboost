@@ -1034,11 +1034,11 @@ class GPUHistMakerSpecialised{
   }
 
   void InitData(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat) {
-    monitor_.StartCuda("InitDataOnce");
     if (!initialised_) {
+      monitor_.StartCuda("InitDataOnce");
       this->InitDataOnce(dmat);
+      monitor_.StopCuda("InitDataOnce");
     }
-    monitor_.StopCuda("InitDataOnce");
 
     column_sampler_.Init(info_->num_col_, param_.colsample_bynode,
                          param_.colsample_bylevel, param_.colsample_bytree);
