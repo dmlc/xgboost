@@ -163,7 +163,8 @@ class ColumnMatrix {
      to determine type of bin id's */
   inline Column GetColumn(unsigned fid) const {
     Column c(type_[fid], &index_[boundary_[fid].index_begin], index_base_[fid],
-             &row_ind_[boundary_[fid].row_ind_begin],
+             (type_[fid] == ColumnType::kSparseColumn ?
+              &row_ind_[boundary_[fid].row_ind_begin] : nullptr),
              boundary_[fid].index_end - boundary_[fid].index_begin);
     return c;
   }
