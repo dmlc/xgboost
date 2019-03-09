@@ -87,8 +87,14 @@ if [ ${TASK} == "r_test" ]; then
     export _R_CHECK_TIMINGS_=0
     export R_BUILD_ARGS="--no-build-vignettes --no-manual"
     export R_CHECK_ARGS="--no-vignettes --no-manual"
+    if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+        # Work-around to fix "gfortran command not found" error
+        sudo ln -s $(which gfortran-7) /usr/local/bin/gfortran
+        sudo mkdir -p /usr/local/gfortran/lib/gcc/x86_64-apple-darwin15
+        sudo ln -s /usr/local/lib/gcc/7 /usr/local/gfortran/lib/gcc/x86_64-apple-darwin15/6.1.0
+    fi
 
-    curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
+    curl -OL https://raw.githubusercontent.com/craigcitro/r-travis/master/scripts/travis-tool.sh
     chmod 755 ./travis-tool.sh
     ./travis-tool.sh bootstrap
     make Rpack

@@ -15,7 +15,7 @@
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
@@ -264,7 +264,7 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
     return nullptr;
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   }
 }
 
@@ -285,7 +285,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
     return nullptr;
-#endif
+#endif  // DMLC_ENABLE_STD_THREAD
   }
 }
 }  // namespace xgboost
@@ -315,6 +315,95 @@ data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
     std::string raw = "raw";
     return std::make_pair(raw, raw);
   }
+}
+
+void SparsePage::Push(const SparsePage &batch) {
+  auto& data_vec = data.HostVector();
+  auto& offset_vec = offset.HostVector();
+  const auto& batch_offset_vec = batch.offset.HostVector();
+  const auto& batch_data_vec = batch.data.HostVector();
+  size_t top = offset_vec.back();
+  data_vec.resize(top + batch.data.Size());
+  std::memcpy(dmlc::BeginPtr(data_vec) + top,
+              dmlc::BeginPtr(batch_data_vec),
+              sizeof(Entry) * batch.data.Size());
+  size_t begin = offset.Size();
+  offset_vec.resize(begin + batch.Size());
+  for (size_t i = 0; i < batch.Size(); ++i) {
+    offset_vec[i + begin] = top + batch_offset_vec[i + 1];
+  }
+}
+
+void SparsePage::Push(const dmlc::RowBlock<uint32_t>& batch) {
+  auto& data_vec = data.HostVector();
+  auto& offset_vec = offset.HostVector();
+  data_vec.reserve(data.Size() + batch.offset[batch.size] - batch.offset[0]);
+  offset_vec.reserve(offset.Size() + batch.size);
+  CHECK(batch.index != nullptr);
+  for (size_t i = 0; i < batch.size; ++i) {
+    offset_vec.push_back(offset_vec.back() + batch.offset[i + 1] - batch.offset[i]);
+  }
+  for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
+    uint32_t index = batch.index[i];
+    bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+    data_vec.emplace_back(index, fvalue);
+  }
+  CHECK_EQ(offset_vec.back(), data.Size());
+}
+
+void SparsePage::PushCSC(const SparsePage &batch) {
+  std::vector<xgboost::Entry>& self_data = data.HostVector();
+  std::vector<size_t>& self_offset = offset.HostVector();
+
+  auto const& other_data = batch.data.ConstHostVector();
+  auto const& other_offset = batch.offset.ConstHostVector();
+
+  if (other_data.empty()) {
+    return;
+  }
+  if (!self_data.empty()) {
+    CHECK_EQ(self_offset.size(), other_offset.size())
+        << "self_data.size(): " << this->data.Size() << ", "
+        << "other_data.size(): " << other_data.size() << std::flush;
+  } else {
+    self_data = other_data;
+    self_offset = other_offset;
+    return;
+  }
+
+  std::vector<size_t> offset(other_offset.size());
+  offset[0] = 0;
+
+  std::vector<xgboost::Entry> data(self_data.size() + batch.data.Size());
+
+  // n_cols in original csr data matrix, here in csc is n_rows
+  size_t const n_features = other_offset.size() - 1;
+  size_t beg = 0;
+  size_t ptr = 1;
+  for (size_t i = 0; i < n_features; ++i) {
+    size_t const self_beg = self_offset.at(i);
+    size_t const self_length = self_offset.at(i+1) - self_beg;
+    CHECK_LT(beg, data.size());
+    std::memcpy(dmlc::BeginPtr(data)+beg,
+                dmlc::BeginPtr(self_data) + self_beg,
+                sizeof(Entry) * self_length);
+    beg += self_length;
+
+    size_t const other_beg = other_offset.at(i);
+    size_t const other_length = other_offset.at(i+1) - other_beg;
+    CHECK_LT(beg, data.size());
+    std::memcpy(dmlc::BeginPtr(data)+beg,
+                dmlc::BeginPtr(other_data) + other_beg,
+                sizeof(Entry) * other_length);
+    beg += other_length;
+
+    CHECK_LT(ptr, offset.size());
+    offset.at(ptr) = beg;
+    ptr++;
+  }
+
+  self_data = std::move(data);
+  self_offset = std::move(offset);
 }
 
 namespace data {

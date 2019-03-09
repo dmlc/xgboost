@@ -5,4 +5,4 @@
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "elementwise_metric.cu"
-#endif
+#endif  // !defined(XGBOOST_USE_CUDA)

@@ -5,6 +5,9 @@
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include <random>
+#include <string>
+#include <vector>
+
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
@@ -315,6 +318,8 @@ TEST(GpuHist, ApplySplit) {
   int constexpr n_cols = 8;
 
   TrainParam param;
+  std::vector<std::pair<std::string, std::string>> args = {};
+  param.InitAllowUnknown(args);
 
   // Initialize shard
   for (size_t i = 0; i < n_cols; ++i) {

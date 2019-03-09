@@ -17,6 +17,8 @@
 #include <numeric>
 #include <random>
 
+#include "io.h"
+
 namespace xgboost {
 namespace common {
 /*!
@@ -64,7 +66,7 @@ typedef CustomGlobalRandomEngine GlobalRandomEngine;
  * \brief global random engine
  */
 using GlobalRandomEngine = RandomEngine;
-#endif
+#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 
 /*!
  * \brief global singleton of a random engine.

@@ -49,6 +49,7 @@ class BaseMaker: public TreeUpdater {
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
           auto c = batch[fid];
           if (c.size() != 0) {
+            CHECK_LT(fid * 2, fminmax_.size());
             fminmax_[fid * 2 + 0] =
                 std::max(-c[0].fvalue, fminmax_[fid * 2 + 0]);
             fminmax_[fid * 2 + 1] =
@@ -333,28 +334,28 @@ class BaseMaker: public TreeUpdater {
     const MetaInfo &info = fmat.Info();
     thread_temp.resize(omp_get_max_threads());
     p_node_stats->resize(tree.param.num_nodes);
-    #pragma omp parallel
+#pragma omp parallel
     {
       const int tid = omp_get_thread_num();
-      thread_temp[tid].resize(tree.param.num_nodes, TStats(param_));
+      thread_temp[tid].resize(tree.param.num_nodes, TStats());
       for (unsigned int nid : qexpand_) {
-        thread_temp[tid][nid].Clear();
+        thread_temp[tid][nid] = TStats();
       }
     }
     // setup position
     const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {
-        thread_temp[tid][nid].Add(gpair, info, ridx);
+        thread_temp[tid][nid].Add(gpair[ridx]);
       }
     }
     // sum the per thread statistics together
     for (int nid : qexpand_) {
       TStats &s = (*p_node_stats)[nid];
-      s.Clear();
+      s = TStats();
       for (size_t tid = 0; tid < thread_temp.size(); ++tid) {
         s.Add(thread_temp[tid][nid]);
       }

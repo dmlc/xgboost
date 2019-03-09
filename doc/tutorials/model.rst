@@ -255,6 +255,10 @@ For real valued data, we usually want to search for an optimal split. To efficie
 
 A left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
 
+.. note:: Limitation of additive tree learning
+
+  Since it is intractable to enumerate all possible tree structures, we add one split at a time. This approach works well most of the time, but there are some edge cases that fail due to this approach. For those edge cases, training results in a degenerate model because we consider only one feature dimension at a time. See `Can Gradient Boosting Learn Simple Arithmetic? <http://mariofilho.com/can-gradient-boosting-learn-simple-arithmetic/>`_ for an example. 
+
 **********************
 Final words on XGBoost
 **********************

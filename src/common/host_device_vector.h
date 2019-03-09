@@ -57,6 +57,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <initializer_list>
+#include <utility>
 #include <vector>
 
 #include "common.h"
@@ -66,7 +67,7 @@
 // is included from a .cu file
 #ifdef __CUDACC__
 #include <thrust/device_ptr.h>
-#endif
+#endif  // __CUDACC__
 
 namespace xgboost {
 
@@ -74,7 +75,7 @@ namespace xgboost {
 // Sets a function to call instead of cudaSetDevice();
 // only added for testing
 void SetCudaSetDeviceHandler(void (*handler)(int));
-#endif
+#endif  // __CUDACC__
 
 template <typename T> struct HostDeviceVectorImpl;
 
@@ -140,7 +141,7 @@ class GPUDistribution {
     return begin;
   }
 
-  size_t ShardSize(size_t size, int index) const {
+  size_t ShardSize(size_t size, size_t index) const {
     if (size == 0) { return 0; }
     if (offsets_.size() > 0) {
       // explicit offsets are provided
@@ -154,7 +155,7 @@ class GPUDistribution {
     return end - begin;
   }
 
-  size_t ShardProperSize(size_t size, int index) const {
+  size_t ShardProperSize(size_t size, size_t index) const {
     if (size == 0) { return 0; }
     return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
   }
@@ -233,7 +234,7 @@ class HostDeviceVector {
 
   void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end);
   void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) const;
-#endif
+#endif  // __CUDACC__
 
   void Fill(T v);
   void Copy(const HostDeviceVector<T>& other);

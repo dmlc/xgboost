@@ -61,6 +61,11 @@ struct Monitor {
 
     LOG(CONSOLE) << "======== Monitor: " << label << " ========";
     for (auto &kv : statistics_map) {
+      if (kv.second.count == 0) {
+        LOG(WARNING) <<
+            "Timer for " << kv.first << " did not get stopped properly.";
+        continue;
+      }
       LOG(CONSOLE) << kv.first << ": " << kv.second.timer.ElapsedSeconds()
                    << "s, " << kv.second.count << " calls @ "
                    << std::chrono::duration_cast<std::chrono::microseconds>(
@@ -81,7 +86,7 @@ struct Monitor {
         cudaSetDevice(device);
         cudaDeviceSynchronize();
       }
-#endif
+#endif  // __CUDACC__
     }
     statistics_map[name].timer.Start();
   }
@@ -96,7 +101,7 @@ struct Monitor {
         cudaSetDevice(device);
         cudaDeviceSynchronize();
       }
-#endif
+#endif  // __CUDACC__
     }
     this->Stop(name);
   }
