@@ -16,8 +16,8 @@ def call(args):
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     error_msg = completed.stdout.decode('utf-8')
-    matched = re.match('.*src.*warning.*', error_msg,
-                       re.MULTILINE | re.DOTALL)
+    matched = re.search('(src|tests)/.*warning:', error_msg,
+                        re.MULTILINE)
     if matched is None:
         return_code = 0
     else:
@@ -71,7 +71,7 @@ class ClangTidy(object):
     def _configure_flags(self, path, command):
         common_args = ['clang-tidy',
                        "-header-filter='(xgboost\\/src|xgboost\\/include)'",
-                       '-config='+str(self.clang_tidy)]
+                       '-config='+self.clang_tidy]
         common_args.append(path)
         common_args.append('--')
 
@@ -124,6 +124,7 @@ class ClangTidy(object):
         tidy_file = os.path.join(self.root_path, '.clang-tidy')
         with open(tidy_file) as fd:
             self.clang_tidy = yaml.load(fd)
+            self.clang_tidy = str(self.clang_tidy)
         all_files = []
         for entry in self.compile_commands:
             path = entry['file']
@@ -155,6 +156,40 @@ class ClangTidy(object):
         return passed
 
 
+def test_tidy():
+    '''See if clang-tidy and our regex is working correctly.  There are
+many subtleties we need to be careful.  For instances:
+
+    * Is the string re-directed to pipe encoded as UTF-8? or is it
+bytes?
+
+    * On Jenkins there's no 'xgboost' directory, are we catching the
+right keywords?
+
+    * Should we use re.DOTALL?
+
+    * Should we use re.MULTILINE?
+
+    Tests here are not thorough, at least we want to guarantee tidy is
+    not missing anything on Jenkins.
+
+    '''
+    root_path = os.path.abspath(os.path.curdir)
+    tidy_file = os.path.join(root_path, '.clang-tidy')
+    test_file_path = os.path.join(root_path,
+                                  'tests', 'ci_build', 'test_tidy.cc')
+
+    with open(tidy_file) as fd:
+        tidy_config = fd.read()
+        tidy_config = str(tidy_config)
+    tidy_config = '-config='+tidy_config
+    args = ['clang-tidy', tidy_config, test_file_path]
+    (proc_code, tidy_status, error_msg) = call(args)
+    assert proc_code == 0
+    assert tidy_status == 1
+    print('clang-tidy is working.')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
@@ -162,6 +197,9 @@ if __name__ == '__main__':
     parser.add_argument('--gtest-path', required=True,
                         help='Full path of Google Test library directory')
     args = parser.parse_args()
+
+    test_tidy()
+
     with ClangTidy(args.gtest_path, args.cpp, args.cuda) as linter:
         passed = linter.run()
     if not passed:
