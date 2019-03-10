@@ -46,8 +46,8 @@ template <typename T>
 struct HostDeviceVectorImpl {
   struct DeviceShard {
     DeviceShard()
-        : proper_size_{0}, device_{-1}, start_{0}, perm_d_{false},
-      cached_size_{~0}, vec_{nullptr} {}
+      : proper_size_{0}, device_{-1}, start_{0}, perm_d_{false},
+        cached_size_{static_cast<size_t>(~0)}, vec_{nullptr} {}
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {
       if (vec_ == nullptr) { vec_ = vec; }

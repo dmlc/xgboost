@@ -300,10 +300,14 @@ class DeviceHistogram {
     return nidx_map_.find(nidx) != nidx_map_.end();
   }
 
+  thrust::device_vector<typename GradientSumT::ValueT> &Data() {
+    return data_;
+  }
+
   void AllocateHistogram(int nidx) {
     if (HistogramExists(nidx)) return;
     size_t current_size =
-        nidx_map.size() * n_bins_ * 2;  // Number of items currently used in data
+        nidx_map_.size() * n_bins_ * 2;  // Number of items currently used in data
     dh::safe_cuda(cudaSetDevice(device_id_));
     if (data_.size() >= kStopGrowingSize) {
       // Recycle histogram memory
@@ -726,7 +730,7 @@ struct DeviceShard {
 
   /*! \brief Sort row indices according to position. */
   void SortPositionAndCopy(const Segment& segment, int left_nidx, int right_nidx,
-                       size_t left_count) {
+                           size_t left_count) {
     SortPosition(
         &temp_memory,
         common::Span<int>(position.Current() + segment.begin, segment.Size()),
@@ -739,7 +743,7 @@ struct DeviceShard {
     const auto d_position_other = position.other() + segment.begin;
     const auto d_ridx_current = ridx.Current() + segment.begin;
     const auto d_ridx_other = ridx.other() + segment.begin;
-    dh::LaunchN(device_id_, segment.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, segment.Size(), [=] __device__(size_t idx) {
       d_position_current[idx] = d_position_other[idx];
       d_ridx_current[idx] = d_ridx_other[idx];
     });
@@ -1061,7 +1065,7 @@ class GPUHistMakerSpecialised{
     if (shards_.size() == 1 && !rabit::IsDistributed()) {
       return;
     }
-    monitor_.Start("AllReduce");
+    monitor_.StartCuda("AllReduce");
 
     reducer_.GroupStart();
     for (auto& shard : shards_) {
@@ -1307,7 +1311,7 @@ class GPUHistMakerSpecialised{
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
-    monitor_.Start("UpdatePredictionCache", dist_.Devices());
+    monitor_.StartCuda("UpdatePredictionCache");
     if (shards_.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
