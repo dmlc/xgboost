@@ -145,8 +145,6 @@ class Transform {
             static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
         detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
             _func, shard_range, UnpackHDV(_vectors, device)...);
-        dh::safe_cuda(cudaGetLastError());
-        dh::safe_cuda(cudaDeviceSynchronize());
       }
     }
 #else

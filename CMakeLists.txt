@@ -10,9 +10,12 @@ msvc_use_static_runtime()
 # Options
 ## GPUs
 option(USE_CUDA  "Build with GPU acceleration" OFF)
+option(USE_NVTX  "Build with cuda profiling annotations. Developers only." OFF)
 option(USE_NCCL  "Build with multiple GPUs support" OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Space separated list of compute versions to be built against, e.g. '35 61'")
+set(NVTX_HEADER_DIR "" CACHE PATH
+  "Path to the stand-alone nvtx header")
 
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
@@ -175,6 +178,11 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
+  if(USE_NVTX)
+    cuda_include_directories("${NVTX_HEADER_DIR}")
+    add_definitions(-DXGBOOST_USE_NVTX)
+  endif()
+
   set(GENCODE_FLAGS "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)
   message("cuda architecture flags: ${GENCODE_FLAGS}")
@@ -190,6 +198,7 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
     link_directories(${NCCL_LIBRARY})
     target_link_libraries(gpuxgboost ${NCCL_LIB_NAME})
   endif()
+
   list(APPEND LINK_LIBRARIES gpuxgboost)
 
 elseif (USE_CUDA AND GENERATE_COMPILATION_DATABASE)

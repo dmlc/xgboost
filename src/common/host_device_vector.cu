@@ -74,14 +74,14 @@ struct HostDeviceVectorImpl {
       // TODO(canonizer): avoid full copy of host data
       LazySyncDevice(GPUAccess::kWrite);
       SetDevice();
-      dh::safe_cuda(cudaMemcpy(data_.data().get(), begin + start_,
+      dh::safe_cuda(cudaMemcpyAsync(data_.data().get(), begin + start_,
                                data_.size() * sizeof(T), cudaMemcpyDefault));
     }
 
     void GatherTo(thrust::device_ptr<T> begin) {
       LazySyncDevice(GPUAccess::kRead);
       SetDevice();
-      dh::safe_cuda(cudaMemcpy(begin.get() + start_, data_.data().get(),
+      dh::safe_cuda(cudaMemcpyAsync(begin.get() + start_, data_.data().get(),
                                proper_size_ * sizeof(T), cudaMemcpyDefault));
     }
 
@@ -97,7 +97,7 @@ struct HostDeviceVectorImpl {
       LazySyncDevice(GPUAccess::kWrite);
       other->LazySyncDevice(GPUAccess::kRead);
       SetDevice();
-      dh::safe_cuda(cudaMemcpy(data_.data().get(), other->data_.data().get(),
+      dh::safe_cuda(cudaMemcpyAsync(data_.data().get(), other->data_.data().get(),
                                data_.size() * sizeof(T), cudaMemcpyDefault));
     }
 
