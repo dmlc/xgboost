@@ -308,7 +308,7 @@ class DVec {
     }
     safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (other.DeviceIdx() == this->DeviceIdx()) {
-      dh::safe_cuda(cudaMemcpy(this->Data(), other.Data(),
+      dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
                                other.Size() * sizeof(T),
                                cudaMemcpyDeviceToDevice));
     } else {
@@ -338,7 +338,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->Data(), begin.get(), Size() * sizeof(T),
+    safe_cuda(cudaMemcpyAsync(this->Data(), begin.get(), Size() * sizeof(T),
                          cudaMemcpyDefault));
   }
 };

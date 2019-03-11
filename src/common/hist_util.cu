@@ -290,14 +290,14 @@ struct GPUSketcher {
         offset_vec[row_begin_ + batch_row_begin];
       // copy the batch to the GPU
       dh::safe_cuda
-        (cudaMemcpy(entries_.data().get(),
+        (cudaMemcpyAsync(entries_.data().get(),
                     data_vec.data() + offset_vec[row_begin_ + batch_row_begin],
                     n_entries * sizeof(Entry), cudaMemcpyDefault));
       // copy the weights if necessary
       if (has_weights_) {
         const auto& weights_vec = info.weights_.HostVector();
         dh::safe_cuda
-          (cudaMemcpy(weights_.data().get(),
+          (cudaMemcpyAsync(weights_.data().get(),
                       weights_vec.data() + row_begin_ + batch_row_begin,
                       batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
@@ -315,14 +315,10 @@ struct GPUSketcher {
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
          gpu_batch_nrows_, num_cols_,
          offset_vec[row_begin_ + batch_row_begin], batch_nrows);
-      dh::safe_cuda(cudaGetLastError());       // NOLINT
-      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       for (int icol = 0; icol < num_cols_; ++icol) {
         FindColumnCuts(batch_nrows, icol);
       }
-
-      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
