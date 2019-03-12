@@ -171,7 +171,6 @@ class XGBModel(XGBModelBase):
         self.n_jobs = n_jobs
         self.importance_type = importance_type
 
-
     def __setstate__(self, state):
         # backward compatibility code
         # load booster from raw if it is raw
