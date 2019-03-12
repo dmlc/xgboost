@@ -182,7 +182,7 @@ test_that("xgb.cv works", {
   expect_is(cv, 'xgb.cv.synchronous')
   expect_false(is.null(cv$evaluation_log))
   expect_lt(cv$evaluation_log[, min(test_error_mean)], 0.03)
-  expect_lt(cv$evaluation_log[, min(test_error_std)], 0.004)
+  expect_lt(cv$evaluation_log[, min(test_error_std)], 0.008)
   expect_equal(cv$niter, 2)
   expect_false(is.null(cv$folds) && is.list(cv$folds))
   expect_length(cv$folds, 5)
