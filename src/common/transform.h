@@ -173,8 +173,8 @@ class Transform {
     /*! \brief Range object specifying parallel threads index range. */
     Range range_;
     /*! \brief Whether resharding for vectors is required. */
-    GPUDistribution distribution_;
     bool reshard_;
+    GPUDistribution distribution_;
   };
 
  public:
