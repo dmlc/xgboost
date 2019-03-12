@@ -548,7 +548,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
   const size_t rest = nrows % kUnroll;
 
 #if defined(_OPENMP)
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);  // NOLINT
 #endif  // defined(_OPENMP)
   tree::GradStats* p_hist = hist.data();
 
@@ -594,7 +594,7 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
   const uint32_t rest = nbins % kUnroll;
 
 #if defined(_OPENMP)
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);  // NOLINT
 #endif  // defined(_OPENMP)
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();

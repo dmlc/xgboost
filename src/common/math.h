@@ -7,6 +7,8 @@
 #ifndef XGBOOST_COMMON_MATH_H_
 #define XGBOOST_COMMON_MATH_H_
 
+#include <xgboost/base.h>
+
 #include <utility>
 #include <vector>
 #include <cmath>

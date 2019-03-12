@@ -13,7 +13,7 @@ TEST(SparsePage, PushCSC) {
 
   offset = {0, 1, 4};
   for (size_t i = 0; i < offset.back(); ++i) {
-    data.push_back(Entry(i, 0.1f));
+    data.emplace_back(Entry(i, 0.1f));
   }
 
   SparsePage other;
@@ -52,4 +52,4 @@ TEST(SparsePage, PushCSC) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
   }
 }
-}
+}  // namespace xgboost

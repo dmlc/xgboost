@@ -79,6 +79,8 @@ struct EvalMClassBase : public Metric {
   inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
+
+ private:
   // used to store error message
   const char *error_msg_;
 };

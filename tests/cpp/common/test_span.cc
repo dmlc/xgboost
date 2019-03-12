@@ -172,7 +172,7 @@ struct BaseClass {
   virtual void operator()() {}
 };
 struct DerivedClass : public BaseClass {
-  virtual void operator()() {}
+  void operator()() override {}
 };
 
 TEST(Span, FromOther) {

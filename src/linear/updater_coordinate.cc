@@ -30,8 +30,8 @@ class CoordinateUpdater : public LinearUpdater {
       tparam_.InitAllowUnknown(args)
     };
     cparam_.InitAllowUnknown(rest);
-    selector.reset(FeatureSelector::Create(tparam_.feature_selector));
-    monitor.Init("CoordinateUpdater");
+    selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
+    monitor_.Init("CoordinateUpdater");
   }
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
@@ -48,20 +48,20 @@ class CoordinateUpdater : public LinearUpdater {
                                  dbias, &in_gpair->HostVector(), p_fmat);
     }
     // prepare for updating the weights
-    selector->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
+    selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                     tparam_.reg_alpha_denorm,
                     tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->param.num_feature; i++) {
-        int fidx = selector->NextFeature
+        int fidx = selector_->NextFeature
           (i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
            tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
         if (fidx < 0) break;
         this->UpdateFeature(fidx, group_idx, &in_gpair->HostVector(), p_fmat, model);
       }
     }
-    monitor.Stop("UpdateFeature");
+    monitor_.Stop("UpdateFeature");
   }
 
   inline void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair,
@@ -78,11 +78,12 @@ class CoordinateUpdater : public LinearUpdater {
     UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
   }
 
+ private:
   CoordinateParam cparam_;
   // training parameter
   LinearTrainParam tparam_;
-  std::unique_ptr<FeatureSelector> selector;
-  common::Monitor monitor;
+  std::unique_ptr<FeatureSelector> selector_;
+  common::Monitor monitor_;
 };
 
 XGBOOST_REGISTER_LINEAR_UPDATER(CoordinateUpdater, "coord_descent")

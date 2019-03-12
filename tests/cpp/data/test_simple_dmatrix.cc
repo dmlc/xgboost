@@ -27,7 +27,7 @@ TEST(SimpleDMatrix, RowAccess) {
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, false, false);
 
   // Loop over the batches and count the records
-  long row_count = 0;
+  int64_t row_count = 0;
   for (auto &batch : dmat->GetRowBatches()) {
     row_count += batch.Size();
   }
@@ -54,7 +54,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   ASSERT_TRUE(dmat->SingleColBlock());
 
   // Loop over the batches and assert the data is as expected
-  long num_col_batch = 0;
+  int64_t num_col_batch = 0;
   for (const auto &batch : dmat->GetSortedColumnBatches()) {
     num_col_batch += 1;
     EXPECT_EQ(batch.Size(), dmat->Info().num_col_)

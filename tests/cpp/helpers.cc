@@ -4,13 +4,14 @@
 #include "./helpers.h"
 #include "xgboost/c_api.h"
 #include <random>
+#include <cinttypes>
 
 bool FileExists(const std::string& filename) {
   struct stat st;
   return stat(filename.c_str(), &st) == 0;
 }
 
-long GetFileSize(const std::string& filename) {
+int64_t GetFileSize(const std::string& filename) {
   struct stat st;
   stat(filename.c_str(), &st);
   return st.st_size;
@@ -30,13 +31,13 @@ void CreateBigTestData(const std::string& filename, size_t n_entries) {
   }
 }
 
-void _CheckObjFunction(xgboost::ObjFunction * obj,
-                      std::vector<xgboost::bst_float> preds,
-                      std::vector<xgboost::bst_float> labels,
-                      std::vector<xgboost::bst_float> weights,
-                      xgboost::MetaInfo info,
-                      std::vector<xgboost::bst_float> out_grad,
-                      std::vector<xgboost::bst_float> out_hess) {
+void CheckObjFunctionImpl(xgboost::ObjFunction * obj,
+                          std::vector<xgboost::bst_float> preds,
+                          std::vector<xgboost::bst_float> labels,
+                          std::vector<xgboost::bst_float> weights,
+                          xgboost::MetaInfo info,
+                          std::vector<xgboost::bst_float> out_grad,
+                          std::vector<xgboost::bst_float> out_hess) {
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
   xgboost::HostDeviceVector<xgboost::GradientPair> out_gpair;
   obj->GetGradient(in_preds, info, 1, &out_gpair);
@@ -64,7 +65,7 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   info.labels_.HostVector() = labels;
   info.weights_.HostVector() = weights;
 
-  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+  CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
 
 void CheckRankingObjFunction(xgboost::ObjFunction * obj,
@@ -80,7 +81,7 @@ void CheckRankingObjFunction(xgboost::ObjFunction * obj,
   info.weights_.HostVector() = weights;
   info.group_ptr_ = groups;
 
-  _CheckObjFunction(obj, preds, labels, weights, info, out_grad, out_hess);
+  CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
 
 

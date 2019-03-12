@@ -1,12 +1,18 @@
 #!/bin/bash
 
-rm -rf gtest googletest-release-1.7.0
-wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
-unzip -n release-1.7.0.zip
-mv googletest-release-1.7.0 gtest && cd gtest
-cmake . && make
-mkdir lib && mv libgtest.a lib
-cd ..
-rm -rf release-1.7.0.zip*
+export GTEST_PKG_NAME=release-1.8.1
+export GTEST_DIR_NAME=googletest-${GTEST_PKG_NAME}  # uncompressed directory
+export GTEST_ZIP_FILE=${GTEST_PKG_NAME}.zip	    # downloaded zip ball name
 
-python3 tests/ci_build/tidy.py --gtest-path=${PWD}/gtest
+rm -rf gtest googletest-release*
+
+wget -nc https://github.com/google/googletest/archive/${GTEST_ZIP_FILE}
+unzip -n ${GTEST_ZIP_FILE}
+mv ${GTEST_DIR_NAME} gtest && cd gtest
+cmake . -DCMAKE_INSTALL_PREFIX=./ins && make
+make install
+
+cd ..
+rm ${GTEST_ZIP_FILE}
+
+python3 tests/ci_build/tidy.py --gtest-path=${PWD}/gtest/ins

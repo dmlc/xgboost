@@ -95,11 +95,10 @@ void QuantileHistMaker::Builder::SyncHistograms(
   perf_monitor.TickStart();
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use Subtraction Trick
-  for (auto local_it = nodes_for_subtraction_trick_.begin();
-    local_it != nodes_for_subtraction_trick_.end(); local_it++) {
-    hist_.AddHistRow(local_it->first);
-    SubtractionTrick(hist_[local_it->first], hist_[local_it->second],
-                     hist_[(*p_tree)[local_it->first].Parent()]);
+  for (auto const& node_pair : nodes_for_subtraction_trick_) {
+    hist_.AddHistRow(node_pair.first);
+    SubtractionTrick(hist_[node_pair.first], hist_[node_pair.second],
+                     hist_[(*p_tree)[node_pair.first].Parent()]);
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
@@ -112,8 +111,8 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
   perf_monitor.TickStart();
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
+  for (auto const& entry : qexpand_depth_wise_) {
+    int nid = entry.nid;
     RegTree::Node &node = (*p_tree)[nid];
     if (rabit::IsDistributed()) {
       if (node.IsRoot() || node.IsLeftChild()) {
@@ -160,8 +159,8 @@ void QuantileHistMaker::Builder::BuildNodeStats(
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
   perf_monitor.TickStart();
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
+  for (auto const& entry : qexpand_depth_wise_) {
+    int nid = entry.nid;
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
     // add constraints
     if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
@@ -185,8 +184,8 @@ void QuantileHistMaker::Builder::EvaluateSplits(
     int depth,
     unsigned *timestamp,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
+  for (auto const& entry : qexpand_depth_wise_) {
+    int nid = entry.nid;
     perf_monitor.TickStart();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
     perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
@@ -221,7 +220,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
+  qexpand_depth_wise_.emplace_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     int starting_index = std::numeric_limits<int>::max();

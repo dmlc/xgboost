@@ -6,8 +6,8 @@ CheckOptions:
   - { key: readability-identifier-naming.TypedefCase,          value: CamelCase  }
   - { key: readability-identifier-naming.TypeTemplateParameterCase,          value: CamelCase  }
   - { key: readability-identifier-naming.MemberCase,          value: lower_case  }
-  - { key: readability-identifier-naming.PrivateMemberSuffix,           value: '_'  }
-  - { key: readability-identifier-naming.ProtectedMemberSuffix,           value: '_'  }
+  - { key: readability-identifier-naming.PrivateMemberSuffix,    value: '_'  }
+  - { key: readability-identifier-naming.ProtectedMemberSuffix,  value: '_'  }
   - { key: readability-identifier-naming.EnumCase,          value: CamelCase  }
   - { key: readability-identifier-naming.EnumConstant,          value: CamelCase  }
   - { key: readability-identifier-naming.EnumConstantPrefix,          value: k  }
