@@ -29,13 +29,14 @@ def test_binary_classification():
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-        preds = xgb_model.predict(X[test_index])
-        labels = y[test_index]
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-        assert err < 0.1
+    for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
+        for train_index, test_index in kf.split(X, y):
+            xgb_model = cls(random_state=42).fit(X[train_index], y[train_index])
+            preds = xgb_model.predict(X[test_index])
+            labels = y[test_index]
+            err = sum(1 for i in range(len(preds))
+                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            assert err < 0.1
 
 
 def test_multiclass_classification():
@@ -83,8 +84,8 @@ def test_ranking():
     valid_group = np.repeat(50, 4)
     x_test = np.random.rand(100, 10)
 
-    params = {'objective': 'rank:pairwise', 'learning_rate': 0.1,
-              'gamma': 1.0, 'min_child_weight': 0.1,
+    params = {'tree_method': 'exact', 'objective': 'rank:pairwise',
+              'learning_rate': 0.1, 'gamma': 1.0, 'min_child_weight': 0.1,
               'max_depth': 6, 'n_estimators': 4}
     model = xgb.sklearn.XGBRanker(**params)
     model.fit(x_train, y_train, train_group,
@@ -97,7 +98,8 @@ def test_ranking():
     train_data.set_group(train_group)
     valid_data.set_group(valid_group)
 
-    params_orig = {'objective': 'rank:pairwise', 'eta': 0.1, 'gamma': 1.0,
+    params_orig = {'tree_method': 'exact', 'objective': 'rank:pairwise',
+                   'eta': 0.1, 'gamma': 1.0,
                    'min_child_weight': 0.1, 'max_depth': 6}
     xgb_model_orig = xgb.train(params_orig, train_data, num_boost_round=4,
                                evals=[(valid_data, 'validation')])
@@ -113,7 +115,7 @@ def test_feature_importances_weight():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
@@ -130,11 +132,11 @@ def test_feature_importances_weight():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="weight").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -145,7 +147,7 @@ def test_feature_importances_gain():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -163,11 +165,11 @@ def test_feature_importances_gain():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -197,6 +199,23 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds2, labels) < 350
         assert mean_squared_error(preds3, labels) < 25
         assert mean_squared_error(preds4, labels) < 350
+
+
+def test_boston_housing_rf_regression():
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.model_selection import KFold
+
+    boston = load_boston()
+    y = boston['target']
+    X = boston['data']
+    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBRFRegressor(random_state=42).fit(
+            X[train_index], y[train_index])
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        assert mean_squared_error(preds, labels) < 35
 
 
 def test_parameter_tuning():
