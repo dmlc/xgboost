@@ -28,11 +28,6 @@ Contribute to XGBoost
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
 Checkout the [Community Page](https://xgboost.ai/community)
 
-## Contributors
-
-This project exists thanks to all the people who contribute. 
-<a href="https://github.com/dmlc/xgboost/graphs/contributors"><img src="https://opencollective.com/xgboost/contributors.svg?width=890&button=false" /></a>
-
 Reference
 ---------
 - Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016
@@ -48,7 +43,8 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 ### Sponsors
 [[Become a sponsor](https://opencollective.com/xgboost#sponsor)]
 
-<a href="https://opencollective.com/xgboost/sponsor/0/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/0/avatar.svg"></a>
+<!--<a href="https://opencollective.com/xgboost/sponsor/0/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/0/avatar.svg"></a>-->
+<a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
 <a href="https://opencollective.com/xgboost/sponsor/1/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/1/avatar.svg"></a>
 <a href="https://opencollective.com/xgboost/sponsor/2/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/2/avatar.svg"></a>
 <a href="https://opencollective.com/xgboost/sponsor/3/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/3/avatar.svg"></a>
@@ -67,4 +63,4 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 ## Other sponsors
 The sponsors in this list are donating cloud hours in lieu of cash donation.
 
-<a href="https://aws.amazon.com/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png" alt="Amazon Web Services" width="100" height="100"></a>
+<a href="https://aws.amazon.com/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png" alt="Amazon Web Services" width="72" height="72"></a>
