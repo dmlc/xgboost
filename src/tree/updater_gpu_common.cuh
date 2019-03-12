@@ -14,7 +14,7 @@
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 
-#else
+#else  // In device code and CUDA < 600
 XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull =
       (unsigned long long int*)address;                   // NOLINT
@@ -39,7 +39,7 @@ namespace tree {
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
 DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                                               const InputGradientT& gpair) {
+                               const InputGradientT& gpair) {
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,

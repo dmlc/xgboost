@@ -133,12 +133,12 @@ class QuantileHistMock : public QuantileHistMaker {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
-      size_t constexpr max_bins = 4;
-      auto dmat = CreateDMatrix(n_rows, n_cols, 0, 3);
+      size_t constexpr kMaxBins = 4;
+      auto dmat = CreateDMatrix(kNRows, kNCols, 0, 3);
         // dense, no missing values
 
       common::GHistIndexMatrix gmat;
-      gmat.Init((*dmat).get(), max_bins);
+      gmat.Init((*dmat).get(), kMaxBins);
 
       RealImpl::InitData(gmat, row_gpairs, *(*dmat), tree);
       hist_.AddHistRow(0);
@@ -167,7 +167,8 @@ class QuantileHistMock : public QuantileHistMaker {
       // 2) no regularization, i.e. set min_child_weight, reg_lambda, reg_alpha,
       //    and max_delta_step to 0.
       bst_float best_split_gain = 0.0f;
-      size_t best_split_threshold, best_split_feature;
+      size_t best_split_threshold = std::numeric_limits<size_t>::max();
+      size_t best_split_feature = std::numeric_limits<size_t>::max();
       // Enumerate all features
       for (size_t fid = 0; fid < num_feature; ++fid) {
         const size_t bin_id_min = gmat.cut.row_ptr[fid];
@@ -213,56 +214,56 @@ class QuantileHistMock : public QuantileHistMaker {
     }
   };
 
-  int static constexpr n_rows = 8, n_cols = 16;
-  std::shared_ptr<xgboost::DMatrix> *dmat;
-  const std::vector<std::pair<std::string, std::string> > cfg;
+  int static constexpr kNRows = 8, kNCols = 16;
+  std::shared_ptr<xgboost::DMatrix> *dmat_;
+  const std::vector<std::pair<std::string, std::string> > cfg_;
   std::shared_ptr<BuilderMock> builder_;
 
  public:
   explicit QuantileHistMock(
       const std::vector<std::pair<std::string, std::string> >& args) :
-      cfg{args} {
+      cfg_{args} {
     QuantileHistMaker::Init(args);
     builder_.reset(
         new BuilderMock(
             param_,
             std::move(pruner_),
             std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
-    dmat = CreateDMatrix(n_rows, n_cols, 0.8, 3);
+    dmat_ = CreateDMatrix(kNRows, kNCols, 0.8, 3);
   }
-  ~QuantileHistMock() { delete dmat; }
+  ~QuantileHistMock() override { delete dmat_; }
 
-  static size_t GetNumColumns() { return n_cols; }
+  static size_t GetNumColumns() { return kNCols; }
 
   void TestInitData() {
-    size_t constexpr max_bins = 4;
+    size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrix gmat;
-    gmat.Init((*dmat).get(), max_bins);
+    gmat.Init((*dmat_).get(), kMaxBins);
 
     RegTree tree = RegTree();
-    tree.param.InitAllowUnknown(cfg);
+    tree.param.InitAllowUnknown(cfg_);
 
     std::vector<GradientPair> gpair =
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
 
-    builder_->TestInitData(gmat, gpair, dmat->get(), tree);
+    builder_->TestInitData(gmat, gpair, dmat_->get(), tree);
   }
 
   void TestBuildHist() {
     RegTree tree = RegTree();
-    tree.param.InitAllowUnknown(cfg);
+    tree.param.InitAllowUnknown(cfg_);
 
-    size_t constexpr max_bins = 4;
+    size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrix gmat;
-    gmat.Init((*dmat).get(), max_bins);
+    gmat.Init((*dmat_).get(), kMaxBins);
 
-    builder_->TestBuildHist(0, gmat, *(*dmat).get(), tree);
+    builder_->TestBuildHist(0, gmat, *(*dmat_).get(), tree);
   }
 
   void TestEvaluateSplit() {
     RegTree tree = RegTree();
-    tree.param.InitAllowUnknown(cfg);
+    tree.param.InitAllowUnknown(cfg_);
 
     builder_->TestEvaluateSplit(gmatb_, tree);
   }

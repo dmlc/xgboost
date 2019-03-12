@@ -1,6 +1,8 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
 #include <dmlc/filesystem.h>
+#include <cinttypes>
+
 #include "../../../src/data/sparse_page_dmatrix.h"
 
 #include "../helpers.h"
@@ -33,7 +35,7 @@ TEST(SparsePageDMatrix, RowAccess) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
-  long row_count = 0;
+  int64_t row_count = 0;
   for (auto &batch : dmat->GetRowBatches()) {
     row_count += batch.Size();
   }

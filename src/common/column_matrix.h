@@ -42,7 +42,9 @@ class Column {
   uint32_t GetBaseIdx() const { return index_base_; }
   ColumnType GetType() const { return type_; }
   size_t GetRowIdx(size_t idx) const {
-    return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];
+    // clang-tidy worries that row_ind_ might be a nullptr, which is possible,
+    // but low level structure is not safe anyway.
+    return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];  // NOLINT
   }
   bool IsMissing(size_t idx) const {
     return index_[idx] == std::numeric_limits<uint32_t>::max();
@@ -68,7 +70,7 @@ class ColumnMatrix {
 
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
-                double  sparse_threshold) {
+                   double  sparse_threshold) {
     const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 

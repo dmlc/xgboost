@@ -85,7 +85,7 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("count:poisson");
   std::vector<std::pair<std::string, std::string> > args;
-  args.push_back(std::make_pair("max_delta_step", "0.1f"));
+  args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
   obj->Configure(args);
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
@@ -176,7 +176,7 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
 TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:tweedie");
   std::vector<std::pair<std::string, std::string> > args;
-  args.push_back(std::make_pair("tweedie_variance_power", "1.1f"));
+  args.emplace_back(std::make_pair("tweedie_variance_power", "1.1f"));
   obj->Configure(args);
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
