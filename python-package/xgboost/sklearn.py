@@ -64,6 +64,8 @@ class XGBModel(XGBModelBase):
         Number of trees to fit.
     verbosity : int
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
+    silent : boolean
+        Whether to print messages while running boosting. Deprecated. Use verbosity instead.
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
@@ -134,7 +136,7 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 verbosity=1, objective="reg:linear", booster='gbtree',
+                 verbosity=1, silent=None, objective="reg:linear", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -146,6 +148,7 @@ class XGBModel(XGBModelBase):
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
         self.verbosity = verbosity
+        self.silent = silent
         self.objective = objective
         self.booster = booster
         self.gamma = gamma
@@ -239,6 +242,16 @@ class XGBModel(XGBModelBase):
                           'nthread is deprecated.', DeprecationWarning)
         else:
             xgb_params['nthread'] = n_jobs
+
+        if 'silent' in xgb_params and xgb_params['silent'] is not None:
+            warnings.warn('The silent parameter is deprecated.'
+                          'Please use verbosity instead.'
+                          'silent is depreated', DeprecationWarning)
+            # TODO(canonizer): set verbosity explicitly if silent is removed from xgboost,
+            # but remains in this API
+        else:
+            # silent=None shouldn't be passed to xgboost
+            xgb_params.pop('silent', None)
 
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
@@ -588,7 +601,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, verbosity=1,
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
+                 verbosity=1, silent=None,
                  objective="binary:logistic", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
@@ -596,7 +610,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            verbosity=verbosity, objective=objective, booster=booster,
+            verbosity=verbosity, silent=silent, objective=objective, booster=booster,
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -874,7 +888,8 @@ class XGBRFClassifier(XGBClassifier):
               + "for XGBoost random forest classification.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100,
+                 verbosity=1, silent=None,
                  objective="binary:logistic", n_jobs=1, nthread=None, gamma=0,
                  min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
                  colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
@@ -882,7 +897,7 @@ class XGBRFClassifier(XGBClassifier):
                  missing=None, **kwargs):
         super(XGBRFClassifier, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            verbosity=verbosity, objective=objective, booster='gbtree',
+            verbosity=verbosity, silent=silent, objective=objective, booster='gbtree',
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -912,7 +927,8 @@ class XGBRFRegressor(XGBRegressor):
               + "for XGBoost random forest regression.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100,
+                 verbosity=1, silent=None,
                  objective="reg:linear", n_jobs=1, nthread=None, gamma=0,
                  min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
                  colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
@@ -920,7 +936,7 @@ class XGBRFRegressor(XGBRegressor):
                  missing=None, **kwargs):
         super(XGBRFRegressor, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            verbosity=verbosity, objective=objective, booster='gbtree',
+            verbosity=verbosity, silent=silent, objective=objective, booster='gbtree',
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
@@ -952,6 +968,8 @@ class XGBRanker(XGBModel):
             Number of boosted trees to fit.
         verbosity : int
             The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
+        silent : boolean
+            Whether to print messages while running boosting. Deprecated. Use verbosity instead.
         objective : string
             Specify the learning task and the corresponding learning objective.
             The objective name must start with "rank:".
@@ -1037,7 +1055,7 @@ class XGBRanker(XGBModel):
         """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 verbosity=1, objective="rank:pairwise", booster='gbtree',
+                 verbosity=1, silent=None, objective="rank:pairwise", booster='gbtree',
                  n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -1045,7 +1063,7 @@ class XGBRanker(XGBModel):
 
         super(XGBRanker, self).__init__(
             max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
-            verbosity=verbosity, objective=objective, booster=booster,
+            verbosity=verbosity, silent=silent, objective=objective, booster=booster,
             n_jobs=n_jobs, nthread=nthread, gamma=gamma,
             min_child_weight=min_child_weight, max_delta_step=max_delta_step,
             subsample=subsample, colsample_bytree=colsample_bytree,
