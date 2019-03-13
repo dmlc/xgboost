@@ -450,7 +450,8 @@ struct IndicateLeftTransform {
 void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
                   common::Span<int> position_out, common::Span<bst_uint> ridx,
                   common::Span<bst_uint> ridx_out, int left_nidx,
-                  int right_nidx, int64_t *d_left_count, cudaStream_t stream) {
+                  int right_nidx, int64_t* d_left_count,
+                  cudaStream_t stream = 0) {
   auto d_position_out = position_out.data();
   auto d_position_in = position.data();
   auto d_ridx_out = ridx_out.data();
