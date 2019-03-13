@@ -61,9 +61,9 @@ class XGBModel(XGBModelBase):
     learning_rate : float
         Boosting learning rate (xgb's "eta")
     n_estimators : int
-        Number of boosted trees to fit.
-    silent : boolean
-        Whether to print messages while running boosting.
+        Number of trees to fit.
+    verbosity : int
+        The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
@@ -84,7 +84,9 @@ class XGBModel(XGBModelBase):
     colsample_bytree : float
         Subsample ratio of columns when constructing each tree.
     colsample_bylevel : float
-        Subsample ratio of columns for each split, in each level.
+        Subsample ratio of columns for each level.
+    colsample_bynode : float
+        Subsample ratio of columns for each split.
     reg_alpha : float (xgb's alpha)
         L1 regularization term on weights
     reg_lambda : float (xgb's lambda)
@@ -132,10 +134,10 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear", booster='gbtree',
-                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
-                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
+                 verbosity=1, objective="reg:linear", booster='gbtree',
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
+                 max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None,
                  importance_type="gain", **kwargs):
         if not SKLEARN_INSTALLED:
@@ -143,7 +145,7 @@ class XGBModel(XGBModelBase):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
-        self.silent = silent
+        self.verbosity = verbosity
         self.objective = objective
         self.booster = booster
         self.gamma = gamma
@@ -152,6 +154,7 @@ class XGBModel(XGBModelBase):
         self.subsample = subsample
         self.colsample_bytree = colsample_bytree
         self.colsample_bylevel = colsample_bylevel
+        self.colsample_bynode = colsample_bynode
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
         self.scale_pos_weight = scale_pos_weight
@@ -237,11 +240,13 @@ class XGBModel(XGBModelBase):
         else:
             xgb_params['nthread'] = n_jobs
 
-        xgb_params['verbosity'] = 0 if self.silent else 0
-
         if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
         return xgb_params
+
+    def get_num_boosting_rounds(self):
+        """Gets the number of xgboost boosting rounds."""
+        return self.n_estimators
 
     def save_model(self, fname):
         """
@@ -371,7 +376,7 @@ class XGBModel(XGBModelBase):
                 params.update({'eval_metric': eval_metric})
 
         self._Booster = train(params, trainDmatrix,
-                              self.n_estimators, evals=evals,
+                              self.get_num_boosting_rounds(), evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
@@ -583,21 +588,22 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
-    def __init__(self, max_depth=3, learning_rate=0.1,
-                 n_estimators=100, silent=True,
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, verbosity=1,
                  objective="binary:logistic", booster='gbtree',
-                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
-                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 colsample_bynode=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
-        super(XGBClassifier, self).__init__(max_depth, learning_rate,
-                                            n_estimators, silent, objective, booster,
-                                            n_jobs, nthread, gamma, min_child_weight,
-                                            max_delta_step, subsample,
-                                            colsample_bytree, colsample_bylevel,
-                                            reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score,
-                                            random_state, seed, missing, **kwargs)
+        super(XGBClassifier, self).__init__(
+            max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
+            verbosity=verbosity, objective=objective, booster=booster,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            subsample=subsample, colsample_bytree=colsample_bytree,
+            colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
+            reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
+            base_score=base_score, random_state=random_state, seed=seed, missing=missing,
+            **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
@@ -705,9 +711,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             train_dmatrix = DMatrix(X, label=training_labels,
                                     missing=self.missing, nthread=self.n_jobs)
 
-        self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
-                              evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
+        self._Booster = train(xgb_options, train_dmatrix, self.get_num_boosting_rounds(),
+                              evals=evals, early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
@@ -863,10 +868,74 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         return evals_result
 
 
+class XGBRFClassifier(XGBClassifier):
+    # pylint: disable=missing-docstring
+    __doc__ = "Implementation of the scikit-learn API "\
+              + "for XGBoost random forest classification.\n\n"\
+              + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+                 objective="binary:logistic", n_jobs=1, nthread=None, gamma=0,
+                 min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
+                 missing=None, **kwargs):
+        super(XGBRFClassifier, self).__init__(
+            max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
+            verbosity=verbosity, objective=objective, booster='gbtree',
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            subsample=subsample, colsample_bytree=colsample_bytree,
+            colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
+            reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
+            base_score=base_score, random_state=random_state, seed=seed, missing=missing,
+            **kwargs)
+
+    def get_xgb_params(self):
+        params = super(XGBRFClassifier, self).get_xgb_params()
+        params['num_parallel_tree'] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self):
+        return 1
+
+
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     __doc__ = "Implementation of the scikit-learn API for XGBoost regression.\n\n"\
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+
+
+class XGBRFRegressor(XGBRegressor):
+    # pylint: disable=missing-docstring
+    __doc__ = "Implementation of the scikit-learn API "\
+              + "for XGBoost random forest regression.\n\n"\
+              + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+
+    def __init__(self, max_depth=3, learning_rate=1, n_estimators=100, verbosity=1,
+                 objective="reg:linear", n_jobs=1, nthread=None, gamma=0,
+                 min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
+                 missing=None, **kwargs):
+        super(XGBRFRegressor, self).__init__(
+            max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
+            verbosity=verbosity, objective=objective, booster='gbtree',
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            subsample=subsample, colsample_bytree=colsample_bytree,
+            colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
+            reg_alpha=reg_alpha, reg_lambda=reg_lambda, scale_pos_weight=scale_pos_weight,
+            base_score=base_score, random_state=random_state, seed=seed, missing=missing,
+            **kwargs)
+
+    def get_xgb_params(self):
+        params = super(XGBRFRegressor, self).get_xgb_params()
+        params['num_parallel_tree'] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self):
+        return 1
 
 
 class XGBRanker(XGBModel):
@@ -881,8 +950,8 @@ class XGBRanker(XGBModel):
             Boosting learning rate (xgb's "eta")
         n_estimators : int
             Number of boosted trees to fit.
-        silent : boolean
-            Whether to print messages while running boosting.
+        verbosity : int
+            The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
         objective : string
             Specify the learning task and the corresponding learning objective.
             The objective name must start with "rank:".
@@ -903,7 +972,9 @@ class XGBRanker(XGBModel):
         colsample_bytree : float
             Subsample ratio of columns when constructing each tree.
         colsample_bylevel : float
-            Subsample ratio of columns for each split, in each level.
+            Subsample ratio of columns for each level.
+        colsample_bynode : float
+            Subsample ratio of columns for each split.
         reg_alpha : float (xgb's alpha)
             L1 regularization term on weights
         reg_lambda : float (xgb's lambda)
@@ -966,18 +1037,22 @@ class XGBRanker(XGBModel):
         """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="rank:pairwise", booster='gbtree',
+                 verbosity=1, objective="rank:pairwise", booster='gbtree',
                  n_jobs=-1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
 
-        super(XGBRanker, self).__init__(max_depth, learning_rate,
-                                        n_estimators, silent, objective, booster,
-                                        n_jobs, nthread, gamma, min_child_weight, max_delta_step,
-                                        subsample, colsample_bytree, colsample_bylevel,
-                                        reg_alpha, reg_lambda, scale_pos_weight,
-                                        base_score, random_state, seed, missing)
+        super(XGBRanker, self).__init__(
+            max_depth=max_depth, learning_rate=learning_rate, n_estimators=n_estimators,
+            verbosity=verbosity, objective=objective, booster=booster,
+            n_jobs=n_jobs, nthread=nthread, gamma=gamma,
+            min_child_weight=min_child_weight, max_delta_step=max_delta_step,
+            subsample=subsample, colsample_bytree=colsample_bytree,
+            colsample_bylevel=colsample_bylevel, colsample_bynode=colsample_bynode,
+            reg_alpha=reg_alpha, reg_lambda=reg_lambda,
+            scale_pos_weight=scale_pos_weight, base_score=base_score,
+            random_state=random_state, seed=seed, missing=missing, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
         elif "rank:" not in self.objective:

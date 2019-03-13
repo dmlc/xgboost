@@ -5,9 +5,7 @@
 #include "./hist_util.h"
 
 #include <thrust/copy.h>
-#include <thrust/device_vector.h>
 #include <thrust/functional.h>
-#include <thrust/host_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
@@ -26,13 +24,14 @@ namespace common {
 
 using WXQSketch = HistCutMatrix::WXQSketch;
 
-__global__ void find_cuts_k
+__global__ void FindCutsK
 (WXQSketch::Entry* __restrict__ cuts, const bst_float* __restrict__ data,
  const float* __restrict__ cum_weights, int nsamples, int ncuts) {
   // ncuts < nsamples
   int icut = threadIdx.x + blockIdx.x * blockDim.x;
-  if (icut >= ncuts)
+  if (icut >= ncuts) {
     return;
+  }
   WXQSketch::Entry v;
   int isample = 0;
   if (icut == 0) {
@@ -57,7 +56,7 @@ struct IsNotNaN {
   __device__ bool operator()(float a) const { return !isnan(a); }
 };
 
-__global__ void unpack_features_k
+__global__ void UnpackFeaturesK
 (float* __restrict__ fvalues, float* __restrict__ feature_weights,
  const size_t* __restrict__ row_ptrs, const float* __restrict__ weights,
  Entry* entries, size_t nrows_array, int ncols, size_t row_begin_ptr,
@@ -77,7 +76,7 @@ __global__ void unpack_features_k
   // if and only if it is also written to features
   if (!isnan(entry.fvalue) && (weights == nullptr || !isnan(weights[irow]))) {
     fvalues[ind] = entry.fvalue;
-    if (feature_weights != nullptr) {
+    if (feature_weights != nullptr && weights != nullptr) {
       feature_weights[ind] = weights[irow];
     }
   }
@@ -86,7 +85,7 @@ __global__ void unpack_features_k
 // finds quantiles on the GPU
 struct GPUSketcher {
   // manage memory for a single GPU
-  struct DeviceShard {
+  class DeviceShard {
     int device_;
     bst_uint row_begin_;  // The row offset for this shard
     bst_uint row_end_;
@@ -98,6 +97,7 @@ struct GPUSketcher {
 
     tree::TrainParam param_;
     std::vector<WXQSketch> sketches_;
+    thrust::device_vector<size_t> row_ptrs_;
     std::vector<WXQSketch::SummaryContainer> summaries_;
     thrust::device_vector<Entry> entries_;
     thrust::device_vector<bst_float> fvalues_;
@@ -111,6 +111,7 @@ struct GPUSketcher {
     thrust::device_vector<size_t> num_elements_;
     thrust::device_vector<char> tmp_storage_;
 
+   public:
     DeviceShard(int device, bst_uint row_begin, bst_uint row_end,
                 tree::TrainParam param) :
       device_(device), row_begin_(row_begin), row_end_(row_end),
@@ -269,7 +270,7 @@ struct GPUSketcher {
       } else if (n_cuts_cur_[icol] > 0) {
         // if more elements than cuts: use binary search on cumulative weights
         int block = 256;
-        find_cuts_k<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
+        FindCutsK<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
           (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
            weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
         dh::safe_cuda(cudaGetLastError());  // NOLINT
@@ -277,28 +278,30 @@ struct GPUSketcher {
     }
 
     void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
-                     const thrust::host_vector<size_t>& batch_segments,
                      size_t gpu_batch) {
-      
       // compute start and end indices
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
       size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
                                       static_cast<size_t>(n_rows_));
-      size_t batch_entry_begin = batch_segments[gpu_batch];
-      size_t batch_entry_end = batch_segments[gpu_batch + 1];
       size_t batch_nrows = batch_row_end - batch_row_begin;
-      size_t n_entries = batch_entry_end - batch_entry_begin;
-      
+
+      const auto& offset_vec = row_batch.offset.HostVector();
+      const auto& data_vec = row_batch.data.HostVector();
+
+      size_t n_entries = offset_vec[row_begin_ + batch_row_end] -
+        offset_vec[row_begin_ + batch_row_begin];
       // copy the batch to the GPU
-      row_batch.data.CopyTo(device_, batch_entry_begin, entries_.data().get(),
-                            n_entries);
-      
+      dh::safe_cuda
+        (cudaMemcpyAsync(entries_.data().get(),
+                    data_vec.data() + offset_vec[row_begin_ + batch_row_begin],
+                    n_entries * sizeof(Entry), cudaMemcpyDefault));
       // copy the weights if necessary
       if (has_weights_) {
-        dh::safe_cuda(cudaMemcpy
-                      (weights_.data().get(),
-                       info.weights_.DevicePointer(device_) + batch_row_begin,
-                       batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
+        const auto& weights_vec = info.weights_.HostVector();
+        dh::safe_cuda
+          (cudaMemcpyAsync(weights_.data().get(),
+                      weights_vec.data() + row_begin_ + batch_row_begin,
+                      batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
 
       // unpack the features; also unpack weights if present
@@ -308,19 +311,16 @@ struct GPUSketcher {
       dim3 block3(64, 4, 1);
       dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
                  dh::DivRoundUp(num_cols_, block3.y), 1);
-      unpack_features_k<<<grid3, block3>>>
+      UnpackFeaturesK<<<grid3, block3>>>
         (fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
-         row_batch.offset.DevicePointer(device_) + batch_row_begin,
+         row_ptrs_.data().get() + batch_row_begin,
          has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
-         gpu_batch_nrows_, num_cols_, batch_entry_begin, batch_nrows);
-      dh::safe_cuda(cudaGetLastError());       // NOLINT
-      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
+         gpu_batch_nrows_, num_cols_,
+         offset_vec[row_begin_ + batch_row_begin], batch_nrows);
 
       for (int icol = 0; icol < num_cols_; ++icol) {
         FindColumnCuts(batch_nrows, icol);
       }
-
-      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
@@ -333,29 +333,23 @@ struct GPUSketcher {
     void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
       // copy rows to the device
       dh::safe_cuda(cudaSetDevice(device_));
+      const auto& offset_vec = row_batch.offset.HostVector();
+      row_ptrs_.resize(n_rows_ + 1);
+      thrust::copy(offset_vec.data() + row_begin_,
+                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
       size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
-
-      thrust::host_vector<size_t> batch_segments;
-      dh::BatchEntrySegments(device_, row_batch.offset.DevicePointer(device_),
-                             n_rows_, gpu_batch_nrows_, &batch_segments);
-
       for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
-        SketchBatch(row_batch, info, batch_segments, gpu_batch);
+        SketchBatch(row_batch, info, gpu_batch);
       }
+    }
+
+    void GetSummary(WXQSketch::SummaryContainer *summary, size_t const icol) {
+      sketches_[icol].GetSummary(summary);
     }
   };
 
   void Sketch(const SparsePage& batch, const MetaInfo& info,
               HistCutMatrix* hmat, int gpu_batch_nrows) {
-
-    // partition input matrix into row segments
-    std::vector<size_t> row_segments;
-    dh::RowSegments(info.num_row_, dist_.Devices().Size(), &row_segments);
-
-    // ensure that the data is distributed properly
-    info.weights_.Reshard(dist_);
-    batch.offset.Reshard(GPUDistribution::Overlap(dist_.Devices(), 1));
-
     // create device shards
     shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -380,8 +374,8 @@ struct GPUSketcher {
     WXQSketch::SummaryContainer summary;
     for (int icol = 0; icol < num_cols; ++icol) {
       sketches[icol].Init(batch.Size(), 1.0 / (8 * param_.max_bin));
-      for (int shard = 0; shard < shards_.size(); ++shard) {
-        shards_[shard]->sketches_[icol].GetSummary(&summary);
+      for (auto &shard : shards_) {
+        shard->GetSummary(&summary, icol);
         sketches[icol].PushSummary(summary);
       }
     }
@@ -393,6 +387,7 @@ struct GPUSketcher {
     dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
   }
 
+ private:
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   tree::TrainParam param_;
   GPUDistribution dist_;

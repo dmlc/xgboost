@@ -338,7 +338,7 @@ class DVec {
     }
     safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (other.DeviceIdx() == this->DeviceIdx()) {
-      dh::safe_cuda(cudaMemcpy(this->Data(), other.Data(),
+      dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
                                other.Size() * sizeof(T),
                                cudaMemcpyDeviceToDevice));
     } else {
@@ -368,7 +368,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->Data(), begin.get(), Size() * sizeof(T),
+    safe_cuda(cudaMemcpyAsync(this->Data(), begin.get(), Size() * sizeof(T),
                          cudaMemcpyDefault));
   }
 };
@@ -802,7 +802,7 @@ template <typename T>
 typename std::iterator_traits<T>::value_type SumReduction(
     dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
-  size_t tmpSize;
+  size_t tmpSize {0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
   // Allocate small extra memory for the return value

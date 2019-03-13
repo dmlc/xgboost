@@ -8,7 +8,7 @@
 namespace xgboost {
 
 TEST(Learner, Basic) {
-  typedef std::pair<std::string, std::string> Arg;
+  using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
   auto mat_ptr = CreateDMatrix(10, 10, 0);
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};

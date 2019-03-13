@@ -87,7 +87,10 @@ class Booster {
     initialized_ = true;
   }
 
- public:
+  bool IsInitialized() const { return initialized_; }
+  void Intialize() { initialized_ = true; }
+
+ private:
   bool configured_;
   bool initialized_;
   std::unique_ptr<Learner> learner_;
@@ -1179,7 +1182,7 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
   auto* bst = static_cast<Booster*>(handle);
   *version = rabit::LoadCheckPoint(bst->learner());
   if (*version != 0) {
-    bst->initialized_ = true;
+    bst->Intialize();
   }
   API_END();
 }
