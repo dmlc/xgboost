@@ -596,6 +596,7 @@ class GPUMaker : public TreeUpdater {
     try {
       // build tree
       for (size_t i = 0; i < trees.size(); ++i) {
+        printf("tree_construction_id=%d\n", i);
         UpdateTree(gpair, dmat, trees[i]);
       }
     } catch (const std::exception& e) {
