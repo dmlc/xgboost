@@ -207,28 +207,25 @@ __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
 }
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, L lambda) {
-  if (n == 0) {
-    return;
-  }
-
-  const int GRID_SIZE =
-      static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                              lambda);
-}
-
-template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
 inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
+
+  safe_cuda(cudaSetDevice(device_idx));
 
   const int GRID_SIZE =
       static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
                                                          n, lambda);
 }
+
+// Default stream version
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
+inline void LaunchN(int device_idx, size_t n, L lambda) {
+  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
+}
+
 /*
  * Memory
  */
@@ -257,6 +254,7 @@ class DVec {
     ptr_ = static_cast<T *>(ptr);
     size_ = size;
     device_idx_ = device_idx;
+    safe_cuda(cudaSetDevice(device_idx_));
   }
 
   DVec() : ptr_(NULL), size_(0), device_idx_(-1) {}
@@ -278,6 +276,7 @@ class DVec {
 
   std::vector<T> AsVector() const {
     std::vector<T> h_vector(Size());
+    safe_cuda(cudaSetDevice(device_idx_));
     safe_cuda(cudaMemcpy(h_vector.data(), ptr_, Size() * sizeof(T),
                          cudaMemcpyDeviceToHost));
     return h_vector;
@@ -314,6 +313,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign DVec to DVec, sizes are different");
     }
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (other.DeviceIdx() == this->DeviceIdx()) {
       dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
                                other.Size() * sizeof(T),
@@ -331,6 +331,7 @@ class DVec {
 
   template <typename IterT>
   void copy(IterT begin, IterT end) {
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (end - begin != Size()) {
       LOG(FATAL) << "Cannot copy assign vector to DVec, sizes are different" <<
         " vector::Size(): " << end - begin << " DVec::Size(): " << Size();
@@ -339,6 +340,7 @@ class DVec {
   }
 
   void copy(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+    safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (end - begin != Size()) {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
@@ -436,6 +438,7 @@ class BulkAllocator {
 
   char *AllocateDevice(int device_idx, size_t bytes, MemoryType t) {
     char *ptr;
+    safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaMalloc(&ptr, bytes));
     return ptr;
   }
@@ -477,6 +480,7 @@ class BulkAllocator {
   ~BulkAllocator() {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
       if (!(d_ptr_[i] == nullptr)) {
+        safe_cuda(cudaSetDevice(device_idx_[i]));
         safe_cuda(cudaFree(d_ptr_[i]));
         d_ptr_[i] = nullptr;
       }
@@ -681,6 +685,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                         OffsetT count, SegmentIterT segments,
                         OffsetT num_segments, FunctionT f) {
   typedef typename cub::CubVector<OffsetT, 2>::Type CoordinateT;
+  dh::safe_cuda(cudaSetDevice(device_idx));
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
