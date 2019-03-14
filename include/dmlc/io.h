@@ -12,7 +12,7 @@
 #include <ostream>
 #include <streambuf>
 
-#include "dmlc/base.h"
+#include "base.h"
 
 // include uint64_t only to make io standalone
 #ifdef _MSC_VER

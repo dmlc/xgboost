@@ -1,8 +1,25 @@
-export CC  = gcc
-export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS=  -L../lib -pthread -lm  -lrt
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++0x
+export LDFLAGS=  -L../lib -pthread -lm
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++11
+
+OS := $(shell uname)
+
+ifeq ($(OS), Darwin)
+    ifndef CC
+        export CC = $(if $(shell which clang), clang, gcc)
+    endif
+    ifndef CXX
+        export CXX = $(if $(shell which clang++), clang++, g++)
+    endif
+else
+    ifndef CC
+        export CC = gcc
+    endif
+    ifndef CXX
+        export CXX = g++
+    endif
+    LDFLAGS += -lrt
+endif
 
 # specify tensor path
 BIN = speed_test model_recover local_recover lazy_recover

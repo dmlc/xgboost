@@ -9,7 +9,7 @@
 #include <vector>
 #include <string>
 #include "./internal/utils.h"
-#include "dmlc/io.h"
+#include "../dmlc/io.h"
 
 namespace rabit {
 /*!

@@ -7,10 +7,11 @@ env:
     - TASK=lint LINT_LANG=cpp
     - TASK=lint LINT_LANG=python
     - TASK=doc
-    - TASK=build CXX=g++
-    - TASK=test CXX=g++
+    - TASK=build
+    - TASK=test
 
 # dependent apt packages
+dist: xenial
 addons:
   apt:
     packages:
@@ -21,6 +22,8 @@ addons:
       - libcurl4-openssl-dev
       - unzip
       - python-numpy
+      - gcc-4.8
+      - g++-4.8
       
 before_install:
   - git clone https://github.com/dmlc/dmlc-core

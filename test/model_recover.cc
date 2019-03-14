@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+
 using namespace rabit;
 
 // dummy model
@@ -77,10 +78,9 @@ inline void TestBcast(size_t n, int root, int ntrial, int iter) {
   std::string res;
   if (root == rank) {
     res = s;
-    rabit::Broadcast(&res, root);
-  } else {
-    rabit::Broadcast(&res, root);
   }
+  rabit::Broadcast(&res, root);
+
   utils::Check(res == s, "[%d] TestBcast fail", rank);
 }
 
@@ -104,10 +104,9 @@ int main(int argc, char *argv[]) {
   int iter = rabit::LoadCheckPoint(&model);
   if (iter == 0) {
     model.InitModel(n);
-    printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
-  } else {
-    printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
   }
+  printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
+
   for (int r = iter; r < 3; ++r) {
     TestMax(&model, ntrial, r);
     printf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);
@@ -119,7 +118,7 @@ int main(int argc, char *argv[]) {
     TestSum(&model, ntrial, r);
     printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
     rabit::CheckPoint(&model);
-    printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
+    printf("[%d] !!!Checkpoint pass, iter=%d\n", rank, r);
   }
   rabit::Finalize();
   return 0;
