@@ -201,10 +201,11 @@ class GPUCoordinateUpdater : public LinearUpdater {
     monitor_.Stop("LazyInitShards");
 
     monitor_.Start("UpdateGpair");
+    auto &in_gpair_host = in_gpair->ConstHostVector();
     // Update gpair
     dh::ExecuteIndexShards(&shards_, [&](int idx, std::unique_ptr<DeviceShard>& shard) {
       if (!shard->IsEmpty()) {
-        shard->UpdateGpair(in_gpair->ConstHostVector(), model->param);
+        shard->UpdateGpair(in_gpair_host, model->param);
       }
     });
     monitor_.Stop("UpdateGpair");
