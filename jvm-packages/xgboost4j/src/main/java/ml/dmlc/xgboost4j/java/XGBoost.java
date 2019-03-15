@@ -228,13 +228,56 @@ public class XGBoost {
             break;
           }
         }
-        if (Rabit.getRank() == 0) {
-          Rabit.trackerPrint(evalInfo + '\n');
+        if (Rabit.getRank() == 0 && shouldPrint(params, iter)) {
+          if (shouldPrint(params, iter)){
+            Rabit.trackerPrint(evalInfo + '\n');
+          }
         }
       }
       booster.saveRabitCheckpoint();
     }
     return booster;
+  }
+
+  static Integer tryGetIntFromObject(Object o) {
+    if (o instanceof Integer) {
+      return (int)o;
+    } else if (o instanceof String) {
+      try {
+        return Integer.parseInt((String)o);
+      } catch (NumberFormatException e) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+
+  static boolean shouldPrint(Map<String, Object> params, int iter) {
+    Object silent = params.get("silent");
+    Integer silentInt = tryGetIntFromObject(silent);
+    if (silent != null) {
+      if (silent.equals("true") || silent.equals("True")
+              || (silentInt != null && silentInt != 0)) {
+        return false;  // "silent" will stop printing, otherwise go look at "verbose_eval"
+      }
+    }
+
+    Object verboseEval = params.get("verbose_eval");
+    Integer verboseEvalInt = tryGetIntFromObject(verboseEval);
+    if (verboseEval == null) {
+      return true; // Default to printing evalInfo
+    } else if (verboseEval.equals("false") || verboseEval.equals("False")) {
+      return false;
+    } else if (verboseEvalInt != null) {
+      if (verboseEvalInt == 0) {
+        return false;
+      } else {
+        return iter % verboseEvalInt == 0;
+      }
+    } else {
+      return true; // Don't understand the option, default to printing
+    }
   }
 
   static boolean shouldEarlyStop(int earlyStoppingRounds, int iter, int bestIteration) {
