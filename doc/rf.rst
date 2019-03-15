@@ -4,12 +4,17 @@ Random Forests in XGBoost
 
 XGBoost is normally used to train gradient-boosted decision trees and other gradient
 boosted models. Random forests use the same model representation and inference, as
-gradient-boosted decision trees, but a different training algorithm. There are XGBoost
-parameters that enable training a forest in a random forest fashion.
+gradient-boosted decision trees, but a different training algorithm.  One can use XGBoost
+to train a standalone random forest or use random forest as a base model for gradient
+boosting.  Here we focus on training standalone random forest.
 
+We have native APIs for training random forests since the early days, and a new
+Scikit-Learn wrapper after 0.82 (not included in 0.82).  Please note that the new
+Scikit-Learn wrapper is still **experimental**, which means we might change the interface
+whenever needed.
 
 ****************
-With XGBoost API
+Standalone Random Forest With XGBoost API
 ****************
 
 The following parameters must be set to enable random forest training.
@@ -22,13 +27,14 @@ The following parameters must be set to enable random forest training.
   selection of columns. Normally, ``colsample_bynode`` would be set to a value less than 1
   to randomly sample columns at each tree split.
 * ``num_parallel_tree`` should be set to the size of the forest being trained.
-* ``num_boost_round`` should be set to 1. Note that this is a keyword argument to
-  ``train()``, and is not part of the parameter dictionary.
+* ``num_boost_round`` should be set to 1 to prevent XGBoost from boosting multiple random
+  forests.  Note that this is a keyword argument to ``train()``, and is not part of the
+  parameter dictionary.
 * ``eta`` (alias: ``learning_rate``) must be set to 1 when training random forest
   regression.
 * ``random_state`` can be used to seed the random number generator.
 
-  
+
 Other parameters should be set in a similar way they are set for gradient boosting. For
 instance, ``objective`` will typically be ``reg:linear`` for regression and
 ``binary:logistic`` for classification, ``lambda`` should be set according to a desired
@@ -59,7 +65,7 @@ A random forest model can then be trained as follows::
 
 
 **************************
-With Scikit-Learn-Like API
+Standalone Random Forest With Scikit-Learn-Like API
 **************************
 
 ``XGBRFClassifier`` and ``XGBRFRegressor`` are SKL-like classes that provide random forest
@@ -72,7 +78,18 @@ some of the parameters adjusted accordingly. In particular:
 * ``learning_rate`` is set to 1 by default
 * ``colsample_bynode`` and ``subsample`` are set to 0.8 by default
 * ``booster`` is always ``gbtree``
-  
+
+For a simple example, you can train a random forest regressor with::
+
+    from sklearn.model_selection import KFold
+
+    # Your code ...
+
+    kf = KFold(n_splits=2)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBRFRegressor(random_state=42).fit(
+	X[train_index], y[train_index])
+
 Note that these classes have a smaller selection of parameters compared to using
 ``train()``. In particular, it is impossible to combine random forests with gradient
 boosting using this API.

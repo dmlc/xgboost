@@ -884,7 +884,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
-    __doc__ = "Implementation of the scikit-learn API "\
+    __doc__ = "Experimental implementation of the scikit-learn API "\
               + "for XGBoost random forest classification.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
@@ -923,7 +923,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
-    __doc__ = "Implementation of the scikit-learn API "\
+    __doc__ = "Experimental implementation of the scikit-learn API "\
               + "for XGBoost random forest regression.\n\n"\
               + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
