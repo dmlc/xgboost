@@ -14,6 +14,11 @@ if [ ${TASK} == "build" ]; then
     make all || exit -1
 fi
 
+if [ ${TASK} == "mpi-build" ]; then
+    cd test
+    make mpi && make speed_test.mpi || exit -1
+fi
+
 if [ ${TASK} == "test" ]; then
     cd test
     make all || exit -1

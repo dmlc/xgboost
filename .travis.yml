@@ -8,6 +8,7 @@ env:
     - TASK=lint LINT_LANG=python
     - TASK=doc
     - TASK=build
+    - TASK=mpi-build
     - TASK=test
 
 # dependent apt packages
@@ -24,6 +25,11 @@ addons:
       - python-numpy
       - gcc-4.8
       - g++-4.8
+      - openmpi-bin
+      - openmpi-common
+      - openssh-client
+      - openssh-server
+      - libopenmpi-dev
       
 before_install:
   - git clone https://github.com/dmlc/dmlc-core
