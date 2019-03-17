@@ -33,6 +33,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.storage.StorageLevel
 
 
 /**
@@ -357,7 +358,7 @@ object XGBoost extends Serializable {
   }
 
   private def cacheData(ifCacheDataBoolean: Boolean, input: RDD[_]): RDD[_] = {
-    if (ifCacheDataBoolean) input.cache() else input
+    if (ifCacheDataBoolean) input.persist(StorageLevel.MEMORY_AND_DISK) else input
   }
 
   private def composeInputData(
@@ -395,42 +396,60 @@ object XGBoost extends Serializable {
     val transformedTrainingData = composeInputData(trainingData,
       params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup, nWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
-    // Train for every ${savingRound} rounds and save the partially completed booster
-    checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
-      checkpointRound: Int =>
-        val tracker = startTracker(nWorkers, trackerConf)
-        try {
-          val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
-          val rabitEnv = tracker.getWorkerEnvs
-          val boostersAndMetrics = if (hasGroup) {
-            trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
-              checkpointRound, prevBooster, evalSetsMap)
-          } else {
-            trainForNonRanking(transformedTrainingData.right.get, overriddenParams, rabitEnv,
-              checkpointRound, prevBooster, evalSetsMap)
-          }
-          val sparkJobThread = new Thread() {
-            override def run() {
-              // force the job
-              boostersAndMetrics.foreachPartition(() => _)
+    try {
+      // Train for every ${savingRound} rounds and save the partially completed booster
+      checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
+        checkpointRound: Int =>
+          val tracker = startTracker(nWorkers, trackerConf)
+          try {
+            val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+            val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers,
+              nWorkers)
+            val rabitEnv = tracker.getWorkerEnvs
+            val boostersAndMetrics = if (hasGroup) {
+              trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
+                checkpointRound, prevBooster, evalSetsMap)
+            } else {
+              trainForNonRanking(transformedTrainingData.right.get, overriddenParams, rabitEnv,
+                checkpointRound, prevBooster, evalSetsMap)
             }
+            val sparkJobThread = new Thread() {
+              override def run() {
+                // force the job
+                boostersAndMetrics.foreachPartition(() => _)
+              }
+            }
+            sparkJobThread.setUncaughtExceptionHandler(tracker)
+            sparkJobThread.start()
+            val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+            logger.info(s"Rabit returns with exit code $trackerReturnVal")
+            val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
+              boostersAndMetrics, sparkJobThread)
+            if (checkpointRound < round) {
+              prevBooster = booster
+              checkpointManager.updateCheckpoint(prevBooster)
+            }
+            (booster, metrics)
+          } finally {
+            tracker.stop()
           }
-          sparkJobThread.setUncaughtExceptionHandler(tracker)
-          sparkJobThread.start()
-          val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
-          logger.info(s"Rabit returns with exit code $trackerReturnVal")
-          val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
-            sparkJobThread)
-          if (checkpointRound < round) {
-            prevBooster = booster
-            checkpointManager.updateCheckpoint(prevBooster)
-          }
-          (booster, metrics)
-        } finally {
-          tracker.stop()
-        }
-    }.last
+      }.last
+    } finally {
+      uncacheTrainingData(params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean],
+        transformedTrainingData)
+    }
+  }
+
+  private def uncacheTrainingData(
+      cacheTrainingSet: Boolean,
+      transformedTrainingData: Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]]): Unit = {
+    if (cacheTrainingSet) {
+      if (transformedTrainingData.isLeft) {
+        transformedTrainingData.left.get.unpersist()
+      } else {
+        transformedTrainingData.right.get.unpersist()
+      }
+    }
   }
 
   private[spark] def repartitionForTraining(trainingData: RDD[XGBLabeledPoint], nWorkers: Int) = {
