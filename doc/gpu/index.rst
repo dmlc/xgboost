@@ -92,7 +92,7 @@ Most of the objective functions implemented in XGBoost can be run on GPU.  Follo
 +-----------------+-------------+
 | Objectives      | GPU support |
 +-----------------+-------------+
-| reg:linear      | |tick|      |
+| reg:squarederror| |tick|      |
 +-----------------+-------------+
 | reg:logistic    | |tick|      |
 +-----------------+-------------+

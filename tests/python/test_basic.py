@@ -38,7 +38,7 @@ class TestBasic(unittest.TestCase):
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -85,7 +85,7 @@ class TestBasic(unittest.TestCase):
     def test_record_results(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -102,7 +102,7 @@ class TestBasic(unittest.TestCase):
     def test_multiclass(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'num_class': 2}
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'num_class': 2}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -273,7 +273,7 @@ class TestBasic(unittest.TestCase):
 
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                   'objective': 'binary:logistic'}
 
         # return np.ndarray
@@ -283,7 +283,7 @@ class TestBasic(unittest.TestCase):
 
     def test_cv_no_shuffle(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                   'objective': 'binary:logistic'}
 
         # return np.ndarray
@@ -294,7 +294,7 @@ class TestBasic(unittest.TestCase):
 
     def test_cv_explicit_fold_indices(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective':
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'binary:logistic'}
         folds = [
             # Train        Test
@@ -310,7 +310,7 @@ class TestBasic(unittest.TestCase):
 
     def test_cv_explicit_fold_indices_labels(self):
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
-                  'reg:linear'}
+                  'reg:squarederror'}
         N = 100
         F = 3
         dm = xgb.DMatrix(data=np.random.randn(N, F), label=np.arange(N))
