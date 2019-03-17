@@ -305,9 +305,8 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
-    val partitionedData = repartitionForTraining(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
-      partitionedData.mapPartitions(labeledPoints => {
+      trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
           getCacheDirName(useExternalMemory))
@@ -315,7 +314,7 @@ object XGBoost extends Serializable {
           obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(partitionedData, evalSetsMap, nWorkers).mapPartitions {
+      coPartitionNoGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions {
         nameAndLabeledPointSets =>
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
@@ -328,7 +327,7 @@ object XGBoost extends Serializable {
   }
 
   private def trainForRanking(
-      trainingData: RDD[XGBLabeledPoint],
+      trainingData: RDD[Array[XGBLabeledPoint]],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
@@ -336,16 +335,15 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
-    val partitionedTrainingSet = repartitionForTrainingGroup(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
-      partitionedTrainingSet.mapPartitions(labeledPointGroups => {
+      trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(params,
           removeMissingValuesWithGroup(labeledPointGroups, missing),
           getCacheDirName(useExternalMemory))
         buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(partitionedTrainingSet, evalSetsMap, nWorkers).mapPartitions(
+      coPartitionGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
@@ -355,6 +353,25 @@ object XGBoost extends Serializable {
           buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval,
             prevBooster)
         }).cache()
+    }
+  }
+
+  private def cacheData(ifCacheDataBoolean: Boolean, input: RDD[_]): RDD[_] = {
+    if (ifCacheDataBoolean) input.cache() else input
+  }
+
+  private def composeInputData(
+    trainingData: RDD[XGBLabeledPoint],
+    ifCacheDataBoolean: Boolean,
+    hasGroup: Boolean,
+    nWorkers: Int): Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]] = {
+    if (hasGroup) {
+      val repartitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
+      Left(cacheData(ifCacheDataBoolean, repartitionedData).
+        asInstanceOf[RDD[Array[XGBLabeledPoint]]])
+    } else {
+      val repartitionedData = repartitionForTraining(trainingData, nWorkers)
+      Right(cacheData(ifCacheDataBoolean, repartitionedData).asInstanceOf[RDD[XGBLabeledPoint]])
     }
   }
 
@@ -375,6 +392,8 @@ object XGBoost extends Serializable {
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, checkpointPath)
     checkpointManager.cleanUpHigherVersions(round.asInstanceOf[Int])
+    val transformedTrainingData = composeInputData(trainingData,
+      params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup, nWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     // Train for every ${savingRound} rounds and save the partially completed booster
     checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
@@ -385,11 +404,11 @@ object XGBoost extends Serializable {
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val rabitEnv = tracker.getWorkerEnvs
           val boostersAndMetrics = if (hasGroup) {
-            trainForRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
-              prevBooster, evalSetsMap)
+            trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
+              checkpointRound, prevBooster, evalSetsMap)
           } else {
-            trainForNonRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
-              prevBooster, evalSetsMap)
+            trainForNonRanking(transformedTrainingData.right.get, overriddenParams, rabitEnv,
+              checkpointRound, prevBooster, evalSetsMap)
           }
           val sparkJobThread = new Thread() {
             override def run() {

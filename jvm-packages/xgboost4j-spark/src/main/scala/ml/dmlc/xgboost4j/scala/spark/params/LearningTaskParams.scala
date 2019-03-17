@@ -77,6 +77,12 @@ private[spark] trait LearningTaskParams extends Params {
   final def getTrainTestRatio: Double = $(trainTestRatio)
 
   /**
+   * whether caching training data
+   */
+  final val cacheTrainingSet = new BooleanParam(this, "cacheTrainingSet",
+    "whether caching training data")
+
+  /**
    * If non-zero, the training will be stopped after a specified number
    * of consecutive increases in any evaluation metric.
    */
@@ -95,7 +101,7 @@ private[spark] trait LearningTaskParams extends Params {
   final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
 
   setDefault(objective -> "reg:squarederror", baseScore -> 0.5,
-    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
+    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0, cacheTrainingSet -> false)
 }
 
 private[spark] object LearningTaskParams {
