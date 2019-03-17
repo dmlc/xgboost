@@ -16,7 +16,7 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 \itemize{
   \item \code{objective} objective function, common ones are
   \itemize{
-    \item \code{reg:linear} linear regression
+    \item \code{reg:squarederror} Regression with squared loss.
     \item \code{binary:logistic} logistic regression for classification
   }
   \item \code{eta} step size of each boosting step

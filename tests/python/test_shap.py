@@ -51,7 +51,7 @@ class TestSHAP(unittest.TestCase):
 
         def fn(max_depth, num_rounds):
             # train
-            params = {'max_depth': max_depth, 'eta': 1, 'silent': 1}
+            params = {'max_depth': max_depth, 'eta': 1, 'verbosity': 0}
             bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
 
             # predict

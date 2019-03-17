@@ -42,7 +42,7 @@
 #' \itemize{
 #' \item \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it. The default objective options are below:
 #'   \itemize{
-#'     \item \code{reg:linear} linear regression (Default).
+#'     \item \code{reg:squarederror} Regression with squared loss (Default).
 #'     \item \code{reg:logistic} logistic regression.
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.

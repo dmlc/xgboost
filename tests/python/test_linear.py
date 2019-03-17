@@ -30,7 +30,7 @@ def xgb_get_weights(bst):
 
 def assert_regression_result(results, tol):
     regression_results = [r for r in results if
-                          r["param"]["objective"] == "reg:linear"]
+                          r["param"]["objective"] == "reg:squarederror"]
     for res in regression_results:
         X = scale(res["dataset"].X,
                   with_mean=isinstance(res["dataset"].X, np.ndarray))
@@ -52,7 +52,7 @@ def assert_regression_result(results, tol):
 # TODO: More robust classification tests
 def assert_classification_result(results):
     classification_results = [r for r in results if
-                              r["param"]["objective"] != "reg:linear"]
+                              r["param"]["objective"] != "reg:squarederror"]
     for res in classification_results:
         # Check accuracy  is reasonable
         assert res["eval"][-1] < 0.5, (res["dataset"].name, res["eval"][-1])

@@ -11,7 +11,7 @@ rng = np.random.RandomState(1994)
 
 class TestModels(unittest.TestCase):
     def test_glm(self):
-        param = {'silent': 1, 'objective': 'binary:logistic',
+        param = {'verbosity': 0, 'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1, 'nthread': 1}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
@@ -26,7 +26,7 @@ class TestModels(unittest.TestCase):
     def test_dart(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 5, 'objective': 'binary:logistic', 'booster': 'dart', 'silent': False}
+        param = {'max_depth': 5, 'objective': 'binary:logistic', 'booster': 'dart', 'verbosity': 1}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -51,7 +51,7 @@ class TestModels(unittest.TestCase):
 
         # check whether sample_type and normalize_type work
         num_round = 50
-        param['silent'] = True
+        param['verbosity'] = 0
         param['learning_rate'] = 0.1
         param['rate_drop'] = 0.1
         preds_list = []
@@ -74,7 +74,8 @@ class TestModels(unittest.TestCase):
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'eta': 0, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
+                 'objective': 'binary:logistic'}
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
                         evals_result=evals_result)
@@ -84,7 +85,8 @@ class TestModels(unittest.TestCase):
         assert eval_errors[0] > eval_errors[-1]
 
         # init learning_rate with 0 to check whether learning_rates work
-        param = {'max_depth': 2, 'learning_rate': 0, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'learning_rate': 0, 'verbosity': 0,
+                 'objective': 'binary:logistic'}
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
                         evals_result=evals_result)
@@ -94,7 +96,7 @@ class TestModels(unittest.TestCase):
         assert eval_errors[0] > eval_errors[-1]
 
         # check if learning_rates override default value of eta/learning_rate
-        param = {'max_depth': 2, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic'}
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0, 0, 0, 0],
                         evals_result=evals_result)
@@ -111,7 +113,7 @@ class TestModels(unittest.TestCase):
         assert isinstance(bst, xgb.core.Booster)
 
     def test_custom_objective(self):
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1}
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
 
@@ -152,7 +154,8 @@ class TestModels(unittest.TestCase):
 
     def test_multi_eval_metric(self):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        param = {'max_depth': 2, 'eta': 0.2, 'silent': 1, 'objective': 'binary:logistic'}
+        param = {'max_depth': 2, 'eta': 0.2, 'verbosity': 0,
+                 'objective': 'binary:logistic'}
         param['eval_metric'] = ["auc", "logloss", 'error']
         evals_result = {}
         bst = xgb.train(param, dtrain, 4, watchlist, evals_result=evals_result)
@@ -161,7 +164,7 @@ class TestModels(unittest.TestCase):
         assert set(evals_result['eval'].keys()) == {'auc', 'error', 'logloss'}
 
     def test_fpreproc(self):
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic'}
         num_round = 2
 
@@ -175,7 +178,7 @@ class TestModels(unittest.TestCase):
                metrics={'auc'}, seed=0, fpreproc=fpreproc)
 
     def test_show_stdv(self):
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                  'objective': 'binary:logistic'}
         num_round = 2
         xgb.cv(param, dtrain, num_round, nfold=5,

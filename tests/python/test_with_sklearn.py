@@ -603,7 +603,8 @@ def test_RFECV():
     # Regression
     X, y = load_boston(return_X_y=True)
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10, n_jobs=1, objective='reg:linear',
+                            n_estimators=10, n_jobs=1,
+                            objective='reg:squarederror',
                             random_state=0, verbosity=0)
     rfecv = RFECV(
         estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')

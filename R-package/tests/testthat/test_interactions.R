@@ -98,7 +98,7 @@ test_that("SHAP contribution values are not NAN", {
   fit <- xgboost(
     verbose = 0,
     params = list(
-      objective = "reg:linear",
+      objective = "reg:squarederror",
       eval_metric = "rmse"),
     data = as.matrix(subset(d, fold == 2)[, ivs]),
     label = subset(d, fold == 2)$y,

@@ -9,25 +9,25 @@ rng = np.random.RandomState(1337)
 
 class TestEvalMetrics(unittest.TestCase):
     xgb_params_01 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'eval_metric': 'error'
     }
 
     xgb_params_02 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'eval_metric': ['error']
     }
 
     xgb_params_03 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'eval_metric': ['rmse', 'error']
     }
 
     xgb_params_04 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'eval_metric': ['error', 'rmse']
     }

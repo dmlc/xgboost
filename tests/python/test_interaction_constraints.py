@@ -18,7 +18,7 @@ class TestInteractionConstraints(unittest.TestCase):
         X = np.column_stack((x1, x2, x3))
         dtrain = xgboost.DMatrix(X, label=y)
 
-        params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'silent': 1,
+        params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'verbosity': 0,
                   'interaction_constraints': '[[0, 1]]'}
         num_boost_round = 100
         # Fit a model that only allows interaction between x1 and x2

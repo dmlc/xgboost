@@ -36,7 +36,7 @@ The following parameters must be set to enable random forest training.
 
 
 Other parameters should be set in a similar way they are set for gradient boosting. For
-instance, ``objective`` will typically be ``reg:linear`` for regression and
+instance, ``objective`` will typically be ``reg:squarederror`` for regression and
 ``binary:logistic`` for classification, ``lambda`` should be set according to a desired
 regularization weight, etc.
 
