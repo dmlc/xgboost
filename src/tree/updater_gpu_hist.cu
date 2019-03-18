@@ -701,7 +701,7 @@ struct DeviceShard {
       p_feature_set->Reshard(GPUSet(device_id, 1));
       auto d_feature_set = p_feature_set->DeviceSpan(device_id);
       auto d_split_candidates =
-          d_split_candidates_all.subspan(i * num_columns, num_columns);
+          d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
 
       // One block for each feature
