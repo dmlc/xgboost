@@ -13,28 +13,37 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.java;
 
-import java.io.Serializable;
+package ml.dmlc.xgboost4j.scala.spark
 
-/**
- * interface for customized evaluation
- */
-public interface IEvaluation extends Serializable {
+import ml.dmlc.xgboost4j.java.IEvaluationForDistributed
+import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
+
+class DistributedEvalError extends EvalTrait with IEvaluationForDistributed {
 
   /**
-   * get metrics' name
+   * get evaluate metric
+   *
+   * @return evalMetric
    */
-  String getMetric();
+  override def getMetric: String = "distributed_error"
 
   /**
    * evaluate with predicts and data
-   *
-   * this method is used only for evaluation in single-host mode
    *
    * @param predicts predictions as array
    * @param dmat     data matrix to evaluate
    * @return result of the metric
    */
-  float eval(float[][] predicts, DMatrix dmat);
+  override def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float = 0.0f
+
+  /**
+   * calculate the metrics for a single row given its label and prediction
+   */
+  override def evalRow(label: Float, pred: Float): Float = 0.0f
+
+  /**
+   * perform transformation with the sum of error and weights to get the final evaluation metrics
+   */
+  override def getFinal(errorSum: Float, weightSum: Float): Float = 0.0f
 }

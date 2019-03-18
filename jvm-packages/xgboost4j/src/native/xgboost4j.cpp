@@ -771,6 +771,17 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterAddNewMetrics
+ * Signature: (JLjava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMetrics
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name) {
+  std::cout << "adding new metrics\n";
+  return 0;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterLoadRabitCheckpoint
  * Signature: (J[I)I
  */

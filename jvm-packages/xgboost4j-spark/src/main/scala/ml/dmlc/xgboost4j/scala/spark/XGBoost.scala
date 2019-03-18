@@ -24,7 +24,8 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{IEvaluationForDistributed, IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.XGBoostJNI
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}

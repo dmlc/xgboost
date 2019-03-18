@@ -277,6 +277,10 @@ public class Booster implements Serializable, KryoSerializable {
     return evalInfo;
   }
 
+  public long getHandle() {
+    return handle;
+  }
+
   /**
    * Advanced predict function with all the options.
    *

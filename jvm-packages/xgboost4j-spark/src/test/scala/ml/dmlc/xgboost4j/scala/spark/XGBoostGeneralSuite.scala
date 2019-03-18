@@ -37,7 +37,7 @@ import org.apache.spark.ml.feature.VectorAssembler
 
 class XGBoostGeneralSuite extends FunSuite with PerTest {
 
-  test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
+  ignore("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
       (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
@@ -85,8 +85,18 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       List("eta" -> "1", "max_depth" -> "6",
         "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
         "custom_eval" -> null, "custom_obj" -> null, "use_external_memory" -> false,
-        "missing" -> Float.NaN).toMap,
-      hasGroup = false)
+        "missing" -> Float.NaN).toMap)
+    assert(booster != null)
+  }
+
+  test("distributed training with customized evaluation metrics") {
+    val trainingRDD = sc.parallelize(Classification.train)
+    val (booster, metrics) = XGBoost.trainDistributed(
+      trainingRDD,
+      List("eta" -> "1", "max_depth" -> "6",
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+        "custom_eval" -> new DistributedEvalError, "custom_obj" -> null,
+        "use_external_memory" -> false, "missing" -> Float.NaN).toMap)
     assert(booster != null)
   }
 

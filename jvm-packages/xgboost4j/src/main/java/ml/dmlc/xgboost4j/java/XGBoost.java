@@ -196,9 +196,13 @@ public class XGBoost {
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo;
-        if (eval != null) {
+        if (eval != null && !(eval instanceof IEvaluationForDistributed)) {
           evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
         } else {
+          if (eval instanceof IEvaluationForDistributed) {
+            // TODO
+            XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric());
+          }
           evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
         }
         for (int i = 0; i < metricsOut.length; i++) {

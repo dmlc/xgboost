@@ -23,8 +23,6 @@ import org.apache.commons.logging.LogFactory;
 /**
  * xgboost JNI functions
  * change 2015-7-6: *use a long[] (length=1) as container of handle to get the output DMatrix or Booster
- *
- * @author hzx
  */
 class XGBoostJNI {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
@@ -99,6 +97,8 @@ class XGBoostJNI {
 
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
                                                   int ntree_limit, float[][] predicts);
+
+  public final static native int XGBoosterAddNewMetrics(long handle, String metricsName);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 
