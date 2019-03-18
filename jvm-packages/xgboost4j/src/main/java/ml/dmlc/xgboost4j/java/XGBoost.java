@@ -239,7 +239,7 @@ public class XGBoost {
     return booster;
   }
 
-  static Integer tryGetIntFromObject(Object o) {
+  private static Integer tryGetIntFromObject(Object o) {
     if (o instanceof Integer) {
       return (int)o;
     } else if (o instanceof String) {
@@ -253,7 +253,7 @@ public class XGBoost {
     }
   }
 
-  static boolean shouldPrint(Map<String, Object> params, int iter) {
+  private static boolean shouldPrint(Map<String, Object> params, int iter) {
     Object silent = params.get("silent");
     Integer silentInt = tryGetIntFromObject(silent);
     if (silent != null) {
