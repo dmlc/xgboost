@@ -33,6 +33,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.storage.StorageLevel
 
 
 /**
@@ -305,9 +306,8 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
-    val partitionedData = repartitionForTraining(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
-      partitionedData.mapPartitions(labeledPoints => {
+      trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
           removeMissingValues(labeledPoints, missing),
           getCacheDirName(useExternalMemory))
@@ -315,7 +315,7 @@ object XGBoost extends Serializable {
           obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(partitionedData, evalSetsMap, nWorkers).mapPartitions {
+      coPartitionNoGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions {
         nameAndLabeledPointSets =>
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
@@ -328,7 +328,7 @@ object XGBoost extends Serializable {
   }
 
   private def trainForRanking(
-      trainingData: RDD[XGBLabeledPoint],
+      trainingData: RDD[Array[XGBLabeledPoint]],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
@@ -336,16 +336,15 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _) =
       parameterFetchAndValidation(params, trainingData.sparkContext)
-    val partitionedTrainingSet = repartitionForTrainingGroup(trainingData, nWorkers)
     if (evalSetsMap.isEmpty) {
-      partitionedTrainingSet.mapPartitions(labeledPointGroups => {
+      trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(params,
           removeMissingValuesWithGroup(labeledPointGroups, missing),
           getCacheDirName(useExternalMemory))
         buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(partitionedTrainingSet, evalSetsMap, nWorkers).mapPartitions(
+      coPartitionGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
@@ -355,6 +354,25 @@ object XGBoost extends Serializable {
           buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval,
             prevBooster)
         }).cache()
+    }
+  }
+
+  private def cacheData(ifCacheDataBoolean: Boolean, input: RDD[_]): RDD[_] = {
+    if (ifCacheDataBoolean) input.persist(StorageLevel.MEMORY_AND_DISK) else input
+  }
+
+  private def composeInputData(
+    trainingData: RDD[XGBLabeledPoint],
+    ifCacheDataBoolean: Boolean,
+    hasGroup: Boolean,
+    nWorkers: Int): Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]] = {
+    if (hasGroup) {
+      val repartitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
+      Left(cacheData(ifCacheDataBoolean, repartitionedData).
+        asInstanceOf[RDD[Array[XGBLabeledPoint]]])
+    } else {
+      val repartitionedData = repartitionForTraining(trainingData, nWorkers)
+      Right(cacheData(ifCacheDataBoolean, repartitionedData).asInstanceOf[RDD[XGBLabeledPoint]])
     }
   }
 
@@ -375,43 +393,63 @@ object XGBoost extends Serializable {
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, checkpointPath)
     checkpointManager.cleanUpHigherVersions(round.asInstanceOf[Int])
+    val transformedTrainingData = composeInputData(trainingData,
+      params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup, nWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
-    // Train for every ${savingRound} rounds and save the partially completed booster
-    checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
-      checkpointRound: Int =>
-        val tracker = startTracker(nWorkers, trackerConf)
-        try {
-          val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
-          val rabitEnv = tracker.getWorkerEnvs
-          val boostersAndMetrics = if (hasGroup) {
-            trainForRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
-              prevBooster, evalSetsMap)
-          } else {
-            trainForNonRanking(trainingData, overriddenParams, rabitEnv, checkpointRound,
-              prevBooster, evalSetsMap)
-          }
-          val sparkJobThread = new Thread() {
-            override def run() {
-              // force the job
-              boostersAndMetrics.foreachPartition(() => _)
+    try {
+      // Train for every ${savingRound} rounds and save the partially completed booster
+      checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
+        checkpointRound: Int =>
+          val tracker = startTracker(nWorkers, trackerConf)
+          try {
+            val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+            val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers,
+              nWorkers)
+            val rabitEnv = tracker.getWorkerEnvs
+            val boostersAndMetrics = if (hasGroup) {
+              trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
+                checkpointRound, prevBooster, evalSetsMap)
+            } else {
+              trainForNonRanking(transformedTrainingData.right.get, overriddenParams, rabitEnv,
+                checkpointRound, prevBooster, evalSetsMap)
             }
+            val sparkJobThread = new Thread() {
+              override def run() {
+                // force the job
+                boostersAndMetrics.foreachPartition(() => _)
+              }
+            }
+            sparkJobThread.setUncaughtExceptionHandler(tracker)
+            sparkJobThread.start()
+            val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+            logger.info(s"Rabit returns with exit code $trackerReturnVal")
+            val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
+              boostersAndMetrics, sparkJobThread)
+            if (checkpointRound < round) {
+              prevBooster = booster
+              checkpointManager.updateCheckpoint(prevBooster)
+            }
+            (booster, metrics)
+          } finally {
+            tracker.stop()
           }
-          sparkJobThread.setUncaughtExceptionHandler(tracker)
-          sparkJobThread.start()
-          val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
-          logger.info(s"Rabit returns with exit code $trackerReturnVal")
-          val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
-            sparkJobThread)
-          if (checkpointRound < round) {
-            prevBooster = booster
-            checkpointManager.updateCheckpoint(prevBooster)
-          }
-          (booster, metrics)
-        } finally {
-          tracker.stop()
-        }
-    }.last
+      }.last
+    } finally {
+      uncacheTrainingData(params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean],
+        transformedTrainingData)
+    }
+  }
+
+  private def uncacheTrainingData(
+      cacheTrainingSet: Boolean,
+      transformedTrainingData: Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]]): Unit = {
+    if (cacheTrainingSet) {
+      if (transformedTrainingData.isLeft) {
+        transformedTrainingData.left.get.unpersist()
+      } else {
+        transformedTrainingData.right.get.unpersist()
+      }
+    }
   }
 
   private[spark] def repartitionForTraining(trainingData: RDD[XGBLabeledPoint], nWorkers: Int) = {
