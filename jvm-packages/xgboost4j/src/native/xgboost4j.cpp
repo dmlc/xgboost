@@ -17,6 +17,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
+#include <xgboost/metric.h>
 #include "./xgboost4j.h"
 #include <cstring>
 #include <vector>
@@ -147,6 +148,46 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     return -1;
   }
 }
+
+/*! \brief handle to a data iterator */
+typedef void *CustomEvalHandle;  // NOLINT(*)
+
+// bridge classes for customized metrics
+class CustomEvalElementWise {
+
+  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
+    metrics_name(name), custom_eval_handle(handle) {
+    int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_6);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
+  }
+
+  XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
+          xgboost::bst_float pred) const {
+    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+
+    jmethodID evalRow = jenv->GetMethodID(eval_interface,
+                                          "evalRow", "(FF)F;");
+    return 0.0f;
+  }
+
+  xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
+    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+
+    jmethodID getFinal = jenv->GetMethodID(eval_interface,
+                                           "getFinal", "(FF)F;");
+    return 0.0f;
+  }
+
+private:
+  std::string metrics_name;
+
+  CustomEvalHandle custom_eval_handle;
+  JNIEnv* jenv;
+};
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -775,8 +816,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
  * Signature: (JLjava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMetrics
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name) {
-  std::cout << "adding new metrics\n";
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name,
+          jint num_classes) {
+  #include "../../../../src/metric/elementwise_metric.cu"
+  xgboost::metric::ElementWiseMetricsRegister::registerCustomMetrics(metrics_name);
   return 0;
 }
 

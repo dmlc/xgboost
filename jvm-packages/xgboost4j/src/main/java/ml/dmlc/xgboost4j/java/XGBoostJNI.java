@@ -98,7 +98,8 @@ class XGBoostJNI {
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
                                                   int ntree_limit, float[][] predicts);
 
-  public final static native int XGBoosterAddNewMetrics(long handle, String metricsName);
+  public final static native int XGBoosterAddNewMetrics(long handle, String metricsName,
+                                                        int numClasses);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 

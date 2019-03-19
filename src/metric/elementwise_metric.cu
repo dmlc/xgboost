@@ -1,9 +1,7 @@
 /*!
  * Copyright 2015-2019 by Contributors
- * \file elementwise_metric.cc
- * \brief evaluation metrics for elementwise binary or regression.
- * \author Kailong Chen, Tianqi Chen
  */
+
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
@@ -350,6 +348,16 @@ struct EvalEWiseBase : public Metric {
   MetricParam param_;
 
   ElementWiseMetricsReduction<Policy> reducer_;
+};
+
+class ElementWiseMetricsRegister {
+
+  template<typename Policy>
+  static void RegisterCustomMetrics(std::string metrics_name) {
+    XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name)
+            .describe("customized metrics")
+            .set_body([](const char* param) { return new EvalEWiseBase<Policy>(); });
+  }
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")

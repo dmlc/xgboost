@@ -201,7 +201,8 @@ public class XGBoost {
         } else {
           if (eval instanceof IEvaluationForDistributed) {
             // TODO
-            XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric());
+            int numClasses = 2;
+            XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses);
           }
           evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
         }

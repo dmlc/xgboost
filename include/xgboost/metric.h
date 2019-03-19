@@ -1,8 +1,7 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2019 by Contributors
  * \file metric.h
  * \brief interface of evaluation metric function supported in xgboost.
- * \author Tianqi Chen, Kailong Chen
  */
 #ifndef XGBOOST_METRIC_H_
 #define XGBOOST_METRIC_H_

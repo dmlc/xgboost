@@ -15,7 +15,6 @@
 #elif defined(__GNUC__)
 // Enable __builtin_prefetch for GCC
 #define XGBOOST_BUILTIN_PREFETCH_PRESENT
-#endif  // GUARDS
 
 #endif  // !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined()
 
