@@ -253,7 +253,10 @@ class MonotonicConstraint final : public SplitEvaluator {
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
+    printf("ComputeWeight = %u %zu %zu\n", parentID, lower_.size(), upper_.size());
+    fflush(0);
     bst_float weight = inner_->ComputeWeight(parentID, stats);
+
 
     if (parentID == ROOT_PARENT_ID) {
       // This is the root node
@@ -273,8 +276,11 @@ class MonotonicConstraint final : public SplitEvaluator {
                 bst_uint featureid,
                 bst_float leftweight,
                 bst_float rightweight) override {
+
+    printf("AddSplit %u %u %u\n", nodeid, leftid, rightid);
+    fflush(0);
     inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
-    bst_uint newsize = std::max(leftid, rightid) + 1;
+    bst_uint newsize = std::max(static_cast<size_t>(std::max(leftid, rightid) + 1), lower_.size());
     lower_.resize(newsize);
     upper_.resize(newsize);
     bst_int constraint = GetConstraint(featureid);

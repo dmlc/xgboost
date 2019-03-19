@@ -665,7 +665,8 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
 
       if (nthread_to_process > 1) {
-        memcpy(hist_data + ibegin, (((double*)p_hist_local[0].first) + ibegin), sizeof(double)*(iend - ibegin));
+        memcpy(hist_data + ibegin, (((double*)p_hist_local[0].first) + ibegin),
+            sizeof(double)*(iend - ibegin));
         for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
           double* ptr = reinterpret_cast<double*>(p_hist_local[i_bin_part].first);
           for (int32_t i = ibegin; i < iend; i++) {

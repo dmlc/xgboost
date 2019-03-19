@@ -1,8 +1,8 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file updater_quantile_hist.h
  * \brief use quantized feature values to construct a tree
- * \author Philip Cho, Tianqi Chen
+ * \author Philip Cho, Tianqi Chen, Egor Smirnov
  */
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
@@ -66,7 +66,6 @@ inline void ParallelFor(const size_t n, Func func) {
   if (n) {
     #pragma omp taskgroup
     {
-      // #pragma omp taskloop
       for (size_t iblock = 0; iblock < n; iblock++) {
         #pragma omp task
         func(iblock);
@@ -77,25 +76,8 @@ inline void ParallelFor(const size_t n, Func func) {
 
 template<typename Func>
 inline void SeqFor(const size_t n, Func func) {
-  if (n) {
-    // #pragma omp taskgroup
-    {
-      // #pragma omp taskloop
-      for (size_t iblock = 0; iblock < n; iblock++) {
-        func(iblock);
-      }
-    }
-  }
-}
-
-template<typename Func1, typename Func2>
-inline void ParallelInvoke(Func1 f1, Func2 f2) {
-  #pragma omp taskgroup
-  {
-    #pragma omp task
-    f1();
-    #pragma omp task
-    f2();
+  for (size_t iblock = 0; iblock < n; iblock++) {
+    func(iblock);
   }
 }
 
@@ -305,8 +287,7 @@ class QuantileHistMaker: public TreeUpdater {
       inline void EndPerfMonitor() {
         CHECK_GT(global_start, 0);
         double total_time = dmlc::GetTime() - global_start;
-        // LOG(INFO) << "\nInitData:          "
-        std::cout << "\nInitData:          "
+        LOG(INFO) << "\nInitData:          "
                   << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_data / total_time * 100 << "%)\n"
@@ -416,8 +397,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const MetaInfo& info,
                         SplitEntry* p_best,
                         bst_uint fid,
-                        bst_uint nodeID,
-                        SplitEvaluator* sp_eval);
+                        bst_uint nodeID);
 
     void ExpandWithDepthWidthDistributed(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
@@ -465,17 +445,6 @@ class QuantileHistMaker: public TreeUpdater {
         std::vector<ExpandEntry> *temp_qexpand_depth,
         int32_t nid,
         std::mutex& mutex_add_nodes);
-
-
-    void EvaluateSplits(const GHistIndexMatrix &gmat,
-                        const ColumnMatrix &column_matrix,
-                        DMatrix *p_fmat,
-                        RegTreeThreadSafe *p_tree,
-                        int *num_leaves,
-                        int depth,
-                        unsigned *timestamp,
-                        std::vector<ExpandEntry> *temp_qexpand_depth);
-
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
