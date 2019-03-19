@@ -26,7 +26,7 @@
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/column_matrix.h"
-
+#include <immintrin.h>
 namespace xgboost {
 namespace tree {
 
@@ -91,7 +91,7 @@ bool QuantileHistMaker::UpdatePredictionCache(
 void QuantileHistMaker::Builder::SyncHistograms(
     int starting_index,
     int sync_count,
-    RegTree *p_tree) {
+    RegTreeThreadSafe *p_tree) {
   perf_monitor.TickStart();
   this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
   // use Subtraction Trick
@@ -104,142 +104,306 @@ void QuantileHistMaker::Builder::SyncHistograms(
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
 
-void QuantileHistMaker::Builder::BuildLocalHistograms(
-    int *starting_index,
-    int *sync_count,
-    const GHistIndexMatrix &gmat,
-    const GHistIndexBlockMatrix &gmatb,
-    RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h) {
-  perf_monitor.TickStart();
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
-    RegTree::Node &node = (*p_tree)[nid];
-    if (rabit::IsDistributed()) {
-      if (node.IsRoot() || node.IsLeftChild()) {
-        hist_.AddHistRow(nid);
-        // in distributed setting, we always calculate from left child or root node
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        if (!node.IsRoot()) {
-          nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
-        }
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      }
-    } else {
-      if (!node.IsRoot() && node.IsLeftChild() &&
-          (row_set_collection_[nid].Size() <
-           row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      } else if (!node.IsRoot() && !node.IsLeftChild() &&
-                 (row_set_collection_[nid].Size() <=
-                  row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].LeftChild()] = nid;
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      } else if (node.IsRoot()) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      }
-    }
-  }
-  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
-}
-
-void QuantileHistMaker::Builder::BuildNodeStats(
+void QuantileHistMaker::Builder::BuildNodeStat(
     const GHistIndexMatrix &gmat,
     DMatrix *p_fmat,
-    RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h) {
-  perf_monitor.TickStart();
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
-    int nid = qexpand_depth_wise_[k].nid;
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    // add constraints
-    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
-      // it's a right child
-      auto parent_id = (*p_tree)[nid].Parent();
-      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
+    RegTreeThreadSafe *p_tree,
+    const std::vector<GradientPair> &gpair_h,
+    int32_t nid) {
+  this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+  // add constraints
+  if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+    // it's a right child
+    auto parent_id = (*p_tree)[nid].Parent();
+    auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
+    auto parent_split_feature_id = (*p_tree).Snode(parent_id).best.SplitIndex();
+    {
+      std::lock_guard<std::mutex> lock(spliteval_->mutex);
       spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
-                           snode_[left_sibling_id].weight, snode_[nid].weight);
+                         p_tree->Snode(left_sibling_id).weight, p_tree->Snode(nid).weight);
     }
   }
-  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
+}
+
+void QuantileHistMaker::Builder::CreateNewNodes(
+    const GHistIndexMatrix &gmat,
+    const ColumnMatrix &column_matrix,
+    DMatrix *p_fmat,
+    RegTreeThreadSafe *p_tree,
+    int *num_leaves,
+    int depth,
+    unsigned *timestamp,
+    std::vector<ExpandEntry> *temp_qexpand_depth,
+    int32_t nid,
+    std::mutex& mutex_add_nodes) {
+
+  if (p_tree->Snode(nid).best.loss_chg < kRtEps ||
+      (param_.max_depth > 0 && depth == param_.max_depth) ||
+      (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
+    (*p_tree)[nid].SetLeaf(p_tree->Snode(nid).weight * param_.learning_rate);
+  } else {
+    this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+    int left_id = (*p_tree)[nid].LeftChild();
+    int right_id = (*p_tree)[nid].RightChild();
+
+    {
+      std::lock_guard<std::mutex> lock(mutex_add_nodes);
+      temp_qexpand_depth->push_back(ExpandEntry(left_id,
+                                                p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
+      temp_qexpand_depth->push_back(ExpandEntry(right_id,
+                                                p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
+      (*num_leaves)++;
+    }
+  }
 }
 
 void QuantileHistMaker::Builder::EvaluateSplits(
     const GHistIndexMatrix &gmat,
     const ColumnMatrix &column_matrix,
     DMatrix *p_fmat,
-    RegTree *p_tree,
+    RegTreeThreadSafe *p_tree,
     int *num_leaves,
     int depth,
     unsigned *timestamp,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
-  for (size_t k = 0; k < qexpand_depth_wise_.size(); k++) {
+  // perf_monitor.TickStart();
+
+  auto t1 = dmlc::GetTime();
+
+  double apply_time = 0;
+  double evaluate_time = 0;
+
+  std::mutex mut;
+  ParallelFor(qexpand_depth_wise_.size(), [&](size_t k) {
+    auto tt1 = dmlc::GetTime();
     int nid = qexpand_depth_wise_[k].nid;
-    perf_monitor.TickStart();
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
-    if (snode_[nid].best.loss_chg < kRtEps ||
+    evaluate_time += dmlc::GetTime() - tt1;
+    auto tt2 = dmlc::GetTime();
+    if (p_tree->Snode(nid).best.loss_chg < kRtEps ||
         (param_.max_depth > 0 && depth == param_.max_depth) ||
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+      (*p_tree)[nid].SetLeaf(p_tree->Snode(nid).weight * param_.learning_rate);
     } else {
-      perf_monitor.TickStart();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
-      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id,
-                                                p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
-      temp_qexpand_depth->push_back(ExpandEntry(right_id,
-                                                p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
+
+      {
+        std::lock_guard<std::mutex> lock(mut);
+        temp_qexpand_depth->push_back(ExpandEntry(left_id,
+                                                  p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
+        temp_qexpand_depth->push_back(ExpandEntry(right_id,
+                                                  p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
+        (*num_leaves)++;
+      }
       // - 1 parent + 2 new children
-      (*num_leaves)++;
+
     }
-  }
+    apply_time += dmlc::GetTime() - tt2;
+  });
+
+  auto t2 = dmlc::GetTime();
+  double evaluate_time_ratio = evaluate_time / (evaluate_time + apply_time);
+  perf_monitor.time_evaluate_split += (t2-t1) * evaluate_time_ratio;
+  perf_monitor.time_apply_split += (t2-t1) * (1 - evaluate_time_ratio);
+
+
+  // perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
+  // printf("EvaluateSplits::after::size = %zu\n", temp_qexpand_depth->size());
 }
 
-void QuantileHistMaker::Builder::ExpandWithDepthWidth(
+void QuantileHistMaker::Builder::ExpandWithDepthWidthDistributed(
   const GHistIndexMatrix &gmat,
   const GHistIndexBlockMatrix &gmatb,
   const ColumnMatrix &column_matrix,
   DMatrix *p_fmat,
-  RegTree *p_tree,
+  RegTreeThreadSafe *p_tree,
   const std::vector<GradientPair> &gpair_h) {
+
   unsigned timestamp = 0;
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
   qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
   ++num_leaves;
-  for (int depth = 0; depth < param_.max_depth + 1; depth++) {
-    int starting_index = std::numeric_limits<int>::max();
-    int sync_count = 0;
-    std::vector<ExpandEntry> temp_qexpand_depth;
-    BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
-    SyncHistograms(starting_index, sync_count, p_tree);
-    BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
-                   &temp_qexpand_depth);
-    // clean up
-    qexpand_depth_wise_.clear();
-    nodes_for_subtraction_trick_.clear();
-    if (temp_qexpand_depth.empty()) {
-      break;
-    } else {
-      qexpand_depth_wise_ = temp_qexpand_depth;
-      temp_qexpand_depth.clear();
+
+  std::mutex mutex_add_nodes;
+
+  #pragma omp parallel num_threads(this->nthread_)
+  #pragma omp master
+  {
+    for (int depth = 0; depth < param_.max_depth + 1; depth++) {
+      int starting_index = std::numeric_limits<int>::max();
+      int sync_count = 0;
+      std::vector<ExpandEntry> temp_qexpand_depth;
+
+      perf_monitor.TickStart();
+      SeqFor(qexpand_depth_wise_.size(), [&](size_t k) {
+        int nid = qexpand_depth_wise_[k].nid;
+
+        auto& node = (*p_tree)[nid];
+        int32_t parent_nid = node.Parent();
+        int32_t another_nid = node.IsRoot() ? nid : (node.IsLeftChild() ? (*p_tree)[parent_nid].RightChild() : (*p_tree)[parent_nid].LeftChild());
+        if (node.IsRoot() || node.IsLeftChild()) {
+          hist_.AddHistRow(nid);
+          // in distributed setting, we always calculate from left child or root node
+          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], *p_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
+          if (!node.IsRoot()) {
+            nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
+          }
+          sync_count++;
+          starting_index = std::min(starting_index, nid);
+        }
+      });
+      SyncHistograms(starting_index, sync_count, p_tree);
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
+
+      perf_monitor.TickStart();
+      SeqFor(qexpand_depth_wise_.size(), [&](size_t k) {
+        BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, qexpand_depth_wise_[k].nid);
+      });
+      perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
+
+      SeqFor(qexpand_depth_wise_.size(), [&](size_t k) {
+        int nid = qexpand_depth_wise_[k].nid;
+
+        perf_monitor.TickStart();
+        EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
+        perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
+
+        perf_monitor.TickStart();
+        CreateNewNodes(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp, &temp_qexpand_depth, nid, mutex_add_nodes);
+        perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
+      });
+
+      // clean up
+      qexpand_depth_wise_.clear();
+      nodes_for_subtraction_trick_.clear();
+      if (temp_qexpand_depth.empty()) {
+        break;
+      } else {
+        qexpand_depth_wise_ = temp_qexpand_depth;
+        temp_qexpand_depth.clear();
+      }
+    }
+  }
+}
+
+
+
+void QuantileHistMaker::Builder::ExpandWithDepthWidth(
+  const GHistIndexMatrix &gmat,
+  const GHistIndexBlockMatrix &gmatb,
+  const ColumnMatrix &column_matrix,
+  DMatrix *p_fmat,
+  RegTreeThreadSafe *p_tree,
+  const std::vector<GradientPair> &gpair_h) {
+
+  if(rabit::IsDistributed())
+    ExpandWithDepthWidthDistributed(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+
+  unsigned timestamp = 0;
+  int num_leaves = 0;
+
+  // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
+  qexpand_depth_wise_.push_back(ExpandEntry(0, p_tree->GetDepth(0), 0.0, timestamp++));
+  ++num_leaves;
+
+  std::mutex mutex_add_nodes;
+
+  #pragma omp parallel num_threads(this->nthread_)
+  #pragma omp master
+  {
+    for (int depth = 0; depth < param_.max_depth + 1; depth++) {
+      int starting_index = std::numeric_limits<int>::max();
+      int sync_count = 0;
+      std::vector<ExpandEntry> temp_qexpand_depth;
+
+      double time_apply_split = 0;
+      double time_evaluate_split = 0;
+      double time_build_hist = 0;
+      double time_init_new_node = 0;
+
+      double tstart = dmlc::GetTime();
+
+      perf_monitor.TickStart();
+
+      auto compute_func = [&](size_t k) {
+        int nid = qexpand_depth_wise_[k].nid;
+
+        auto& node = (*p_tree)[nid];
+        int32_t parent_nid = node.Parent();
+        int32_t another_nid = node.IsRoot() ? nid : (node.IsLeftChild() ? (*p_tree)[parent_nid].RightChild() : (*p_tree)[parent_nid].LeftChild());
+
+        auto BuildNodeByHist = [&](int32_t this_nid) {
+          double t1 = dmlc::GetTime();
+          EvaluateSplit(this_nid, gmat, hist_, *p_fmat, *p_tree);
+          double t2 = dmlc::GetTime();
+          time_evaluate_split += t2-t1;
+          CreateNewNodes(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp, &temp_qexpand_depth, this_nid, mutex_add_nodes);
+          time_apply_split += dmlc::GetTime() - t2;
+        };
+
+        size_t this_size = row_set_collection_[nid].Size();
+        size_t another_size = row_set_collection_[another_nid].Size();
+
+        if (node.IsRoot()) {
+          double t1 = dmlc::GetTime();
+          hist_.AddHistRow(nid);
+          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], *p_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
+          double t2 = dmlc::GetTime();
+          time_build_hist += t2-t1;
+          BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, nid);
+          time_init_new_node += dmlc::GetTime()-t2;
+
+          BuildNodeByHist(nid);
+        } else if (this_size < another_size || (nid < another_nid && this_size == another_size)) {
+          double t1 = dmlc::GetTime();
+          hist_.AddHistRow(nid, another_nid);
+          BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], *p_tree, parent_nid, hist_[another_nid], hist_[parent_nid], nid, another_nid,  false);
+          double t2 = dmlc::GetTime();
+          time_build_hist += t2-t1;
+          BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, nid);
+          BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, another_nid);
+          time_init_new_node += dmlc::GetTime()-t2;
+
+          #pragma omp taskgroup
+          {
+            #pragma omp task
+            BuildNodeByHist(nid);
+            #pragma omp task
+            BuildNodeByHist(another_nid);
+          }
+        } else {
+          // nothing
+        }
+      };
+
+      if (!rabit::IsDistributed())
+        ParallelFor(qexpand_depth_wise_.size(), compute_func);
+      else
+        SeqFor(qexpand_depth_wise_.size(), compute_func);
+
+      double ttotal = dmlc::GetTime()-tstart;
+
+      double ttotal_by_threads = time_apply_split + time_evaluate_split + time_build_hist + time_init_new_node;
+
+      // aproximate time for each kernel
+      perf_monitor.time_init_new_node  += time_init_new_node * (ttotal/ttotal_by_threads);
+      perf_monitor.time_build_hist     += time_build_hist * (ttotal/ttotal_by_threads);
+      perf_monitor.time_evaluate_split += time_evaluate_split * (ttotal/ttotal_by_threads);
+      perf_monitor.time_apply_split    += time_apply_split * (ttotal/ttotal_by_threads);
+
+      // clean up
+      qexpand_depth_wise_.clear();
+      nodes_for_subtraction_trick_.clear();
+      if (temp_qexpand_depth.empty()) {
+        break;
+      } else {
+        qexpand_depth_wise_ = temp_qexpand_depth;
+        temp_qexpand_depth.clear();
+      }
     }
   }
 }
@@ -249,16 +413,17 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     const GHistIndexBlockMatrix& gmatb,
     const ColumnMatrix& column_matrix,
     DMatrix* p_fmat,
-    RegTree* p_tree,
+    RegTreeThreadSafe* p_tree,
     const std::vector<GradientPair>& gpair_h) {
 
   unsigned timestamp = 0;
   int num_leaves = 0;
 
-  for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
+  for (int nid = 0; nid < p_tree->Param().num_roots; ++nid) {
     perf_monitor.TickStart();
     hist_.AddHistRow(nid);
-    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], true);
+    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], *p_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
+
     perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 
     perf_monitor.TickStart();
@@ -269,7 +434,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
     perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
     qexpand_loss_guided_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
-                               snode_[nid].best.loss_chg,
+                               p_tree->Snode(nid).best.loss_chg,
                                timestamp++));
     ++num_leaves;
   }
@@ -281,7 +446,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     if (candidate.loss_chg <= kRtEps
         || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
+      (*p_tree)[nid].SetLeaf(p_tree->Snode(nid).weight * param_.learning_rate);
     } else {
       perf_monitor.TickStart();
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
@@ -289,21 +454,18 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
-      hist_.AddHistRow(cleft);
-      hist_.AddHistRow(cright);
+      hist_.AddHistRow(cleft, cright);
 
       perf_monitor.TickStart();
       if (rabit::IsDistributed()) {
         // in distributed mode, we need to keep consistent across workers
-        BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
+        BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], *p_tree, nid, hist_[cright], hist_[nid], cleft, -1, true);
         SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
       } else {
         if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
-          SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], *p_tree, nid, hist_[cright], hist_[nid], cleft, cright, false);
         } else {
-          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright], true);
-          SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright], *p_tree, nid, hist_[cleft], hist_[nid], cright, cleft, false);
         }
       }
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
@@ -311,21 +473,31 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       perf_monitor.TickStart();
       this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
       this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
-      bst_uint featureid = snode_[nid].best.SplitIndex();
+      bst_uint featureid = p_tree->Snode(nid).best.SplitIndex();
       spliteval_->AddSplit(nid, cleft, cright, featureid,
-                           snode_[cleft].weight, snode_[cright].weight);
+                           p_tree->Snode(cleft).weight, p_tree->Snode(cright).weight);
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_NEW_NODE);
 
       perf_monitor.TickStart();
-      this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
-      this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
+
+
+      auto evaluate_fun = [&](size_t this_nid) { this->EvaluateSplit(this_nid, gmat, hist_, *p_fmat, *p_tree); };
+
+      #pragma omp taskgroup
+      {
+        #pragma omp task
+        evaluate_fun(cleft);
+        #pragma omp task
+        evaluate_fun(cright);
+      }
+
       perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::EVALUATE_SPLIT);
 
       qexpand_loss_guided_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
-                                 snode_[cleft].best.loss_chg,
+                                 p_tree->Snode(cleft).best.loss_chg,
                                  timestamp++));
       qexpand_loss_guided_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
-                                 snode_[cright].best.loss_chg,
+                                 p_tree->Snode(cright).best.loss_chg,
                                  timestamp++));
 
       ++num_leaves;  // give two and take one, as parent is no longer a leaf
@@ -339,36 +511,46 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
                                         HostDeviceVector<GradientPair>* gpair,
                                         DMatrix* p_fmat,
                                         RegTree* p_tree) {
+  double t1 = dmlc::GetTime();
+
   perf_monitor.StartPerfMonitor();
 
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
 
   spliteval_->Reset();
 
+  RegTreeThreadSafe safe_tree(*p_tree, snode_, param_);
+  safe_tree.ResizeSnode(param_);
+
   perf_monitor.TickStart();
-  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
+  this->InitData(gmat, gpair_h, *p_fmat, safe_tree);
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::INIT_DATA);
 
   if (param_.grow_policy == TrainParam::kLossGuide) {
-    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, &safe_tree, gpair_h);
   } else {
-    ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, &safe_tree, gpair_h);
   }
 
+  // printf("%zu\n", (size_t)p_tree->param.num_nodes);
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
-    p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
-    p_tree->Stat(nid).base_weight = snode_[nid].weight;
-    p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
+    p_tree->Stat(nid).loss_chg = safe_tree.Snode(nid).best.loss_chg;
+    p_tree->Stat(nid).base_weight = safe_tree.Snode(nid).weight;
+    p_tree->Stat(nid).sum_hess = static_cast<float>(safe_tree.Snode(nid).stats.sum_hess);
   }
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
 
   perf_monitor.EndPerfMonitor();
+  double t2 = dmlc::GetTime();
 }
 
 bool QuantileHistMaker::Builder::UpdatePredictionCache(
     const DMatrix* data,
     HostDeviceVector<bst_float>* p_out_preds) {
+
+double t1 = dmlc::GetTime();
+
   std::vector<bst_float>& out_preds = p_out_preds->HostVector();
 
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
@@ -384,8 +566,12 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
 
   CHECK_GT(out_preds.size(), 0U);
 
-  for (const RowSetCollection::Elem rowset : row_set_collection_) {
-    if (rowset.begin != nullptr && rowset.end != nullptr) {
+  const size_t n_nodes = row_set_collection_.end() - row_set_collection_.begin();
+
+  #pragma omp parallel for
+  for (size_t k = 0; k < n_nodes; ++k) {
+    const RowSetCollection::Elem rowset = row_set_collection_[k];
+    if (rowset.begin != nullptr && rowset.end != nullptr && rowset.node_id != -1) {
       int nid = rowset.node_id;
       bst_float leaf_value;
       // if a node is marked as deleted by the pruner, traverse upward to locate
@@ -398,11 +584,14 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
       }
       leaf_value = (*p_last_tree_)[nid].LeafValue();
 
-      for (const size_t* it = rowset.begin; it < rowset.end; ++it) {
-        out_preds[*it] += leaf_value;
+      size_t size = rowset.end - rowset.begin;
+      for (size_t it = 0; it < size; ++it) {
+        out_preds[rowset.begin[it]] += leaf_value;
       }
     }
   }
+  double t2 = dmlc::GetTime();
+  printf("UpdatePredictionCache = %f \n", (t2-t1)*1000);
 
   return true;
 }
@@ -410,8 +599,11 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
 void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                                           const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
-                                          const RegTree& tree) {
-  CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
+                                          const RegTreeThreadSafe& tree) {
+
+  auto t1 = dmlc::GetTime();
+
+  CHECK_EQ(tree.Param().num_nodes, tree.Param().num_roots)
       << "ColMakerHist: can only grow new tree";
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
       << "max_depth or max_leaves cannot be both 0 (unlimited); "
@@ -422,7 +614,9 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   }
   const auto& info = fmat.Info();
 
+  printf("CHECKS = %f\n", dmlc::GetTime() - t1);
   {
+    auto ttt1 = dmlc::GetTime();
     // initialize the row set
     row_set_collection_.Clear();
     // clear local prediction cache
@@ -436,29 +630,73 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     {
       this->nthread_ = omp_get_num_threads();
     }
+    auto ttt2 = dmlc::GetTime();
+    if (!prow_set_collection_tls_)
+    {
+      prow_set_collection_tls_.reset(new RowCollectionTLS(
+        this->nthread_,
+        [&](){ return new RowSetCollection::Split(); },
+        [&](RowSetCollection::Split* ptr) { delete ptr; return; }));
+    }
+
+    auto ttt3 = dmlc::GetTime();
+    if (!hist_tls_)
+    {
+      hist_tls_.reset(new HistTLS(
+        this->nthread_,
+        [&](){ return new tree::GradStats[gmat.cut.row_ptr.back()]; },
+        [&](tree::GradStats* ptr) { delete[] ptr; return; }));
+    }
+
+    const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+    row_split_tloc_.resize(nthread);
     hist_builder_.Init(this->nthread_, nbins);
 
+    // auto t2 = dmlc::GetData();
+    // printf("t2-t1 = %f\n", (t2-t1)*1000);
     CHECK_EQ(info.root_index_.size(), 0U);
     std::vector<size_t>& row_indices = row_set_collection_.row_indices_;
+    row_indices.resize(info.num_row_);
+    printf("info.num_row_ = %zu\n", info.num_row_);
+    auto* p_row_indices = row_indices.data();
     // mark subsample and build list of member rows
+    auto ttt4 = dmlc::GetTime();
+
+    printf("%f %f %f\n", (ttt4-ttt3)*1000, (ttt3-ttt2)*1000, (ttt2-ttt1)*1000);
+
+    auto tt1 = dmlc::GetTime();
+
     if (param_.subsample < 1.0f) {
       std::bernoulli_distribution coin_flip(param_.subsample);
       auto& rnd = common::GlobalRandom();
+      size_t j = 0;
       for (size_t i = 0; i < info.num_row_; ++i) {
         if (gpair[i].GetHess() >= 0.0f && coin_flip(rnd)) {
-          row_indices.push_back(i);
+          p_row_indices[j++] = i;
         }
       }
+      row_indices.resize(j);
     } else {
+      size_t j = 0;
       for (size_t i = 0; i < info.num_row_; ++i) {
         if (gpair[i].GetHess() >= 0.0f) {
-          row_indices.push_back(i);
+          p_row_indices[j++] = i;
         }
       }
+      row_indices.resize(j);
     }
+
+    auto tt2 = dmlc::GetTime();
+    printf("tt2-tt1 = %f\n", (tt2-tt1)*1000);
+    auto ttt5 = dmlc::GetTime();
     row_set_collection_.Init();
+    auto ttt6 = dmlc::GetTime();
+    printf("ttt6-ttt5 = %f\n", (ttt6-ttt5)*1000);
+
   }
 
+    auto t2 = dmlc::GetTime();
+    printf("t2-t1 = %f\n", (t2-t1)*1000);
   {
     /* determine layout of data */
     const size_t nrow = info.num_row_;
@@ -479,7 +717,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   }
   {
     // store a pointer to the tree
-    p_last_tree_ = &tree;
+    p_last_tree_ = &tree.Get();
     // store a pointer to training data
     p_last_fmat_ = &fmat;
   }
@@ -520,36 +758,48 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       qexpand_depth_wise_.clear();
     }
   }
+  auto t3 = dmlc::GetTime();
+  printf("t3-t2 = %f\n", (t3-t2)*1000);
 }
 
 void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
                                                const GHistIndexMatrix& gmat,
                                                const HistCollection& hist,
                                                const DMatrix& fmat,
-                                               const RegTree& tree) {
+                                               RegTreeThreadSafe& tree) {
   // start enumeration
   const MetaInfo& info = fmat.Info();
   auto p_feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
   const auto& feature_set = *p_feature_set;
   const auto nfeature = static_cast<bst_uint>(feature_set.size());
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-  best_split_tloc_.resize(nthread);
-#pragma omp parallel for schedule(static) num_threads(nthread)
-  for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
-    best_split_tloc_[tid] = snode_[nid].best;
+
+  MemStackAllocator<SplitEntry, 128> split_entries(nthread);
+  SplitEntry* p_split_entries = split_entries.Get();
+
+  SplitEntry sp = tree.Snode(nid).best;
+  for(size_t i = 0; i < nthread; ++i) {
+    p_split_entries[i] = sp;
   }
-  GHistRow node_hist = hist[nid];
-#pragma omp parallel for schedule(dynamic) num_threads(nthread)
-  for (bst_omp_uint i = 0; i < nfeature; ++i) {
+
+  std::unique_ptr<SplitEvaluator> clone(spliteval_->GetHostClone());
+
+  ParallelFor(nfeature, [&](size_t i) {
     const bst_uint fid = feature_set[i];
     const unsigned tid = omp_get_thread_num();
-    this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
-                         &best_split_tloc_[tid], fid, nid);
-    this->EnumerateSplit(+1, gmat, node_hist, snode_[nid], info,
-                         &best_split_tloc_[tid], fid, nid);
-  }
+
+    bool compute_backward = this->EnumerateSplit(+1, gmat, hist[nid], tree.Snode(nid), info,
+                         &p_split_entries[tid], fid, nid, clone.get());
+
+    if (compute_backward)
+      this->EnumerateSplit(-1, gmat, hist[nid], tree.Snode(nid), info,
+                         &p_split_entries[tid], fid, nid, clone.get());
+
+  });
+
+
   for (unsigned tid = 0; tid < nthread; ++tid) {
-    snode_[nid].best.Update(best_split_tloc_[tid]);
+    tree.Snode(nid).best.Update(p_split_entries[tid]);
   }
 }
 
@@ -558,26 +808,27 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
                                             const ColumnMatrix& column_matrix,
                                             const HistCollection& hist,
                                             const DMatrix& fmat,
-                                            RegTree* p_tree) {
+                                            RegTreeThreadSafe* p_tree) {
   // TODO(hcho3): support feature sampling by levels
 
   /* 1. Create child nodes */
-  NodeEntry& e = snode_[nid];
-  bst_float left_leaf_weight =
-      spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
-  bst_float right_leaf_weight =
-      spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
-  p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                     e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                     right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
+  const NodeEntry& e = p_tree->Snode(nid);
+
+  bst_float left_leaf_weight, right_leaf_weight;
+
+  {
+    std::lock_guard<std::mutex> lock(spliteval_->mutex);
+    left_leaf_weight  = spliteval_->ComputeWeight(nid, e.best.left_sum) * param_.learning_rate;
+    right_leaf_weight = spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
+  }
+
+  {
+    p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                    e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                    right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
+  }
 
   /* 2. Categorize member rows */
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-  row_split_tloc_.resize(nthread);
-  for (bst_omp_uint i = 0; i < nthread; ++i) {
-    row_split_tloc_[i].left.clear();
-    row_split_tloc_[i].right.clear();
-  }
   const bool default_left = (*p_tree)[nid].DefaultLeft();
   const bst_uint fid = (*p_tree)[nid].SplitIndex();
   const bst_float split_pt = (*p_tree)[nid].SplitCond();
@@ -593,109 +844,208 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
       split_cond = static_cast<int32_t>(i);
     }
   }
+  const RowSetCollection::Elem rowset = row_set_collection_[nid];
 
-  const auto& rowset = row_set_collection_[nid];
-
+  size_t nLeft;
   Column column = column_matrix.GetColumn(fid);
   if (column.GetType() == xgboost::common::kDenseColumn) {
-    ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
+    nLeft = ApplySplitDenseData(rowset, gmat, column, split_cond,
                         default_left);
   } else {
-    ApplySplitSparseData(rowset, gmat, &row_split_tloc_, column, lower_bound,
+
+    nLeft = ApplySplitSparseData(rowset, gmat, column, lower_bound,
                          upper_bound, split_cond, default_left);
   }
 
   row_set_collection_.AddSplit(
-      nid, row_split_tloc_, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild());
+      nid, nLeft, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild());
 }
 
-void QuantileHistMaker::Builder::ApplySplitDenseData(
+size_t QuantileHistMaker::Builder::ApplySplitDenseData(
     const RowSetCollection::Elem rowset,
     const GHistIndexMatrix& gmat,
-    std::vector<RowSetCollection::Split>* p_row_split_tloc,
     const Column& column,
     bst_int split_cond,
     bool default_left) {
-  std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
-  constexpr int kUnroll = 8;  // loop unrolling factor
   const size_t nrows = rowset.end - rowset.begin;
-  const size_t rest = nrows % kUnroll;
 
-#pragma omp parallel for num_threads(nthread_) schedule(static)
-  for (bst_omp_uint i = 0; i < nrows - rest; i += kUnroll) {
-    const bst_uint tid = omp_get_thread_num();
-    auto& left = row_split_tloc[tid].left;
-    auto& right = row_split_tloc[tid].right;
-    size_t rid[kUnroll];
-    uint32_t rbin[kUnroll];
-    for (int k = 0; k < kUnroll; ++k) {
-      rid[k] = rowset.begin[i + k];
-    }
-    for (int k = 0; k < kUnroll; ++k) {
-      rbin[k] = column.GetFeatureBinIdx(rid[k]);
-    }
-    for (int k = 0; k < kUnroll; ++k) {                      // NOLINT
-      if (rbin[k] == std::numeric_limits<uint32_t>::max()) {  // missing value
-        if (default_left) {
-          left.push_back(rid[k]);
+  // auto t1 = dmlc::GetTime();
+
+  constexpr size_t MAX_BLOCKS = 28;
+  constexpr size_t MIN_SIZE = 1024;
+
+  const size_t nblocks = std::max(size_t(1), std::min(size_t(MAX_BLOCKS), nrows/MIN_SIZE));
+  const size_t block_size = nrows / nblocks;
+
+  const uint32_t* idx = column.GetIndex();
+  std::pair<RowSetCollection::Split*, size_t> local_buff[MAX_BLOCKS] = {{nullptr, 0}};
+  std::pair<size_t, size_t> sizes[MAX_BLOCKS] = {{0,0}};
+
+  for(size_t i = 0; i < MAX_BLOCKS; ++i)
+    sizes[i] = {0,0};
+
+  // printf("APPLY_SPLIT\n");
+  if (default_left) {
+    ParallelFor(nblocks, [&](size_t iblock) {
+      const size_t istart = iblock*block_size;
+      const size_t iend = (iblock == nblocks-1) ? nrows : istart + block_size;
+
+      local_buff[iblock] = prow_set_collection_tls_->get();
+      // local_buff[iblock].first->right.clear();
+      // local_buff[iblock].first->left.clear();
+
+      auto* ptr = (size_t*)rowset.begin;
+
+      auto& left = local_buff[iblock].first->left;
+      auto& right = local_buff[iblock].first->right;
+
+      // left.reserve(iend-istart);
+      // right.reserve(iend-istart);
+
+      left.reserve(iend-istart);
+      right.reserve(iend-istart);
+
+      size_t* p_left = left.data();
+      size_t* p_right = right.data();
+
+      size_t ileft = 0;
+      size_t iright = 0;
+
+      for (size_t i = istart; i < iend; i++) {
+        if (idx[ptr[i]] == std::numeric_limits<uint32_t>::max()) {
+          // left.push_back(ptr[i]);
+          p_left[ileft++] = ptr[i];
+        } else if ( static_cast<int32_t>(idx[ptr[i]] + column.GetBaseIdx()) <= split_cond) {
+          // left.push_back(ptr[i]);
+          p_left[ileft++] = ptr[i];
         } else {
-          right.push_back(rid[k]);
-        }
-      } else {
-        if (static_cast<int32_t>(rbin[k] + column.GetBaseIdx()) <= split_cond) {
-          left.push_back(rid[k]);
-        } else {
-          right.push_back(rid[k]);
+          // right.push_back(ptr[i]);
+          p_right[iright++] = ptr[i];
         }
       }
+      sizes[iblock].first = ileft;
+      sizes[iblock].second = iright;
+
+
+
+      // left.resize(ileft);
+      // right.resize(iright);
+    });
+  } else {
+    ParallelFor(nblocks, [&](size_t iblock) {
+      const size_t istart = iblock*block_size;
+      const size_t iend = (iblock == nblocks-1) ? nrows : istart + block_size;
+
+      local_buff[iblock] = prow_set_collection_tls_->get();
+      // local_buff[iblock].first->right.clear();
+      // local_buff[iblock].first->left.clear();
+
+      auto* ptr = (size_t*)rowset.begin;
+
+      auto& left = local_buff[iblock].first->left;
+      auto& right = local_buff[iblock].first->right;
+
+      left.reserve(iend-istart);
+      right.reserve(iend-istart);
+
+      // left.resize(iend-istart);
+      // right.resize(iend-istart);
+
+      size_t* p_left = left.data();
+      size_t* p_right = right.data();
+
+      size_t ileft = 0;
+      size_t iright = 0;
+
+      for (size_t i = istart; i < iend; i++) {
+        if (idx[ptr[i]] == std::numeric_limits<uint32_t>::max()) {
+          // right.push_back(ptr[i]);
+          p_right[iright++] = ptr[i];
+        }
+        else if ( static_cast<int32_t>(idx[ptr[i]] + column.GetBaseIdx())
+                  <= split_cond) {
+          // left.push_back(ptr[i]);
+          p_left[ileft++] = ptr[i];
+        } else {
+          // right.push_back(ptr[i]);
+          p_right[iright++] = ptr[i];
+        }
+      }
+      // left.resize(ileft);
+      // right.resize(iright);
+      sizes[iblock].first = ileft;
+      sizes[iblock].second = iright;
+
+    });
+  }
+  // printf("~APPLY_SPLIT\n");
+
+  // auto t2 = dmlc::GetTime();
+
+  const size_t nLeft = MergeSplit(local_buff, sizes, nblocks, const_cast<size_t*>(rowset.begin));
+  // auto t3 = dmlc::GetTime();
+
+  // static double time_part = 0;
+  // static double time_merge = 0;
+
+  // time_part += (t2-t1);
+  // time_merge += (t3-t2);
+
+  // printf("SUMMARY: %f %f %f %f\n", time_part*1000, time_merge*1000, time_part/(time_part + time_merge), time_merge/(time_part + time_merge));
+
+  // printf("PARTITION %f %f %f (%) %f (%)\n", (t2-t1)*1000, (t3-t2)*1000, (t2-t1)/(t3-t1)*100, (t3-t2)/(t3-t1)*100);
+
+  for(size_t i = 0; i < nblocks; ++i) {
+    if(local_buff[i].first){
+      prow_set_collection_tls_->release(local_buff[i]);
     }
   }
-  for (size_t i = nrows - rest; i < nrows; ++i) {
-    auto& left = row_split_tloc[nthread_-1].left;
-    auto& right = row_split_tloc[nthread_-1].right;
-    const size_t rid = rowset.begin[i];
-    const uint32_t rbin = column.GetFeatureBinIdx(rid);
-    if (rbin == std::numeric_limits<uint32_t>::max()) {  // missing value
-      if (default_left) {
-        left.push_back(rid);
-      } else {
-        right.push_back(rid);
-      }
-    } else {
-      if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
-        left.push_back(rid);
-      } else {
-        right.push_back(rid);
-      }
-    }
-  }
+  return nLeft;
 }
 
-void QuantileHistMaker::Builder::ApplySplitSparseData(
+size_t QuantileHistMaker::Builder::ApplySplitSparseData(
     const RowSetCollection::Elem rowset,
     const GHistIndexMatrix& gmat,
-    std::vector<RowSetCollection::Split>* p_row_split_tloc,
     const Column& column,
     bst_uint lower_bound,
     bst_uint upper_bound,
     bst_int split_cond,
     bool default_left) {
-  std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
   const size_t nrows = rowset.end - rowset.begin;
 
-#pragma omp parallel num_threads(nthread_)
-  {
-    const auto tid = static_cast<size_t>(omp_get_thread_num());
-    const size_t ibegin = tid * nrows / nthread_;
-    const size_t iend = (tid + 1) * nrows / nthread_;
+  constexpr size_t MAX_BLOCKS = 28;
+  constexpr size_t MIN_SIZE = 2048;
+
+  const size_t nblocks = std::max(size_t(1), std::min(size_t(MAX_BLOCKS), nrows/MIN_SIZE));
+  const size_t block_size = nrows / nblocks;
+
+  std::pair<RowSetCollection::Split*, size_t> local_buff[MAX_BLOCKS] = {{nullptr, 0}};
+  std::pair<size_t, size_t> sizes[MAX_BLOCKS] = {{0,0}};
+
+  ParallelFor(nblocks, [&](size_t iblock) {
+    const size_t ibegin = iblock*block_size;
+    const size_t iend = (iblock == nblocks-1) ? nrows : ibegin + block_size;
+
     if (ibegin < iend) {  // ensure that [ibegin, iend) is nonempty range
       // search first nonzero row with index >= rowset[ibegin]
       const size_t* p = std::lower_bound(column.GetRowData(),
                                          column.GetRowData() + column.Size(),
                                          rowset.begin[ibegin]);
 
-      auto& left = row_split_tloc[tid].left;
-      auto& right = row_split_tloc[tid].right;
+      local_buff[iblock] = prow_set_collection_tls_->get();
+
+      auto& left = local_buff[iblock].first->left;
+      auto& right = local_buff[iblock].first->right;
+
+      left.reserve(iend-ibegin);
+      right.reserve(iend-ibegin);
+
+      size_t* p_left = left.data();
+      size_t* p_right = right.data();
+
+      size_t ileft = 0;
+      size_t iright = 0;
+
       if (p != column.GetRowData() + column.Size() && *p <= rowset.begin[iend - 1]) {
         size_t cursor = p - column.GetRowData();
 
@@ -709,17 +1059,21 @@ void QuantileHistMaker::Builder::ApplySplitSparseData(
           if (cursor < column.Size() && column.GetRowIdx(cursor) == rid) {
             const uint32_t rbin = column.GetFeatureBinIdx(cursor);
             if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
-              left.push_back(rid);
+              // left.push_back(rid);
+              p_left[ileft++] = rid;
             } else {
-              right.push_back(rid);
+              // right.push_back(rid);
+              p_right[iright++] = rid;
             }
             ++cursor;
           } else {
             // missing value
             if (default_left) {
-              left.push_back(rid);
+              // left.push_back(rid);
+              p_left[ileft++] = rid;
             } else {
-              right.push_back(rid);
+              // right.push_back(rid);
+              p_right[iright++] = rid;
             }
           }
         }
@@ -727,54 +1081,122 @@ void QuantileHistMaker::Builder::ApplySplitSparseData(
         if (default_left) {
           for (size_t i = ibegin; i < iend; ++i) {
             const size_t rid = rowset.begin[i];
-            left.push_back(rid);
+            // left.push_back(rid);
+            p_left[ileft++] = rid;
           }
         } else {
           for (size_t i = ibegin; i < iend; ++i) {
             const size_t rid = rowset.begin[i];
-            right.push_back(rid);
+            // right.push_back(rid);
+            p_right[iright++] = rid;
           }
         }
       }
+      sizes[iblock].first = ileft;
+      sizes[iblock].second = iright;
+    }
+  });
+
+  const size_t nLeft = MergeSplit(local_buff, sizes, nblocks, const_cast<size_t*>(rowset.begin));
+
+  for(size_t i = 0; i < nblocks; ++i) {
+    if(local_buff[i].first) {
+      prow_set_collection_tls_->release(local_buff[i]);
     }
   }
+  return nLeft;
 }
+
+size_t QuantileHistMaker::Builder::MergeSplit(std::pair<RowSetCollection::Split*, size_t>* local_buff,
+      std::pair<size_t, size_t>* sizes,
+      size_t nblocks, size_t* rowset_begin) {
+
+  size_t nLeft = 0;
+  for(size_t i = 0; i < nblocks; ++i) {
+    if (local_buff[i].first) {
+      nLeft += sizes[i].first;
+    }
+  }
+
+  auto merge_left = [&]() {
+    size_t iLeft = 0;
+    for(size_t i = 0; i < nblocks; ++i) {
+      if(local_buff[i].first) {
+        auto st = rowset_begin + iLeft;
+        const size_t size = sizes[i].first;
+        memcpy(st, local_buff[i].first->left.data(), size * sizeof(st[0]));
+        iLeft += size;
+      }
+    }
+  };
+
+  auto merge_right = [&]() {
+    size_t iRight = 0;
+    for(size_t i = 0; i < nblocks; ++i) {
+      if(local_buff[i].first) {
+        auto st = rowset_begin + iRight + nLeft;
+        const size_t size = sizes[i].second;
+        memcpy(st, local_buff[i].first->right.data(), size * sizeof(st[0]));
+        iRight += size;
+      }
+    }
+  };
+
+  #pragma omp taskgroup
+  {
+    #pragma omp task
+    merge_left();
+    #pragma omp task
+    merge_right();
+  }
+
+  return nLeft;
+}
+
+// void QuantileHistMaker::Builder::ComputeFullImpurity(int nid1, int nid2) {
+//   const RowSetCollection::Elem e1 = row_set_collection_[nid1];
+//   const RowSetCollection::Elem e2 = row_set_collection_[nid2];
+
+//   if (e1.Size() < e2.Size()) {
+//     for (const size_t* it = e.begin; it < e.end; ++it) {
+//       stats.Add(gpair[*it]);
+//     }
+//   } else {
+//     for (const size_t* it = e.begin; it < e.end; ++it) {
+//       stats.Add(gpair[*it]);
+//     }
+//   }
+// }
 
 void QuantileHistMaker::Builder::InitNewNode(int nid,
                                              const GHistIndexMatrix& gmat,
                                              const std::vector<GradientPair>& gpair,
                                              const DMatrix& fmat,
-                                             const RegTree& tree) {
+                                             RegTreeThreadSafe& tree) {
   {
-    snode_.resize(tree.param.num_nodes, NodeEntry(param_));
+
   }
 
+  if(param_.enable_feature_grouping > 0 || rabit::IsDistributed())
   {
-    auto& stats = snode_[nid].stats;
-    GHistRow hist = hist_[nid];
-    if (tree[nid].IsRoot()) {
-      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-        const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
-        const uint32_t ibegin = row_ptr[fid_least_bins_];
-        const uint32_t iend = row_ptr[fid_least_bins_ + 1];
-        auto begin = hist.data();
-        for (uint32_t i = ibegin; i < iend; ++i) {
-          const GradStats et = begin[i];
-          stats.Add(et.sum_grad, et.sum_hess);
-        }
-      } else {
-        const RowSetCollection::Elem e = row_set_collection_[nid];
-        for (const size_t* it = e.begin; it < e.end; ++it) {
-          stats.Add(gpair[*it]);
-        }
+    auto& stats = tree.Snode(nid).stats;
+    if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+      /* specialized code for dense data
+         For dense data (with no missing value),
+         the sum of gradient histogram is equal to snode[nid] */
+      GHistRow hist = hist_[nid];
+      const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
+
+      const uint32_t ibegin = row_ptr[fid_least_bins_];
+      const uint32_t iend = row_ptr[fid_least_bins_ + 1];
+      for (uint32_t i = ibegin; i < iend; ++i) {
+        const tree::GradStats et = hist[i];
+        stats.Add(et.sum_grad, et.sum_hess);
       }
-      histred_.Allreduce(&snode_[nid].stats, 1);
     } else {
-      int parent_id = tree[nid].Parent();
-      if (tree[nid].IsLeftChild()) {
-        snode_[nid].stats = snode_[parent_id].best.left_sum;
-      } else {
-        snode_[nid].stats = snode_[parent_id].best.right_sum;
+      const RowSetCollection::Elem e = row_set_collection_[nid];
+      for (const size_t* it = e.begin; it < e.end; ++it) {
+        stats.Add(gpair[*it]);
       }
     }
   }
@@ -782,22 +1204,27 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
   // calculating the weights
   {
     bst_uint parentid = tree[nid].Parent();
-    snode_[nid].weight = static_cast<float>(
-            spliteval_->ComputeWeight(parentid, snode_[nid].stats));
-    snode_[nid].root_gain = static_cast<float>(
-            spliteval_->ComputeScore(parentid, snode_[nid].stats, snode_[nid].weight));
+
+    {
+      std::lock_guard<std::mutex> lock(spliteval_->mutex);
+      tree.Snode(nid).weight = static_cast<float>(
+        spliteval_->ComputeWeight(parentid, tree.Snode(nid).stats));
+      tree.Snode(nid).root_gain = static_cast<float>(
+        spliteval_->ComputeScore(parentid, tree.Snode(nid).stats, tree.Snode(nid).weight));
+    }
   }
 }
 
 // enumerate the split values of specific feature
-void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
+bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
                                                 const GHistIndexMatrix& gmat,
                                                 const GHistRow& hist,
                                                 const NodeEntry& snode,
                                                 const MetaInfo& info,
                                                 SplitEntry* p_best,
                                                 bst_uint fid,
-                                                bst_uint nodeID) {
+                                                bst_uint nodeID,
+                                                SplitEvaluator* sp_eval) {
   CHECK(d_step == +1 || d_step == -1);
 
   // aliases
@@ -829,39 +1256,97 @@ void QuantileHistMaker::Builder::EnumerateSplit(int d_step,
     iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
   }
 
-  for (int32_t i = ibegin; i != iend; i += d_step) {
-    // start working
-    // try to find a split
-    e.Add(hist[i].GetGrad(), hist[i].GetHess());
-    if (e.sum_hess >= param_.min_child_weight) {
+  if(d_step == 1) {
+    int32_t i = ibegin;
+    while(e.sum_hess < param_.min_child_weight && i < iend) {
+      e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      i++;
+    }
+
+    // forward enumeration: split at right bound of each bin
+    for (; i < iend; i++) {
+      e.Add(hist[i].GetGrad(), hist[i].GetHess());
       c.SetSubstract(snode.stats, e);
       if (c.sum_hess >= param_.min_child_weight) {
         bst_float loss_chg;
         bst_float split_pt;
-        if (d_step > 0) {
-          // forward enumeration: split at right bound of each bin
-          loss_chg = static_cast<bst_float>(
-              spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
-              snode.root_gain);
-          split_pt = cut_val[i];
-          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
-        } else {
-          // backward enumeration: split at left bound of each bin
-          loss_chg = static_cast<bst_float>(
-              spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
-              snode.root_gain);
-          if (i == imin) {
-            // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.min_val[fid];
-          } else {
-            split_pt = cut_val[i - 1];
-          }
-          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
-        }
+        loss_chg = static_cast<bst_float>(
+            spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
+            snode.root_gain);
+        split_pt = cut_val[i];
+        best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
       }
     }
+      // printf("%f %f %f %f\n", e.GetGrad(), e.GetHess(), snode.stats.GetGrad(), snode.stats.GetHess());
+      p_best->Update(best);
+      if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess())
+        return false;
+  } else {
+
+    int32_t i = ibegin;
+    while(e.sum_hess < param_.min_child_weight && i != iend) {
+      e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      i--;
+    }
+
+    for (; i != iend; i--) {
+      e.Add(hist[i].GetGrad(), hist[i].GetHess());
+      c.SetSubstract(snode.stats, e);
+      if (c.sum_hess >= param_.min_child_weight) {
+        bst_float loss_chg;
+        bst_float split_pt;
+
+        // backward enumeration: split at left bound of each bin
+        loss_chg = static_cast<bst_float>(
+            spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
+            snode.root_gain);
+        if (i == imin) {
+          // for leftmost bin, left bound is the smallest feature value
+          split_pt = gmat.cut.min_val[fid];
+        } else {
+          split_pt = cut_val[i - 1];
+        }
+        best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
+      }
+    }
+    p_best->Update(best);
   }
-  p_best->Update(best);
+
+  return true;
+
+  // for (int32_t i = ibegin; i != iend; i += d_step) {
+  //   // start working
+  //   // try to find a split
+  //   e.Add(hist[i].GetGrad(), hist[i].GetHess());
+  //   if (e.sum_hess >= param_.min_child_weight) {
+  //     c.SetSubstract(snode.stats, e);
+  //     if (c.sum_hess >= param_.min_child_weight) {
+  //       bst_float loss_chg;
+  //       bst_float split_pt;
+  //       if (d_step > 0) {
+  //         // forward enumeration: split at right bound of each bin
+  //         loss_chg = static_cast<bst_float>(
+  //             spliteval_->ComputeSplitScore(nodeID, fid, e, c) -
+  //             snode.root_gain);
+  //         split_pt = cut_val[i];
+  //         best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
+  //       } else {
+  //         // backward enumeration: split at left bound of each bin
+  //         loss_chg = static_cast<bst_float>(
+  //             spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
+  //             snode.root_gain);
+  //         if (i == imin) {
+  //           // for leftmost bin, left bound is the smallest feature value
+  //           split_pt = gmat.cut.min_val[fid];
+  //         } else {
+  //           split_pt = cut_val[i - 1];
+  //         }
+  //         best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
+  //       }
+  //     }
+  //   }
+  // }
+
 }
 
 XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")

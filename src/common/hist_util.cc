@@ -6,11 +6,12 @@
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
-
+#include <dmlc/timer.h>
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./hist_util.h"
 #include "./quantile.h"
+#include "./../tree/updater_quantile_hist.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -23,6 +24,7 @@
 
 namespace xgboost {
 namespace common {
+template class GHistBuilder<tree::QuantileHistMaker::Builder::HistTLS>;
 
 HistCutMatrix::HistCutMatrix() {
   monitor_.Init("HistCutMatrix");
@@ -203,7 +205,6 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       SparsePage::Inst inst = batch[i];
 
       CHECK_EQ(ibegin + inst.size(), iend);
-
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.GetBinIdx(inst[j]);
 
@@ -447,12 +448,23 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   }
 }
 
-void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
+template<typename TlsType>
+void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
-                             GHistRow hist) {
+                             GHistRow hist,
+                             TlsType& hist_tls,
+                             common::ColumnSampler& column_sampler,
+                             tree::RegTreeThreadSafe& tree,
+                             int32_t parent_nid,
+                             const tree::TrainParam& param,
+                             GHistRow sibling,
+                             GHistRow parent,
+                             int32_t this_nid,
+                             int32_t another_nid,
+                             const bool is_dense_layout,
+                             const bool sync_hist) {
   const size_t nthread = static_cast<size_t>(this->nthread_);
-  data_.resize(nbins_ * nthread_);
 
   const size_t* rid =  row_indices.begin;
   const size_t nrows = row_indices.Size();
@@ -461,84 +473,231 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
 
   double* hist_data = reinterpret_cast<double*>(hist.data());
-  double* data = reinterpret_cast<double*>(data_.data());
 
-  const size_t block_size = 512;
+  constexpr size_t block_size = 512;
+  constexpr size_t n_stack_size = 128;
+  constexpr size_t cache_line_size = 64;
+  constexpr size_t prefetch_offset = 10;
+
   size_t n_blocks = nrows/block_size;
   n_blocks += !!(nrows - n_blocks*block_size);
 
   const size_t nthread_to_process = std::min(nthread,  n_blocks);
-  memset(thread_init_.data(), '\0', nthread_to_process*sizeof(size_t));
 
-  const size_t cache_line_size = 64;
-  const size_t prefetch_offset = 10;
+  MemStackAllocator<uint32_t, n_stack_size> thread_init_alloc(nthread);
+  MemStackAllocator<std::pair<tree::GradStats*, size_t>, n_stack_size> hist_local_alloc(nthread);
+  MemStackAllocator<double, n_stack_size> thread_gh_sum_alloc(nthread*2);
+  auto* p_thread_init = thread_init_alloc.Get();
+  auto* p_hist_local = hist_local_alloc.Get();
+  auto* p_thread_gh_sum = thread_gh_sum_alloc.Get();
+
+  memset(p_thread_init, '\0', nthread*sizeof(p_thread_init[0]));
+  memset(p_hist_local, '\0', nthread*sizeof(p_hist_local[0]));
+  memset(p_thread_gh_sum, '\0', 2*nthread*sizeof(p_thread_gh_sum[0]));
+
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
-#pragma omp parallel for num_threads(nthread_to_process) schedule(guided)
-  for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
-    dmlc::omp_uint tid = omp_get_thread_num();
-    double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
-                               reinterpret_cast<double*>(data_.data() + tid * nbins_));
+  if (is_dense_layout) {
+    ParallelFor(n_blocks, [&](size_t iblock) {
+      dmlc::omp_uint tid = omp_get_thread_num();
 
-    if (!thread_init_[tid]) {
-      memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
-      thread_init_[tid] = true;
-    }
-
-    const size_t istart = iblock*block_size;
-    const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
-    for (size_t i = istart; i < iend; ++i) {
-      const size_t icol_start = row_ptr[rid[i]];
-      const size_t icol_end = row_ptr[rid[i]+1];
-
-      if (i < nrows - no_prefetch_size) {
-        PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
-        PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+      bool prev = p_thread_init[tid];
+      if (!p_thread_init[tid]) {
+        p_thread_init[tid] = true;
+        p_hist_local[tid] = hist_tls.get(tid);
       }
+      double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
+              reinterpret_cast<double*>(p_hist_local[tid].first));
 
-      for (size_t j = icol_start; j < icol_end; ++j) {
-        const uint32_t idx_bin = 2*index[j];
-        const size_t idx_gh = 2*rid[i];
+      if (!prev)
+        memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
 
-        data_local_hist[idx_bin] += pgh[idx_gh];
-        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
-      }
-    }
-  }
+      const size_t istart = iblock*block_size;
+      const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
 
-  if (nthread_to_process > 1) {
-    const size_t size = (2*nbins_);
-    const size_t block_size = 1024;
-    size_t n_blocks = size/block_size;
-    n_blocks += !!(size - n_blocks*block_size);
+      const size_t n_features = row_ptr[rid[istart]+1] - row_ptr[rid[istart]];
 
-    size_t n_worked_bins = 0;
-    for (size_t i = 0; i < nthread_to_process; ++i) {
-      if (thread_init_[i]) {
-        thread_init_[n_worked_bins++] = i;
-      }
-    }
+      double gh_sum[2] = {0, 0};
 
-#pragma omp parallel for num_threads(std::min(nthread, n_blocks)) schedule(guided)
-    for (bst_omp_uint iblock = 0; iblock < n_blocks; iblock++) {
-      const size_t istart = iblock * block_size;
-      const size_t iend = (((iblock + 1) * block_size > size) ? size : istart + block_size);
+      if (iend < nrows - no_prefetch_size) {
+        for (size_t i = istart; i < iend; ++i) {
+          const size_t icol_start = rid[i] * n_features;
+          const size_t icol_start_prefetch = rid[i+prefetch_offset] * n_features;
+          const size_t idx_gh = 2*rid[i];
 
-      const size_t bin = 2 * thread_init_[0] * nbins_;
-      memcpy(hist_data + istart, (data + bin + istart), sizeof(double) * (iend - istart));
+          PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
 
-      for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
-        const size_t bin = 2 * thread_init_[i_bin_part] * nbins_;
-        for (size_t i = istart; i < iend; i++) {
-          hist_data[i] += data[bin + i];
+          for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features; j+=16)
+            PREFETCH_READ_T0(index + j);
+
+          gh_sum[0] += pgh[idx_gh];
+          gh_sum[1] += pgh[idx_gh+1];
+
+          for (size_t j = icol_start; j < icol_start + n_features; ++j) {
+            const uint32_t idx_bin = 2*index[j];
+            data_local_hist[idx_bin] += pgh[idx_gh];
+            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+          }
         }
       }
+      else {
+        for (size_t i = istart; i < iend; ++i) {
+          const size_t icol_start = rid[i] * n_features;
+          const size_t idx_gh = 2*rid[i];
+
+          gh_sum[0] += pgh[idx_gh];
+          gh_sum[1] += pgh[idx_gh+1];
+
+          for (size_t j = icol_start; j < icol_start + n_features; ++j) {
+            const uint32_t idx_bin      = 2*index[j];
+            data_local_hist[idx_bin]   += pgh[idx_gh];
+            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+          }
+        }
+      }
+      p_thread_gh_sum[tid*2] += gh_sum[0];
+      p_thread_gh_sum[tid*2+1] += gh_sum[1];
+    });
+  } else { // Sparse case
+    ParallelFor(n_blocks, [&](size_t iblock) {
+      dmlc::omp_uint tid = omp_get_thread_num();
+
+      bool prev = p_thread_init[tid];
+      if (!p_thread_init[tid]) {
+        p_thread_init[tid] = true;
+        p_hist_local[tid] = hist_tls.get(tid);
+      }
+      double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
+              reinterpret_cast<double*>(p_hist_local[tid].first));
+
+      if (!prev) {
+        memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
+      }
+
+      const size_t istart = iblock*block_size;
+      const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
+
+      double gh_sum[2] = {0, 0};
+
+      if (iend < nrows - no_prefetch_size) {
+        for (size_t i = istart; i < iend; ++i) {
+          const size_t icol_start = row_ptr[rid[i]];
+          const size_t icol_end = row_ptr[rid[i]+1];
+          const size_t idx_gh = 2*rid[i];
+
+          const size_t icol_start10 = row_ptr[rid[i+prefetch_offset]];
+          const size_t icol_end10 = row_ptr[rid[i+prefetch_offset]+1];
+
+          PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
+          PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+
+          for (size_t j = icol_start10; j < icol_end10; j+=16)
+            PREFETCH_READ_T0(index + j);
+
+          gh_sum[0] += pgh[idx_gh];
+          gh_sum[1] += pgh[idx_gh+1];
+
+          for (size_t j = icol_start; j < icol_end; ++j) {
+            const uint32_t idx_bin = 2*index[j];
+            data_local_hist[idx_bin] += pgh[idx_gh];
+            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+          }
+        }
+      }
+      else {
+        for (size_t i = istart; i < iend; ++i) {
+          const size_t icol_start = row_ptr[rid[i]];
+          const size_t icol_end = row_ptr[rid[i]+1];
+          const size_t idx_gh = 2*rid[i];
+
+          gh_sum[0] += pgh[idx_gh];
+          gh_sum[1] += pgh[idx_gh+1];
+
+          for (size_t j = icol_start; j < icol_end; ++j) {
+            const uint32_t idx_bin      = 2*index[j];
+            data_local_hist[idx_bin]   += pgh[idx_gh];
+            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+          }
+        }
+      }
+      p_thread_gh_sum[tid*2] += gh_sum[0];
+      p_thread_gh_sum[tid*2+1] += gh_sum[1];
+    });
+  }
+
+  {
+    size_t n_worked_bins = 0;
+
+    if (nthread_to_process == 0) {
+      memset(hist_data, '\0', 2*nbins_*sizeof(double));
+    } else if (nthread_to_process > 1) {
+      for (size_t i = 0; i < nthread; ++i) {
+        if (p_thread_init[i]) {
+          std::swap(p_hist_local[n_worked_bins], p_hist_local[i]);
+          n_worked_bins++;
+        }
+      }
+    }
+
+    if(!sync_hist) {
+      double gh_sum[2] = {0, 0};
+      for (size_t i = 0; i < nthread; ++i) {
+        gh_sum[0] += p_thread_gh_sum[2 * i];
+        gh_sum[1] += p_thread_gh_sum[2 * i + 1];
+      }
+
+      tree::GradStats grad_st(gh_sum[0], gh_sum[1]);
+      tree.Snode(this_nid).stats = grad_st;
+
+      if (another_nid > -1) {
+        auto& st = tree.Snode(parent_nid).stats;
+        tree.Snode(another_nid).stats.SetSubstract(st, grad_st);
+      }
+    }
+
+    const size_t size = (2*nbins_);
+    const size_t block_size = 1024; // aproximatly 1024 values per block
+    size_t n_blocks = size/block_size + !!(size%block_size);
+
+    ParallelFor(n_blocks, [&](size_t iblock) {
+      const size_t ibegin = iblock*block_size;
+      const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
+
+      if (nthread_to_process > 1) {
+        memcpy(hist_data + ibegin, (((double*)p_hist_local[0].first) + ibegin), sizeof(double)*(iend - ibegin));
+        for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
+          double* ptr = reinterpret_cast<double*>(p_hist_local[i_bin_part].first);
+          for (int32_t i = ibegin; i < iend; i++) {
+            hist_data[i] += ptr[i];
+          }
+        }
+      }
+
+      int32_t n_local_bins = (iend - ibegin)/2;
+
+      const size_t tid = omp_get_thread_num();
+
+      if (another_nid > -1) {
+        double* other = (double*)sibling.data();
+        double* par = (double*)parent.data();
+
+        for (int32_t i = ibegin; i < iend; i++) {
+          other[i] = par[i] - hist_data[i];
+        }
+      }
+    });
+  }
+
+  for (uint32_t i = 0; i < nthread; i++) {
+    if (p_hist_local[i].first) {
+      hist_tls.release(p_hist_local[i]);
     }
   }
 }
 
-void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
+template<typename TlsType>
+void GHistBuilder<TlsType>::BuildBlockHist(const std::vector<GradientPair>& gpair,
                                   const RowSetCollection::Elem row_indices,
                                   const GHistIndexBlockMatrix& gmatb,
                                   GHistRow hist) {
@@ -547,13 +706,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % kUnroll;
 
-#if defined(_OPENMP)
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif  // defined(_OPENMP)
-  tree::GradStats* p_hist = hist.data();
-
-#pragma omp parallel for num_threads(nthread) schedule(guided)
-  for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
+  ParallelFor(nblock, [&](size_t bid) {
     auto gmat = gmatb[bid];
 
     for (size_t i = 0; i < nrows - rest; i += kUnroll) {
@@ -561,17 +714,20 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
       size_t ibegin[kUnroll];
       size_t iend[kUnroll];
       GradientPair stat[kUnroll];
-
       for (int k = 0; k < kUnroll; ++k) {
         rid[k] = row_indices.begin[i + k];
+      }
+      for (int k = 0; k < kUnroll; ++k) {
         ibegin[k] = gmat.row_ptr[rid[k]];
         iend[k] = gmat.row_ptr[rid[k] + 1];
+      }
+      for (int k = 0; k < kUnroll; ++k) {
         stat[k] = gpair[rid[k]];
       }
       for (int k = 0; k < kUnroll; ++k) {
         for (size_t j = ibegin[k]; j < iend[k]; ++j) {
           const uint32_t bin = gmat.index[j];
-          p_hist[bin].Add(stat[k]);
+          hist[bin].Add(stat[k]);
         }
       }
     }
@@ -582,42 +738,31 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
       const GradientPair stat = gpair[rid];
       for (size_t j = ibegin; j < iend; ++j) {
         const uint32_t bin = gmat.index[j];
-        p_hist[bin].Add(stat);
+        hist[bin].Add(stat);
       }
     }
-  }
+  });
 }
 
-void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+template<typename TlsType>
+void GHistBuilder<TlsType>::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
-  constexpr int kUnroll = 8;  // loop unrolling factor
-  const uint32_t rest = nbins % kUnroll;
 
-#if defined(_OPENMP)
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
-#endif  // defined(_OPENMP)
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();
   tree::GradStats* p_parent = parent.data();
 
-#pragma omp parallel for num_threads(nthread) schedule(static)
-  for (bst_omp_uint bin_id = 0;
-       bin_id < static_cast<bst_omp_uint>(nbins - rest); bin_id += kUnroll) {
-    tree::GradStats pb[kUnroll];
-    tree::GradStats sb[kUnroll];
-    for (int k = 0; k < kUnroll; ++k) {
-      pb[k] = p_parent[bin_id + k];
+  const size_t size = (2*nbins_);
+  const size_t block_size = 1024; // aproximatly 1024 values per block
+  size_t n_blocks = size/block_size + !!(size%block_size);
+
+  ParallelFor(n_blocks, [&](size_t iblock) {
+    const size_t ibegin = iblock*block_size;
+    const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
+    for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {
+      p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
     }
-    for (int k = 0; k < kUnroll; ++k) {
-      sb[k] = p_sibling[bin_id + k];
-    }
-    for (int k = 0; k < kUnroll; ++k) {
-      p_self[bin_id + k].SetSubstract(pb[k], sb[k]);
-    }
-  }
-  for (uint32_t bin_id = nbins - rest; bin_id < nbins; ++bin_id) {
-    p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
-  }
+  });
 }
 
 }  // namespace common

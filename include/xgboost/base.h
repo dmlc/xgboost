@@ -124,8 +124,8 @@ class GradientPairInternal {
     SetHess(g.GetHess());
   }
 
-  XGBOOST_DEVICE float GetGrad() const { return grad_; }
-  XGBOOST_DEVICE float GetHess() const { return hess_; }
+  XGBOOST_DEVICE inline float GetGrad() const { return grad_; }
+  XGBOOST_DEVICE inline float GetHess() const { return hess_; }
 
   XGBOOST_DEVICE GradientPairInternal<T> &operator+=(
       const GradientPairInternal<T> &rhs) {

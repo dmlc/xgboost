@@ -17,6 +17,13 @@
 #include "../include/rabit/rabit.h"
 
 namespace xgboost {
+
+namespace tree
+{
+class RegTreeThreadSafe;
+class SplitEvaluator;
+}
+
 namespace common {
 
 /*! \brief Cut configuration for all the features. */
@@ -63,6 +70,7 @@ using GHistIndexRow = Span<uint32_t const>;
  *  This is a global histogram index.
  */
 struct GHistIndexMatrix {
+
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
@@ -100,6 +108,11 @@ struct GHistIndexBlock {
 
   inline GHistIndexBlock(const size_t* row_ptr, const uint32_t* index)
     : row_ptr(row_ptr), index(index) {}
+
+  // get i-th row
+  inline GHistIndexRow operator[](size_t i) const {
+    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
+  }
 };
 
 class ColumnMatrix;
@@ -145,72 +158,121 @@ using GHistRow = Span<tree::GradStats>;
 class HistCollection {
  public:
   // access histogram for i-th node
-  GHistRow operator[](bst_uint nid) const {
-    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    CHECK_NE(row_ptr_[nid], kMax);
-    tree::GradStats* ptr =
-        const_cast<tree::GradStats*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
-    return {ptr, nbins_};
+  inline GHistRow operator[](bst_uint nid) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+   return { const_cast<tree::GradStats*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
   }
 
   // have we computed a histogram for i-th node?
-  bool RowExists(bst_uint nid) const {
-    const uint32_t k_max = std::numeric_limits<uint32_t>::max();
-    return (nid < row_ptr_.size() && row_ptr_[nid] != k_max);
+  inline bool RowExists(bst_uint nid) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return is_init_[nid];
   }
 
   // initialize histogram collection
-  void Init(uint32_t nbins) {
-    nbins_ = nbins;
-    row_ptr_.clear();
-    data_.clear();
+  inline void Init(uint32_t nbins) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for(size_t i=0; i < is_init_.size();++i)
+      is_init_[i] = false;
+
+    if (nbins_ != nbins)
+    {
+      for (size_t i = 0; i < data_arr_.size(); ++i) delete data_arr_[i];
+      data_arr_.clear();
+      nbins_ = nbins;
+    }
+  }
+
+  ~HistCollection()
+  {
+    for (size_t i = 0; i < data_arr_.size(); ++i) delete data_arr_[i];
   }
 
   // create an empty histogram for i-th node
-  void AddHistRow(bst_uint nid) {
-    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    if (nid >= row_ptr_.size()) {
-      row_ptr_.resize(nid + 1, kMax);
-    }
-    CHECK_EQ(row_ptr_[nid], kMax);
+  inline void AddHistRow(bst_uint nid) {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-    row_ptr_[nid] = data_.size();
-    data_.resize(data_.size() + nbins_);
+    if (data_arr_.size() <= nid)
+    {
+      data_arr_.resize(nid + 1, nullptr);
+      is_init_.resize(nid + 1, false);
+    }
+    is_init_[nid] = true;
+
+    if (data_arr_[nid] == nullptr) data_arr_[nid] = new std::vector<tree::GradStats>;
+
+    if (data_arr_[nid]->size() == 0)
+    {
+      data_arr_[nid]->resize(nbins_);
+    }
   }
+
+  inline void AddHistRow(bst_uint nid1, bst_uint nid2) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (data_arr_.size() <= std::max(nid1, nid2))
+    {
+      data_arr_.resize(std::max(nid1, nid2) + 1, nullptr);
+      is_init_.resize(std::max(nid1, nid2) + 1, false);
+    }
+    is_init_[nid1] = true;
+    is_init_[nid2] = true;
+
+    if (data_arr_[nid1] == nullptr) data_arr_[nid1] = new std::vector<tree::GradStats>;
+    if (data_arr_[nid2] == nullptr) data_arr_[nid2] = new std::vector<tree::GradStats>;
+
+    if (data_arr_[nid1]->size() == 0)
+    {
+      data_arr_[nid1]->resize(nbins_);
+    }
+    if (data_arr_[nid2]->size() == 0)
+    {
+      data_arr_[nid2]->resize(nbins_);
+    }
+  }
+
 
  private:
   /*! \brief number of all bins over all features */
-  uint32_t nbins_;
-
-  std::vector<tree::GradStats> data_;
-
-  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
-  std::vector<size_t> row_ptr_;
+  uint32_t nbins_ = 0;
+  mutable std::mutex mutex_;
+  std::vector<std::vector<tree::GradStats>*> data_arr_;
+  std::vector<bool> is_init_;
 };
 
 /*!
  * \brief builder for histograms of gradient statistics
  */
+template<typename TlsType>
 class GHistBuilder {
  public:
   // initialize builder
   inline void Init(size_t nthread, uint32_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
-    thread_init_.resize(nthread_);
   }
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
-                 GHistRow hist);
+                 GHistRow hist,
+                 TlsType& hist_tls,
+                 common::ColumnSampler& column_sampler,
+                 tree::RegTreeThreadSafe& tree,
+                 int32_t parent_nid,
+                 const tree::TrainParam& param,
+                 GHistRow sibling,
+                 GHistRow parent,
+                 int32_t this_nid,
+                 int32_t another_nid,
+                 const bool is_dense_layout,
+                 const bool sync_hist);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
                       const GHistIndexBlockMatrix& gmatb,
                       GHistRow hist);
-  // construct a histogram via subtraction trick
+
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
   uint32_t GetNumBins() {
@@ -222,8 +284,6 @@ class GHistBuilder {
   size_t nthread_;
   /*! \brief number of all bins over all features */
   uint32_t nbins_;
-  std::vector<size_t> thread_init_;
-  std::vector<tree::GradStats> data_;
 };
 
 

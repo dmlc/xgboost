@@ -49,6 +49,11 @@ class Column {
   }
   const size_t* GetRowData() const { return row_ind_; }
 
+  const uint32_t* GetIndex() const
+  {
+    return index_;
+  }
+
  private:
   ColumnType type_;
   const uint32_t* index_;

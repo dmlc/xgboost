@@ -69,6 +69,7 @@ class SplitEvaluator {
                         bst_uint featureid,
                         bst_float leftweight,
                         bst_float rightweight);
+  std::mutex mutex;
 };
 
 struct SplitEvaluatorReg

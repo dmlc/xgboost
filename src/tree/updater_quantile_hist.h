@@ -27,6 +27,78 @@
 #include "../common/column_matrix.h"
 
 namespace xgboost {
+
+template<typename T, size_t MaxStackSize>
+class MemStackAllocator
+{
+public:
+  MemStackAllocator(size_t required_size): required_size_(required_size) {
+  }
+
+  T* Get() {
+    if(!ptr_)
+    {
+      if (MaxStackSize>=required_size_) {
+        ptr_ = stack_mem_;
+      }
+      else {
+        ptr_ = (T*)malloc(required_size_ * sizeof(T));
+        do_free_ = true;
+      }
+    }
+
+    return ptr_;
+  }
+
+  ~MemStackAllocator() {
+    if (do_free_) free(ptr_);
+  }
+
+private:
+  T* ptr_ = nullptr;
+  bool do_free_ = false;
+  size_t required_size_;
+  T stack_mem_[MaxStackSize];
+};
+
+template<typename Func>
+inline void ParallelFor(const size_t n, Func func) {
+  if (n) {
+    #pragma omp taskgroup
+    {
+      // #pragma omp taskloop
+      for (size_t iblock = 0; iblock < n; iblock++) {
+        #pragma omp task
+        func(iblock);
+      }
+    }
+  }
+}
+
+template<typename Func>
+inline void SeqFor(const size_t n, Func func) {
+  if (n) {
+    // #pragma omp taskgroup
+    {
+      // #pragma omp taskloop
+      for (size_t iblock = 0; iblock < n; iblock++) {
+        func(iblock);
+      }
+    }
+  }
+}
+
+template<typename Func1, typename Func2>
+inline void ParallelInvoke(Func1 f1, Func2 f2) {
+  #pragma omp taskgroup
+  {
+    #pragma omp task
+    f1();
+    #pragma omp task
+    f2();
+  }
+}
+
 namespace tree {
 
 using xgboost::common::HistCutMatrix;
@@ -40,6 +112,69 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
+
+class RegTreeThreadSafe;
+
+
+
+template<typename T, typename InitFunc, typename DeleteFunc>
+class ThreadSafeStorage
+{
+public:
+  ThreadSafeStorage(size_t nthread, InitFunc init, DeleteFunc del): nthread_(nthread), thread_local_storages_(nthread), mutexes_(nthread), init_func_(init), delete_func_(del)
+  {
+  }
+
+  ~ThreadSafeStorage() {
+    for(size_t i = 0; i < nthread_; ++i)
+    {
+      for(auto& it : thread_local_storages_[i])
+        delete_func_(it);
+    }
+  }
+
+  std::pair<T*, size_t> get()
+  {
+    const unsigned tid = omp_get_thread_num();
+    std::lock_guard<std::mutex> lock(mutexes_[tid]);
+    if (!thread_local_storages_[tid].size()) {
+      return {init_func_(), tid};
+    } else {
+      T* ptr = thread_local_storages_[tid].back();
+      thread_local_storages_[tid].pop_back();
+      return {ptr, tid};
+    }
+  }
+
+  std::pair<T*, size_t> get(size_t tid)
+  {
+    std::lock_guard<std::mutex> lock(mutexes_[tid]);
+    if (!thread_local_storages_[tid].size()) {
+      return {init_func_(), tid};
+    } else {
+      T* ptr = thread_local_storages_[tid].back();
+      thread_local_storages_[tid].pop_back();
+      return {ptr, tid};
+    }
+  }
+
+  void release(std::pair<T*, size_t> pair)
+  {
+    const unsigned tid = pair.second;
+
+    std::lock_guard<std::mutex> lock(mutexes_[tid]);
+    thread_local_storages_[tid].push_back(pair.first);
+  }
+
+private:
+  size_t nthread_;
+  std::vector<std::deque<T*>> thread_local_storages_;
+  std::vector<std::mutex> mutexes_;
+  InitFunc init_func_;
+  DeleteFunc delete_func_;
+};
+
+
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
@@ -52,6 +187,7 @@ class QuantileHistMaker: public TreeUpdater {
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
 
+
  protected:
   // training parameter
   TrainParam param_;
@@ -62,6 +198,8 @@ class QuantileHistMaker: public TreeUpdater {
   // column accessor
   ColumnMatrix column_matrix_;
   bool is_gmat_initialized_;
+
+ public:
 
   // data structure
   struct NodeEntry {
@@ -75,19 +213,29 @@ class QuantileHistMaker: public TreeUpdater {
     SplitEntry best;
     // constructor
     explicit NodeEntry(const TrainParam& param)
-        : root_gain(0.0f), weight(0.0f) {}
+        : root_gain(0.0f), weight(0.0f) {
+    }
   };
   // actual builder that runs the algorithm
 
   struct Builder {
    public:
+
+    using RowCollectionTLS = ThreadSafeStorage<RowSetCollection::Split,
+      std::function<RowSetCollection::Split*()>,
+      std::function<void(RowSetCollection::Split*)>>;
+
+    using HistTLS = ThreadSafeStorage<tree::GradStats,
+      std::function<tree::GradStats*()>,
+      std::function<void(tree::GradStats*)>>;
+
     // constructor
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval)
       : param_(param), pruner_(std::move(pruner)),
         spliteval_(std::move(spliteval)), p_last_tree_(nullptr),
-        p_last_fmat_(nullptr) {}
+        p_last_fmat_(nullptr), prow_set_collection_tls_(nullptr) {  }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const GHistIndexBlockMatrix& gmatb,
@@ -101,19 +249,26 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist,
+                          RegTreeThreadSafe& tree,
+                          size_t parent_nid,
+                          GHistRow sibling,
+                          GHistRow parent,
+                          int32_t this_nid,
+                          int32_t another_nid,
                           bool sync_hist) {
+
+      const bst_uint tid = omp_get_thread_num();
+
       if (param_.enable_feature_grouping > 0) {
-        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
+        this->hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
+        this->hist_builder_.BuildHist(gpair, row_indices, gmat, hist, *hist_tls_, column_sampler_, tree, parent_nid, param_,
+          sibling, parent, this_nid, another_nid, data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased,
+          sync_hist);
       }
       if (sync_hist) {
         this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
       }
-    }
-
-    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-      hist_builder_.SubtractionTrick(self, sibling, parent);
     }
 
     bool UpdatePredictionCache(const DMatrix* data,
@@ -150,29 +305,30 @@ class QuantileHistMaker: public TreeUpdater {
       inline void EndPerfMonitor() {
         CHECK_GT(global_start, 0);
         double total_time = dmlc::GetTime() - global_start;
-        LOG(INFO) << "\nInitData:          "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+        // LOG(INFO) << "\nInitData:          "
+        std::cout << "\nInitData:          "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_data / total_time * 100 << "%)\n"
                   << "InitNewNode:       "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_new_node / total_time * 100 << "%)\n"
                   << "BuildHist:         "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_build_hist / total_time * 100 << "%)\n"
                   << "EvaluateSplit:     "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_evaluate_split / total_time * 100 << "%)\n"
                   << "ApplySplit:        "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_apply_split / total_time * 100 << "%)\n"
                   << "========================================\n"
                   << "Total:             "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time*1000 << std::endl;
         // clear performance counters
         time_init_data = 0;
         time_init_new_node = 0;
@@ -186,7 +342,7 @@ class QuantileHistMaker: public TreeUpdater {
       }
 
       inline void UpdatePerfTimer(const timer_name &timer_name) {
-        CHECK_GT(tstart, 0);
+        // CHECK_GT(tstart, 0); // TODO Fix
         switch (timer_name) {
           case INIT_DATA:
             time_init_data += dmlc::GetTime() - tstart;
@@ -212,91 +368,114 @@ class QuantileHistMaker: public TreeUpdater {
     void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
-                  const RegTree& tree);
+                  const RegTreeThreadSafe& tree);
 
     void EvaluateSplit(const int nid,
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
-                       const RegTree& tree);
+                       RegTreeThreadSafe& tree);
 
     void ApplySplit(int nid,
                     const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
                     const HistCollection& hist,
                     const DMatrix& fmat,
-                    RegTree* p_tree);
+                    RegTreeThreadSafe* p_tree);
 
-    void ApplySplitDenseData(const RowSetCollection::Elem rowset,
+    size_t ApplySplitDenseData(const RowSetCollection::Elem rowset,
                              const GHistIndexMatrix& gmat,
-                             std::vector<RowSetCollection::Split>* p_row_split_tloc,
                              const Column& column,
                              bst_int split_cond,
                              bool default_left);
 
-    void ApplySplitSparseData(const RowSetCollection::Elem rowset,
+    size_t ApplySplitSparseData(const RowSetCollection::Elem rowset,
                               const GHistIndexMatrix& gmat,
-                              std::vector<RowSetCollection::Split>* p_row_split_tloc,
                               const Column& column,
                               bst_uint lower_bound,
                               bst_uint upper_bound,
                               bst_int split_cond,
                               bool default_left);
 
+    size_t MergeSplit(std::pair<RowSetCollection::Split*, size_t>* arr,
+      std::pair<size_t, size_t>* sizes,
+      size_t nblocks,
+      size_t* rowset_begin);
+
     void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
-                     const RegTree& tree);
+                     RegTreeThreadSafe& tree);
 
     // enumerate the split values of specific feature
-    void EnumerateSplit(int d_step,
+    bool EnumerateSplit(int d_step,
                         const GHistIndexMatrix& gmat,
                         const GHistRow& hist,
                         const NodeEntry& snode,
                         const MetaInfo& info,
                         SplitEntry* p_best,
                         bst_uint fid,
-                        bst_uint nodeID);
+                        bst_uint nodeID,
+                        SplitEvaluator* sp_eval);
+
+    void ExpandWithDepthWidthDistributed(const GHistIndexMatrix &gmat,
+                              const GHistIndexBlockMatrix &gmatb,
+                              const ColumnMatrix &column_matrix,
+                              DMatrix *p_fmat,
+                              RegTreeThreadSafe *p_tree,
+                              const std::vector<GradientPair> &gpair_h);
 
     void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               const ColumnMatrix &column_matrix,
                               DMatrix *p_fmat,
-                              RegTree *p_tree,
+                              RegTreeThreadSafe *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void BuildLocalHistograms(int *starting_index,
-                              int *sync_count,
-                              const GHistIndexMatrix &gmat,
-                              const GHistIndexBlockMatrix &gmatb,
-                              RegTree *p_tree,
-                              const std::vector<GradientPair> &gpair_h);
-
-    void SyncHistograms(int starting_index,
-                        int sync_count,
-                        RegTree *p_tree);
-
-    void BuildNodeStats(const GHistIndexMatrix &gmat,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        const std::vector<GradientPair> &gpair_h);
-
-    void EvaluateSplits(const GHistIndexMatrix &gmat,
-                        const ColumnMatrix &column_matrix,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        int *num_leaves,
-                        int depth,
-                        unsigned *timestamp,
-                        std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
                              const ColumnMatrix& column_matrix,
                              DMatrix* p_fmat,
-                             RegTree* p_tree,
+                             RegTreeThreadSafe* p_tree,
                              const std::vector<GradientPair>& gpair_h);
+
+    void SyncHistograms(int starting_index,
+                        int sync_count,
+                        RegTreeThreadSafe *p_tree);
+
+    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+      hist_builder_.SubtractionTrick(self, sibling, parent);
+    }
+
+    void BuildNodeStat(const GHistIndexMatrix &gmat,
+                        DMatrix *p_fmat,
+                        RegTreeThreadSafe *p_tree,
+                        const std::vector<GradientPair> &gpair_h,
+                        int32_t nid);
+
+    void CreateNewNodes(const GHistIndexMatrix &gmat,
+        const ColumnMatrix &column_matrix,
+        DMatrix *p_fmat,
+        RegTreeThreadSafe *p_tree,
+        int *num_leaves,
+        int depth,
+        unsigned *timestamp,
+        std::vector<ExpandEntry> *temp_qexpand_depth,
+        int32_t nid,
+        std::mutex& mutex_add_nodes);
+
+
+    void EvaluateSplits(const GHistIndexMatrix &gmat,
+                        const ColumnMatrix &column_matrix,
+                        DMatrix *p_fmat,
+                        RegTreeThreadSafe *p_tree,
+                        int *num_leaves,
+                        int depth,
+                        unsigned *timestamp,
+                        std::vector<ExpandEntry> *temp_qexpand_depth);
+
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
@@ -305,6 +484,10 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
+
+
+    std::unique_ptr<RowCollectionTLS> prow_set_collection_tls_;
+    std::unique_ptr<HistTLS> hist_tls_;
 
     //  --data fields--
     const TrainParam& param_;
@@ -326,7 +509,8 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief local prediction cache; maps node id to leaf value */
     std::vector<float> leaf_value_cache_;
 
-    GHistBuilder hist_builder_;
+    GHistBuilder<HistTLS> hist_builder_;
+    std::vector<GHistBuilder<HistTLS>> hist_builder_arr_;
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<SplitEvaluator> spliteval_;
 
@@ -355,6 +539,116 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
 };
+
+class RegTreeThreadSafe
+{
+public:
+RegTreeThreadSafe(RegTree& p_tree, std::vector<QuantileHistMaker::NodeEntry>& snode, const TrainParam& param):
+    p_tree_(p_tree), snode_(snode.size()), param_(param) { }
+
+~RegTreeThreadSafe()
+{
+  for(size_t i = 0; i < snode_.size(); ++i)
+  {
+    delete snode_[i];
+    snode_[i] = nullptr;
+  }
+}
+
+const RegTree& Get() const
+{
+  return p_tree_;
+}
+
+const TreeParam& Param() const
+{
+  return p_tree_.param;
+}
+
+const RegTree::Node& operator[](size_t idx) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return p_tree_[idx];
+}
+
+RegTree::Node& operator[](size_t idx)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return p_tree_[idx];
+}
+
+void ExpandNode(int nid, unsigned split_index, bst_float split_value,
+                bool default_left, bst_float base_weight,
+                bst_float left_leaf_weight, bst_float right_leaf_weight,
+                bst_float loss_change, float sum_hess) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  p_tree_.ExpandNode(nid, split_index, split_value, default_left, base_weight,
+                left_leaf_weight, right_leaf_weight, loss_change, sum_hess);
+}
+
+size_t GetDepth(size_t nid) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return p_tree_.GetDepth(nid);
+}
+
+size_t NumNodes() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return Param().num_nodes;
+}
+
+QuantileHistMaker::NodeEntry& Snode(size_t nid)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if(nid >= snode_.size())
+    resize(nid+1);
+
+  return *(snode_[nid]);
+}
+
+const QuantileHistMaker::NodeEntry& Snode(size_t nid) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if(nid >= snode_.size())
+    resize(nid+1);
+
+  return *(snode_[nid]);
+}
+
+void ResizeSnode(const TrainParam& param)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  int n_nodes = Param().num_nodes;
+  resize(n_nodes);
+}
+
+protected:
+
+  void resize(size_t n_nodes) const
+  {
+    int prev_size = snode_.size();
+    snode_.resize(n_nodes, nullptr);
+
+    if (prev_size < n_nodes)
+    {
+      for (int i = prev_size; i < n_nodes; ++i)
+      {
+        if (snode_[i] != nullptr) delete snode_[i];
+        snode_[i] = new QuantileHistMaker::NodeEntry(param_);
+      }
+    }
+  }
+
+
+  mutable std::mutex mutex_;
+  RegTree& p_tree_;
+  mutable std::vector<QuantileHistMaker::NodeEntry*> snode_;
+  const TrainParam& param_;
+};
+
 
 }  // namespace tree
 }  // namespace xgboost
