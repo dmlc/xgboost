@@ -28,14 +28,39 @@ Contribute to XGBoost
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
 Checkout the [Community Page](https://xgboost.ai/community)
 
-Sponsors
---------
-Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Project](https://xgboost.ai/sponsors). The funds are used to defray the cost of continuous integration and testing infrastructure (https://xgboost-ci.net).
-
-[![Amazon Web Services](https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png "Amazon Web Services")](https://aws.amazon.com/)
-[![NVIDIA](https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg "NVIDIA")](https://www.nvidia.com/en-us/)
-
 Reference
 ---------
 - Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016
 - XGBoost originates from research project at University of Washington.
+
+Sponsors
+--------
+Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Project](https://xgboost.ai/sponsors). The funds are used to defray the cost of continuous integration and testing infrastructure (https://xgboost-ci.net).
+
+## Open Source Collective sponsors
+[![Backers on Open Collective](https://opencollective.com/xgboost/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/xgboost/sponsors/badge.svg)](#sponsors) 
+
+### Sponsors
+[[Become a sponsor](https://opencollective.com/xgboost#sponsor)]
+
+<!--<a href="https://opencollective.com/xgboost/sponsor/0/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/0/avatar.svg"></a>-->
+<a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
+<a href="https://opencollective.com/xgboost/sponsor/1/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/2/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/3/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/4/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/5/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/6/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/7/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/8/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/xgboost/sponsor/9/website" target="_blank"><img src="https://opencollective.com/xgboost/sponsor/9/avatar.svg"></a>
+
+### Backers
+[[Become a backer](https://opencollective.com/xgboost#backer)]
+
+<a href="https://opencollective.com/xgboost#backers" target="_blank"><img src="https://opencollective.com/xgboost/backers.svg?width=890"></a>
+
+## Other sponsors
+The sponsors in this list are donating cloud hours in lieu of cash donation.
+
+<a href="https://aws.amazon.com/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/aws.png" alt="Amazon Web Services" width="72" height="72"></a>

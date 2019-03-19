@@ -13,14 +13,14 @@ namespace xgboost {
 namespace tree {
 
 TEST(Updater, Prune) {
-  int constexpr n_rows = 32, n_cols = 16;
+  int constexpr kNRows = 32, kNCols = 16;
 
   std::vector<std::pair<std::string, std::string>> cfg;
-  cfg.push_back(std::pair<std::string, std::string>(
-      "num_feature", std::to_string(n_cols)));
-  cfg.push_back(std::pair<std::string, std::string>(
+  cfg.emplace_back(std::pair<std::string, std::string>(
+      "num_feature", std::to_string(kNCols)));
+  cfg.emplace_back(std::pair<std::string, std::string>(
       "min_split_loss", "10"));
-  cfg.push_back(std::pair<std::string, std::string>(
+  cfg.emplace_back(std::pair<std::string, std::string>(
       "silent", "1"));
 
   // These data are just place holders.

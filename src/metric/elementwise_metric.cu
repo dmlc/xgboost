@@ -27,23 +27,28 @@ namespace metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 
-struct PackedReduceResult {
-  double residue_sum_;
-  double weights_sum_;
-
-  XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}
-  XGBOOST_DEVICE PackedReduceResult(double residue, double weight) :
-      residue_sum_{residue}, weights_sum_{weight} {}
-
-  XGBOOST_DEVICE
-  PackedReduceResult operator+(PackedReduceResult const& other) const {
-    return PackedReduceResult { residue_sum_ + other.residue_sum_,
-                                weights_sum_ + other.weights_sum_ };
-  }
-};
-
 template <typename EvalRow>
 class MetricsReduction {
+ public:
+  class PackedReduceResult {
+    double residue_sum_;
+    double weights_sum_;
+    friend MetricsReduction;
+
+   public:
+    XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}
+    XGBOOST_DEVICE PackedReduceResult(double residue, double weight) :
+        residue_sum_{residue}, weights_sum_{weight} {}
+
+    XGBOOST_DEVICE
+    PackedReduceResult operator+(PackedReduceResult const& other) const {
+      return PackedReduceResult { residue_sum_ + other.residue_sum_,
+            weights_sum_ + other.weights_sum_ };
+    }
+    double Residue() const { return residue_sum_; }
+    double Weights() const { return weights_sum_; }
+  };
+
  public:
   explicit MetricsReduction(EvalRow policy) :
     policy_(std::move(policy)) {}
@@ -346,10 +351,10 @@ struct EvalEWiseBase : public Metric {
     // Dealing with ndata < n_gpus.
     GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
 
-    PackedReduceResult result =
+    auto result =
         reducer_.Reduce(devices, info.weights_, info.labels_, preds);
 
-    double dat[2] { result.residue_sum_, result.weights_sum_ };
+    double dat[2] { result.Residue(), result.Weights() };
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }

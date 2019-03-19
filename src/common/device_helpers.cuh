@@ -26,8 +26,9 @@
 #include "../common/io.h"
 #endif
 
-// Uncomment to enable
-#define TIMERS
+#if __CUDACC_VER_MAJOR__ == 10 && __CUDACC_VER_MINOR__ == 1
+#error "CUDA 10.1 is not supported, see #4264."
+#endif
 
 namespace dh {
 
@@ -308,7 +309,7 @@ class DVec {
     }
     safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (other.DeviceIdx() == this->DeviceIdx()) {
-      dh::safe_cuda(cudaMemcpy(this->Data(), other.Data(),
+      dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
                                other.Size() * sizeof(T),
                                cudaMemcpyDeviceToDevice));
     } else {
@@ -338,7 +339,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->Data(), begin.get(), Size() * sizeof(T),
+    safe_cuda(cudaMemcpyAsync(this->Data(), begin.get(), Size() * sizeof(T),
                          cudaMemcpyDefault));
   }
 };
@@ -772,7 +773,7 @@ template <typename T>
 typename std::iterator_traits<T>::value_type SumReduction(
     dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
-  size_t tmpSize;
+  size_t tmpSize {0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
   // Allocate small extra memory for the return value
@@ -893,14 +894,14 @@ class AllReducer {
     int nccl_nranks = std::accumulate(device_counts.begin(),
                         device_counts.end(), 0);
     nccl_rank += nccl_rank_offset;
-    
+
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals.at(i);
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &comms.at(i),
-        nccl_nranks, id, 
+        nccl_nranks, id,
         nccl_rank));
 
       nccl_rank++;

@@ -92,7 +92,7 @@ Most of the objective functions implemented in XGBoost can be run on GPU.  Follo
 +-----------------+-------------+
 | Objectives      | GPU support |
 +-----------------+-------------+
-| reg:linear      | |tick|      |
+| reg:squarederror| |tick|      |
 +-----------------+-------------+
 | reg:logistic    | |tick|      |
 +-----------------+-------------+
@@ -194,6 +194,10 @@ Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations a
 +--------------+----------+
 
 See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_exact`` and ``gpu_hist`` tree methods.
+
+Developer notes
+==========
+The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
 
 **********
 References

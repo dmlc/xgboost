@@ -596,6 +596,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       row_indices.resize(j);
     }
   }
+  row_set_collection_.Init();
 
   {
     /* determine layout of data */

@@ -45,6 +45,7 @@ struct HistCutMatrix {
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
 
   HistCutMatrix();
+  size_t NumBins() const { return row_ptr.back(); }
 
  protected:
   virtual size_t SearchGroupIndFromBaseRow(

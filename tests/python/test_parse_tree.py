@@ -16,7 +16,8 @@ class TestTreesToDataFrame(unittest.TestCase):
 
     def build_model(self, max_depth, num_round):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        param = {'max_depth': max_depth, 'objective': 'binary:logistic', 'silent': False}
+        param = {'max_depth': max_depth, 'objective': 'binary:logistic',
+                 'verbosity': 1}
         num_round = num_round
         bst = xgb.train(param, dtrain, num_round)
         return bst

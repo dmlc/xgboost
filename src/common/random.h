@@ -89,9 +89,10 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
+  GlobalRandomEngine rng_;
 
   std::shared_ptr<std::vector<int>> ColSample
-    (std::shared_ptr<std::vector<int>> p_features, float colsample) const {
+    (std::shared_ptr<std::vector<int>> p_features, float colsample) {
     if (colsample == 1.0f) return p_features;
     const auto& features = *p_features;
     CHECK_GT(features.size(), 0);
@@ -100,17 +101,24 @@ class ColumnSampler {
     auto& new_features = *p_new_features;
     new_features.resize(features.size());
     std::copy(features.begin(), features.end(), new_features.begin());
-    std::shuffle(new_features.begin(), new_features.end(), common::GlobalRandom());
+    std::shuffle(new_features.begin(), new_features.end(), rng_);
     new_features.resize(n);
     std::sort(new_features.begin(), new_features.end());
-
-    // ensure that new_features are the same across ranks
-    rabit::Broadcast(&new_features, 0);
 
     return p_new_features;
   }
 
  public:
+  /** 
+   * \brief Column sampler constructor.
+   * \note This constructor synchronizes the RNG seed across processes.
+   */
+  ColumnSampler() {
+    uint32_t seed = common::GlobalRandom()();
+    rabit::Broadcast(&seed, sizeof(seed), 0);
+    rng_.seed(seed);
+  }
+
   /**
    * \brief Initialise this object before use.
    *
@@ -153,6 +161,9 @@ class ColumnSampler {
    * \return The sampled feature set.
    * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it
    * is called. Therefore, it should be called only once per node.
+   * \note With distributed xgboost, this function must be called exactly once for the
+   * construction of each tree node, and must be called the same number of times in each
+   * process and with the same parameters to return the same feature set across processes.
    */
   std::shared_ptr<std::vector<int>> GetFeatureSet(int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {

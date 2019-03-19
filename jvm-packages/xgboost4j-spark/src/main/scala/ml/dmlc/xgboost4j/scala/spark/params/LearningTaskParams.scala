@@ -24,8 +24,8 @@ private[spark] trait LearningTaskParams extends Params {
 
   /**
    * Specify the learning task and the corresponding learning objective.
-   * options: reg:linear, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
-   * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
+   * options: reg:squarederror, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
+   * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:squarederror
    */
   final val objective = new Param[String](this, "objective", "objective function used for " +
     s"training, options: {${LearningTaskParams.supportedObjective.mkString(",")}",
@@ -77,6 +77,12 @@ private[spark] trait LearningTaskParams extends Params {
   final def getTrainTestRatio: Double = $(trainTestRatio)
 
   /**
+   * whether caching training data
+   */
+  final val cacheTrainingSet = new BooleanParam(this, "cacheTrainingSet",
+    "whether caching training data")
+
+  /**
    * If non-zero, the training will be stopped after a specified number
    * of consecutive increases in any evaluation metric.
    */
@@ -94,12 +100,12 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5,
-    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0)
+  setDefault(objective -> "reg:squarederror", baseScore -> 0.5,
+    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0, cacheTrainingSet -> false)
 }
 
 private[spark] object LearningTaskParams {
-  val supportedObjective = HashSet("reg:linear", "reg:logistic", "binary:logistic",
+  val supportedObjective = HashSet("reg:squarederror", "reg:logistic", "binary:logistic",
     "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
     "rank:ndcg", "rank:map", "reg:gamma", "reg:tweedie")
 

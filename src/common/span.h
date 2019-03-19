@@ -622,8 +622,8 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
   return {reinterpret_cast<byte*>(s.data()), s.size_bytes()};
 }
 
-}  // namespace common NOLINT
-}  // namespace xgboost NOLINT
+}  // namespace common
+}  // namespace xgboost
 
 #if defined(_MSC_VER) &&_MSC_VER < 1910
 #undef constexpr
