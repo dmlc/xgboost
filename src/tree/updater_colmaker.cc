@@ -632,10 +632,9 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      auto p_feature_set = column_sampler_.GetFeatureSet(depth);
-      const auto& feat_set = *p_feature_set;
+      auto feat_set = column_sampler_.GetFeatureSet(depth);
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
-        this->UpdateSolution(batch, feat_set, gpair, p_fmat);
+        this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);
