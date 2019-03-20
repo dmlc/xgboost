@@ -20,6 +20,7 @@ libxgboostgpu:
 	sed -i 's/SortPosition/SortPosition2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/compress_bin_ellpack_k/compress_bin_ellpack_k2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/CompressBinEllpackKernel/CompressBinEllpackKernel2/g' src/tree/updater_gpu_hist2.cu ;\
+	sed -i 's/CountLeft/CountLeft2/g' src/tree/updater_gpu_hist2.cu ;\
 	sed -i 's/Grow tree with GPU using doubles for sum/Grow tree with GPU using integer64s for sum/g' src/tree/updater_gpu_hist2.cu
 libxgboostcpu:
 	git submodule init && git submodule update dmlc-core && git submodule update rabit
