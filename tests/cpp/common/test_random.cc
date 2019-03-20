@@ -11,38 +11,40 @@ TEST(ColumnSampler, Test) {
   // No node sampling
   cs.Init(n, 1.0f, 0.5f, 0.5f);
   auto set0 = *cs.GetFeatureSet(0);
-  ASSERT_EQ(set0.size(), 32);
+  ASSERT_EQ(set0.Size(), 32);
 
   auto set1 = *cs.GetFeatureSet(0);
-  ASSERT_EQ(set0, set1);
+
+  ASSERT_EQ(set0.HostVector(), set1.HostVector());
 
   auto set2 = *cs.GetFeatureSet(1);
-  ASSERT_NE(set1, set2);
-  ASSERT_EQ(set2.size(), 32);
+  ASSERT_NE(set1.HostVector(), set2.HostVector());
+  ASSERT_EQ(set2.Size(), 32);
 
   // Node sampling
   cs.Init(n, 0.5f, 1.0f, 0.5f);
   auto set3 = *cs.GetFeatureSet(0);
-  ASSERT_EQ(set3.size(), 32);
+  ASSERT_EQ(set3.Size(), 32);
 
   auto set4 = *cs.GetFeatureSet(0);
-  ASSERT_NE(set3, set4);
-  ASSERT_EQ(set4.size(), 32);
+
+  ASSERT_NE(set3.HostVector(), set4.HostVector());
+  ASSERT_EQ(set4.Size(), 32);
 
   // No level or node sampling, should be the same at different depth
   cs.Init(n, 1.0f, 1.0f, 0.5f);
-  ASSERT_EQ(*cs.GetFeatureSet(0), *cs.GetFeatureSet(1));
+  ASSERT_EQ(cs.GetFeatureSet(0)->HostVector(), cs.GetFeatureSet(1)->HostVector());
 
   cs.Init(n, 1.0f, 1.0f, 1.0f);
   auto set5 = *cs.GetFeatureSet(0);
-  ASSERT_EQ(set5.size(), n);
+  ASSERT_EQ(set5.Size(), n);
   cs.Init(n, 1.0f, 1.0f, 1.0f);
   auto set6 = *cs.GetFeatureSet(0);
-  ASSERT_EQ(set5, set6);
+  ASSERT_EQ(set5.HostVector(), set6.HostVector());
 
   // Should always be a minimum of one feature
   cs.Init(n, 1e-16f, 1e-16f, 1e-16f);
-  ASSERT_EQ(cs.GetFeatureSet(0)->size(), 1);
+  ASSERT_EQ(cs.GetFeatureSet(0)->Size(), 1);
 
 }
 }  // namespace common
