@@ -4,6 +4,7 @@
  * \brief Registry of objective functions.
  */
 #include <xgboost/metric.h>
+#include <xgboost/metric_param.h>
 
 #include <dmlc/registry.h>
 
