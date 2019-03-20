@@ -40,10 +40,12 @@ class DistributedEvalError extends EvalTrait with IEvaluationForDistributed {
   /**
    * calculate the metrics for a single row given its label and prediction
    */
-  override def evalRow(label: Float, pred: Float): Float = 0.0f
+  override def evalRow(label: Float, pred: Float): Float = 1.0f
 
   /**
    * perform transformation with the sum of error and weights to get the final evaluation metrics
    */
-  override def getFinal(errorSum: Float, weightSum: Float): Float = 0.0f
+  override def getFinal(errorSum: Float, weightSum: Float): Float = {
+    errorSum / weightSum
+  }
 }

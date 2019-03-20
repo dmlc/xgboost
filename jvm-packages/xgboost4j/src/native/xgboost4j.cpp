@@ -157,7 +157,7 @@ typedef void *CustomEvalHandle;  // NOLINT(*)
 class CustomEvalElementWise {
 public:
   CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
-    metrics_name(name), custom_eval_handle(handle) {
+    metrics_name(name) {
     if (jenv == nullptr) {
       int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
       if (jni_status == JNI_EDETACHED) {
@@ -165,6 +165,7 @@ public:
       } else {
         CHECK(jni_status == JNI_OK);
       }
+      custom_eval_handle = handle;
     }
   }
 
@@ -174,7 +175,8 @@ public:
 
     jmethodID evalRow = jenv->GetMethodID(eval_interface,
                                           "evalRow", "(FF)F;");
-    return 0.0f;
+    jobject jeval = static_cast<jobject>(custom_eval_handle);
+    return jenv->CallFloatMethod(jeval, evalRow, label, pred);
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
@@ -182,7 +184,8 @@ public:
 
     jmethodID getFinal = jenv->GetMethodID(eval_interface,
                                            "getFinal", "(FF)F;");
-    return 0.0f;
+    jobject jeval = static_cast<jobject>(custom_eval_handle);
+    return jenv->CallFloatMethod(jeval, getFinal, esum, wsum);
   }
 
   const char *Name() const {
@@ -192,12 +195,13 @@ public:
 private:
   std::string metrics_name;
 
-  CustomEvalHandle custom_eval_handle;
+  static CustomEvalHandle custom_eval_handle;
 
   static JNIEnv* jenv;
 };
 
 JNIEnv* CustomEvalElementWise::jenv = nullptr;
+CustomEvalHandle CustomEvalElementWise::custom_eval_handle = nullptr;
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -829,11 +833,25 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
   (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name,
           jint num_classes, jobject custom_eval) {
   std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
-  XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
-          .describe("customized metrics")
-          .set_body([&metrics_name_in_str, &custom_eval](const char* param) {
-            return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
-                    *(new CustomEvalElementWise(metrics_name_in_str, custom_eval))); });
+  /**
+   * num_classes < 0 => ranking
+   * num_classes == 0 => regression
+   * num_classes == 2 => binary classification
+   * num_classes > 2 => multi_classes classification
+   * else => invalid
+   */
+  if (num_classes == 2 || num_classes == 0) {
+    XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
+            .describe("customized metrics")
+            .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
+              return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
+                      *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
+            });
+  } else if (num_classes > 2) {
+
+  } else {
+    // ranking
+  }
   return 0;
 }
 

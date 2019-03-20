@@ -24,11 +24,10 @@ import org.apache.commons.logging.LogFactory;
 
 /**
  * trainer for xgboost
- *
- * @author hzx
  */
 public class XGBoost {
   private static final Log logger = LogFactory.getLog(XGBoost.class);
+  private static boolean initializedEval = false;
 
   /**
    * load model from modelPath
@@ -106,6 +105,35 @@ public class XGBoost {
           IEvaluation eval,
           int earlyStoppingRound) throws XGBoostError {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
+  }
+
+  private static synchronized void registerNewCustomEvalForDistributed(
+          Booster booster, IEvaluation eval) {
+    if (!initializedEval) {
+      int numClasses = 2;
+      XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses,
+              (IEvaluationForDistributed) eval);
+      initializedEval = true;
+    }
+  }
+
+  private static String performEvaluation(
+          Booster booster,
+          IEvaluation eval,
+          String[] evalNames,
+          DMatrix[] evalMats,
+          int iter,
+          float[] metricsOut) throws XGBoostError {
+    String evalInfo;
+    if (eval != null && !(eval instanceof IEvaluationForDistributed)) {
+      evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
+    } else {
+      if (eval != null) {
+        registerNewCustomEvalForDistributed(booster, eval);
+      }
+      evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
+    }
+    return evalInfo;
   }
 
   /**
@@ -195,18 +223,7 @@ public class XGBoost {
       //evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
-        String evalInfo;
-        if (eval != null && !(eval instanceof IEvaluationForDistributed)) {
-          evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
-        } else {
-          if (eval instanceof IEvaluationForDistributed) {
-            // TODO
-            int numClasses = 2;
-            XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses,
-                    (IEvaluationForDistributed) eval);
-          }
-          evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
-        }
+        String evalInfo = performEvaluation(booster, eval, evalNames, evalMats, iter, metricsOut);
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
