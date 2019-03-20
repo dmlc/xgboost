@@ -36,7 +36,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
-      "objective" -> "reg:linear")
+      "objective" -> "reg:squarederror")
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
@@ -69,7 +69,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
-      "objective" -> "reg:linear",
+      "objective" -> "reg:squarederror",
       "num_round" -> round,
       "num_workers" -> numWorkers)
 
@@ -80,7 +80,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       .setEta(1)
       .setMaxDepth(6)
       .setSilent(1)
-      .setObjective("reg:linear")
+      .setObjective("reg:squarederror")
       .setNumRound(round)
       .setNumWorkers(numWorkers)
       .fit(trainingDF)
@@ -108,7 +108,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("use weight") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
 
     val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
     val trainingDF = buildDataFrame(Regression.train)
@@ -123,7 +123,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()
@@ -137,7 +137,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val xgb = new XGBoostRegressor(paramMap)
@@ -149,7 +149,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()
@@ -163,7 +163,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionContrib with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val xgb = new XGBoostRegressor(paramMap)
@@ -175,7 +175,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("test predictionLeaf and predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val training = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
     val groundTruth = testDF.count()

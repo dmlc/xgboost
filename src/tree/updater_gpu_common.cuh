@@ -14,7 +14,7 @@
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 
-#else
+#else  // In device code and CUDA < 600
 XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull =
       (unsigned long long int*)address;                   // NOLINT
@@ -39,7 +39,7 @@ namespace tree {
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
 DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                                               const InputGradientT& gpair) {
+                               const InputGradientT& gpair) {
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,
@@ -145,6 +145,18 @@ struct DeviceSplitCandidate {
     }
   }
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
+};
+
+struct DeviceSplitCandidateReduceOp {
+  GPUTrainingParam param;
+  DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(param) {}
+  XGBOOST_DEVICE DeviceSplitCandidate operator()(
+      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
+    DeviceSplitCandidate best;
+    best.Update(a, param);
+    best.Update(b, param);
+    return best;
+  }
 };
 
 struct DeviceNodeStats {

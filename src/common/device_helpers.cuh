@@ -23,10 +23,12 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
+#include "../common/io.h"
 #endif
 
-// Uncomment to enable
-#define TIMERS
+#if __CUDACC_VER_MAJOR__ == 10 && __CUDACC_VER_MINOR__ == 1
+#error "CUDA 10.1 is not supported, see #4264."
+#endif
 
 namespace dh {
 
@@ -206,16 +208,23 @@ __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
 }
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, L lambda) {
+inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
 
   safe_cuda(cudaSetDevice(device_idx));
+
   const int GRID_SIZE =
       static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                              lambda);
+  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
+                                                         n, lambda);
+}
+
+// Default stream version
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
+inline void LaunchN(int device_idx, size_t n, L lambda) {
+  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
 }
 
 /*
@@ -307,7 +316,7 @@ class DVec {
     }
     safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (other.DeviceIdx() == this->DeviceIdx()) {
-      dh::safe_cuda(cudaMemcpy(this->Data(), other.Data(),
+      dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
                                other.Size() * sizeof(T),
                                cudaMemcpyDeviceToDevice));
     } else {
@@ -337,7 +346,7 @@ class DVec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->Data(), begin.get(), Size() * sizeof(T),
+    safe_cuda(cudaMemcpyAsync(this->Data(), begin.get(), Size() * sizeof(T),
                          cudaMemcpyDefault));
   }
 };
@@ -495,6 +504,31 @@ class BulkAllocator {
     d_ptr_.push_back(ptr);
     size_.push_back(size);
     device_idx_.push_back(device_idx);
+  }
+};
+
+// Keep track of pinned memory allocation
+struct PinnedMemory {
+  void *temp_storage{nullptr};
+  size_t temp_storage_bytes{0};
+
+  ~PinnedMemory() { Free(); }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    size_t num_bytes = size * sizeof(T);
+    if (num_bytes > temp_storage_bytes) {
+      Free();
+      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
+      temp_storage_bytes = num_bytes;
+    }
+    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+  }
+
+  void Free() {
+    if (temp_storage != nullptr) {
+      safe_cuda(cudaFreeHost(temp_storage));
+    }
   }
 };
 
@@ -771,7 +805,7 @@ template <typename T>
 typename std::iterator_traits<T>::value_type SumReduction(
     dh::CubMemory &tmp_mem, T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
-  size_t tmpSize;
+  size_t tmpSize {0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
   // Allocate small extra memory for the return value
@@ -853,6 +887,8 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;  // device id from CUDA
+  std::vector<int> device_counts;  // device count from CUDA
+  ncclUniqueId id;
 #endif
 
  public:
@@ -872,14 +908,41 @@ class AllReducer {
 #ifdef XGBOOST_USE_NCCL
     /** \brief this >monitor . init. */
     this->device_ordinals = device_ordinals;
-    comms.resize(device_ordinals.size());
-    dh::safe_nccl(ncclCommInitAll(comms.data(),
-                                  static_cast<int>(device_ordinals.size()),
-                                  device_ordinals.data()));
-    streams.resize(device_ordinals.size());
+    this->device_counts.resize(rabit::GetWorldSize());
+    this->comms.resize(device_ordinals.size());
+    this->streams.resize(device_ordinals.size());
+    this->id = GetUniqueId();
+
+    device_counts.at(rabit::GetRank()) = device_ordinals.size();
+    for (size_t i = 0; i < device_counts.size(); i++) {
+      int dev_count = device_counts.at(i);
+      rabit::Allreduce<rabit::op::Sum, int>(&dev_count, 1);
+      device_counts.at(i) = dev_count;
+    }
+
+    int nccl_rank = 0;
+    int nccl_rank_offset = std::accumulate(device_counts.begin(),
+                             device_counts.begin() + rabit::GetRank(), 0);
+    int nccl_nranks = std::accumulate(device_counts.begin(),
+                        device_counts.end(), 0);
+    nccl_rank += nccl_rank_offset;
+
+    GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
-      safe_cuda(cudaSetDevice(device_ordinals[i]));
-      safe_cuda(cudaStreamCreate(&streams[i]));
+      int dev = device_ordinals.at(i);
+      dh::safe_cuda(cudaSetDevice(dev));
+      dh::safe_nccl(ncclCommInitRank(
+        &comms.at(i),
+        nccl_nranks, id,
+        nccl_rank));
+
+      nccl_rank++;
+    }
+    GroupEnd();
+
+    for (size_t i = 0; i < device_ordinals.size(); i++) {
+      safe_cuda(cudaSetDevice(device_ordinals.at(i)));
+      safe_cuda(cudaStreamCreate(&streams.at(i)));
     }
     initialised_ = true;
 #else
@@ -1010,7 +1073,30 @@ class AllReducer {
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
     }
 #endif
+  };
+
+#ifdef XGBOOST_USE_NCCL
+  /**
+   * \fn  ncclUniqueId GetUniqueId()
+   *
+   * \brief Gets the Unique ID from NCCL to be used in setting up interprocess
+   * communication
+   *
+   * \return the Unique ID
+   */
+  ncclUniqueId GetUniqueId() {
+    static const int RootRank = 0;
+    ncclUniqueId id;
+    if (rabit::GetRank() == RootRank) {
+      dh::safe_nccl(ncclGetUniqueId(&id));
+    }
+    rabit::Broadcast(
+      (void*)&id,
+      (size_t)sizeof(ncclUniqueId),
+      (int)RootRank);
+    return id;
   }
+#endif
 };
 
 class SaveCudaContext {

@@ -82,7 +82,7 @@ class TestEarlyStopping(unittest.TestCase):
         X = digits['data']
         y = digits['target']
         dm = xgb.DMatrix(X, label=y)
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
                   'objective': 'binary:logistic'}
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,

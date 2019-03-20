@@ -4,7 +4,7 @@ from scipy.sparse import rand
 
 rng = np.random.RandomState(1)
 
-param = {'max_depth': 3, 'objective': 'binary:logistic', 'silent': 1}
+param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
 
 
 def test_sparse_dmatrix_csr():

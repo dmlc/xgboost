@@ -88,7 +88,10 @@ class Booster {
     initialized_ = true;
   }
 
- public:
+  bool IsInitialized() const { return initialized_; }
+  void Intialize() { initialized_ = true; }
+
+ private:
   bool configured_;
   bool initialized_;
   std::unique_ptr<Learner> learner_;
@@ -302,20 +305,6 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
-                                   const unsigned *indices,
-                                   const bst_float* data,
-                                   xgboost::bst_ulong nindptr,
-                                   xgboost::bst_ulong nelem,
-                                   DMatrixHandle* out) {
-  std::vector<size_t> indptr_(nindptr);
-  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
-    indptr_[i] = static_cast<size_t>(indptr[i]);
-  }
-  return XGDMatrixCreateFromCSREx(&indptr_[0], indices, data,
-    static_cast<size_t>(nindptr), static_cast<size_t>(nelem), 0, out);
-}
-
 XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,
@@ -370,20 +359,6 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   mat.info.num_nonzero_ = nelem;
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
-}
-
-XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
-                                   const unsigned* indices,
-                                   const bst_float* data,
-                                   xgboost::bst_ulong nindptr,
-                                   xgboost::bst_ulong nelem,
-                                   DMatrixHandle* out) {
-  std::vector<size_t> col_ptr_(nindptr);
-  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
-    col_ptr_[i] = static_cast<size_t>(col_ptr[i]);
-  }
-  return XGDMatrixCreateFromCSCEx(&col_ptr_[0], indices, data,
-    static_cast<size_t>(nindptr), static_cast<size_t>(nelem), 0, out);
 }
 
 XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
@@ -1154,7 +1129,7 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
   auto* bst = static_cast<Booster*>(handle);
   *version = rabit::LoadCheckPoint(bst->learner());
   if (*version != 0) {
-    bst->initialized_ = true;
+    bst->Intialize();
   }
   API_END();
 }

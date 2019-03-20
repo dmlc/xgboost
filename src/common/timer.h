@@ -8,7 +8,9 @@
 #include <map>
 #include <string>
 
-#include "common.h"
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
+#include <nvToolsExt.h>
+#endif
 
 namespace xgboost {
 namespace common {
@@ -45,9 +47,11 @@ struct Timer {
  */
 
 struct Monitor {
+ private:
   struct Statistics {
     Timer timer;
     size_t count{0};
+    uint64_t nvtx_id;
   };
   std::string label = "";
   std::map<std::string, Statistics> statistics_map;
@@ -61,6 +65,11 @@ struct Monitor {
 
     LOG(CONSOLE) << "======== Monitor: " << label << " ========";
     for (auto &kv : statistics_map) {
+      if (kv.second.count == 0) {
+        LOG(WARNING) <<
+            "Timer for " << kv.first << " did not get stopped properly.";
+        continue;
+      }
       LOG(CONSOLE) << kv.first << ": " << kv.second.timer.ElapsedSeconds()
                    << "s, " << kv.second.count << " calls @ "
                    << std::chrono::duration_cast<std::chrono::microseconds>(
@@ -70,35 +79,37 @@ struct Monitor {
     }
     self_timer.Stop();
   }
-  void Init(std::string label) {
-    this->label = label;
-  }
-  void Start(const std::string &name) { statistics_map[name].timer.Start(); }
-  void Start(const std::string &name, GPUSet devices) {
+  void Init(std::string label) { this->label = label; }
+  void Start(const std::string &name) {
     if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-#ifdef __CUDACC__
-      for (auto device : devices) {
-        cudaSetDevice(device);
-        cudaDeviceSynchronize();
-      }
-#endif  // __CUDACC__
+      statistics_map[name].timer.Start();
     }
-    statistics_map[name].timer.Start();
   }
   void Stop(const std::string &name) {
-    statistics_map[name].timer.Stop();
-    statistics_map[name].count++;
-  }
-  void Stop(const std::string &name, GPUSet devices) {
     if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-#ifdef __CUDACC__
-      for (auto device : devices) {
-        cudaSetDevice(device);
-        cudaDeviceSynchronize();
-      }
-#endif  // __CUDACC__
+      auto &stats = statistics_map[name];
+      stats.timer.Stop();
+      stats.count++;
     }
-    this->Stop(name);
+  }
+  void StartCuda(const std::string &name) {
+    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+      auto &stats = statistics_map[name];
+      stats.timer.Start();
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
+      stats.nvtx_id = nvtxRangeStartA(name.c_str());
+#endif
+    }
+  }
+  void StopCuda(const std::string &name) {
+    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+      auto &stats = statistics_map[name];
+      stats.timer.Stop();
+      stats.count++;
+#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
+      nvtxRangeEnd(stats.nvtx_id);
+#endif
+    }
   }
 };
 }  // namespace common

@@ -120,10 +120,10 @@ class TestPandas(unittest.TestCase):
 
     def test_cv_as_pandas(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic', 'seed': 1234}
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic'}
 
-        import pandas as pd
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, seed=1234)
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
         assert isinstance(cv, pd.DataFrame)
         exp = pd.Index([u'test-error-mean', u'test-error-std',
                         u'train-error-mean', u'train-error-std'])
@@ -131,67 +131,67 @@ class TestPandas(unittest.TestCase):
 
         # show progress log (result is the same as above)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    verbose_eval=True, seed=1234)
+                    verbose_eval=True)
         assert isinstance(cv, pd.DataFrame)
         exp = pd.Index([u'test-error-mean', u'test-error-std',
                         u'train-error-mean', u'train-error-std'])
         assert cv.columns.equals(exp)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    verbose_eval=True, show_stdv=False, seed=1234)
+                    verbose_eval=True, show_stdv=False)
         assert isinstance(cv, pd.DataFrame)
         exp = pd.Index([u'test-error-mean', u'test-error-std',
                         u'train-error-mean', u'train-error-std'])
         assert cv.columns.equals(exp)
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'eval_metric': 'auc', 'seed': 1234}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, seed=1234)
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic', 'eval_metric': 'auc'}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
         assert 'eval_metric' in params
         assert 'auc' in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc'], 'seed': 1234}
-        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, seed=1234)
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
         assert 'eval_metric' in params
         assert 'auc' in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc'], 'seed': 1234}
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, early_stopping_rounds=1, seed=1234)
+                    as_pandas=True, early_stopping_rounds=1)
         assert 'eval_metric' in params
         assert 'auc' in cv.columns[0]
         assert cv.shape[0] < 10
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'seed': 1234}
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic'}
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics='auc', seed=1234)
+                    as_pandas=True, metrics='auc')
         assert 'auc' in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'seed': 1234}
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic'}
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['auc'], seed=1234)
+                    as_pandas=True, metrics=['auc'])
         assert 'auc' in cv.columns[0]
 
-        params = {'max_depth': 2, 'eta': 1, 'silent': 1,
-                  'objective': 'binary:logistic', 'eval_metric': ['auc'], 'seed': 1234}
+        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                  'objective': 'binary:logistic', 'eval_metric': ['auc']}
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics='error', seed=1234)
+                    as_pandas=True, metrics='error')
         assert 'eval_metric' in params
         assert 'auc' not in cv.columns[0]
         assert 'error' in cv.columns[0]
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['error'], seed=1234)
+                    as_pandas=True, metrics=['error'])
         assert 'eval_metric' in params
         assert 'auc' not in cv.columns[0]
         assert 'error' in cv.columns[0]
 
         params = list(params.items())
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    as_pandas=True, metrics=['error'], seed=1234)
+                    as_pandas=True, metrics=['error'])
         assert isinstance(params, list)
         assert 'auc' not in cv.columns[0]
         assert 'error' in cv.columns[0]

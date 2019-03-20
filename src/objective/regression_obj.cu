@@ -128,8 +128,8 @@ class RegLossObj : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 
-XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
-.describe("Linear regression.")
+XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, "reg:squarederror")
+.describe("Regression with squared error.")
 .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, "reg:logistic")
@@ -145,7 +145,13 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
           "before logistic transformation.")
 .set_body([]() { return new RegLossObj<LogisticRaw>(); });
 
-// Deprecated GPU functions
+// Deprecated functions
+XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
+.describe("Regression with squared error.")
+.set_body([]() {
+    LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
+    return new RegLossObj<LinearSquareLoss>(); });
+
 XGBOOST_REGISTER_OBJECTIVE(GPULinearRegression, "gpu:reg:linear")
 .describe("Deprecated. Linear regression (computed on GPU).")
 .set_body([]() {

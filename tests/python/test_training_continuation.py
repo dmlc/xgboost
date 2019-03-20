@@ -11,18 +11,18 @@ class TestTrainingContinuation(unittest.TestCase):
     num_parallel_tree = 3
 
     xgb_params_01 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
     }
 
     xgb_params_02 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'num_parallel_tree': num_parallel_tree
     }
 
     xgb_params_03 = {
-        'silent': 1,
+        'verbosity': 0,
         'nthread': 1,
         'num_class': 5,
         'num_parallel_tree': num_parallel_tree
