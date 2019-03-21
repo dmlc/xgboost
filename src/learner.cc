@@ -521,7 +521,7 @@ class LearnerImpl : public Learner {
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
       DMatrix * dmat = data_sets[i];
-      this->PredictRaw(dmat, &preds_[dmat]);
+      this->PredictRaw(data_sets[i], &preds_[dmat]);
       obj_->EvalTransform(&preds_[dmat]);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
@@ -771,8 +771,7 @@ class LearnerImpl : public Learner {
   std::string name_gbm_;
   // name of objective function
   std::string name_obj_;
-  // temporal storages for prediction, store a unique prediction vector for each
-  // matrix to avoid constant resizing
+  // temporal storages for prediction
   std::map<DMatrix*, HostDeviceVector<bst_float>> preds_;
   // gradient pairs
   HostDeviceVector<GradientPair> gpair_;

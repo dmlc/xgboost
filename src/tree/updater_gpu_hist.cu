@@ -55,14 +55,15 @@ struct ExpandEntry {
   int depth;
   DeviceSplitCandidate split;
   uint64_t timestamp;
-  ExpandEntry() {}
-  ExpandEntry(int nid, int depth, const DeviceSplitCandidate& split,
+  ExpandEntry() = default;
+  ExpandEntry(int nid, int depth, DeviceSplitCandidate split,
               uint64_t timestamp)
-      : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
+      : nid(nid), depth(depth), split(std::move(split)), timestamp(timestamp) {}
   bool IsValid(const TrainParam& param, int num_leaves) const {
     if (split.loss_chg <= kRtEps) return false;
-    if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
+    if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;
+    }
     if (param.max_depth > 0 && depth == param.max_depth) return false;
     if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
     return true;
@@ -778,9 +779,9 @@ struct DeviceShard {
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
 
       // One block for each feature
-      int constexpr BLOCK_THREADS = 256;
-      EvaluateSplitKernel<BLOCK_THREADS, GradientSumT>
-          <<<uint32_t(d_feature_set.size()), BLOCK_THREADS, 0, streams[i]>>>(
+      int constexpr kBlockThreads = 256;
+      EvaluateSplitKernel<kBlockThreads, GradientSumT>
+          <<<uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]>>>(
               hist.GetNodeHistogram(nidx), d_feature_set, node, ellpack_matrix,
               gpu_param, d_split_candidates, value_constraints[nidx],
               monotone_constraints.GetSpan());

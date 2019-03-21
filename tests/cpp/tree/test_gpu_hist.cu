@@ -431,7 +431,7 @@ void TestSortPosition(const std::vector<int>& position_in, int left_idx,
       common::Span<int>(position_out.data().get(), position_out.size()),
       common::Span<bst_uint>(ridx.data().get(), ridx.size()),
       common::Span<bst_uint>(ridx_out.data().get(), ridx_out.size()), left_idx,
-      right_idx, d_left_count.data().get(), 0);
+      right_idx, d_left_count.data().get(), nullptr);
   thrust::host_vector<int> position_result = position_out;
   thrust::host_vector<int> ridx_result = ridx_out;
 
