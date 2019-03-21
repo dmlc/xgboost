@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.Files
+import java.util.Properties
 
 import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
@@ -31,7 +32,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.{SparkContext, SparkException, SparkParallelismTracker, TaskContext}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.storage.StorageLevel
 
@@ -386,7 +387,7 @@ object XGBoost extends Serializable {
       hasGroup: Boolean = false,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
-    logger.info(s"XGBoost training with parameters:\n${params.mkString("\n")}")
+    logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
     val (nWorkers, round, _, _, _, _, trackerConf, timeoutRequestWorkers,
       checkpointPath, checkpointInterval) = parameterFetchAndValidation(params,
       trainingData.sparkContext)
