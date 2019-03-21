@@ -601,7 +601,7 @@ void HostDeviceVector<T>::Shard(const GPUDistribution &distribution) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution) {
+void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution) const {
   impl_->Reshard(distribution);
 }
 

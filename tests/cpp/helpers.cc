@@ -143,13 +143,13 @@ std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
   return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix() {
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_size) {
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 12);
+  CreateBigTestData(tmp_file, n_entries);
   std::unique_ptr<DMatrix> dmat = std::unique_ptr<DMatrix>(DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 64UL));
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
@@ -159,7 +159,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix() {
     batch_count++;
     row_count += batch.Size();
   }
-  EXPECT_EQ(batch_count, 2);
+  EXPECT_GE(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   return dmat;
