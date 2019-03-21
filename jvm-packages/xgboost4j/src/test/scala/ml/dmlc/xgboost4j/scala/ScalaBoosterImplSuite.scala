@@ -139,7 +139,7 @@ class ScalaBoosterImplSuite extends FunSuite {
 
   test("cross validation") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val params = List("eta" -> "1.0", "max_depth" -> "3", "slient" -> "1", "nthread" -> "6",
+    val params = List("eta" -> "1.0", "max_depth" -> "3", "silent" -> "1", "nthread" -> "6",
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
     val nfold = 5
