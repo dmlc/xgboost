@@ -1157,5 +1157,15 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
   return bst->learner()->GetConfigurationArguments();
 }
 
+XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string metrics_name) {
+  auto* bst = static_cast<xgboost::Booster*>(handle);
+  bst->learner()->metrics_.emplace_back(Metric::Create(metrics_name));
+}
+
+XGB_DLL int XGBoosterGetMetricsCount(BoosterHandle handle) {
+  auto* bst = static_cast<xgboost::Booster*>(handle);
+  return bst->learner()->metrics_.size();
+}
+
 // force link rabit
 static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();

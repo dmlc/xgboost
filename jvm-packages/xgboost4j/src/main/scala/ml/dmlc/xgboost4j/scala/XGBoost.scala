@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
 
-import ml.dmlc.xgboost4j.java.{Booster => JBooster, XGBoost => JXGBoost, XGBoostError}
+import ml.dmlc.xgboost4j.java.{IEvaluation, XGBoostError, Booster => JBooster, XGBoost => JXGBoost}
 import scala.collection.JavaConverters._
 
 /**
@@ -52,7 +52,7 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map(),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      eval: EvalTrait = null,
+      eval: IEvaluation = null,
       earlyStoppingRound: Int = 0,
       booster: Booster = null): Booster = {
     val jWatches = watches.mapValues(_.jDMatrix).asJava

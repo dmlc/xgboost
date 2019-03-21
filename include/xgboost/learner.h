@@ -186,6 +186,9 @@ class Learner : public rabit::Serializable {
    */
   virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
+  /*! \brief The evaluation metrics used to evaluate the model. */
+  std::vector<std::unique_ptr<Metric> > metrics_;
+
  protected:
   /*! \brief internal base score of the model */
   bst_float base_score_;
@@ -193,8 +196,6 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<ObjFunction> obj_;
   /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
-  /*! \brief The evaluation metrics used to evaluate the model. */
-  std::vector<std::unique_ptr<Metric> > metrics_;
 };
 
 // implementation of inline functions.

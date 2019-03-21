@@ -11,6 +11,7 @@
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
 #include <cstdint>
+#include <string>
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
@@ -564,5 +565,9 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
+
+XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string metrics_name);
+
+XGB_DLL int XGBoosterGetMetricsCount(BoosterHandle handle);
 
 #endif  // XGBOOST_C_API_H_

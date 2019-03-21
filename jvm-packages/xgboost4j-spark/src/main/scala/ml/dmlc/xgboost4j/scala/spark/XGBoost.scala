@@ -24,8 +24,7 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{IEvaluationForDistributed, IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
-import ml.dmlc.xgboost4j.java.XGBoostJNI
+import ml.dmlc.xgboost4j.java.{IEvaluation, IEvaluationForDistributed, IRabitTracker, Rabit, XGBoostError, XGBoostJNI, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -140,7 +139,7 @@ object XGBoost extends Serializable {
       rabitEnv: java.util.Map[String, String],
       round: Int,
       obj: ObjectiveTrait,
-      eval: EvalTrait,
+      eval: IEvaluation,
       prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
 
     // to workaround the empty partitions in training dataset,
@@ -284,7 +283,7 @@ object XGBoost extends Serializable {
     val round = params("num_round").asInstanceOf[Int]
     val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
     val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
-    val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
+    val eval = params.getOrElse("custom_eval", null).asInstanceOf[IEvaluation]
     val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
     validateSparkSslConf(sparkContext)
 

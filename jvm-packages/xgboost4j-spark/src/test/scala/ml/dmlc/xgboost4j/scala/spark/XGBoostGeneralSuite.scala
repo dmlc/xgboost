@@ -89,17 +89,6 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(booster != null)
   }
 
-  test("distributed training with customized evaluation metrics") {
-    val trainingRDD = sc.parallelize(Classification.train)
-    val (booster, _) = XGBoost.trainDistributed(
-      trainingRDD,
-      List("eta" -> "1", "max_depth" -> "6",
-        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-        "custom_eval" -> new DistributedEvalError, "custom_obj" -> null,
-        "use_external_memory" -> false, "missing" -> Float.NaN).toMap)
-    assert(booster != null)
-  }
-
   test("training with external memory cache") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)

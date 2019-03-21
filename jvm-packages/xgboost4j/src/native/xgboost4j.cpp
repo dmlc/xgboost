@@ -150,13 +150,10 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
   }
 }
 
-/*! \brief handle to a data iterator */
-typedef void *CustomEvalHandle;  // NOLINT(*)
-
 // bridge classes for customized metrics
 class CustomEvalElementWise {
 public:
-  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
+  CustomEvalElementWise(std::string& name, jobject handle):
     metrics_name(name) {
     if (jenv == nullptr) {
       int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
@@ -166,26 +163,22 @@ public:
         CHECK(jni_status == JNI_OK);
       }
       custom_eval_handle = handle;
+      eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+
+      eval_row_func = jenv->GetMethodID(eval_interface,
+                                             "evalRow", "(FF)F");
+      get_final_func = jenv->GetMethodID(eval_interface,
+                                             "getFinal", "(FF)F");
     }
   }
 
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
-    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
-
-    jmethodID evalRow = jenv->GetMethodID(eval_interface,
-                                          "evalRow", "(FF)F;");
-    jobject jeval = static_cast<jobject>(custom_eval_handle);
-    return jenv->CallFloatMethod(jeval, evalRow, label, pred);
+    return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
-    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
-
-    jmethodID getFinal = jenv->GetMethodID(eval_interface,
-                                           "getFinal", "(FF)F;");
-    jobject jeval = static_cast<jobject>(custom_eval_handle);
-    return jenv->CallFloatMethod(jeval, getFinal, esum, wsum);
+    return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
   }
 
   const char *Name() const {
@@ -195,14 +188,20 @@ public:
 private:
   std::string metrics_name;
 
-  static CustomEvalHandle custom_eval_handle;
-
   static JNIEnv* jenv;
+
+  static jobject custom_eval_handle;
+  static jclass eval_interface;
+  static jmethodID eval_row_func;
+  static jmethodID get_final_func;
+
 };
 
 JNIEnv* CustomEvalElementWise::jenv = nullptr;
-CustomEvalHandle CustomEvalElementWise::custom_eval_handle = nullptr;
-
+jobject CustomEvalElementWise::custom_eval_handle = nullptr;
+jclass CustomEvalElementWise::eval_interface = nullptr;
+jmethodID CustomEvalElementWise::eval_row_func = nullptr;
+jmethodID CustomEvalElementWise::get_final_func = nullptr;
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBGetLastError
@@ -841,12 +840,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
    * else => invalid
    */
   if (num_classes == 2 || num_classes == 0) {
+    std::cout << "bst metrics length (before): " << XGBoosterGetMetricsCount((BoosterHandle) jhandle) << "\n";
     XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
             .describe("customized metrics")
             .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
               return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
                       *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
             });
+    XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str);
+    std::cout << "bst metrics length: " << XGBoosterGetMetricsCount((BoosterHandle) jhandle) << "\n";
   } else if (num_classes > 2) {
 
   } else {

@@ -223,6 +223,7 @@ public class Booster implements Serializable, KryoSerializable {
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter) throws XGBoostError {
     long[] handles = dmatrixsToHandles(evalMatrixs);
     String[] evalInfo = new String[1];
+    System.out.println("evaluating iteration " + iter);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames,
             evalInfo));
     return evalInfo[0];
@@ -243,7 +244,9 @@ public class Booster implements Serializable, KryoSerializable {
     String stringFormat = evalSet(evalMatrixs, evalNames, iter);
     String[] metricPairs = stringFormat.split("\t");
     for (int i = 1; i < metricPairs.length; i++) {
-      metricsOut[i - 1] = Float.valueOf(metricPairs[i].split(":")[1]);
+      // TODO: remove min
+      metricsOut[Math.min(metricsOut.length - 1, i - 1)] =
+              Float.valueOf(metricPairs[i].split(":")[1]);
     }
     return stringFormat;
   }
