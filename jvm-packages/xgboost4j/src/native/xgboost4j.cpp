@@ -165,39 +165,21 @@ public:
       } else {
         CHECK(jni_status == JNI_OK);
       }
-      custom_eval_handle = static_cast<jobject>(handle);
-      eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
-
-      eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
-      get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
-      func1 = jenv->GetMethodID(eval_interface, "hasNext", "()Z");
-      jenv->CallBooleanMethod(custom_eval_handle, func1);
+      custom_eval_handle = jenv->NewGlobalRef(static_cast<jobject>(handle));
     }
   }
 
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
-    // return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
-    return 1.0f;
+    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+    jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
+    return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
-    // jmethodID c2 = jenv->GetMethodID(eval_interface, "constant1", "(F)F");
-    JNIEnv* jenv;
-    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_8);
-    if (jni_status == JNI_EDETACHED) {
-      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
-    } else {
-      CHECK(jni_status == JNI_OK);
-    }
-    jclass eval_interface_local = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
-    jmethodID x = jenv->GetMethodID(eval_interface_local, "constant", "()F");
-    jobject custom_eval_handle_local = custom_eval_handle;
-    // float a1 = jenv->CallFloatMethod(custom_eval_handle_local, x);
-    // float a2 = jenv->CallFloatMethod(custom_eval_handle, get_final_func, 1.0f);
-    return 1.0f;
-    // return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
-    // return 1.0f;
+    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+    jmethodID get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
+    return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
   }
 
   const char *Name() const {
@@ -206,7 +188,6 @@ public:
 
 private:
   std::string metrics_name;
-
   static JNIEnv* jenv;
 
   static jobject custom_eval_handle;
