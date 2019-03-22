@@ -11,4 +11,10 @@ public interface IEvaluationForDistributed {
    * perform transformation with the sum of error and weights to get the final evaluation metrics
    */
   float getFinal(float errorSum, float weightSum);
+
+  float constant();
+
+  float constant1(float e);
+
+  boolean hasNext();
 }

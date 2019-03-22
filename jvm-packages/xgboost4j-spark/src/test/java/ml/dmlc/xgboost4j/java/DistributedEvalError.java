@@ -1,16 +1,30 @@
 package ml.dmlc.xgboost4j.java;
 
-public class DistributedEvalError implements IEvaluation, IEvaluationForDistributed {
+public class DistributedEvalError implements IEvaluationForDistributed, IEvaluation {
 
   @Override
   public float evalRow(float label, float pred) {
-    System.out.println("aaa");
     return 1.0f;
   }
 
   @Override
   public float getFinal(float errorSum, float weightSum) {
-    return errorSum/weightSum;
+    return 1.0f;
+  }
+
+  @Override
+  public float constant() {
+    return 0;
+  }
+
+  @Override
+  public float constant1(float e) {
+    return e;
+  }
+
+  @Override
+  public boolean hasNext() {
+    return false;
   }
 
   @Override

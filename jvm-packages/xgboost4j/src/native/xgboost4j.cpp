@@ -35,13 +35,15 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
+typedef void *CustomEvalHandle;  // NOLINT(*)
+
 // global JVM
 static JavaVM* global_jvm = nullptr;
 
 // overrides JNI on load
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
   global_jvm = vm;
-  return JNI_VERSION_1_6;
+  return JNI_VERSION_1_8;
 }
 
 XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
@@ -50,7 +52,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     DataHolderHandle set_function_handle) {
   jobject jiter = static_cast<jobject>(data_handle);
   JNIEnv* jenv;
-  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_6);
+  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_8);
   if (jni_status == JNI_EDETACHED) {
     global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
   } else {
@@ -62,6 +64,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
                                           "hasNext", "()Z");
     jmethodID next = jenv->GetMethodID(iterClass,
                                        "next", "()Ljava/lang/Object;");
+
     int ret_value;
     if (jenv->CallBooleanMethod(jiter, hasNext)) {
       ret_value = 1;
@@ -153,32 +156,48 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
 // bridge classes for customized metrics
 class CustomEvalElementWise {
 public:
-  CustomEvalElementWise(std::string& name, jobject handle):
+  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
     metrics_name(name) {
     if (jenv == nullptr) {
-      int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
+      int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_8);
       if (jni_status == JNI_EDETACHED) {
         global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
       } else {
         CHECK(jni_status == JNI_OK);
       }
-      custom_eval_handle = handle;
+      custom_eval_handle = static_cast<jobject>(handle);
       eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
 
-      eval_row_func = jenv->GetMethodID(eval_interface,
-                                             "evalRow", "(FF)F");
-      get_final_func = jenv->GetMethodID(eval_interface,
-                                             "getFinal", "(FF)F");
+      eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
+      get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
+      func1 = jenv->GetMethodID(eval_interface, "hasNext", "()Z");
+      jenv->CallBooleanMethod(custom_eval_handle, func1);
     }
   }
 
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
-    return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
+    // return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
+    return 1.0f;
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
-    return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
+    // jmethodID c2 = jenv->GetMethodID(eval_interface, "constant1", "(F)F");
+    JNIEnv* jenv;
+    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_8);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
+    jclass eval_interface_local = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
+    jmethodID x = jenv->GetMethodID(eval_interface_local, "constant", "()F");
+    jobject custom_eval_handle_local = custom_eval_handle;
+    // float a1 = jenv->CallFloatMethod(custom_eval_handle_local, x);
+    // float a2 = jenv->CallFloatMethod(custom_eval_handle, get_final_func, 1.0f);
+    return 1.0f;
+    // return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
+    // return 1.0f;
   }
 
   const char *Name() const {
@@ -194,7 +213,7 @@ private:
   static jclass eval_interface;
   static jmethodID eval_row_func;
   static jmethodID get_final_func;
-
+  static jmethodID func1;
 };
 
 JNIEnv* CustomEvalElementWise::jenv = nullptr;
@@ -202,6 +221,8 @@ jobject CustomEvalElementWise::custom_eval_handle = nullptr;
 jclass CustomEvalElementWise::eval_interface = nullptr;
 jmethodID CustomEvalElementWise::eval_row_func = nullptr;
 jmethodID CustomEvalElementWise::get_final_func = nullptr;
+jmethodID CustomEvalElementWise::func1 = nullptr;
+
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBGetLastError

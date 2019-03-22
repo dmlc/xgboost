@@ -1160,6 +1160,8 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
 XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string metrics_name) {
   auto* bst = static_cast<xgboost::Booster*>(handle);
   bst->learner()->metrics_.emplace_back(Metric::Create(metrics_name));
+  bst->learner()->metrics_.back()->Configure(bst->learner()->GetConfigurationArguments().begin(),
+                                             bst->learner()->GetConfigurationArguments().end());
 }
 
 XGB_DLL int XGBoosterGetMetricsCount(BoosterHandle handle) {

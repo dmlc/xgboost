@@ -223,7 +223,6 @@ public class Booster implements Serializable, KryoSerializable {
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter) throws XGBoostError {
     long[] handles = dmatrixsToHandles(evalMatrixs);
     String[] evalInfo = new String[1];
-    System.out.println("evaluating iteration " + iter);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames,
             evalInfo));
     return evalInfo[0];
