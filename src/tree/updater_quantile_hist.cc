@@ -562,7 +562,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     {
       hist_tls_.reset(new HistTLS(
         this->nthread_,
-        [&](){ return new tree::GradStats[gmat.cut.row_ptr.back()]; },
+        [&](){ return new tree::GradStats[gmat.cut.row_ptr.back()+4]; },
         [&](tree::GradStats* ptr) { delete[] ptr; return; }));
     }
 
@@ -764,7 +764,7 @@ size_t QuantileHistMaker::Builder::ApplySplitDenseData(
     bool default_left) {
   const size_t nrows = rowset.end - rowset.begin;
 
-  constexpr size_t MAX_BLOCKS = 28;
+  constexpr size_t MAX_BLOCKS = 56;
   constexpr size_t MIN_SIZE = 1024;
 
   const size_t nblocks = std::max(size_t(1), std::min(size_t(MAX_BLOCKS),
@@ -871,7 +871,7 @@ size_t QuantileHistMaker::Builder::ApplySplitSparseData(
     bool default_left) {
   const size_t nrows = rowset.end - rowset.begin;
 
-  constexpr size_t MAX_BLOCKS = 28;
+  constexpr size_t MAX_BLOCKS = 56;
   constexpr size_t MIN_SIZE = 1024;
 
   const size_t nblocks = std::max(size_t(1), std::min(size_t(MAX_BLOCKS),
@@ -971,37 +971,52 @@ size_t QuantileHistMaker::Builder::MergeSplit(std::pair<RowSetCollection::Split*
     }
   }
 
-  auto merge_left = [&]() {
+  ParallelFor(nblocks, [&](size_t iblock) {
     size_t iLeft = 0;
-    for(size_t i = 0; i < nblocks; ++i) {
-      if(local_buff[i].first) {
-        auto st = rowset_begin + iLeft;
-        const size_t size = sizes[i].first;
-        memcpy(st, local_buff[i].first->left.data(), size * sizeof(st[0]));
-        iLeft += size;
-      }
-    }
-  };
-
-  auto merge_right = [&]() {
     size_t iRight = 0;
-    for(size_t i = 0; i < nblocks; ++i) {
-      if(local_buff[i].first) {
-        auto st = rowset_begin + iRight + nLeft;
-        const size_t size = sizes[i].second;
-        memcpy(st, local_buff[i].first->right.data(), size * sizeof(st[0]));
-        iRight += size;
-      }
-    }
-  };
 
-  #pragma omp taskgroup
-  {
-    #pragma omp task
-    merge_left();
-    #pragma omp task
-    merge_right();
-  }
+    for(size_t i = 0; i < iblock; ++i) {
+      iLeft += sizes[i].first;
+      iRight += sizes[i].second;
+    }
+
+    if(local_buff[iblock].first) {
+      memcpy(rowset_begin + iLeft, local_buff[iblock].first->left.data(), sizes[iblock].first * sizeof(rowset_begin[0]));
+      memcpy(rowset_begin + nLeft + iRight, local_buff[iblock].first->right.data(), sizes[iblock].second * sizeof(rowset_begin[0]));
+    }
+  });
+
+  // auto merge_left = [&]() {
+  //   size_t iLeft = 0;
+  //   for(size_t i = 0; i < nblocks; ++i) {
+  //     if(local_buff[i].first) {
+  //       auto st = rowset_begin + iLeft;
+  //       const size_t size = sizes[i].first;
+  //       memcpy(st, local_buff[i].first->left.data(), size * sizeof(st[0]));
+  //       iLeft += size;
+  //     }
+  //   }
+  // };
+
+  // auto merge_right = [&]() {
+  //   size_t iRight = 0;
+  //   for(size_t i = 0; i < nblocks; ++i) {
+  //     if(local_buff[i].first) {
+  //       auto st = rowset_begin + iRight + nLeft;
+  //       const size_t size = sizes[i].second;
+  //       memcpy(st, local_buff[i].first->right.data(), size * sizeof(st[0]));
+  //       iRight += size;
+  //     }
+  //   }
+  // };
+
+  // #pragma omp taskgroup
+  // {
+  //   #pragma omp task
+  //   merge_left();
+  //   #pragma omp task
+  //   merge_right();
+  // }
 
   return nLeft;
 }

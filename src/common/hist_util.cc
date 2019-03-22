@@ -12,12 +12,16 @@
 #include "./hist_util.h"
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
+#include <xmmintrin.h>
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
   #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+  #define PREFETCH_READ_T1(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T1)
 #elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
   #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
+  #define PREFETCH_READ_T1(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 2)
+  #define PREFETCH_READ_NTA(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 0)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
   #define PREFETCH_READ_T0(addr) do {} while (0)
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
@@ -363,7 +367,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
         for (auto fid : group) {
           nnz += feature_nnz[fid];
         }
-        double nnz_rate = static_cast<double>(nnz) / nrow;
+        float nnz_rate = static_cast<float>(nnz) / nrow;
         // take apart small sparse group, due it will not gain on speed
         if (nnz_rate <= param.sparse_threshold) {
           for (auto fid : group) {
@@ -464,6 +468,10 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
                              int32_t another_nid,
                              const bool is_dense_layout,
                              const bool sync_hist) {
+  static float prep = 0, histcomp = 0, reduce = 0;
+
+  auto t1  = dmlc::GetTime();
+
   const size_t nthread = static_cast<size_t>(this->nthread_);
 
   const size_t* rid =  row_indices.begin;
@@ -472,9 +480,9 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
   const size_t* row_ptr =  gmat.row_ptr.data();
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
 
-  double* hist_data = reinterpret_cast<double*>(hist.data());
+  float* hist_data = reinterpret_cast<float*>(hist.data());
 
-  constexpr size_t block_size = 512;
+  constexpr size_t block_size = 2048;
   constexpr size_t n_stack_size = 128;
   constexpr size_t cache_line_size = 64;
   constexpr size_t prefetch_offset = 10;
@@ -486,7 +494,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
 
   MemStackAllocator<uint32_t, n_stack_size> thread_init_alloc(nthread);
   MemStackAllocator<std::pair<tree::GradStats*, size_t>, n_stack_size> hist_local_alloc(nthread);
-  MemStackAllocator<double, n_stack_size> thread_gh_sum_alloc(nthread*2);
+  MemStackAllocator<float, n_stack_size> thread_gh_sum_alloc(nthread*2);
   auto* p_thread_init = thread_init_alloc.Get();
   auto* p_hist_local = hist_local_alloc.Get();
   auto* p_thread_gh_sum = thread_gh_sum_alloc.Get();
@@ -498,6 +506,8 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
+  auto t2  = dmlc::GetTime();
+
   if (is_dense_layout) {
     ParallelFor(n_blocks, [&](size_t iblock) {
       dmlc::omp_uint tid = omp_get_thread_num();
@@ -507,18 +517,23 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
         p_thread_init[tid] = true;
         p_hist_local[tid] = hist_tls.get(tid);
       }
-      double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
-              reinterpret_cast<double*>(p_hist_local[tid].first));
+      float* data_local_hist = ((nthread_to_process == 1) ? hist_data :
+              reinterpret_cast<float*>(p_hist_local[tid].first));
 
       if (!prev)
-        memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
+        memset(data_local_hist, '\0', 2*nbins_*sizeof(float));
 
       const size_t istart = iblock*block_size;
       const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
 
       const size_t n_features = row_ptr[rid[istart]+1] - row_ptr[rid[istart]];
 
-      double gh_sum[2] = {0, 0};
+      float gh_sum[2] = {0, 0};
+
+      __m128 adds;
+      float* addsPtr = (float*) (&adds);
+      addsPtr[2] = 0;
+      addsPtr[3] = 0;
 
       if (iend < nrows - no_prefetch_size) {
         for (size_t i = istart; i < iend; ++i) {
@@ -534,10 +549,19 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
           gh_sum[0] += pgh[idx_gh];
           gh_sum[1] += pgh[idx_gh+1];
 
+
+          addsPtr[0] = pgh[idx_gh];
+          addsPtr[1] = pgh[idx_gh+1];
+
           for (size_t j = icol_start; j < icol_start + n_features; ++j) {
             const uint32_t idx_bin = 2*index[j];
-            data_local_hist[idx_bin] += pgh[idx_gh];
-            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+            // data_local_hist[idx_bin] += pgh[idx_gh];
+            // data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+
+            __m128 hist1    = _mm_loadu_ps(data_local_hist + idx_bin);
+            __m128 newHist1 = _mm_add_ps(adds, hist1);
+            _mm_storeu_ps(data_local_hist + idx_bin, newHist1);
+
           }
         }
       }
@@ -568,17 +592,22 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
         p_thread_init[tid] = true;
         p_hist_local[tid] = hist_tls.get(tid);
       }
-      double* data_local_hist = ((nthread_to_process == 1) ? hist_data :
-              reinterpret_cast<double*>(p_hist_local[tid].first));
+      float* data_local_hist = ((nthread_to_process == 1) ? hist_data :
+              reinterpret_cast<float*>(p_hist_local[tid].first));
 
       if (!prev) {
-        memset(data_local_hist, '\0', 2*nbins_*sizeof(double));
+        memset(data_local_hist, '\0', 2*nbins_*sizeof(float));
       }
 
       const size_t istart = iblock*block_size;
       const size_t iend = (((iblock+1)*block_size > nrows) ? nrows : istart + block_size);
 
-      double gh_sum[2] = {0, 0};
+      float gh_sum[2] = {0, 0};
+
+      __m128 adds;
+      float* addsPtr = (float*) (&adds);
+      addsPtr[2] = 0;
+      addsPtr[3] = 0;
 
       if (iend < nrows - no_prefetch_size) {
         for (size_t i = istart; i < iend; ++i) {
@@ -586,22 +615,46 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
           const size_t icol_end = row_ptr[rid[i]+1];
           const size_t idx_gh = 2*rid[i];
 
-          const size_t icol_start10 = row_ptr[rid[i+prefetch_offset]];
-          const size_t icol_end10 = row_ptr[rid[i+prefetch_offset]+1];
+          // const size_t icol_start10 = row_ptr[rid[i+prefetch_offset]];
+          // const size_t icol_end10 = row_ptr[rid[i+prefetch_offset]+1];
+
+          // const size_t icol_start15 = row_ptr[rid[i+prefetch_offset+5]];
+          // const size_t icol_end15 = row_ptr[rid[i+prefetch_offset+5]+1];
+
+          // const size_t icol_start10 = row_ptr[rid[i+2*prefetch_offset]];
+          // const size_t icol_end10 = row_ptr[rid[i+2*prefetch_offset]+1];
+
+          // PREFETCH_READ_T1(row_ptr + rid[i + 2*prefetch_offset]);
+          // PREFETCH_READ_T1(pgh + 2*rid[i + 2*prefetch_offset]);
 
           PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
           PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
 
-          for (size_t j = icol_start10; j < icol_end10; j+=16)
-            PREFETCH_READ_T0(index + j);
+          // PREFETCH_READ_NTA(row_ptr + rid[i + prefetch_offset]);
+          // PREFETCH_READ_NTA(pgh + 2*rid[i + prefetch_offset]);
+
+          // for (size_t j = icol_start10; j < icol_end10; j+=16){
+          //   PREFETCH_READ_T0(index + j);
+          // }
+          // for (size_t j = icol_start15; j < icol_end15; j+=16){
+          //   PREFETCH_READ_T1(index + j);
+          // }
 
           gh_sum[0] += pgh[idx_gh];
           gh_sum[1] += pgh[idx_gh+1];
 
+          addsPtr[0] = pgh[idx_gh];
+          addsPtr[1] = pgh[idx_gh+1];
+
           for (size_t j = icol_start; j < icol_end; ++j) {
             const uint32_t idx_bin = 2*index[j];
-            data_local_hist[idx_bin] += pgh[idx_gh];
-            data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+            // data_local_hist[idx_bin] += pgh[idx_gh];
+            // data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+
+            __m128 hist1    = _mm_loadu_ps(data_local_hist + idx_bin);
+            __m128 newHist1 = _mm_add_ps(adds, hist1);
+            _mm_storeu_ps(data_local_hist + idx_bin, newHist1);
+
           }
         }
       }
@@ -626,11 +679,14 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
     });
   }
 
+  auto t3  = dmlc::GetTime();
+
+
   {
     size_t n_worked_bins = 0;
 
     if (nthread_to_process == 0) {
-      memset(hist_data, '\0', 2*nbins_*sizeof(double));
+      memset(hist_data, '\0', 2*nbins_*sizeof(float));
     } else if (nthread_to_process > 1) {
       for (size_t i = 0; i < nthread; ++i) {
         if (p_thread_init[i]) {
@@ -641,7 +697,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
     }
 
     if(!sync_hist) {
-      double gh_sum[2] = {0, 0};
+      float gh_sum[2] = {0, 0};
       for (size_t i = 0; i < nthread; ++i) {
         gh_sum[0] += p_thread_gh_sum[2 * i];
         gh_sum[1] += p_thread_gh_sum[2 * i + 1];
@@ -665,10 +721,10 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
 
       if (nthread_to_process > 1) {
-        memcpy(hist_data + ibegin, (((double*)p_hist_local[0].first) + ibegin),
-            sizeof(double)*(iend - ibegin));
+        memcpy(hist_data + ibegin, (((float*)p_hist_local[0].first) + ibegin),
+            sizeof(float)*(iend - ibegin));
         for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
-          double* ptr = reinterpret_cast<double*>(p_hist_local[i_bin_part].first);
+          float* ptr = reinterpret_cast<float*>(p_hist_local[i_bin_part].first);
           for (int32_t i = ibegin; i < iend; i++) {
             hist_data[i] += ptr[i];
           }
@@ -680,8 +736,8 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t tid = omp_get_thread_num();
 
       if (another_nid > -1) {
-        double* other = (double*)sibling.data();
-        double* par = (double*)parent.data();
+        float* other = (float*)sibling.data();
+        float* par = (float*)parent.data();
 
         for (int32_t i = ibegin; i < iend; i++) {
           other[i] = par[i] - hist_data[i];
@@ -695,6 +751,18 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       hist_tls.release(p_hist_local[i]);
     }
   }
+
+
+  auto t4  = dmlc::GetTime();
+
+  prep += t2-t1;
+  histcomp +=t3-t2;
+  reduce += t4-t3;
+
+  float total = prep + histcomp + reduce;
+
+  if (this_nid == 0)
+    printf("%f %f %f | %f %f %f\n", prep*1000, histcomp*1000, reduce*1000, prep/total*100, histcomp/total*100, reduce/total*100);
 }
 
 template<typename TlsType>

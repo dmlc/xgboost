@@ -287,7 +287,8 @@ class QuantileHistMaker: public TreeUpdater {
       inline void EndPerfMonitor() {
         CHECK_GT(global_start, 0);
         double total_time = dmlc::GetTime() - global_start;
-        LOG(INFO) << "\nInitData:          "
+        // LOG(INFO) << "\nInitData:          "
+        std::cout << "\nInitData:          "
                   << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data*1000
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_data / total_time * 100 << "%)\n"

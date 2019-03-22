@@ -473,6 +473,7 @@ class LearnerImpl : public Learner {
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {
+    auto t1 = dmlc::GetTime();
     monitor_.Start("UpdateOneIter");
 
     // TODO(trivialfis): Merge the duplicated code with BoostOneIter
@@ -492,10 +493,13 @@ class LearnerImpl : public Learner {
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
+    auto t2 = dmlc::GetTime();
+    printf("TIME ITER = %f\n", (t2-t1)*1000);
   }
 
   void BoostOneIter(int iter, DMatrix* train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
+    auto t1 = dmlc::GetTime();
     monitor_.Start("BoostOneIter");
 
     CHECK(ModelInitialized())
@@ -508,6 +512,8 @@ class LearnerImpl : public Learner {
 
     gbm_->DoBoost(train, in_gpair);
     monitor_.Stop("BoostOneIter");
+    auto t2 = dmlc::GetTime();
+    printf("TIME ITER = %f\n", (t2-t1)*1000);
   }
 
   std::string EvalOneIter(int iter, const std::vector<DMatrix*>& data_sets,
