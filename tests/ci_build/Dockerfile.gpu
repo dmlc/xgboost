@@ -26,7 +26,12 @@ RUN \
     cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
     cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
     rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
-    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; fi
+    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; else \
+    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    yum -y update && \
+    yum install -y libnccl-2.4.2-1+cuda10.0 libnccl-devel-2.4.2-1+cuda10.0 libnccl-static-2.4.2-1+cuda10.0 && \
+    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm; fi
 
 ENV PATH=/opt/python/bin:$PATH
 ENV CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
