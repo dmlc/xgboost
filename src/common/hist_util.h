@@ -26,6 +26,59 @@ class SplitEvaluator;
 
 namespace common {
 
+template<typename T>
+struct SimpleArray {
+
+  ~SimpleArray() {
+    free(ptr_);
+    ptr_ = nullptr;
+  }
+
+  void resize(size_t n) {
+    T* ptr = static_cast<T*>(malloc(n*sizeof(T)));
+    memcpy(ptr, ptr_, n_ * sizeof(T));
+    free(ptr_);
+    ptr_ = ptr;
+    n_ = n;
+  }
+
+  T& operator[](size_t idx) {
+    return ptr_[idx];
+  }
+
+  T& operator[](size_t idx) const {
+    return ptr_[idx];
+  }
+
+  size_t size() const {
+    return n_;
+  }
+
+  T back() const {
+    return ptr_[n_-1];
+  }
+
+  T* data() {
+    return ptr_;
+  }
+
+  const T* data() const {
+    return ptr_;
+  }
+
+
+  T* begin() {
+    return ptr_;
+  }
+
+private:
+  T* ptr_ = nullptr;
+  size_t n_ = 0;
+};
+
+
+
+
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
@@ -73,9 +126,10 @@ using GHistIndexRow = Span<uint32_t const>;
 struct GHistIndexMatrix {
 
   /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
+  // std::vector<size_t> row_ptr;
+  SimpleArray<size_t> row_ptr;
   /*! \brief The index data */
-  std::vector<uint32_t> index;
+  SimpleArray<uint32_t> index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */

@@ -52,16 +52,24 @@ void QuantileHistMaker::Init(const std::vector<std::pair<std::string, std::strin
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
+  auto t1 = dmlc::GetTime();
   if (is_gmat_initialized_ == false) {
+
+    auto tt1 = dmlc::GetTime();
+
     double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
+    auto tt2 = dmlc::GetTime();
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
+    auto tt3 = dmlc::GetTime();
+    printf("MATRIX CREATION: %f %f %f\n", (tt2-tt1)*1000, (tt3-tt2)*1000);
     is_gmat_initialized_ = true;
     LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
   }
+  auto t2 = dmlc::GetTime();
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
@@ -72,10 +80,13 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
         std::move(pruner_),
         std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
   }
+  auto t3 = dmlc::GetTime();
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
   }
   param_.learning_rate = lr;
+  auto t4 = dmlc::GetTime();
+  printf("QuantileHistMaker::Update: %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000);
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(
@@ -846,7 +857,6 @@ size_t QuantileHistMaker::Builder::ApplySplitDenseData(
       }
       sizes[iblock].first = ileft;
       sizes[iblock].second = iright;
-
     });
   }
 
@@ -909,6 +919,7 @@ size_t QuantileHistMaker::Builder::ApplySplitSparseData(
         size_t cursor = p - column.GetRowData();
 
         for (size_t i = ibegin; i < iend; ++i) {
+
           const size_t rid = rowset.begin[i];
           while (cursor < column.Size()
                  && column.GetRowIdx(cursor) < rid
@@ -950,8 +961,7 @@ size_t QuantileHistMaker::Builder::ApplySplitSparseData(
     }
   });
 
-  const size_t nLeft = MergeSplit(local_buff, sizes, nblocks,
-      const_cast<size_t*>(rowset.begin));
+  const size_t nLeft = MergeSplit(local_buff, sizes, nblocks, const_cast<size_t*>(rowset.begin));
 
   for(size_t i = 0; i < nblocks; ++i) {
     if(local_buff[i].first) {

@@ -172,9 +172,12 @@ class GBTree : public GradientBooster {
   void DoBoost(DMatrix* p_fmat,
                HostDeviceVector<GradientPair>* in_gpair,
                ObjFunction* obj) override {
+    auto t1 = dmlc::GetTime();
+
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
     const int ngroup = model_.param.num_output_group;
     monitor_.Start("BoostNewTrees");
+    auto t2 = dmlc::GetTime();
     if (ngroup == 1) {
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(in_gpair, p_fmat, 0, &ret);
@@ -199,10 +202,13 @@ class GBTree : public GradientBooster {
         new_trees.push_back(std::move(ret));
       }
     }
+    auto t3 = dmlc::GetTime();
     monitor_.Stop("BoostNewTrees");
     monitor_.Start("CommitModel");
     this->CommitModel(std::move(new_trees));
     monitor_.Stop("CommitModel");
+    auto t4 = dmlc::GetTime();
+    printf("DoBoost:: %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000);
   }
 
   void PredictBatch(DMatrix* p_fmat,
@@ -263,7 +269,10 @@ class GBTree : public GradientBooster {
                             DMatrix *p_fmat,
                             int bst_group,
                             std::vector<std::unique_ptr<RegTree> >* ret) {
+    auto t1 = dmlc::GetTime();
     this->InitUpdater();
+    auto t2 = dmlc::GetTime();
+
     std::vector<RegTree*> new_trees;
     ret->clear();
     // create the trees
@@ -283,10 +292,14 @@ class GBTree : public GradientBooster {
         ret->push_back(std::move(t));
       }
     }
+    printf("UPDATES = %zu\n", updaters_.size());
+    auto t3 = dmlc::GetTime();
     // update the trees
     for (auto& up : updaters_) {
       up->Update(gpair, p_fmat, new_trees);
-}
+    }
+    auto t4 = dmlc::GetTime();
+    printf("BoostNewTrees: %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000);
   }
 
   // commit new trees all at once

@@ -76,6 +76,10 @@ class ColumnMatrix {
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
                    double  sparse_threshold) {
+
+    auto t1  = dmlc::GetTime();
+
+
     const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
@@ -118,7 +122,7 @@ class ColumnMatrix {
       boundary_[fid].index_end = accum_index_;
       boundary_[fid].row_ind_end = accum_row_ind_;
     }
-
+    auto t2  = dmlc::GetTime();
     index_.resize(boundary_[nfeature - 1].index_end);
     row_ind_.resize(boundary_[nfeature - 1].row_ind_end);
 
@@ -128,7 +132,11 @@ class ColumnMatrix {
       index_base_[fid] = gmat.cut.row_ptr[fid];
     }
 
+    auto t3  = dmlc::GetTime();
+
     // pre-fill index_ for dense columns
+
+    #pragma omp parallel for
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
       if (type_[fid] == kDenseColumn) {
         const size_t ibegin = boundary_[fid].index_begin;
@@ -138,6 +146,8 @@ class ColumnMatrix {
         // max() indicates missing values
       }
     }
+
+    auto t4  = dmlc::GetTime();
 
     // loop over all rows and fill column entries
     // num_nonzeros[fid] = how many nonzeros have this feature accumulated so far?
@@ -164,6 +174,9 @@ class ColumnMatrix {
         }
       }
     }
+    auto t5  = dmlc::GetTime();
+
+    printf("ColumnMatrix::Init: %f %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000, (t5-t4)*1000);
   }
 
   /* Fetch an individual column. This code should be used with XGBOOST_TYPE_SWITCH
@@ -189,8 +202,8 @@ class ColumnMatrix {
 
   std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;
-  std::vector<uint32_t> index_;  // index_: may store smaller integers; needs padding
-  std::vector<size_t> row_ind_;
+  SimpleArray<uint32_t> index_;  // index_: may store smaller integers; needs padding
+  SimpleArray<size_t> row_ind_;
   std::vector<ColumnBoundary> boundary_;
 
   // index_base_[fid]: least bin id for feature fid

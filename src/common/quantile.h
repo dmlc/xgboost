@@ -724,6 +724,7 @@ class QuantileSketchTemplate {
       if (inqueue.queue.size() == 1) {
         inqueue.queue.resize(limit_size * 2);
       } else {
+        printf("PUSH - MAKE Summary\n");
         temp.Reserve(limit_size * 2);
         inqueue.MakeSummary(&temp);
         // cleanup queue
