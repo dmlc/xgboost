@@ -1159,6 +1159,9 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
 
 XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string metrics_name) {
   auto* bst = static_cast<xgboost::Booster*>(handle);
+  // note: this function is only called by jvm packages for now which does not support multiple
+  // evaluation metrics, as a result, we clear all registered metrics and add the new customized one
+  bst->learner()->metrics_.clear();
   bst->learner()->metrics_.emplace_back(Metric::Create(metrics_name));
   bst->learner()->metrics_.back()->Configure(bst->learner()->GetConfigurationArguments().begin(),
                                              bst->learner()->GetConfigurationArguments().end());

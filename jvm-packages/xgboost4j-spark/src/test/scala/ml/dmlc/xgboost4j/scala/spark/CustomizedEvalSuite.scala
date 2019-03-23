@@ -22,11 +22,11 @@ import org.scalatest.FunSuite
 class CustomizedEvalSuite extends FunSuite with PerTest {
 
   private val paramMap = List("eta" -> "1", "max_depth" -> "6",
-    "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> 1,
+    "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
     "custom_eval" -> new DistributedEvalError).toMap
 
   test("distributed training with customized evaluation metrics") {
-    val trainingDF = buildDataFrame(Classification.train, 1)
+    val trainingDF = buildDataFrame(Classification.train, numWorkers)
     val xgbModel = new XGBoostClassifier(paramMap).fit(trainingDF)
 
     println(xgbModel.summary.toString())

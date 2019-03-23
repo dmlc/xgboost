@@ -43,7 +43,7 @@ static JavaVM* global_jvm = nullptr;
 // overrides JNI on load
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
   global_jvm = vm;
-  return JNI_VERSION_1_8;
+  return JNI_VERSION_1_6;
 }
 
 XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
@@ -52,7 +52,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     DataHolderHandle set_function_handle) {
   jobject jiter = static_cast<jobject>(data_handle);
   JNIEnv* jenv;
-  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_8);
+  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_6);
   if (jni_status == JNI_EDETACHED) {
     global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
   } else {
@@ -158,25 +158,31 @@ class CustomEvalElementWise {
 public:
   CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
     metrics_name(name) {
-    if (jenv == nullptr) {
-      int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_8);
-      if (jni_status == JNI_EDETACHED) {
-        global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
-      } else {
-        CHECK(jni_status == JNI_OK);
-      }
+    JNIEnv* jenv;
+    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
+    std::lock_guard<std::mutex> guard(eval_handle_mutex);
+    if (custom_eval_handle == nullptr) {
       custom_eval_handle = jenv->NewGlobalRef(static_cast<jobject>(handle));
     }
   }
 
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
+    JNIEnv* jenv;
+    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
     jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
+    JNIEnv* jenv;
+    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvaluationForDistributed");
     jmethodID get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
@@ -188,21 +194,14 @@ public:
 
 private:
   std::string metrics_name;
-  static JNIEnv* jenv;
 
   static jobject custom_eval_handle;
-  static jclass eval_interface;
-  static jmethodID eval_row_func;
-  static jmethodID get_final_func;
-  static jmethodID func1;
+  /*! \brief lock guarding the registering*/
+  static std::mutex eval_handle_mutex;
 };
 
-JNIEnv* CustomEvalElementWise::jenv = nullptr;
+std::mutex CustomEvalElementWise::eval_handle_mutex;
 jobject CustomEvalElementWise::custom_eval_handle = nullptr;
-jclass CustomEvalElementWise::eval_interface = nullptr;
-jmethodID CustomEvalElementWise::eval_row_func = nullptr;
-jmethodID CustomEvalElementWise::get_final_func = nullptr;
-jmethodID CustomEvalElementWise::func1 = nullptr;
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -842,7 +841,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
    * else => invalid
    */
   if (num_classes == 2 || num_classes == 0) {
-    std::cout << "bst metrics length (before): " << XGBoosterGetMetricsCount((BoosterHandle) jhandle) << "\n";
     XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
             .describe("customized metrics")
             .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
@@ -850,7 +848,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
                       *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
             });
     XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str);
-    std::cout << "bst metrics length: " << XGBoosterGetMetricsCount((BoosterHandle) jhandle) << "\n";
   } else if (num_classes > 2) {
 
   } else {

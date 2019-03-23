@@ -107,14 +107,11 @@ public class XGBoost {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
 
-  private static synchronized void registerNewCustomEvalForDistributed(
+  private static void registerNewCustomEvalForDistributed(
           Booster booster, IEvaluation eval) {
-    if (!initializedEval) {
-      int numClasses = 2;
-      XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses,
-              (IEvaluationForDistributed) eval);
-      initializedEval = true;
-    }
+    int numClasses = 2;
+    XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses,
+            (IEvaluationForDistributed) eval);
   }
 
   private static String performEvaluation(
