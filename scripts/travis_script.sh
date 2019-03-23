@@ -25,3 +25,9 @@ if [ ${TASK} == "test" ]; then
     ../scripts/travis_runtest.sh || exit -1
 fi
 
+if [ ${TASK} == "cmake-build" ]; then
+    mkdir build
+    cd build
+    cmake ..
+    make all || exit -1
+fi

@@ -1,6 +1,6 @@
 export MPICXX = mpicxx
 export LDFLAGS=  -L../lib -pthread -lm
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++11
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include -I ../dmlc-core/include -std=c++11
 
 OS := $(shell uname)
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(rabit VERSION 0.0.0)
+project(rabit VERSION 0.2.0)
 
 option(RABIT_BUILD_TESTS "Build rabit tests" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
@@ -10,9 +10,12 @@ add_library(rabit_base src/allreduce_base.cc src/engine_base.cc src/c_api.cc)
 add_library(rabit_empty src/engine_empty.cc src/c_api.cc)
 
 set(rabit_libs rabit rabit_base rabit_empty)
+
+set_target_properties(rabit rabit_base rabit_empty PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+
 if(RABIT_BUILD_MPI)
   find_package(MPI REQUIRED)
-  add_library(rabit_mpi src/engine_mpi.cc)
+  add_library(rabit_mpi src/engine_mpi.cc ${MPI_INCLUDE_PATH})
   target_link_libraries(rabit_mpi ${MPI_CXX_LIBRARIES})
   list(APPEND rabit_libs rabit_mpi)
 endif()
@@ -27,7 +30,7 @@ foreach(lib ${rabit_libs})
   #include "./internal/utils.h"
   target_include_directories(${lib} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include/rabit>"
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>"
     )
 endforeach()
 
