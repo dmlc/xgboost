@@ -142,6 +142,8 @@ struct ELLPackMatrix {
   bool is_dense;
   int null_gidx_value;
 
+  XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
+
   // Get a matrix element, uses binary search for look up
   // Return NaN if missing
   __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
@@ -495,7 +497,8 @@ __global__ void SharedMemHistKernel(ELLPackMatrix matrix, const bst_uint* d_ridx
                                     size_t segment_begin, size_t n_elements) {
   extern __shared__ char smem[];
   GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem); // NOLINT
-  for (auto i : dh::BlockStrideRange(0, matrix.null_gidx_value)) {
+  for (auto i :
+       dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
     smem_arr[i] = GradientSumT();
   }
   __syncthreads();
@@ -507,7 +510,8 @@ __global__ void SharedMemHistKernel(ELLPackMatrix matrix, const bst_uint* d_ridx
     }
   }
   __syncthreads();
-  for (auto i : dh::BlockStrideRange(0, matrix.null_gidx_value)) {
+  for (auto i :
+       dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
     AtomicAddGpair(d_node_hist + i, smem_arr[i]);
   }
 }
@@ -981,7 +985,7 @@ struct SharedMemHistBuilder : public GPUHistBuilderBase<GradientSumT> {
 
     auto n_elements = segment.Size() * shard->ellpack_matrix.row_stride;
 
-    const size_t smem_size = sizeof(GradientSumT) * shard->ellpack_matrix.null_gidx_value;
+    const size_t smem_size = sizeof(GradientSumT) * shard->ellpack_matrix.BinCount();
     const int items_per_thread = 8;
     const int block_threads = 256;
     const int grid_size =
