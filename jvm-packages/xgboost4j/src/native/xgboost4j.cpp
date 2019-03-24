@@ -223,7 +223,12 @@ public:
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
     JNIEnv* jenv;
-    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalElementWiseDistributed");
     jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
@@ -231,7 +236,12 @@ public:
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
     JNIEnv* jenv;
-    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalElementWiseDistributed");
     jmethodID get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
