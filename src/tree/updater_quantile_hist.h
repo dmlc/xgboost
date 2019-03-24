@@ -356,14 +356,17 @@ class QuantileHistMaker: public TreeUpdater {
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
-                       RegTreeThreadSafe& tree);
+                       QuantileHistMaker::NodeEntry& snode,
+                       int32_t depth);
 
-    void ApplySplit(int nid,
+    RegTree::Node ApplySplit(int nid,
                     const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
                     const HistCollection& hist,
                     const DMatrix& fmat,
-                    RegTreeThreadSafe* p_tree);
+                    RegTreeThreadSafe* p_tree,
+                    QuantileHistMaker::NodeEntry& snode,
+                    const RegTree::Node node);
 
     size_t ApplySplitDenseData(const RowSetCollection::Elem rowset,
                              const GHistIndexMatrix& gmat,
@@ -388,7 +391,9 @@ class QuantileHistMaker: public TreeUpdater {
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
-                     RegTreeThreadSafe& tree);
+                     RegTreeThreadSafe& tree,
+                     QuantileHistMaker::NodeEntry& snode,
+                     int32_t parentid);
 
     // enumerate the split values of specific feature
     bool EnumerateSplit(int d_step,
@@ -445,7 +450,9 @@ class QuantileHistMaker: public TreeUpdater {
         unsigned *timestamp,
         std::vector<ExpandEntry> *temp_qexpand_depth,
         int32_t nid,
-        std::mutex& mutex_add_nodes);
+        std::mutex& mutex_add_nodes,
+        QuantileHistMaker::NodeEntry& snode,
+        RegTree::Node node);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
@@ -516,60 +523,53 @@ public:
 RegTreeThreadSafe(RegTree& p_tree, std::vector<QuantileHistMaker::NodeEntry>& snode, const TrainParam& param):
     p_tree_(p_tree), snode_(snode.size()), param_(param) { }
 
-~RegTreeThreadSafe()
-{
-  for(size_t i = 0; i < snode_.size(); ++i)
-  {
+~RegTreeThreadSafe() {
+  for(size_t i = 0; i < snode_.size(); ++i) {
     delete snode_[i];
     snode_[i] = nullptr;
   }
 }
 
-const RegTree& Get() const
-{
+const RegTree& Get() const {
   return p_tree_;
 }
 
-const TreeParam& Param() const
-{
+const TreeParam& Param() const {
   return p_tree_.param;
 }
 
-const RegTree::Node& operator[](size_t idx) const
-{
+RegTree::Node operator[](size_t idx) const {
   std::lock_guard<std::mutex> lock(mutex_);
   return p_tree_[idx];
 }
 
-RegTree::Node& operator[](size_t idx)
-{
+void SetLeaf(bst_float value, int32_t nid) {
   std::lock_guard<std::mutex> lock(mutex_);
-  return p_tree_[idx];
+  p_tree_[nid].SetLeaf(value);
 }
 
-void ExpandNode(int nid, unsigned split_index, bst_float split_value,
+
+RegTree::Node ExpandNode(int nid, unsigned split_index, bst_float split_value,
                 bool default_left, bst_float base_weight,
                 bst_float left_leaf_weight, bst_float right_leaf_weight,
                 bst_float loss_change, float sum_hess) {
   std::lock_guard<std::mutex> lock(mutex_);
   p_tree_.ExpandNode(nid, split_index, split_value, default_left, base_weight,
                 left_leaf_weight, right_leaf_weight, loss_change, sum_hess);
+  return p_tree_[nid];
 }
 
-size_t GetDepth(size_t nid) const
-{
+size_t GetDepth(size_t nid) const {
   std::lock_guard<std::mutex> lock(mutex_);
   return p_tree_.GetDepth(nid);
 }
 
-size_t NumNodes() const
-{
+size_t NumNodes() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return Param().num_nodes;
 }
 
-QuantileHistMaker::NodeEntry& Snode(size_t nid)
-{
+QuantileHistMaker::NodeEntry& Snode(size_t nid) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if(nid >= snode_.size())
@@ -578,8 +578,7 @@ QuantileHistMaker::NodeEntry& Snode(size_t nid)
   return *(snode_[nid]);
 }
 
-const QuantileHistMaker::NodeEntry& Snode(size_t nid) const
-{
+const QuantileHistMaker::NodeEntry& Snode(size_t nid) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if(nid >= snode_.size())
@@ -588,8 +587,7 @@ const QuantileHistMaker::NodeEntry& Snode(size_t nid) const
   return *(snode_[nid]);
 }
 
-void ResizeSnode(const TrainParam& param)
-{
+void ResizeSnode(const TrainParam& param) {
   std::lock_guard<std::mutex> lock(mutex_);
   int n_nodes = Param().num_nodes;
   resize(n_nodes);
@@ -597,21 +595,17 @@ void ResizeSnode(const TrainParam& param)
 
 protected:
 
-  void resize(size_t n_nodes) const
-  {
+  void resize(size_t n_nodes) const {
     int prev_size = snode_.size();
     snode_.resize(n_nodes, nullptr);
 
-    if (prev_size < n_nodes)
-    {
-      for (int i = prev_size; i < n_nodes; ++i)
-      {
+    if (prev_size < n_nodes) {
+      for (int i = prev_size; i < n_nodes; ++i) {
         if (snode_[i] != nullptr) delete snode_[i];
         snode_[i] = new QuantileHistMaker::NodeEntry(param_);
       }
     }
   }
-
 
   mutable std::mutex mutex_;
   RegTree& p_tree_;
