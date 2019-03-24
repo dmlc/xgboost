@@ -99,8 +99,8 @@ class XGBoostJNI {
                                                   int ntree_limit, float[][] predicts);
 
   public final static native int XGBoosterAddNewMetrics(long handle, String metricsName,
-                                                        int numClasses,
-                                                        IEvaluationForDistributed eval);
+                                                        String evalType,
+                                                        IEvaluation eval);
 
   public final static native int XGBoosterLoadModel(long handle, String fname);
 

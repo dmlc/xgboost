@@ -162,64 +162,6 @@ class MultiClassMetricsReduction {
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
-/*!
- * \brief base class of multi-class evaluation
- * \tparam Derived the name of subclass
- */
-template<typename Derived>
-struct EvalMClassBase : public Metric {
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
-  }
-
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK(preds.Size() % info.labels_.Size() == 0)
-        << "label and prediction size not match";
-    const size_t nclass = preds.Size() / info.labels_.Size();
-    CHECK_GE(nclass, 1U)
-        << "mlogloss and merror are only used for multi-class classification,"
-        << " use logloss for binary classification";
-    const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
-
-    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
-    auto result = reducer_.Reduce(devices, nclass, info.weights_, info.labels_, preds);
-    double dat[2] { result.Residue(), result.Weights() };
-
-    if (distributed) {
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-    }
-    return Derived::GetFinal(dat[0], dat[1]);
-  }
-  /*!
-   * \brief to be implemented by subclass,
-   *   get evaluation result from one row
-   * \param label label of current instance
-   * \param pred prediction value of current instance
-   * \param nclass number of class in the prediction
-   */
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
-                                          size_t nclass);
-  /*!
-   * \brief to be overridden by subclass, final transformation
-   * \param esum the sum statistics returned by EvalRow
-   * \param wsum sum of weight
-   */
-  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
-  }
-
- private:
-  MultiClassMetricsReduction<Derived> reducer_;
-  MetricParam param_;
-  // used to store error message
-  const char *error_msg_;
-};
-
 /*! \brief match error */
 struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
   const char* Name() const override {

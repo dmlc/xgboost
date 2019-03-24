@@ -108,10 +108,8 @@ public class XGBoost {
   }
 
   private static void registerNewCustomEvalForDistributed(
-          Booster booster, IEvaluation eval) {
-    int numClasses = 2;
-    XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), numClasses,
-            (IEvaluationForDistributed) eval);
+          Booster booster, IEvaluation eval, String evalType) {
+    XGBoostJNI.XGBoosterAddNewMetrics(booster.getHandle(), eval.getMetric(), evalType, eval);
   }
 
   private static String performEvaluation(
@@ -120,13 +118,16 @@ public class XGBoost {
           String[] evalNames,
           DMatrix[] evalMats,
           int iter,
-          float[] metricsOut) throws XGBoostError {
+          float[] metricsOut,
+          String evalType) throws XGBoostError {
     String evalInfo;
-    if (eval != null && !(eval instanceof IEvaluationForDistributed)) {
+    if (eval != null &&
+        !(eval instanceof IEvalElementWiseDistributed) &&
+        !(eval instanceof IEvalMultiClassesDistributed)) {
       evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
     } else {
       if (eval != null) {
-        registerNewCustomEvalForDistributed(booster, eval);
+        registerNewCustomEvalForDistributed(booster, eval, evalType);
       }
       evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
     }
@@ -220,7 +221,8 @@ public class XGBoost {
       //evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
-        String evalInfo = performEvaluation(booster, eval, evalNames, evalMats, iter, metricsOut);
+        String evalInfo = performEvaluation(booster, eval, evalNames, evalMats, iter,
+                metricsOut, (String) params.get("custom_eval_type"));
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }

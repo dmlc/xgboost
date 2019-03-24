@@ -261,7 +261,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
  * Signature: (JLjava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMetrics
-  (JNIEnv *, jclass, jlong, jstring, jint, jobject);
+  (JNIEnv *, jclass, jlong, jstring, jstring, jobject);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

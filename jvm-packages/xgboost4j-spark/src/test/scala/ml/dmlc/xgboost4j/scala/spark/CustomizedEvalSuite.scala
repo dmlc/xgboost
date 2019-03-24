@@ -16,19 +16,31 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.DistributedEvalError
 import org.scalatest.FunSuite
 
 class CustomizedEvalSuite extends FunSuite with PerTest {
 
-  private val paramMap = List("eta" -> "1", "max_depth" -> "6",
-    "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-    "custom_eval" -> new DistributedEvalError).toMap
-
-  test("distributed training with customized evaluation metrics") {
+  test("(binary classification) distributed training with customized evaluation metrics") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6",
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+      "custom_eval" -> new DistributedEvalErrorElementWise).toMap
     val trainingDF = buildDataFrame(Classification.train, numWorkers)
+    val trainingCount = trainingDF.count()
     val xgbModel = new XGBoostClassifier(paramMap).fit(trainingDF)
+    // DistributedEvalError returns 1.0f in evalRow and sum of error in getFinal
+    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount)
+  }
 
-    println(xgbModel.summary.toString())
+  test("(multi classes classification) distributed training with" +
+    " customized evaluation metrics") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6",
+      "objective" -> "multi:softmax", "num_class" -> 6,
+      "num_round" -> 5, "num_workers" -> numWorkers,
+      "custom_eval" -> new DistributedEvalErrorMultiClasses).toMap
+    val trainingDF = buildDataFrame(MultiClassification.train, numWorkers)
+    val trainingCount = trainingDF.count()
+    val xgbModel = new XGBoostClassifier(paramMap).fit(trainingDF)
+    // DistributedEvalError returns 1.0f + num_classes in evalRow and sum of error in getFinal
+    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount * (1 + 6))
   }
 }

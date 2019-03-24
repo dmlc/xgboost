@@ -243,9 +243,7 @@ public class Booster implements Serializable, KryoSerializable {
     String stringFormat = evalSet(evalMatrixs, evalNames, iter);
     String[] metricPairs = stringFormat.split("\t");
     for (int i = 1; i < metricPairs.length; i++) {
-      // TODO: remove min
-      metricsOut[Math.min(metricsOut.length - 1, i - 1)] =
-              Float.valueOf(metricPairs[i].split(":")[1]);
+      metricsOut[i - 1] = Float.valueOf(metricPairs[i].split(":")[1]);
     }
     return stringFormat;
   }

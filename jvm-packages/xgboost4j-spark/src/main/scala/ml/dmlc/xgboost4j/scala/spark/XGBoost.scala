@@ -18,13 +18,11 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.Files
-import java.util.Properties
 
-import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{IEvaluation, IEvaluationForDistributed, IRabitTracker, Rabit, XGBoostError, XGBoostJNI, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{IEvalElementWiseDistributed, IEvalMultiClassesDistributed, IEvaluation, IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -173,7 +171,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def overrideParamsAccordingToTaskCPUs(
+  private def overrideParams(
       params: Map[String, Any],
       sc: SparkContext): Map[String, Any] = {
     val coresPerTask = sc.getConf.getInt("spark.task.cpus", 1)
@@ -185,6 +183,14 @@ object XGBoost extends Serializable {
           s"spark.task.cpus ($coresPerTask)")
     } else {
       overridedParams = params + ("nthread" -> coresPerTask)
+    }
+    if (params("custom_eval") != null) {
+      params("custom_eval") match {
+        case _: IEvalElementWiseDistributed =>
+          overridedParams = overridedParams + ("custom_eval_type" -> "regression/binary")
+        case _: IEvalMultiClassesDistributed =>
+          overridedParams = overridedParams + ("custom_eval_type" -> "multi_classes")
+      }
     }
     overridedParams
   }
@@ -426,7 +432,7 @@ object XGBoost extends Serializable {
         checkpointRound: Int =>
           val tracker = startTracker(nWorkers, trackerConf)
           try {
-            val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+            val overriddenParams = overrideParams(params, sc)
             val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers,
               nWorkers)
             val rabitEnv = tracker.getWorkerEnvs

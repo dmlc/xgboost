@@ -1,6 +1,6 @@
 package ml.dmlc.xgboost4j.java;
 
-public interface IEvaluationForDistributed {
+public interface IEvalElementWiseDistributed extends IEvaluation {
 
   /**
    * calculate the metrics for a single row given its label and prediction
@@ -12,9 +12,8 @@ public interface IEvaluationForDistributed {
    */
   float getFinal(float errorSum, float weightSum);
 
-  float constant();
-
-  float constant1(float e);
-
-  boolean hasNext();
+  @Override
+  default float eval(float[][] predicts, DMatrix dmat) {
+    throw new RuntimeException("IEvalElementWiseDistributed does not support eval method");
+  }
 }
