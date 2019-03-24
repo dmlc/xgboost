@@ -93,65 +93,63 @@ class RegTree {
                     "Node: 64 bit align");
     }
     /*! \brief index of left child */
-    int LeftChild() const {
+    XGBOOST_DEVICE int LeftChild() const {
       return this->cleft_;
     }
     /*! \brief index of right child */
-    int RightChild() const {
+    XGBOOST_DEVICE int RightChild() const {
       return this->cright_;
     }
     /*! \brief index of default child when feature is missing */
-    int DefaultChild() const {
+    XGBOOST_DEVICE int DefaultChild() const {
       return this->DefaultLeft() ? this->LeftChild() : this->RightChild();
     }
     /*! \brief feature index of split condition */
-    unsigned SplitIndex() const {
+    XGBOOST_DEVICE unsigned SplitIndex() const {
       return sindex_ & ((1U << 31) - 1U);
     }
     /*! \brief when feature is unknown, whether goes to left child */
-    bool DefaultLeft() const {
+    XGBOOST_DEVICE bool DefaultLeft() const {
       return (sindex_ >> 31) != 0;
     }
     /*! \brief whether current node is leaf node */
-    bool IsLeaf() const {
+    XGBOOST_DEVICE bool IsLeaf() const {
       return cleft_ == -1;
     }
     /*! \return get leaf value of leaf node */
-    bst_float LeafValue() const {
+    XGBOOST_DEVICE bst_float LeafValue() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
-    SplitCondT SplitCond() const {
+    XGBOOST_DEVICE SplitCondT SplitCond() const {
       return (this->info_).split_cond;
     }
     /*! \brief get parent of the node */
-    int Parent() const {
+    XGBOOST_DEVICE int Parent() const {
       return parent_ & ((1U << 31) - 1);
     }
     /*! \brief whether current node is left child */
-    bool IsLeftChild() const {
+    XGBOOST_DEVICE bool IsLeftChild() const {
       return (parent_ & (1U << 31)) != 0;
     }
     /*! \brief whether this node is deleted */
-    bool IsDeleted() const {
+    XGBOOST_DEVICE bool IsDeleted() const {
       return sindex_ == std::numeric_limits<unsigned>::max();
     }
     /*! \brief whether current node is root */
-    bool IsRoot() const {
-      return parent_ == -1;
-    }
+    XGBOOST_DEVICE bool IsRoot() const { return parent_ == -1; }
     /*!
      * \brief set the left child
      * \param nid node id to right child
      */
-    void SetLeftChild(int nid) {
+    XGBOOST_DEVICE void SetLeftChild(int nid) {
       this->cleft_ = nid;
     }
     /*!
      * \brief set the right child
      * \param nid node id to right child
      */
-    void SetRightChild(int nid) {
+    XGBOOST_DEVICE void SetRightChild(int nid) {
       this->cright_ = nid;
     }
     /*!
@@ -160,7 +158,7 @@ class RegTree {
      * \param split_cond  split condition
      * \param default_left the default direction when feature is unknown
      */
-    void SetSplit(unsigned split_index, SplitCondT split_cond,
+    XGBOOST_DEVICE void SetSplit(unsigned split_index, SplitCondT split_cond,
                           bool default_left = false) {
       if (default_left) split_index |= (1U << 31);
       this->sindex_ = split_index;
@@ -172,17 +170,17 @@ class RegTree {
      * \param right right index, could be used to store
      *        additional information
      */
-    void SetLeaf(bst_float value, int right = -1) {
+    XGBOOST_DEVICE void SetLeaf(bst_float value, int right = -1) {
       (this->info_).leaf_value = value;
       this->cleft_ = -1;
       this->cright_ = right;
     }
     /*! \brief mark that this node is deleted */
-    void MarkDelete() {
+    XGBOOST_DEVICE void MarkDelete() {
       this->sindex_ = std::numeric_limits<unsigned>::max();
     }
     // set parent
-    void SetParent(int pidx, bool is_left_child = true) {
+    XGBOOST_DEVICE void SetParent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
       this->parent_ = pidx;
     }

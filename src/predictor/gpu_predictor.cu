@@ -303,6 +303,7 @@ class GPUPredictor : public xgboost::Predictor {
                              const gbm::GBTreeModel& model, size_t tree_begin,
                              size_t tree_end) {
     if (tree_end - tree_begin == 0) { return; }
+    monitor_.StartCuda("DevicePredictInternal");
 
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
@@ -337,6 +338,7 @@ class GPUPredictor : public xgboost::Predictor {
       });
       i_batch++;
     }
+    monitor_.StopCuda("DevicePredictInternal");
   }
 
  public:
@@ -388,9 +390,11 @@ class GPUPredictor : public xgboost::Predictor {
       if (it != cache_.end()) {
         const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
+          monitor_.StartCuda("PredictFromCache");
           out_preds->Reshard(y.Distribution());
           out_preds->Resize(y.Size());
           out_preds->Copy(y);
+          monitor_.StopCuda("PredictFromCache");
           return true;
         }
       }
@@ -481,6 +485,7 @@ class GPUPredictor : public xgboost::Predictor {
   std::unique_ptr<Predictor> cpu_predictor_;
   std::vector<DeviceShard> shards_;
   GPUSet devices_;
+  common::Monitor monitor_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
