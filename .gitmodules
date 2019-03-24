@@ -1,6 +1,6 @@
 [submodule "dmlc-core"]
 	path = dmlc-core
-	url = https://github.com/dmlc/dmlc-core
+	url = https://github.com/CodingCat/dmlc-core
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/dmlc/rabit
