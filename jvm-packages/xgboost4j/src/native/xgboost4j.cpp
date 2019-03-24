@@ -898,8 +898,9 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMetrics
   (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name,
           jstring eval_type, jobject custom_eval) {
-  std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
-  std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, 0);
+  jboolean is_copy = true;
+  std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, &is_copy);
+  std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, &is_copy);
   if (eval_type_in_str == "regression/binary") {
     XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
             .describe("customized metrics for binary/regression")
