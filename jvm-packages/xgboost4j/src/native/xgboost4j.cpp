@@ -205,9 +205,8 @@ jobject CustomEvalMultiClasses::custom_eval_handle = nullptr;
 
 class CustomEvalElementWise {
 public:
-  CustomEvalElementWise(std::string name, CustomEvalHandle handle):
+  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
     metrics_name(name) {
-    /*
     JNIEnv* jenv;
     int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
     if (jni_status == JNI_EDETACHED) {
@@ -218,12 +217,11 @@ public:
     std::lock_guard<std::mutex> guard(eval_handle_mutex);
     if (custom_eval_handle == nullptr) {
       custom_eval_handle = jenv->NewGlobalRef(static_cast<jobject>(handle));
-    }*/
+    }
   }
 
   XGBOOST_DEVICE xgboost::bst_float EvalRow(xgboost::bst_float label,
           xgboost::bst_float pred) const {
-    /*
     JNIEnv* jenv;
     int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
     if (jni_status == JNI_EDETACHED) {
@@ -234,12 +232,9 @@ public:
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalElementWiseDistributed");
     jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalRow", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, pred);
-     */
-    return 1.0f;
   }
 
   static xgboost::bst_float GetFinal(xgboost::bst_float esum, xgboost::bst_float wsum) {
-    /*
     JNIEnv* jenv;
     int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
     if (jni_status == JNI_EDETACHED) {
@@ -250,8 +245,6 @@ public:
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalElementWiseDistributed");
     jmethodID get_final_func = jenv->GetMethodID(eval_interface, "getFinal", "(FF)F");
     return jenv->CallFloatMethod(custom_eval_handle, get_final_func, esum, wsum);
-     */
-    return 1.0f;
   }
 
   const char *Name() const {
@@ -907,7 +900,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
     if (eval_type_in_str == "regression/binary") {
       XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
               .describe("customized metrics for binary/regression")
-              .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
+              .set_body([=](const char *param) {
                 return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
                         *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
               });
