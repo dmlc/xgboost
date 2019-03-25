@@ -902,10 +902,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
           jstring eval_type, jobject custom_eval) {
   // std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
   // std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, 0);
+  std::string metrics_name_in_str = "metrics";
+  std::string eval_type_in_str = "regression/binary";
   registering_mutex.lock();
   if (!registered) {
-    std::string metrics_name_in_str = "metrics";
-    std::string eval_type_in_str = "regression/binary";
     if (eval_type_in_str == "regression/binary") {
       XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
               .describe("customized metrics for binary/regression")
