@@ -205,7 +205,7 @@ jobject CustomEvalMultiClasses::custom_eval_handle = nullptr;
 
 class CustomEvalElementWise {
 public:
-  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
+  CustomEvalElementWise(std::string name, CustomEvalHandle handle):
     metrics_name(name) {
     JNIEnv* jenv;
     int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
@@ -907,7 +907,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
     } else if (eval_type_in_str == "multi_classes") {
       XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
               .describe("customized metrics for multi_classes")
-              .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
+              .set_body([=](const char *param) {
                 return new CustomEvalMultiClasses(metrics_name_in_str, custom_eval);
               });
     } else {
