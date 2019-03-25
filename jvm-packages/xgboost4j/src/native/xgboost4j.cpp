@@ -156,7 +156,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
 
 class CustomEvalMultiClasses : public xgboost::metric::EvalMClassBase<CustomEvalMultiClasses> {
 public:
-  CustomEvalMultiClasses(std::string& name, CustomEvalHandle handle): metrics_name(name) {
+  CustomEvalMultiClasses(std::string name, CustomEvalHandle handle): metrics_name(name) {
     JNIEnv* jenv;
     int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
     if (jni_status == JNI_EDETACHED) {
@@ -205,7 +205,7 @@ jobject CustomEvalMultiClasses::custom_eval_handle = nullptr;
 
 class CustomEvalElementWise {
 public:
-  CustomEvalElementWise(std::string& name, CustomEvalHandle handle):
+  CustomEvalElementWise(std::string name, CustomEvalHandle handle):
     metrics_name(name) {
     /*
     JNIEnv* jenv;
@@ -900,10 +900,8 @@ bool registered;
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMetrics
   (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring metrics_name,
           jstring eval_type, jobject custom_eval) {
-  // std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
-  // std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, 0);
-  std::string metrics_name_in_str = "metrics";
-  std::string eval_type_in_str = "regression/binary";
+  std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
+  std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, 0);
   registering_mutex.lock();
   if (!registered) {
     if (eval_type_in_str == "regression/binary") {

@@ -566,7 +566,7 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  */
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
-XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string metrics_name);
+XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string& metrics_name);
 
 XGB_DLL int XGBoosterGetMetricsCount(BoosterHandle handle);
 
