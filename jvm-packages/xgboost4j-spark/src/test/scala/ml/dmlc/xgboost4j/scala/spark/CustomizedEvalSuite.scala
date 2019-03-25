@@ -43,4 +43,15 @@ class CustomizedEvalSuite extends FunSuite with PerTest {
     // DistributedEvalError returns 1.0f + num_classes in evalRow and sum of error in getFinal
     xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount * (1 + 6))
   }
+
+  test("(ranking) distributed training with" +
+    " customized evaluation metrics") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6",
+      "objective" -> "rank:pairwise", "num_round" -> 5, "num_workers" -> numWorkers,
+      "custom_eval" -> new DistributedEvalErrorRankList).toMap
+    val trainingDF = buildDataFrame(Ranking.train, numWorkers)
+    val trainingCount = trainingDF.count()
+    val xgbModel = new XGBoostRegressor(paramMap).fit(trainingDF)
+    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount * (1 + 6))
+  }
 }

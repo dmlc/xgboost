@@ -22,7 +22,7 @@ import java.nio.file.Files
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{IEvalElementWiseDistributed, IEvalMultiClassesDistributed, IEvaluation, IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{IEvalElementWiseDistributed, IEvalMultiClassesDistributed, IEvalRankListDistributed, IEvaluation, IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -190,6 +190,8 @@ object XGBoost extends Serializable {
           overridedParams = overridedParams + ("custom_eval_type" -> "regression/binary")
         case _: IEvalMultiClassesDistributed =>
           overridedParams = overridedParams + ("custom_eval_type" -> "multi_classes")
+        case _: IEvalRankListDistributed =>
+          overridedParams = overridedParams + ("custom_eval_type" -> "ranking")
       }
     }
     overridedParams

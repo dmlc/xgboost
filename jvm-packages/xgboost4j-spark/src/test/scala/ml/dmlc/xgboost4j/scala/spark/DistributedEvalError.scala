@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{IEvalElementWiseDistributed, IEvalMultiClassesDistributed}
+import ml.dmlc.xgboost4j.java.{IEvalElementWiseDistributed, IEvalMultiClassesDistributed, IEvalRankListDistributed}
 
 class DistributedEvalErrorElementWise extends IEvalElementWiseDistributed {
 
@@ -51,4 +51,18 @@ class DistributedEvalErrorMultiClasses extends IEvalMultiClassesDistributed {
    * get metrics' name
    */
   override def getMetric: String = "distributed_error_multi_classes"
+}
+
+class DistributedEvalErrorRankList extends IEvalRankListDistributed {
+
+  override def evalMetric(preds: Array[Float], labels: Array[Int]): Float = {
+    println(s"preds:${preds.mkString(",")}")
+    println(s"labels:${preds.mkString(",")}")
+    labels.sum
+  }
+
+  /**
+   * get metrics' name
+   */
+  override def getMetric: String = "distributed_error_ranking"
 }

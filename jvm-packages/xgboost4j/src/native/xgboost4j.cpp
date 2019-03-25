@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2014 by Contributors
+  Copyright (c) 2019 by Contributors
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
@@ -24,6 +24,7 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <xgboost/ranking_metric.h>
 
 // helper functions
 // set handle
@@ -153,6 +154,46 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     return -1;
   }
 }
+
+class CustomEvalRanking : public xgboost::metric::EvalRankList {
+public:
+  explicit CustomEvalRanking(std::string name, CustomEvalHandle handle):
+  EvalRankList(name.data(), name.data()), metrics_name(name) {
+    JNIEnv* jenv;
+    int jni_status = global_jvm->GetEnv((void **) &jenv, JNI_VERSION_1_6);
+    if (jni_status == JNI_EDETACHED) {
+      global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    } else {
+      CHECK(jni_status == JNI_OK);
+    }
+    std::lock_guard<std::mutex> guard(eval_handle_mutex);
+    if (custom_eval_handle == nullptr) {
+      custom_eval_handle = jenv->NewGlobalRef(static_cast<jobject>(handle));
+    }
+  }
+
+protected:
+
+  xgboost::bst_float EvalMetric(std::vector< std::pair<xgboost::bst_float, unsigned> > &rec)
+    const override {
+    JNIEnv* jenv;
+    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalRankListDistributed");
+    jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalMetric", "([F[I)F");
+    // return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, *pred, nclass);
+    return 1.0f;
+  }
+
+private:
+  std::string metrics_name;
+
+  static jobject custom_eval_handle;
+  /*! \brief lock guarding the registering*/
+  static std::mutex eval_handle_mutex;
+};
+
+std::mutex CustomEvalRanking::eval_handle_mutex;
+jobject CustomEvalRanking::custom_eval_handle = nullptr;
 
 class CustomEvalMultiClasses : public xgboost::metric::EvalMClassBase<CustomEvalMultiClasses> {
 public:
@@ -908,8 +949,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
             .set_body([=](const char *param) {
               return new CustomEvalMultiClasses(metrics_name_in_str, custom_eval);
             });
-  } else {
-    // ranking
+  } else if (eval_type_in_str == "ranking") {
+    XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
+            .describe("customized metrics for ranking")
+            .set_body([=](const char *param) {
+              return new CustomEvalRanking(metrics_name_in_str, custom_eval);
+            });
   }
   registering_mutex.unlock();
   XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str);

@@ -123,7 +123,8 @@ public class XGBoost {
     String evalInfo;
     if (eval != null &&
         !(eval instanceof IEvalElementWiseDistributed) &&
-        !(eval instanceof IEvalMultiClassesDistributed)) {
+        !(eval instanceof IEvalMultiClassesDistributed) &&
+        !(eval instanceof IEvalRankListDistributed)) {
       evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
     } else {
       if (eval != null) {
