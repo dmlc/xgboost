@@ -179,9 +179,18 @@ protected:
     JNIEnv* jenv;
     global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
     jclass eval_interface = jenv->FindClass("ml/dmlc/xgboost4j/java/IEvalRankListDistributed");
-    jmethodID eval_row_func = jenv->GetMethodID(eval_interface, "evalMetric", "([F[I)F");
-    // return jenv->CallFloatMethod(custom_eval_handle, eval_row_func, label, *pred, nclass);
-    return 1.0f;
+    jmethodID eval_metrics_func = jenv->GetMethodID(eval_interface, "evalMetric", "([F[I)F");
+    jfloatArray preds = jenv->NewFloatArray(rec.size());
+    jintArray labels = jenv->NewIntArray(rec.size());
+    jfloat fill_float[rec.size()];
+    jint fill_int[rec.size()];
+    for (int i = 0; i < rec.size(); i++) {
+      fill_float[i] = rec[i].first;
+      fill_int[i] = rec[i].second;
+    }
+    jenv->SetFloatArrayRegion(preds, 0, rec.size(), fill_float);
+    jenv->SetIntArrayRegion(labels, 0, rec.size(), fill_int);
+    return jenv->CallFloatMethod(custom_eval_handle, eval_metrics_func, preds, labels);
   }
 
 private:

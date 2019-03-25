@@ -20,6 +20,18 @@ import org.scalatest.FunSuite
 
 class CustomizedEvalSuite extends FunSuite with PerTest {
 
+  test("(regression) distributed training with customized evaluation metrics") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6",
+      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
+      "custom_eval" -> new DistributedEvalErrorElementWise).toMap
+    val trainingDF = buildDataFrame(Regression.train, numWorkers)
+    val trainingCount = trainingDF.count()
+    val xgbModel = new XGBoostRegressor(paramMap).fit(trainingDF)
+    // DistributedEvalError returns 1.0f in evalRow and sum of error in getFinal
+    xgbModel.summary.trainObjectiveHistory.foreach(metricsInRound =>
+      assert(metricsInRound === trainingCount))
+  }
+
   test("(binary classification) distributed training with customized evaluation metrics") {
     val paramMap = List("eta" -> "1", "max_depth" -> "6",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
@@ -28,7 +40,8 @@ class CustomizedEvalSuite extends FunSuite with PerTest {
     val trainingCount = trainingDF.count()
     val xgbModel = new XGBoostClassifier(paramMap).fit(trainingDF)
     // DistributedEvalError returns 1.0f in evalRow and sum of error in getFinal
-    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount)
+    xgbModel.summary.trainObjectiveHistory.foreach(metricsInRound =>
+      assert(metricsInRound === trainingCount))
   }
 
   test("(multi classes classification) distributed training with" +
@@ -41,7 +54,8 @@ class CustomizedEvalSuite extends FunSuite with PerTest {
     val trainingCount = trainingDF.count()
     val xgbModel = new XGBoostClassifier(paramMap).fit(trainingDF)
     // DistributedEvalError returns 1.0f + num_classes in evalRow and sum of error in getFinal
-    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount * (1 + 6))
+    xgbModel.summary.trainObjectiveHistory.foreach(metricsInRound =>
+      assert(metricsInRound === trainingCount * (1 + 6)))
   }
 
   test("(ranking) distributed training with" +
@@ -52,6 +66,7 @@ class CustomizedEvalSuite extends FunSuite with PerTest {
     val trainingDF = buildDataFrame(Ranking.train, numWorkers)
     val trainingCount = trainingDF.count()
     val xgbModel = new XGBoostRegressor(paramMap).fit(trainingDF)
-    xgbModel.summary.trainObjectiveHistory.foreach(_ === trainingCount * (1 + 6))
+    xgbModel.summary.trainObjectiveHistory.foreach(metricsInRound =>
+      assert(metricsInRound === 0.0f))
   }
 }

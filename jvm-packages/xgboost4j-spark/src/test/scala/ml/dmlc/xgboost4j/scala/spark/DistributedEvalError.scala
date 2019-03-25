@@ -56,9 +56,7 @@ class DistributedEvalErrorMultiClasses extends IEvalMultiClassesDistributed {
 class DistributedEvalErrorRankList extends IEvalRankListDistributed {
 
   override def evalMetric(preds: Array[Float], labels: Array[Int]): Float = {
-    println(s"preds:${preds.mkString(",")}")
-    println(s"labels:${preds.mkString(",")}")
-    labels.sum
+    0.0f
   }
 
   /**
