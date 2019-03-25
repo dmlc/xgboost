@@ -890,6 +890,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
   return ret;
 }
 
+std::mutex registering_mutex;
+bool registered;
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterAddNewMetrics
@@ -900,24 +902,29 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
           jstring eval_type, jobject custom_eval) {
   // std::string metrics_name_in_str = jenv->GetStringUTFChars(metrics_name, 0);
   // std::string eval_type_in_str = jenv->GetStringUTFChars(eval_type, 0);
-  std::string metrics_name_in_str = "metrics";
-  std::string eval_type_in_str = "regression/binary";
-  if (eval_type_in_str == "regression/binary") {
-    XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
-            .describe("customized metrics for binary/regression")
-            .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
-              return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
-                      *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
-            });
-  } else if (eval_type_in_str == "multi_classes") {
-    XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
-            .describe("customized metrics for multi_classes")
-            .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
-              return new CustomEvalMultiClasses(metrics_name_in_str, custom_eval);
-            });
-  } else {
-    // ranking
+  registering_mutex.lock();
+  if (!registered) {
+    std::string metrics_name_in_str = "metrics";
+    std::string eval_type_in_str = "regression/binary";
+    if (eval_type_in_str == "regression/binary") {
+      XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
+              .describe("customized metrics for binary/regression")
+              .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
+                return new xgboost::metric::EvalEWiseBase<CustomEvalElementWise>(
+                        *(new CustomEvalElementWise(metrics_name_in_str, custom_eval)));
+              });
+    } else if (eval_type_in_str == "multi_classes") {
+      XGBOOST_REGISTER_METRIC(CUSTOM_METRICS, metrics_name_in_str)
+              .describe("customized metrics for multi_classes")
+              .set_body([&metrics_name_in_str, &custom_eval](const char *param) {
+                return new CustomEvalMultiClasses(metrics_name_in_str, custom_eval);
+              });
+    } else {
+      // ranking
+    }
+    registered = true;
   }
+  registering_mutex.unlock();
   XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str);
   return 0;
 }
