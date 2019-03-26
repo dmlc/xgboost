@@ -113,24 +113,53 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   } else {
     for (const auto &batch : p_fmat->GetRowBatches()) {
       size_t group_ind = 0;
-      #pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
-      {
-        CHECK_EQ(nthread, omp_get_num_threads());
-        auto tid = static_cast<unsigned>(omp_get_thread_num());
-        unsigned begin = std::min(nstep * tid, ncol);
-        unsigned end = std::min(nstep * (tid + 1), ncol);
 
-        // do not iterate if no columns are assigned to the thread
-        if (begin < end && end <= ncol) {
-          for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
+      const size_t size = batch.Size();
+      const size_t block_size = 1024;
+      const size_t block_size_iter = block_size * nthread;
+      const size_t n_blocks = size / block_size_iter + !!(size % block_size_iter);
+
+      std::vector<std::vector<std::pair<float, float>>> buff(nthread);
+      for(size_t tid = 0; tid < nthread; ++tid) {
+        buff[tid].resize(block_size * ncol);
+      }
+
+      std::vector<size_t> sizes(nthread * ncol);
+
+      for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
+        #pragma omp prallel num_threads(nthread)
+        {
+          int tid = omp_get_num_threads();
+
+          const size_t ibegin = iblock * block_size_iter + tid * block_size;
+          const size_t iend = std::min(ibegin + block_size, size);
+
+          auto* p_sizes = sizes.data() + ncol * tid;
+          auto* p_buff = buff[tid].data();
+
+          for(size_t i = ibegin; i < iend; ++i) {
             size_t const ridx = batch.base_rowid + i;
             bst_float w = info.GetWeight(ridx);
-
             SparsePage::Inst const inst = batch[i];
+
             for (auto const& entry : inst) {
-              if (entry.index >= begin && entry.index < end) {
-                sketchs[entry.index].Push(entry.fvalue, w);
+              const size_t idx = entry.index;
+              p_buff[idx * block_size + p_sizes[idx]] = { entry.fvalue, w };
+              p_sizes[idx]++;
+            }
+          }
+          #pragma omp barrier
+          #pragma omp for schedule(static)
+          for(size_t icol = 0; icol < ncol; ++icol) {
+            for(size_t tid = 0; tid < nthread; ++tid) {
+              auto* p_sizes = sizes.data() + ncol * tid;
+              auto* p_buff = buff[tid].data() + icol * block_size;
+
+              for(size_t i = 0; i < p_sizes[icol]; ++i) {
+                sketchs[icol].Push(p_buff[i].first,  p_buff[i].second);
               }
+
+              p_sizes[icol] = 0;
             }
           }
         }
