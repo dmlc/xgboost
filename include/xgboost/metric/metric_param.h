@@ -2,8 +2,8 @@
  * Copyright 2018 by Contributors
  * \file metric_param.cc
  */
-#ifndef XGBOOST_METRIC_PARAM_H_
-#define XGBOOST_METRIC_PARAM_H_
+#ifndef XGBOOST_METRIC_METRIC_PARAM_H_
+#define XGBOOST_METRIC_METRIC_PARAM_H_
 
 #include <dmlc/parameter.h>
 #include "../../../src/common/common.h"
@@ -28,4 +28,4 @@ struct MetricParam : public dmlc::Parameter<MetricParam> {
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_METRIC_PARAM_H_
+#endif  // XGBOOST_METRIC_METRIC_PARAM_H_

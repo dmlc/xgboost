@@ -3,8 +3,8 @@
  * \file metric.h
  * \brief interface of evaluation metric function supported in xgboost.
  */
-#ifndef XGBOOST_METRIC_H_
-#define XGBOOST_METRIC_H_
+#ifndef XGBOOST_METRIC_METRIC_H_
+#define XGBOOST_METRIC_METRIC_H_
 
 #include <dmlc/registry.h>
 #include <vector>
@@ -92,4 +92,4 @@ struct MetricReg
   ::xgboost::MetricReg&  __make_ ## MetricReg ## _ ## UniqueId ## __ =  \
       ::dmlc::Registry< ::xgboost::MetricReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
-#endif  // XGBOOST_METRIC_H_
+#endif  // XGBOOST_METRIC_METRIC_H_

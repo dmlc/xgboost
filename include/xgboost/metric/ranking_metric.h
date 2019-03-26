@@ -12,8 +12,8 @@
   limitations under the License.
 */
 
-#ifndef XGBOOST_RANKING_METRIC_H_
-#define XGBOOST_RANKING_METRIC_H_
+#ifndef XGBOOST_METRIC_RANKING_METRIC_H_
+#define XGBOOST_METRIC_RANKING_METRIC_H_
 
 #include <xgboost/metric/metric.h>
 #include <xgboost/metric/metric_param.h>
@@ -106,4 +106,4 @@ struct EvalRankList : public Metric {
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_RANKING_METRIC_H_
+#endif  // XGBOOST_METRIC_RANKING_METRIC_H_

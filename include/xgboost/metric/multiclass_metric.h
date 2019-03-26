@@ -4,8 +4,8 @@
  * \brief evaluation metrics for multiclass classification.
  */
 
-#ifndef XGBOOST_MULTICLASS_METRIC_H_
-#define XGBOOST_MULTICLASS_METRIC_H_
+#ifndef XGBOOST_METRIC_MULTICLASS_METRIC_H_
+#define XGBOOST_METRIC_MULTICLASS_METRIC_H_
 
 #include <xgboost/metric/metric.h>
 
@@ -90,4 +90,4 @@ struct EvalMClassBase : public Metric {
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_MULTICLASS_METRIC_H_
+#endif  // XGBOOST_METRIC_MULTICLASS_METRIC_H_
