@@ -321,7 +321,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     auto tt4 = dmlc::GetTime();
     printf("GHistIndexMatrix::REDUCTION = %f\n", (tt4-tt3)*1000);
 
-    prev_sum += row_ptr[rbegin + batch.Size()];
+    prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
   }
   auto t2 = dmlc::GetTime();
