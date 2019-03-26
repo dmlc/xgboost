@@ -188,8 +188,8 @@ protected:
       fill_float.push_back(rec[i].first);
       fill_int.push_back(rec[i].second);
     }
-    float *f1 = &fill_float[0];
-    int *f2 = &fill_int[0];
+    jfloat *f1 = &fill_float[0];
+    jint *f2 = &fill_int[0];
     jenv->SetFloatArrayRegion(preds, 0, rec.size(), f1);
     jenv->SetIntArrayRegion(labels, 0, rec.size(), f2);
     return jenv->CallFloatMethod(custom_eval_handle, eval_metrics_func, preds, labels);
