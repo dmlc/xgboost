@@ -182,14 +182,16 @@ protected:
     jmethodID eval_metrics_func = jenv->GetMethodID(eval_interface, "evalMetric", "([F[I)F");
     jfloatArray preds = jenv->NewFloatArray(rec.size());
     jintArray labels = jenv->NewIntArray(rec.size());
-    jfloat fill_float[rec.size()];
-    jint fill_int[rec.size()];
+    std::vector<jfloat> fill_float;
+    std::vector<jint> fill_int;
     for (int i = 0; i < rec.size(); i++) {
-      fill_float[i] = rec[i].first;
-      fill_int[i] = rec[i].second;
+      fill_float.push_back(rec[i].first);
+      fill_int.push_back(rec[i].second);
     }
-    jenv->SetFloatArrayRegion(preds, 0, rec.size(), fill_float);
-    jenv->SetIntArrayRegion(labels, 0, rec.size(), fill_int);
+    float *f1 = &fill_float[0];
+    int *f2 = &fill_int[0];
+    jenv->SetFloatArrayRegion(preds, 0, rec.size(), f1);
+    jenv->SetIntArrayRegion(labels, 0, rec.size(), f2);
     return jenv->CallFloatMethod(custom_eval_handle, eval_metrics_func, preds, labels);
   }
 
