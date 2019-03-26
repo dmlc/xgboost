@@ -1,7 +1,7 @@
 /*!
  * Copyright 2018 XGBoost contributors
  */
-#include <xgboost/metric.h>
+#include <xgboost/metric/metric.h>
 #include <map>
 #include "../helpers.h"
 

@@ -1,5 +1,5 @@
 // Copyright by Contributors
-#include <xgboost/metric.h>
+#include <xgboost/metric/metric.h>
 #include <string>
 
 #include "../helpers.h"

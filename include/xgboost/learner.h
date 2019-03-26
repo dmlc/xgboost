@@ -16,7 +16,7 @@
 #include <vector>
 #include "./base.h"
 #include "./gbm.h"
-#include "./metric.h"
+#include "xgboost/metric/metric.h"
 #include "./objective.h"
 
 namespace xgboost {

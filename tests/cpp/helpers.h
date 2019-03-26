@@ -16,8 +16,8 @@
 
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
-#include <xgboost/metric.h>
 #include <xgboost/predictor.h>
+#include <xgboost/metric/metric.h>
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name

@@ -3,8 +3,8 @@
  * \file metric_registry.cc
  * \brief Registry of objective functions.
  */
-#include <xgboost/metric.h>
-#include <xgboost/metric_param.h>
+#include <xgboost/metric/metric.h>
+#include <xgboost/metric/metric_param.h>
 
 #include <dmlc/registry.h>
 

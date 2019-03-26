@@ -12,9 +12,9 @@
 #include <functional>
 #include <utility>
 
-#include "./data.h"
-#include "./base.h"
-#include "../../src/common/host_device_vector.h"
+#include "../data.h"
+#include "../base.h"
+#include "../../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!

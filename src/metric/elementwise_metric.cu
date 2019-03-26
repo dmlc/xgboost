@@ -3,9 +3,9 @@
  */
 
 #include <rabit/rabit.h>
-#include <xgboost/metric.h>
-#include <xgboost/metric_param.h>
-#include <xgboost/elementwise_metric.h>
+#include <xgboost/metric/metric.h>
+#include <xgboost/metric/metric_param.h>
+#include <xgboost/metric/elementwise_metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
 

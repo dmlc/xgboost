@@ -11,12 +11,16 @@
 #define XGB_EXTERN_C extern "C"
 #include <cstdio>
 #include <cstdint>
-#include <string>
 #else
 #define XGB_EXTERN_C
 #include <stdio.h>
 #include <stdint.h>
 #endif  // __cplusplus
+
+// XGBoost C API will include APIs in Rabit C API
+#include <rabit/c_api.h>
+
+#include <string>
 
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
@@ -566,8 +570,6 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  */
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
-XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, std::string& metrics_name);
-
-XGB_DLL int XGBoosterGetMetricsCount(BoosterHandle handle);
+XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, const std::string& metrics_name);
 
 #endif  // XGBOOST_C_API_H_

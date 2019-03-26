@@ -4,8 +4,8 @@
  * \brief prediction rank based metrics.
  */
 #include <rabit/rabit.h>
-#include <xgboost/metric.h>
-#include <xgboost/ranking_metric.h>
+#include <xgboost/metric/metric.h>
+#include <xgboost/metric/ranking_metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
 

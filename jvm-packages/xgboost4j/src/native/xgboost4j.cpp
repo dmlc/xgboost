@@ -17,14 +17,14 @@
 #include <xgboost/c_api.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
-#include <xgboost/metric.h>
-#include <xgboost/elementwise_metric.h>
-#include <xgboost/multiclass_metric.h>
+#include <xgboost/metric/metric.h>
+#include <xgboost/metric/elementwise_metric.h>
+#include <xgboost/metric/multiclass_metric.h>
 #include "./xgboost4j.h"
 #include <cstring>
 #include <vector>
 #include <string>
-#include <xgboost/ranking_metric.h>
+#include <xgboost/metric/ranking_metric.h>
 
 // helper functions
 // set handle

@@ -5,7 +5,7 @@
 
 
 #include <rabit/rabit.h>
-#include <xgboost/multiclass_metric.h>
+#include <xgboost/metric/multiclass_metric.h>
 #include <cmath>
 #include "../common/math.h"
 
