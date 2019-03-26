@@ -1,7 +1,5 @@
 /*!
  * Copyright 2019 by Contributors
- * \file multiclass_metric.cc
- * \brief evaluation metrics for multiclass classification.
  */
 
 #ifndef XGBOOST_METRIC_MULTICLASS_METRIC_H_
