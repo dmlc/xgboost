@@ -15,41 +15,42 @@ namespace xgboost {
 
 template <typename T>
 struct HostDeviceVectorImpl {
-  explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v), distribution_() {}
-  HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init), distribution_() {}
-  explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)), distribution_() {}
+  explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
+  HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
+  explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)){}
+
+  void swap(HostDeviceVectorImpl &other) {
+          data_h_.swap(other.data_h_);
+  }
 
   std::vector<T>& Vec() { return data_h_; }
-  GPUDistribution& Dist() { return distribution_; }
 
  private:
   std::vector<T> data_h_;
-  GPUDistribution distribution_;
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, GPUDistribution distribution)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, const GPUDistribution &)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, GPUDistribution distribution)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, const GPUDistribution &)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, GPUDistribution distribution)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, const GPUDistribution &)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
-  HostDeviceVectorImpl<T>* tmp = impl_;
+  delete impl_;
   impl_ = nullptr;
-  delete tmp;
 }
 
 template <typename T>
@@ -63,8 +64,10 @@ HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& o
   if (this == &other) {
     return *this;
   }
-  delete impl_;
-  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
+
+  HostDeviceVectorImpl<T> newInstance(*other.impl_);
+  newInstance.swap(*impl_);
+
   return *this;
 }
 
@@ -76,7 +79,7 @@ GPUSet HostDeviceVector<T>::Devices() const { return GPUSet::Empty(); }
 
 template <typename T>
 const GPUDistribution& HostDeviceVector<T>::Distribution() const {
-  return impl_->Dist();
+  return GPUDistribution();
 }
 
 template <typename T>
