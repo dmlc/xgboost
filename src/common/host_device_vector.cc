@@ -17,7 +17,7 @@ template <typename T>
 struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
   HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
-  explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)){}
+  explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)) {}
 
   void Swap(HostDeviceVectorImpl &other) {
      data_h_.swap(other.data_h_);
