@@ -19,8 +19,8 @@ struct HostDeviceVectorImpl {
   HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
   explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)){}
 
-  void swap(HostDeviceVectorImpl &other) {
-          data_h_.swap(other.data_h_);
+  void Swap(HostDeviceVectorImpl &other) {
+     data_h_.swap(other.data_h_);
   }
 
   std::vector<T>& Vec() { return data_h_; }
@@ -66,7 +66,7 @@ HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& o
   }
 
   HostDeviceVectorImpl<T> newInstance(*other.impl_);
-  newInstance.swap(*impl_);
+  newInstance.Swap(*impl_);
 
   return *this;
 }
@@ -79,7 +79,8 @@ GPUSet HostDeviceVector<T>::Devices() const { return GPUSet::Empty(); }
 
 template <typename T>
 const GPUDistribution& HostDeviceVector<T>::Distribution() const {
-  return GPUDistribution();
+  static GPUDistribution dummyInstance;
+  return dummyInstance;
 }
 
 template <typename T>
