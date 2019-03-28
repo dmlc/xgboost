@@ -205,6 +205,18 @@ Training with Evaluation Sets
 
 You can also monitor the performance of the model during training with multiple evaluation datasets. By specifying ``eval_sets`` or call ``setEvalSets`` over a XGBoostClassifier or XGBoostRegressor, you can pass in multiple evaluation datasets typed as a Map from String to DataFrame.
 
+Training with Custom Evaluation Metrics
+----------------
+With XGBoost4j (including XGBoost4J-Spark), users are able to implement their own custom evaluation metrics and synchronize the values in the distributed training setting. To implement a custom evaluation metric, users should implement the interface ``ml.dmlc.xgboost4j.java.IEvalElementWiseDistributed`` (for binary classification and regression), ``ml.dmlc.xgboost4j.java.IEvalMultiClassesDistributed`` (for multi classification) and ``ml.dmlc.xgboost4j.java.IEvalRankListDistributed`` (for ranking).
+
+* ``ml.dmlc.xgboost4j.java.IEvalElementWiseDistributed``: users are supposed to implement ``float evalRow(float label, float pred);`` which calculates the metric for a single sample given the prediction and label, as well as ``float getFinal(float errorSum, float weightSum);`` which performs the final transformation over the sum of error and weights of samples.
+
+* ``ml.dmlc.xgboost4j.java.IEvalMultiClassesDistributed``: the methods to be implemented by the users are similar to ``ml.dmlc.xgboost4j.java.IEvalElementWiseDistributed`` except that the single row metric calculating method is ``float evalRow(int label, float pred, int numClasses);``
+
+* ``ml.dmlc.xgboost4j.java.IEvalRankListDistributed``: users are to implement ``float evalMetric(float[] preds, int[] labels);`` which gives the predictions and labels for instances in the same group;
+
+By default, these interfaces do not support being used in single machine evaluation, users can change this by re-implement ``float eval(float[][] predicts, DMatrix dmat)`` method.
+
 Prediction
 ==========
 
