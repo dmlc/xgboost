@@ -184,16 +184,6 @@ object XGBoost extends Serializable {
     } else {
       overridedParams = params + ("nthread" -> coresPerTask)
     }
-    if (params("custom_eval") != null) {
-      params("custom_eval") match {
-        case _: IEvalElementWiseDistributed =>
-          overridedParams = overridedParams + ("custom_eval_type" -> "regression/binary")
-        case _: IEvalMultiClassesDistributed =>
-          overridedParams = overridedParams + ("custom_eval_type" -> "multi_classes")
-        case _: IEvalRankListDistributed =>
-          overridedParams = overridedParams + ("custom_eval_type" -> "ranking")
-      }
-    }
     overridedParams
   }
 

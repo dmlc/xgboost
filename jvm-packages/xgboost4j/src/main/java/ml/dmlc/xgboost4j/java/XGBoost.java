@@ -118,8 +118,7 @@ public class XGBoost {
           String[] evalNames,
           DMatrix[] evalMats,
           int iter,
-          float[] metricsOut,
-          String evalType) throws XGBoostError {
+          float[] metricsOut) throws XGBoostError {
     String evalInfo;
     if (eval != null &&
         !(eval instanceof IEvalElementWiseDistributed) &&
@@ -128,6 +127,14 @@ public class XGBoost {
       evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
     } else {
       if (eval != null) {
+        String evalType;
+        if (eval instanceof IEvalElementWiseDistributed) {
+          evalType = "regression/binary";
+        } else if (eval instanceof IEvalMultiClassesDistributed) {
+          evalType = "multi_classes";
+        } else {
+          evalType = "ranking";
+        }
         registerNewCustomEvalForDistributed(booster, eval, evalType);
       }
       evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
@@ -223,7 +230,7 @@ public class XGBoost {
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo = performEvaluation(booster, eval, evalNames, evalMats, iter,
-                metricsOut, (String) params.get("custom_eval_type"));
+                metricsOut);
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
