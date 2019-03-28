@@ -125,6 +125,18 @@ struct DeviceSplitCandidate {
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
 };
 
+struct DeviceSplitCandidateReduceOp {
+  GPUTrainingParam param;
+  DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(param) {}
+  XGBOOST_DEVICE DeviceSplitCandidate operator()(
+      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
+    DeviceSplitCandidate best;
+    best.Update(a, param);
+    best.Update(b, param);
+    return best;
+  }
+};
+
 struct DeviceNodeStats {
   GradientPair sum_gradients;
   float root_gain;
@@ -242,10 +254,13 @@ XGBOOST_DEVICE inline bool IsLeftChild(int nidx) {
 
 // Copy gpu dense representation of tree to xgboost sparse representation
 inline void Dense2SparseTree(RegTree* p_tree,
-                              const dh::DVec<DeviceNodeStats>& nodes,
+                              common::Span<DeviceNodeStats> nodes,
                               const TrainParam& param) {
   RegTree& tree = *p_tree;
-  std::vector<DeviceNodeStats> h_nodes = nodes.AsVector();
+  std::vector<DeviceNodeStats> h_nodes(nodes.size());
+  dh::safe_cuda(cudaMemcpy(h_nodes.data(), nodes.data(),
+                           nodes.size() * sizeof(DeviceNodeStats),
+                           cudaMemcpyDeviceToHost));
 
   int nid = 0;
   for (int gpu_nid = 0; gpu_nid < h_nodes.size(); gpu_nid++) {
@@ -286,18 +301,16 @@ struct BernoulliRng {
 };
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsample,
-                            int offset = 0) {
+inline void SubsampleGradientPair(int device_idx,
+                                  common::Span<GradientPair> d_gpair,
+                                  float subsample, int offset = 0) {
   if (subsample == 1.0) {
     return;
   }
 
-  dh::DVec<GradientPair>& gpair = *p_gpair;
-
-  auto d_gpair = gpair.Data();
   BernoulliRng rng(subsample, common::GlobalRandom()());
 
-  dh::LaunchN(gpair.DeviceIdx(), gpair.Size(), [=] XGBOOST_DEVICE(int i) {
+  dh::LaunchN(device_idx, d_gpair.size(), [=] XGBOOST_DEVICE(int i) {
     if (!rng(i + offset)) {
       d_gpair[i] = GradientPair();
     }
