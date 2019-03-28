@@ -83,10 +83,14 @@ if __name__ == "__main__":
                 maybe_generator = ' -G"Visual Studio 14 Win64"'
             else:
                 maybe_generator = ""
+            if sys.platform == "linux":
+                maybe_parallel_build = " -- -j $(nproc)"
+            else:
+                maybe_parallel_build = ""
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
             run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build . --config Release")
+            run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
