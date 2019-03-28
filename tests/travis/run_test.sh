@@ -11,11 +11,6 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
-    if grep -R '<regex>' src include tests/cpp plugin jvm-packages amalgamation; then
-        echo 'Do not use std::regex, since it is not supported by GCC 4.8.x'
-        exit -1
-    fi
-
     exit 0
 fi
 
