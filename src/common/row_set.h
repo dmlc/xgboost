@@ -106,7 +106,6 @@ class RowSetCollection {
     CHECK(e.begin != nullptr);
 
     size_t* begin = (size_t*)e.begin;
-    size_t n_rows = e.end - e.begin;
     size_t* split_pt = begin + iLeft;
 
     if (left_node_id >= elem_of_each_node_.size()) {

@@ -58,7 +58,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   constexpr int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
-  const int nthread = omp_get_max_threads();
+  const size_t nthread = omp_get_max_threads();
 
   unsigned const nstep =
       static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
@@ -112,8 +112,6 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     }
   } else {
     for (const auto &batch : p_fmat->GetRowBatches()) {
-      size_t group_ind = 0;
-
       const size_t size = batch.Size();
       const size_t block_size = 1024;
       const size_t block_size_iter = block_size * nthread;
@@ -124,12 +122,12 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
         buff[tid].resize(block_size * ncol);
       }
 
-      std::vector<size_t> sizes(nthread * ncol);
+      std::vector<size_t> sizes(nthread * ncol, 0);
 
       for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
         #pragma omp prallel num_threads(nthread)
         {
-          int tid = omp_get_num_threads();
+          int tid = omp_get_thread_num();
 
           const size_t ibegin = iblock * block_size_iter + tid * block_size;
           const size_t iend = std::min(ibegin + block_size, size);
@@ -250,14 +248,11 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   auto t1 = dmlc::GetTime();
   cut.Init(p_fmat, max_num_bins);
-  const int nthread = omp_get_max_threads();
+  const size_t nthread = omp_get_max_threads();
   // const int nthread = 1;
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
-
-
-  printf("GHistIndexMatrix::p_fmat->GetRowBatches() = %zu\n", p_fmat->GetRowBatches());
 
   size_t new_size = 1;
   for (const auto &batch : p_fmat->GetRowBatches()) {
@@ -343,7 +338,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     printf("GHistIndexMatrix::PARALLEL_LOOP = %f\n", (tt3-tt2)*1000);
     #pragma omp parallel for num_threads(nthread) schedule(static)
     for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
-      for (int tid = 0; tid < nthread; ++tid) {
+      for (size_t tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
       }
     }
@@ -856,21 +851,17 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
             sizeof(float)*(iend - ibegin));
         for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
           float* ptr = reinterpret_cast<float*>(p_hist_local[i_bin_part].first);
-          for (int32_t i = ibegin; i < iend; i++) {
+          for (size_t i = ibegin; i < iend; i++) {
             hist_data[i] += ptr[i];
           }
         }
       }
 
-      int32_t n_local_bins = (iend - ibegin)/2;
-
-      const size_t tid = omp_get_thread_num();
-
       if (another_nid > -1) {
         float* other = (float*)sibling.data();
         float* par = (float*)parent.data();
 
-        for (int32_t i = ibegin; i < iend; i++) {
+        for (size_t i = ibegin; i < iend; i++) {
           other[i] = par[i] - hist_data[i];
         }
       }
@@ -946,8 +937,6 @@ void GHistBuilder<TlsType>::BuildBlockHist(const std::vector<GradientPair>& gpai
 
 template<typename TlsType>
 void GHistBuilder<TlsType>::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
-
   tree::GradStats* p_self = self.data();
   tree::GradStats* p_sibling = sibling.data();
   tree::GradStats* p_parent = parent.data();

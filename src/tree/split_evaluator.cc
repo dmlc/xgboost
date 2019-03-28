@@ -138,6 +138,9 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats) const {
     if (params_.max_delta_step == 0.0f) {
+
+      printf("ComputeScore = %f = %f / %f | %f %f\n", Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda), Sqr(ThresholdL1(stats.sum_grad)), (stats.sum_hess + params_.reg_lambda), stats.sum_hess, params_.reg_lambda);
+
       return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
     } else {
       return ComputeScore(parentID, stats, ComputeWeight(parentID, stats));

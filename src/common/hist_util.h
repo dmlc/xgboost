@@ -15,6 +15,9 @@
 #include "./quantile.h"
 #include "./timer.h"
 #include "../include/rabit/rabit.h"
+#include "../include/rabit/rabit.h"
+#include "random.h"
+
 
 namespace xgboost {
 
@@ -69,6 +72,18 @@ struct SimpleArray {
 
   T* begin() {
     return ptr_;
+  }
+
+  const T* begin() const {
+    return ptr_;
+  }
+
+  T* end() {
+    return ptr_ + n_;
+  }
+
+  const T* end() const {
+    return ptr_ + n_;
   }
 
 private:
@@ -166,7 +181,7 @@ struct GHistIndexBlock {
 
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
+    return {&index[0] + row_ptr[i], detail::ptrdiff_t(row_ptr[i + 1] - row_ptr[i])};
   }
 };
 

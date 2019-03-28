@@ -11,6 +11,7 @@
 #include <limits>
 #include <vector>
 #include "hist_util.h"
+#include <dmlc/timer.h>
 
 
 namespace xgboost {

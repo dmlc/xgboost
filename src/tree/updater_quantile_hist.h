@@ -215,9 +215,9 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval)
-      : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)), p_last_tree_(nullptr),
-        p_last_fmat_(nullptr), prow_set_collection_tls_(nullptr) {  }
+      : prow_set_collection_tls_(nullptr), param_(param),
+      pruner_(std::move(pruner)), spliteval_(std::move(spliteval)),
+      p_last_tree_(nullptr), p_last_fmat_(nullptr) {  }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const GHistIndexBlockMatrix& gmatb,
@@ -238,9 +238,6 @@ class QuantileHistMaker: public TreeUpdater {
                           int32_t this_nid,
                           int32_t another_nid,
                           bool sync_hist) {
-
-      const bst_uint tid = omp_get_thread_num();
-
       if (param_.enable_feature_grouping > 0) {
         this->hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
@@ -350,7 +347,7 @@ class QuantileHistMaker: public TreeUpdater {
     void InitData(const GHistIndexMatrix& gmat,
                   const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
-                  const RegTreeThreadSafe& tree);
+                  const RegTree& tree);
 
     void EvaluateSplit(const int nid,
                        const GHistIndexMatrix& gmat,
@@ -595,7 +592,7 @@ void ResizeSnode(const TrainParam& param) {
 
 protected:
 
-  void resize(size_t n_nodes) const {
+  void resize(int n_nodes) const {
     int prev_size = snode_.size();
     snode_.resize(n_nodes, nullptr);
 
