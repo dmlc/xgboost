@@ -7,6 +7,8 @@
 #include "../../../src/common/device_helpers.cuh"
 #include "gtest/gtest.h"
 
+using xgboost::common::Span;
+
 struct Shard { int id; };
 
 TEST(DeviceHelpers, Basic) {
@@ -71,3 +73,20 @@ TEST(sumReduce, Test) {
   auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
+
+void TestAllocator() {
+  int n = 10;
+  Span<float> a;
+  Span<int> b;
+  Span<size_t> c;
+  dh::BulkAllocator ba;
+  ba.Allocate(0, &a, n, &b, n, &c, n);
+
+  // Should be no illegal memory accesses
+  dh::LaunchN(0, n, [=] __device__(size_t idx) { c[idx] = a[idx] + b[idx]; });
+
+  dh::safe_cuda(cudaDeviceSynchronize());
+}
+
+// Define the test in a function so we can use device lambda
+TEST(bulkAllocator, Test) { TestAllocator(); }

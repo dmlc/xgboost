@@ -19,18 +19,18 @@ namespace linear {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_coordinate);
 
-void RescaleIndices(size_t ridx_begin, dh::DVec<xgboost::Entry> *data) {
-  auto d_data = data->GetSpan();
-  dh::LaunchN(data->DeviceIdx(), data->Size(),
-              [=] __device__(size_t idx) { d_data[idx].index -= ridx_begin; });
+void RescaleIndices(int device_idx, size_t ridx_begin,
+                    common::Span<xgboost::Entry> data) {
+  dh::LaunchN(device_idx, data.size(),
+              [=] __device__(size_t idx) { data[idx].index -= ridx_begin; });
 }
 
 class DeviceShard {
   int device_id_;
-  dh::BulkAllocator<dh::MemoryType::kDevice> ba_;
+  dh::BulkAllocator ba_;
   std::vector<size_t> row_ptr_;
-  dh::DVec<xgboost::Entry> data_;
-  dh::DVec<GradientPair> gpair_;
+  common::Span<xgboost::Entry> data_;
+  common::Span<GradientPair> gpair_;
   dh::CubMemory temp_;
   size_t ridx_begin_;
   size_t ridx_end_;
@@ -73,12 +73,12 @@ class DeviceShard {
       auto col = batch[fidx];
       auto seg = column_segments[fidx];
       dh::safe_cuda(cudaMemcpy(
-          data_.GetSpan().subspan(row_ptr_[fidx]).data(),
+          data_.subspan(row_ptr_[fidx]).data(),
           col.data() + seg.first,
           sizeof(Entry) * (seg.second - seg.first), cudaMemcpyHostToDevice));
     }
     // Rescale indices with respect to current shard
-    RescaleIndices(ridx_begin_, &data_);
+    RescaleIndices(device_id_, ridx_begin_, data_);
   }
 
   bool IsEmpty() {
@@ -87,8 +87,10 @@ class DeviceShard {
 
   void UpdateGpair(const std::vector<GradientPair> &host_gpair,
                    const gbm::GBLinearModelParam &model_param) {
-    gpair_.copy(host_gpair.begin() + ridx_begin_ * model_param.num_output_group,
-                host_gpair.begin() + ridx_end_ * model_param.num_output_group);
+    dh::safe_cuda(cudaMemcpyAsync(
+        gpair_.data(),
+        host_gpair.data() + ridx_begin_ * model_param.num_output_group,
+        gpair_.size() * sizeof(GradientPair), cudaMemcpyHostToDevice));
   }
 
   GradientPair GetBiasGradient(int group_idx, int num_group) {
@@ -99,14 +101,14 @@ class DeviceShard {
     };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(
         counting, f);
-    auto perm = thrust::make_permutation_iterator(gpair_.tbegin(), skip);
+    auto perm = thrust::make_permutation_iterator(gpair_.data(), skip);
 
     return dh::SumReduction(temp_, perm, ridx_end_ - ridx_begin_);
   }
 
   void UpdateBiasResidual(float dbias, int group_idx, int num_groups) {
     if (dbias == 0.0f) return;
-    auto d_gpair = gpair_.GetSpan();
+    auto d_gpair = gpair_;
     dh::LaunchN(device_id_, ridx_end_ - ridx_begin_, [=] __device__(size_t idx) {
       auto &g = d_gpair[idx * num_groups + group_idx];
       g += GradientPair(g.GetHess() * dbias, 0);
@@ -115,9 +117,9 @@ class DeviceShard {
 
   GradientPair GetGradient(int group_idx, int num_group, int fidx) {
     dh::safe_cuda(cudaSetDevice(device_id_));
-    common::Span<xgboost::Entry> d_col = data_.GetSpan().subspan(row_ptr_[fidx]);
+    common::Span<xgboost::Entry> d_col = data_.subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
-    common::Span<GradientPair> d_gpair = gpair_.GetSpan();
+    common::Span<GradientPair> d_gpair = gpair_;
     auto counting = thrust::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       auto entry = d_col[idx];
@@ -131,8 +133,8 @@ class DeviceShard {
   }
 
   void UpdateResidual(float dw, int group_idx, int num_groups, int fidx) {
-    common::Span<GradientPair> d_gpair = gpair_.GetSpan();
-    common::Span<Entry> d_col = data_.GetSpan().subspan(row_ptr_[fidx]);
+    common::Span<GradientPair> d_gpair = gpair_;
+    common::Span<Entry> d_col = data_.subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
     dh::LaunchN(device_id_, col_size, [=] __device__(size_t idx) {
       auto entry = d_col[idx];
