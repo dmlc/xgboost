@@ -78,9 +78,6 @@ class ColumnMatrix {
   inline void Init(const GHistIndexMatrix& gmat,
                    double  sparse_threshold) {
 
-    auto t1  = dmlc::GetTime();
-
-
     const auto nfeature = static_cast<bst_uint>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
@@ -123,7 +120,6 @@ class ColumnMatrix {
       boundary_[fid].index_end = accum_index_;
       boundary_[fid].row_ind_end = accum_row_ind_;
     }
-    auto t2  = dmlc::GetTime();
     index_.resize(boundary_[nfeature - 1].index_end);
     row_ind_.resize(boundary_[nfeature - 1].row_ind_end);
 
@@ -132,8 +128,6 @@ class ColumnMatrix {
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
       index_base_[fid] = gmat.cut.row_ptr[fid];
     }
-
-    auto t3  = dmlc::GetTime();
 
     // pre-fill index_ for dense columns
 
@@ -147,8 +141,6 @@ class ColumnMatrix {
         // max() indicates missing values
       }
     }
-
-    auto t4  = dmlc::GetTime();
 
     // loop over all rows and fill column entries
     // num_nonzeros[fid] = how many nonzeros have this feature accumulated so far?
@@ -175,9 +167,6 @@ class ColumnMatrix {
         }
       }
     }
-    auto t5  = dmlc::GetTime();
-
-    printf("ColumnMatrix::Init: %f %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000, (t5-t4)*1000);
   }
 
   /* Fetch an individual column. This code should be used with XGBOOST_TYPE_SWITCH

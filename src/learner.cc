@@ -473,7 +473,6 @@ class LearnerImpl : public Learner {
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {
-    auto t1 = dmlc::GetTime();
     monitor_.Start("UpdateOneIter");
 
     // TODO(trivialfis): Merge the duplicated code with BoostOneIter
@@ -482,33 +481,23 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    auto t2 = dmlc::GetTime();
 
     this->ValidateDMatrix(train);
-    auto t3 = dmlc::GetTime();
     this->PerformTreeMethodHeuristic(train);
-    auto t4 = dmlc::GetTime();
 
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
-    auto t5 = dmlc::GetTime();
     monitor_.Stop("PredictRaw");
     monitor_.Start("GetGradient");
     obj_->GetGradient(preds_, train->Info(), iter, &gpair_);
-    auto t6 = dmlc::GetTime();
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
-    auto t7 = dmlc::GetTime();
     monitor_.Stop("UpdateOneIter");
-    auto t8 = dmlc::GetTime();
 
-    printf("TIME ITER = %f\n", (t8-t1)*1000);
-    printf("Learner: %f %f %f %f %f %f %f\n", (t2-t1)*1000, (t3-t2)*1000, (t4-t3)*1000, (t5-t4)*1000, (t6-t5)*1000, (t7-t6)*1000, (t8-t7)*1000);
   }
 
   void BoostOneIter(int iter, DMatrix* train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
-    auto t1 = dmlc::GetTime();
     monitor_.Start("BoostOneIter");
 
     CHECK(ModelInitialized())
@@ -521,8 +510,6 @@ class LearnerImpl : public Learner {
 
     gbm_->DoBoost(train, in_gpair);
     monitor_.Stop("BoostOneIter");
-    auto t2 = dmlc::GetTime();
-    printf("TIME ITER = %f\n", (t2-t1)*1000);
   }
 
   std::string EvalOneIter(int iter, const std::vector<DMatrix*>& data_sets,
