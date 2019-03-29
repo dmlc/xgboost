@@ -245,7 +245,6 @@ class ColMaker: public TreeUpdater {
                                  DMatrix *p_fmat,
                                   const std::vector<GradientPair> &gpair) {
       // TODO(tqchen): double check stats order.
-      const MetaInfo& info = p_fmat->Info();
       const bool ind = col.size() != 0 && col[0].fvalue == col[col.size() - 1].fvalue;
       bool need_forward = param_.NeedForwardSearch(p_fmat->GetColDensity(fid), ind);
       bool need_backward = param_.NeedBackwardSearch(p_fmat->GetColDensity(fid), ind);
