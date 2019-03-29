@@ -21,7 +21,6 @@ namespace common {
 
 template<typename T>
 struct SimpleArray {
-
   ~SimpleArray() {
     free(ptr_);
     ptr_ = nullptr;
@@ -76,7 +75,7 @@ struct SimpleArray {
     return ptr_ + n_;
   }
 
-private:
+ private:
   T* ptr_ = nullptr;
   size_t n_ = 0;
 };

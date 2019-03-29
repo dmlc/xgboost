@@ -435,7 +435,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
       row_indices.resize(j);
     } else {
-
       MemStackAllocator<int, 128> buff(this->nthread_);
       int* p_buff = buff.Get();
       std::fill(p_buff, p_buff + this->nthread_, false);
@@ -446,10 +445,11 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       {
         const size_t tid = omp_get_thread_num();
         const size_t ibegin = tid * block_size;
-        const size_t iend = std::min(ibegin + block_size, info.num_row_);
+        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+            static_cast<size_t>(info.num_row_));
 
         for (size_t i = ibegin; i < iend; ++i) {
-          if(gpair[i].GetHess() < 0.0f) {
+          if (gpair[i].GetHess() < 0.0f) {
             buff.Get()[tid] = true;
             break;
           }
@@ -457,11 +457,13 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
 
       bool has_heg_hess = false;
-      for (size_t tid = 0; tid < this->nthread_; ++tid)
-        if (p_buff[tid] == true)
+      for (size_t tid = 0; tid < this->nthread_; ++tid) {
+        if (p_buff[tid] == true) {
           has_heg_hess = true;
+        }
+      }
 
-      if(has_heg_hess) {
+      if (has_heg_hess) {
         size_t j = 0;
         for (size_t i = 0; i < info.num_row_; ++i) {
           if (gpair[i].GetHess() >= 0.0f) {
@@ -474,7 +476,8 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
         {
           const size_t tid = omp_get_thread_num();
           const size_t ibegin = tid * block_size;
-          const size_t iend = std::min(ibegin + block_size, info.num_row_);
+          const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+              static_cast<size_t>(info.num_row_));
           for (size_t i = ibegin; i < iend; ++i) {
            p_row_indices[i] = i;
           }

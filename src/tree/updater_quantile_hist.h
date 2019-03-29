@@ -30,20 +30,17 @@
 namespace xgboost {
 
 template<typename T, size_t MaxStackSize>
-class MemStackAllocator
-{
-public:
-  MemStackAllocator(size_t required_size): required_size_(required_size) {
+class MemStackAllocator {
+ public:
+  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
   }
 
   T* Get() {
-    if(!ptr_)
-    {
-      if (MaxStackSize>=required_size_) {
+    if (!ptr_) {
+      if (MaxStackSize >= required_size_) {
         ptr_ = stack_mem_;
-      }
-      else {
-        ptr_ = (T*)malloc(required_size_ * sizeof(T));
+      } else {
+        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
         do_free_ = true;
       }
     }
@@ -55,7 +52,8 @@ public:
     if (do_free_) free(ptr_);
   }
 
-private:
+
+ private:
   T* ptr_ = nullptr;
   bool do_free_ = false;
   size_t required_size_;
