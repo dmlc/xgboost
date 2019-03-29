@@ -227,22 +227,18 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     def buildDenseDataFrame(): DataFrame = {
       val numRows = 100
       val numCols = 5
-
       val data = (0 until numRows).map { x =>
         val label = Random.nextInt(2)
         val values = Array.tabulate[Double](numCols) { c =>
-          if (c == numCols - 1) -0.1 else Random.nextDouble
+          if (c == numCols - 1) Float.NaN else Random.nextDouble
         }
-
         (label, Vectors.dense(values))
       }
-
       ss.createDataFrame(sc.parallelize(data.toList)).toDF("label", "features")
     }
-
     val denseDF = buildDenseDataFrame().repartition(4)
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
-      "objective" -> "binary:logistic", "missing" -> -0.1f, "num_workers" -> numWorkers).toMap
+      "objective" -> "binary:logistic", "num_workers" -> numWorkers).toMap
     val model = new XGBoostClassifier(paramMap).fit(denseDF)
     model.transform(denseDF).collect()
   }
