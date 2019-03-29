@@ -137,7 +137,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           }
           #pragma omp barrier
           #pragma omp for schedule(static)
-          for (size_t icol = 0; icol < ncol; ++icol) {
+          for (int32_t icol = 0; icol < static_cast<int32_t>(ncol); ++icol) {
             for (size_t tid = 0; tid < nthread; ++tid) {
               auto* p_sizes = sizes.data() + ncol * tid;
               auto* p_buff = buff[tid].data() + icol * block_size;
