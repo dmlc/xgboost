@@ -74,9 +74,9 @@ object XGBoost extends Serializable {
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      val indicesBuilder = new mutable.ArrayBuilder.ofInt()
-      val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
       xgbLabelPoints.map { labeledPoint =>
+        val indicesBuilder = new mutable.ArrayBuilder.ofInt()
+        val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
         for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
           indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
           valuesBuilder += value
@@ -84,9 +84,9 @@ object XGBoost extends Serializable {
         labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
-      val indicesBuilder = new mutable.ArrayBuilder.ofInt()
-      val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
       xgbLabelPoints.map { labeledPoint =>
+        val indicesBuilder = new mutable.ArrayBuilder.ofInt()
+        val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
         for ((value, i) <- labeledPoint.values.zipWithIndex if !value.isNaN) {
           indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
           valuesBuilder += value
