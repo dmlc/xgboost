@@ -124,6 +124,8 @@ class ColumnMatrix {
     }
 
     // pre-fill index_ for dense columns
+
+    #pragma omp parallel for
     for (bst_uint fid = 0; fid < nfeature; ++fid) {
       if (type_[fid] == kDenseColumn) {
         const size_t ibegin = boundary_[fid].index_begin;
@@ -184,8 +186,8 @@ class ColumnMatrix {
 
   std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;
-  std::vector<uint32_t> index_;  // index_: may store smaller integers; needs padding
-  std::vector<size_t> row_ind_;
+  SimpleArray<uint32_t> index_;  // index_: may store smaller integers; needs padding
+  SimpleArray<size_t> row_ind_;
   std::vector<ColumnBoundary> boundary_;
 
   // index_base_[fid]: least bin id for feature fid
