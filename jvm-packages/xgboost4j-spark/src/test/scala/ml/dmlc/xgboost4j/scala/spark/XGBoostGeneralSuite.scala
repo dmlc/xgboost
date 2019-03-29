@@ -37,7 +37,7 @@ import org.apache.spark.ml.feature.VectorAssembler
 
 class XGBoostGeneralSuite extends FunSuite with PerTest {
 
-  ignore("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
+  test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
       (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
@@ -102,7 +102,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
 
-  ignore("training with Scala-implemented Rabit tracker") {
+  test("training with Scala-implemented Rabit tracker") {
     val eval = new EvalError()
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
