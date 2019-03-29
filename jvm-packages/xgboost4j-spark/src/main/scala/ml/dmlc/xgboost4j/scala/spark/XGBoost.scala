@@ -70,7 +70,7 @@ private[spark] case class XGBLabeledPointGroup(
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
- private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
+  private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
       Iterator[XGBLabeledPoint] = {
     if (missing != 0.0f) {
       xgbLabelPoints.map(labeledPoint => {
