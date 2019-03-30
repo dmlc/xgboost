@@ -331,7 +331,6 @@ class BaseMaker: public TreeUpdater {
                            std::vector< std::vector<TStats> > *p_thread_temp,
                            std::vector<TStats> *p_node_stats) {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
-    const MetaInfo &info = fmat.Info();
     thread_temp.resize(omp_get_max_threads());
     p_node_stats->resize(tree.param.num_nodes);
 #pragma omp parallel

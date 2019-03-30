@@ -140,7 +140,7 @@ class SketchMaker: public BaseMaker {
         this->UpdateSketchCol(gpair, batch[fidx], tree,
                               node_stats_,
                               fidx,
-                              batch[fidx].size() == nrows,
+                              static_cast<size_t>(batch[fidx].size()) == nrows,
                               &thread_sketch_[omp_get_thread_num()]);
       }
     }
