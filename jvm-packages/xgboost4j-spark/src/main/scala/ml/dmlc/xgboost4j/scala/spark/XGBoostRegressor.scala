@@ -247,7 +247,7 @@ class XGBoostRegressionModel private[ml] (
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
+    val dm = new DMatrix(XGBoost.processMissingValues(Iterator(features.asXGB), $(missing)))
     _booster.predict(data = dm)(0)(0)
   }
 
@@ -275,7 +275,7 @@ class XGBoostRegressionModel private[ml] (
           }
         }
         val dm = new DMatrix(
-          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          XGBoost.processMissingValues(featuresIterator.map(_.asXGB), $(missing)),
           cacheInfo)
         try {
           val Array(originalPredictionItr, predLeafItr, predContribItr) =
