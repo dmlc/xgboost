@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.2)
-project(xgboost)
+project(xgboost LANGUAGES CXX)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 find_package(OpenMP)
@@ -165,21 +165,20 @@ if (GENERATE_COMPILATION_DATABASE)
 endif (GENERATE_COMPILATION_DATABASE)
 
 if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
-  find_package(CUDA 8.0 REQUIRED)
-  cmake_minimum_required(VERSION 3.5)
-
+  cmake_minimum_required(VERSION 3.9)
+  enable_language(CUDA)
   add_definitions(-DXGBOOST_USE_CUDA)
 
   include_directories(cub)
 
   if(USE_NCCL)
     find_package(Nccl REQUIRED)
-    cuda_include_directories(${NCCL_INCLUDE_DIR})
+    include_directories(${NCCL_INCLUDE_DIR})
     add_definitions(-DXGBOOST_USE_NCCL)
   endif()
 
   if(USE_NVTX)
-    cuda_include_directories("${NVTX_HEADER_DIR}")
+    include_directories("${NVTX_HEADER_DIR}")
     add_definitions(-DXGBOOST_USE_NVTX)
   endif()
 
@@ -187,12 +186,14 @@ if(USE_CUDA AND (NOT GENERATE_COMPILATION_DATABASE))
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)
   message("cuda architecture flags: ${GENCODE_FLAGS}")
 
-  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;--expt-relaxed-constexpr;${GENCODE_FLAGS};-lineinfo;")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${GENCODE_FLAGS} --expt-relaxed-constexpr --expt-extended-lambda")
+  
   if(NOT MSVC)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -Xcompiler -Werror; -std=c++11")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fPIC -Xcompiler -Werror -std=c++11")
   endif()
 
-  cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
+  add_library(gpuxgboost STATIC ${CUDA_SOURCES})
+  target_compile_features(gpuxgboost PUBLIC cxx_std_11)
 
   if(USE_NCCL)
     link_directories(${NCCL_LIBRARY})

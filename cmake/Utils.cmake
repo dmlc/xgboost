@@ -29,6 +29,18 @@ function(msvc_use_static_runtime)
               set(${variable} "${${variable}}"  PARENT_SCOPE)
           endif()
       endforeach()
+      set(variables
+          CMAKE_CUDA_FLAGS_DEBUG
+          CMAKE_CUDA_FLAGS_MINSIZEREL
+          CMAKE_CUDA_FLAGS_RELEASE
+          CMAKE_CUDA_FLAGS_RELWITHDEBINFO
+      )
+      foreach(variable ${variables})
+          if(${variable} MATCHES "-MD")
+              string(REGEX REPLACE "-MD" "-MT" ${variable} "${${variable}}")
+              set(${variable} "${${variable}}"  PARENT_SCOPE)
+          endif()
+      endforeach()
   endif()
 endfunction(msvc_use_static_runtime)
 
@@ -69,11 +81,11 @@ function(format_gencode_flags flags out)
   endif()
   # Generate SASS
   foreach(ver ${flags})
-    set(${out} "${${out}}-gencode arch=compute_${ver},code=sm_${ver};")
+    set(${out} "${${out}}-gencode arch=compute_${ver},code=sm_${ver} ")
   endforeach()
   # Generate PTX for last architecture
   list(GET flags -1 ver)
-  set(${out} "${${out}}-gencode arch=compute_${ver},code=compute_${ver};")
+  set(${out} "${${out}}-gencode arch=compute_${ver},code=compute_${ver} ")
   
   set(${out} "${${out}}" PARENT_SCOPE)
 endfunction(format_gencode_flags flags)
