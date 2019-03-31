@@ -166,7 +166,7 @@ environment variable:
 
   .. code-block:: bash
 
-    ASAN_OPTIONS=protect_shadow_gap=0 ../testxgboost
+    ASAN_OPTIONS=protect_shadow_gap=0 ${BUILD_DIR}/testxgboost
 
 For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
 

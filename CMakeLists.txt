@@ -340,7 +340,7 @@ if(GOOGLE_TEST)
       $<TARGET_OBJECTS:objxgboost>)
   endif ()
 
-  set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
+  set_output_directory(testxgboost ${CMAKE_BINARY_DIR})
   target_include_directories(testxgboost
     PRIVATE ${GTEST_INCLUDE_DIRS})
   target_link_libraries(testxgboost ${GTEST_LIBRARIES} ${LINK_LIBRARIES})
