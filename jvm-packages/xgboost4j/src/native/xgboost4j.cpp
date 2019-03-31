@@ -61,8 +61,14 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
                                        "next", "()Ljava/lang/Object;");
     int ret_value;
     if (jenv->CallBooleanMethod(jiter, hasNext)) {
+      if (jenv->ExceptionCheck()) {
+        return -1;
+      }
       ret_value = 1;
       jobject batch = jenv->CallObjectMethod(jiter, next);
+      if (jenv->ExceptionCheck()) {
+        return -1;
+      }
       if (batch == nullptr) {
         CHECK(jenv->ExceptionOccurred());
         jenv->ExceptionDescribe();

@@ -70,21 +70,6 @@ private[spark] case class XGBLabeledPointGroup(
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
-      Iterator[XGBLabeledPoint] = {
-    if (missing != 0.0f) {
-      xgbLabelPoints.map(labeledPoint => {
-        if (labeledPoint.indices != null) {
-            throw new RuntimeException("you can only specify missing value as 0.0 when you have" +
-              " SparseVector as your feature format")
-        }
-        labeledPoint
-      })
-    } else {
-      xgbLabelPoints
-    }
-  }
-
   private def removeMissingValues(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float,
@@ -92,9 +77,27 @@ object XGBoost extends Serializable {
     xgbLabelPoints.map { labeledPoint =>
       val indicesBuilder = new mutable.ArrayBuilder.ofInt()
       val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
-      for ((value, i) <- labeledPoint.values.zipWithIndex if keepCondition(value)) {
-        indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
-        valuesBuilder += value
+      if (labeledPoint.values.isEmpty && missing != 0) {
+        // in this case where the user specifies non-zero value for missing value and we get
+        // an EMPTY vector, we have mistakenly filter some 0 feature values which are meaningful
+        // here because Spark forces 0 to be the missing value
+        throw new IllegalArgumentException(s"you specified $missing as missing value and" +
+          s" some feature values as 0 have been filtered mistakenly by Spark leading to an empty" +
+          s" vector, please transform your data set and use 0 as missing value")
+      }
+      for ((value, i) <- labeledPoint.values.zipWithIndex) {
+        if (missing != 0 && labeledPoint.indices != null) {
+          // in this case where the user specifies non-zero value for missing value and we get
+          // a SPARSE vector, we have mistakenly filter some 0 feature values which are meaningful
+          // here because Spark forces 0 to be the missing value
+          throw new IllegalArgumentException(s"you specified $missing as missing value and" +
+            s" some feature values as 0 have been filtered mistakenly by Spark, please" +
+            s" transform your data set and use 0 as missing value")
+        }
+        if (keepCondition(value)) {
+          indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
+          valuesBuilder += value
+        }
       }
       labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
     }
@@ -104,8 +107,7 @@ object XGBoost extends Serializable {
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
-        missing, (v: Float) => v != missing)
+      removeMissingValues(xgbLabelPoints, missing, (v: Float) => v != missing)
     } else {
       removeMissingValues(xgbLabelPoints, missing, (v: Float) => !v.isNaN)
     }
@@ -293,7 +295,8 @@ object XGBoost extends Serializable {
         params("tree_method") == "auto", "xgboost4j-spark only supports tree_method as 'hist'," +
         " 'approx' and 'auto'")
     }
-    if (params.contains("train_test_ratio")) {
+    if (params.contains("train_test_ratio") &&
+      params("train_test_ratio").asInstanceOf[Double] < 1.0) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
         " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
         "'eval_set_names'")
@@ -663,15 +666,19 @@ private object Watches {
       }
       accepted
     }
+
     val trainMatrix = new DMatrix(trainPoints, cacheDirName.map(_ + "/train").orNull)
-    val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull)
-
     val trainMargin = fromBaseMarginsToArray(trainBaseMargins.result().iterator)
-    val testMargin = fromBaseMarginsToArray(testBaseMargins.result().iterator)
     if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
-    if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
 
-    new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
+    if (trainTestRatio < 1.0) {
+      val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull)
+      val testMargin = fromBaseMarginsToArray(testBaseMargins.result().iterator)
+      if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
+      new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
+    } else {
+      new Watches(Array(trainMatrix), Array("train"), cacheDirName)
+    }
   }
 
   def buildWatchesWithGroup(
@@ -772,18 +779,19 @@ private object Watches {
     trainMatrix.setGroup(trainGroups.result())
     trainMatrix.setWeight(trainWeights.result())
 
-    val testMatrix = new DMatrix(testPoints.result().iterator, cacheDirName.map(_ + "/test").orNull)
+    val trainMargin = fromBaseMarginsToArray(trainBaseMargins.result().iterator)
+    if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
     if (trainTestRatio < 1.0) {
+      val testMatrix = new DMatrix(testPoints.result().iterator, cacheDirName.map(_ + "/test").
+        orNull)
       testMatrix.setGroup(testGroups.result())
       testMatrix.setWeight(testWeights.result())
+      val testMargin = fromBaseMarginsToArray(testBaseMargins.result().iterator)
+      if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
+      new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
+    } else {
+      new Watches(Array(trainMatrix), Array("train"), cacheDirName)
     }
-
-    val trainMargin = fromBaseMarginsToArray(trainBaseMargins.result().iterator)
-    val testMargin = fromBaseMarginsToArray(testBaseMargins.result().iterator)
-    if (trainMargin.isDefined) trainMatrix.setBaseMargin(trainMargin.get)
-    if (testMargin.isDefined) testMatrix.setBaseMargin(testMargin.get)
-
-    new Watches(Array(trainMatrix, testMatrix), Array("train", "test"), cacheDirName)
   }
 }
 

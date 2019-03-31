@@ -43,9 +43,10 @@ public class DMatrix {
    * @throws XGBoostError
    */
   public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
-    if (iter == null) {
-      throw new NullPointerException("iter: null");
+    if (iter == null || !iter.hasNext()) {
+      throw new IllegalArgumentException("cannot create DMatrix with empty iterator");
     }
+    // System.out.println(iter.hasNext());
     // 32k as batch size
     int batchSize = 32 << 10;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
