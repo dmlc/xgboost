@@ -43,7 +43,7 @@ template <typename T>
 struct TestTransformRangeGranular {
   const size_t granularity = 8;
 
-  TestTransformRangeGranular(const size_t granular) : granularity{granular} {}
+  explicit TestTransformRangeGranular(const size_t granular) : granularity{granular} {}
   void XGBOOST_DEVICE operator()(size_t _idx,
                                  Span<bst_float> _out, Span<const bst_float> _in) {
     auto in_sub = _in.subspan(_idx * granularity, granularity);
@@ -105,6 +105,6 @@ TEST(Transform, MGPU_SpecifiedGpuId) {
   ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
 }
 
-}  // namespace xgboost
 }  // namespace common
+}  // namespace xgboost
 #endif

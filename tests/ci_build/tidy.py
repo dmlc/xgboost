@@ -60,7 +60,7 @@ class ClangTidy(object):
         '''Run CMake to generate compilation database.'''
         os.mkdir(self.cdb_path)
         os.chdir(self.cdb_path)
-        cmake_args = ['cmake', '..', '-DGENERATE_COMPILATION_DATABASE=ON',
+        cmake_args = ['cmake', '..', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
                       '-DGOOGLE_TEST=ON', '-DGTEST_ROOT={}'.format(
                           self.gtest_path)]
         if self.cuda_lint:
@@ -68,23 +68,64 @@ class ClangTidy(object):
         subprocess.run(cmake_args)
         os.chdir(self.root_path)
 
+    def convert_nvcc_command_to_clang(self, command):
+        '''Convert nvcc flags to corresponding clang flags.'''
+        components = command.split()
+        compiler: str = components[0]
+        if compiler.find('nvcc') != -1:
+            compiler = 'clang++'
+            components[0] = compiler
+        # check each component in a command
+        converted_components = [compiler]
+
+        for i in range(len(components)):
+            if components[i] == '-lineinfo':
+                continue
+            elif components[i] == '-fuse-ld=gold':
+                continue
+            elif components[i] == '-rdynamic':
+                continue
+            elif (components[i] == '-x' and
+                  components[i+1] == 'cu'):
+                # -x cu -> -x cuda
+                converted_components.append('-x')
+                converted_components.append('cuda')
+                components[i+1] = ''
+                continue
+            elif components[i].find('-Xcompiler') != -1:
+                continue
+            elif components[i].find('--expt') != -1:
+                continue
+            elif components[i].find('-ccbin') != -1:
+                continue
+            elif components[i].find('--generate-code') != -1:
+                keyword = 'code=sm'
+                pos = components[i].find(keyword)
+                capability = components[i][pos + len(keyword) + 1:
+                                           pos + len(keyword) + 3]
+                if pos != -1:
+                    converted_components.append(
+                        '--cuda-gpu-arch=sm_' + capability)
+            elif components[i].find('--std=c++11') != -1:
+                converted_components.append('-std=c++11')
+            else:
+                converted_components.append(components[i])
+
+        command = ''
+        for c in converted_components:
+            command = command + ' ' + c
+        command = command.strip()
+        return command
+
     def _configure_flags(self, path, command):
         common_args = ['clang-tidy',
                        "-header-filter='(xgboost\\/src|xgboost\\/include)'",
                        '-config='+self.clang_tidy]
         common_args.append(path)
         common_args.append('--')
+        command = self.convert_nvcc_command_to_clang(command)
 
         command = command.split()[1:]  # remove clang/c++/g++
-        # filter out not used flags
-        if '-fuse-ld=gold' in command:
-            command.remove('-fuse-ld=gold')
-        if '-rdynamic' in command:
-            command.remove('-rdynamic')
-        if '-Xcompiler=-fPIC' in command:
-            command.remove('-Xcompiler=-fPIC')
-        if '-Xcompiler=-fPIE' in command:
-            command.remove('-Xcompiler=-fPIE')
         if '-c' in command:
             index = command.index('-c')
             del command[index+1]

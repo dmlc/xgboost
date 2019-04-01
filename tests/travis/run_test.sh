@@ -3,13 +3,21 @@
 if [ ${TASK} == "lint" ]; then
     make lint || exit -1
     echo "Check documentations..."
-    make doxygen 2>log.txt
+
+    mkdir build_doc
+    cd build_doc
+    cmake .. -DBUILD_C_DOC=ON
+    make doc_doxygen 2> log.txt
+
     (cat log.txt| grep -v ENABLE_PREPROCESSING |grep -v "unsupported tag") > logclean.txt
     echo "---------Error Log----------"
     cat logclean.txt
     echo "----------------------------"
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
+
+    cd -
+    rm -rf build_doc
 
     exit 0
 fi

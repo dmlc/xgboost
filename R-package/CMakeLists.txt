@@ -1,0 +1,34 @@
+find_package(LibR REQUIRED)
+message(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
+
+file(GLOB_RECURSE R_SOURCES
+  ${CMAKE_CURRENT_LIST_DIR}/src/*.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/*.c)
+# Use object library to expose R symbols
+add_library(xgboost-r OBJECT ${R_SOURCES})
+
+set(R_DEFINITIONS
+  -DXGBOOST_STRICT_R_MODE=1
+  -DXGBOOST_CUSTOMIZE_GLOBAL_PRNG=1
+  -DDMLC_LOG_BEFORE_THROW=0
+  -DDMLC_DISABLE_STDIN=1
+  -DDMLC_LOG_CUSTOMIZE=1
+  -DRABIT_CUSTOMIZE_MSG_
+  -DRABIT_STRICT_CXX98_)
+target_compile_definitions(xgboost-r
+  PUBLIC ${R_DEFINITIONS})
+target_include_directories(xgboost-r
+  PRIVATE
+  ${LIBR_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/dmlc-core/include
+  ${PROJECT_SOURCE_DIR}/rabit/include)
+set_target_properties(
+  xgboost-r PROPERTIES
+  CXX_STANDARD 11
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})
+
+set(XGBOOST_DEFINITIONS ${R_DEFINITIONS} PARENT_SCOPE)
+set(LINKED_LIBRARIES_PRIVATE ${LINKED_LIBRARIES_PRIVATE} xgboost-r PARENT_SCOPE)
