@@ -13,9 +13,10 @@
 
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/gbm/gbtree_model.h"
-#include "../../../src/tree/updater_gpu_hist.cu"
+#include "../../../src/tree/updater_gpu_hist.cuh"
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/common/common.h"
+#include "../../../src/common/hist_util.h"
 
 namespace xgboost {
 namespace tree {
