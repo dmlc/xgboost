@@ -102,10 +102,10 @@ class QuantileHistMock : public QuantileHistMaker {
       GHistIndexBlockMatrix dummy;
       hist_.AddHistRow(nid);
 
-      RegTreeThreadSafe safe_tree(const_cast<RegTree&>(tree), snode_, param_);
+      RegTreeThreadSafe safe_tree(const_cast<RegTree*>(&tree), snode_, param_);
 
       BuildHist(gpair, row_set_collection_[nid],
-                gmat, dummy, hist_[nid], safe_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
+                gmat, dummy, hist_[nid], &safe_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
 
       // Check if number of histogram bins is correct
       ASSERT_EQ(hist_[nid].size(), gmat.cut.row_ptr.back());
@@ -146,11 +146,11 @@ class QuantileHistMock : public QuantileHistMaker {
       RealImpl::InitData(gmat, row_gpairs, *(*dmat), tree);
       hist_.AddHistRow(0);
 
-      RegTreeThreadSafe safe_tree(const_cast<RegTree&>(tree), snode_, param_);
+      RegTreeThreadSafe safe_tree(const_cast<RegTree*>(&tree), snode_, param_);
       BuildHist(row_gpairs, row_set_collection_[0],
-                gmat, quantile_index_block, hist_[0], safe_tree, 0, hist_[0], hist_[0], 0, -1, false);
+                gmat, quantile_index_block, hist_[0], &safe_tree, 0, hist_[0], hist_[0], 0, -1, false);
 
-      RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), safe_tree, safe_tree.Snode(0), safe_tree[0].Parent());
+      RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), &safe_tree, &safe_tree.Snode(0), safe_tree[0].Parent());
 
       /* Compute correct split (best_split) using the computed histogram */
       const size_t num_row = dmat->get()->Info().num_row_;
@@ -211,7 +211,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      RealImpl::EvaluateSplit(0, gmat, hist_, *(*dmat), safe_tree.Snode(0), 0);
+      RealImpl::EvaluateSplit(0, gmat, hist_, *(*dmat), &safe_tree.Snode(0), 0);
 
       ASSERT_EQ(safe_tree.Snode(0).best.SplitIndex(), best_split_feature);
       ASSERT_EQ(safe_tree.Snode(0).best.split_value, gmat.cut.cut[best_split_threshold]);

@@ -493,7 +493,6 @@ class LearnerImpl : public Learner {
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
-
   }
 
   void BoostOneIter(int iter, DMatrix* train,

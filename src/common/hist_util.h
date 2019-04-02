@@ -10,6 +10,7 @@
 #include <xgboost/data.h>
 #include <limits>
 #include <vector>
+#include <algorithm>
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
@@ -18,11 +19,9 @@
 #include "../include/rabit/rabit.h"
 #include "random.h"
 
-
 namespace xgboost {
 
-namespace tree
-{
+namespace tree {
 class RegTreeThreadSafe;
 class SplitEvaluator;
 }
@@ -31,7 +30,6 @@ namespace common {
 
 template<typename T>
 struct SimpleArray {
-
   ~SimpleArray() {
     free(ptr_);
     ptr_ = nullptr;
@@ -86,7 +84,7 @@ struct SimpleArray {
     return ptr_ + n_;
   }
 
-private:
+ private:
   T* ptr_ = nullptr;
   size_t n_ = 0;
 };
@@ -139,7 +137,6 @@ using GHistIndexRow = Span<uint32_t const>;
  *  This is a global histogram index.
  */
 struct GHistIndexMatrix {
-
   /*! \brief row pointer to rows by element position */
   // std::vector<size_t> row_ptr;
   SimpleArray<size_t> row_ptr;
@@ -230,7 +227,7 @@ class HistCollection {
   // access histogram for i-th node
   inline GHistRow operator[](bst_uint nid) const {
     std::lock_guard<std::mutex> lock(mutex_);
-   return { const_cast<tree::GradStats*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
+    return { const_cast<tree::GradStats*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
   }
 
   // have we computed a histogram for i-th node?
@@ -242,60 +239,62 @@ class HistCollection {
   // initialize histogram collection
   inline void Init(uint32_t nbins) {
     std::lock_guard<std::mutex> lock(mutex_);
-    for(size_t i=0; i < is_init_.size();++i)
+    for (size_t i = 0; i < is_init_.size(); ++i)
       is_init_[i] = false;
 
-    if (nbins_ != nbins)
-    {
-      for (size_t i = 0; i < data_arr_.size(); ++i) delete data_arr_[i];
+    if (nbins_ != nbins) {
+      for (size_t i = 0; i < data_arr_.size(); ++i) {
+        delete data_arr_[i];
+      }
       data_arr_.clear();
       nbins_ = nbins;
     }
   }
 
-  ~HistCollection()
-  {
-    for (size_t i = 0; i < data_arr_.size(); ++i) delete data_arr_[i];
+  ~HistCollection() {
+    for (size_t i = 0; i < data_arr_.size(); ++i) {
+      delete data_arr_[i];
+    }
   }
 
   // create an empty histogram for i-th node
   inline void AddHistRow(bst_uint nid) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (data_arr_.size() <= nid)
-    {
+    if (data_arr_.size() <= nid) {
       data_arr_.resize(nid + 1, nullptr);
       is_init_.resize(nid + 1, false);
     }
     is_init_[nid] = true;
 
-    if (data_arr_[nid] == nullptr) data_arr_[nid] = new std::vector<tree::GradStats>;
+    if (data_arr_[nid] == nullptr) {
+      data_arr_[nid] = new std::vector<tree::GradStats>;
+    }
 
-    if (data_arr_[nid]->size() == 0)
-    {
+    if (data_arr_[nid]->size() == 0) {
       data_arr_[nid]->resize(nbins_);
     }
   }
 
   inline void AddHistRow(bst_uint nid1, bst_uint nid2) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (data_arr_.size() <= std::max(nid1, nid2))
-    {
+    if (data_arr_.size() <= std::max(nid1, nid2)) {
       data_arr_.resize(std::max(nid1, nid2) + 1, nullptr);
       is_init_.resize(std::max(nid1, nid2) + 1, false);
     }
     is_init_[nid1] = true;
     is_init_[nid2] = true;
 
-    if (data_arr_[nid1] == nullptr) data_arr_[nid1] = new std::vector<tree::GradStats>;
-    if (data_arr_[nid2] == nullptr) data_arr_[nid2] = new std::vector<tree::GradStats>;
-
-    if (data_arr_[nid1]->size() == 0)
-    {
+    if (data_arr_[nid1] == nullptr) {
+      data_arr_[nid1] = new std::vector<tree::GradStats>;
+    }
+    if (data_arr_[nid2] == nullptr) {
+      data_arr_[nid2] = new std::vector<tree::GradStats>;
+    }
+    if (data_arr_[nid1]->size() == 0) {
       data_arr_[nid1]->resize(nbins_);
     }
-    if (data_arr_[nid2]->size() == 0)
-    {
+    if (data_arr_[nid2]->size() == 0) {
       data_arr_[nid2]->resize(nbins_);
     }
   }
@@ -326,9 +325,8 @@ class GHistBuilder {
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
                  GHistRow hist,
-                 TlsType& hist_tls,
-                 common::ColumnSampler& column_sampler,
-                 tree::RegTreeThreadSafe& tree,
+                 TlsType* hist_tls,
+                 tree::RegTreeThreadSafe* tree,
                  int32_t parent_nid,
                  const tree::TrainParam& param,
                  GHistRow sibling,

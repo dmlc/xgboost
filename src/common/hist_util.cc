@@ -2,17 +2,16 @@
  * Copyright 2017-2019 by Contributors
  * \file hist_util.h
  */
+#include "./hist_util.h"
+#include <dmlc/timer.h>
 #include <rabit/rabit.h>
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
-#include <dmlc/timer.h>
 #include "./random.h"
 #include "./column_matrix.h"
-#include "./hist_util.h"
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
-#include <xmmintrin.h>
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -70,8 +69,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   // Use group index for weights?
   bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
 
-  if (use_group_ind)
-  {
+  if (use_group_ind) {
     for (const auto &batch : p_fmat->GetRowBatches()) {
       size_t group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
       #pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
@@ -105,19 +103,19 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   } else {
     for (const auto &batch : p_fmat->GetRowBatches()) {
       const size_t size = batch.Size();
-      const size_t block_size = 1024;
+      const size_t block_size = 512;
       const size_t block_size_iter = block_size * nthread;
       const size_t n_blocks = size / block_size_iter + !!(size % block_size_iter);
 
       std::vector<std::vector<std::pair<float, float>>> buff(nthread);
-      for(size_t tid = 0; tid < nthread; ++tid) {
+      for (size_t tid = 0; tid < nthread; ++tid) {
         buff[tid].resize(block_size * ncol);
       }
 
       std::vector<size_t> sizes(nthread * ncol, 0);
 
       for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
-        #pragma omp prallel num_threads(nthread)
+        #pragma omp parallel num_threads(nthread)
         {
           int tid = omp_get_thread_num();
 
@@ -127,7 +125,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           auto* p_sizes = sizes.data() + ncol * tid;
           auto* p_buff = buff[tid].data();
 
-          for(size_t i = ibegin; i < iend; ++i) {
+          for (size_t i = ibegin; i < iend; ++i) {
             size_t const ridx = batch.base_rowid + i;
             bst_float w = info.GetWeight(ridx);
             SparsePage::Inst const inst = batch[i];
@@ -140,12 +138,12 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           }
           #pragma omp barrier
           #pragma omp for schedule(static)
-          for(size_t icol = 0; icol < ncol; ++icol) {
-            for(size_t tid = 0; tid < nthread; ++tid) {
+          for (int32_t icol = 0; icol < static_cast<int32_t>(ncol); ++icol) {
+            for (size_t tid = 0; tid < nthread; ++tid) {
               auto* p_sizes = sizes.data() + ncol * tid;
               auto* p_buff = buff[tid].data() + icol * block_size;
 
-              for(size_t i = 0; i < p_sizes[icol]; ++i) {
+              for (size_t i = 0; i < p_sizes[icol]; ++i) {
                 sketchs[icol].Push(p_buff[i].first,  p_buff[i].second);
               }
 
@@ -159,7 +157,6 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   Init(&sketchs, max_num_bins);
   monitor_.Stop("Init");
-
 }
 
 void HistCutMatrix::Init
@@ -233,8 +230,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
-  const size_t nthread = omp_get_max_threads();
-  // const int nthread = 1;
+  const int32_t nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
@@ -260,8 +256,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     #pragma omp parallel num_threads(nthread)
     {
       #pragma omp for
-      for(size_t tid = 0; tid < nthread; ++tid)
-      {
+      for (int32_t tid = 0; tid < nthread; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -275,17 +270,19 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       #pragma omp single
       {
         p_part[0] = prev_sum;
-        for (size_t i = 1; i < nthread; ++i)
+        for (int32_t i = 1; i < nthread; ++i) {
           p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
+        }
       }
 
       #pragma omp for
-      for(size_t tid = 0; tid < nthread; ++tid) {
+      for (int32_t tid = 0; tid < nthread; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
 
-        for (size_t i = ibegin; i < iend; ++i)
+        for (size_t i = ibegin; i < iend; ++i) {
           row_ptr[rbegin + 1 + i] += p_part[tid];
+        }
       }
     }
 
@@ -553,9 +550,8 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
                              GHistRow hist,
-                             TlsType& hist_tls,
-                             common::ColumnSampler& column_sampler,
-                             tree::RegTreeThreadSafe& tree,
+                             TlsType* hist_tls,
+                             tree::RegTreeThreadSafe* tree,
                              int32_t parent_nid,
                              const tree::TrainParam& param,
                              GHistRow sibling,
@@ -610,7 +606,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       bool prev = p_thread_init[tid];
       if (!p_thread_init[tid]) {
         p_thread_init[tid] = true;
-        p_hist_local[tid] = hist_tls.get(tid);
+        p_hist_local[tid] = hist_tls->get(tid);
       }
       float* data_local_hist = ((nthread_to_process == 1) ? hist_data :
               reinterpret_cast<float*>(p_hist_local[tid].first));
@@ -645,8 +641,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
             data_local_hist[idx_bin+1] += pgh[idx_gh+1];
           }
         }
-      }
-      else {
+      } else {
         for (size_t i = istart; i < iend; ++i) {
           const size_t icol_start = rid[i] * n_features;
           const size_t idx_gh = 2*rid[i];
@@ -664,14 +659,14 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       p_thread_gh_sum[tid*2] += gh_sum[0];
       p_thread_gh_sum[tid*2+1] += gh_sum[1];
     });
-  } else { // Sparse case
+  } else {  // Sparse case
     ParallelFor(n_blocks, [&](size_t iblock) {
       dmlc::omp_uint tid = omp_get_thread_num();
 
       bool prev = p_thread_init[tid];
       if (!p_thread_init[tid]) {
         p_thread_init[tid] = true;
-        p_hist_local[tid] = hist_tls.get(tid);
+        p_hist_local[tid] = hist_tls->get(tid);
       }
       float* data_local_hist = ((nthread_to_process == 1) ? hist_data :
               reinterpret_cast<float*>(p_hist_local[tid].first));
@@ -696,7 +691,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
 
           PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
 
-          for (size_t j = icol_start10; j < icol_end10; j+=16){
+          for (size_t j = icol_start10; j < icol_end10; j+=16) {
             PREFETCH_READ_T0(index + j);
           }
 
@@ -709,8 +704,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
             data_local_hist[idx_bin+1] += pgh[idx_gh+1];
           }
         }
-      }
-      else {
+      } else {
         for (size_t i = istart; i < iend; ++i) {
           const size_t icol_start = row_ptr[rid[i]];
           const size_t icol_end = row_ptr[rid[i]+1];
@@ -746,7 +740,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       }
     }
 
-    if(!sync_hist) {
+    if (!sync_hist) {
       float gh_sum[2] = {0, 0};
       for (size_t i = 0; i < nthread; ++i) {
         gh_sum[0] += p_thread_gh_sum[2 * i];
@@ -754,16 +748,16 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       }
 
       tree::GradStats grad_st(gh_sum[0], gh_sum[1]);
-      tree.Snode(this_nid).stats = grad_st;
+      tree->Snode(this_nid).stats = grad_st;
 
       if (another_nid > -1) {
-        auto& st = tree.Snode(parent_nid).stats;
-        tree.Snode(another_nid).stats.SetSubstract(st, grad_st);
+        auto& st = tree->Snode(parent_nid).stats;
+        tree->Snode(another_nid).stats.SetSubstract(st, grad_st);
       }
     }
 
     const size_t size = (2*nbins_);
-    const size_t block_size = 1024; // aproximatly 1024 values per block
+    const size_t block_size = 1024;  // aproximatly 1024 values per block
     size_t n_blocks = size/block_size + !!(size%block_size);
 
     ParallelFor(n_blocks, [&](size_t iblock) {
@@ -771,7 +765,7 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
 
       if (nthread_to_process > 1) {
-        memcpy(hist_data + ibegin, (((float*)p_hist_local[0].first) + ibegin),
+        memcpy(hist_data + ibegin, (reinterpret_cast<float*>(p_hist_local[0].first) + ibegin),
             sizeof(float)*(iend - ibegin));
         for (size_t i_bin_part = 1; i_bin_part < n_worked_bins; ++i_bin_part) {
           float* ptr = reinterpret_cast<float*>(p_hist_local[i_bin_part].first);
@@ -782,8 +776,8 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
       }
 
       if (another_nid > -1) {
-        float* other = (float*)sibling.data();
-        float* par = (float*)parent.data();
+        float* other = reinterpret_cast<float*>(sibling.data());
+        float* par = reinterpret_cast<float*>(parent.data());
 
         for (size_t i = ibegin; i < iend; i++) {
           other[i] = par[i] - hist_data[i];
@@ -794,13 +788,11 @@ void GHistBuilder<TlsType>::BuildHist(const std::vector<GradientPair>& gpair,
 
   for (uint32_t i = 0; i < nthread; i++) {
     if (p_hist_local[i].first) {
-      hist_tls.release(p_hist_local[i]);
+      hist_tls->release(p_hist_local[i]);
     }
   }
-
-
-
 }
+
 
 template<typename TlsType>
 void GHistBuilder<TlsType>::BuildBlockHist(const std::vector<GradientPair>& gpair,
@@ -857,7 +849,7 @@ void GHistBuilder<TlsType>::SubtractionTrick(GHistRow self, GHistRow sibling, GH
   tree::GradStats* p_parent = parent.data();
 
   const size_t size = (2*nbins_);
-  const size_t block_size = 1024; // aproximatly 1024 values per block
+  const size_t block_size = 1024;  // aproximatly 1024 values per block
   size_t n_blocks = size/block_size + !!(size%block_size);
 
   ParallelFor(n_blocks, [&](size_t iblock) {

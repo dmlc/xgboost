@@ -42,8 +42,7 @@ class RowSetCollection {
     std::vector<size_t> right;
   };
 
-  size_t Size(unsigned node_id)
-  {
+  size_t Size(unsigned node_id) {
     std::lock_guard<std::mutex> lock(mutex_);
     return elem_of_each_node_[node_id].Size();
   }
@@ -70,7 +69,6 @@ class RowSetCollection {
   // clear up things
   inline void Clear() {
     std::lock_guard<std::mutex> lock(mutex_);
-    // row_indices_.clear();
     elem_of_each_node_.clear();
   }
   // initialize node id 0->everything
@@ -105,7 +103,7 @@ class RowSetCollection {
 
     CHECK(e.begin != nullptr);
 
-    size_t* begin = (size_t*)e.begin;
+    size_t* begin = const_cast<size_t*>(e.begin);
     size_t* split_pt = begin + iLeft;
 
     if (left_node_id >= elem_of_each_node_.size()) {

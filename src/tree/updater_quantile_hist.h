@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <queue>
+#include <deque>
 #include <iomanip>
 #include <unordered_map>
 #include <utility>
@@ -29,20 +30,17 @@
 namespace xgboost {
 
 template<typename T, size_t MaxStackSize>
-class MemStackAllocator
-{
-public:
-  MemStackAllocator(size_t required_size): required_size_(required_size) {
+class MemStackAllocator {
+ public:
+  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
   }
 
   T* Get() {
-    if(!ptr_)
-    {
-      if (MaxStackSize>=required_size_) {
+    if (!ptr_) {
+      if (MaxStackSize >= required_size_) {
         ptr_ = stack_mem_;
-      }
-      else {
-        ptr_ = (T*)malloc(required_size_ * sizeof(T));
+      } else {
+        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
         do_free_ = true;
       }
     }
@@ -54,7 +52,7 @@ public:
     if (do_free_) free(ptr_);
   }
 
-private:
+ private:
   T* ptr_ = nullptr;
   bool do_free_ = false;
   size_t required_size_;
@@ -100,23 +98,21 @@ class RegTreeThreadSafe;
 
 
 template<typename T, typename InitFunc, typename DeleteFunc>
-class ThreadSafeStorage
-{
-public:
-  ThreadSafeStorage(size_t nthread, InitFunc init, DeleteFunc del): nthread_(nthread), thread_local_storages_(nthread), mutexes_(nthread), init_func_(init), delete_func_(del)
-  {
+class ThreadSafeStorage {
+ public:
+  ThreadSafeStorage(size_t nthread, InitFunc init, DeleteFunc del): nthread_(nthread),
+    thread_local_storages_(nthread), mutexes_(nthread),
+    init_func_(init), delete_func_(del) {
   }
 
   ~ThreadSafeStorage() {
-    for(size_t i = 0; i < nthread_; ++i)
-    {
-      for(auto& it : thread_local_storages_[i])
+    for (size_t i = 0; i < nthread_; ++i) {
+      for (auto& it : thread_local_storages_[i])
         delete_func_(it);
     }
   }
 
-  std::pair<T*, size_t> get()
-  {
+  std::pair<T*, size_t> get() {
     const unsigned tid = omp_get_thread_num();
     std::lock_guard<std::mutex> lock(mutexes_[tid]);
     if (!thread_local_storages_[tid].size()) {
@@ -128,8 +124,7 @@ public:
     }
   }
 
-  std::pair<T*, size_t> get(size_t tid)
-  {
+  std::pair<T*, size_t> get(size_t tid) {
     std::lock_guard<std::mutex> lock(mutexes_[tid]);
     if (!thread_local_storages_[tid].size()) {
       return {init_func_(), tid};
@@ -140,15 +135,14 @@ public:
     }
   }
 
-  void release(std::pair<T*, size_t> pair)
-  {
+  void release(std::pair<T*, size_t> pair) {
     const unsigned tid = pair.second;
 
     std::lock_guard<std::mutex> lock(mutexes_[tid]);
     thread_local_storages_[tid].push_back(pair.first);
   }
 
-private:
+ private:
   size_t nthread_;
   std::vector<std::deque<T*>> thread_local_storages_;
   std::vector<std::mutex> mutexes_;
@@ -181,9 +175,8 @@ class QuantileHistMaker: public TreeUpdater {
   ColumnMatrix column_matrix_;
   bool is_gmat_initialized_;
 
- public:
-
   // data structure
+ public:
   struct NodeEntry {
     /*! \brief statics for node entry */
     GradStats stats;
@@ -202,7 +195,6 @@ class QuantileHistMaker: public TreeUpdater {
 
   struct Builder {
    public:
-
     using RowCollectionTLS = ThreadSafeStorage<RowSetCollection::Split,
       std::function<RowSetCollection::Split*()>,
       std::function<void(RowSetCollection::Split*)>>;
@@ -231,7 +223,7 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist,
-                          RegTreeThreadSafe& tree,
+                          RegTreeThreadSafe* tree,
                           size_t parent_nid,
                           GHistRow sibling,
                           GHistRow parent,
@@ -241,8 +233,10 @@ class QuantileHistMaker: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         this->hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        this->hist_builder_.BuildHist(gpair, row_indices, gmat, hist, *hist_tls_, column_sampler_, tree, parent_nid, param_,
-          sibling, parent, this_nid, another_nid, data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased,
+        this->hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
+          hist_tls_.get(), tree, parent_nid, param_,
+          sibling, parent, this_nid, another_nid, data_layout_ == kDenseDataZeroBased
+          || data_layout_ == kDenseDataOneBased,
           sync_hist);
       }
       if (sync_hist) {
@@ -285,28 +279,28 @@ class QuantileHistMaker: public TreeUpdater {
         CHECK_GT(global_start, 0);
         double total_time = dmlc::GetTime() - global_start;
         LOG(INFO) << "\nInitData:          "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data*1000
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_data / total_time * 100 << "%)\n"
                   << "InitNewNode:       "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node*1000
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_new_node / total_time * 100 << "%)\n"
                   << "BuildHist:         "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist*1000
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_build_hist / total_time * 100 << "%)\n"
                   << "EvaluateSplit:     "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split*1000
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_evaluate_split / total_time * 100 << "%)\n"
                   << "ApplySplit:        "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split*1000
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_apply_split / total_time * 100 << "%)\n"
                   << "========================================\n"
                   << "Total:             "
-                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time*1000 << std::endl;
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time << std::endl;
         // clear performance counters
         time_init_data = 0;
         time_init_new_node = 0;
@@ -352,7 +346,7 @@ class QuantileHistMaker: public TreeUpdater {
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
-                       QuantileHistMaker::NodeEntry& snode,
+                       QuantileHistMaker::NodeEntry* snode,
                        int32_t depth);
 
     RegTree::Node ApplySplit(int nid,
@@ -361,7 +355,7 @@ class QuantileHistMaker: public TreeUpdater {
                     const HistCollection& hist,
                     const DMatrix& fmat,
                     RegTreeThreadSafe* p_tree,
-                    QuantileHistMaker::NodeEntry& snode,
+                    const QuantileHistMaker::NodeEntry& snode,
                     const RegTree::Node node);
 
     size_t ApplySplitDenseData(const RowSetCollection::Elem rowset,
@@ -387,8 +381,8 @@ class QuantileHistMaker: public TreeUpdater {
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
-                     RegTreeThreadSafe& tree,
-                     QuantileHistMaker::NodeEntry& snode,
+                     RegTreeThreadSafe* tree,
+                     QuantileHistMaker::NodeEntry* snode,
                      int32_t parentid);
 
     // enumerate the split values of specific feature
@@ -446,8 +440,8 @@ class QuantileHistMaker: public TreeUpdater {
         unsigned *timestamp,
         std::vector<ExpandEntry> *temp_qexpand_depth,
         int32_t nid,
-        std::mutex& mutex_add_nodes,
-        QuantileHistMaker::NodeEntry& snode,
+        std::mutex* mutex_add_nodes,
+        const QuantileHistMaker::NodeEntry& snode,
         RegTree::Node node);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
@@ -513,14 +507,13 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<SplitEvaluator> spliteval_;
 };
 
-class RegTreeThreadSafe
-{
-public:
-RegTreeThreadSafe(RegTree& p_tree, std::vector<QuantileHistMaker::NodeEntry>& snode, const TrainParam& param):
-    p_tree_(p_tree), snode_(snode.size()), param_(param) { }
+class RegTreeThreadSafe {
+ public:
+RegTreeThreadSafe(RegTree* p_tree, const std::vector<QuantileHistMaker::NodeEntry>& snode,
+    const TrainParam& param): p_tree_(*p_tree), snode_(snode.size()), param_(param) { }
 
 ~RegTreeThreadSafe() {
-  for(size_t i = 0; i < snode_.size(); ++i) {
+  for (size_t i = 0; i < snode_.size(); ++i) {
     delete snode_[i];
     snode_[i] = nullptr;
   }
@@ -567,8 +560,7 @@ size_t NumNodes() const {
 
 QuantileHistMaker::NodeEntry& Snode(size_t nid) {
   std::lock_guard<std::mutex> lock(mutex_);
-
-  if(nid >= snode_.size())
+  if (nid >= snode_.size())
     resize(nid+1);
 
   return *(snode_[nid]);
@@ -577,7 +569,7 @@ QuantileHistMaker::NodeEntry& Snode(size_t nid) {
 const QuantileHistMaker::NodeEntry& Snode(size_t nid) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  if(nid >= snode_.size())
+  if (nid >= snode_.size())
     resize(nid+1);
 
   return *(snode_[nid]);
@@ -589,8 +581,7 @@ void ResizeSnode(const TrainParam& param) {
   resize(n_nodes);
 }
 
-protected:
-
+ protected:
   void resize(int n_nodes) const {
     int prev_size = snode_.size();
     snode_.resize(n_nodes, nullptr);
