@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file metric.h
  * \brief interface of evaluation metric function supported in xgboost.
  */
@@ -12,8 +12,8 @@
 #include <functional>
 #include <utility>
 
-#include "../data.h"
-#include "../base.h"
+#include <xgboost/data.h>
+#include <xgboost/base.h>
 #include "../../../src/common/host_device_vector.h"
 
 namespace xgboost {

@@ -1157,7 +1157,7 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
   return bst->learner()->GetConfigurationArguments();
 }
 
-XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, const std::string& metrics_name) {
+XGB_DLL void XGBoosterRegisterNewMetrics(BoosterHandle handle, const char* metrics_name) {
   auto* bst = static_cast<xgboost::Booster*>(handle);
   // note: this function is only called by jvm packages which does not support multiple
   // evaluation metrics for now,

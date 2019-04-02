@@ -968,7 +968,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterAddNewMet
             });
   }
   registering_mutex.unlock();
-  XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str);
+  XGBoosterRegisterNewMetrics((BoosterHandle) jhandle, metrics_name_in_str.data());
   return 0;
 }
 
