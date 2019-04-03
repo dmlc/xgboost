@@ -432,17 +432,12 @@ class BulkAllocator {
   void operator=(BulkAllocator&&) = delete;
 
   ~BulkAllocator() {
-    SaveCudaContext {
-      [&]() {
-        for (size_t i = 0; i < d_ptr_.size(); i++) {
-          if (!(d_ptr_[i] == nullptr)) {
-            safe_cuda(cudaSetDevice(device_idx_[i]));
-            safe_cuda(cudaFree(d_ptr_[i]));
-            d_ptr_[i] = nullptr;
-          }
-        }
+    for (size_t i = 0; i < d_ptr_.size(); i++) {
+      if (!(d_ptr_[i] == nullptr)) {
+        safe_cuda(cudaFree(d_ptr_[i]));
+        d_ptr_[i] = nullptr;
       }
-    };
+    }
   }
 
   // returns sum of bytes for all allocations
