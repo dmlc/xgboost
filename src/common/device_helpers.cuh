@@ -777,8 +777,18 @@ class AllReducer {
                  allreduce_calls_(0) {}
 
   /**
-   * \fn  void Init(const std::vector<int> &device_ordinals)
-   *
+   * \brief If we are using a single GPU only
+   */
+  bool IsSingleGPU() {
+#ifdef XGBOOST_USE_NCCL
+    CHECK(device_counts.size() > 0) << "AllReducer not initialised.";
+    return device_counts.size() <= 1 && device_counts.at(0) == 1;
+#else
+    return true;
+#endif
+  }
+
+  /**
    * \brief Initialise with the desired device ordinals for this communication
    * group.
    *
@@ -954,6 +964,21 @@ class AllReducer {
       dh::safe_cuda(cudaStreamSynchronize(streams[i]));
     }
 #endif
+  };
+
+  /**
+   * \brief Synchronizes the device 
+   *
+   * \param device_id Identifier for the device.
+   */
+  void Synchronize(int device_id) {
+#ifdef XGBOOST_USE_NCCL
+    dh::safe_cuda(cudaSetDevice(device_id));
+    int idx = std::find(device_ordinals.begin(), device_ordinals.end(),device_id) - device_ordinals.begin();
+    CHECK(idx < device_ordinals.size());
+    dh::safe_cuda(cudaStreamSynchronize(streams[idx]));
+#endif
+
   };
 
 #ifdef XGBOOST_USE_NCCL
