@@ -175,8 +175,7 @@ inline void CheckComputeCapability() {
   }
 }
 
-DEV_INLINE void AtomicOrByte(xgboost::common::Span<unsigned int> buffer,
-                             size_t ibyte, unsigned char b) {
+DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
@@ -543,8 +542,7 @@ struct CubMemory {
 // Load balancing search
 
 template <typename CoordinateT, typename SegmentT, typename OffsetT>
-void FindMergePartitions(int device_idx,
-                         xgboost::common::Span<CoordinateT> d_tile_coordinates,
+void FindMergePartitions(int device_idx, CoordinateT *d_tile_coordinates,
                          size_t num_tiles, int tile_size, SegmentT segments,
                          OffsetT num_rows, OffsetT num_elements) {
   dh::LaunchN(device_idx, num_tiles + 1, [=] __device__(int idx) {
@@ -566,7 +564,7 @@ void FindMergePartitions(int device_idx,
 template <int TILE_SIZE, int ITEMS_PER_THREAD, int BLOCK_THREADS,
           typename OffsetT, typename CoordinateT, typename FunctionT,
           typename SegmentIterT>
-__global__ void LbsKernel(xgboost::common::Span<CoordinateT> d_coordinates,
+__global__ void LbsKernel(CoordinateT *d_coordinates,
                           SegmentIterT segment_end_offsets, FunctionT f,
                           OffsetT num_segments) {
   int tile = blockIdx.x;
@@ -631,8 +629,8 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(CoordinateT) * (num_tiles + 1));
-  xgboost::common::Span<CoordinateT> tmp_tile_coordinates {
-    temp_memory->GetSpan<CoordinateT>(sizeof(CoordinateT) * (num_tiles + 1))};
+  CoordinateT *tmp_tile_coordinates =
+      reinterpret_cast<CoordinateT *>(temp_memory->d_temp_storage);
 
   FindMergePartitions(device_idx, tmp_tile_coordinates, num_tiles,
                       BLOCK_THREADS, segments, num_segments, count);

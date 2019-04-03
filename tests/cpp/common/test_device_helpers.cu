@@ -50,7 +50,7 @@ void TestLbs() {
       CreateTestData(num_rows, max_row_size, &h_row_ptr, &h_rows);
       thrust::device_vector<size_t> row_ptr = h_row_ptr;
       thrust::device_vector<int> output_row(h_rows.size());
-      auto d_output_row = dh::ToSpan(output_row);
+      auto d_output_row = output_row.data();
       dh::TransformLbs(0, &temp_memory, h_rows.size(), dh::Raw(row_ptr),
                        row_ptr.size() - 1, false,
                        [=] __device__(size_t idx, size_t ridx) {
