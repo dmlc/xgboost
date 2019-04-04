@@ -24,6 +24,10 @@ pipeline {
     // Each stage specify its own agent
     agent none
 
+    environment {
+        DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
+    }
+
     // Setup common job properties
     options {
         ansiColor('xterm')
