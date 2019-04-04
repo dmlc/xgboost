@@ -1,5 +1,8 @@
-/** 
- * @file A demo for xgboost C API.
+/*!
+ * Copyright 2019 XGBoost contributors
+ *
+ * \file c-api-demo.c
+ * \brief A simple example of using xgboost C API.
  */
 
 #include <stdio.h>
@@ -16,6 +19,7 @@ if (err != 0) {                                                         \
 
 int main(int argc, char** argv) {
   int silent = 0;
+  int use_gpu = 0;  // set to 1 to use the GPU for training
   
   // load the data
   DMatrixHandle dtrain, dtest;
@@ -25,12 +29,12 @@ int main(int argc, char** argv) {
   // create the booster
   BoosterHandle booster;
   DMatrixHandle eval_dmats[2] = {dtrain, dtest};
-  const char* eval_names[2] = {"train", "test"};
-  const char* test_name = "test";
-  safe_xgboost(XGBoosterCreate(&dtrain, 1, &booster));
+  safe_xgboost(XGBoosterCreate(eval_dmats, 2, &booster));
 
   // configure the training
-  safe_xgboost(XGBoosterSetParam(booster, "tree_method", "hist"));
+  // available parameters are described here:
+  //   https://xgboost.readthedocs.io/en/latest/parameter.html
+  safe_xgboost(XGBoosterSetParam(booster, "tree_method", use_gpu ? "gpu_hist" : "hist"));
   safe_xgboost(XGBoosterSetParam(booster, "objective", "binary:logistic"));
   safe_xgboost(XGBoosterSetParam(booster, "min_child_weight", "1"));
   safe_xgboost(XGBoosterSetParam(booster, "gamma", "0.1"));
@@ -39,6 +43,7 @@ int main(int argc, char** argv) {
   
   // train and evaluate for 10 iterations
   int n_trees = 10;
+  const char* eval_names[2] = {"train", "test"};
   const char* eval_result = NULL;
   for (int i = 0; i < n_trees; ++i) {
     safe_xgboost(XGBoosterUpdateOneIter(booster, i, dtrain));

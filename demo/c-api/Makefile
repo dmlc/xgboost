@@ -2,8 +2,8 @@ SRC=c-api-demo.c
 TGT=c-api-demo
 
 cc=nvcc
-CFLAGS=-O3
-XGBOOST_ROOT=../..
+CFLAGS ?=-O3
+XGBOOST_ROOT ?=../..
 INCLUDE_DIR=-I$(XGBOOST_ROOT)/include -I$(XGBOOST_ROOT)/dmlc-core/include -I$(XGBOOST_ROOT)/rabit/include
 LIB_DIR=-L$(XGBOOST_ROOT)/lib
 
