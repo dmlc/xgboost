@@ -25,7 +25,7 @@ pipeline {
     agent none
 
     environment {
-        DOCKER_CACHE_REPO = '812345574397.dkr.ecr.us-west-2.amazonaws.com'
+        DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
     }
 
     // Setup common job properties

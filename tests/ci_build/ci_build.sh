@@ -122,6 +122,9 @@ echo "Building container (${DOCKER_IMG_NAME})..."
 # If enviornment variable DOCKER_CACHE_REPO is set, use an external Docker repo for build caching
 if [[ -n "${DOCKER_CACHE_REPO}" ]]
 then
+    # Login for Docker registiry
+    echo '$(python3 -m awscli ecr get-login --no-include-email --region us-west-2)'
+    $(python3 -m awscli ecr get-login --no-include-email --region us-west-2)
     echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME} || true"
     docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}" || true
     CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
