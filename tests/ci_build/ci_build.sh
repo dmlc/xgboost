@@ -113,11 +113,20 @@ cat <<EOF
    NODE_NAME: ${NODE_NAME}
    DOCKER CONTAINER NAME: ${DOCKER_IMG_NAME}
    USER_IDS: ${USER_IDS}
+   CHANGE_ID: ${CHANGE_ID}
+   BRANCH_NAME: ${BRANCH_NAME}
 EOF
 
 
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
+
+# If enviornment variable DOCKER_CACHE_REPO is set, try to use an external Docker repo for build caching
+if [[ -n "${DOCKER_CACHE_REPO}" ]]
+then
+  true
+fi
+
 # --pull should be default
 echo "docker build \
     ${CI_DOCKER_BUILD_ARG} \
