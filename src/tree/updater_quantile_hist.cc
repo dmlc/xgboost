@@ -435,8 +435,8 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
       row_indices.resize(j);
     } else {
-      MemStackAllocator<int, 128> buff(this->nthread_);
-      int* p_buff = buff.Get();
+      MemStackAllocator<bool, 128> buff(this->nthread_);
+      bool* p_buff = buff.Get();
       std::fill(p_buff, p_buff + this->nthread_, false);
 
       const size_t block_size = info.num_row_ / this->nthread_ + !!(info.num_row_ % this->nthread_);
@@ -450,20 +450,20 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
 
         for (size_t i = ibegin; i < iend; ++i) {
           if (gpair[i].GetHess() < 0.0f) {
-            buff.Get()[tid] = true;
+            p_buff[tid] = true;
             break;
           }
         }
       }
 
-      bool has_heg_hess = false;
+      bool has_neg_hess = false;
       for (size_t tid = 0; tid < this->nthread_; ++tid) {
-        if (p_buff[tid] == true) {
-          has_heg_hess = true;
+        if (p_buff[tid]) {
+          has_neg_hess = true;
         }
       }
 
-      if (has_heg_hess) {
+      if (has_neg_hess) {
         size_t j = 0;
         for (size_t i = 0; i < info.num_row_; ++i) {
           if (gpair[i].GetHess() >= 0.0f) {
