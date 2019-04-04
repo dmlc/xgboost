@@ -131,12 +131,12 @@ fi
 
 echo "docker build \
     ${CI_DOCKER_BUILD_ARG} \
-    -t ${DOCKER_IMG_NAME} \
+    -t ${DOCKER_IMG_NAME}:${BRANCH_NAME} \
     -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH} \
     ${CACHE_FROM_CMD}"
 docker build \
     ${CI_DOCKER_BUILD_ARG} \
-    -t "${DOCKER_IMG_NAME}" \
+    -t "${DOCKER_IMG_NAME}:${BRANCH_NAME}" \
     -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}" \
     ${CACHE_FROM_CMD}
 
