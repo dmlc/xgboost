@@ -125,9 +125,15 @@ then
     # Login for Docker registiry
     echo '$(python3 -m awscli ecr get-login --no-include-email --region us-west-2)'
     $(python3 -m awscli ecr get-login --no-include-email --region us-west-2)
-    echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME} || true"
-    docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}" || true
-    CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    if docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    then
+      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    else
+      echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
+      docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master" || true
+      CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:master"
+    fi
 else
     CACHE_FROM_CMD=''
 fi
