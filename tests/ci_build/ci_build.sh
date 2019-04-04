@@ -113,34 +113,48 @@ cat <<EOF
    NODE_NAME: ${NODE_NAME}
    DOCKER CONTAINER NAME: ${DOCKER_IMG_NAME}
    USER_IDS: ${USER_IDS}
-   CHANGE_ID: ${CHANGE_ID}
-   BRANCH_NAME: ${BRANCH_NAME}
 EOF
 
 
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 
-# If enviornment variable DOCKER_CACHE_REPO is set, try to use an external Docker repo for build caching
+# If enviornment variable DOCKER_CACHE_REPO is set, use an external Docker repo for build caching
 if [[ -n "${DOCKER_CACHE_REPO}" ]]
 then
-  true
+    echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME} || true"
+    docker pull "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}" || true
+    CACHE_FROM_CMD="--cache-from ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+else
+    CACHE_FROM_CMD=''
 fi
 
-# --pull should be default
 echo "docker build \
     ${CI_DOCKER_BUILD_ARG} \
     -t ${DOCKER_IMG_NAME} \
-    -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH}"
+    -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH} \
+    ${CACHE_FROM_CMD}"
 docker build \
     ${CI_DOCKER_BUILD_ARG} \
     -t "${DOCKER_IMG_NAME}" \
-    -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
+    -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}" \
+    ${CACHE_FROM_CMD}
 
 # Check docker build status
 if [[ $? != "0" ]]; then
     echo "ERROR: docker build failed."
     exit 1
+fi
+
+# If enviornment variable DOCKER_CACHE_REPO is set, use an external Docker repo for build caching
+if [[ -n "${DOCKER_CACHE_REPO}" ]]
+then
+    echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    if [[ $? != "0" ]]; then
+        echo "ERROR: could not update Docker cache ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+        exit 1
+    fi
 fi
 
 

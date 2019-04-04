@@ -8,7 +8,8 @@ import groovy.transform.Field
 /* Unrestricted tasks: tasks that do NOT generate artifacts */
 
 // Command to run command inside a docker container
-def dockerRun = 'tests/ci_build/ci_build.sh'
+def dockerCacheRepo = '812345574397.dkr.ecr.us-west-2.amazonaws.com'
+def dockerRun = "DOCKER_CACHE_REPO=${dockerCacheRepo} tests/ci_build/ci_build.sh"
 // Utility functions
 @Field
 def utils
