@@ -131,12 +131,12 @@ fi
 
 echo "docker build \
     ${CI_DOCKER_BUILD_ARG} \
-    -t ${DOCKER_IMG_NAME}:${BRANCH_NAME} \
+    -t ${DOCKER_IMG_NAME} \
     -f ${DOCKERFILE_PATH} ${DOCKER_CONTEXT_PATH} \
     ${CACHE_FROM_CMD}"
 docker build \
     ${CI_DOCKER_BUILD_ARG} \
-    -t "${DOCKER_IMG_NAME}:${BRANCH_NAME}" \
+    -t "${DOCKER_IMG_NAME}" \
     -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}" \
     ${CACHE_FROM_CMD}
 
@@ -149,6 +149,8 @@ fi
 # If enviornment variable DOCKER_CACHE_REPO is set, use an external Docker repo for build caching
 if [[ -n "${DOCKER_CACHE_REPO}" ]]
 then
+    echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+    docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     if [[ $? != "0" ]]; then
