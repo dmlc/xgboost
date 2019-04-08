@@ -2,7 +2,13 @@ cmake_minimum_required (VERSION 3.2)
 project(xgboost)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
-find_package(OpenMP)
+
+# Options
+## OPENMP
+option(USE_OPENMP  "Build with OpenMP acceleration" ON)
+if (USE_OPENMP)
+  find_package(OpenMP)
+endif()
 
 set_default_configuration_release()
 msvc_use_static_runtime()
