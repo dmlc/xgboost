@@ -33,6 +33,48 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   extends Serializable  with KryoSerializable {
 
   /**
+   * Get attributes stored in the Booster as a Map.
+   *
+   * @return A map contain attribute pairs.
+   */
+  @throws(classOf[XGBoostError])
+  def getAttrs: Map[String, String] = {
+    booster.getAttrs.asScala.toMap
+  }
+
+  /**
+   * Get attribute from the Booster.
+   *
+   * @param key   attr name
+   * @return attr value
+   */
+  @throws(classOf[XGBoostError])
+  def getAttr(key: String): String = {
+    booster.getAttr(key)
+  }
+
+  /**
+   * Set attribute to the Booster.
+   *
+   * @param key   attr name
+   * @param value attr value
+   */
+  @throws(classOf[XGBoostError])
+  def setAttr(key: String, value: String): Unit = {
+    booster.setAttr(key, value)
+  }
+
+  /**
+   * set attributes
+   *
+   * @param params attributes key-value map
+   */
+  @throws(classOf[XGBoostError])
+  def setAttrs(params: Map[String, String]): Unit = {
+    booster.setAttrs(params.asJava)
+  }
+
+  /**
     * Set parameter to the Booster.
     *
     * @param key   param name
