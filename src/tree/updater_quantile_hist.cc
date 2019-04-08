@@ -570,9 +570,19 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
     best_split_tloc_[tid] = snode_[nid].best;
   }
   GHistRow node_hist = hist[nid];
-#pragma omp parallel for schedule(dynamic) num_threads(nthread)
-  for (bst_omp_uint i = 0; i < nfeature; ++i) {
+
+  // filter unvalidated candidates to narrow search space
+  std::vector<bst_uint> validFeatures;
+  for (bst_uint i = 0; i < nfeature; ++i) {
     const bst_uint fid = feature_set[i];
+    if (spliteval_->CheckValidation(fid, nid)) {
+      validFeatures.push_back(fid);
+    }
+  }
+
+#pragma omp parallel for schedule(dynamic) num_threads(nthread)
+  for (bst_omp_uint i = 0; i < validFeatures.size(); ++i) {
+    const bst_uint fid = validFeatures[i];
     const unsigned tid = omp_get_thread_num();
     this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
                          &best_split_tloc_[tid], fid, nid);

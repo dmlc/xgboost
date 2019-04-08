@@ -61,6 +61,10 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
+bool SplitEvaluator::CheckValidation(bst_uint nodeid, bst_uint featureid) {
+  return true;
+}
+
 //! \brief Encapsulates the parameters for ElasticNet
 struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
   bst_float reg_lambda;
@@ -479,6 +483,10 @@ class InteractionConstraint final : public SplitEvaluator {
         }
       }
     }
+  }
+
+  bool CheckValidation(bst_uint nodeid, bst_uint featureid) override {
+    return CheckInteractionConstraint(featureid, nodeid);
   }
 
  private:
