@@ -598,12 +598,22 @@ inline void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
 }
 
 /*! \brief Count how many rows are assigned to left node. */
-__forceinline__ __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+__device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+#if __CUDACC_VER_MAJOR__ > 8
+  int mask = __activemask();
+  unsigned ballot = __ballot_sync(mask, val == left_nidx);
+  int leader = __ffs(mask) - 1;
+  if (threadIdx.x % 32 == leader) {
+    atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
+              static_cast<unsigned long long>(__popc(ballot)));  // NOLINT
+  }
+#else
   unsigned ballot = __ballot(val == left_nidx);
   if (threadIdx.x % 32 == 0) {
     atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
               static_cast<unsigned long long>(__popc(ballot)));  // NOLINT
   }
+#endif
 }
 
 template <typename GradientSumT>
