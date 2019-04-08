@@ -5,7 +5,7 @@ recursive-include xgboost/src *
 recursive-include xgboost/make *
 recursive-include xgboost/rabit *
 recursive-include xgboost/lib *
-recursive-include xgboost/dmlc-core *
+recursive-include xgboost/rabit/dmlc-core *
 #exclude pre-compiled .o and .a file for less confusions
 #make sure .a files are all removed for forcing compiling
 #include the pre-compiled .so is needed as a placeholder

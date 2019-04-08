@@ -75,7 +75,7 @@ addons:
     update: true
 
 before_install:
-  - source dmlc-core/scripts/travis/travis_setup_env.sh
+  - source rabit/dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
   - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
@@ -91,7 +91,7 @@ cache:
     - ${HOME}/.cache/pip
 
 before_cache:
-  - dmlc-core/scripts/travis/travis_before_cache.sh
+  - rabit/dmlc-core/scripts/travis/travis_before_cache.sh
 
 after_failure:
   - tests/travis/travis_after_failure.sh

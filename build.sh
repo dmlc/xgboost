@@ -20,13 +20,6 @@ else
         not_ready=1
     fi
     
-    if [[ ! -e ./dmlc-core/Makefile ]]; then
-        echo ""
-        echo "Please init the dmlc-core submodule:"
-        echo "git submodule update --init --recursive -- dmlc-core"
-        not_ready=1
-    fi
-
     if [[ "${not_ready}" == "1" ]]; then
         echo ""
         echo "Please fix the errors above and retry the build, or reclone the repository with:"

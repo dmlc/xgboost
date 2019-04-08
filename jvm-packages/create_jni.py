@@ -106,7 +106,7 @@ if __name__ == "__main__":
     cp("../lib/" + library_name, "xgboost4j/src/main/resources/lib")
 
     print("copying pure-Python tracker")
-    cp("../dmlc-core/tracker/dmlc_tracker/tracker.py",
+    cp("../rabit/dmlc-core/tracker/dmlc_tracker/tracker.py",
        "xgboost4j/src/main/resources")
 
     print("copying train/test files")

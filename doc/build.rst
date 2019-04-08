@@ -436,9 +436,9 @@ Trouble Shooting
 
      make clean_all && make -j4
 
-3. ``Makefile: dmlc-core/make/dmlc.mk: No such file or directory``
+3. ``Makefile: rabit/dmlc-core/make/dmlc.mk: No such file or directory``
 
-   We need to recursively clone the submodule:
+   We need to recursively clone the rabit submodule:
 
    .. code-block:: bash
 

@@ -7,7 +7,7 @@ endif
 endif
 
 ifndef DMLC_CORE
-	DMLC_CORE = dmlc-core
+	DMLC_CORE = rabit/dmlc-core
 endif
 
 ifndef RABIT
@@ -173,10 +173,10 @@ xgboost: $(CLI_OBJ) $(ALL_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
 rcpplint:
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
+	python2 rabit/dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin python-package
+	python2 rabit/dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin python-package
 
 pylint:
 	flake8 --ignore E501 python-package
@@ -255,8 +255,8 @@ Rpack: clean_all
 	cp -r rabit/src xgboost/src/rabit/src
 	rm -rf xgboost/src/rabit/src/*.o
 	mkdir -p xgboost/src/dmlc-core
-	cp -r dmlc-core/include xgboost/src/dmlc-core/include
-	cp -r dmlc-core/src xgboost/src/dmlc-core/src
+	cp -r rabit/dmlc-core/include xgboost/src/dmlc-core/include
+	cp -r rabit/dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
 	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.in
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win

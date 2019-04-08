@@ -85,7 +85,7 @@ if(USE_SANITIZER)
 endif(USE_SANITIZER)
 
 # dmlc-core
-add_subdirectory(dmlc-core)
+add_subdirectory(rabit/dmlc-core)
 set(LINK_LIBRARIES dmlc rabit)
 
 # enable custom logging
@@ -107,7 +107,7 @@ endif()
 # Gather source files
 include_directories (
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/dmlc-core/include
+    ${PROJECT_SOURCE_DIR}/rabit/dmlc-core/include
     ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
