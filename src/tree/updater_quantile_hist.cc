@@ -581,7 +581,8 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
   }
 
 #pragma omp parallel for schedule(dynamic) num_threads(nthread)
-  for (const bst_omp_uint& fid : validFeatures) {
+  for (bst_omp_uint i = 0; i < validFeatures.size(); ++i) {  // NOLINT(*)
+    const bst_uint fid = validFeatures[i];
     const unsigned tid = omp_get_thread_num();
     this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
                          &best_split_tloc_[tid], fid, nid);
