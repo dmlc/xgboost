@@ -270,7 +270,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("infrequent features") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
-      "num_round" -> 5, "num_workers" -> 2)
+      "num_round" -> 5, "num_workers" -> 2, "missing" -> 0)
     import DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
@@ -291,7 +291,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("infrequent features (use_external_memory)") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
-      "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true)
+      "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true, "missing" -> 0)
     import DataUtils._
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._

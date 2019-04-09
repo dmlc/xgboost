@@ -73,8 +73,9 @@ object XGBoost extends Serializable {
     if (missing != 0.0f) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
-            throw new RuntimeException(s"you can only specify missing value as 0.0 (set value" +
-              s" $missing) when you have SparseVector or Empty vector as your feature format")
+            throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
+              s" set value $missing) when you have SparseVector or Empty vector as your feature" +
+              " format")
         }
         labeledPoint
       })
