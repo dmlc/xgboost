@@ -65,10 +65,15 @@ TEST(cpu_predictor, ExternalMemoryTest) {
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 5000000);
+  CreateBigTestData(tmp_file, 12);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false);
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 64UL);
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+  int64_t batche_count = 0;
+  for (const auto &batch : dmat->GetRowBatches()) {
+    batche_count++;
+  }
+  EXPECT_EQ(batche_count, 2);
 
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));

@@ -150,7 +150,8 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
                        bool load_row_split,
-                       const std::string& file_format) {
+                       const std::string& file_format,
+                       const size_t page_size) {
   std::string fname, cache_file;
   size_t dlm_pos = uri.find('#');
   if (dlm_pos != std::string::npos) {
@@ -217,7 +218,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);
+  DMatrix* dmat = DMatrix::Create(parser.get(), cache_file, page_size);
   if (!silent) {
     LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
                  << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
@@ -248,7 +249,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
 }
 
 DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
-                         const std::string& cache_prefix) {
+                         const std::string& cache_prefix,
+                         const size_t page_size) {
   if (cache_prefix.length() == 0) {
     std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
     source->CopyFrom(parser);
@@ -256,7 +258,7 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
   } else {
 #if DMLC_ENABLE_STD_THREAD
     if (!data::SparsePageSource::CacheExist(cache_prefix, ".row.page")) {
-      data::SparsePageSource::CreateRowPage(parser, cache_prefix);
+      data::SparsePageSource::CreateRowPage(parser, cache_prefix, page_size);
     }
     std::unique_ptr<data::SparsePageSource> source(
         new data::SparsePageSource(cache_prefix, ".row.page"));

@@ -29,16 +29,19 @@ TEST(SparsePageDMatrix, RowAccess) {
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 5000000);
+  CreateBigTestData(tmp_file, 12);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
-    tmp_file + "#" + tmp_file + ".cache", true, false);
+    tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 64UL);
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
+  int64_t batch_count = 0;
   int64_t row_count = 0;
-  for (auto &batch : dmat->GetRowBatches()) {
+  for (const auto &batch : dmat->GetRowBatches()) {
+    batch_count++;
     row_count += batch.Size();
   }
+  EXPECT_EQ(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   // Test the data read into the first row

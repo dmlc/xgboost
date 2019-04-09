@@ -48,9 +48,11 @@ class SparsePageSource : public DataSource {
    * \brief Create source by taking data from parser.
    * \param src source parser.
    * \param cache_info The cache_info of cache file location.
+   * \param page_size Page size for external memory.
    */
   static void CreateRowPage(dmlc::Parser<uint32_t>* src,
-                     const std::string& cache_info);
+                     const std::string& cache_info,
+                     const size_t page_size = DMatrix::kPageSize);
   /*!
    * \brief Create source cache by copy content from DMatrix.
    * \param cache_info The cache_info of cache file location.
@@ -73,14 +75,13 @@ class SparsePageSource : public DataSource {
    */
   static bool CacheExist(const std::string& cache_info,
                          const std::string& page_type);
-  /*! \brief page size 32 MB */
-  static const size_t kPageSize = 32UL << 20UL;
   /*! \brief magic number used to identify Page */
   static const int kMagic = 0xffffab02;
 
  private:
   static void CreatePageFromDMatrix(DMatrix* src, const std::string& cache_info,
-                                    const std::string& page_type);
+                                    const std::string& page_type,
+                                    const size_t page_size = DMatrix::kPageSize);
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */
