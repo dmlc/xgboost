@@ -105,7 +105,8 @@ object XGBoost extends Serializable {
       removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(xgbLabelPoints, missing, (v: Float) => !v.isNaN)
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+        missing, (v: Float) => !v.isNaN)
     }
   }
 
