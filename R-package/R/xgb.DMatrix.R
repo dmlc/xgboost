@@ -1,18 +1,18 @@
 #' Construct xgb.DMatrix object
-#' 
+#'
 #' Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
 #' Supported input file formats are either a libsvm text file or a binary file that was created previously by
 #' \code{\link{xgb.DMatrix.save}}).
-#' 
-#' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character 
+#'
+#' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
 #'        string representing a filename.
 #' @param info a named list of additional information to store in the \code{xgb.DMatrix} object.
-#'        See \code{\link{setinfo}} for the specific allowed kinds of 
+#'        See \code{\link{setinfo}} for the specific allowed kinds of
 #' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
 #'        It is useful when a 0 or some other extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
 #' @param ... the \code{info} data could be passed directly as parameters, without creating an \code{info} list.
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
@@ -78,23 +78,23 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
 
 
 #' Dimensions of xgb.DMatrix
-#' 
+#'
 #' Returns a vector of numbers of rows and of columns in an \code{xgb.DMatrix}.
 #' @param x Object of class \code{xgb.DMatrix}
-#' 
+#'
 #' @details
-#' Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also 
+#' Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also
 #' be directly used with an \code{xgb.DMatrix} object.
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
-#' 
+#'
 #' stopifnot(nrow(dtrain) == nrow(train$data))
 #' stopifnot(ncol(dtrain) == ncol(train$data))
 #' stopifnot(all(dim(dtrain) == dim(train$data)))
-#' 
+#'
 #' @export
 dim.xgb.DMatrix <- function(x) {
   c(.Call(XGDMatrixNumRow_R, x), .Call(XGDMatrixNumCol_R, x))
@@ -102,14 +102,14 @@ dim.xgb.DMatrix <- function(x) {
 
 
 #' Handling of column names of \code{xgb.DMatrix}
-#' 
-#' Only column names are supported for \code{xgb.DMatrix}, thus setting of 
-#' row names would have no effect and returnten row names would be NULL.
-#' 
+#'
+#' Only column names are supported for \code{xgb.DMatrix}, thus setting of
+#' row names would have no effect and returned row names would be NULL.
+#'
 #' @param x object of class \code{xgb.DMatrix}
 #' @param value a list of two elements: the first one is ignored
-#'        and the second one is column names 
-#' 
+#'        and the second one is column names
+#'
 #' @details
 #' Generic \code{dimnames} methods are used by \code{colnames}.
 #' Since row names are irrelevant, it is recommended to use \code{colnames} directly.
@@ -122,7 +122,7 @@ dim.xgb.DMatrix <- function(x) {
 #' colnames(dtrain)
 #' colnames(dtrain) <- make.names(1:ncol(train$data))
 #' print(dtrain, verbose=TRUE)
-#' 
+#'
 #' @rdname dimnames.xgb.DMatrix
 #' @export
 dimnames.xgb.DMatrix <- function(x) {
@@ -140,8 +140,8 @@ dimnames.xgb.DMatrix <- function(x) {
     attr(x, '.Dimnames') <- NULL
     return(x)
   }
-  if (ncol(x) != length(value[[2]])) 
-    stop("can't assign ", length(value[[2]]), " colnames to a ", 
+  if (ncol(x) != length(value[[2]]))
+    stop("can't assign ", length(value[[2]]), " colnames to a ",
          ncol(x), " column xgb.DMatrix")
   attr(x, '.Dimnames') <- value
   x
@@ -149,33 +149,33 @@ dimnames.xgb.DMatrix <- function(x) {
 
 
 #' Get information of an xgb.DMatrix object
-#' 
+#'
 #' Get information of an xgb.DMatrix object
 #' @param object Object of class \code{xgb.DMatrix}
 #' @param name the name of the information field to get (see details)
 #' @param ... other parameters
-#' 
+#'
 #' @details
 #' The \code{name} field can be one of the following:
-#' 
+#'
 #' \itemize{
 #'     \item \code{label}: label Xgboost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
 #'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
 #'     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
-#'     
+#'
 #' }
-#' 
+#'
 #' \code{group} can be setup by \code{setinfo} but can't be retrieved by \code{getinfo}.
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
-#' 
+#'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
-#' 
+#'
 #' labels2 <- getinfo(dtrain, 'label')
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
@@ -202,9 +202,9 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 
 
 #' Set information of an xgb.DMatrix object
-#' 
+#'
 #' Set information of an xgb.DMatrix object
-#' 
+#'
 #' @param object Object of class "xgb.DMatrix"
 #' @param name the name of the field to get
 #' @param info the specific field of information to set
@@ -212,19 +212,19 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #'
 #' @details
 #' The \code{name} field can be one of the following:
-#' 
+#'
 #' \itemize{
 #'     \item \code{label}: label Xgboost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
 #'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
 #'     \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
 #' }
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
-#' 
+#'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
 #' labels2 <- getinfo(dtrain, 'label')
@@ -266,27 +266,27 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 
 
 #' Get a new DMatrix containing the specified rows of
-#' orginal xgb.DMatrix object
+#' original xgb.DMatrix object
 #'
 #' Get a new DMatrix containing the specified rows of
-#' orginal xgb.DMatrix object
-#' 
+#' original xgb.DMatrix object
+#'
 #' @param object Object of class "xgb.DMatrix"
 #' @param idxset a integer vector of indices of rows needed
 #' @param colset currently not used (columns subsetting is not available)
 #' @param ... other parameters (currently not used)
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
-#' 
+#'
 #' dsub <- slice(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
 #' dsub <- dtrain[1:42, ]
 #' labels2 <- getinfo(dsub, 'label')
 #' all.equal(labels1, labels2)
-#' 
+#'
 #' @rdname slice.xgb.DMatrix
 #' @export
 slice <- function(object, ...) UseMethod("slice")
@@ -325,22 +325,22 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 
 
 #' Print xgb.DMatrix
-#' 
-#' Print information about xgb.DMatrix. 
+#'
+#' Print information about xgb.DMatrix.
 #' Currently it displays dimensions and presence of info-fields and colnames.
-#' 
+#'
 #' @param x an xgb.DMatrix object
 #' @param verbose whether to print colnames (when present)
 #' @param ... not currently used
-#' 
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
-#' 
+#'
 #' dtrain
 #' print(dtrain, verbose=TRUE)
-#' 
+#'
 #' @method print xgb.DMatrix
 #' @export
 print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {

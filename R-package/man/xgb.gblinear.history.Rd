@@ -12,7 +12,7 @@ using the \code{cb.gblinear.history()} callback.}
 
 \item{class_index}{zero-based class index to extract the coefficients for only that
 specific class in a multinomial multiclass model. When it is NULL, all the
-coeffients are returned. Has no effect in non-multiclass models.}
+coefficients are returned. Has no effect in non-multiclass models.}
 }
 \value{
 For an \code{xgb.train} result, a matrix (either dense or sparse) with the columns

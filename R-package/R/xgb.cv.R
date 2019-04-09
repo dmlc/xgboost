@@ -39,7 +39,7 @@
 #' }
 #' @param obj customized objective function. Returns gradient and second order
 #'        gradient with given prediction and dtrain.
-#' @param feval custimized evaluation function. Returns
+#' @param feval customized evaluation function. Returns
 #'        \code{list(metric='metric-name', value='metric-value')} with given
 #'        prediction and dtrain.
 #' @param stratified a \code{boolean} indicating whether sampling of folds should be stratified
@@ -84,7 +84,7 @@
 #'         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
 #'   \item \code{callbacks} callback functions that were either automatically assigned or
 #'         explicitly passed.
-#'   \item \code{evaluation_log} evaluation history storead as a \code{data.table} with the
+#'   \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
 #'         first column corresponding to iteration number and the rest corresponding to the
 #'         CV-based evaluation means and standard deviations for the training and test CV-sets.
 #'         It is created by the \code{\link{cb.evaluation.log}} callback.

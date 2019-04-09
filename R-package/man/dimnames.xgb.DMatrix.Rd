@@ -16,8 +16,8 @@
 and the second one is column names}
 }
 \description{
-Only column names are supported for \code{xgb.DMatrix}, thus setting of 
-row names would have no effect and returnten row names would be NULL.
+Only column names are supported for \code{xgb.DMatrix}, thus setting of
+row names would have no effect and returned row names would be NULL.
 }
 \details{
 Generic \code{dimnames} methods are used by \code{colnames}.
