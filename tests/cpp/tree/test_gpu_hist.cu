@@ -27,14 +27,14 @@ TEST(GpuHist, DeviceHistogram) {
       dh::safe_cuda(cudaSetDevice(0));
       constexpr size_t kNBins = 128;
       constexpr size_t kNNodes = 4;
-      constexpr size_t kStopGrowing = kNNodes * kNBins * 2u + 1u;
+      constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
       DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
       histogram.Init(0, kNBins);
       for (size_t i = 0; i < kNNodes; ++i) {
         histogram.AllocateHistogram(i);
       }
       histogram.Reset();
-      ASSERT_EQ(histogram.Data().size(), kStopGrowing - 1u);
+      ASSERT_EQ(histogram.Data().size(), kStopGrowing);
 
       // Use allocated memory but do not erase nidx_map.
       for (size_t i = 0; i < kNNodes; ++i) {

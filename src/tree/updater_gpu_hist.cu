@@ -412,12 +412,10 @@ class DeviceHistogram {
     // Number of items currently used in data
     const size_t used_size = nidx_map_.size() * HistogramSize();
     const size_t new_used_size = used_size + HistogramSize();
-    // size of memory required to store all histograms
-    const size_t new_required_memory = data_.size() + HistogramSize();
     dh::safe_cuda(cudaSetDevice(device_id_));
-    if (new_required_memory >= kStopGrowingSize) {
+    if (data_.size() >= kStopGrowingSize) {
       // Recycle histogram memory
-      if (new_used_size < kStopGrowingSize) {
+      if (new_used_size <= data_.size()) {
         // no need to remove old node, just insert the new one.
         nidx_map_[nidx] = used_size;
         // memset histogram size in bytes
@@ -433,7 +431,10 @@ class DeviceHistogram {
     } else {
       // Append new node histogram
       nidx_map_[nidx] = used_size;
-      data_.resize(new_required_memory);
+      size_t new_required_memory = std::max(data_.size() * 2, HistogramSize());
+      if (data_.size() < new_required_memory) {
+        data_.resize(new_required_memory);
+      }
     }
   }
 
