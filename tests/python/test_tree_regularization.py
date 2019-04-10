@@ -10,7 +10,8 @@ train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 class TestTreeRegularization(unittest.TestCase):
     def test_alpha(self):
         params = {
-            'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
+            'tree_method': 'exact', 'verbosity': 0,
+            'objective': 'reg:squarederror',
             'eta': 1,
             'lambda': 0,
             'alpha': 0.1
@@ -27,7 +28,8 @@ class TestTreeRegularization(unittest.TestCase):
 
     def test_lambda(self):
         params = {
-            'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
+            'tree_method': 'exact', 'verbosity': 0,
+            'objective': 'reg:squarederror',
             'eta': 1,
             'lambda': 1,
             'alpha': 0
@@ -44,7 +46,8 @@ class TestTreeRegularization(unittest.TestCase):
 
     def test_alpha_and_lambda(self):
         params = {
-            'tree_method': 'exact', 'silent': 1, 'objective': 'reg:linear',
+            'tree_method': 'exact', 'verbosity': 1,
+            'objective': 'reg:squarederror',
             'eta': 1,
             'lambda': 1,
             'alpha': 0.1

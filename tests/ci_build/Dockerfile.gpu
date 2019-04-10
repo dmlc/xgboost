@@ -7,15 +7,16 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y tar unzip wget xz git && \
-    wget http://people.centos.org/tru/devtools-2/devtools-2.repo -O /etc/yum.repos.d/devtools-2.repo && \
-    yum install -y devtoolset-2-gcc devtoolset-2-binutils devtoolset-2-gcc-c++ && \
+    yum install -y tar unzip wget xz git centos-release-scl yum-utils && \
+    yum-config-manager --enable centos-sclo-rh-testing && \
+    yum -y update && \
+    yum install -y devtoolset-4-gcc devtoolset-4-binutils devtoolset-4-gcc-c++ && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda2-4.3.27-Linux-x86_64.sh && \
     bash Miniconda2-4.3.27-Linux-x86_64.sh -b -p /opt/python && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.5/cmake-3.5.2-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.5.2-Linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.6/cmake-3.6.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.6.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
@@ -26,12 +27,17 @@ RUN \
     cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
     cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
     rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
-    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; fi
+    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; else \
+    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    yum -y update && \
+    yum install -y libnccl-2.4.2-1+cuda10.0 libnccl-devel-2.4.2-1+cuda10.0 libnccl-static-2.4.2-1+cuda10.0 && \
+    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm; fi
 
 ENV PATH=/opt/python/bin:$PATH
-ENV CC=/opt/rh/devtoolset-2/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-2/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-2/root/usr/bin/cpp
+ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
 
 # Install Python packages
 RUN \

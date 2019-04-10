@@ -245,7 +245,6 @@ class ColMaker: public TreeUpdater {
                                  DMatrix *p_fmat,
                                   const std::vector<GradientPair> &gpair) {
       // TODO(tqchen): double check stats order.
-      const MetaInfo& info = p_fmat->Info();
       const bool ind = col.size() != 0 && col[0].fvalue == col[col.size() - 1].fvalue;
       bool need_forward = param_.NeedForwardSearch(p_fmat->GetColDensity(fid), ind);
       bool need_backward = param_.NeedBackwardSearch(p_fmat->GetColDensity(fid), ind);
@@ -632,10 +631,9 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      auto p_feature_set = column_sampler_.GetFeatureSet(depth);
-      const auto& feat_set = *p_feature_set;
+      auto feat_set = column_sampler_.GetFeatureSet(depth);
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
-        this->UpdateSolution(batch, feat_set, gpair, p_fmat);
+        this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);

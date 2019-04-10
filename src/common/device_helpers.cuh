@@ -27,8 +27,9 @@
 #include "../common/io.h"
 #endif
 
-// Uncomment to enable
-#define TIMERS
+#if __CUDACC_VER_MAJOR__ == 10 && __CUDACC_VER_MINOR__ == 1
+#error "CUDA 10.1 is not supported, see #4264."
+#endif
 
 namespace dh {
 
@@ -219,16 +220,23 @@ __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
 }
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void LaunchN(int device_idx, size_t n, L lambda) {
+inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
 
   safe_cuda(cudaSetDevice(device_idx));
+
   const int GRID_SIZE =
       static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                              lambda);
+  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
+                                                         n, lambda);
+}
+
+// Default stream version
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
+inline void LaunchN(int device_idx, size_t n, L lambda) {
+  LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
 }
 
 inline void BatchEntrySegments
@@ -249,179 +257,78 @@ inline void BatchEntrySegments
 }
 
 
-/*
- * Memory
+/**
+ * \brief A double buffer, useful for algorithms like sort.
  */
-
-enum MemoryType { kDevice, kDeviceManaged };
-
-template <MemoryType MemoryT>
-class BulkAllocator;
 template <typename T>
-class DVec2;
-
-template <typename T>
-class DVec {
-  friend class DVec2<T>;
-
- private:
-  T *ptr_;
-  size_t size_;
-  int device_idx_;
-
+class DoubleBuffer {
  public:
-  void ExternalAllocate(int device_idx, void *ptr, size_t size) {
-    if (!Empty()) {
-      throw std::runtime_error("Tried to allocate DVec but already allocated");
-    }
-    ptr_ = static_cast<T *>(ptr);
-    size_ = size;
-    device_idx_ = device_idx;
-    safe_cuda(cudaSetDevice(device_idx_));
+  cub::DoubleBuffer<T> buff;
+  xgboost::common::Span<T> a, b;
+  DoubleBuffer() = default;
+
+  size_t Size() const {
+    CHECK_EQ(a.size(), b.size());
+    return a.size();
+  }
+  cub::DoubleBuffer<T> &CubBuffer() { return buff; }
+
+  T *Current() { return buff.Current(); }
+  xgboost::common::Span<T> CurrentSpan() {
+    return xgboost::common::Span<T>{
+        buff.Current(),
+        static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
   }
 
-  DVec() : ptr_(NULL), size_(0), device_idx_(-1) {}
-  size_t Size() const { return size_; }
-  int DeviceIdx() const { return device_idx_; }
-  bool Empty() const { return ptr_ == NULL || size_ == 0; }
-
-  T *Data() { return ptr_; }
-
-  const T *Data() const { return ptr_; }
-
-  xgboost::common::Span<const T> GetSpan() const {
-    return xgboost::common::Span<const T>(ptr_, this->Size());
-  }
-
-  xgboost::common::Span<T> GetSpan() {
-    return xgboost::common::Span<T>(ptr_, this->Size());
-  }
-
-  std::vector<T> AsVector() const {
-    std::vector<T> h_vector(Size());
-    safe_cuda(cudaSetDevice(device_idx_));
-    safe_cuda(cudaMemcpy(h_vector.data(), ptr_, Size() * sizeof(T),
-                         cudaMemcpyDeviceToHost));
-    return h_vector;
-  }
-
-  void Fill(T value) {
-    auto d_ptr = ptr_;
-    LaunchN(device_idx_, Size(),
-             [=] __device__(size_t idx) { d_ptr[idx] = value; });
-  }
-
-  void Print() {
-    auto h_vector = this->AsVector();
-    for (auto e : h_vector) {
-      std::cout << e << " ";
-    }
-    std::cout << "\n";
-  }
-
-  thrust::device_ptr<T> tbegin() { return thrust::device_pointer_cast(ptr_); }
-
-  thrust::device_ptr<T> tend() {
-    return thrust::device_pointer_cast(ptr_ + Size());
-  }
-
-  template <typename T2>
-  DVec &operator=(const std::vector<T2> &other) {
-    this->copy(other.begin(), other.end());
-    return *this;
-  }
-
-  DVec &operator=(DVec<T> &other) {
-    if (other.Size() != Size()) {
-      throw std::runtime_error(
-          "Cannot copy assign DVec to DVec, sizes are different");
-    }
-    safe_cuda(cudaSetDevice(this->DeviceIdx()));
-    if (other.DeviceIdx() == this->DeviceIdx()) {
-      dh::safe_cuda(cudaMemcpyAsync(this->Data(), other.Data(),
-                               other.Size() * sizeof(T),
-                               cudaMemcpyDeviceToDevice));
-    } else {
-      std::cout << "deviceother: " << other.DeviceIdx()
-                << " devicethis: " << this->DeviceIdx() << std::endl;
-      std::cout << "size deviceother: " << other.Size()
-                << " devicethis: " << this->DeviceIdx() << std::endl;
-      throw std::runtime_error("Cannot copy to/from different devices");
-    }
-
-    return *this;
-  }
-
-  template <typename IterT>
-  void copy(IterT begin, IterT end) {
-    safe_cuda(cudaSetDevice(this->DeviceIdx()));
-    if (end - begin != Size()) {
-      LOG(FATAL) << "Cannot copy assign vector to DVec, sizes are different" <<
-        " vector::Size(): " << end - begin << " DVec::Size(): " << Size();
-    }
-    thrust::copy(begin, end, this->tbegin());
-  }
-
-  void copy(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
-    safe_cuda(cudaSetDevice(this->DeviceIdx()));
-    if (end - begin != Size()) {
-      throw std::runtime_error(
-          "Cannot copy assign vector to dvec, sizes are different");
-    }
-    safe_cuda(cudaMemcpyAsync(this->Data(), begin.get(), Size() * sizeof(T),
-                         cudaMemcpyDefault));
-  }
+  T *other() { return buff.Alternate(); }
 };
 
 /**
- * @class DVec2 device_helpers.cuh
- * @brief wrapper for storing 2 DVec's which are needed for cub::DoubleBuffer
+ * \brief Copies device span to std::vector.
+ *
+ * \tparam  T Generic type parameter.
+ * \param [in,out]  dst Copy destination.
+ * \param           src Copy source. Must be device memory.
  */
 template <typename T>
-class DVec2 {
- private:
-  DVec<T> d1_, d2_;
-  cub::DoubleBuffer<T> buff_;
-  int device_idx_;
+void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<T> src) {
+  CHECK_EQ(dst->size(), src.size());
+  dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
+                                cudaMemcpyDeviceToHost));
+}
 
- public:
-  void ExternalAllocate(int device_idx, void *ptr1, void *ptr2, size_t size) {
-    if (!Empty()) {
-      throw std::runtime_error("Tried to allocate DVec2 but already allocated");
-    }
-    device_idx_ = device_idx;
-    d1_.ExternalAllocate(device_idx_, ptr1, size);
-    d2_.ExternalAllocate(device_idx_, ptr2, size);
-    buff_.d_buffers[0] = static_cast<T *>(ptr1);
-    buff_.d_buffers[1] = static_cast<T *>(ptr2);
-    buff_.selector = 0;
-  }
-  DVec2() : d1_(), d2_(), buff_(), device_idx_(-1) {}
+/**
+ * \brief Copies std::vector to device span.
+ *
+ * \tparam  T Generic type parameter.
+ * \param dst Copy destination. Must be device memory.
+ * \param src Copy source.
+ */
+template <typename T>
+void CopyVectorToDeviceSpan(xgboost::common::Span<T> dst ,const std::vector<T>&src)
+{
+  CHECK_EQ(dst.size(), src.size());
+  dh::safe_cuda(cudaMemcpyAsync(dst.data(), src.data(), dst.size() * sizeof(T),
+                                cudaMemcpyHostToDevice));
+}
 
-  size_t Size() const { return d1_.Size(); }
-  int DeviceIdx() const { return device_idx_; }
-  bool Empty() const { return d1_.Empty() || d2_.Empty(); }
-
-  cub::DoubleBuffer<T> &buff() { return buff_; }
-
-  DVec<T> &D1() { return d1_; }
-
-  DVec<T> &D2() { return d2_; }
-
-  T *Current() { return buff_.Current(); }
-  xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{
-      buff_.Current(),
-      static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
-  }
-
-  DVec<T> &CurrentDVec() { return buff_.selector == 0 ? D1() : D2(); }
-
-  T *other() { return buff_.Alternate(); }
-};
+/**
+ * \brief Device to device memory copy from src to dst. Spans must be the same size. Use subspan to
+ *        copy from a smaller array to a larger array.
+ *
+ * \tparam  T Generic type parameter.
+ * \param dst Copy destination. Must be device memory.
+ * \param src Copy source. Must be device memory.
+ */
+template <typename T>
+void CopyDeviceSpan(xgboost::common::Span<T> dst,
+                    xgboost::common::Span<T> src) {
+  CHECK_EQ(dst.size(), src.size());
+  dh::safe_cuda(cudaMemcpyAsync(dst.data(), src.data(), dst.size() * sizeof(T),
+                                cudaMemcpyDeviceToDevice));
+}
 
 /*! \brief Helper for allocating large block of memory. */
-template <MemoryType MemoryT>
 class BulkAllocator {
   std::vector<char *> d_ptr_;
   std::vector<size_t> size_;
@@ -435,70 +342,73 @@ class BulkAllocator {
   }
 
   template <typename T>
-  size_t GetSizeBytes(DVec<T> *first_vec, size_t first_size) {
+  size_t GetSizeBytes(xgboost::common::Span<T> *first_vec, size_t first_size) {
     return AlignRoundUp(first_size * sizeof(T));
   }
 
   template <typename T, typename... Args>
-  size_t GetSizeBytes(DVec<T> *first_vec, size_t first_size, Args... args) {
+  size_t GetSizeBytes(xgboost::common::Span<T> *first_vec, size_t first_size, Args... args) {
     return GetSizeBytes<T>(first_vec, first_size) + GetSizeBytes(args...);
   }
 
   template <typename T>
-  void AllocateDVec(int device_idx, char *ptr, DVec<T> *first_vec,
-                     size_t first_size) {
-    first_vec->ExternalAllocate(device_idx, static_cast<void *>(ptr),
-                                 first_size);
+  void AllocateSpan(int device_idx, char *ptr, xgboost::common::Span<T> *first_vec,
+    size_t first_size) {
+    *first_vec = xgboost::common::Span<T>(reinterpret_cast<T *>(ptr), first_size);
   }
 
   template <typename T, typename... Args>
-  void AllocateDVec(int device_idx, char *ptr, DVec<T> *first_vec,
-                     size_t first_size, Args... args) {
-    AllocateDVec<T>(device_idx, ptr, first_vec, first_size);
+  void AllocateSpan(int device_idx, char *ptr, xgboost::common::Span<T> *first_vec,
+    size_t first_size, Args... args) {
+    AllocateSpan<T>(device_idx, ptr, first_vec, first_size);
     ptr += AlignRoundUp(first_size * sizeof(T));
-    AllocateDVec(device_idx, ptr, args...);
+    AllocateSpan(device_idx, ptr, args...);
   }
 
-  char *AllocateDevice(int device_idx, size_t bytes, MemoryType t) {
+  char *AllocateDevice(int device_idx, size_t bytes) {
     char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
     safe_cuda(cudaMalloc(&ptr, bytes));
     return ptr;
   }
+
   template <typename T>
-  size_t GetSizeBytes(DVec2<T> *first_vec, size_t first_size) {
+  size_t GetSizeBytes(DoubleBuffer<T> *first_vec, size_t first_size) {
     return 2 * AlignRoundUp(first_size * sizeof(T));
   }
 
   template <typename T, typename... Args>
-  size_t GetSizeBytes(DVec2<T> *first_vec, size_t first_size, Args... args) {
+  size_t GetSizeBytes(DoubleBuffer<T> *first_vec, size_t first_size, Args... args) {
     return GetSizeBytes<T>(first_vec, first_size) + GetSizeBytes(args...);
   }
 
   template <typename T>
-  void AllocateDVec(int device_idx, char *ptr, DVec2<T> *first_vec,
-                     size_t first_size) {
-    first_vec->ExternalAllocate(
-        device_idx, static_cast<void *>(ptr),
-        static_cast<void *>(ptr + AlignRoundUp(first_size * sizeof(T))),
-        first_size);
+  void AllocateSpan(int device_idx, char *ptr, DoubleBuffer<T> *first_vec,
+                    size_t first_size) {
+    auto ptr1 = reinterpret_cast<T *>(ptr);
+    auto ptr2 = ptr1 + first_size;
+    first_vec->a = xgboost::common::Span<T>(ptr1, first_size);
+    first_vec->b = xgboost::common::Span<T>(ptr2, first_size);
+    first_vec->buff.d_buffers[0] = ptr1;
+    first_vec->buff.d_buffers[1] = ptr2;
+    first_vec->buff.selector = 0;
   }
 
   template <typename T, typename... Args>
-  void AllocateDVec(int device_idx, char *ptr, DVec2<T> *first_vec,
+  void AllocateSpan(int device_idx, char *ptr, DoubleBuffer<T> *first_vec,
                      size_t first_size, Args... args) {
-    AllocateDVec<T>(device_idx, ptr, first_vec, first_size);
+    AllocateSpan<T>(device_idx, ptr, first_vec, first_size);
     ptr += (AlignRoundUp(first_size * sizeof(T)) * 2);
-    AllocateDVec(device_idx, ptr, args...);
+    AllocateSpan(device_idx, ptr, args...);
   }
 
  public:
    BulkAllocator() = default;
   // prevent accidental copying, moving or assignment of this object
-  BulkAllocator(const BulkAllocator<MemoryT>&) = delete;
-  BulkAllocator(BulkAllocator<MemoryT>&&) = delete;
-  void operator=(const BulkAllocator<MemoryT>&) = delete;
-  void operator=(BulkAllocator<MemoryT>&&) = delete;
+  BulkAllocator(const BulkAllocator&) = delete;
+  BulkAllocator(BulkAllocator&&) = delete;
+  void operator=(const BulkAllocator&) = delete;
+  void operator=(BulkAllocator&&) = delete;
 
   ~BulkAllocator() {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
@@ -519,13 +429,38 @@ class BulkAllocator {
   void Allocate(int device_idx, Args... args) {
     size_t size = GetSizeBytes(args...);
 
-    char *ptr = AllocateDevice(device_idx, size, MemoryT);
+    char *ptr = AllocateDevice(device_idx, size);
 
-    AllocateDVec(device_idx, ptr, args...);
+    AllocateSpan(device_idx, ptr, args...);
 
     d_ptr_.push_back(ptr);
     size_.push_back(size);
     device_idx_.push_back(device_idx);
+  }
+};
+
+// Keep track of pinned memory allocation
+struct PinnedMemory {
+  void *temp_storage{nullptr};
+  size_t temp_storage_bytes{0};
+
+  ~PinnedMemory() { Free(); }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    size_t num_bytes = size * sizeof(T);
+    if (num_bytes > temp_storage_bytes) {
+      Free();
+      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
+      temp_storage_bytes = num_bytes;
+    }
+    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+  }
+
+  void Free() {
+    if (temp_storage != nullptr) {
+      safe_cuda(cudaFreeHost(temp_storage));
+    }
   }
 };
 
@@ -578,28 +513,6 @@ struct CubMemory {
 /*
  *  Utility functions
  */
-
-template <typename T>
-void Print(const DVec<T> &v, size_t max_items = 10) {
-  std::vector<T> h = v.as_vector();
-  for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
-    std::cout << " " << h[i];
-  }
-  std::cout << "\n";
-}
-
-/**
- * @brief Helper macro to measure timing on GPU
- * @param call the GPU call
- * @param name name used to track later
- * @param stream cuda stream where to measure time
- */
-#define TIMEIT(call, name)    \
-  do {                        \
-    dh::Timer t1234;          \
-    call;                     \
-    t1234.printElapsed(name); \
-  } while (0)
 
 // Load balancing search
 
@@ -759,18 +672,18 @@ void TransformLbs(int device_idx, dh::CubMemory *temp_memory, OffsetT count,
  * @param offsets the segments
  */
 template <typename T1, typename T2>
-void SegmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
-                   dh::DVec2<T2> *vals, int nVals, int nSegs,
-                   const dh::DVec<int> &offsets, int start = 0,
+void SegmentedSort(dh::CubMemory *tmp_mem, dh::DoubleBuffer<T1> *keys,
+                   dh::DoubleBuffer<T2> *vals, int nVals, int nSegs,
+                   xgboost::common::Span<int> offsets, int start = 0,
                    int end = sizeof(T1) * 8) {
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      NULL, tmpSize, keys->buff(), vals->buff(), nVals, nSegs, offsets.Data(),
-      offsets.Data() + 1, start, end));
+      NULL, tmpSize, keys->CubBuffer(), vals->CubBuffer(), nVals, nSegs,
+      offsets.data(), offsets.data() + 1, start, end));
   tmp_mem->LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals,
-      nSegs, offsets.Data(), offsets.Data() + 1, start, end));
+      tmp_mem->d_temp_storage, tmpSize, keys->CubBuffer(), vals->CubBuffer(),
+      nVals, nSegs, offsets.data(), offsets.data() + 1, start, end));
 }
 
 /**
@@ -781,14 +694,14 @@ void SegmentedSort(dh::CubMemory *tmp_mem, dh::DVec2<T1> *keys,
  * @param nVals number of elements in the input array
  */
 template <typename T>
-void SumReduction(dh::CubMemory &tmp_mem, dh::DVec<T> &in, dh::DVec<T> &out,
+void SumReduction(dh::CubMemory &tmp_mem, xgboost::common::Span<T> in, xgboost::common::Span<T> out,
                   int nVals) {
   size_t tmpSize;
   dh::safe_cuda(
-      cub::DeviceReduce::Sum(NULL, tmpSize, in.Data(), out.Data(), nVals));
+      cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(), nVals));
   tmp_mem.LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceReduce::Sum(tmp_mem.d_temp_storage, tmpSize,
-                                       in.Data(), out.Data(), nVals));
+                                       in.data(), out.data(), nVals));
 }
 
 /**
@@ -923,14 +836,14 @@ class AllReducer {
     int nccl_nranks = std::accumulate(device_counts.begin(),
                         device_counts.end(), 0);
     nccl_rank += nccl_rank_offset;
-    
+
     GroupStart();
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       int dev = device_ordinals.at(i);
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &comms.at(i),
-        nccl_nranks, id, 
+        nccl_nranks, id,
         nccl_rank));
 
       nccl_rank++;

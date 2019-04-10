@@ -1,12 +1,13 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
+#include <gtest/gtest.h>
 #include <xgboost/objective.h>
 
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:linear");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:squarederror");
   std::vector<std::pair<std::string, std::string> > args;
   obj->Configure(args);
   CheckObjFunction(obj,

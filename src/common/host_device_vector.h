@@ -92,7 +92,7 @@ class GPUDistribution {
 
  private:
   GPUDistribution(GPUSet devices, int granularity, int overlap,
-                  std::vector<size_t> offsets)
+                  std::vector<size_t> &&offsets)
     : devices_(devices), granularity_(granularity), overlap_(overlap),
     offsets_(std::move(offsets)) {}
 
@@ -108,7 +108,7 @@ class GPUDistribution {
   }
 
   static GPUDistribution Explicit(GPUSet devices, std::vector<size_t> offsets) {
-    return GPUDistribution(devices, 1, 0, offsets);
+    return GPUDistribution(devices, 1, 0, std::move(offsets));
   }
 
   friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
@@ -194,11 +194,11 @@ template <typename T>
 class HostDeviceVector {
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(),
-                            GPUDistribution distribution = GPUDistribution());
+                            const GPUDistribution &distribution = GPUDistribution());
   HostDeviceVector(std::initializer_list<T> init,
-                   GPUDistribution distribution = GPUDistribution());
+                   const GPUDistribution &distribution = GPUDistribution());
   explicit HostDeviceVector(const std::vector<T>& init,
-                            GPUDistribution distribution = GPUDistribution());
+                            const GPUDistribution &distribution = GPUDistribution());
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&);
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);

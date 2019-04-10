@@ -96,7 +96,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val testDM = new DMatrix(Regression.test.iterator)
 
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear", "num_round" -> "10", "num_workers" -> numWorkers)
+      "objective" -> "reg:squarederror", "num_round" -> "10", "num_workers" -> numWorkers)
     val xgbr = new XGBoostRegressor(paramMap)
     val xgbrPath = new File(tempDir, "xgbr").getPath
     xgbr.write.overwrite().save(xgbrPath)

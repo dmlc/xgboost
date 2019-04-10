@@ -26,7 +26,7 @@
 
 bool FileExists(const std::string& filename);
 
-long GetFileSize(const std::string& filename);
+int64_t GetFileSize(const std::string& filename);
 
 void CreateSimpleTestData(const std::string& filename);
 

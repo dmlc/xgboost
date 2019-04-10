@@ -96,7 +96,7 @@ Parameters for Tree Booster
     subsampled from the set of columns chosen for the current level.
   - ``colsample_by*`` parameters work cumulatively. For instance,
     the combination ``{'colsample_bytree':0.5, 'colsample_bylevel':0.5,
-    'colsample_bynode':0.5}`` with 64 features will leave 4 features to choose from at
+    'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
@@ -293,9 +293,9 @@ Learning Task Parameters
 ************************
 Specify the learning task and the corresponding learning objective. The objective options are below:
 
-* ``objective`` [default=reg:linear]
+* ``objective`` [default=reg:squarederror]
 
-  - ``reg:linear``: linear regression
+  - ``reg:squarederror``: regression with squared loss
   - ``reg:logistic``: logistic regression
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation

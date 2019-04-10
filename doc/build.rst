@@ -28,7 +28,7 @@ This page gives instructions on how to build and install XGBoost from scratch on
 .. note:: Use of Git submodules
 
   XGBoost uses Git submodules to manage dependencies. So when you clone the repo, remember to specify ``--recursive`` option:
-  
+
   .. code-block:: bash
 
     git clone --recursive https://github.com/dmlc/xgboost
@@ -185,7 +185,9 @@ Building with GPU support
 =========================
 XGBoost can be built with GPU support for both Linux and Windows using CMake. GPU support works with the Python package as well as the CLI version. See `Installing R package with GPU support`_ for special instructions for R.
 
-An up-to-date version of the CUDA toolkit is required.
+An up-to-date version of the CUDA toolkit is required.  Please note that we
+skipped the support for compiling XGBoost with NVCC 10.1 due a small bug in its
+spliter, see `#4264 <https://github.com/dmlc/xgboost/issues/4264>`_.
 
 From the command line on Linux starting from the XGBoost directory:
 
@@ -448,4 +450,3 @@ Trouble Shooting
    .. code-block:: bash
 
      git clone https://github.com/dmlc/xgboost --recursive
-
