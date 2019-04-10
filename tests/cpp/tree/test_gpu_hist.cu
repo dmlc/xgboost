@@ -20,6 +20,42 @@
 namespace xgboost {
 namespace tree {
 
+TEST(GpuHist, DeviceHistogram) {
+  // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
+  dh::SaveCudaContext{
+    [&]() {
+      dh::safe_cuda(cudaSetDevice(0));
+      constexpr size_t kNBins = 128;
+      constexpr size_t kNNodes = 4;
+      constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
+      DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
+      histogram.Init(0, kNBins);
+      for (size_t i = 0; i < kNNodes; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      histogram.Reset();
+      ASSERT_EQ(histogram.Data().size(), kStopGrowing);
+
+      // Use allocated memory but do not erase nidx_map.
+      for (size_t i = 0; i < kNNodes; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      for (size_t i = 0; i < kNNodes; ++i) {
+        ASSERT_TRUE(histogram.HistogramExists(i));
+      }
+
+      // Erase existing nidx_map.
+      for (size_t i = kNNodes; i < kNNodes * 2; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      for (size_t i = 0; i < kNNodes; ++i) {
+        ASSERT_FALSE(histogram.HistogramExists(i));
+      }
+    }
+  };
+
+}
+
 template <typename GradientSumT>
 void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
