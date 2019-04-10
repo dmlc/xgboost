@@ -365,18 +365,24 @@ __global__ void EvaluateSplitKernel(
  *
  * \summary Data storage for node histograms on device. Automatically expands.
  *
+ * \tparam GradientSumT      histogram entry type.
+ * \tparam kStopGrowingSize  Do not grow beyond this size
+ *
  * \author  Rory
  * \date    28/07/2018
  */
-template <typename GradientSumT>
+template <typename GradientSumT, size_t kStopGrowingSize = 1 << 26>
 class DeviceHistogram {
  private:
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
   thrust::device_vector<typename GradientSumT::ValueT> data_;
-  static constexpr size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
   int n_bins_;
   int device_id_;
+  static constexpr size_t kNumItemsInGradientSum =
+      sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
+  static_assert(kNumItemsInGradientSum == 2,
+                "Number of items in gradient type should be 2.");
 
  public:
   void Init(int device_id, int n_bins) {
@@ -390,34 +396,44 @@ class DeviceHistogram {
         data_.size() * sizeof(typename decltype(data_)::value_type)));
     nidx_map_.clear();
   }
-  bool HistogramExists(int nidx) {
-    return nidx_map_.find(nidx) != nidx_map_.end();
+  bool HistogramExists(int nidx) const {
+    return nidx_map_.find(nidx) != nidx_map_.cend();
+  }
+  size_t HistogramSize() const {
+    return n_bins_ * kNumItemsInGradientSum;
   }
 
-  thrust::device_vector<typename GradientSumT::ValueT> &Data() {
+  thrust::device_vector<typename GradientSumT::ValueT>& Data() {
     return data_;
   }
 
   void AllocateHistogram(int nidx) {
     if (HistogramExists(nidx)) return;
-    size_t current_size = nidx_map_.size() * n_bins_ *
-                          2;  // Number of items currently used in data
+    // Number of items currently used in data
+    const size_t used_size = nidx_map_.size() * HistogramSize();
+    const size_t new_used_size = used_size + HistogramSize();
     dh::safe_cuda(cudaSetDevice(device_id_));
     if (data_.size() >= kStopGrowingSize) {
       // Recycle histogram memory
-      std::pair<int, size_t> old_entry = *nidx_map_.begin();
-      nidx_map_.erase(old_entry.first);
-      dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
-                                    n_bins_ * sizeof(GradientSumT)));
-      nidx_map_[nidx] = old_entry.second;
+      if (new_used_size <= data_.size()) {
+        // no need to remove old node, just insert the new one.
+        nidx_map_[nidx] = used_size;
+        // memset histogram size in bytes
+        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + used_size, 0,
+                                      n_bins_ * sizeof(GradientSumT)));
+      } else {
+        std::pair<int, size_t> old_entry = *nidx_map_.begin();
+        nidx_map_.erase(old_entry.first);
+        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
+                                      n_bins_ * sizeof(GradientSumT)));
+        nidx_map_[nidx] = old_entry.second;
+      }
     } else {
       // Append new node histogram
-      nidx_map_[nidx] = current_size;
-      if (data_.size() < current_size + n_bins_ * 2) {
-        size_t new_size = current_size * 2;  // Double in size
-        new_size = std::max(static_cast<size_t>(n_bins_ * 2),
-                            new_size);  // Have at least one histogram
-        data_.resize(new_size);
+      nidx_map_[nidx] = used_size;
+      size_t new_required_memory = std::max(data_.size() * 2, HistogramSize());
+      if (data_.size() < new_required_memory) {
+        data_.resize(new_required_memory);
       }
     }
   }
