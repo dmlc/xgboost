@@ -545,21 +545,21 @@ class GPUMaker : public TreeUpdater {
   /** whether we have initialized memory already (so as not to repeat!) */
   bool allocated_;
   /** feature values stored in column-major compressed format */
-  dh::DVec2<float> vals_;
-  dh::DVec<float> vals_cached_;
+  dh::DoubleBuffer<float> vals_;
+  common::Span<float> vals_cached_;
   /** corresponding instance id's of these featutre values */
-  dh::DVec2<int> instIds_;
-  dh::DVec<int> inst_ids_cached_;
+  dh::DoubleBuffer<int> instIds_;
+  common::Span<int> inst_ids_cached_;
   /** column offsets for these feature values */
-  dh::DVec<int> colOffsets_;
-  dh::DVec<GradientPair> gradsInst_;
-  dh::DVec2<NodeIdT> nodeAssigns_;
-  dh::DVec2<int> nodeLocations_;
-  dh::DVec<DeviceNodeStats> nodes_;
-  dh::DVec<NodeIdT> node_assigns_per_inst_;
-  dh::DVec<GradientPair> gradsums_;
-  dh::DVec<GradientPair> gradscans_;
-  dh::DVec<ExactSplitCandidate> nodeSplits_;
+  common::Span<int> colOffsets_;
+  common::Span<GradientPair> gradsInst_;
+  dh::DoubleBuffer<NodeIdT> nodeAssigns_;
+  dh::DoubleBuffer<int> nodeLocations_;
+  common::Span<DeviceNodeStats> nodes_;
+  common::Span<NodeIdT> node_assigns_per_inst_;
+  common::Span<GradientPair> gradsums_;
+  common::Span<GradientPair> gradscans_;
+  common::Span<ExactSplitCandidate> nodeSplits_;
   int n_vals_;
   int n_rows_;
   int n_cols_;
@@ -571,10 +571,10 @@ class GPUMaker : public TreeUpdater {
   GPUSet devices_;
 
   dh::CubMemory tmp_mem_;
-  dh::DVec<GradientPair> tmpScanGradBuff_;
-  dh::DVec<int> tmp_scan_key_buff_;
-  dh::DVec<int> colIds_;
-  dh::BulkAllocator<dh::MemoryType::kDevice> ba_;
+  common::Span<GradientPair> tmpScanGradBuff_;
+  common::Span<int> tmp_scan_key_buff_;
+  common::Span<int> colIds_;
+  dh::BulkAllocator ba_;
 
  public:
   GPUMaker() : allocated_{false} {}
@@ -615,8 +615,8 @@ class GPUMaker : public TreeUpdater {
     for (int i = 0; i < param_.max_depth; ++i) {
       if (i == 0) {
         // make sure to start on a fresh tree with sorted values!
-        vals_.CurrentDVec() = vals_cached_;
-        instIds_.CurrentDVec() = inst_ids_cached_;
+        dh::CopyDeviceSpan(vals_.CurrentSpan(), vals_cached_);
+        dh::CopyDeviceSpan(instIds_.CurrentSpan(), inst_ids_cached_);
         TransferGrads(gpair);
       }
       int nNodes = 1 << i;
@@ -630,13 +630,13 @@ class GPUMaker : public TreeUpdater {
   }
 
   void Split2Node(int nNodes, NodeIdT nodeStart) {
-    auto d_nodes = nodes_.GetSpan();
-    auto d_gradScans = gradscans_.GetSpan();
-    auto d_gradsums = gradsums_.GetSpan();
+    auto d_nodes = nodes_;
+    auto d_gradScans = gradscans_;
+    auto d_gradsums = gradsums_;
     auto d_nodeAssigns = nodeAssigns_.CurrentSpan();
-    auto d_colIds = colIds_.GetSpan();
+    auto d_colIds = colIds_;
     auto d_vals = vals_.Current();
-    auto d_nodeSplits = nodeSplits_.Data();
+    auto d_nodeSplits = nodeSplits_.data();
     int nUniqKeys = nNodes;
     float min_split_loss = param_.min_split_loss;
     auto gpu_param = GPUTrainingParam(param_);
@@ -679,13 +679,13 @@ class GPUMaker : public TreeUpdater {
   }
 
   void FindSplit(int level, NodeIdT nodeStart, int nNodes) {
-    ReduceScanByKey(gradsums_.GetSpan(), gradscans_.GetSpan(), gradsInst_.GetSpan(),
+    ReduceScanByKey(gradsums_, gradscans_, gradsInst_,
                     instIds_.CurrentSpan(), nodeAssigns_.CurrentSpan(), n_vals_, nNodes,
-                    n_cols_, tmpScanGradBuff_.GetSpan(), tmp_scan_key_buff_.GetSpan(),
-                    colIds_.GetSpan(), nodeStart);
-    ArgMaxByKey(nodeSplits_.GetSpan(), gradscans_.GetSpan(), gradsums_.GetSpan(),
-                vals_.CurrentSpan(), colIds_.GetSpan(), nodeAssigns_.CurrentSpan(),
-                nodes_.GetSpan(), nNodes, nodeStart, n_vals_, param_,
+                    n_cols_, tmpScanGradBuff_, tmp_scan_key_buff_,
+                    colIds_, nodeStart);
+    ArgMaxByKey(nodeSplits_, gradscans_, gradsums_,
+                vals_.CurrentSpan(), colIds_, nodeAssigns_.CurrentSpan(),
+                nodes_, nNodes, nodeStart, n_vals_, param_,
                 level <= kMaxAbkLevels ? kAbkSmem : kAbkGmem);
     Split2Node(nNodes, nodeStart);
   }
@@ -707,7 +707,7 @@ class GPUMaker : public TreeUpdater {
     }
     std::vector<float> fval;
     std::vector<int> fId;
-    std::vector<size_t> offset;
+    std::vector<int> offset;
     ConvertToCsc(dmat, &fval, &fId, &offset);
     AllocateAllData(static_cast<int>(offset.size()));
     TransferAndSortData(fval, fId, offset);
@@ -715,7 +715,7 @@ class GPUMaker : public TreeUpdater {
   }
 
   void ConvertToCsc(DMatrix* dmat, std::vector<float>* fval,
-                    std::vector<int>* fId, std::vector<size_t>* offset) {
+                    std::vector<int>* fId, std::vector<int>* offset) {
     const MetaInfo& info = dmat->Info();
     CHECK(info.num_col_ < std::numeric_limits<int>::max());
     CHECK(info.num_row_ < std::numeric_limits<int>::max());
@@ -735,7 +735,7 @@ class GPUMaker : public TreeUpdater {
           fval->push_back(e.fvalue);
           fId->push_back(inst_id);
         }
-        offset->push_back(fval->size());
+        offset->push_back(static_cast<int>(fval->size()));
       }
     }
     CHECK(fval->size() < std::numeric_limits<int>::max());
@@ -744,19 +744,21 @@ class GPUMaker : public TreeUpdater {
 
   void TransferAndSortData(const std::vector<float>& fval,
                            const std::vector<int>& fId,
-                           const std::vector<size_t>& offset) {
-    vals_.CurrentDVec() = fval;
-    instIds_.CurrentDVec() = fId;
-    colOffsets_ = offset;
+                           const std::vector<int>& offset) {
+    dh::CopyVectorToDeviceSpan(vals_.CurrentSpan(), fval);
+    dh::CopyVectorToDeviceSpan(instIds_.CurrentSpan(), fId);
+    dh::CopyVectorToDeviceSpan(colOffsets_, offset);
     dh::SegmentedSort<float, int>(&tmp_mem_, &vals_, &instIds_, n_vals_, n_cols_,
                                   colOffsets_);
-    vals_cached_ = vals_.CurrentDVec();
-    inst_ids_cached_ = instIds_.CurrentDVec();
-    AssignColIds<<<n_cols_, 512>>>(colIds_.Data(), colOffsets_.Data());
+    dh::CopyDeviceSpan(vals_cached_, vals_.CurrentSpan());
+    dh::CopyDeviceSpan(inst_ids_cached_, instIds_.CurrentSpan());
+    AssignColIds<<<n_cols_, 512>>>(colIds_.data(), colOffsets_.data());
   }
 
   void TransferGrads(HostDeviceVector<GradientPair>* gpair) {
-    gpair->GatherTo(gradsInst_.tbegin(), gradsInst_.tend());
+    gpair->GatherTo(
+        thrust::device_pointer_cast(gradsInst_.data()),
+        thrust::device_pointer_cast(gradsInst_.data() + gradsInst_.size()));
     // evaluate the full-grad reduction for the root node
     dh::SumReduction<GradientPair>(tmp_mem_, gradsInst_, gradsums_, n_rows_);
   }
@@ -764,14 +766,22 @@ class GPUMaker : public TreeUpdater {
   void InitNodeData(int level, NodeIdT nodeStart, int nNodes) {
     // all instances belong to root node at the beginning!
     if (level == 0) {
-      nodes_.Fill(DeviceNodeStats());
-      nodeAssigns_.CurrentDVec().Fill(0);
-      node_assigns_per_inst_.Fill(0);
+      thrust::fill(thrust::device_pointer_cast(nodes_.data()),
+                   thrust::device_pointer_cast(nodes_.data() + nodes_.size()),
+                   DeviceNodeStats());
+      thrust::fill(thrust::device_pointer_cast(nodeAssigns_.Current()),
+                   thrust::device_pointer_cast(nodeAssigns_.Current() +
+                                               nodeAssigns_.Size()),
+                   0);
+      thrust::fill(thrust::device_pointer_cast(node_assigns_per_inst_.data()),
+                   thrust::device_pointer_cast(node_assigns_per_inst_.data() +
+                                               node_assigns_per_inst_.size()),
+                   0);
       // for root node, just update the gradient/score/weight/id info
       // before splitting it! Currently all data is on GPU, hence this
       // stupid little kernel
-      auto d_nodes = nodes_.Data();
-      auto d_sums = gradsums_.Data();
+      auto d_nodes = nodes_;
+      auto d_sums = gradsums_;
       auto gpu_params = GPUTrainingParam(param_);
       dh::LaunchN(param_.gpu_id, 1, [=] __device__(int idx) {
         d_nodes[0] = DeviceNodeStats(d_sums[0], 0, gpu_params);
@@ -781,17 +791,17 @@ class GPUMaker : public TreeUpdater {
       const int ItemsPerThread = 4;
       // assign default node ids first
       int nBlks = dh::DivRoundUp(n_rows_, BlkDim);
-      FillDefaultNodeIds<<<nBlks, BlkDim>>>(node_assigns_per_inst_.Data(),
-                                            nodes_.Data(), n_rows_);
+      FillDefaultNodeIds<<<nBlks, BlkDim>>>(node_assigns_per_inst_.data(),
+                                            nodes_.data(), n_rows_);
       // evaluate the correct child indices of non-missing values next
       nBlks = dh::DivRoundUp(n_vals_, BlkDim * ItemsPerThread);
       AssignNodeIds<<<nBlks, BlkDim>>>(
-          node_assigns_per_inst_.Data(), nodeLocations_.Current(),
-          nodeAssigns_.Current(), instIds_.Current(), nodes_.Data(),
-          colOffsets_.Data(), vals_.Current(), n_vals_, n_cols_);
+          node_assigns_per_inst_.data(), nodeLocations_.Current(),
+          nodeAssigns_.Current(), instIds_.Current(), nodes_.data(),
+          colOffsets_.data(), vals_.Current(), n_vals_, n_cols_);
       // gather the node assignments across all other columns too
       dh::Gather(param_.gpu_id, nodeAssigns_.Current(),
-                 node_assigns_per_inst_.Data(), instIds_.Current(), n_vals_);
+                 node_assigns_per_inst_.data(), instIds_.Current(), n_vals_);
       SortKeys(level);
     }
   }
@@ -804,14 +814,14 @@ class GPUMaker : public TreeUpdater {
     dh::Gather<float, int>(param_.gpu_id, vals_.other(),
                            vals_.Current(), instIds_.other(), instIds_.Current(),
                            nodeLocations_.Current(), n_vals_);
-    vals_.buff().selector ^= 1;
-    instIds_.buff().selector ^= 1;
+    vals_.buff.selector ^= 1;
+    instIds_.buff.selector ^= 1;
   }
 
   void MarkLeaves() {
     const int BlkDim = 128;
     int nBlks = dh::DivRoundUp(maxNodes_, BlkDim);
-    MarkLeavesKernel<<<nBlks, BlkDim>>>(nodes_.Data(), maxNodes_);
+    MarkLeavesKernel<<<nBlks, BlkDim>>>(nodes_.data(), maxNodes_);
   }
 };
 

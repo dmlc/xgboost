@@ -14,7 +14,7 @@ def dockerRun = 'tests/ci_build/ci_build.sh'
 def utils
 
 def buildMatrix = [
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2", "multiGpu": true],
+    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "10.0", "multiGpu": true],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
     [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
@@ -23,6 +23,10 @@ def buildMatrix = [
 pipeline {
     // Each stage specify its own agent
     agent none
+
+    environment {
+        DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
+    }
 
     // Setup common job properties
     options {

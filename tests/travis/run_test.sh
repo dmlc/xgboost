@@ -11,11 +11,6 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
-    if grep -R '<regex>' src include tests/cpp plugin jvm-packages amalgamation; then
-        echo 'Do not use std::regex, since it is not supported by GCC 4.8.x'
-        exit -1
-    fi
-
     exit 0
 fi
 
@@ -128,8 +123,8 @@ if [ ${TASK} == "cmake_test" ]; then
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
     cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
     make
-    cd ..
     ./testxgboost
+    cd ..
     rm -rf build
 fi
 
@@ -175,10 +170,10 @@ if [ ${TASK} == "sanitizer_test" ]; then
       -DCMAKE_CXX_FLAGS="-fuse-ld=gold" \
       -DCMAKE_C_FLAGS="-fuse-ld=gold"
     make
-    cd ..
 
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     ASAN_OPTIONS=symbolize=1 ./testxgboost
+    cd ..
     rm -rf build
     exit 0
 fi

@@ -617,4 +617,34 @@ public class BoosterImplTest {
     TestCase.assertTrue(booster1error == booster2error);
     TestCase.assertTrue(tempBoosterError > booster2error);
   }
+
+  /**
+   * test set/get attributes to/from a booster
+   *
+   * @throws XGBoostError
+   */
+  @Test
+  public void testSetAndGetAttrs() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    booster.setAttr("testKey1", "testValue1");
+    TestCase.assertEquals(booster.getAttr("testKey1"), "testValue1");
+    booster.setAttr("testKey1", "testValue2");
+    TestCase.assertEquals(booster.getAttr("testKey1"), "testValue2");
+
+    booster.setAttrs(new HashMap<String, String>(){{
+      put("aa", "AA");
+      put("bb", "BB");
+      put("cc", "CC");
+    }});
+
+    Map<String, String> attr = booster.getAttrs();
+    TestCase.assertEquals(attr.size(), 4);
+    TestCase.assertEquals(attr.get("testKey1"), "testValue2");
+    TestCase.assertEquals(attr.get("aa"), "AA");
+    TestCase.assertEquals(attr.get("bb"), "BB");
+    TestCase.assertEquals(attr.get("cc"), "CC");
+  }
 }
