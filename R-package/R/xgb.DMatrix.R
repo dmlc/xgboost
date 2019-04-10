@@ -301,12 +301,17 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 
   attr_list <- attributes(object)
   nr <- nrow(object)
-  len <- sapply(attr_list, length)
+  len <- sapply(attr_list, NROW)
   ind <- which(len == nr)
   if (length(ind) > 0) {
     nms <- names(attr_list)[ind]
     for (i in seq_along(ind)) {
-      attr(ret, nms[i]) <- attr(object, nms[i])[idxset]
+      obj_attr <- attr(object, nms[i])
+      if (NCOL(obj_attr) > 1) {
+        attr(ret, nms[i]) <- obj_attr[idxset,]
+      } else {
+        attr(ret, nms[i]) <- obj_attr[idxset]
+      }
     }
   }
   return(structure(ret, class = "xgb.DMatrix"))
