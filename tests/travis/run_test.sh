@@ -84,16 +84,16 @@ if [ ${TASK} == "r_test" ]; then
     cd ./xgboost
 
     # Install package deps
-    Rscript -e "install.packages('devtools', repos = 'http://cran.rstudio.com')"
+    Rscript -e "install.packages('devtools', repos = 'http://cloud.r-project.org')"
     Rscript -e \
         "devtools::install_deps( \
-            repos = 'http://cran.rstudio.com',\
+            repos = 'http://cloud.r-project.org',\
             upgrade = 'never', \
             dependencies = c('Depends', 'Imports') \
         )"
 
     # install suggested packages separately to avoid huge build times
-    Rscript -e "install.packages(c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd'))"
+    Rscript -e "install.packages(c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd'), repos = 'https://cloud.r-project.org')"
 
     # Run tests
     echo "Building with R CMD build"
