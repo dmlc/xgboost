@@ -19,6 +19,10 @@
 namespace xgboost {
 namespace common {
 
+/*
+ * \brief A thin wrapper around dynamically allocated C-style array.
+ * Make sure to call resize() before use.
+ */
 template<typename T>
 struct SimpleArray {
   ~SimpleArray() {

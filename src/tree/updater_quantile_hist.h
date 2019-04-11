@@ -29,6 +29,9 @@
 
 namespace xgboost {
 
+/*!
+ * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
+ */
 template<typename T, size_t MaxStackSize>
 class MemStackAllocator {
  public:
