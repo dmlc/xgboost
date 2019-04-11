@@ -74,6 +74,7 @@ addons:
       - graphviz
       - openssl
       - libgit2
+      - r
     update: true
 
 before_install:
