@@ -148,8 +148,8 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix() {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
   CreateBigTestData(tmp_file, 12);
-  DMatrix * dmat = DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 64UL);
+  std::unique_ptr<DMatrix> dmat = std::unique_ptr<DMatrix>(DMatrix::Load(
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 64UL));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
@@ -162,7 +162,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix() {
   EXPECT_EQ(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
-  return std::unique_ptr<DMatrix>(dmat);
+  return dmat;
 }
 
 gbm::GBTreeModel CreateTestModel() {
