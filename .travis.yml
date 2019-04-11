@@ -66,6 +66,8 @@ addons:
       - g++-4.8
       - gcc-7
       - g++-7
+      - r-base-dev
+      - r-recommended
   homebrew:
     packages:
       - gcc@7
