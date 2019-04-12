@@ -20,6 +20,42 @@
 namespace xgboost {
 namespace tree {
 
+TEST(GpuHist, DeviceHistogram) {
+  // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
+  dh::SaveCudaContext{
+    [&]() {
+      dh::safe_cuda(cudaSetDevice(0));
+      constexpr size_t kNBins = 128;
+      constexpr size_t kNNodes = 4;
+      constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
+      DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
+      histogram.Init(0, kNBins);
+      for (size_t i = 0; i < kNNodes; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      histogram.Reset();
+      ASSERT_EQ(histogram.Data().size(), kStopGrowing);
+
+      // Use allocated memory but do not erase nidx_map.
+      for (size_t i = 0; i < kNNodes; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      for (size_t i = 0; i < kNNodes; ++i) {
+        ASSERT_TRUE(histogram.HistogramExists(i));
+      }
+
+      // Erase existing nidx_map.
+      for (size_t i = kNNodes; i < kNNodes * 2; ++i) {
+        histogram.AllocateHistogram(i);
+      }
+      for (size_t i = 0; i < kNNodes; ++i) {
+        ASSERT_FALSE(histogram.HistogramExists(i));
+      }
+    }
+  };
+
+}
+
 template <typename GradientSumT>
 void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
@@ -56,8 +92,8 @@ TEST(GpuHist, BuildGidxDense) {
   DeviceShard<GradientPairPrecise> shard(0, 0, kNRows, param);
   BuildGidx(&shard, kNRows, kNCols);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer;
-  h_gidx_buffer = shard.gidx_buffer.AsVector();
+  std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&h_gidx_buffer, shard.gidx_buffer);
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
   ASSERT_EQ(shard.ellpack_matrix.row_stride, kNCols);
@@ -95,8 +131,8 @@ TEST(GpuHist, BuildGidxSparse) {
   DeviceShard<GradientPairPrecise> shard(0, 0, kNRows, param);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer;
-  h_gidx_buffer = shard.gidx_buffer.AsVector();
+  std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&h_gidx_buffer, shard.gidx_buffer);
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
   ASSERT_LE(shard.ellpack_matrix.row_stride, 3);
@@ -149,17 +185,14 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
     gpair = GradientPair(grad, hess);
   }
 
-  thrust::device_vector<GradientPair> gpair (kNRows);
-  gpair = h_gpair;
-
   int num_symbols = shard.n_bins + 1;
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (
-      shard.gidx_buffer.Size());
+      shard.gidx_buffer.size());
 
-  common::CompressedByteT* d_gidx_buffer_ptr = shard.gidx_buffer.Data();
+  common::CompressedByteT* d_gidx_buffer_ptr = shard.gidx_buffer.data();
   dh::safe_cuda(cudaMemcpy(h_gidx_buffer.data(), d_gidx_buffer_ptr,
-                           sizeof(common::CompressedByteT) * shard.gidx_buffer.Size(),
+                           sizeof(common::CompressedByteT) * shard.gidx_buffer.size(),
                            cudaMemcpyDeviceToHost));
   auto gidx = common::CompressedIterator<uint32_t>(h_gidx_buffer.data(),
                                                    num_symbols);
@@ -167,9 +200,10 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   shard.ridx_segments.resize(1);
   shard.ridx_segments[0] = Segment(0, kNRows);
   shard.hist.AllocateHistogram(0);
-  shard.gpair.copy(gpair.begin(), gpair.end());
-  thrust::sequence(shard.ridx.CurrentDVec().tbegin(),
-                   shard.ridx.CurrentDVec().tend());
+  dh::CopyVectorToDeviceSpan(shard.gpair, h_gpair);
+  thrust::sequence(
+      thrust::device_pointer_cast(shard.ridx.Current()),
+      thrust::device_pointer_cast(shard.ridx.Current() + shard.ridx.Size()));
 
   builder.Build(&shard, 0);
   DeviceHistogram<GradientSumT> d_hist = shard.hist;
@@ -262,14 +296,14 @@ TEST(GpuHist, EvaluateSplits) {
                      &(shard->min_fvalue), cmat.min_val.size(),
                      &(shard->gidx_fvalue_map), 24,
                      &(shard->monotone_constraints), kNCols);
-  shard->feature_segments.copy(cmat.row_ptr.begin(), cmat.row_ptr.end());
-  shard->gidx_fvalue_map.copy(cmat.cut.begin(), cmat.cut.end());
-  shard->monotone_constraints.copy(param.monotone_constraints.begin(),
-                                   param.monotone_constraints.end());
-  shard->ellpack_matrix.feature_segments = shard->feature_segments.GetSpan();
-  shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map.GetSpan();
-  shard->min_fvalue.copy(cmat.min_val.begin(), cmat.min_val.end());
-  shard->ellpack_matrix.min_fvalue = shard->min_fvalue.GetSpan();
+  dh::CopyVectorToDeviceSpan(shard->feature_segments, cmat.row_ptr);
+  dh::CopyVectorToDeviceSpan(shard->gidx_fvalue_map, cmat.cut);
+  dh::CopyVectorToDeviceSpan(shard->monotone_constraints,
+                             param.monotone_constraints);
+  shard->ellpack_matrix.feature_segments = shard->feature_segments;
+  shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map;
+  dh::CopyVectorToDeviceSpan(shard->min_fvalue, cmat.min_val);
+  shard->ellpack_matrix.min_fvalue = shard->min_fvalue;
 
   // Initialize DeviceShard::hist
   shard->hist.Init(0, (max_bins - 1) * kNCols);
@@ -344,8 +378,9 @@ TEST(GpuHist, ApplySplit) {
   shard->ba.Allocate(0, &(shard->ridx), kNRows,
                      &(shard->position), kNRows);
   shard->ellpack_matrix.row_stride = kNCols;
-  thrust::sequence(shard->ridx.CurrentDVec().tbegin(),
-                   shard->ridx.CurrentDVec().tend());
+  thrust::sequence(
+      thrust::device_pointer_cast(shard->ridx.Current()),
+      thrust::device_pointer_cast(shard->ridx.Current() + shard->ridx.Size()));
   // Initialize GPUHistMaker
   hist_maker.param_ = param;
   RegTree tree;
@@ -378,12 +413,12 @@ TEST(GpuHist, ApplySplit) {
                      &(shard->feature_segments), cmat.row_ptr.size(),
                      &(shard->min_fvalue), cmat.min_val.size(),
                      &(shard->gidx_fvalue_map), 24);
-  shard->feature_segments.copy(cmat.row_ptr.begin(), cmat.row_ptr.end());
-  shard->gidx_fvalue_map.copy(cmat.cut.begin(), cmat.cut.end());
-  shard->ellpack_matrix.feature_segments = shard->feature_segments.GetSpan();
-  shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map.GetSpan();
-  shard->min_fvalue.copy(cmat.min_val.begin(), cmat.min_val.end());
-  shard->ellpack_matrix.min_fvalue = shard->min_fvalue.GetSpan();
+  dh::CopyVectorToDeviceSpan(shard->feature_segments, cmat.row_ptr);
+  dh::CopyVectorToDeviceSpan(shard->gidx_fvalue_map, cmat.cut);
+  shard->ellpack_matrix.feature_segments = shard->feature_segments;
+  shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map;
+  dh::CopyVectorToDeviceSpan(shard->min_fvalue, cmat.min_val);
+  shard->ellpack_matrix.min_fvalue = shard->min_fvalue;
   shard->ellpack_matrix.is_dense = true;
 
   common::CompressedBufferWriter wr(num_symbols);
@@ -394,10 +429,10 @@ TEST(GpuHist, ApplySplit) {
   std::vector<common::CompressedByteT> h_gidx_compressed (compressed_size_bytes);
 
   wr.Write(h_gidx_compressed.data(), h_gidx.begin(), h_gidx.end());
-  shard->gidx_buffer.copy(h_gidx_compressed.begin(), h_gidx_compressed.end());
+  dh::CopyVectorToDeviceSpan(shard->gidx_buffer, h_gidx_compressed);
 
   shard->ellpack_matrix.gidx_iter = common::CompressedIterator<uint32_t>(
-      shard->gidx_buffer.Data(), num_symbols);
+      shard->gidx_buffer.data(), num_symbols);
 
   hist_maker.info_ = &info;
   hist_maker.ApplySplit(candidate_entry, &tree);

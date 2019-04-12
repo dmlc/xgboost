@@ -38,6 +38,7 @@ create.new.tree.features <- function(model, original.features){
 # Convert previous features to one hot encoding
 new.features.train <- create.new.tree.features(bst, agaricus.train$data)
 new.features.test <- create.new.tree.features(bst, agaricus.test$data)
+colnames(new.features.test) <- colnames(new.features.train)
 
 # learning with new features
 new.dtrain <- xgb.DMatrix(data = new.features.train, label = agaricus.train$label)
