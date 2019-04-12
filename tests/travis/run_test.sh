@@ -84,7 +84,10 @@ if [ ${TASK} == "r_test" ]; then
     cd ./xgboost
 
     # Install package deps
-    Rscript -e "install.packages('devtools', repos = 'http://cloud.r-project.org')"
+    Rscript -e "install.packages( \
+        c('devtools', 'knitr', 'rmarkdown', 'testthat', 'lintr') \
+        , repos = 'http://cloud.r-project.org' \
+    )"
     Rscript -e \
         "devtools::install_deps( \
             repos = 'http://cloud.r-project.org',\
