@@ -87,17 +87,24 @@ if [ ${TASK} == "r_test" ]; then
     Rscript -e "install.packages( \
         c('devtools', 'testthat', 'lintr') \
         , repos = 'http://cloud.r-project.org' \
-        ,  dependencies = c('Depends', 'Imports', 'LinkingTo') \
+        , dependencies = c('Depends', 'Imports', 'LinkingTo') \
+        , type = 'both' \
     )"
+
     Rscript -e \
         "devtools::install_deps( \
-            repos = 'http://cloud.r-project.org',\
-            upgrade = 'never', \
-            dependencies = c('Depends', 'Imports', 'LinkingTo') \
+            repos = 'http://cloud.r-project.org' \
+            , upgrade = 'never' \
+            , dependencies = c('Depends', 'Imports', 'LinkingTo') \
         )"
 
     # install suggested packages separately to avoid huge build times
-    Rscript -e "install.packages(c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd'), repos = 'https://cloud.r-project.org')"
+    Rscript -e "install.packages( \
+        c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd') \
+        , repos = 'https://cloud.r-project.org' \
+        , dependencies = c('Depends', 'Imports', 'LinkingTo') \
+        , type = 'both' \
+    )"
 
     # Run tests
     echo "Building with R CMD build"
@@ -110,7 +117,7 @@ if [ ${TASK} == "r_test" ]; then
     R_PACKAGE_TARBALL=$(ls -1t *.tar.gz | head -n 1)
 
     export _R_CHECK_TIMINGS_=0
-    export R_CHECK_FORCE_SUGGESTS=false
+    export _R_CHECK_FORCE_SUGGESTS_=false
     R CMD check \
         ${R_PACKAGE_TARBALL} \
         --no-vignettes \
