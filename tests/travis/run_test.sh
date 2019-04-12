@@ -88,7 +88,6 @@ if [ ${TASK} == "r_test" ]; then
         c('devtools', 'testthat', 'lintr') \
         , repos = 'http://cloud.r-project.org' \
         , dependencies = c('Depends', 'Imports', 'LinkingTo') \
-        , type = 'both' \
     )"
 
     Rscript -e \
@@ -103,7 +102,6 @@ if [ ${TASK} == "r_test" ]; then
         c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd') \
         , repos = 'https://cloud.r-project.org' \
         , dependencies = c('Depends', 'Imports', 'LinkingTo') \
-        , type = 'both' \
     )"
 
     # Run tests
