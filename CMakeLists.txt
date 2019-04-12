@@ -77,7 +77,7 @@ else ()
     rabit/src/c_api.cc)
 endif (MINGW OR R_LIB)
 add_library(rabit STATIC ${RABIT_SOURCES})
-target_include_directories(rabit PUBLIC
+target_include_directories(rabit PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include/rabit>)
 set_target_properties(rabit
@@ -100,7 +100,8 @@ set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES} ${PLUGINS_SOURCES})
 target_include_directories(xgboost
   INTERFACE
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 
 # This creates its own shared library `xgboost4j'.
@@ -166,8 +167,8 @@ install(EXPORT XGBoostTargets
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_SOURCE_DIR}/cmake/xgboost-config.cmake.in
-  ${CMAKE_BINARY_DIR}/cmake/xgboost-config.cmake
+  ${CMAKE_CURRENT_LIST_DIR}/cmake/xgboost-config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/xgboost-config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xgboost)
 write_basic_package_version_file(
   ${CMAKE_BINARY_DIR}/cmake/xgboost-config-version.cmake
