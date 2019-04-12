@@ -73,7 +73,6 @@ function(format_gencode_flags flags out)
   # Generate PTX for last architecture
   list(GET flags -1 ver)
   set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
-  # set(${out} "${${out}}--gpu-architecture=compute_${ver};--gpu-code=compute_${ver};")
 
   set(${out} "${${out}}" PARENT_SCOPE)
 endfunction(format_gencode_flags flags)

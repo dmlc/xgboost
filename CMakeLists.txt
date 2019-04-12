@@ -87,16 +87,17 @@ set_target_properties(rabit
   POSITION_INDEPENDENT_CODE ON)
 list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
 
-# Exports some R specific definitions
+# Exports some R specific definitions and objects
 if (R_LIB)
   add_subdirectory(${PROJECT_SOURCE_DIR}/R-package)
 endif (R_LIB)
 
 # core xgboost
 add_subdirectory(${PROJECT_SOURCE_DIR}/src)
+set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- Shared library
-add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${PLUGINS_SOURCES})
+add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES} ${PLUGINS_SOURCES})
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
@@ -109,7 +110,7 @@ endif (JVM_BINDINGS)
 #-- End shared library
 
 #-- CLI for xgboost
-add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc $<TARGET_OBJECTS:objxgboost>)
+add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 # For cli_main.cc only
 target_include_directories(runxgboost
   PRIVATE

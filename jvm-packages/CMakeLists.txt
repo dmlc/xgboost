@@ -2,7 +2,7 @@ find_package(JNI REQUIRED)
 
 add_library(xgboost4j SHARED
   ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j/src/native/xgboost4j.cpp
-  $<TARGET_OBJECTS:objxgboost>)
+  ${XGBOOST_OBJ_SOURCES})
 target_include_directories(xgboost4j
   PRIVATE
   ${JNI_INCLUDE_DIRS}
@@ -17,8 +17,6 @@ set_target_properties(
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON)
 target_link_libraries(xgboost4j
-  PUBLIC
-  ${LINKED_LIBRARIES_PUBLIC}
   PRIVATE
   ${LINKED_LIBRARIES_PRIVATE}
   ${JAVA_JVM_LIBRARY})

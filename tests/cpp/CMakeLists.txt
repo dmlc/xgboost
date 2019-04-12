@@ -6,7 +6,7 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
-add_executable(testxgboost ${TEST_SOURCES} $<TARGET_OBJECTS:objxgboost>)
+add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES})
 
 if (USE_CUDA)
   target_include_directories(testxgboost PRIVATE
@@ -51,5 +51,7 @@ target_link_libraries(testxgboost
   ${LINKED_LIBRARIES_PRIVATE}
   ${OpenMP_CXX_LIBRARIES})
 target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
-target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
+if (USE_OPENMP)
+  target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
+endif (USE_OPENMP)
 set_output_directory(testxgboost ${PROJECT_BINARY_DIR})

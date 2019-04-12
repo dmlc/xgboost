@@ -4,7 +4,7 @@ message(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
 file(GLOB_RECURSE R_SOURCES
   ${CMAKE_CURRENT_LIST_DIR}/src/*.cc
   ${CMAKE_CURRENT_LIST_DIR}/src/*.c)
-# Use object library to expose R symbols
+# Use object library to expose symbols
 add_library(xgboost-r OBJECT ${R_SOURCES})
 
 set(R_DEFINITIONS
@@ -16,7 +16,7 @@ set(R_DEFINITIONS
   -DRABIT_CUSTOMIZE_MSG_
   -DRABIT_STRICT_CXX98_)
 target_compile_definitions(xgboost-r
-  PUBLIC ${R_DEFINITIONS})
+  PRIVATE ${R_DEFINITIONS})
 target_include_directories(xgboost-r
   PRIVATE
   ${LIBR_INCLUDE_DIRS}
@@ -28,7 +28,7 @@ set_target_properties(
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})
 
 set(XGBOOST_DEFINITIONS ${R_DEFINITIONS} PARENT_SCOPE)
-set(LINKED_LIBRARIES_PRIVATE ${LINKED_LIBRARIES_PRIVATE} xgboost-r PARENT_SCOPE)
+set(XGBOOST_OBJ_SOURCES $<TARGET_OBJECTS:xgboost-r> PARENT_SCOPE)
+set(LINKED_LIBRARIES_PRIVATE ${LINKED_LIBRARIES_PRIVATE} ${LIBR_CORE_LIBRARY} PARENT_SCOPE)
