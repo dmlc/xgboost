@@ -85,14 +85,15 @@ if [ ${TASK} == "r_test" ]; then
 
     # Install package deps
     Rscript -e "install.packages( \
-        c('devtools', 'knitr', 'rmarkdown', 'testthat', 'lintr') \
+        c('devtools', 'testthat', 'lintr') \
         , repos = 'http://cloud.r-project.org' \
+        ,  dependencies = c('Depends', 'Imports', 'LinkingTo') \
     )"
     Rscript -e \
         "devtools::install_deps( \
             repos = 'http://cloud.r-project.org',\
             upgrade = 'never', \
-            dependencies = c('Depends', 'Imports') \
+            dependencies = c('Depends', 'Imports', 'LinkingTo') \
         )"
 
     # install suggested packages separately to avoid huge build times
@@ -109,6 +110,7 @@ if [ ${TASK} == "r_test" ]; then
     R_PACKAGE_TARBALL=$(ls -1t *.tar.gz | head -n 1)
 
     export _R_CHECK_TIMINGS_=0
+    export R_CHECK_FORCE_SUGGESTS=false
     R CMD check \
         ${R_PACKAGE_TARBALL} \
         --no-vignettes \
