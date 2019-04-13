@@ -953,6 +953,49 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   API_END();
 }
 
+XGB_DLL int XGBoosterPredictPackage(BoosterHandle handle,
+                                    DMatrixHandle dmat,
+                                    int option_mask,
+                                    unsigned ntree_limit,
+                                    bst_ulong *leaf_len,
+                                    bst_ulong *margin_len,
+                                    bst_ulong *pred_len,
+                                    const float **out_leaf_result,
+                                    const float **out_margin_result,
+                                    const float **out_result) {
+  std::vector<bst_float> &preds_buf =
+      XGBAPIThreadLocalStore::Get()->ret_vec_float;
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *bst = static_cast<Booster*>(handle);
+  bst->LazyInit();
+
+  HostDeviceVector<bst_float> tmp_leaf;
+  HostDeviceVector<bst_float> tmp_margin;
+  HostDeviceVector<bst_float> tmp;
+  bool with_leaf = (option_mask & 1) != 0;
+  bool with_margin = (option_mask & 2) != 0;
+    bst->learner()->PredictPackage(
+        static_cast<std::shared_ptr<DMatrix> *>(dmat)->get(),
+        &tmp_leaf, &tmp, &tmp_margin,
+        with_leaf, with_margin, ntree_limit);
+
+  preds_buf = tmp.HostVector();
+  *out_result = dmlc::BeginPtr(preds_buf);
+  *pred_len = static_cast<xgboost::bst_ulong>(preds_buf.size());
+  if (with_leaf) {
+    preds_buf = tmp_leaf.HostVector();
+    *out_leaf_result = dmlc::BeginPtr(preds_buf);
+    *leaf_len = static_cast<xgboost::bst_ulong>(preds_buf.size());
+  }
+  if (with_margin) {
+    preds_buf = tmp_margin.HostVector();
+    *out_margin_result = dmlc::BeginPtr(preds_buf);
+    *margin_len = static_cast<xgboost::bst_ulong>(preds_buf.size());
+  }
+  API_END();
+}
+
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
   CHECK_HANDLE();

@@ -39,6 +39,20 @@ TEST(cpu_predictor, Test) {
     ASSERT_EQ(v, 0);
   }
 
+  // Test predict leaf and value
+  std::vector<float> leaf_predictions;
+  std::vector<float> value_predictions;
+  cpu_predictor->PredictLeafAndValue((*dmat).get(),
+                                     &leaf_predictions,
+                                     &value_predictions,
+                                     model);
+  for (auto v : leaf_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+  for (auto v : value_predictions) {
+    ASSERT_EQ(v, 1.5);
+  }
+
   // Test predict contribution
   std::vector<float> out_contribution;
   cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model);
@@ -77,6 +91,19 @@ TEST(cpu_predictor, ExternalMemoryTest) {
   EXPECT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
   for (const auto& v : leaf_out_predictions) {
     ASSERT_EQ(v, 0);
+  }
+
+  // Test predict leaf and value
+  std::vector<float> leaf_predictions;
+  std::vector<float> value_predictions;
+  cpu_predictor->PredictLeafAndValue(dmat.get(), &leaf_predictions, &value_predictions, model);
+  EXPECT_EQ(leaf_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : leaf_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+  EXPECT_EQ(value_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : value_predictions) {
+    ASSERT_EQ(v, 1.5);
   }
 
   // Test predict contribution

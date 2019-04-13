@@ -433,10 +433,19 @@ class GPUPredictor : public xgboost::Predictor {
                        unsigned root_index) override {
     cpu_predictor_->PredictInstance(inst, out_preds, model, root_index);
   }
+
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model,
                    unsigned ntree_limit) override {
     cpu_predictor_->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
+  }
+
+  void PredictLeafAndValue(DMatrix *p_fmat,
+                           std::vector<bst_float> *leaf_preds,
+                           std::vector<bst_float> *value_preds,
+                           const gbm::GBTreeModel &model,
+                           unsigned ntree_limit) override {
+    cpu_predictor_->PredictLeafAndValue(p_fmat, leaf_preds, value_preds, model, ntree_limit);
   }
 
   void PredictContribution(DMatrix* p_fmat,

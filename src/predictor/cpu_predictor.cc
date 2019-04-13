@@ -248,6 +248,56 @@ class CPUPredictor : public Predictor {
     }
   }
 
+  void PredictLeafAndValue(DMatrix *p_fmat,
+                           std::vector<bst_float> *leaf_preds,
+                           std::vector<bst_float> *value_preds,
+                           const gbm::GBTreeModel &model,
+                           unsigned ntree_limit) override {
+    const int nthread = omp_get_max_threads();
+    InitThreadTemp(nthread, model.param.num_feature);
+    const MetaInfo &info = p_fmat->Info();
+    int num_group = model.param.num_output_group;
+    // number of valid trees
+    ntree_limit *= num_group;
+    if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
+      ntree_limit = static_cast<unsigned>(model.trees.size());
+    }
+
+    std::vector<bst_float> &leafs = *leaf_preds;
+    leafs.resize(info.num_row_ * ntree_limit);
+    std::vector<bst_float> &values = *value_preds;
+    values.resize(info.num_row_ * num_group);
+
+    // create a buffer to hold multi-thread & multi-group p_sum
+    std::vector<std::vector<bst_float> > p_sum_buf(
+            static_cast<unsigned long>(omp_get_max_threads()),
+            std::vector<bst_float>(static_cast<unsigned long>(num_group)));
+
+    // start collecting the prediction
+    for (const auto &batch : p_fmat->GetRowBatches()) {
+      // parallel over local batch
+      const auto nsize = static_cast<bst_omp_uint>(batch.Size());
+#pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
+        const int thread_id = omp_get_thread_num();
+        auto ridx = static_cast<size_t>(batch.base_rowid + i);
+        RegTree::FVec &feats = thread_temp[thread_id];
+        feats.Fill(batch[i]);
+        std::vector<bst_float> &p_sums = p_sum_buf[thread_id];
+        std::fill(p_sums.begin(), p_sums.end(), 0);
+        for (unsigned j = 0; j < ntree_limit; ++j) {
+          int tree_id = model.trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
+          leafs[ridx * ntree_limit + j] = static_cast<bst_float>(tree_id);
+          p_sums[model.tree_info[j]] += (*model.trees[j])[tree_id].LeafValue();
+        }
+        for (unsigned j = 0; j < num_group; ++j) {
+          values[ridx * num_group + j] = p_sums[j];
+        }
+        feats.Drop(batch[i]);
+      }
+    }
+  }
+
   void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
                            bool approximate,

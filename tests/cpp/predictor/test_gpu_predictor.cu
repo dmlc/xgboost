@@ -72,6 +72,20 @@ TEST(gpu_predictor, Test) {
     ASSERT_EQ(gpu_leaf_out_predictions[i], cpu_leaf_out_predictions[i]);
   }
 
+  // Test predict leaf and value
+  std::vector<float> gpu_out_leafs;
+  std::vector<float> cpu_out_leafs;
+  std::vector<float> gpu_out_values;
+  std::vector<float> cpu_out_values;
+  cpu_predictor->PredictLeafAndValue((*dmat).get(), &cpu_out_leafs, &cpu_out_values, model);
+  gpu_predictor->PredictLeafAndValue((*dmat).get(), &gpu_out_leafs, &gpu_out_values, model);
+  for (int i = 0; i < gpu_out_leafs.size(); i++) {
+    ASSERT_EQ(gpu_out_leafs[i], cpu_out_leafs[i]);
+  }
+  for (int i = 0; i < gpu_out_values.size(); i++) {
+    ASSERT_EQ(gpu_out_values[i], cpu_out_values[i]);
+  }
+
   // Test predict contribution
   std::vector<float> gpu_out_contribution;
   std::vector<float> cpu_out_contribution;

@@ -131,6 +131,12 @@ class Predictor {
                            const gbm::GBTreeModel& model,
                            unsigned ntree_limit = 0) = 0;
 
+  virtual void PredictLeafAndValue(DMatrix *dmat,
+                                   std::vector<bst_float> *leaf_preds,
+                                   std::vector<bst_float> *value_preds,
+                                   const gbm::GBTreeModel &model,
+                                   unsigned ntree_limit = 0) = 0;
+
   /**
    * \fn  virtual void Predictor::PredictContribution( DMatrix* dmat,
    * std::vector<bst_float>* out_contribs, const gbm::GBTreeModel& model,

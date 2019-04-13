@@ -592,6 +592,26 @@ class LearnerImpl : public Learner {
     }
   }
 
+  void PredictPackage(DMatrix *data,
+                      HostDeviceVector<bst_float> *out_leaf_preds,
+                      HostDeviceVector<bst_float> *out_margin_preds,
+                      HostDeviceVector<bst_float> *out_preds,
+                      bool with_leaf, bool with_margin,
+                      unsigned ntree_limit) const override {
+    if (with_leaf) {
+      gbm_->PredictLeafAndValue(data,
+                                &out_leaf_preds->HostVector(),
+                                &out_preds->HostVector(),
+                                ntree_limit);
+    } else {
+      this->PredictRaw(data, out_preds, ntree_limit);
+    }
+    if (with_margin) {
+      out_margin_preds->Copy(out_preds->HostVector());
+    }
+    obj_->PredTransform(out_preds);
+  }
+
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }

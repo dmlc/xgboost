@@ -109,6 +109,21 @@ class GradientBooster {
   virtual void PredictLeaf(DMatrix* dmat,
                            std::vector<bst_float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
+  /*!
+   * \brief predict the leaf index of each tree and score simultaneously
+   *        this is only valid in gbtree predictor
+   * \param dmat feature matrix
+   * \param leaf_preds output vector to hold the leaf indices
+   *                   size nsample * ntree
+   * \param value_preds output vector to hold the scores
+   *                    size nsample * num_group
+   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
+   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   */
+  virtual void PredictLeafAndValue(DMatrix *dmat,
+                                   std::vector<bst_float> *leaf_preds,
+                                   std::vector<bst_float> *value_preds,
+                                   unsigned ntree_limit = 0) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector

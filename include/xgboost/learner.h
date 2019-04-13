@@ -97,6 +97,7 @@ class Learner : public rabit::Serializable {
   virtual std::string EvalOneIter(int iter,
                                   const std::vector<DMatrix*>& data_sets,
                                   const std::vector<std::string>& data_names) = 0;
+
   /*!
    * \brief get prediction given the model.
    * \param data input data
@@ -117,6 +118,25 @@ class Learner : public rabit::Serializable {
                        bool pred_contribs = false,
                        bool approx_contribs = false,
                        bool pred_interactions = false) const = 0;
+
+  /*!
+   * \brief get various prediction values simultaneously given the model.
+   * \param data input data
+   * \param out_leaf_preds output vector which stores the leaf index if with_leaf=true
+   * \param out_margin_preds output vector that stores the margin value if with_raw=true
+   * \param out_preds output vector that stores the prediction
+   * \param with_leaf whether to predict the leaf index of each tree in a boosted tree predictor
+   * \param with_margin whether to output the margin value
+   * \param ntree_limit limit number of trees used for boosted tree
+   *   predictor, when it equals 0, this means we are using all the trees
+   */
+  virtual void PredictPackage(DMatrix *data,
+                              HostDeviceVector<bst_float> *out_leaf_preds,
+                              HostDeviceVector<bst_float> *out_margin_preds,
+                              HostDeviceVector<bst_float> *out_preds,
+                              bool with_leaf = false,
+                              bool with_margin = false,
+                              unsigned ntree_limit = 0) const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.

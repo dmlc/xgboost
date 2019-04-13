@@ -405,6 +405,35 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              const float **out_result);
 
 /*!
+ * \brief output various prediction values simultaneously based on dmat
+ * \param handle handle
+ * \param dmat data matrix
+ * \param option_mask bit-mask of options taken in prediction, possible values
+ *          0:output transformed value only
+ *          1:output transformed value and leaf index of trees
+ *          2:output transformed value, margin value and leaf index of trees
+ * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
+ *                    when the parameter is set to 0, we will use all the trees
+ * \param leaf_len used to store length of returning leaf index
+ * \param margin_len used to store length of returning margin value
+ * \param pred_len used to store length of returning transformed value
+ * \param out_leaf_result used to set a pointer to array of leaf index
+ * \param out_margin_result used to set a pointer to array of margin value
+ * \param out_result used to set a pointer to array of transformed value
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictPackage(BoosterHandle handle,
+                                    DMatrixHandle dmat,
+                                    int option_mask,
+                                    unsigned ntree_limit,
+                                    bst_ulong *leaf_len,
+                                    bst_ulong *margin_len,
+                                    bst_ulong *pred_len,
+                                    const float **out_leaf_result,
+                                    const float **out_margin_result,
+                                    const float **out_result);
+
+/*!
  * \brief load model from existing file
  * \param handle handle
  * \param fname file name
