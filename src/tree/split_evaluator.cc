@@ -157,6 +157,10 @@ class ElasticNet final : public SplitEvaluator {
     return w;
   }
 
+  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
+    return true;
+  }
+
  private:
   ElasticNetParams params_;
 
