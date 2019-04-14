@@ -71,7 +71,8 @@ class SplitEvaluator {
                         bst_float rightweight);
 
   // Check validation before evaluating splits to narrow search space
-  virtual bool CheckValidation(bst_uint nodeid, bst_uint featureid);
+  virtual bool CheckValidation(bst_uint nodeid,
+                               bst_uint featureid) const;
 };
 
 struct SplitEvaluatorReg

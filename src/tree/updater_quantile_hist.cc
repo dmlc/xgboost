@@ -574,8 +574,8 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
   // filter unvalidated candidates to narrow search space
   std::vector<bst_uint> validFeatures;
   for (bst_uint i = 0; i < nfeature; ++i) {
-    const bst_uint fid = feature_set[i];
-    if (spliteval_->CheckValidation(fid, nid)) {
+    const bst_uint fid = static_cast<const bst_uint>(feature_set[i]);
+    if (spliteval_->CheckValidation(fid, static_cast<const bst_uint>(nid))) {
       validFeatures.push_back(fid);
     }
   }

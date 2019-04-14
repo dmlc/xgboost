@@ -61,7 +61,7 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
-bool SplitEvaluator::CheckValidation(bst_uint nodeid, bst_uint featureid) {
+bool SplitEvaluator::CheckValidation(bst_uint nodeid, bst_uint featureid) const {
   return true;
 }
 
@@ -301,6 +301,10 @@ class MonotonicConstraint final : public SplitEvaluator {
     }
   }
 
+  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
+    return true;
+  }
+
  private:
   MonotonicConstraintParams params_;
   std::unique_ptr<SplitEvaluator> inner_;
@@ -485,7 +489,7 @@ class InteractionConstraint final : public SplitEvaluator {
     }
   }
 
-  bool CheckValidation(bst_uint nodeid, bst_uint featureid) override {
+  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
     return CheckInteractionConstraint(featureid, nodeid);
   }
 
