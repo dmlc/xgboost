@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  * \file metric_param.cc
  */
 #ifndef XGBOOST_METRIC_METRIC_PARAM_H_

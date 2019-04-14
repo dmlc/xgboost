@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file multiclass_metric.cc
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
