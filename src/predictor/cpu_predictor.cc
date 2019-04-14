@@ -270,8 +270,8 @@ class CPUPredictor : public Predictor {
 
     // create a buffer to hold multi-thread & multi-group p_sum
     std::vector<std::vector<bst_float> > p_sum_buf(
-            static_cast<unsigned long>(omp_get_max_threads()),
-            std::vector<bst_float>(static_cast<unsigned long>(num_group)));
+            static_cast<uint64_t>(omp_get_max_threads()),
+            std::vector<bst_float>(static_cast<uint64_t>(num_group)));
 
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetRowBatches()) {
