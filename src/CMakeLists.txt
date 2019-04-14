@@ -70,7 +70,7 @@ target_include_directories(objxgboost
   ${PROJECT_SOURCE_DIR}/rabit/include)
 target_compile_options(objxgboost
   PRIVATE
-  $<$<CXX_COMPILER_ID:MSVC>:/MP>
+  $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
   $<$<COMPILE_LANGUAGE:CXX>:-funroll-loops>)
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)

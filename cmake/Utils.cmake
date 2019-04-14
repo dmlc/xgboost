@@ -28,6 +28,18 @@ function(msvc_use_static_runtime)
               set(${variable} "${${variable}}"  PARENT_SCOPE)
           endif()
       endforeach()
+      set(variables
+          CMAKE_CUDA_FLAGS_DEBUG
+          CMAKE_CUDA_FLAGS_MINSIZEREL
+          CMAKE_CUDA_FLAGS_RELEASE
+          CMAKE_CUDA_FLAGS_RELWITHDEBINFO
+      )
+      foreach(variable ${variables})
+          if(${variable} MATCHES "-MD")
+              string(REGEX REPLACE "-MD" "-MT" ${variable} "${${variable}}")
+              set(${variable} "${${variable}}"  PARENT_SCOPE)
+          endif()
+      endforeach()
   endif()
 endfunction(msvc_use_static_runtime)
 
