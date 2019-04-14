@@ -171,10 +171,6 @@ struct EvalMClassBase : public Metric {
         << " use logloss for binary classification";
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
 
-    const auto& labels = info.labels_.HostVector();
-    const auto& weights = info.weights_.HostVector();
-    const std::vector<bst_float>& h_preds = preds.HostVector();
-
     GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
     auto result = reducer_.Reduce(devices, nclass, info.weights_, info.labels_, preds);
     double dat[2] { result.Residue(), result.Weights() };
