@@ -3,8 +3,17 @@
 
 #include "../helpers.h"
 
-TEST(Metric, MultiClassError) {
+using Arg = std::pair<std::string, std::string>;
+
+#if defined(__CUDACC__)
+#define N_GPU() Arg{"n_gpus", "1"}
+#else
+#define N_GPU() Arg{"n_gpus", "0"}
+#endif
+
+TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
   xgboost::Metric * metric = xgboost::Metric::Create("merror");
+  metric->Configure({N_GPU()});
   ASSERT_STREQ(metric->Name(), "merror");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));
   EXPECT_NEAR(GetMetricEval(
@@ -17,8 +26,9 @@ TEST(Metric, MultiClassError) {
   delete metric;
 }
 
-TEST(Metric, MultiClassLogLoss) {
+TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss");
+  metric->Configure({N_GPU()});
   ASSERT_STREQ(metric->Name(), "mlogloss");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));
   EXPECT_NEAR(GetMetricEval(
