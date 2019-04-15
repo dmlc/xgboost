@@ -13,6 +13,7 @@
 */
 
 #include <cstdint>
+#include <rabit/c_api.h>
 #include <xgboost/c_api.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>

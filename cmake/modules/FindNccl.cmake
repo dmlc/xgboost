@@ -37,15 +37,11 @@ set(NCCL_LIB_NAME nccl_static)
 
 find_path(NCCL_INCLUDE_DIR
   NAMES nccl.h
-  PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include ${CUDA_INCLUDE_DIRS} /usr/include)
+  PATHS $ENV{NCCL_ROOT}/include ${NCCL_ROOT}/include)
 
 find_library(NCCL_LIBRARY
   NAMES ${NCCL_LIB_NAME}
-  PATHS $ENV{NCCL_ROOT}/lib ${NCCL_ROOT}/lib ${CUDA_INCLUDE_DIRS}/../lib /usr/lib)
-
-if (NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
-  get_filename_component(NCCL_LIBRARY ${NCCL_LIBRARY} PATH)
-endif ()
+  PATHS $ENV{NCCL_ROOT}/lib/ ${NCCL_ROOT}/lib)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Nccl DEFAULT_MSG
@@ -54,5 +50,4 @@ find_package_handle_standard_args(Nccl DEFAULT_MSG
 mark_as_advanced(
   NCCL_INCLUDE_DIR
   NCCL_LIBRARY
-  NCCL_LIB_NAME
 )

@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+if(NOT TARGET xgboost::xgboost)
+  include(${CMAKE_CURRENT_LIST_DIR}/XGBoostTargets.cmake)
+endif()
