@@ -28,7 +28,9 @@
 namespace xgboost {
 namespace tree {
 
+#if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
+#endif  // !defined(GTEST_TEST)
 
 // training parameters specific to this algorithm
 struct GPUHistMakerTrainParam
@@ -47,8 +49,9 @@ struct GPUHistMakerTrainParam
                   "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
   }
 };
-
+#if !defined(GTEST_TEST)
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
+#endif  // !defined(GTEST_TEST)
 
 struct ExpandEntry {
   int nid;
@@ -102,9 +105,10 @@ inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
 }
 
 // Find a gidx value for a given feature otherwise return -1 if not found
-__device__ int BinarySearchRow(bst_uint begin, bst_uint end,
-                               common::CompressedIterator<uint32_t> data,
-                               int const fidx_begin, int const fidx_end) {
+__forceinline__ __device__ int BinarySearchRow(
+    bst_uint begin, bst_uint end,
+    common::CompressedIterator<uint32_t> data,
+    int const fidx_begin, int const fidx_end) {
   bst_uint previous_middle = UINT32_MAX;
   while (end != begin) {
     auto middle = begin + (end - begin) / 2;
@@ -466,6 +470,7 @@ struct CalcWeightTrainParam {
 };
 
 // Bin each input data entry, store the bin indices in compressed form.
+template<typename std::enable_if<true,  int>::type = 0>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
@@ -559,11 +564,11 @@ struct IndicateLeftTransform {
  * segments. Based on a single pass of exclusive scan, uses iterators to
  * redirect inputs and outputs.
  */
-void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
-                  common::Span<int> position_out, common::Span<bst_uint> ridx,
-                  common::Span<bst_uint> ridx_out, int left_nidx,
-                  int right_nidx, int64_t* d_left_count,
-                  cudaStream_t stream = nullptr) {
+inline void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
+                         common::Span<int> position_out, common::Span<bst_uint> ridx,
+                         common::Span<bst_uint> ridx_out, int left_nidx,
+                         int right_nidx, int64_t* d_left_count,
+                         cudaStream_t stream = nullptr) {
   auto d_position_out = position_out.data();
   auto d_position_in = position.data();
   auto d_ridx_out = ridx_out.data();
@@ -593,7 +598,7 @@ void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
 }
 
 /*! \brief Count how many rows are assigned to left node. */
-__device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+__forceinline__ __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
   unsigned ballot = __ballot(val == left_nidx);
   if (threadIdx.x % 32 == 0) {
     atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
@@ -1614,8 +1619,11 @@ class GPUHistMaker : public TreeUpdater {
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };
 
+#if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
     .set_body([]() { return new GPUHistMaker(); });
+#endif  // !defined(GTEST_TEST)
+
 }  // namespace tree
 }  // namespace xgboost
