@@ -25,7 +25,7 @@ DMLC_REGISTRY_FILE_TAG(multiclass_metric);
 template <typename EvalRowPolicy>
 class MultiClassMetricsReduction {
  public:
-  MultiClassMetricsReduction() {}
+  MultiClassMetricsReduction() = default;
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -41,7 +41,6 @@ class MultiClassMetricsReduction {
     bst_float residue_sum = 0;
     bst_float weights_sum = 0;
     int label_error = 0;
-    bool has_weight = h_weights.size() > 0;
     bool const is_null_weight = weights.Size() == 0;
 
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)

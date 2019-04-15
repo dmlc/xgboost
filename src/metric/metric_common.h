@@ -2,8 +2,8 @@
  * Copyright 2018-2019 by Contributors
  * \file metric_param.cc
  */
-#ifndef XGBOOST_METRIC_METRIC_PARAM_H_
-#define XGBOOST_METRIC_METRIC_PARAM_H_
+#ifndef XGBOOST_METRIC_METRIC_COMMON_H_
+#define XGBOOST_METRIC_METRIC_COMMON_H_
 
 #include <dmlc/parameter.h>
 #include "../common/common.h"
@@ -29,7 +29,7 @@ class PackedReduceResult {
   double residue_sum_;
   double weights_sum_;
 
-public:
+ public:
   XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}
   XGBOOST_DEVICE PackedReduceResult(double residue, double weight)
       : residue_sum_{residue}, weights_sum_{weight} {}
@@ -51,4 +51,4 @@ public:
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_METRIC_METRIC_PARAM_H_
+#endif  // XGBOOST_METRIC_METRIC_COMMON_H_
