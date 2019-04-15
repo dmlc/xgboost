@@ -8,14 +8,18 @@
 #include <xgboost/metric.h>
 #include <cmath>
 
-#if defined(XGBOOST_USE_CUDA)
-#include <thrust/transform_reduce.h>
-#include <thrust/functional.h>  // thrust::plus<>
-#include "../common/device_helpers.cuh"
-#endif  // XGBOOST_USE_CUDA
-
 #include "metric_common.h"
 #include "../common/math.h"
+#include "../common/common.h"
+
+#if defined(XGBOOST_USE_CUDA)
+#include <thrust/execution_policy.h>  // thrust::cuda::par
+#include <thrust/functional.h>        // thrust::plus<>
+#include <thrust/transform_reduce.h>
+#include <thrust/iterator/counting_iterator.h>
+
+#include "../common/device_helpers.cuh"
+#endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
 namespace metric {

@@ -14,10 +14,10 @@
 #include "../common/common.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/iterator/counting_iterator.h>
+#include <thrust/execution_policy.h>  // thrust::cuda::par
+#include <thrust/functional.h>        // thrust::plus<>
 #include <thrust/transform_reduce.h>
-#include <thrust/execution_policy.h>
-#include <thrust/functional.h>  // thrust::plus<>
+#include <thrust/iterator/counting_iterator.h>
 
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
