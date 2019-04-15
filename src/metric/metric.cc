@@ -6,7 +6,7 @@
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 
-#include "metric_param.h"
+#include "metric_common.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
