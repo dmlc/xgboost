@@ -28,6 +28,12 @@ DMLC_REGISTRY_FILE_TAG(multiclass_metric);
 
 template <typename EvalRowPolicy>
 class MultiClassMetricsReduction {
+  void CheckLabelError(int32_t label_error, size_t n_class) const {
+    CHECK(label_error >= 0 && label_error < static_cast<int32_t>(n_class))
+        << "MultiClassEvaluation: label must be in [0, num_class),"
+        << " num_class=" << n_class << " but found " << label_error << " in label";
+  }
+
  public:
   MultiClassMetricsReduction() = default;
 
@@ -59,9 +65,7 @@ class MultiClassMetricsReduction {
         label_error = label;
       }
     }
-    CHECK(label_error >= 0 && label_error < static_cast<int>(n_class))
-        << "MultiClassEvaluation: label must be in [0, num_class),"
-        << " num_class=" << n_class << " but found " << label_error << " in label";
+    CheckLabelError(label_error, n_class);
     PackedReduceResult res { residue_sum, weights_sum };
 
     return res;
@@ -86,6 +90,8 @@ class MultiClassMetricsReduction {
     auto s_weights = weights.DeviceSpan(device_id);
 
     bool const is_null_weight = weights.Size() == 0;
+    auto s_label_error = label_error_.GetSpan<int32_t>(1);
+    s_label_error[0] = 0;
 
     PackedReduceResult result = thrust::transform_reduce(
         thrust::cuda::par(allocators_.at(device_index)),
@@ -94,14 +100,17 @@ class MultiClassMetricsReduction {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
           bst_float residue = 0;
           auto label = static_cast<int>(s_labels[idx]);
-          if (label >= 0 && label < static_cast<int>(n_class)) {
+          if (label >= 0 && label < static_cast<int32_t>(n_class)) {
             residue = EvalRowPolicy::EvalRow(
                 label, &s_preds[idx * n_class], n_class) * weight;
+          } else {
+            s_label_error[0] = label;
           }
           return PackedReduceResult{ residue, weight };
         },
         PackedReduceResult(),
         thrust::plus<PackedReduceResult>());
+    CheckLabelError(s_label_error[0], n_class);
 
     return result;
   }
@@ -148,6 +157,7 @@ class MultiClassMetricsReduction {
 
  private:
 #if defined(XGBOOST_USE_CUDA)
+  dh::PinnedMemory label_error_;
   std::vector<dh::CubMemory> allocators_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
