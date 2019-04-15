@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file elementwise_metric.cc
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
@@ -9,15 +9,15 @@
 #include <dmlc/registry.h>
 #include <cmath>
 
-#include "metric_param.h"
+#include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/iterator/counting_iterator.h>
+#include <thrust/execution_policy.h>  // thrust::cuda::par
+#include <thrust/functional.h>        // thrust::plus<>
 #include <thrust/transform_reduce.h>
-#include <thrust/execution_policy.h>
-#include <thrust/functional.h>  // thrust::plus<>
+#include <thrust/iterator/counting_iterator.h>
 
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
@@ -28,29 +28,9 @@ namespace metric {
 DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 
 template <typename EvalRow>
-class MetricsReduction {
+class ElementWiseMetricsReduction {
  public:
-  class PackedReduceResult {
-    double residue_sum_;
-    double weights_sum_;
-    friend MetricsReduction;
-
-   public:
-    XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}
-    XGBOOST_DEVICE PackedReduceResult(double residue, double weight) :
-        residue_sum_{residue}, weights_sum_{weight} {}
-
-    XGBOOST_DEVICE
-    PackedReduceResult operator+(PackedReduceResult const& other) const {
-      return PackedReduceResult { residue_sum_ + other.residue_sum_,
-            weights_sum_ + other.weights_sum_ };
-    }
-    double Residue() const { return residue_sum_; }
-    double Weights() const { return weights_sum_; }
-  };
-
- public:
-  explicit MetricsReduction(EvalRow policy) :
+  explicit ElementWiseMetricsReduction(EvalRow policy) :
     policy_(std::move(policy)) {}
 
   PackedReduceResult CpuReduceMetrics(
@@ -144,9 +124,8 @@ class MetricsReduction {
             DeviceReduceMetrics(id, index, weights, labels, preds);
       }
 
-      for (size_t i = 0; i < devices.Size(); ++i) {
-        result.residue_sum_ += res_per_device[i].residue_sum_;
-        result.weights_sum_ += res_per_device[i].weights_sum_;
+      for (auto const& res : res_per_device) {
+        result += res;
       }
     }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -370,7 +349,7 @@ struct EvalEWiseBase : public Metric {
 
   MetricParam param_;
 
-  MetricsReduction<Policy> reducer_;
+  ElementWiseMetricsReduction<Policy> reducer_;
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
