@@ -63,6 +63,7 @@ class MultiClassMetricsReduction {
         << "MultiClassEvaluation: label must be in [0, num_class),"
         << " num_class=" << n_class << " but found " << label_error << " in label";
     PackedReduceResult res { residue_sum, weights_sum };
+
     return res;
   }
 
@@ -124,7 +125,7 @@ class MultiClassMetricsReduction {
         allocators_.clear();
         allocators_.resize(devices.Size());
       }
-      preds.Reshard(devices);
+      preds.Reshard(GPUDistribution::Granular(devices, n_class));
       labels.Reshard(devices);
       weights.Reshard(devices);
       std::vector<PackedReduceResult> res_per_device(devices.Size());
