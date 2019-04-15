@@ -261,6 +261,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val vectorAssembler = new VectorAssembler()
       .setInputCols(Array("col1", "col2", "col3"))
       .setOutputCol("features")
+      .setHandleInvalid("keep")
     val inputDF = vectorAssembler.transform(testDF).select("features", "label")
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "num_workers" -> 1).toMap
