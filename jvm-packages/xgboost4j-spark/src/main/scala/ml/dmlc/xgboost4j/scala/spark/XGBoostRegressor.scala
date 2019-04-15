@@ -252,11 +252,6 @@ class XGBoostRegressionModel private[ml] (
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
-
-    val schema = StructType(dataset.schema.fields ++
-      Seq(StructField(name = _originalPredictionCol, dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false)))
-
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
     val inputRDD = dataset.asInstanceOf[Dataset[Row]].rdd
@@ -278,10 +273,9 @@ class XGBoostRegressionModel private[ml] (
           XGBoost.processMissingValues(featuresIterator.map(_.asXGB), $(missing)),
           cacheInfo)
         try {
-          val Array(originalPredictionItr, predLeafItr, predContribItr) =
-            producePredictionItrs(bBooster, dm)
+          val List(predScore, predLeaf, predContrib) = producePrediction(bBooster, dm)
           Rabit.shutdown()
-          Iterator(originalPredictionItr, predLeafItr, predContribItr)
+          Iterator(predScore, predLeaf, predContrib)
         } finally {
           dm.delete()
         }
@@ -290,85 +284,85 @@ class XGBoostRegressionModel private[ml] (
       }
     }
     val resultRDD = inputRDD.zipPartitions(predictionRDD, preservesPartitioning = true) {
-      case (inputIterator, predictionItr) =>
+      case (inputIterator, predItr) =>
         if (inputIterator.hasNext) {
-          produceResultIterator(inputIterator, predictionItr.next(), predictionItr.next(),
-            predictionItr.next())
+          produceResultIterator(
+            inputIterator,
+            predItr.next(), predItr.next(), predItr.next())
         } else {
           Iterator()
         }
     }
     bBooster.unpersist(blocking = false)
-    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
+    dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(dataset.schema))
   }
 
   private def produceResultIterator(
       originalRowItr: Iterator[Row],
-      predictionItr: Iterator[Row],
-      predLeafItr: Iterator[Row],
-      predContribItr: Iterator[Row]): Iterator[Row] = {
-    // the following implementation is to be improved
-    if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
-      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
-      originalRowItr.zip(predictionItr).zip(predLeafItr).zip(predContribItr).
-        map { case (((originals: Row, prediction: Row), leaves: Row), contribs: Row) =>
-          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq ++ contribs.toSeq)
-        }
-    } else if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty &&
-      (!isDefined(contribPredictionCol) || $(contribPredictionCol).isEmpty)) {
-      originalRowItr.zip(predictionItr).zip(predLeafItr).
-        map { case ((originals: Row, prediction: Row), leaves: Row) =>
-          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ leaves.toSeq)
-        }
-    } else if ((!isDefined(leafPredictionCol) || $(leafPredictionCol).isEmpty) &&
-      isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
-      originalRowItr.zip(predictionItr).zip(predContribItr).
-        map { case ((originals: Row, prediction: Row), contribs: Row) =>
-          Row.fromSeq(originals.toSeq ++ prediction.toSeq ++ contribs.toSeq)
-        }
-    } else {
-      originalRowItr.zip(predictionItr).map {
-        case (originals: Row, originalPrediction: Row) =>
-          Row.fromSeq(originals.toSeq ++ originalPrediction.toSeq)
+      predScore: Array[Array[Float]],
+      predLeaf: Array[Array[Float]],
+      predContrib: Array[Array[Float]]): Iterator[Row] = {
+    var nRow = 0
+    originalRowItr.map { originRow =>
+      val rowBuffer = new mutable.ArrayBuffer[Any]()
+      (0 until originRow.size).foreach { i =>
+        rowBuffer += originRow.get(i)
       }
+      if (predScore(0).nonEmpty) {
+        rowBuffer += predScore(nRow)
+      }
+      if (predLeaf(0).nonEmpty) {
+        rowBuffer += predLeaf(nRow)
+      }
+      if (predContrib(0).nonEmpty) {
+        rowBuffer += predContrib(nRow)
+      }
+      nRow += 1
+      Row.fromSeq(rowBuffer)
     }
   }
 
   private def generateResultSchema(fixedSchema: StructType): StructType = {
     var resultSchema = fixedSchema
-    if (isDefined(leafPredictionCol)) {
-      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
+    if ($(predictionCol).nonEmpty) {
+      resultSchema = resultSchema.add(StructField(name = _originalPredictionCol, dataType =
+          ArrayType(FloatType, containsNull = false), nullable = false))
     }
-    if (isDefined(contribPredictionCol)) {
+    if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty) {
+      resultSchema = resultSchema.add(StructField(name = $(leafPredictionCol), dataType =
+          ArrayType(FloatType, containsNull = false), nullable = false))
+    }
+    if (isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
       resultSchema = resultSchema.add(StructField(name = $(contribPredictionCol), dataType =
-        ArrayType(FloatType, containsNull = false), nullable = false))
+          ArrayType(FloatType, containsNull = false), nullable = false))
     }
     resultSchema
   }
 
-  private def producePredictionItrs(broadcastBooster: Broadcast[Booster], dm: DMatrix):
-      Array[Iterator[Row]] = {
-    val originalPredictionItr = {
-      broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit)).map(Row(_)).iterator
-    }
-    val predLeafItr = {
-      if (isDefined(leafPredictionCol)) {
-        broadcastBooster.value.predictLeaf(dm, $(treeLimit)).
-          map(Row(_)).iterator
+  private def producePrediction(broadcastBooster: Broadcast[Booster], dm: DMatrix):
+  List[Array[Array[Float]]] = {
+    val prediction = {
+      if ($(predictionCol).nonEmpty) {
+        broadcastBooster.value.predict(dm, outPutMargin = false, $(treeLimit))
       } else {
-        Iterator()
+        Array(Array[Float]())
       }
     }
-    val predContribItr = {
-      if (isDefined(contribPredictionCol)) {
-        broadcastBooster.value.predictContrib(dm, $(treeLimit)).
-          map(Row(_)).iterator
+    val predLeaf = {
+      if (isDefined(leafPredictionCol) && $(leafPredictionCol).nonEmpty) {
+        broadcastBooster.value.predictLeaf(dm, $(treeLimit))
       } else {
-        Iterator()
+        Array(Array[Float]())
       }
     }
-    Array(originalPredictionItr, predLeafItr, predContribItr)
+    val predContrib = {
+      if (isDefined(contribPredictionCol) && $(contribPredictionCol).nonEmpty) {
+        broadcastBooster.value.predictContrib(dm, $(treeLimit))
+      } else {
+        Array(Array[Float]())
+      }
+    }
+    List(prediction, predLeaf, predContrib)
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
@@ -379,21 +373,27 @@ class XGBoostRegressionModel private[ml] (
     var outputData = transformInternal(dataset)
     var numColsOutput = 0
 
-    val predictUDF = udf { (originalPrediction: mutable.WrappedArray[Float]) =>
+    val predictUDF = udf { originalPrediction: mutable.WrappedArray[Float] =>
       originalPrediction(0).toDouble
     }
 
     if ($(predictionCol).nonEmpty) {
       outputData = outputData
-        .withColumn($(predictionCol), predictUDF(col(_originalPredictionCol)))
+          .withColumn($(predictionCol), predictUDF(col(_originalPredictionCol)))
       numColsOutput += 1
     }
 
     if (numColsOutput == 0) {
       this.logWarning(s"$uid: ProbabilisticClassificationModel.transform() was called as NOOP" +
-        " since no output columns were set.")
+          " since no output columns were set.")
     }
-    outputData.toDF.drop(col(_originalPredictionCol))
+
+    outputData.toDF match {
+      case df if df.columns.contains(_originalPredictionCol) =>
+        df.drop(col(_originalPredictionCol))
+      case df =>
+        df
+    }
   }
 
   override def copy(extra: ParamMap): XGBoostRegressionModel = {
