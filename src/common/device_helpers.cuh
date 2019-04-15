@@ -752,6 +752,29 @@ void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
                                        });
 }
 
+class SaveCudaContext {
+ private:
+  int saved_device_;
+
+ public:
+  template <typename Functor>
+  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
+    // When compiled with CUDA but running on CPU only device,
+    // cudaGetDevice will fail.
+    try {
+      safe_cuda(cudaGetDevice(&saved_device_));
+    } catch (const dmlc::Error &except) {
+      saved_device_ = -1;
+    }
+    func();
+  }
+  ~SaveCudaContext() {
+    if (saved_device_ != -1) {
+      safe_cuda(cudaSetDevice(saved_device_));
+    }
+  }
+};
+
 /**
  * \class AllReducer
  *
@@ -973,12 +996,13 @@ class AllReducer {
    */
   void Synchronize(int device_id) {
 #ifdef XGBOOST_USE_NCCL
-    dh::safe_cuda(cudaSetDevice(device_id));
-    int idx = std::find(device_ordinals.begin(), device_ordinals.end(),device_id) - device_ordinals.begin();
-    CHECK(idx < device_ordinals.size());
-    dh::safe_cuda(cudaStreamSynchronize(streams[idx]));
+    SaveCudaContext([&]() {
+      dh::safe_cuda(cudaSetDevice(device_id));
+      int idx = std::find(device_ordinals.begin(), device_ordinals.end(), device_id) - device_ordinals.begin();
+      CHECK(idx < device_ordinals.size());
+      dh::safe_cuda(cudaStreamSynchronize(streams[idx]));
+    });
 #endif
-
   };
 
 #ifdef XGBOOST_USE_NCCL
@@ -1003,29 +1027,6 @@ class AllReducer {
     return id;
   }
 #endif
-};
-
-class SaveCudaContext {
- private:
-  int saved_device_;
-
- public:
-  template <typename Functor>
-  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
-    // When compiled with CUDA but running on CPU only device,
-    // cudaGetDevice will fail.
-    try {
-      safe_cuda(cudaGetDevice(&saved_device_));
-    } catch (const dmlc::Error &except) {
-      saved_device_ = -1;
-    }
-    func();
-  }
-  ~SaveCudaContext() {
-    if (saved_device_ != -1) {
-      safe_cuda(cudaSetDevice(saved_device_));
-    }
-  }
 };
 
 /**

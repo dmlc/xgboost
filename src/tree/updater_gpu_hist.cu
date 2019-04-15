@@ -694,7 +694,7 @@ struct DeviceShard {
 
   // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int _device_id, int shard_idx, bst_uint row_begin,
-              bst_uint row_end, TrainParam _param, int64_t num_columns)
+              bst_uint row_end, TrainParam _param, uint32_t column_sampler_seed)
       : device_id(_device_id),
         shard_idx(shard_idx),
         row_begin_idx(row_begin),
@@ -702,9 +702,8 @@ struct DeviceShard {
         n_rows(row_end - row_begin),
         n_bins(0),
         param(std::move(_param)),
-        prediction_cache_initialised(false) {
-    column_sampler.Init(num_columns, param.colsample_bynode,
-                         param.colsample_bylevel, param.colsample_bytree);
+        prediction_cache_initialised(false),
+        column_sampler(column_sampler_seed) {
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
   }
 
@@ -763,14 +762,12 @@ struct DeviceShard {
   // Reset values for each update iteration
   // Note that the column sampler must be passed by value because it is not
   // thread safe
-  void Reset(HostDeviceVector<GradientPair>* dh_gpair, int64_t num_columns,
-             common::ColumnSampler column_sampler) {
+  void Reset(HostDeviceVector<GradientPair>* dh_gpair, int64_t num_columns) {
     if (param.grow_policy == TrainParam::kLossGuide) {
       qexpand.reset(new ExpandQueue(LossGuide));
     } else {
       qexpand.reset(new ExpandQueue(DepthWise));
     }
-    this->column_sampler = column_sampler;
     this->column_sampler.Init(num_columns, param.colsample_bynode,
       param.colsample_bylevel, param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(device_id));
@@ -1149,11 +1146,10 @@ struct DeviceShard {
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
-                  RegTree* p_tree, dh::AllReducer* reducer,
-                  common::ColumnSampler _column_sampler) {
+                  RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
     monitor.StartCuda("Reset");
-    this->Reset(gpair_all, p_fmat->Info().num_col_, _column_sampler);
+    this->Reset(gpair_all, p_fmat->Info().num_col_);
     monitor.StopCuda("Reset");
 
     monitor.StartCuda("InitRoot");
@@ -1425,6 +1421,11 @@ class GPUHistMakerSpecialised{
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
+
+    // Synchronise the column sampling seed
+    uint32_t column_sampling_seed = common::GlobalRandom()();
+    rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
+
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(
@@ -1434,9 +1435,9 @@ class GPUHistMakerSpecialised{
           size_t start = dist_.ShardStart(info_->num_row_, idx);
           size_t size = dist_.ShardSize(info_->num_row_, idx);
           shard = std::unique_ptr<DeviceShard<GradientSumT>>(
-              new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
-                                            start, start + size, param_,
-                                            info_->num_col_));
+            new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
+                                          start, start + size, param_,
+                                          column_sampling_seed));
         });
 
     // Find the cuts.
@@ -1492,7 +1493,7 @@ class GPUHistMakerSpecialised{
           // Only the first shard will actually modify the tree
           RegTree* tree = idx == 0 ? p_tree : &dummy_trees.at(idx);
           shard->UpdateTree(gpair, p_fmat, tree,
-                          &reducer_, column_sampler_);
+                          &reducer_);
         });
   }
 
@@ -1519,7 +1520,6 @@ class GPUHistMakerSpecialised{
   MetaInfo* info_;              // NOLINT
 
   std::vector<std::unique_ptr<DeviceShard<GradientSumT>>> shards_;  // NOLINT
-  common::ColumnSampler column_sampler_;                            // NOLINT
 
  private:
   bool initialised_;
