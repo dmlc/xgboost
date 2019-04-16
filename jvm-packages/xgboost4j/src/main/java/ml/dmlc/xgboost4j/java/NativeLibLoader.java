@@ -30,14 +30,19 @@ class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
   private static boolean initialized = false;
-  private static final String nativePath = "../../lib/";
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
   static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
       for (String libName : libNames) {
-        smartLoad(libName);
+        try {
+          String libraryFromJar = nativeResourcePath + System.mapLibraryName(libName);
+          loadLibraryFromJar(libraryFromJar);
+        } catch (IOException ioe) {
+          logger.error("failed to load " + libName + " library from jar");
+          throw ioe;
+        }
       }
       initialized = true;
     }
@@ -135,54 +140,4 @@ class NativeLibLoader {
     return temp.getAbsolutePath();
   }
 
-  /**
-   * load native library, this method will first try to load library from java.library.path, then
-   * try to load library in jar package.
-   *
-   * @param libName library path
-   * @throws IOException exception
-   */
-  private static void smartLoad(String libName) throws IOException {
-    addNativeDir(nativePath);
-    try {
-      System.loadLibrary(libName);
-    } catch (UnsatisfiedLinkError e) {
-      try {
-        String libraryFromJar = nativeResourcePath + System.mapLibraryName(libName);
-        loadLibraryFromJar(libraryFromJar);
-      } catch (IOException ioe) {
-        logger.error("failed to load library from both native path and jar");
-        throw ioe;
-      }
-    }
-  }
-
-  /**
-   * Add libPath to java.library.path, then native library in libPath would be load properly
-   *
-   * @param libPath library path
-   * @throws IOException exception
-   */
-  private static void addNativeDir(String libPath) throws IOException {
-    try {
-      Field field = ClassLoader.class.getDeclaredField("usr_paths");
-      field.setAccessible(true);
-      String[] paths = (String[]) field.get(null);
-      for (String path : paths) {
-        if (libPath.equals(path)) {
-          return;
-        }
-      }
-      String[] tmp = new String[paths.length + 1];
-      System.arraycopy(paths, 0, tmp, 0, paths.length);
-      tmp[paths.length] = libPath;
-      field.set(null, tmp);
-    } catch (IllegalAccessException e) {
-      logger.error(e.getMessage());
-      throw new IOException("Failed to get permissions to set library path");
-    } catch (NoSuchFieldException e) {
-      logger.error(e.getMessage());
-      throw new IOException("Failed to get field handle to set library path");
-    }
-  }
 }

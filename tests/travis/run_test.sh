@@ -3,13 +3,21 @@
 if [ ${TASK} == "lint" ]; then
     make lint || exit -1
     echo "Check documentations..."
-    make doxygen 2>log.txt
+
+    mkdir build_doc
+    cd build_doc
+    cmake .. -DBUILD_C_DOC=ON
+    make doc_doxygen 2> log.txt
+
     (cat log.txt| grep -v ENABLE_PREPROCESSING |grep -v "unsupported tag") > logclean.txt
     echo "---------Error Log----------"
     cat logclean.txt
     echo "----------------------------"
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
+
+    cd -
+    rm -rf build_doc
 
     exit 0
 fi
@@ -79,23 +87,50 @@ fi
 
 if [ ${TASK} == "r_test" ]; then
     set -e
-    export _R_CHECK_TIMINGS_=0
-    export R_BUILD_ARGS="--no-build-vignettes --no-manual"
-    export R_CHECK_ARGS="--no-vignettes --no-manual"
-    if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        # Work-around to fix "gfortran command not found" error
-        sudo ln -s $(which gfortran-7) /usr/local/bin/gfortran
-        sudo mkdir -p /usr/local/gfortran/lib/gcc/x86_64-apple-darwin15
-        sudo ln -s /usr/local/lib/gcc/7 /usr/local/gfortran/lib/gcc/x86_64-apple-darwin15/6.1.0
-    fi
 
-    curl -OL https://raw.githubusercontent.com/craigcitro/r-travis/master/scripts/travis-tool.sh
-    chmod 755 ./travis-tool.sh
-    ./travis-tool.sh bootstrap
     make Rpack
     cd ./xgboost
-    ../travis-tool.sh install_deps
-    ../travis-tool.sh run_tests
+
+    # Install package deps
+    Rscript -e "install.packages( \
+        c('devtools', 'testthat', 'lintr') \
+        , repos = 'http://cloud.r-project.org' \
+        , dependencies = c('Depends', 'Imports', 'LinkingTo') \
+    )"
+
+    Rscript -e \
+        "devtools::install_deps( \
+            repos = 'http://cloud.r-project.org' \
+            , upgrade = 'never' \
+            , dependencies = c('Depends', 'Imports', 'LinkingTo') \
+        )"
+
+    # install suggested packages separately to avoid huge build times
+    Rscript -e "install.packages( \
+        c('DiagrammeR', 'Ckmeans.1d.dp', 'vcd') \
+        , repos = 'https://cloud.r-project.org' \
+        , dependencies = c('Depends', 'Imports', 'LinkingTo') \
+    )"
+
+    # Run tests
+    echo "Building with R CMD build"
+    R CMD build \
+        --no-build-vignettes \
+        --no-manual \
+        .
+
+    echo "Running R tests"
+    R_PACKAGE_TARBALL=$(ls -1t *.tar.gz | head -n 1)
+
+    export _R_CHECK_TIMINGS_=0
+    export _R_CHECK_FORCE_SUGGESTS_=false
+    R CMD check \
+        ${R_PACKAGE_TARBALL} \
+        --no-vignettes \
+        --no-manual \
+        --as-cran \
+        --install-args=--build
+
     exit 0
 fi
 
@@ -123,8 +158,8 @@ if [ ${TASK} == "cmake_test" ]; then
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
     cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
     make
-    cd ..
     ./testxgboost
+    cd ..
     rm -rf build
 fi
 
@@ -170,10 +205,10 @@ if [ ${TASK} == "sanitizer_test" ]; then
       -DCMAKE_CXX_FLAGS="-fuse-ld=gold" \
       -DCMAKE_C_FLAGS="-fuse-ld=gold"
     make
-    cd ..
 
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     ASAN_OPTIONS=symbolize=1 ./testxgboost
+    cd ..
     rm -rf build
     exit 0
 fi

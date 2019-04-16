@@ -81,12 +81,12 @@ float SparsePageDMatrix::GetColDensity(size_t cidx) {
   if (col_density_.empty()) {
     std::vector<size_t> column_size(this->Info().num_col_);
     for (const auto &batch : this->GetColumnBatches()) {
-      for (int i = 0; i < batch.Size(); i++) {
+      for (auto i = 0u; i < batch.Size(); i++) {
         column_size[i] += batch[i].size();
       }
     }
     col_density_.resize(column_size.size());
-    for (int i = 0; i < col_density_.size(); i++) {
+    for (auto i = 0u; i < col_density_.size(); i++) {
       size_t nmiss = this->Info().num_row_ - column_size[i];
       col_density_[i] =
           1.0f - (static_cast<float>(nmiss)) / this->Info().num_row_;

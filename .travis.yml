@@ -62,8 +62,8 @@ addons:
       - libcurl4-openssl-dev
       - unzip
       - graphviz
-      - gcc-4.8
-      - g++-4.8
+      - gcc-5
+      - g++-5
       - gcc-7
       - g++-7
   homebrew:
@@ -72,6 +72,7 @@ addons:
       - graphviz
       - openssl
       - libgit2
+      - r
     update: true
 
 before_install:

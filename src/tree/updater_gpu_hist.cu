@@ -28,7 +28,9 @@
 namespace xgboost {
 namespace tree {
 
+#if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
+#endif  // !defined(GTEST_TEST)
 
 // training parameters specific to this algorithm
 struct GPUHistMakerTrainParam
@@ -47,8 +49,9 @@ struct GPUHistMakerTrainParam
                   "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
   }
 };
-
+#if !defined(GTEST_TEST)
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
+#endif  // !defined(GTEST_TEST)
 
 struct ExpandEntry {
   int nid;
@@ -102,9 +105,10 @@ inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
 }
 
 // Find a gidx value for a given feature otherwise return -1 if not found
-__device__ int BinarySearchRow(bst_uint begin, bst_uint end,
-                               common::CompressedIterator<uint32_t> data,
-                               int const fidx_begin, int const fidx_end) {
+__forceinline__ __device__ int BinarySearchRow(
+    bst_uint begin, bst_uint end,
+    common::CompressedIterator<uint32_t> data,
+    int const fidx_begin, int const fidx_end) {
   bst_uint previous_middle = UINT32_MAX;
   while (end != begin) {
     auto middle = begin + (end - begin) / 2;
@@ -365,18 +369,24 @@ __global__ void EvaluateSplitKernel(
  *
  * \summary Data storage for node histograms on device. Automatically expands.
  *
+ * \tparam GradientSumT      histogram entry type.
+ * \tparam kStopGrowingSize  Do not grow beyond this size
+ *
  * \author  Rory
  * \date    28/07/2018
  */
-template <typename GradientSumT>
+template <typename GradientSumT, size_t kStopGrowingSize = 1 << 26>
 class DeviceHistogram {
  private:
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
   thrust::device_vector<typename GradientSumT::ValueT> data_;
-  static constexpr size_t kStopGrowingSize = 1 << 26;  // Do not grow beyond this size
   int n_bins_;
   int device_id_;
+  static constexpr size_t kNumItemsInGradientSum =
+      sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
+  static_assert(kNumItemsInGradientSum == 2,
+                "Number of items in gradient type should be 2.");
 
  public:
   void Init(int device_id, int n_bins) {
@@ -390,34 +400,44 @@ class DeviceHistogram {
         data_.size() * sizeof(typename decltype(data_)::value_type)));
     nidx_map_.clear();
   }
-  bool HistogramExists(int nidx) {
-    return nidx_map_.find(nidx) != nidx_map_.end();
+  bool HistogramExists(int nidx) const {
+    return nidx_map_.find(nidx) != nidx_map_.cend();
+  }
+  size_t HistogramSize() const {
+    return n_bins_ * kNumItemsInGradientSum;
   }
 
-  thrust::device_vector<typename GradientSumT::ValueT> &Data() {
+  thrust::device_vector<typename GradientSumT::ValueT>& Data() {
     return data_;
   }
 
   void AllocateHistogram(int nidx) {
     if (HistogramExists(nidx)) return;
-    size_t current_size = nidx_map_.size() * n_bins_ *
-                          2;  // Number of items currently used in data
+    // Number of items currently used in data
+    const size_t used_size = nidx_map_.size() * HistogramSize();
+    const size_t new_used_size = used_size + HistogramSize();
     dh::safe_cuda(cudaSetDevice(device_id_));
     if (data_.size() >= kStopGrowingSize) {
       // Recycle histogram memory
-      std::pair<int, size_t> old_entry = *nidx_map_.begin();
-      nidx_map_.erase(old_entry.first);
-      dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
-                                    n_bins_ * sizeof(GradientSumT)));
-      nidx_map_[nidx] = old_entry.second;
+      if (new_used_size <= data_.size()) {
+        // no need to remove old node, just insert the new one.
+        nidx_map_[nidx] = used_size;
+        // memset histogram size in bytes
+        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + used_size, 0,
+                                      n_bins_ * sizeof(GradientSumT)));
+      } else {
+        std::pair<int, size_t> old_entry = *nidx_map_.begin();
+        nidx_map_.erase(old_entry.first);
+        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
+                                      n_bins_ * sizeof(GradientSumT)));
+        nidx_map_[nidx] = old_entry.second;
+      }
     } else {
       // Append new node histogram
-      nidx_map_[nidx] = current_size;
-      if (data_.size() < current_size + n_bins_ * 2) {
-        size_t new_size = current_size * 2;  // Double in size
-        new_size = std::max(static_cast<size_t>(n_bins_ * 2),
-                            new_size);  // Have at least one histogram
-        data_.resize(new_size);
+      nidx_map_[nidx] = used_size;
+      size_t new_required_memory = std::max(data_.size() * 2, HistogramSize());
+      if (data_.size() < new_required_memory) {
+        data_.resize(new_required_memory);
       }
     }
   }
@@ -450,6 +470,7 @@ struct CalcWeightTrainParam {
 };
 
 // Bin each input data entry, store the bin indices in compressed form.
+template<typename std::enable_if<true,  int>::type = 0>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
@@ -543,11 +564,11 @@ struct IndicateLeftTransform {
  * segments. Based on a single pass of exclusive scan, uses iterators to
  * redirect inputs and outputs.
  */
-void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
-                  common::Span<int> position_out, common::Span<bst_uint> ridx,
-                  common::Span<bst_uint> ridx_out, int left_nidx,
-                  int right_nidx, int64_t* d_left_count,
-                  cudaStream_t stream = nullptr) {
+inline void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
+                         common::Span<int> position_out, common::Span<bst_uint> ridx,
+                         common::Span<bst_uint> ridx_out, int left_nidx,
+                         int right_nidx, int64_t* d_left_count,
+                         cudaStream_t stream = nullptr) {
   auto d_position_out = position_out.data();
   auto d_position_in = position.data();
   auto d_ridx_out = ridx_out.data();
@@ -577,7 +598,7 @@ void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
 }
 
 /*! \brief Count how many rows are assigned to left node. */
-__device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+__forceinline__ __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
   unsigned ballot = __ballot(val == left_nidx);
   if (threadIdx.x % 32 == 0) {
     atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
@@ -1598,8 +1619,11 @@ class GPUHistMaker : public TreeUpdater {
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };
 
+#if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
     .set_body([]() { return new GPUHistMaker(); });
+#endif  // !defined(GTEST_TEST)
+
 }  // namespace tree
 }  // namespace xgboost

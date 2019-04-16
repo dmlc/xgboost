@@ -4,8 +4,11 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
+#include <rabit/c_api.h>
+
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
@@ -624,7 +627,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
 #pragma omp parallel num_threads(nthread)
   {
     // Count elements per row, column by column
-    for (auto j = 0; j < ncol; ++j) {
+    for (auto j = 0u; j < ncol; ++j) {
       DTType dtype = DTGetType(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
