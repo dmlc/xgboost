@@ -26,7 +26,13 @@
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/column_matrix.h"
+#include "thread_safe_tree.h"
+
 namespace xgboost {
+
+namespace common {
+template class GHistBuilder<tree::QuantileHistMaker::Builder::HistTLS>;
+}
 namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
@@ -551,6 +557,46 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
   return true;
 }
 
+  void QuantileHistMaker::Builder::BuildHist(const std::vector<GradientPair>& gpair,
+                        const RowSetCollection::Elem row_indices,
+                        const GHistIndexMatrix& gmat,
+                        const GHistIndexBlockMatrix& gmatb,
+                        GHistRow hist,
+                        RegTreeThreadSafe* tree,
+                        size_t parent_nid,
+                        GHistRow sibling,
+                        GHistRow parent,
+                        int32_t this_nid,
+                        int32_t another_nid,
+                        bool sync_hist) {
+    tree::GradStats grad_st;
+
+    if (param_.enable_feature_grouping > 0) {
+      this->hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
+    } else {
+      grad_st = this->hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
+        hist_tls_.get(), parent_nid, param_,
+        sibling, parent, this_nid, another_nid, data_layout_ == kDenseDataZeroBased
+        || data_layout_ == kDenseDataOneBased);
+      if (!sync_hist) {
+        tree->Snode(this_nid).stats = grad_st;
+        if (another_nid > -1) {
+          auto& st = tree->Snode(parent_nid).stats;
+          tree->Snode(another_nid).stats.SetSubstract(st, grad_st);
+        }
+      }
+    }
+    if (sync_hist) {
+      this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
+    }
+  }
+
+  void QuantileHistMaker::Builder::SubtractionTrick(GHistRow self, GHistRow sibling,
+      GHistRow parent) {
+    hist_builder_.SubtractionTrick(self, sibling, parent);
+  }
+
+
 void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                                           const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
@@ -615,8 +661,8 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
       row_indices.resize(j);
     } else {
-      MemStackAllocator<int, 128> buff(this->nthread_);
-      int* p_buff = buff.Get();
+      MemStackAllocator<bool, 128> buff(this->nthread_);
+      bool* p_buff = buff.Get();
       std::fill(p_buff, p_buff + this->nthread_, false);
 
       const size_t block_size = info.num_row_ / this->nthread_ + !!(info.num_row_ % this->nthread_);
@@ -630,20 +676,20 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
 
         for (size_t i = ibegin; i < iend; ++i) {
           if (gpair[i].GetHess() < 0.0f) {
-            buff.Get()[tid] = true;
+            p_buff[tid] = true;
             break;
           }
         }
       }
 
-      bool has_heg_hess = false;
+      bool has_neg_hess = false;
       for (size_t tid = 0; tid < this->nthread_; ++tid) {
-        if (p_buff[tid] == true) {
-          has_heg_hess = true;
+        if (p_buff[tid]) {
+          has_neg_hess = true;
         }
       }
 
-      if (has_heg_hess) {
+      if (has_neg_hess) {
         size_t j = 0;
         for (size_t i = 0; i < info.num_row_; ++i) {
           if (gpair[i].GetHess() >= 0.0f) {
@@ -665,8 +711,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
     }
   }
-  row_set_collection_.Init();
-
   row_set_collection_.Init();
 
   {

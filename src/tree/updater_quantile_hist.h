@@ -28,57 +28,6 @@
 #include "../common/column_matrix.h"
 
 namespace xgboost {
-
-template<typename T, size_t MaxStackSize>
-class MemStackAllocator {
- public:
-  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
-  }
-
-  T* Get() {
-    if (!ptr_) {
-      if (MaxStackSize >= required_size_) {
-        ptr_ = stack_mem_;
-      } else {
-        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
-        do_free_ = true;
-      }
-    }
-
-    return ptr_;
-  }
-
-  ~MemStackAllocator() {
-    if (do_free_) free(ptr_);
-  }
-
- private:
-  T* ptr_ = nullptr;
-  bool do_free_ = false;
-  size_t required_size_;
-  T stack_mem_[MaxStackSize];
-};
-
-template<typename Func>
-inline void ParallelFor(const size_t n, Func func) {
-  if (n) {
-    #pragma omp taskgroup
-    {
-      for (size_t iblock = 0; iblock < n; iblock++) {
-        #pragma omp task
-        func(iblock);
-      }
-    }
-  }
-}
-
-template<typename Func>
-inline void SeqFor(const size_t n, Func func) {
-  for (size_t iblock = 0; iblock < n; iblock++) {
-    func(iblock);
-  }
-}
-
 namespace tree {
 
 using xgboost::common::HistCutMatrix;
@@ -94,8 +43,6 @@ using xgboost::common::Column;
 
 
 class RegTreeThreadSafe;
-
-
 
 template<typename T, typename InitFunc, typename DeleteFunc>
 class ThreadSafeStorage {
@@ -229,20 +176,7 @@ class QuantileHistMaker: public TreeUpdater {
                           GHistRow parent,
                           int32_t this_nid,
                           int32_t another_nid,
-                          bool sync_hist) {
-      if (param_.enable_feature_grouping > 0) {
-        this->hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
-      } else {
-        this->hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
-          hist_tls_.get(), tree, parent_nid, param_,
-          sibling, parent, this_nid, another_nid, data_layout_ == kDenseDataZeroBased
-          || data_layout_ == kDenseDataOneBased,
-          sync_hist);
-      }
-      if (sync_hist) {
-        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
-      }
-    }
+                          bool sync_hist);
 
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
@@ -421,9 +355,7 @@ class QuantileHistMaker: public TreeUpdater {
                         int sync_count,
                         RegTreeThreadSafe *p_tree);
 
-    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-      hist_builder_.SubtractionTrick(self, sibling, parent);
-    }
+    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
     void BuildNodeStat(const GHistIndexMatrix &gmat,
                         DMatrix *p_fmat,
@@ -506,100 +438,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
 };
-
-class RegTreeThreadSafe {
- public:
-RegTreeThreadSafe(RegTree* p_tree, const std::vector<QuantileHistMaker::NodeEntry>& snode,
-    const TrainParam& param): p_tree_(*p_tree), snode_(snode.size()), param_(param) { }
-
-~RegTreeThreadSafe() {
-  for (size_t i = 0; i < snode_.size(); ++i) {
-    delete snode_[i];
-    snode_[i] = nullptr;
-  }
-}
-
-const RegTree& Get() const {
-  return p_tree_;
-}
-
-const TreeParam& Param() const {
-  return p_tree_.param;
-}
-
-RegTree::Node operator[](size_t idx) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return p_tree_[idx];
-}
-
-void SetLeaf(bst_float value, int32_t nid) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  p_tree_[nid].SetLeaf(value);
-}
-
-
-RegTree::Node ExpandNode(int nid, unsigned split_index, bst_float split_value,
-                bool default_left, bst_float base_weight,
-                bst_float left_leaf_weight, bst_float right_leaf_weight,
-                bst_float loss_change, float sum_hess) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  p_tree_.ExpandNode(nid, split_index, split_value, default_left, base_weight,
-                left_leaf_weight, right_leaf_weight, loss_change, sum_hess);
-  return p_tree_[nid];
-}
-
-size_t GetDepth(size_t nid) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return p_tree_.GetDepth(nid);
-}
-
-size_t NumNodes() const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return Param().num_nodes;
-}
-
-QuantileHistMaker::NodeEntry& Snode(size_t nid) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (nid >= snode_.size())
-    resize(nid+1);
-
-  return *(snode_[nid]);
-}
-
-const QuantileHistMaker::NodeEntry& Snode(size_t nid) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  if (nid >= snode_.size())
-    resize(nid+1);
-
-  return *(snode_[nid]);
-}
-
-void ResizeSnode(const TrainParam& param) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  int n_nodes = Param().num_nodes;
-  resize(n_nodes);
-}
-
- protected:
-  void resize(int n_nodes) const {
-    int prev_size = snode_.size();
-    snode_.resize(n_nodes, nullptr);
-
-    if (prev_size < n_nodes) {
-      for (int i = prev_size; i < n_nodes; ++i) {
-        if (snode_[i] != nullptr) delete snode_[i];
-        snode_[i] = new QuantileHistMaker::NodeEntry(param_);
-      }
-    }
-  }
-
-  mutable std::mutex mutex_;
-  RegTree& p_tree_;
-  mutable std::vector<QuantileHistMaker::NodeEntry*> snode_;
-  const TrainParam& param_;
-};
-
 
 }  // namespace tree
 }  // namespace xgboost
