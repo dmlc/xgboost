@@ -33,7 +33,8 @@ TEST(ColumnSampler, Test) {
 
   // No level or node sampling, should be the same at different depth
   cs.Init(n, 1.0f, 1.0f, 0.5f);
-  ASSERT_EQ(cs.GetFeatureSet(0)->HostVector(), cs.GetFeatureSet(1)->HostVector());
+  ASSERT_EQ(cs.GetFeatureSet(0)->HostVector(),
+            cs.GetFeatureSet(1)->HostVector());
 
   cs.Init(n, 1.0f, 1.0f, 1.0f);
   auto set5 = *cs.GetFeatureSet(0);
@@ -45,7 +46,23 @@ TEST(ColumnSampler, Test) {
   // Should always be a minimum of one feature
   cs.Init(n, 1e-16f, 1e-16f, 1e-16f);
   ASSERT_EQ(cs.GetFeatureSet(0)->Size(), 1);
+}
 
+// Test if different threads using the same seed produce the same result
+TEST(ColumnSampler, ThreadSynchronisation) {
+  const int64_t num_threads = 10;
+  int seed = 7;
+  int n = 128;
+  std::vector<std::vector<int>> results(num_threads);
+#pragma omp parallel for schedule(static, 1)
+  for (int64_t i = 0; i < num_threads; ++i) {
+    ColumnSampler cs(seed);
+    cs.Init(n, 0.5f, 0.5f, 0.5f);
+    results.at(i) = cs.GetFeatureSet(0)->ConstHostVector();
+  }
+  for (int64_t i = 1; i < num_threads; ++i) {
+    ASSERT_EQ(results.at(0), results.at(i));
+  }
 }
 }  // namespace common
 }  // namespace xgboost
