@@ -74,6 +74,10 @@ struct RTreeNodeStat {
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
   int leaf_child_cnt;
+  bool operator==(const RTreeNodeStat& b) const {
+    return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
+           base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
 };
 
 /*!
@@ -184,7 +188,11 @@ class RegTree {
       if (is_left_child) pidx |= (1U << 31);
       this->parent_ = pidx;
     }
-
+    bool operator==(const Node& b) const {
+      return parent_ == b.parent_ && cleft_ == b.cleft_ &&
+             cright_ == b.cright_ && sindex_ == b.sindex_ &&
+             info_.leaf_value == b.info_.leaf_value;
+    }
    private:
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
@@ -300,6 +308,16 @@ class RegTree {
     fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
   }
 
+  bool operator==(const RegTree& b) const {
+    return nodes_ == b.nodes_ && stats_ == b.stats_ &&
+           deleted_nodes_ == b.deleted_nodes_ &&
+           param.num_roots == b.param.num_roots &&
+           param.num_nodes == b.param.num_nodes &&
+           param.num_deleted == b.param.num_deleted &&
+           param.max_depth == b.param.max_depth &&
+           param.num_feature == b.param.num_feature;
+  }
+  
   /**
    * \brief Expands a leaf node into two additional leaf nodes.
    *

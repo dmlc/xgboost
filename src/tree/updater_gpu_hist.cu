@@ -598,7 +598,8 @@ inline void SortPosition(dh::CubMemory* temp_memory, common::Span<int> position,
 }
 
 /*! \brief Count how many rows are assigned to left node. */
-__device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+__forceinline__ __device__ void CountLeft(int64_t* d_count, int val,
+                                          int left_nidx) {
 #if __CUDACC_VER_MAJOR__ > 8
   int mask = __activemask();
   unsigned ballot = __ballot_sync(mask, val == left_nidx);
@@ -1495,6 +1496,11 @@ class GPUHistMakerSpecialised{
           shard->UpdateTree(gpair, p_fmat, tree,
                           &reducer_);
         });
+
+    // Check the shards produced identical trees
+    for (auto i = 1ull; i < dummy_trees.size(); i++) {
+      CHECK(*p_tree == dummy_trees.at(i));
+    }
   }
 
   bool UpdatePredictionCache(
