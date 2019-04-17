@@ -3,129 +3,222 @@
 // Jenkins pipeline
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
-import groovy.transform.Field
-
-/* Unrestricted tasks: tasks that do NOT generate artifacts */
-
 // Command to run command inside a docker container
-def dockerRun = 'tests/ci_build/ci_build.sh'
-// Utility functions
-@Field
-def utils
-
-def buildMatrix = [
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "10.0", "multiGpu": true],
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "9.2" ],
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": true,  "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
-    [ "enabled": true,  "os" : "linux", "withGpu": true, "withNccl": false, "withOmp": true, "pythonVersion": "2.7", "cudaVersion": "8.0" ],
-]
+dockerRun = 'tests/ci_build/ci_build.sh'
 
 pipeline {
-    // Each stage specify its own agent
-    agent none
+  // Each stage specify its own agent
+  agent none
 
-    environment {
-        DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
-    }
-
-    // Setup common job properties
-    options {
-        ansiColor('xterm')
-        timestamps()
-        timeout(time: 120, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-    }
-
-    // Build stages
-    stages {
-        stage('Jenkins: Get sources') {
-            agent {
-                label 'unrestricted'
-            }
-            steps {
-                script {
-                    utils = load('tests/ci_build/jenkins_tools.Groovy')
-                    utils.checkoutSrcs()
-                }
-                stash name: 'srcs', excludes: '.git/'
-                milestone label: 'Sources ready', ordinal: 1
-            }
-        }
-        stage('Jenkins: Build & Test') {
-            steps {
-                script {
-                    parallel (buildMatrix.findAll{it['enabled']}.collectEntries{ c ->
-                        def buildName = utils.getBuildName(c)
-                        utils.buildFactory(buildName, c, false, this.&buildPlatformCmake)
-                    } + [ "clang-tidy" : { buildClangTidyJob() } ])
-                }
-            }
-        }
-    }
-}
-
-/**
- * Build platform and test it via cmake.
- */
-def buildPlatformCmake(buildName, conf, nodeReq, dockerTarget) {
-    def opts = utils.cmakeOptions(conf)
-    // Destination dir for artifacts
-    def distDir = "dist/${buildName}"
-    def dockerArgs = ""
-    if (conf["withGpu"]) {
-        dockerArgs = "--build-arg CUDA_VERSION=" + conf["cudaVersion"]
-    }
-    def test_suite = conf["withGpu"] ? (conf["multiGpu"] ? "mgpu" : "gpu") : "cpu"
-    // Build node - this is returned result
-    retry(1) {
-        node(nodeReq) {
-            unstash name: 'srcs'
-            echo """
-            |===== XGBoost CMake build =====
-            |  dockerTarget: ${dockerTarget}
-            |  cmakeOpts   : ${opts}
-            |=========================
-            """.stripMargin('|')
-            // Invoke command inside docker
-            sh """
-            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/build_via_cmake.sh ${opts}
-            ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/test_${test_suite}.sh
-            """
-            if (!conf["multiGpu"]) {
-                sh """
-                ${dockerRun} ${dockerTarget} ${dockerArgs} bash -c "cd python-package; rm -f dist/*; python setup.py bdist_wheel --universal"
-                rm -rf "${distDir}"; mkdir -p "${distDir}/py"
-                cp xgboost "${distDir}"
-                cp -r python-package/dist "${distDir}/py"
-                # Test the wheel for compatibility on a barebones CPU container
-                ${dockerRun} release ${dockerArgs} bash -c " \
-                    pip install --user python-package/dist/xgboost-*-none-any.whl && \
-		    pytest -v --fulltrace -s tests/python"
-                # Test the wheel for compatibility on CUDA 10.0 container
-                ${dockerRun} gpu --build-arg CUDA_VERSION=10.0 bash -c " \
-                    pip install --user python-package/dist/xgboost-*-none-any.whl && \
-		    pytest -v -s --fulltrace -m '(not mgpu) and (not slow)' tests/python-gpu"
-                """
-            }
-        }
-    }
-}
-
-/**
- * Run a clang-tidy job on a GPU machine
- */
-def buildClangTidyJob() {
-    def nodeReq = "linux && gpu && unrestricted"
-    node(nodeReq) {
-        unstash name: 'srcs'
-        echo "Running clang-tidy job..."
-        // Invoke command inside docker
-        // Install Google Test and Python yaml
-        dockerTarget = "clang_tidy"
-        dockerArgs = "--build-arg CUDA_VERSION=9.2"
-        sh """
-        ${dockerRun} ${dockerTarget} ${dockerArgs} tests/ci_build/clang_tidy.sh
-        """
-      }
+  environment {
+    DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
   }
 
+  // Setup common job properties
+  options {
+    ansiColor('xterm')
+    timestamps()
+    timeout(time: 120, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    preserveStashes()
+  }
+
+  // Build stages
+  stages {
+    stage('Get sources') {
+      agent { label 'linux && cpu' }
+      steps {
+        script {
+          checkoutSrcs()
+        }
+        stash name: 'srcs'
+        milestone ordinal: 1
+      }
+    }
+    stage('Formatting Check') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'clang-tidy': { ClangTidy() },
+            'lint': { Lint() },
+            'sphinx-doc': { SphinxDoc() },
+            'doxygen': { Doxygen() }
+          ])
+        }
+        milestone ordinal: 2
+      }
+    }
+    stage('Build') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'build-cpu': { BuildCPU() },
+            'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
+            'build-gpu-cuda9.2': { BuildCUDA(cuda_version: '9.2') },
+            'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
+            'build-jvm-spark2.4.1': { BuildJVMSpark(spark_version: '2.4.1') },
+            'build-jvm-doc': { BuildJVMDoc() }
+          ])
+        }
+        milestone ordinal: 3
+      }
+    }
+    stage('Test') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'test-python-cpu': { TestPythonCPU() },
+            'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
+            'test-python-gpu-cuda9.2': { TestPythonGPU(cuda_version: '9.2') },
+            'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
+            'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
+            'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
+            'test-jvm-test': { TestJVM() },
+            'test-r-3.4.4': { TestR(r_version: '3.4.4') },
+            'test-r-3.5.3': { TestR(r_version: '3.5.3') }
+          ])
+        }
+        milestone ordinal: 4
+      }
+    }
+  }
+}
+
+// check out source code from git
+def checkoutSrcs() {
+  retry(5) {
+    try {
+      timeout(time: 2, unit: 'MINUTES') {
+        checkout scm
+        sh 'git submodule update --init'
+      }
+    } catch (exc) {
+      deleteDir()
+      error "Failed to fetch source codes"
+    }
+  }
+}
+
+def ClangTidy() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Running clang-tidy job..."
+    container_type = "clang_tidy"
+    docker_binary = "docker"
+    dockerArgs = "--build-arg CUDA_VERSION=9.2"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} tests/ci_build/clang_tidy.sh
+    """
+  }
+}
+
+def Lint() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Running lint..."
+    // commented out for now, until another PR to migrate lint to Python 3 gets merged
+    container_type = "lint"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} make lint
+    """
+  }
+}
+
+def SphinxDoc() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Running sphinx-doc..."
+    container_type = "lint"
+    docker_binary = "docker"
+    sh """#!/bin/bash
+    CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}' ${dockerRun} ${container_type} ${docker_binary} make -C doc html
+    """
+  }
+}
+
+def Doxygen() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Running doxygen..."
+    container_type = "lint"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh
+    """
+  }
+}
+
+def BuildCPU() {
+  node('linux && cpu') {
+    echo "Build CPU"
+  }
+}
+
+def BuildCUDA(args) {
+  node('linux && cpu') {
+    echo "Build with CUDA ${args.cuda_version}"
+  }
+}
+
+def BuildJVMSpark(args) {
+  node('linux && cpu') {
+    echo "Build XGBoost4J-Spark with Spark ${args.spark_version}"
+    container_type = "jvm"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
+    """
+  }
+}
+
+def BuildJVMDoc() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Building JVM doc..."
+    container_type = "jvm"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
+    """
+    archiveArtifacts artifacts: "jvm-packages/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
+    echo 'Deploying doc...'
+    s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+  }
+}
+
+def TestPythonCPU() {
+  node('linux && cpu') {
+    echo "Test Python CPU"
+  }
+}
+
+def TestPythonGPU(args) {
+  node('linux && cpu') {
+    echo "Test Python GPU: CUDA ${args.cuda_version}"
+  }
+}
+
+def TestCppGPU(args) {
+  node('linux && cpu') {
+    echo "Test C++, CUDA ${args.cuda_version}"
+    if (args.multi_gpu) {
+      echo "Using multiple GPUs"
+    }
+  }
+}
+
+def TestJVM() {
+  node('linux && cpu') {
+    echo "Test JVM packages"
+  }
+}
+
+def TestR(args) {
+  node('linux && cpu') {
+    echo "Test R package: R version ${args.r_version}"
+  }
+}

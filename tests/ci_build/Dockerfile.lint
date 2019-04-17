@@ -1,5 +1,4 @@
-ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu18.04
+FROM ubuntu:18.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -7,18 +6,14 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential python3 python3-pip llvm-7 clang-tidy-7 clang-7 && \
+    apt-get install -y tar unzip wget git build-essential python3 python3-pip doxygen graphviz && \
     wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
-# Set default clang-tidy version
-RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-7 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
-
 # Install Python packages
 RUN \
-    pip3 install pyyaml
+    pip3 install pyyaml cpplint pylint astroid sphinx numpy scipy sh recommonmark guzzle_sphinx_theme mock breathe matplotlib graphviz && \
+    pip3 install https://s3.amazonaws.com/h2o-release/datatable/stable/datatable-0.3.2/datatable-0.3.2-cp36-cp36m-linux_x86_64.whl
 
 ENV GOSU_VERSION 1.10
 
