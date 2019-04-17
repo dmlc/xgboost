@@ -2,11 +2,13 @@
 #
 # Execute command within a docker container
 #
-# Usage: ci_build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                    <COMMAND>
+# Usage: ci_build.sh <CONTAINER_TYPE> <DOCKER_BINARY>
+#                    [--dockerfile <DOCKERFILE_PATH>] [-it] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
+#
+# DOCKER_BINARY: Command to invoke docker, e.g. (docker | nvidia-docker).
 #
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
@@ -24,12 +26,21 @@ shift 1
 DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}"
 DOCKER_CONTEXT_PATH="${SCRIPT_DIR}"
 
+# Get docker binary command (should be either docker or nvidia-docker)
+DOCKER_BINARY="$1"
+shift 1
+
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
     DOCKER_CONTEXT_PATH=$(dirname "${DOCKERFILE_PATH}")
     echo "Using custom Dockerfile path: ${DOCKERFILE_PATH}"
     echo "Using custom docker build context path: ${DOCKER_CONTEXT_PATH}"
     shift 2
+fi
+
+if [[ -n "${CI_DOCKER_EXTRA_PARAMS_INIT}" ]]
+then
+    IFS=' ' read -r -a CI_DOCKER_EXTRA_PARAMS <<< "${CI_DOCKER_EXTRA_PARAMS_INIT}"
 fi
 
 if [[ "$1" == "-it" ]]; then
@@ -59,13 +70,6 @@ if [ "$#" -lt 1 ] || [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
       echo "       COMMAND is a command (with arguments) to run inside"
       echo "               the container."
       exit 1
-fi
-
-# Use nvidia-docker if the container is GPU.
-if [[ "${CONTAINER_TYPE}" == *"gpu"* ]]; then
-    DOCKER_BINARY="nvidia-docker"
-else
-    DOCKER_BINARY="docker"
 fi
 
 # Helper function to traverse directories up until given file is found.
@@ -181,6 +185,7 @@ echo "Running '${COMMAND[*]}' inside ${DOCKER_IMG_NAME}..."
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
+set -x
 ${DOCKER_BINARY} run --rm --pid=host \
     -v "${WORKSPACE}":/workspace \
     -w /workspace \
