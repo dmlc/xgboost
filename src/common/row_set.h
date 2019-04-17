@@ -59,7 +59,6 @@ class RowSetCollection {
   }
   // clear up things
   inline void Clear() {
-    row_indices_.clear();
     elem_of_each_node_.clear();
   }
   // initialize node id 0->everything

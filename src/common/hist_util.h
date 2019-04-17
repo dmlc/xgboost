@@ -19,6 +19,74 @@
 namespace xgboost {
 namespace common {
 
+/*
+ * \brief A thin wrapper around dynamically allocated C-style array.
+ * Make sure to call resize() before use.
+ */
+template<typename T>
+struct SimpleArray {
+  ~SimpleArray() {
+    free(ptr_);
+    ptr_ = nullptr;
+  }
+
+  void resize(size_t n) {
+    T* ptr = static_cast<T*>(malloc(n*sizeof(T)));
+    memcpy(ptr, ptr_, n_ * sizeof(T));
+    free(ptr_);
+    ptr_ = ptr;
+    n_ = n;
+  }
+
+  T& operator[](size_t idx) {
+    return ptr_[idx];
+  }
+
+  T& operator[](size_t idx) const {
+    return ptr_[idx];
+  }
+
+  size_t size() const {
+    return n_;
+  }
+
+  T back() const {
+    return ptr_[n_-1];
+  }
+
+  T* data() {
+    return ptr_;
+  }
+
+  const T* data() const {
+    return ptr_;
+  }
+
+
+  T* begin() {
+    return ptr_;
+  }
+
+  const T* begin() const {
+    return ptr_;
+  }
+
+  T* end() {
+    return ptr_ + n_;
+  }
+
+  const T* end() const {
+    return ptr_ + n_;
+  }
+
+ private:
+  T* ptr_ = nullptr;
+  size_t n_ = 0;
+};
+
+
+
+
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
