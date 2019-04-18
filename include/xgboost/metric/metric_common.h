@@ -1,12 +1,11 @@
 /*!
- * Copyright 2018-2019 by Contributors
- * \file metric_param.cc
+ * Copyright 2019 by Contributors
  */
-#ifndef XGBOOST_METRIC_METRIC_COMMON_H_
-#define XGBOOST_METRIC_METRIC_COMMON_H_
+#ifndef XGBOOST_METRIC_METRIC_PARAM_H_
+#define XGBOOST_METRIC_METRIC_PARAM_H_
 
 #include <dmlc/parameter.h>
-#include "../common/common.h"
+#include "../../../src/common/common.h"
 
 namespace xgboost {
 namespace metric {
@@ -16,6 +15,7 @@ struct MetricParam : public dmlc::Parameter<MetricParam> {
   int n_gpus;
   int gpu_id;
   DMLC_DECLARE_PARAMETER(MetricParam) {
+
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
@@ -37,8 +37,9 @@ class PackedReduceResult {
   XGBOOST_DEVICE
   PackedReduceResult operator+(PackedReduceResult const &other) const {
     return PackedReduceResult{residue_sum_ + other.residue_sum_,
-                              weights_sum_ + other.weights_sum_};
+                             weights_sum_ + other.weights_sum_};
   }
+
   PackedReduceResult &operator+=(PackedReduceResult const &other) {
     this->residue_sum_ += other.residue_sum_;
     this->weights_sum_ += other.weights_sum_;
@@ -51,4 +52,4 @@ class PackedReduceResult {
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_METRIC_METRIC_COMMON_H_
+#endif  // XGBOOST_METRIC_METRIC_PARAM_H_

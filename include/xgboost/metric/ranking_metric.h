@@ -16,7 +16,7 @@
 #define XGBOOST_METRIC_RANKING_METRIC_H_
 
 #include <xgboost/metric/metric.h>
-#include <xgboost/metric/metric_param.h>
+#include <xgboost/metric/metric_common.h>
 
 #include <limits>
 #include <string>

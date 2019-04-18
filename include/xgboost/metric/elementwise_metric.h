@@ -6,7 +6,7 @@
 #define XGBOOST_METRIC_ELEMENTWISE_METRIC_H_
 
 #include <xgboost/metric/metric.h>
-#include <xgboost/metric/metric_param.h>
+#include <xgboost/metric/metric_common.h>
 
 #include <functional>
 #include <utility>

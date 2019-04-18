@@ -4,11 +4,9 @@
  * \brief Registry of objective functions.
  */
 #include <xgboost/metric/metric.h>
-#include <xgboost/metric/metric_param.h>
+#include <xgboost/metric/metric_common.h>
 
 #include <dmlc/registry.h>
-
-#include "metric_common.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);

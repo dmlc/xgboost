@@ -5,10 +5,10 @@
  * \author Kailong Chen, Tianqi Chen
  */
 #include <rabit/rabit.h>
-#include <xgboost/metric.h>
+#include <xgboost/metric/metric.h>
+#include <xgboost/metric/metric_common.h>
 #include <cmath>
 
-#include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
 

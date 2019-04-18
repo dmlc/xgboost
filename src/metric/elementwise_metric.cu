@@ -4,12 +4,11 @@
 
 #include <rabit/rabit.h>
 #include <xgboost/metric/metric.h>
-#include <xgboost/metric/metric_param.h>
+#include <xgboost/metric/metric_common.h>
 #include <xgboost/metric/elementwise_metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
 
-#include "metric_common.h"
 #include "../common/math.h"
 #include "../common/common.h"
 
