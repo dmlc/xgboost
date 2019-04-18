@@ -37,7 +37,7 @@ class PackedReduceResult {
   XGBOOST_DEVICE
   PackedReduceResult operator+(PackedReduceResult const &other) const {
     return PackedReduceResult{residue_sum_ + other.residue_sum_,
-                             weights_sum_ + other.weights_sum_};
+                              weights_sum_ + other.weights_sum_};
   }
 
   PackedReduceResult &operator+=(PackedReduceResult const &other) {
