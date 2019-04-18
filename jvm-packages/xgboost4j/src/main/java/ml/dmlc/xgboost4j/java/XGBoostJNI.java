@@ -65,6 +65,9 @@ class XGBoostJNI {
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);
 
+  public final static native int XGDMatrixCreateFromMatRef(long dataRef, int nrow, int ncol,
+                                                           float missing, long[] out);
+
   public final static native int XGDMatrixSliceDMatrix(long handle, int[] idxset, long[] out);
 
   public final static native int XGDMatrixFree(long handle);
