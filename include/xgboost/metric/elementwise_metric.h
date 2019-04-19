@@ -21,7 +21,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>  // thrust::plus<>
 
-#include "../src/common/device_helpers.cuh"
+#include "../../../src/common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
 /*!
