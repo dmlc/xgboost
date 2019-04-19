@@ -19,7 +19,7 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include "../common/device_helpers.cuh"
+#include "../../../src/common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
