@@ -7,7 +7,20 @@
 
 #include <xgboost/metric/metric.h>
 #include <xgboost/metric/metric_common.h>
+
+#include <functional>
+#include <string>
 #include <vector>
+#include <utility>
+
+#if defined(XGBOOST_USE_CUDA)
+#include <thrust/execution_policy.h>  // thrust::cuda::par
+#include <thrust/functional.h>        // thrust::plus<>
+#include <thrust/transform_reduce.h>
+#include <thrust/iterator/counting_iterator.h>
+
+#include "../common/device_helpers.cuh"
+#endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
 namespace metric {
@@ -141,7 +154,7 @@ class MultiClassMetricsReduction {
         return result;
     }
 
-   private:
+ private:
   #if defined(XGBOOST_USE_CUDA)
     dh::PinnedMemory label_error_;
     std::vector<dh::CubMemory> allocators_;

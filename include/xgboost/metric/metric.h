@@ -7,13 +7,14 @@
 #define XGBOOST_METRIC_METRIC_H_
 
 #include <dmlc/registry.h>
+#include <xgboost/data.h>
+#include <xgboost/base.h>
+
 #include <vector>
 #include <string>
 #include <functional>
 #include <utility>
 
-#include <xgboost/data.h>
-#include <xgboost/base.h>
 #include "../../../src/common/host_device_vector.h"
 
 namespace xgboost {

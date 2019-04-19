@@ -7,19 +7,11 @@
 #include <rabit/rabit.h>
 #include <xgboost/metric/metric.h>
 #include <xgboost/metric/metric_common.h>
+#include <xgboost/metric/multiclass_metric.h>
 #include <cmath>
 
 #include "../common/math.h"
 #include "../common/common.h"
-
-#if defined(XGBOOST_USE_CUDA)
-#include <thrust/execution_policy.h>  // thrust::cuda::par
-#include <thrust/functional.h>        // thrust::plus<>
-#include <thrust/transform_reduce.h>
-#include <thrust/iterator/counting_iterator.h>
-
-#include "../common/device_helpers.cuh"
-#endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
 namespace metric {

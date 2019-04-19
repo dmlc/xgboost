@@ -1,8 +1,8 @@
 /*!
  * Copyright 2019 by Contributors
  */
-#ifndef XGBOOST_METRIC_METRIC_PARAM_H_
-#define XGBOOST_METRIC_METRIC_PARAM_H_
+#ifndef XGBOOST_METRIC_METRIC_COMMON_H_
+#define XGBOOST_METRIC_METRIC_COMMON_H_
 
 #include <dmlc/parameter.h>
 #include "../../../src/common/common.h"
@@ -15,7 +15,6 @@ struct MetricParam : public dmlc::Parameter<MetricParam> {
   int n_gpus;
   int gpu_id;
   DMLC_DECLARE_PARAMETER(MetricParam) {
-
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(gpu_id)
@@ -52,4 +51,4 @@ class PackedReduceResult {
 }  // namespace metric
 }  // namespace xgboost
 
-#endif  // XGBOOST_METRIC_METRIC_PARAM_H_
+#endif  // XGBOOST_METRIC_METRIC_COMMON_H_
