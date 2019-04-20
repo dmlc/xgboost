@@ -38,6 +38,7 @@ struct GPUHistMakerTrainParam
   bool single_precision_histogram;
   // number of rows in a single GPU batch
   int gpu_batch_nrows;
+  bool debug_synchronize;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUHistMakerTrainParam) {
     DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
@@ -47,6 +48,8 @@ struct GPUHistMakerTrainParam
         .set_default(0)
         .describe("Number of rows in a GPU batch, used for finding quantiles on GPU; "
                   "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
+    DMLC_DECLARE_FIELD(debug_synchronize).set_default(false).describe(
+        "Check if all distributed tree are identical after tree construction.");
   }
 };
 #if !defined(GTEST_TEST)
@@ -1471,6 +1474,22 @@ class GPUHistMakerSpecialised{
     }
   }
 
+  // Only call this method for testing
+  void CheckTreesSynchronized(const std::vector<RegTree>& local_trees) const {
+    std::string s_model;
+    common::MemoryBufferStream fs(&s_model);
+    int rank = rabit::GetRank();
+    if (rank == 0) {
+      local_trees.front().Save(&fs);
+    }
+    fs.Seek(0);
+    rabit::Broadcast(&s_model, 0);
+    RegTree reference_tree;
+    reference_tree.Load(&fs);
+    for (const auto& tree : local_trees) {
+      CHECK(tree == reference_tree);
+    }
+  }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
@@ -1478,29 +1497,28 @@ class GPUHistMakerSpecialised{
     this->InitData(gpair, p_fmat);
     monitor_.StopCuda("InitData");
 
-    std::vector<RegTree> dummy_trees(shards_.size());
-    for (auto& tree : dummy_trees) {
+    std::vector<RegTree> trees(shards_.size());
+    for (auto& tree : trees) {
       tree = *p_tree;
     }
     gpair->Reshard(dist_);
 
     // Launch one thread for each device "shard" containing a subset of rows.
     // Threads will cooperatively build the tree, synchronising over histograms.
-    // Each thread will redundantly
-    // build its own copy of the tree
+    // Each thread will redundantly build its own copy of the tree
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-          // Only the first shard will actually modify the tree
-          RegTree* tree = idx == 0 ? p_tree : &dummy_trees.at(idx);
-          shard->UpdateTree(gpair, p_fmat, tree,
-                          &reducer_);
+          shard->UpdateTree(gpair, p_fmat, &trees.at(idx), &reducer_);
         });
 
-    // Check the shards produced identical trees
-    for (auto i = 1ull; i < dummy_trees.size(); i++) {
-      CHECK(*p_tree == dummy_trees.at(i));
+    // All trees are expected to be identical
+    if (hist_maker_param_.debug_synchronize) {
+      this->CheckTreesSynchronized(trees);
     }
+
+    // Write the output tree
+    *p_tree = trees.front();
   }
 
   bool UpdatePredictionCache(

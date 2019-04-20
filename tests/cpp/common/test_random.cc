@@ -1,3 +1,4 @@
+#include <valarray>
 #include "../../../src/common/random.h"
 #include "../helpers.h"
 #include "gtest/gtest.h"
@@ -51,18 +52,28 @@ TEST(ColumnSampler, Test) {
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
   const int64_t num_threads = 10;
-  int seed = 7;
   int n = 128;
-  std::vector<std::vector<int>> results(num_threads);
-#pragma omp parallel for schedule(static, 1)
-  for (int64_t i = 0; i < num_threads; ++i) {
-    ColumnSampler cs(seed);
-    cs.Init(n, 0.5f, 0.5f, 0.5f);
-    results.at(i) = cs.GetFeatureSet(0)->ConstHostVector();
+  int iterations = 10;
+  int levels = 5;
+  std::vector<int> reference_result;
+  bool success =
+      true;  // Cannot use google test asserts in multithreaded region
+#pragma omp parallel num_threads(num_threads)
+  {
+    for (auto j = 0ull; j < iterations; j++) {
+      ColumnSampler cs(j);
+      cs.Init(n, 0.5f, 0.5f, 0.5f);
+      for (auto level = 0ull; level < levels; level++) {
+        auto result = cs.GetFeatureSet(level)->ConstHostVector();
+#pragma omp single
+        { reference_result = result; }
+        if (result != reference_result) {
+          success = false;
+        }
+      }
+    }
   }
-  for (int64_t i = 1; i < num_threads; ++i) {
-    ASSERT_EQ(results.at(0), results.at(i));
-  }
+  ASSERT_TRUE(success);
 }
 }  // namespace common
 }  // namespace xgboost

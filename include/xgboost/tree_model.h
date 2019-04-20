@@ -62,6 +62,13 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
         .describe("Size of leaf vector, reserved for vector tree");
   }
+
+  bool operator==(const TreeParam& b) const {
+    return num_roots == b.num_roots && num_nodes == b.num_nodes &&
+           num_deleted == b.num_deleted && max_depth == b.max_depth &&
+           num_feature == b.num_feature &&
+           size_leaf_vector == b.size_leaf_vector;
+  }
 };
 
 /*! \brief node statistics used in regression tree */
@@ -193,6 +200,7 @@ class RegTree {
              cright_ == b.cright_ && sindex_ == b.sindex_ &&
              info_.leaf_value == b.info_.leaf_value;
     }
+
    private:
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
@@ -310,14 +318,9 @@ class RegTree {
 
   bool operator==(const RegTree& b) const {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
-           deleted_nodes_ == b.deleted_nodes_ &&
-           param.num_roots == b.param.num_roots &&
-           param.num_nodes == b.param.num_nodes &&
-           param.num_deleted == b.param.num_deleted &&
-           param.max_depth == b.param.max_depth &&
-           param.num_feature == b.param.num_feature;
+           deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
-  
+
   /**
    * \brief Expands a leaf node into two additional leaf nodes.
    *
