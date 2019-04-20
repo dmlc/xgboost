@@ -27,11 +27,12 @@ import org.apache.spark.Partitioner
 
 class XGBoostClassifierSuite extends FunSuite with PerTest {
 
-  test("XGBoost-Spark XGBoostClassifier ouput should match XGBoost4j") {
+  test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j") {
     val trainingDM = new DMatrix(Classification.train.iterator)
     val testDM = new DMatrix(Classification.test.iterator)
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
+    val randSortedTestDF = buildDataFrameWithRandSort(Classification.test)
     val round = 5
 
     val paramMap = Map(
@@ -77,6 +78,11 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
     val prediction6 = model2.predict(firstOfDF)
     assert(prediction5 === prediction6)
+
+    // make sure column consistency won't be broken by random-sorted data source
+    val prediction7 = model2.transform(randSortedTestDF).
+        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
+    assert(prediction2 == prediction7)
   }
 
   test("Set params in XGBoost and MLlib way should produce same model") {

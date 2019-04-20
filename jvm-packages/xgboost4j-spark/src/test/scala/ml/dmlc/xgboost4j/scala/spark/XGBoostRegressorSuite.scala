@@ -25,11 +25,12 @@ import org.scalatest.FunSuite
 
 class XGBoostRegressorSuite extends FunSuite with PerTest {
 
-  test("XGBoost-Spark XGBoostRegressor ouput should match XGBoost4j: regression") {
+  test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j: regression") {
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
+    val randSortedTestDF = buildDataFrameWithRandSort(Regression.test)
     val round = 5
 
     val paramMap = Map(
@@ -58,6 +59,14 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val prediction3 = model1.predict(firstOfDM)(0)(0)
     val prediction4 = model2.predict(firstOfDF)
     assert(math.abs(prediction3 - prediction4) <= 0.01f)
+
+    // check prediction results with a random-sorted data source
+    val prediction5 = model2.transform(randSortedTestDF).
+        collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
+
+    assert(prediction1.indices.count { i =>
+      math.abs(prediction1(i)(0) - prediction5(i)) > 0.01
+    } < prediction1.length * 0.1)
   }
 
   test("Set params in XGBoost and MLlib way should produce same model") {
