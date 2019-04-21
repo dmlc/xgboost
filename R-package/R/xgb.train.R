@@ -186,7 +186,7 @@
 #' watchlist <- list(train = dtrain, eval = dtest)
 #'
 #' ## A simple xgb.train example:
-#' param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2,
+#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
 #'               objective = "binary:logistic", eval_metric = "auc")
 #' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
 #'
@@ -207,12 +207,12 @@
 #'
 #' # These functions could be used by passing them either:
 #' #  as 'objective' and 'eval_metric' parameters in the params list:
-#' param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2,
+#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
 #'               objective = logregobj, eval_metric = evalerror)
 #' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
 #'
 #' #  or through the ... arguments:
-#' param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2)
+#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2)
 #' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
 #'                  objective = logregobj, eval_metric = evalerror)
 #'
@@ -222,7 +222,7 @@
 #'
 #'
 #' ## An xgb.train example of using variable learning rates at each iteration:
-#' param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2,
+#' param <- list(max_depth = 2, eta = 1, verbose = 0, nthread = 2,
 #'               objective = "binary:logistic", eval_metric = "auc")
 #' my_etas <- list(eta = c(0.5, 0.1))
 #' bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
