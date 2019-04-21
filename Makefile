@@ -173,10 +173,10 @@ xgboost: $(CLI_OBJ) $(ALL_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
 rcpplint:
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
+	python3 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin python-package
+	python3 dmlc-core/scripts/lint.py --pylint-rc ${PWD}/python-package/.pylintrc xgboost ${LINT_LANG} include src plugin python-package
 
 pylint:
 	flake8 --ignore E501 python-package
