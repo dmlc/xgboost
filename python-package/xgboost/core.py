@@ -241,7 +241,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
     if feature_names is None:
         if isinstance(data.columns, MultiIndex):
             feature_names = [
-                ' '.join(map(str, i))
+                ' '.join([str(x) for x in i])
                 for i in data.columns
             ]
         else:
@@ -1716,7 +1716,7 @@ class Booster(object):
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
         for i, _ in enumerate(xgdump):
             m = re.findall(regexp, xgdump[i])
-            values.extend(map(float, m))
+            values.extend([float(x) for x in m])
 
         n_unique = len(np.unique(values))
         bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)

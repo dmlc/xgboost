@@ -49,7 +49,7 @@ def _train_internal(params, dtrain,
 
     # Distributed code: Load the checkpoint from rabit.
     version = bst.load_rabit_checkpoint()
-    assert(rabit.get_world_size() != 1 or version == 0)
+    assert rabit.get_world_size() != 1 or version == 0
     rank = rabit.get_rank()
     start_iteration = int(version / 2)
     nboost += start_iteration
@@ -75,7 +75,7 @@ def _train_internal(params, dtrain,
             bst.save_rabit_checkpoint()
             version += 1
 
-        assert(rabit.get_world_size() == 1 or version == rabit.version_number())
+        assert rabit.get_world_size() == 1 or version == rabit.version_number()
 
         nboost += 1
         evaluation_result_list = []
