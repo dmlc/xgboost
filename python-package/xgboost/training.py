@@ -80,7 +80,7 @@ def _train_internal(params, dtrain,
         nboost += 1
         evaluation_result_list = []
         # check evaluation result.
-        if len(evals) != 0:
+        if evals:
             bst_eval_set = bst.eval_set(evals, i, feval)
             if isinstance(bst_eval_set, STRING_TYPES):
                 msg = bst_eval_set
@@ -402,7 +402,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     else:
         params = dict((k, v) for k, v in params.items())
 
-    if len(metrics) == 0 and 'eval_metric' in params:
+    if (not metrics) and 'eval_metric' in params:
         if isinstance(params['eval_metric'], list):
             metrics = params['eval_metric']
         else:
@@ -462,7 +462,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                                rank=0,
                                evaluation_result_list=res))
         except EarlyStopException as e:
-            for k in results.keys():
+            for k in results:
                 results[k] = results[k][:(e.best_iteration + 1)]
             break
     if as_pandas:

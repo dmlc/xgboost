@@ -56,6 +56,8 @@ addons:
     packages:
       - clang
       - clang-tidy-5.0
+      - python3
+      - python3-pip
       - cmake-data
       - doxygen
       - wget
