@@ -1,9 +1,9 @@
 #' SHAP contribution dependency plots
 #'
 #' Visualizing the SHAP feature contribution to prediction dependencies on feature value.
-#' 
+#'
 #' @param data data as a \code{matrix} or \code{dgCMatrix}.
-#' @param shap_contrib a matrix of SHAP contributions that was computed earlier for the above 
+#' @param shap_contrib a matrix of SHAP contributions that was computed earlier for the above
 #'          \code{data}. When it is NULL, it is computed internally using \code{model} and \code{data}.
 #' @param features a vector of either column indices or of feature names to plot. When it is NULL,
 #'          feature importance is calculated, and \code{top_n} high ranked features are taken.
@@ -31,32 +31,32 @@
 #' @param plot_loess whether to plot loess-smoothed curves. The smoothing is only done for features with
 #'          more than 5 distinct values.
 #' @param col_loess a color to use for the loess curves.
-#' @param span_loess the \code{span} paramerer in \code{\link[stats]{loess}}'s call.
+#' @param span_loess the \code{span} parameter in \code{\link[stats]{loess}}'s call.
 #' @param which whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.
 #' @param plot whether a plot should be drawn. If FALSE, only a lits of matrices is returned.
 #' @param ... other parameters passed to \code{plot}.
-#' 
+#'
 #' @details
-#' 
+#'
 #' These scatterplots represent how SHAP feature contributions depend of feature values.
 #' The similarity to partial dependency plots is that they also give an idea for how feature values
 #' affect predictions. However, in partial dependency plots, we usually see marginal dependencies
 #' of model prediction on feature value, while SHAP contribution dependency plots display the estimated
 #' contributions of a feature to model prediction for each individual case.
-#' 
+#'
 #' When \code{plot_loess = TRUE} is set, feature values are rounded to 3 significant digits and
 #' weighted LOESS is computed and plotted, where weights are the numbers of data points
 #' at each rounded value.
-#' 
+#'
 #' Note: SHAP contributions are shown on the scale of model margin. E.g., for a logistic binomial objective,
 #' the margin is prediction before a sigmoidal transform into probability-like values.
 #' Also, since SHAP stands for "SHapley Additive exPlanation" (model prediction = sum of SHAP
 #' contributions for all features + bias), depending on the objective used, transforming SHAP
 #' contributions for a feature from the marginal to the prediction space is not necessarily
 #' a meaningful thing to do.
-#' 
+#'
 #' @return
-#' 
+#'
 #' In addition to producing plots (when \code{plot=TRUE}), it silently returns a list of two matrices:
 #' \itemize{
 #'  \item \code{data} the values of selected features;
@@ -70,11 +70,11 @@
 #' Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", \url{https://arxiv.org/abs/1706.06060}
 #'
 #' @examples
-#' 
+#'
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
 #'
-#' bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50, 
+#' bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50,
 #'                eta = 0.1, max_depth = 3, subsample = .5,
 #'                method = "hist", objective = "binary:logistic", nthread = 2, verbose = 0)
 #'
@@ -99,7 +99,7 @@
 #'               n_col = 2, col = col, pch = 16, pch_NA = 17)
 #' xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4,
 #'               n_col = 2, col = col, pch = 16, pch_NA = 17)
-#' 
+#'
 #' @rdname xgb.plot.shap
 #' @export
 xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
@@ -109,7 +109,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
                           plot_NA = TRUE, col_NA = rgb(0.7, 0, 1, 0.6), pch_NA = '.', pos_NA = 1.07,
                           plot_loess = TRUE, col_loess = 2, span_loess = 0.5,
                           which = c("1d", "2d"), plot = TRUE, ...) {
-  
+
   if (!is.matrix(data) && !inherits(data, "dgCMatrix"))
     stop("data: must be either matrix or dgCMatrix")
 
@@ -122,7 +122,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (!is.null(shap_contrib) &&
       (!is.matrix(shap_contrib) || nrow(shap_contrib) != nrow(data) || ncol(shap_contrib) != ncol(data) + 1))
     stop("shap_contrib is not compatible with the provided data")
-  
+
   nsample <- if (is.null(subsample)) min(100000, nrow(data)) else as.integer(subsample * nrow(data))
   idx <- sample(1:nrow(data), nsample)
   data <- data[idx,]
@@ -144,13 +144,13 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       stop("top_n: must be an integer within [1, 100]")
     features <- imp$Feature[1:min(top_n, NROW(imp))]
   }
-  
+
   if (is.character(features)) {
     if (is.null(colnames(data)))
       stop("Either provide `data` with column names or provide `features` as column indices")
     features <- match(features, colnames(data))
   }
-  
+
   if (n_col > length(features)) n_col <- length(features)
 
   if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
@@ -165,7 +165,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.null(cols)) cols <- paste0('X', 1:ncol(data))
   colnames(data) <- cols
   colnames(shap_contrib) <- cols
-  
+
   if (plot && which == "1d") {
     op <- par(mfrow = c(ceiling(length(features) / n_col), n_col),
               oma = c(0,0,0,0) + 0.2,

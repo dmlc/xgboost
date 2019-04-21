@@ -7,7 +7,7 @@
 xgb.DMatrix(data, info = list(), missing = NA, silent = FALSE, ...)
 }
 \arguments{
-\item{data}{a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character 
+\item{data}{a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
 string representing a filename.}
 
 \item{info}{a named list of additional information to store in the \code{xgb.DMatrix} object.

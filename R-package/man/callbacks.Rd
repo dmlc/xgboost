@@ -5,24 +5,24 @@
 \title{Callback closures for booster training.}
 \description{
 These are used to perform various service tasks either during boosting iterations or at the end.
-This approach helps to modularize many of such tasks without bloating the main training methods, 
+This approach helps to modularize many of such tasks without bloating the main training methods,
 and it offers .
 }
 \details{
 By default, a callback function is run after each boosting iteration.
 An R-attribute \code{is_pre_iteration} could be set for a callback to define a pre-iteration function.
 
-When a callback function has \code{finalize} parameter, its finalizer part will also be run after 
+When a callback function has \code{finalize} parameter, its finalizer part will also be run after
 the boosting is completed.
 
-WARNING: side-effects!!! Be aware that these callback functions access and modify things in 
+WARNING: side-effects!!! Be aware that these callback functions access and modify things in
 the environment from which they are called from, which is a fairly uncommon thing to do in R.
 
-To write a custom callback closure, make sure you first understand the main concepts about R envoronments.
-Check either R documentation on \code{\link[base]{environment}} or the 
-\href{http://adv-r.had.co.nz/Environments.html}{Environments chapter} from the "Advanced R" 
+To write a custom callback closure, make sure you first understand the main concepts about R environments.
+Check either R documentation on \code{\link[base]{environment}} or the
+\href{http://adv-r.had.co.nz/Environments.html}{Environments chapter} from the "Advanced R"
 book by Hadley Wickham. Further, the best option is to read the code of some of the existing callbacks -
-choose ones that do something similar to what you want to achieve. Also, you would need to get familiar 
+choose ones that do something similar to what you want to achieve. Also, you would need to get familiar
 with the objects available inside of the \code{xgb.train} and \code{xgb.cv} internal environments.
 }
 \seealso{

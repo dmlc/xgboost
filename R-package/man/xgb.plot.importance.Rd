@@ -17,13 +17,13 @@ xgb.plot.importance(importance_matrix = NULL, top_n = NULL,
 
 \item{top_n}{maximal number of top features to include into the plot.}
 
-\item{measure}{the name of importance measure to plot. 
+\item{measure}{the name of importance measure to plot.
 When \code{NULL}, 'Gain' would be used for trees and 'Weight' would be used for gblinear.}
 
 \item{rel_to_first}{whether importance values should be represented as relative to the highest ranked feature.
 See Details.}
 
-\item{n_clusters}{(ggplot only) a \code{numeric} vector containing the min and the max range 
+\item{n_clusters}{(ggplot only) a \code{numeric} vector containing the min and the max range
 of the possible number of clusters of bars.}
 
 \item{...}{other parameters passed to \code{barplot} (except horiz, border, cex.names, names.arg, and las).}
@@ -33,7 +33,7 @@ When it is NULL, the existing \code{par('mar')} is used.}
 
 \item{cex}{(base R barplot) passed as \code{cex.names} parameter to \code{barplot}.}
 
-\item{plot}{(base R barplot) whether a barplot should be produced. 
+\item{plot}{(base R barplot) whether a barplot should be produced.
 If FALSE, only a data.table is returned.}
 }
 \value{
@@ -53,14 +53,14 @@ Features are shown ranked in a decreasing importance order.
 It works for importances from both \code{gblinear} and \code{gbtree} models.
 
 When \code{rel_to_first = FALSE}, the values would be plotted as they were in \code{importance_matrix}.
-For gbtree model, that would mean being normalized to the total of 1 
+For gbtree model, that would mean being normalized to the total of 1
 ("what is feature's importance contribution relative to the whole model?").
 For linear models, \code{rel_to_first = FALSE} would show actual values of the coefficients.
-Setting \code{rel_to_first = TRUE} allows to see the picture from the perspective of 
+Setting \code{rel_to_first = TRUE} allows to see the picture from the perspective of
 "what is feature's importance contribution relative to the most important feature?"
 
-The ggplot-backend method also performs 1-D custering of the importance values, 
-with bar colors coresponding to different clusters that have somewhat similar importance values.
+The ggplot-backend method also performs 1-D clustering of the importance values,
+with bar colors corresponding to different clusters that have somewhat similar importance values.
 }
 \examples{
 data(agaricus.train)

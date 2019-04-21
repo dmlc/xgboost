@@ -13,12 +13,12 @@ Callback closure for logging the evaluation history
 This callback function appends the current iteration evaluation results \code{bst_evaluation}
 available in the calling parent frame to the \code{evaluation_log} list in a calling frame.
 
-The finalizer callback (called with \code{finalize = TURE} in the end) converts 
+The finalizer callback (called with \code{finalize = TURE} in the end) converts
 the \code{evaluation_log} list into a final data.table.
 
-The iteration evaluation result \code{bst_evaluation} must be a named numeric vector. 
+The iteration evaluation result \code{bst_evaluation} must be a named numeric vector.
 
-Note: in the column names of the final data.table, the dash '-' character is replaced with 
+Note: in the column names of the final data.table, the dash '-' character is replaced with
 the underscore '_' in order to make the column names more like regular R identifiers.
 
 Callback function expects the following values to be set in its calling frame:

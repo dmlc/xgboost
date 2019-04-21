@@ -8,15 +8,15 @@ cb.early.stop(stopping_rounds, maximize = FALSE, metric_name = NULL,
   verbose = TRUE)
 }
 \arguments{
-\item{stopping_rounds}{The number of rounds with no improvement in 
+\item{stopping_rounds}{The number of rounds with no improvement in
 the evaluation metric in order to stop the training.}
 
 \item{maximize}{whether to maximize the evaluation metric}
 
 \item{metric_name}{the name of an evaluation column to use as a criteria for early
 stopping. If not set, the last column would be used.
-Let's say the test data in \code{watchlist} was labelled as \code{dtest}, 
-and one wants to use the AUC in test data for early stopping regardless of where 
+Let's say the test data in \code{watchlist} was labelled as \code{dtest},
+and one wants to use the AUC in test data for early stopping regardless of where
 it is in the \code{watchlist}, then one of the following would need to be set:
 \code{metric_name='dtest-auc'} or \code{metric_name='dtest_auc'}.
 All dash '-' characters in metric names are considered equivalent to '_'.}
@@ -27,7 +27,7 @@ All dash '-' characters in metric names are considered equivalent to '_'.}
 Callback closure to activate the early stopping.
 }
 \details{
-This callback function determines the condition for early stopping 
+This callback function determines the condition for early stopping
 by setting the \code{stop_condition = TRUE} flag in its calling frame.
 
 The following additional fields are assigned to the model's R object:

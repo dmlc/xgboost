@@ -13,7 +13,7 @@
 Returns a vector of numbers of rows and of columns in an \code{xgb.DMatrix}.
 }
 \details{
-Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also 
+Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also
 be directly used with an \code{xgb.DMatrix} object.
 }
 \examples{

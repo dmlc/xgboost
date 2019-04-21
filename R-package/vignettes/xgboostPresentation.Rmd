@@ -313,7 +313,7 @@ Until now, all the learnings we have performed were based on boosting trees. **X
 bst <- xgb.train(data=dtrain, booster = "gblinear", max_depth=2, nthread = 2, nrounds=2, watchlist=watchlist, eval_metric = "error", eval_metric = "logloss", objective = "binary:logistic")
 ```
 
-In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
+In this specific case, *linear boosting* gets slightly better performance metrics than decision trees based algorithm.
 
 In simple cases, it will happen because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
 
