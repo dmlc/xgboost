@@ -2,7 +2,8 @@
 
 if [ ${TASK} == "lint" ]; then
     source activate python3
-    python -m pip install cpplint 'pylint==1.4.4' 'astroid==1.3.6' numpy scipy
+    conda install numpy scipy
+    python -m pip install cpplint pylint astroid
     make lint || exit -1
     echo "Check documentations..."
 
