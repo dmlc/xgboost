@@ -55,7 +55,6 @@ def plot_importance(booster, ax=None, height=0.2,
     -------
     ax : matplotlib Axes
     """
-    # TODO: move this to compat.py
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -70,11 +69,12 @@ def plot_importance(booster, ax=None, height=0.2,
     else:
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
-    if len(importance) == 0:
+    if not importance:
         raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
+        # pylint: disable=invalid-unary-operand-type
         tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
     else:
         tuples = sorted(tuples, key=lambda x: x[1])

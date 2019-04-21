@@ -8,7 +8,6 @@ import sys
 
 class XGBoostLibraryNotFound(Exception):
     """Error thrown by when xgboost is not found"""
-    pass
 
 
 def find_lib_path():

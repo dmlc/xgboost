@@ -1,6 +1,9 @@
 #!/bin/bash
 
 if [ ${TASK} == "lint" ]; then
+    source activate python3
+    conda install numpy scipy
+    python -m pip install cpplint pylint astroid
     make lint || exit -1
     echo "Check documentations..."
 
