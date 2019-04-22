@@ -51,7 +51,7 @@ TEST(ColumnSampler, Test) {
 
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
-  const int64_t num_threads = 10;
+  const int64_t num_threads = 100;
   int n = 128;
   int iterations = 10;
   int levels = 5;
@@ -70,6 +70,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
         if (result != reference_result) {
           success = false;
         }
+#pragma omp barrier
       }
     }
   }
