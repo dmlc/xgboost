@@ -25,9 +25,14 @@ if (PLUGIN_LZ4)
   list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/lz4/sparse_page_lz4_format.cc)
   list(APPEND SRC_LIBS lz4)
 endif (PLUGIN_LZ4)
+
 if (PLUGIN_DENSE_PARSER)
   list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
 endif (PLUGIN_DENSE_PARSER)
+
+if (PLUGIN_BART)
+  list(APPEND PLUGINS_SOURCES ${BART_SOURCES})
+endif(PLUGIN_BART)
 
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared

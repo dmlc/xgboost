@@ -31,6 +31,7 @@ address, leak and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+option(PLUGIN_BART "Build bart plugin" ON)
 
 ## Deprecation warning
 if (USE_AVX)
@@ -54,6 +55,10 @@ if (USE_CUDA)
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
+
+if (PLUGIN_BART)
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/plugin/bart)
+endif (PLUGIN_BART)
 
 # dmlc-core
 add_subdirectory(${PROJECT_SOURCE_DIR}/dmlc-core)

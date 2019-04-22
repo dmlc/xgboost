@@ -495,7 +495,7 @@ class RegTree {
    */
   void FillNodeMeanValues();
 
- private:
+ protected:
   // vector of nodes
   std::vector<Node> nodes_;
   // free node space, used during training process

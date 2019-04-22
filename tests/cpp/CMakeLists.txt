@@ -1,6 +1,10 @@
 find_package(GTest REQUIRED)
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
+if (PLUGIN_BART)
+  list(APPEND TEST_SOURCES ${BART_TESTS_SOURCE})
+endif(PLUGIN_BART)
+
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
@@ -49,7 +53,8 @@ target_link_libraries(testxgboost
   ${GTEST_LIBRARIES}
   ${LINKED_LIBRARIES_PRIVATE}
   ${OpenMP_CXX_LIBRARIES})
-target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
+target_compile_definitions(testxgboost
+  PRIVATE ${XGBOOST_DEFINITIONS})
 if (USE_OPENMP)
   target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
 endif (USE_OPENMP)
