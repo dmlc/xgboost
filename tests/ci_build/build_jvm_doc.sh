@@ -11,6 +11,7 @@ set -x
 # Initialize Maven cache
 ./tests/ci_build/initialize_maven.sh
 
+rm -rf build/
 cd jvm-packages
 
 branch_name=$1
