@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.Iterator
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
@@ -288,44 +289,45 @@ class XGBoostClassificationModel private[ml](
     val appName = dataset.sparkSession.sparkContext.appName
 
     val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
-      if (rowIterator.hasNext) {
+      val ret = if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
-
-        import DataUtils._
-
-        val rowBuffer = mutable.ArrayBuffer[Row]()
-        val featureBuffer = mutable.ArrayBuffer[XGBLabeledPoint]()
-        rowIterator.foreach { row =>
-          rowBuffer += row
-          featureBuffer += row.getAs[Vector]($(featuresCol)).asXGB
-        }
-
-        val cacheInfo = {
-          if ($(useExternalMemory)) {
-            s"$appName-${TaskContext.get().stageId()}-dtest_cache-${TaskContext.getPartitionId()}"
-          } else {
-            null
+        var batchCnt = 0
+        val results = new ListBuffer[Iterator[Row]]
+        while (rowIterator.hasNext) {
+          val (iterForDM, iterRaw) = rowIterator.take(XGBoostClassificationModel.
+            PREDICTION_BATCH_SIZE).duplicate
+          batchCnt += 1
+          val featuresIterator = iterForDM.map(row => row.getAs[Vector](
+            $(featuresCol)))
+          import DataUtils._
+          val cacheInfo = {
+            if ($(useExternalMemory)) {
+              s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
+                s"${TaskContext.getPartitionId()}-batch-$batchCnt"
+            } else {
+              null
+            }
+          }
+          val dm = new DMatrix(
+            XGBoost.processMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+            cacheInfo)
+          try {
+            val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
+              producePredictionItrs(bBooster, dm)
+            results += produceResultIterator(iterRaw, rawPredictionItr, probabilityItr, predLeafItr,
+              predContribItr)
+          } finally {
+            dm.delete()
           }
         }
-
-        val dm = new DMatrix(
-          XGBoost.processMissingValues(featureBuffer.iterator, $(missing)),
-          cacheInfo)
-        try {
-          val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
-            producePredictionItrs(bBooster, dm)
-          Rabit.shutdown()
-          produceResultIterator(rowBuffer.iterator,
-            rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
-        } finally {
-          dm.delete()
-        }
+        results.reduce((i1, i2) => i1 ++ i2)
       } else {
         Iterator()
       }
+      Rabit.shutdown()
+      ret
     }
-
     bBooster.unpersist(blocking = false)
     dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
   }
@@ -478,6 +480,8 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
 
   private val _rawPredictionCol = "_rawPrediction"
   private val _probabilityCol = "_probability"
+
+  private val PREDICTION_BATCH_SIZE = 32 << 10
 
   override def read: MLReader[XGBoostClassificationModel] = new XGBoostClassificationModelReader
 
