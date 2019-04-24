@@ -113,6 +113,7 @@ def ClangTidy() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} tests/ci_build/clang_tidy.sh
     """
+    deleteDir()
   }
 }
 
@@ -126,6 +127,7 @@ def Lint() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} make lint
     """
+    deleteDir()
   }
 }
 
@@ -138,6 +140,7 @@ def SphinxDoc() {
     sh """#!/bin/bash
     CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}' ${dockerRun} ${container_type} ${docker_binary} make -C doc html
     """
+    deleteDir()
   }
 }
 
@@ -150,6 +153,7 @@ def Doxygen() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh
     """
+    deleteDir()
   }
 }
 
@@ -175,6 +179,7 @@ def BuildJVMPackages(args) {
     """
     echo 'Stashing XGBoost4J JAR...'
     stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar'
+    deleteDir()
   }
 }
 
@@ -190,6 +195,7 @@ def BuildJVMDoc() {
     archiveArtifacts artifacts: "jvm-packages/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
     echo 'Uploading doc...'
     s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+    deleteDir()
   }
 }
 
@@ -224,6 +230,7 @@ def CrossTestJVMwithJDK(args) {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
     """
+    deleteDir()
   }
 }
 
