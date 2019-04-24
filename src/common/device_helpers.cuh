@@ -12,6 +12,7 @@
 #include "span.h"
 
 #include <algorithm>
+#include <omp.h>
 #include <chrono>
 #include <ctime>
 #include <cub/cub.cuh>
@@ -1043,11 +1044,15 @@ class AllReducer {
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
+    // Temporarily turn off dynamic so we have a guaranteed number of threads
+    bool dynamic = omp_get_dynamic();
+    omp_set_dynamic(false);
     const long shards_size = static_cast<long>(shards->size());
 #pragma omp parallel for schedule(static, 1) if (shards_size > 1)
     for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
+    omp_set_dynamic(dynamic);
   }};
 }
 
