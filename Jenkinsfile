@@ -227,6 +227,7 @@ def TestCppGPU(args) {
 def CrossTestJVMwithJDK(args) {
   node('linux && cpu') {
     unstash name: 'xgboost4j_jar'
+    unstash name: 'srcs'
     echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}"
     container_type = "jvm_cross"
     docker_binary = "docker"
