@@ -7,7 +7,12 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk maven
+    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk maven && \
+    # Python
+    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+
+ENV PATH=/opt/python/bin:$PATH
 
 ENV GOSU_VERSION 1.10
 
