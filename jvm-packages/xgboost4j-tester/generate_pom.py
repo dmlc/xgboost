@@ -61,10 +61,15 @@ pom_template = """
       <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>org.scalatest</groupId>
-        <artifactId>scalatest_${{scala.binary.version}}</artifactId>
-        <version>3.0.0</version>
-        <scope>test</scope>
+      <groupId>org.scalatest</groupId>
+      <artifactId>scalatest_${{scala.binary.version}}</artifactId>
+      <version>3.0.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>3.4</version>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>

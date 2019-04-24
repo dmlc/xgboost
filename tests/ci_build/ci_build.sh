@@ -104,7 +104,7 @@ UBUNTU_ON_WINDOWS=$([ -e /proc/version ] && grep -l Microsoft /proc/version || e
 # MSYS, Git Bash, etc.
 MSYS=$([ -e /proc/version ] && grep -l MINGW /proc/version || echo "")
 
-if [[ -z "$UBUNTU_ON_WINDOWS" ]] && [[ -z "$MSYS" ]]; then
+if [[ -z "$UBUNTU_ON_WINDOWS" ]] && [[ -z "$MSYS" ]] && [[ ! "$OSTYPE" == "darwin"* ]]; then
     USER_IDS="-e CI_BUILD_UID=$( id -u ) -e CI_BUILD_GID=$( id -g ) -e CI_BUILD_USER=$( id -un ) -e CI_BUILD_GROUP=$( id -gn ) -e CI_BUILD_HOME=${WORKSPACE}"
 fi
 
