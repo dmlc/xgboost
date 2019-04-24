@@ -3,7 +3,8 @@
 # Execute command within a docker container
 #
 # Usage: ci_build.sh <CONTAINER_TYPE> <DOCKER_BINARY>
-#                    [--dockerfile <DOCKERFILE_PATH>] [-it] <COMMAND>
+#                    [--dockerfile <DOCKERFILE_PATH>] [-it]
+#                    [--build-arg <BUILD_ARG>] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
@@ -13,6 +14,8 @@
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
+#
+# BUILD_ARG: (Optional) an argument to be passed to docker build
 #
 # COMMAND: Command to be executed in the docker container
 #

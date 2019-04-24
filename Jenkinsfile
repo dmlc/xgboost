@@ -74,6 +74,7 @@ pipeline {
             'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
             'test-python-gpu-cuda9.2': { TestPythonGPU(cuda_version: '9.2') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
+            'test-python-mgpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0', multi_gpu: true) },
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
@@ -122,8 +123,7 @@ def Lint() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running lint..."
-    // commented out for now, until another PR to migrate lint to Python 3 gets merged
-    container_type = "lint"
+    container_type = "cpu"
     docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} make lint
@@ -136,7 +136,7 @@ def SphinxDoc() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running sphinx-doc..."
-    container_type = "lint"
+    container_type = "cpu"
     docker_binary = "docker"
     docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
     sh """#!/bin/bash
@@ -150,7 +150,7 @@ def Doxygen() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running doxygen..."
-    container_type = "lint"
+    container_type = "cpu"
     docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh
@@ -163,7 +163,7 @@ def BuildCPU() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build CPU"
-    container_type = "lint"
+    container_type = "cpu"
     docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
@@ -181,13 +181,16 @@ def BuildCUDA(args) {
     docker_binary = "docker"
     docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     """
     // Only stash wheel for CUDA 8.0 target
     if (args.cuda_version == '8.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
+      archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+      echo 'Stashing C++ test executable (testxgboost)...'
+      stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
     deleteDir()
   }
@@ -228,22 +231,59 @@ def BuildJVMDoc() {
 
 def TestPythonCPU() {
   node('linux && cpu') {
+    unstash name: 'xgboost_whl'
+    unstash name: 'srcs'
     echo "Test Python CPU"
+    container_type = "cpu"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu
+    """
+    deleteDir()
   }
 }
 
 def TestPythonGPU(args) {
-  node('linux && cpu') {
+  nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
+  node(nodeReq) {
+    unstash name: 'xgboost_whl'
+    unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
+    container_type = "gpu"
+    docker_binary = "nvidia-docker"
+    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    if (args.multi_gpu) {
+      echo "Using multiple GPUs"
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu
+      """
+    } else {
+      echo "Using a single GPU"
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
+      """
+    }
+    deleteDir()
   }
 }
 
 def TestCppGPU(args) {
-  node('linux && cpu') {
+  nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
+  node(nodeReq) {
+    unstash name: 'xgboost_cpp_tests'
+    unstash name: 'srcs'
     echo "Test C++, CUDA ${args.cuda_version}"
+    container_type = "gpu"
+    docker_binary = "nvidia-docker"
+    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     if (args.multi_gpu) {
       echo "Using multiple GPUs"
+      sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost --gtest_filter=*.MGPU_*"
+    } else {
+      echo "Using a single GPU"
+      sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost --gtest_filter=-*.MGPU_*"
     }
+    deleteDir()
   }
 }
 

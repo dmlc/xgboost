@@ -1,4 +1,5 @@
-FROM ubuntu:18.04
+ARG CUDA_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -6,14 +7,16 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential python3 python3-pip doxygen graphviz && \
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    apt-get install -y wget unzip bzip2 libgomp1 && \
+    # Python
+    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+
+ENV PATH=/opt/python/bin:$PATH
 
 # Install Python packages
 RUN \
-    pip3 install pyyaml cpplint pylint astroid sphinx numpy scipy sh recommonmark guzzle_sphinx_theme mock breathe matplotlib graphviz && \
-    pip3 install https://s3.amazonaws.com/h2o-release/datatable/stable/datatable-0.3.2/datatable-0.3.2-cp36-cp36m-linux_x86_64.whl
+    pip install numpy pytest scipy scikit-learn wheel kubernetes urllib3
 
 ENV GOSU_VERSION 1.10
 
