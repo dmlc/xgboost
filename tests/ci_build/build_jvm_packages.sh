@@ -9,7 +9,7 @@ set -x
 rm -rf build/
 cd jvm-packages
 
-mvn package -DskipTests
+mvn package
 
 set +x
 set +e
