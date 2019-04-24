@@ -16,18 +16,15 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.Iterator
+import scala.collection.{AbstractIterator, Iterator, mutable}
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.hadoop.fs.Path
-
 import org.apache.spark.TaskContext
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
@@ -39,7 +36,6 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import org.json4s.DefaultFormats
-
 import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
@@ -289,45 +285,54 @@ class XGBoostClassificationModel private[ml](
     val appName = dataset.sparkSession.sparkContext.appName
 
     val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
-      val ret = if (rowIterator.hasNext) {
-        val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
-        Rabit.init(rabitEnv.asJava)
-        var batchCnt = 0
-        val results = new ListBuffer[Iterator[Row]]
-        while (rowIterator.hasNext) {
-          val (iterForDM, iterRaw) = rowIterator.take(XGBoostClassificationModel.
-            PREDICTION_BATCH_SIZE).duplicate
-          batchCnt += 1
-          val featuresIterator = iterForDM.map(row => row.getAs[Vector](
-            $(featuresCol)))
+      new AbstractIterator[Row] {
+        private var batchCnt = 0
+
+        private val batchIterImpl = rowIterator.grouped(
+          XGBoostClassificationModel.PREDICTION_BATCH_SIZE).flatMap { batchRow =>
+          if (batchCnt == 0) {
+            val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+            Rabit.init(rabitEnv.asJava)
+          }
+
+          val features = batchRow.map(row => row.getAs[Vector]($(featuresCol)))
+
           import DataUtils._
           val cacheInfo = {
             if ($(useExternalMemory)) {
               s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
-                s"${TaskContext.getPartitionId()}-batch-$batchCnt"
+                  s"${TaskContext.getPartitionId()}-batch-$batchCnt"
             } else {
               null
             }
           }
+
           val dm = new DMatrix(
-            XGBoost.processMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+            XGBoost.processMissingValues(features.map(_.asXGB).iterator, $(missing)),
             cacheInfo)
           try {
             val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
               producePredictionItrs(bBooster, dm)
-            results += produceResultIterator(iterRaw, rawPredictionItr, probabilityItr, predLeafItr,
-              predContribItr)
+            produceResultIterator(batchRow.iterator,
+              rawPredictionItr, probabilityItr, predLeafItr, predContribItr)
           } finally {
+            batchCnt += 1
             dm.delete()
           }
         }
-        results.reduce((i1, i2) => i1 ++ i2)
-      } else {
-        Iterator()
+
+        override def hasNext: Boolean = batchIterImpl.hasNext
+
+        override def next(): Row = {
+          val ret = batchIterImpl.next()
+          if (!batchIterImpl.hasNext) {
+            Rabit.shutdown()
+          }
+          ret
+        }
       }
-      Rabit.shutdown()
-      ret
     }
+
     bBooster.unpersist(blocking = false)
     dataset.sparkSession.createDataFrame(resultRDD, generateResultSchema(schema))
   }
