@@ -2,11 +2,11 @@
 set -e
 set -x
 
-if [ -z ${CI_BUILD_USER} ]
-then
-  echo 'Must be run inside Jenkins CI'
-  exit 1
-fi
+#if [ -z ${CI_BUILD_USER} ]
+#then
+#  echo 'Must be run inside Jenkins CI'
+#  exit 1
+#fi
 gosu root mkdir -p /cache
 gosu root chown ${CI_BUILD_USER}:${CI_BUILD_GROUP} /cache
 

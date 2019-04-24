@@ -187,6 +187,8 @@ def BuildCUDA(args) {
     if (args.cuda_version == '8.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
+      echo 'Stashing C++ test executable (testxgboost)...'
+      stash name: 'xgboost_cpp_tests', includes: 'bin/testxgboost'
     }
     deleteDir()
   }
