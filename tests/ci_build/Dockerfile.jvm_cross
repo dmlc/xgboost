@@ -1,5 +1,5 @@
-ARG JDK_VERSION
 FROM ubuntu:18.04
+ARG JDK_VERSION=8
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget openjdk-${JDK_VERSION}-jdk
+    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk
 
 ENV GOSU_VERSION 1.10
 
