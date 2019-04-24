@@ -182,7 +182,7 @@ def BuildJVMPackages(args) {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
     """
     echo 'Stashing XGBoost4J JAR...'
-    stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar'
+    stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar'
     deleteDir()
   }
 }
@@ -232,8 +232,10 @@ def CrossTestJVMwithJDK(args) {
     container_type = "jvm_cross"
     docker_binary = "docker"
     docker_args = "--build-arg JDK_VERSION=${args.jdk_version}"
+    // Only run integration tests for JDK 8, as Spark doesn't support later JDKs yet
+    docker_extra_params = (args.jdk_version == '8') ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
     """
     deleteDir()
   }

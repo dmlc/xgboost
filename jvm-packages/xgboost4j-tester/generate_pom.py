@@ -17,53 +17,72 @@ pom_template = """
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>{maven_compiler_source}</maven.compiler.source>
     <maven.compiler.target>{maven_compiler_target}</maven.compiler.target>
+    <spark.version>{spark_version}</spark.version>
     <scala.version>{scala_version}</scala.version>
     <scala.binary.version>{scala_binary_version}</scala.binary.version>
   </properties>
 
   <dependencies>
     <dependency>
-        <groupId>com.esotericsoftware.kryo</groupId>
-        <artifactId>kryo</artifactId>
-        <version>2.21</version>
+      <groupId>com.esotericsoftware.kryo</groupId>
+      <artifactId>kryo</artifactId>
+      <version>2.21</version>
     </dependency>
     <dependency>
-        <groupId>org.scala-lang</groupId>
-        <artifactId>scala-compiler</artifactId>
-        <version>${{scala.version}}</version>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-compiler</artifactId>
+      <version>${{scala.version}}</version>
     </dependency>
     <dependency>
-        <groupId>org.scala-lang</groupId>
-        <artifactId>scala-reflect</artifactId>
-        <version>${{scala.version}}</version>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-reflect</artifactId>
+      <version>${{scala.version}}</version>
     </dependency>
     <dependency>
-        <groupId>org.scala-lang</groupId>
-        <artifactId>scala-library</artifactId>
-        <version>${{scala.version}}</version>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-library</artifactId>
+      <version>${{scala.version}}</version>
     </dependency>
     <dependency>
-        <groupId>commons-logging</groupId>
-        <artifactId>commons-logging</artifactId>
-        <version>1.2</version>
+      <groupId>commons-logging</groupId>
+      <artifactId>commons-logging</artifactId>
+      <version>1.2</version>
     </dependency>
     <dependency>
-        <groupId>com.typesafe.akka</groupId>
-        <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
-        <version>2.3.11</version>
-        <scope>compile</scope>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
+      <version>2.3.11</version>
+      <scope>compile</scope>
     </dependency>
     <dependency>
-        <groupId>com.typesafe.akka</groupId>
-        <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-        <version>2.3.11</version>
-        <scope>test</scope>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
+      <version>2.3.11</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
         <groupId>org.scalatest</groupId>
         <artifactId>scalatest_${{scala.binary.version}}</artifactId>
         <version>3.0.0</version>
         <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-core_${{scala.binary.version}}</artifactId>
+      <version>${{spark.version}}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_${{scala.binary.version}}</artifactId>
+      <version>${{spark.version}}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-mllib_${{scala.binary.version}}</artifactId>
+      <version>${{spark.version}}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -83,6 +102,16 @@ pom_template = """
       <classifier>tests</classifier>
       <type>test-jar</type>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ml.dmlc</groupId>
+      <artifactId>xgboost4j-spark</artifactId>
+      <version>{xgboost4j_version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ml.dmlc</groupId>
+      <artifactId>xgboost4j-example</artifactId>
+      <version>{xgboost4j_version}</version>
     </dependency>
   </dependencies>
 
@@ -114,6 +143,29 @@ pom_template = """
         <artifactId>maven-deploy-plugin</artifactId>
         <version>2.8.2</version>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>2.4</version>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <archive>
+            <manifest>
+              <mainClass>ml.dmlc.xgboost4j.tester.App</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <!-- site lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#site_Lifecycle -->
       <plugin>
         <artifactId>maven-site-plugin</artifactId>
@@ -139,12 +191,13 @@ pom_template = """
 """
 
 if __name__ == '__main__':
-  if len(sys.argv) != 6:
-    print('Usage: {} [xgboost4j version] [maven compiler source level] [maven compiler target level] [scala version] [scala binary version]'.format(sys.argv[0]))
+  if len(sys.argv) != 7:
+    print('Usage: {} [xgboost4j version] [maven compiler source level] [maven compiler target level] [spark version] [scala version] [scala binary version]'.format(sys.argv[0]))
     sys.exit(1)
   with open('pom.xml', 'w') as f:
     print(pom_template.format(xgboost4j_version=sys.argv[1],
                               maven_compiler_source=sys.argv[2],
                               maven_compiler_target=sys.argv[3],
-                              scala_version=sys.argv[4],
-                              scala_binary_version=sys.argv[5]), file=f)
+                              spark_version=sys.argv[4],
+                              scala_version=sys.argv[5],
+                              scala_binary_version=sys.argv[6]), file=f)

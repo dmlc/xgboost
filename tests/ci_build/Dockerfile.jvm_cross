@@ -7,12 +7,24 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk maven libgomp1 && \
+    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk libgomp1 && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
+    # Maven
+    wget http://apache.osuosl.org/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
+    tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
+    # Spark
+    wget http://apache.cs.utah.edu/spark/spark-2.4.1/spark-2.4.1-bin-hadoop2.7.tgz && \
+    tar xvf spark-2.4.1-bin-hadoop2.7.tgz -C /opt && \
+    ln -s /opt/spark-2.4.1-bin-hadoop2.7 /opt/spark
 
-ENV PATH=/opt/python/bin:$PATH
+ENV PATH=/opt/python/bin:/opt/spark/bin:/opt/maven/bin:$PATH
+
+# Install Python packages
+RUN \
+    pip install numpy scipy pandas scikit-learn
 
 ENV GOSU_VERSION 1.10
 
