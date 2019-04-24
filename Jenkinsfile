@@ -58,7 +58,7 @@ pipeline {
             'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
             'build-gpu-cuda9.2': { BuildCUDA(cuda_version: '9.2') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
-            'build-jvm-spark2.4.1': { BuildJVMSpark(spark_version: '2.4.1') },
+            'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.1') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
@@ -76,7 +76,8 @@ pipeline {
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
-            'test-jvm-test': { TestJVM() },
+            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
+            'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-r-3.4.4': { TestR(r_version: '3.4.4') },
             'test-r-3.5.3': { TestR(r_version: '3.5.3') }
           ])
@@ -164,7 +165,7 @@ def BuildCUDA(args) {
   }
 }
 
-def BuildJVMSpark(args) {
+def BuildJVMPackages(args) {
   node('linux && cpu') {
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}"
     container_type = "jvm"
@@ -172,6 +173,8 @@ def BuildJVMSpark(args) {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
     """
+    echo 'Stashing XGBoost4J JAR...'
+    stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar'
   }
 }
 
@@ -185,7 +188,7 @@ def BuildJVMDoc() {
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
     """
     archiveArtifacts artifacts: "jvm-packages/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
-    echo 'Deploying doc...'
+    echo 'Uploading doc...'
     s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
   }
 }
@@ -211,9 +214,16 @@ def TestCppGPU(args) {
   }
 }
 
-def TestJVM() {
+def CrossTestJVMwithJDK(args) {
   node('linux && cpu') {
-    echo "Test JVM packages"
+    unstash name: 'xgboost4j_jar'
+    echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}"
+    container_type = "jvm_cross"
+    docker_binary = "docker"
+    docker_args = "--build-arg JDK_VERSION=${args.jdk_version}"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
+    """
   }
 }
 
