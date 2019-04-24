@@ -57,6 +57,12 @@ if (USE_CUDA)
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
   endif (USE_NVTX)
 
+  # OpenMP is mandatory for cuda version
+  find_package(OpenMP REQUIRED)
+  target_compile_options(objxgboost PRIVATE  
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
+  )
+
   set_target_properties(objxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
@@ -99,9 +105,7 @@ endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
   if (OpenMP_CXX_FOUND OR OPENMP_FOUND)
-    target_compile_options(objxgboost PRIVATE  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    )
+    target_compile_options(objxgboost PRIVATE  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
     list(APPEND SRC_LIBS ${OpenMP_CXX_LIBRARIES})
     set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
   endif (OpenMP_CXX_FOUND OR OPENMP_FOUND)
