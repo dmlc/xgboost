@@ -137,8 +137,9 @@ def SphinxDoc() {
     echo "Running sphinx-doc..."
     container_type = "lint"
     docker_binary = "docker"
+    docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
     sh """#!/bin/bash
-    CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}' ${dockerRun} ${container_type} ${docker_binary} make -C doc html
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} make -C doc html
     """
     deleteDir()
   }
@@ -174,8 +175,10 @@ def BuildJVMPackages(args) {
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}"
     container_type = "jvm"
     docker_binary = "docker"
+    // Use only 4 CPU cores
+    docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
     """
     echo 'Stashing XGBoost4J JAR...'
     stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar'
