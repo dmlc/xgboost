@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
     TestSum(&model, ntrial, r);
     printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
     rabit::LazyCheckPoint(&model);
-    printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
+    printf("[%d] !!!CheckPoint pass, iter=%d\n", rank, r);
   }
   rabit::Finalize();
   return 0;

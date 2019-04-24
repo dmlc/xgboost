@@ -15,6 +15,7 @@ if [ ${TASK} == "build" ]; then
 fi
 
 if [ ${TASK} == "mpi-build" ]; then
+    ./scripts/mpi_build.sh
     cd test
     make mpi && make speed_test.mpi || exit -1
 fi

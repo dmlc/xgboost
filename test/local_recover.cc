@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     TestSum(&model, &local, ntrial, r);
     printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
     rabit::CheckPoint(&model, &local);
-    printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
+    printf("[%d] !!!CheckPoint pass, iter=%d\n", rank, r);
   }
   rabit::Finalize();
   return 0;

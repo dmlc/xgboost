@@ -1,4 +1,4 @@
-export MPICXX = mpicxx
+MPICXX=../mpich/bin/mpicxx
 export LDFLAGS=  -L../lib -pthread -lm
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include -I ../dmlc-core/include -std=c++11
 
@@ -27,11 +27,17 @@ OBJ = $(RABIT_OBJ) speed_test.o model_recover.o local_recover.o lazy_recover.o
 MPIBIN = speed_test.mpi
 .PHONY: clean all lib mpi
 
+.PHONY: lib all
+
 all: $(BIN)
+
 lib:
-	cd ..;make;cd -
+	cd ..;make clean;make;cd -
+
+.PHONY: mpi
 mpi:
 	cd ..;make mpi;cd -
+
 # programs
 speed_test.o: speed_test.cc ../include/rabit/*.h lib mpi
 model_recover.o: model_recover.cc ../include/rabit/*.h lib
@@ -52,7 +58,8 @@ $(OBJ) :
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIBIN) :
-	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) ../lib/librabit_mpi.so $(LDFLAGS)
+	$(MPICXX) $(CFLAGS) -I../mpich/include -shared -o $@ $(filter %.cpp %.o %.c %.cc, $^) \
+    ../lib/librabit_mpi.so $(LDFLAGS) -L../mpich/lib -Wl,-rpath,../mpich/lib -lmpi
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) *~ ../src/*~

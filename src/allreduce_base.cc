@@ -131,6 +131,8 @@ void AllreduceBase::Shutdown(void) {
   utils::TCPSocket tracker = this->ConnectTracker();
   tracker.SendStr(std::string("shutdown"));
   tracker.Close();
+  // close listening sockets
+  sock_listen.Close();
   utils::TCPSocket::Finalize();
 }
 void AllreduceBase::TrackerPrint(const std::string &msg) {
@@ -271,12 +273,26 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
          "ReConnectLink failure 4");
   Assert(tracker.RecvAll(&next_rank, sizeof(next_rank)) == sizeof(next_rank),
          "ReConnectLink failure 4");
-  // create listening socket
-  utils::TCPSocket sock_listen;
-  sock_listen.Create();
-  int port = sock_listen.TryBindHost(slave_port, slave_port + nport_trial);
-  utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
-  sock_listen.Listen();
+
+  if (sock_listen == INVALID_SOCKET || sock_listen.AtMark()) {
+    if (!sock_listen.IsClosed()) {
+      sock_listen.Close();
+    }
+    // create listening socket
+    sock_listen.Create();
+    sock_listen.SetKeepAlive(true);
+    // http://deepix.github.io/2016/10/21/tcprst.html
+    sock_listen.SetLinger(0);
+    // [slave_port, slave_port+1 .... slave_port + newrank ...slave_port + nport_trial)
+    // work around processes bind to same port without set reuse option,
+    // start explore from slave_port + newrank towards end
+    port = sock_listen.TryBindHost(slave_port+ newrank%nport_trial, slave_port + nport_trial);
+    // if no port bindable, explore first half of range
+    if (port == -1) sock_listen.TryBindHost(slave_port, newrank% nport_trial + slave_port);
+
+    utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
+    sock_listen.Listen();
+  }
 
   // get number of to connect and number of to accept nodes from tracker
   int num_conn, num_accept, num_error = 1;
@@ -311,6 +327,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
              "ReConnectLink failure 9");
       Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank),
              "ReConnectLink failure 10");
+
       r.sock.Create();
       if (!r.sock.Connect(utils::SockAddr(hname.c_str(), hport))) {
         num_error += 1; r.sock.Close(); continue;
@@ -357,8 +374,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
     }
     if (!match) all_links.push_back(r);
   }
-  // close listening sockets
-  sock_listen.Close();
+
   this->parent_index = -1;
   // setup tree links and ring structure
   tree_links.plinks.clear();

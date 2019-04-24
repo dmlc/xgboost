@@ -1,6 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+
 from __future__ import print_function
 from builtins import range
+
+import sys
+sys.path.append('../python')
+
 import rabit
 import numpy as np
 
