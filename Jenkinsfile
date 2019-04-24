@@ -160,13 +160,35 @@ def Doxygen() {
 
 def BuildCPU() {
   node('linux && cpu') {
+    unstash name: 'srcs'
     echo "Build CPU"
+    container_type = "lint"
+    docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
+    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    """
+    deleteDir()
   }
 }
 
 def BuildCUDA(args) {
   node('linux && cpu') {
+    unstash name: 'srcs'
     echo "Build with CUDA ${args.cuda_version}"
+    container_type = "gpu_build"
+    docker_binary = "docker"
+    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+    """
+    // Only stash wheel for CUDA 8.0 target
+    if (args.cuda_version == '8.0') {
+      echo 'Stashing Python wheel...'
+      stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
+    }
+    deleteDir()
   }
 }
 
