@@ -24,15 +24,18 @@ mvn --no-transfer-progress install:install-file -Dfile=./xgboost4j-example/targe
 cd xgboost4j-tester
 # Generate pom.xml for XGBoost4J-tester, a dummy project to run XGBoost4J tests
 python3 ./generate_pom.py ${xgboost4j_version} ${maven_compiler_source} ${maven_compiler_target} ${spark_version} ${scala_version} ${scala_binary_version}
-# Run unit tests
-mvn --no-transfer-progress test
+# Run unit tests with XGBoost4J
+mvn --no-transfer-progress package
+
+# Run integration tests with XGBoost4J
+java -jar ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 # Run integration tests with XGBoost4J-Spark
 if [ ! -z "$RUN_INTEGRATION_TEST" ]
 then
-  mvn --no-transfer-progress package -DskipTests
   python3 get_iris.py
-  spark-submit --master local[8] ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv
+  spark-submit --class ml.dmlc.xgboost4j.scala.example.spark.SparkTraining --master 'local[8]' ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv
+  spark-submit --class ml.dmlc.xgboost4j.scala.example.spark.SparkMLlibPipeline --master 'local[8]' ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv ${PWD}/native_model ${PWD}/pipeline_model
 fi
 
 set +x

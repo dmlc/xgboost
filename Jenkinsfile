@@ -78,6 +78,7 @@ pipeline {
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
+            'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
             'test-r-3.4.4': { TestR(r_version: '3.4.4') },
             'test-r-3.5.3': { TestR(r_version: '3.5.3') }
           ])
