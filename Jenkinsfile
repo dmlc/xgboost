@@ -172,6 +172,7 @@ def BuildCUDA(args) {
 
 def BuildJVMPackages(args) {
   node('linux && cpu') {
+    unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}"
     container_type = "jvm"
     docker_binary = "docker"
