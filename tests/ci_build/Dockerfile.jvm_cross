@@ -22,6 +22,9 @@ RUN set -ex; \
     chmod +x /usr/local/bin/gosu && \
     gosu nobody true
 
+# Set default JDK version
+RUN update-java-alternatives -v -s java-1.$JDK_VERSION.0-openjdk-amd64
+
 # Default entry-point to use if running locally
 # It will preserve attributes of created files
 COPY entrypoint.sh /scripts/

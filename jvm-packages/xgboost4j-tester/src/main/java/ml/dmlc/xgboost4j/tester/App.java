@@ -1,4 +1,4 @@
-package ml.dmlc;
+package ml.dmlc.xgboost4j.tester;
 
 /**
  * Hello world!
