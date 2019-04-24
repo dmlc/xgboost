@@ -17,11 +17,11 @@ cd jvm-packages
 branch_name=$1
 
 # Install JVM packages in local Maven repository
-mvn install -DskipTests
+mvn --no-transfer-progress install -DskipTests
 # Build Scaladocs
-mvn scala:doc -DskipTests
+mvn --no-transfer-progress scala:doc -DskipTests
 # Build Javadocs
-mvn javadoc:javadoc -DskipTests
+mvn --no-transfer-progress javadoc:javadoc -DskipTests
 
 # Package JVM docs in a tarball
 mkdir -p tmp/scaladocs
