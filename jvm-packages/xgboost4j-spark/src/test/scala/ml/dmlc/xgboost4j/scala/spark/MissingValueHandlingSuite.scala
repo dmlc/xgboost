@@ -104,7 +104,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
       (0.0f, 1.0f, 0.0f, 0.0),
       (1.0f, 0.0f, 1.0f, 1.0),
       (1.0f, -1.0f, 0.0f, 0.0),
-      (0.0f, 0.0f, 0.0f, 1.0),//empty vector
+      (0.0f, 0.0f, 0.0f, 1.0),// empty vector
       (-1.0f, 0.0f, 0.0f, 1.0)
     ).toDF("col1", "col2", "col3", "label")
     val vectorAssembler = new VectorAssembler()
