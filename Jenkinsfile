@@ -80,7 +80,7 @@ pipeline {
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
-            'test-r-3.4.4': { TestR() },
+            'test-r-3.4.4': { TestR(use_r35: false) },
             'test-r-3.5.3': { TestR(use_r35: true) }
           ])
         }

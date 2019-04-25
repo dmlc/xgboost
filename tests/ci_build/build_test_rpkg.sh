@@ -3,6 +3,7 @@
 set -e
 set -x
 
+make Rpack
 cd xgboost/
 
 # Run tests
