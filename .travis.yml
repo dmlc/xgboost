@@ -3,7 +3,6 @@ sudo: required
 
 # Enabling test on Linux and OS X
 os:
-  - linux
   - osx
 
 osx_image: xcode9.3
@@ -11,61 +10,19 @@ osx_image: xcode9.3
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
-    # code lint
-    - TASK=lint
-    # r package test
-    - TASK=r_test
     # python package test
     - TASK=python_test
-    - TASK=python_lightweight_test
     # java package test
     - TASK=java_test
     # cmake test
     - TASK=cmake_test
-    # c++ test
-    - TASK=cpp_test
     # distributed test
     - TASK=distributed_test
     # address sanitizer test
     - TASK=sanitizer_test
 
-matrix:
-  exclude:
-    - os: osx
-      env: TASK=lint
-    - os: osx
-      env: TASK=cmake_test
-    - os: linux
-      env: TASK=r_test
-    - os: osx
-      env: TASK=python_lightweight_test
-    - os: osx
-      env: TASK=cpp_test
-    - os: osx
-      env: TASK=distributed_test
-    - os: osx
-      env: TASK=sanitizer_test
-
 # dependent apt packages
 addons:
-  apt:
-    sources:
-      - llvm-toolchain-trusty-5.0
-      - ubuntu-toolchain-r-test
-      - george-edison55-precise-backports
-    packages:
-      - clang
-      - clang-tidy-5.0
-      - cmake-data
-      - doxygen
-      - wget
-      - libcurl4-openssl-dev
-      - unzip
-      - graphviz
-      - gcc-5
-      - g++-5
-      - gcc-7
-      - g++-7
   homebrew:
     packages:
       - gcc@7
