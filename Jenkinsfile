@@ -80,8 +80,8 @@ pipeline {
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
-            'test-r-3.4.4': { TestR(r_version: '3.4.4') },
-            'test-r-3.5.3': { TestR(r_version: '3.5.3') }
+            'test-r-3.4.4': { TestR() },
+            'test-r-3.5.3': { TestR(use_r35: true) }
           ])
         }
         milestone ordinal: 4
@@ -306,6 +306,15 @@ def CrossTestJVMwithJDK(args) {
 
 def TestR(args) {
   node('linux && cpu') {
-    echo "Test R package: R version ${args.r_version}"
+    unstash name: 'srcs'
+    echo "Test R package"
+    container_type = "rproject"
+    docker_binary = "docker"
+    use_r35_flag = (args.use_r35) ? "1" : "0"
+    docker_args = "--build-arg USE_R35=${use_r35_flag}"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
+    """
+    deleteDir()
   }
 }
