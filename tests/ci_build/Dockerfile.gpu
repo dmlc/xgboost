@@ -16,7 +16,7 @@ ENV PATH=/opt/python/bin:$PATH
 
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn wheel kubernetes urllib3
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz
 
 ENV GOSU_VERSION 1.10
 

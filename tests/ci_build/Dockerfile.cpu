@@ -20,7 +20,7 @@ ENV GOSU_VERSION 1.10
 
 # Install Python packages
 RUN \
-    pip install pyyaml cpplint pylint astroid sphinx numpy scipy sh recommonmark guzzle_sphinx_theme mock \
+    pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh recommonmark guzzle_sphinx_theme mock \
                 breathe matplotlib graphviz pytest scikit-learn wheel kubernetes urllib3 && \
     pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl
 
