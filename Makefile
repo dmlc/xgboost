@@ -1,5 +1,13 @@
 OS := $(shell uname)
 
+RABIT_BUILD_DMLC = 0
+
+ifeq ($(RABIT_BUILD_DMLC),1)
+    DMLC=dmlc-core
+else
+    DMLC=../dmlc-core
+endif
+
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++11
 export CFLAGS = -O3 $(WARNFLAGS) -I $(DMLC)/include -I include/
 export LDFLAGS =-Llib
@@ -74,7 +82,6 @@ ALIB= lib/librabit.a lib/librabit_empty.a lib/librabit_mock.a lib/librabit_base.
 MPISLIB= lib/librabit_mpi.so
 MPIALIB= lib/librabit_mpi.a
 HEADERS=src/*.h include/rabit/*.h include/rabit/internal/*.h
-DMLC=dmlc-core
 
 .PHONY: clean all install mpi python lint doc doxygen
 

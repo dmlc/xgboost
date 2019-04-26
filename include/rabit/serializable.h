@@ -9,7 +9,10 @@
 #include <vector>
 #include <string>
 #include "./internal/utils.h"
+
+#ifndef DMLC_IO_H_
 #include "../../dmlc-core/include/dmlc/io.h"
+#endif  // DMLC_IO_H_
 
 namespace rabit {
 /*!

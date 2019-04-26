@@ -2,7 +2,7 @@
 
 # main script of travis
 if [ ${TASK} == "lint" ]; then
-    make lint || exit -1
+    make lint RABIT_BUILD_DMLC=1 || exit -1
 fi
 
 if [ ${TASK} == "doc" ]; then
@@ -11,24 +11,24 @@ if [ ${TASK} == "doc" ]; then
 fi
 
 if [ ${TASK} == "build" ]; then
-    make all || exit -1
+    make all RABIT_BUILD_DMLC=1 || exit -1
 fi
 
 if [ ${TASK} == "mpi-build" ]; then
     ./scripts/mpi_build.sh
     cd test
-    make mpi && make speed_test.mpi || exit -1
+    make mpi RABIT_BUILD_DMLC=1 && make speed_test.mpi RABIT_BUILD_DMLC=1 || exit -1
 fi
 
 if [ ${TASK} == "test" ]; then
     cd test
-    make all || exit -1
+    make all RABIT_BUILD_DMLC=1 || exit -1
     ../scripts/travis_runtest.sh || exit -1
 fi
 
 if [ ${TASK} == "cmake-build" ]; then
     mkdir build
     cd build
-    cmake ..
+    cmake .. -DRABIT_BUILD_DMLC=ON
     make all || exit -1
 fi

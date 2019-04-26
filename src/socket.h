@@ -287,7 +287,7 @@ class TCPSocket : public Socket{
     struct linger sl;
     sl.l_onoff = 1;    /* non-zero value enables linger option in kernel */
     sl.l_linger = timeout;    /* timeout interval in seconds */
-    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl)) == -1) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, reinterpret_cast<char*>(&sl), sizeof(sl)) == -1) {
       Socket::Error("SO_LINGER");
     }
   }

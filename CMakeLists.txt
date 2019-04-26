@@ -4,6 +4,7 @@ project(rabit VERSION 0.2.0)
 
 option(RABIT_BUILD_TESTS "Build rabit tests" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
+option(RABIT_BUILD_DMLC "Include DMLC_CORE in build" ON)
 
 add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
 add_library(rabit_base src/allreduce_base.cc src/engine_base.cc src/c_api.cc)
@@ -26,13 +27,23 @@ if(RABIT_BUILD_TESTS)
   list(APPEND rabit_libs rabit_mock) # add to list to apply build settings, then remove
 endif()
 
-foreach(lib ${rabit_libs})
-  #include "./internal/utils.h"
-  target_include_directories(${lib} PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>"
-    )
-endforeach()
+if(RABIT_BUILD_DMLC)
+  foreach(lib ${rabit_libs})
+    #include "./internal/utils.h"
+    target_include_directories(${lib} PUBLIC
+      "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
+      "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>"
+      )
+  endforeach()
+else()
+  foreach(lib ${rabit_libs})
+    #include "./internal/utils.h"
+    target_include_directories(${lib} PUBLIC
+      "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
+      "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../dmlc_core/include>"
+      )
+  endforeach()
+endif()
 
 if(RABIT_BUILD_TESTS)
   list(REMOVE_ITEM rabit_libs "rabit_mock") # remove here to avoid installing it

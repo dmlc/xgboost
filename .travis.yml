@@ -48,6 +48,7 @@ addons:
     update: true
       
 before_install:
+  - git clone https://github.com/dmlc/dmlc-core
   - export TRAVIS=dmlc-core/scripts/travis/
   - source ${TRAVIS}/travis_setup_env.sh
   - ${TRAVIS}/travis_osx_install.sh
