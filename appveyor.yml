@@ -36,15 +36,21 @@ install:
     - set PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
     - gcc -v
     - ls -l C:\
-    # Miniconda2
-    - set PATH=;C:\Miniconda-x64;C:\Miniconda-x64\Scripts;%PATH%
+    # Miniconda3
+    - call C:\Miniconda3-x64\Scripts\activate.bat
+    - conda info
     - where python
     - python --version
     # do python build for mingw and one of the msvc jobs
     - set DO_PYTHON=off
     - if /i "%target%" == "mingw" set DO_PYTHON=on
     - if /i "%target%_%ver%_%configuration%" == "msvc_2015_Release" set DO_PYTHON=on
-    - if /i "%DO_PYTHON%" == "on" conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz
+    - if /i "%DO_PYTHON%" == "on" (
+        conda config --set always_yes true &&
+        conda update -q conda &&
+        conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz
+      )
+    - set PATH=C:\Miniconda3-x64\Library\bin\graphviz;%PATH%
     # R: based on https://github.com/krlmlr/r-appveyor
     - ps: |
         if($env:target -eq 'rmingw' -or $env:target -eq 'rmsvc') {
