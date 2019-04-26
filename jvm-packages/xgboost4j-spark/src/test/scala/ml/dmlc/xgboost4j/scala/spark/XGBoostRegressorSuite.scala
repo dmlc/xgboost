@@ -19,20 +19,34 @@ package ml.dmlc.xgboost4j.scala.spark
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
 
 class XGBoostRegressorSuite extends FunSuite with PerTest {
 
-  test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j: regression") {
+  test("XGBoost-Spark XGBoostRegressor output should match XGBoost4j") {
     val trainingDM = new DMatrix(Regression.train.iterator)
     val testDM = new DMatrix(Regression.test.iterator)
     val trainingDF = buildDataFrame(Regression.train)
     val testDF = buildDataFrame(Regression.test)
-    val randSortedTestDF = buildDataFrameWithRandSort(Regression.test)
-    val round = 5
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
 
+  test("XGBoostRegressor should make correct predictions after upstream random sort") {
+    val trainingDM = new DMatrix(Regression.train.iterator)
+    val testDM = new DMatrix(Regression.test.iterator)
+    val trainingDF = buildDataFrameWithRandSort(Regression.train)
+    val testDF = buildDataFrameWithRandSort(Regression.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
+
+  private def checkResultsWithXGBoost4j(
+      trainingDM: DMatrix,
+      testDM: DMatrix,
+      trainingDF: DataFrame,
+      testDF: DataFrame,
+      round: Int = 5): Unit = {
     val paramMap = Map(
       "eta" -> "1",
       "max_depth" -> "6",
@@ -46,7 +60,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       "num_workers" -> numWorkers)).fit(trainingDF)
 
     val prediction2 = model2.transform(testDF).
-      collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
+        collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
 
     assert(prediction1.indices.count { i =>
       math.abs(prediction1(i)(0) - prediction2(i)) > 0.01
@@ -55,18 +69,12 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
     // check the equality of single instance prediction
     val firstOfDM = testDM.slice(Array(0))
-    val firstOfDF = testDF.head().getAs[Vector]("features")
+    val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
+        .head()
+        .getAs[Vector]("features")
     val prediction3 = model1.predict(firstOfDM)(0)(0)
     val prediction4 = model2.predict(firstOfDF)
     assert(math.abs(prediction3 - prediction4) <= 0.01f)
-
-    // check prediction results with a random-sorted data source
-    val prediction5 = model2.transform(randSortedTestDF).
-        collect().map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
-
-    assert(prediction1.indices.count { i =>
-      math.abs(prediction1(i)(0) - prediction5(i)) > 0.01
-    } < prediction1.length * 0.1)
   }
 
   test("Set params in XGBoost and MLlib way should produce same model") {

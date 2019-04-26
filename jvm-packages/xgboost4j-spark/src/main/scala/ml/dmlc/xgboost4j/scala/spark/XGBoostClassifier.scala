@@ -16,27 +16,26 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.{AbstractIterator, Iterator, mutable}
-import scala.collection.JavaConverters._
-import scala.collection.mutable.ListBuffer
 import ml.dmlc.xgboost4j.java.Rabit
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
-import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params._
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, ObjectiveTrait, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.TaskContext
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.ml.classification._
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.param.shared.HasWeightCol
 import org.apache.spark.ml.util._
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql._
 import org.json4s.DefaultFormats
-import org.apache.spark.broadcast.Broadcast
+
+import scala.collection.JavaConverters._
+import scala.collection.{AbstractIterator, Iterator, mutable}
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
   with BoosterParams with HasWeightCol with HasBaseMarginCol with HasNumClass with ParamMapFuncs
@@ -213,7 +212,8 @@ class XGBoostClassificationModel private[ml](
     override val numClasses: Int,
     private[spark] val _booster: Booster)
   extends ProbabilisticClassificationModel[Vector, XGBoostClassificationModel]
-    with XGBoostClassifierParams with MLWritable with Serializable {
+    with XGBoostClassifierParams with InferenceParams
+    with MLWritable with Serializable {
 
   import XGBoostClassificationModel._
 
@@ -246,6 +246,8 @@ class XGBoostClassificationModel private[ml](
   def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
 
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
+
+  def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
    * Single instance prediction.
@@ -288,18 +290,13 @@ class XGBoostClassificationModel private[ml](
       new AbstractIterator[Row] {
         private var batchCnt = 0
 
-        private val batchIterImpl = rowIterator.grouped(
-          XGBoostClassificationModel.PREDICTION_BATCH_SIZE).flatMap { batchRow =>
-<<<<<<< HEAD
-=======
-
->>>>>>> regressor impl
+        private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
           if (batchCnt == 0) {
             val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
             Rabit.init(rabitEnv.asJava)
           }
 
-          val features = batchRow.map(row => row.getAs[Vector]($(featuresCol)))
+          val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
 
           import DataUtils._
           val cacheInfo = {
@@ -312,7 +309,7 @@ class XGBoostClassificationModel private[ml](
           }
 
           val dm = new DMatrix(
-            XGBoost.processMissingValues(features.map(_.asXGB).iterator, $(missing)),
+            XGBoost.processMissingValues(features.map(_.asXGB), $(missing)),
             cacheInfo)
           try {
             val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
@@ -490,8 +487,6 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
   private val _rawPredictionCol = "_rawPrediction"
   private val _probabilityCol = "_probability"
 
-  private val PREDICTION_BATCH_SIZE = 32 << 10
-
   override def read: MLReader[XGBoostClassificationModel] = new XGBoostClassificationModelReader
 
   override def load(path: String): XGBoostClassificationModel = super.load(path)
@@ -538,4 +533,3 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     }
   }
 }
-

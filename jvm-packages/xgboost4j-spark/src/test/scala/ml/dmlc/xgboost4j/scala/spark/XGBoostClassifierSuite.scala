@@ -32,9 +32,23 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val testDM = new DMatrix(Classification.test.iterator)
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    val randSortedTestDF = buildDataFrameWithRandSort(Classification.test)
-    val round = 5
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
 
+  test("XGBoostClassifier should make correct predictions after upstream random sort") {
+    val trainingDM = new DMatrix(Classification.train.iterator)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrameWithRandSort(Classification.train)
+    val testDF = buildDataFrameWithRandSort(Classification.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
+
+  private def checkResultsWithXGBoost4j(
+      trainingDM: DMatrix,
+      testDM: DMatrix,
+      trainingDF: DataFrame,
+      testDF: DataFrame,
+      round: Int = 5): Unit = {
     val paramMap = Map(
       "eta" -> "1",
       "max_depth" -> "6",
@@ -48,7 +62,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "num_workers" -> numWorkers)).fit(trainingDF)
 
     val prediction2 = model2.transform(testDF).
-      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
+        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
 
     assert(testDF.count() === prediction2.size)
     // the vector length in probability column is 2 since we have to fit to the evaluator in Spark
@@ -61,7 +75,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
     val prediction3 = model1.predict(testDM, outPutMargin = true)
     val prediction4 = model2.transform(testDF).
-      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
+        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
 
     assert(testDF.count() === prediction4.size)
     // the vector length in rawPrediction column is 2 since we have to fit to the evaluator in Spark
@@ -74,15 +88,12 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
     // check the equality of single instance prediction
     val firstOfDM = testDM.slice(Array(0))
-    val firstOfDF = testDF.head().getAs[Vector]("features")
+    val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
+        .head()
+        .getAs[Vector]("features")
     val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
     val prediction6 = model2.predict(firstOfDF)
     assert(prediction5 === prediction6)
-
-    // make sure column consistency won't be broken by random-sorted data source
-    val prediction7 = model2.transform(randSortedTestDF).
-        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
-    assert(prediction2 == prediction7)
   }
 
   test("Set params in XGBoost and MLlib way should produce same model") {

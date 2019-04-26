@@ -207,7 +207,8 @@ class XGBoostRegressionModel private[ml] (
     override val uid: String,
     private[spark] val _booster: Booster)
   extends PredictionModel[Vector, XGBoostRegressionModel]
-    with XGBoostRegressorParams with MLWritable with Serializable {
+    with XGBoostRegressorParams with InferenceParams
+    with MLWritable with Serializable {
 
   import XGBoostRegressionModel._
 
@@ -241,6 +242,8 @@ class XGBoostRegressionModel private[ml] (
 
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
+  def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
+
   /**
    * Single instance prediction.
    * Note: The performance is not ideal, use it carefully!
@@ -264,15 +267,13 @@ class XGBoostRegressionModel private[ml] (
       new AbstractIterator[Row] {
         private var batchCnt = 0
 
-        private val batchIterImpl = rowIterator.grouped(
-          XGBoostRegressionModel.PREDICTION_BATCH_SIZE).flatMap { batchRow =>
-
+        private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
           if (batchCnt == 0) {
             val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
             Rabit.init(rabitEnv.asJava)
           }
 
-          val features = batchRow.map(row => row.getAs[Vector]($(featuresCol)))
+          val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
 
           import DataUtils._
           val cacheInfo = {
@@ -285,7 +286,7 @@ class XGBoostRegressionModel private[ml] (
           }
 
           val dm = new DMatrix(
-            XGBoost.processMissingValues(features.map(_.asXGB).iterator, $(missing)),
+            XGBoost.processMissingValues(features.map(_.asXGB), $(missing)),
             cacheInfo)
           try {
             val Array(rawPredictionItr, predLeafItr, predContribItr) =
@@ -417,7 +418,6 @@ class XGBoostRegressionModel private[ml] (
 object XGBoostRegressionModel extends MLReadable[XGBoostRegressionModel] {
 
   private val _originalPredictionCol = "_originalPrediction"
-  private val PREDICTION_BATCH_SIZE = 32 << 10
 
   override def read: MLReader[XGBoostRegressionModel] = new XGBoostRegressionModelReader
 

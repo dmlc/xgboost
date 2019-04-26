@@ -463,4 +463,42 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(model2.summary.trainObjectiveHistory !== model2.summary.validationObjectiveHistory(0))
     assert(model2.summary.trainObjectiveHistory !== model2.summary.validationObjectiveHistory(1))
   }
+
+  test("infer with different batch sizes") {
+    val regModel = new XGBoostRegressor(Map(
+      "eta" -> "1",
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "reg:squarederror",
+      "num_round" -> 5,
+      "num_workers" -> numWorkers))
+        .fit(buildDataFrame(Regression.train))
+    val regDF = buildDataFrame(Regression.test)
+
+    val regRet1 = regModel.transform(regDF).collect()
+    val regRet2 = regModel.setInferBatchSize(1).transform(regDF).collect()
+    val regRet3 = regModel.setInferBatchSize(10).transform(regDF).collect()
+    val regRet4 = regModel.setInferBatchSize(32 << 15).transform(regDF).collect()
+    assert(regRet1 sameElements regRet2)
+    assert(regRet1 sameElements regRet3)
+    assert(regRet1 sameElements regRet4)
+
+    val clsModel = new XGBoostClassifier(Map(
+      "eta" -> "1",
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "num_round" -> 5,
+      "num_workers" -> numWorkers))
+        .fit(buildDataFrame(Classification.train))
+    val clsDF = buildDataFrame(Classification.test)
+
+    val clsRet1 = clsModel.transform(clsDF).collect()
+    val clsRet2 = clsModel.setInferBatchSize(1).transform(clsDF).collect()
+    val clsRet3 = clsModel.setInferBatchSize(10).transform(clsDF).collect()
+    val clsRet4 = clsModel.setInferBatchSize(32 << 15).transform(clsDF).collect()
+    assert(clsRet1 sameElements clsRet2)
+    assert(clsRet1 sameElements clsRet3)
+    assert(clsRet1 sameElements clsRet4)
+  }
 }
