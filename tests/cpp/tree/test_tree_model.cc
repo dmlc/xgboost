@@ -87,11 +87,13 @@ TEST(Tree, Load) {
 
 TEST(Tree, AllocateNode) {
   RegTree tree;
-  tree.ExpandNode(0, 0, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(
+      0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
   tree.CollapseToLeaf(0, 0);
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
-  tree.ExpandNode(0, 0, 0, 0, 0, 0, 0, 0, 0);
+  tree.ExpandNode(
+      0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   auto& nodes = tree.GetNodes();
