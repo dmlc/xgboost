@@ -23,9 +23,6 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
-
-    flake8 --ignore E501 python-package || exit -1
-    flake8 --ignore E501 tests/python || exit -1
 fi
 
 if [ ${TASK} == "java_test" ]; then
@@ -41,7 +38,7 @@ if [ ${TASK} == "cmake_test" ]; then
     wget -nc https://github.com/google/googletest/archive/release-1.7.0.zip
     unzip -n release-1.7.0.zip
     mv googletest-release-1.7.0 gtest && cd gtest
-    cmake . && make
+    CC=gcc-7 CXX=g++-7 cmake . && make
     mkdir lib && mv libgtest.a lib
     cd ..
     rm -rf release-1.7.0.zip
@@ -50,7 +47,7 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf build
     mkdir build && cd build
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
+    CC=gcc-7 CXX=g++-7 cmake .. -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest/ ${PLUGINS}
     make
     ./testxgboost
     cd ..
