@@ -16,6 +16,6 @@ if [ ${TASK} == "python_test" ]; then
     conda create -n python3 python=3.7
 fi
 
-if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx"]; then
+if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx" ]; then
     sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
 fi
