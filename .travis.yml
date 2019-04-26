@@ -15,7 +15,7 @@ env:
     # java package test
     - TASK=java_test
     # cmake test
-    - TASK=cmake_test
+    # - TASK=cmake_test
 
 # dependent apt packages
 addons:
