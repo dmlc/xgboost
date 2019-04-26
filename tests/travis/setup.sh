@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ ${TASK} == "python_test" ] || [ ${TASK} ==  "distributed_test" ]; then
+if [ ${TASK} == "python_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
     else

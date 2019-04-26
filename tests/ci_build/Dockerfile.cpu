@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan4 && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr && \

@@ -16,10 +16,6 @@ env:
     - TASK=java_test
     # cmake test
     - TASK=cmake_test
-    # distributed test
-    - TASK=distributed_test
-    # address sanitizer test
-    - TASK=sanitizer_test
 
 # dependent apt packages
 addons:

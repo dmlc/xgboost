@@ -34,6 +34,8 @@ case "$suite" in
 
   cpu)
     pytest -v -s --fulltrace tests/python
+    cd tests/distributed
+    ./runtests.sh
     ;;
 
   *)
