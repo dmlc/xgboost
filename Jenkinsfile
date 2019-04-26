@@ -109,9 +109,9 @@ def ClangTidy() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running clang-tidy job..."
-    container_type = "clang_tidy"
-    docker_binary = "docker"
-    dockerArgs = "--build-arg CUDA_VERSION=9.2"
+    def container_type = "clang_tidy"
+    def docker_binary = "docker"
+    def dockerArgs = "--build-arg CUDA_VERSION=9.2"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} tests/ci_build/clang_tidy.sh
     """
@@ -123,8 +123,8 @@ def Lint() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running lint..."
-    container_type = "cpu"
-    docker_binary = "docker"
+    def container_type = "cpu"
+    def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} make lint
     """
@@ -136,9 +136,9 @@ def SphinxDoc() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running sphinx-doc..."
-    container_type = "cpu"
-    docker_binary = "docker"
-    docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
     sh """#!/bin/bash
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} make -C doc html
     """
@@ -150,8 +150,8 @@ def Doxygen() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Running doxygen..."
-    container_type = "cpu"
-    docker_binary = "docker"
+    def container_type = "cpu"
+    def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh
     """
@@ -163,14 +163,14 @@ def BuildCPU() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build CPU"
-    container_type = "cpu"
-    docker_binary = "docker"
+    def container_type = "cpu"
+    def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
     ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
     // Sanitizer test
-    docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1'"
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1'"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address" \
       -DCMAKE_BUILD_TYPE=Debug -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
@@ -184,9 +184,9 @@ def BuildCUDA(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build with CUDA ${args.cuda_version}"
-    container_type = "gpu_build"
-    docker_binary = "docker"
-    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def container_type = "gpu_build"
+    def docker_binary = "docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
@@ -207,10 +207,10 @@ def BuildJVMPackages(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}"
-    container_type = "jvm"
-    docker_binary = "docker"
+    def container_type = "jvm"
+    def docker_binary = "docker"
     // Use only 4 CPU cores
-    docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
     sh """
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh
     """
@@ -224,8 +224,8 @@ def BuildJVMDoc() {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Building JVM doc..."
-    container_type = "jvm"
-    docker_binary = "docker"
+    def container_type = "jvm"
+    def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
     """
@@ -241,8 +241,8 @@ def TestPythonCPU() {
     unstash name: 'xgboost_whl'
     unstash name: 'srcs'
     echo "Test Python CPU"
-    container_type = "cpu"
-    docker_binary = "docker"
+    def container_type = "cpu"
+    def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu
     """
@@ -256,9 +256,9 @@ def TestPythonGPU(args) {
     unstash name: 'xgboost_whl'
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
-    container_type = "gpu"
-    docker_binary = "nvidia-docker"
-    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def container_type = "gpu"
+    def docker_binary = "nvidia-docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     if (args.multi_gpu) {
       echo "Using multiple GPUs"
       sh """
@@ -280,9 +280,9 @@ def TestCppGPU(args) {
     unstash name: 'xgboost_cpp_tests'
     unstash name: 'srcs'
     echo "Test C++, CUDA ${args.cuda_version}"
-    container_type = "gpu"
-    docker_binary = "nvidia-docker"
-    docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def container_type = "gpu"
+    def docker_binary = "nvidia-docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     if (args.multi_gpu) {
       echo "Using multiple GPUs"
       sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost --gtest_filter=*.MGPU_*"
@@ -299,11 +299,11 @@ def CrossTestJVMwithJDK(args) {
     unstash name: 'xgboost4j_jar'
     unstash name: 'srcs'
     echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}"
-    container_type = "jvm_cross"
-    docker_binary = "docker"
-    docker_args = "--build-arg JDK_VERSION=${args.jdk_version}"
+    def container_type = "jvm_cross"
+    def docker_binary = "docker"
+    def docker_args = "--build-arg JDK_VERSION=${args.jdk_version}"
     // Only run integration tests for JDK 8, as Spark doesn't support later JDKs yet
-    docker_extra_params = (args.jdk_version == '8') ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
+    def docker_extra_params = (args.jdk_version == '8') ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
     sh """
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
     """
@@ -315,10 +315,10 @@ def TestR(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
     echo "Test R package"
-    container_type = "rproject"
-    docker_binary = "docker"
-    use_r35_flag = (args.use_r35) ? "1" : "0"
-    docker_args = "--build-arg USE_R35=${use_r35_flag}"
+    def container_type = "rproject"
+    def docker_binary = "docker"
+    def use_r35_flag = (args.use_r35) ? "1" : "0"
+    def docker_args = "--build-arg USE_R35=${use_r35_flag}"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
     """
