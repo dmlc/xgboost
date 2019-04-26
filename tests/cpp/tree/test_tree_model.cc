@@ -84,4 +84,19 @@ TEST(Tree, Load) {
   EXPECT_EQ(tree[1].LeafValue(), 0.1f);
   EXPECT_TRUE(tree[1].IsLeaf());
 }
+
+TEST(Tree, AllocateNode) {
+  RegTree tree;
+  tree.ExpandNode(0, 0, 0, 0, 0, 0, 0, 0, 0);
+  tree.CollapseToLeaf(0, 0);
+  ASSERT_EQ(tree.NumExtraNodes(), 0);
+
+  tree.ExpandNode(0, 0, 0, 0, 0, 0, 0, 0, 0);
+  ASSERT_EQ(tree.NumExtraNodes(), 2);
+
+  auto& nodes = tree.GetNodes();
+  ASSERT_FALSE(nodes.at(1).IsDeleted());
+  ASSERT_TRUE(nodes.at(1).IsLeaf());
+  ASSERT_TRUE(nodes.at(2).IsLeaf());
+}
 }  // namespace xgboost
