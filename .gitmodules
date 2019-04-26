@@ -3,7 +3,7 @@
 	url = https://github.com/dmlc/dmlc-core
 [submodule "rabit"]
 	path = rabit
-	url = https://github.com/chenqin/rabit
+	url = https://github.com/dmlc/rabit
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub
