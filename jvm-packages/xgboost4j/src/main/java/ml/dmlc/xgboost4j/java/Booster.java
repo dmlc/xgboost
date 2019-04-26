@@ -47,7 +47,7 @@ public class Booster implements Serializable, KryoSerializable {
    *                  the prediction of these DMatrices will become faster than not-cached data.
    * @throws XGBoostError native error
    */
-  public Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
+  Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
     init(cacheMats);
     setParam("seed", "0");
     setParams(params);
