@@ -35,7 +35,8 @@ if [ ! -z "$RUN_INTEGRATION_TEST" ]
 then
   python3 get_iris.py
   spark-submit --class ml.dmlc.xgboost4j.scala.example.spark.SparkTraining --master 'local[8]' ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv
-  spark-submit --class ml.dmlc.xgboost4j.scala.example.spark.SparkMLlibPipeline --master 'local[8]' ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv ${PWD}/native_model ${PWD}/pipeline_model
+  # Disabled due to https://github.com/dmlc/xgboost/issues/4406
+  #spark-submit --class ml.dmlc.xgboost4j.scala.example.spark.SparkMLlibPipeline --master 'local[8]' ./target/xgboost4j-tester-1.0-SNAPSHOT-jar-with-dependencies.jar ${PWD}/iris.csv ${PWD}/native_model ${PWD}/pipeline_model
 fi
 
 set +x
