@@ -1,0 +1,48 @@
+FROM ubuntu:19.04
+ARG JDK_VERSION=8
+
+# Environment
+ENV DEBIAN_FRONTEND noninteractive
+
+# Install all basic requirements
+RUN \
+    apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:openjdk-r/ppa && \
+    apt-get update && \
+    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk libgomp1 && \
+    # Python
+    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
+    # Maven
+    wget http://apache.osuosl.org/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
+    tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
+    # Spark
+    wget https://archive.apache.org/dist/spark/spark-2.4.1/spark-2.4.1-bin-hadoop2.7.tgz && \
+    tar xvf spark-2.4.1-bin-hadoop2.7.tgz -C /opt && \
+    ln -s /opt/spark-2.4.1-bin-hadoop2.7 /opt/spark
+
+ENV PATH=/opt/python/bin:/opt/spark/bin:/opt/maven/bin:$PATH
+
+# Install Python packages
+RUN \
+    pip install numpy scipy pandas scikit-learn
+
+ENV GOSU_VERSION 1.10
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Set default JDK version
+RUN update-java-alternatives -v -s java-1.$JDK_VERSION.0-openjdk-amd64
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

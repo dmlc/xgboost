@@ -16,5 +16,5 @@ mkdir build
 cd build
 cmake .. "$@" -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest -DCMAKE_VERBOSE_MAKEFILE=ON
 make clean
-make -j
+make -j$(nproc)
 cd ..
