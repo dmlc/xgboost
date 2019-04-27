@@ -17,66 +17,16 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
-import java.util.concurrent.LinkedBlockingDeque
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
-import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
 import org.apache.spark.TaskContext
-import org.apache.spark.ml.linalg.Vectors
-import org.apache.spark.sql._
 import org.scalatest.FunSuite
-import scala.util.Random
-
-import ml.dmlc.xgboost4j.java.Rabit
-
-import org.apache.spark.ml.feature.VectorAssembler
 
 class XGBoostGeneralSuite extends FunSuite with PerTest {
-
-  test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
-    val vectorLength = 100
-    val rdd = sc.parallelize(
-      (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
-
-    val tracker = new RabitTracker(numWorkers)
-    tracker.start(0)
-    val trackerEnvs = tracker.getWorkerEnvs
-    val collectedAllReduceResults = new LinkedBlockingDeque[Array[Float]]()
-
-    val rawData = rdd.mapPartitions { iter =>
-      Iterator(iter.toArray)
-    }.collect()
-
-    val maxVec = (0 until vectorLength).toArray.map { j =>
-      (0 until numWorkers).toArray.map { i => rawData(i)(j) }.max
-    }
-
-    val allReduceResults = rdd.mapPartitions { iter =>
-      Rabit.init(trackerEnvs)
-      val arr = iter.toArray
-      val results = Rabit.allReduce(arr, Rabit.OpType.MAX)
-      Rabit.shutdown()
-      Iterator(results)
-    }.cache()
-
-    val sparkThread = new Thread() {
-      override def run(): Unit = {
-        allReduceResults.foreachPartition(() => _)
-        val byPartitionResults = allReduceResults.collect()
-        assert(byPartitionResults(0).length == vectorLength)
-        collectedAllReduceResults.put(byPartitionResults(0))
-      }
-    }
-    sparkThread.start()
-    assert(tracker.waitFor(0L) == 0)
-    sparkThread.join()
-
-    assert(collectedAllReduceResults.poll().sameElements(maxVec))
-  }
 
   test("distributed training with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
@@ -97,18 +47,6 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
       "use_external_memory" -> true)
-    val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
-  }
-
-
-  test("training with Scala-implemented Rabit tracker") {
-    val eval = new EvalError()
-    val training = buildDataFrame(Classification.train)
-    val testDM = new DMatrix(Classification.test.iterator)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6",
-      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala"))
     val model = new XGBoostClassifier(paramMap).fit(training)
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }

@@ -9,6 +9,7 @@ import java.util.Map;
  * Rabit global class for synchronization.
  */
 public class Rabit {
+
   public enum OpType implements Serializable {
     MAX(0), MIN(1), SUM(2), BITWISE_OR(3);
 
