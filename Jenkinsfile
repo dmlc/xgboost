@@ -58,7 +58,7 @@ pipeline {
             'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
             'build-gpu-cuda9.2': { BuildCUDA(cuda_version: '9.2') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
-            'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.1') },
+            'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.2') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
@@ -77,7 +77,7 @@ pipeline {
             'test-python-mgpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0', multi_gpu: true) },
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
-            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8') },
+            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.2') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
             'test-r-3.4.4': { TestR(use_r35: false) },
@@ -298,12 +298,17 @@ def CrossTestJVMwithJDK(args) {
   node('linux && cpu') {
     unstash name: 'xgboost4j_jar'
     unstash name: 'srcs'
-    echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}"
+    if (args.spark_version != null) {
+      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, Spark ${args.spark_version}"
+    } else {
+      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}"
+    }
     def container_type = "jvm_cross"
     def docker_binary = "docker"
-    def docker_args = "--build-arg JDK_VERSION=${args.jdk_version}"
-    // Only run integration tests for JDK 8, as Spark doesn't support later JDKs yet
-    def docker_extra_params = (args.jdk_version == '8') ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
+    def spark_arg = (args.spark_version != null) ? "--build-arg SPARK_VERSION=${args.spark_version}" : ""
+    def docker_args = "--build-arg JDK_VERSION=${args.jdk_version} ${spark_arg}"
+    // Run integration tests only when spark_version is given
+    def docker_extra_params = (args.spark_version != null) ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
     sh """
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
     """
