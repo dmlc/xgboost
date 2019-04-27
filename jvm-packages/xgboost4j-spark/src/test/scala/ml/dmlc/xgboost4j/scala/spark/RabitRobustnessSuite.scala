@@ -219,7 +219,11 @@ class RabitSuite extends FunSuite with PerTest {
     val model = new XGBoostClassifier(paramMap ++ Array("num_round" -> 10,
       "num_workers" -> numWorkers)).fit(trainingDF)
     val prediction = model.transform(trainingDF)
+    // a partial evaluation of dataframe will cause rabit initialized but not shutdown in some
+    // threads
     prediction.show()
-    prediction.show()
+    // a full evaluation here will re-run init and shutdown all rabit proxy
+    // expecting no error
+    prediction.collect()
   }
 }
