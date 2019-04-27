@@ -179,6 +179,10 @@ class RegTree {
     XGBOOST_DEVICE void MarkDelete() {
       this->sindex_ = std::numeric_limits<unsigned>::max();
     }
+    /*! \brief Reuse this deleted node. */
+    XGBOOST_DEVICE void Reuse() {
+      this->sindex_ = 0;
+    }
     // set parent
     XGBOOST_DEVICE void SetParent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
@@ -503,10 +507,11 @@ class RegTree {
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   int AllocNode() {
     if (param.num_deleted != 0) {
-      int nd = deleted_nodes_.back();
+      int nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
+      nodes_[nid].Reuse();
       --param.num_deleted;
-      return nd;
+      return nid;
     }
     int nd = param.num_nodes++;
     CHECK_LT(param.num_nodes, std::numeric_limits<int>::max())
