@@ -82,7 +82,7 @@ that classifies whether someone will like computer games.
 We classify the members of a family into different leaves, and assign them the score on the corresponding leaf.
 A CART is a bit different from decision trees, in which the leaf only contains decision values. In CART, a real score
 is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
-This also allows for a pricipled, unified approach to optimization, as we will see in a later part of this tutorial.
+This also allows for a principled, unified approach to optimization, as we will see in a later part of this tutorial.
 
 Usually, a single tree is not strong enough to be used in practice. What is actually used is the ensemble model,
 which sums the prediction of multiple trees together.
