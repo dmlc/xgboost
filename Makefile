@@ -176,7 +176,11 @@ rcpplint:
 	python3 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python3 dmlc-core/scripts/lint.py --pylint-rc ${PWD}/python-package/.pylintrc xgboost ${LINT_LANG} include src plugin python-package
+	python3 dmlc-core/scripts/lint.py --exclude_path python-package/xgboost/dmlc-core \
+	  python-package/xgboost/include python-package/xgboost/lib \
+	  python-package/xgboost/make python-package/xgboost/rabit \
+	  python-package/xgboost/src --pylint-rc ${PWD}/python-package/.pylintrc xgboost \
+	  ${LINT_LANG} include src plugin python-package
 
 pylint:
 	flake8 --ignore E501 python-package
