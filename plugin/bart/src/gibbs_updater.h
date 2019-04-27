@@ -81,7 +81,7 @@ class GibbsUpdater {
       return this->at(tree_idx).back();
     }
     void add(int32_t tree_idx, std::unique_ptr<TreeMutation>&& p_tree) {
-      this->at(tree_idx).emplace_back(p_tree);
+      this->at(tree_idx).emplace_back(std::move(p_tree));
     }
   };
 

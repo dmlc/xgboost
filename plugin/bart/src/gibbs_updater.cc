@@ -119,9 +119,9 @@ int32_t TreeMutation::grow(float sigma, GibbsParam param, DMatrix* p_fmat) {
   for (auto& batch : p_fmat->GetColumnBatches()) {
     auto column = batch[split_feature];
     CHECK_NE(column.size(), 0);
-    auto max = column[column.size() - 1].fvalue;
-    auto min = column[0].fvalue;
-    CHECK_GE(min, max);
+    auto min = column[column.size() - 1].fvalue;
+    auto max = column[0].fvalue;
+    CHECK_LE(min, max);
     split_cond = Uniform(min, max).sample();
   }
 

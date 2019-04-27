@@ -68,7 +68,7 @@ class Bart : public GradientBooster {
 };
 
 XGBOOST_REGISTER_GBM(Bart, "bart")
-    .describe("Linear booster, implement generalized linear model.")
+    .describe("Bayesian Additive Tree.")
     .set_body([](const std::vector<std::shared_ptr<DMatrix> > &cache,
                  bst_float base_margin) {
       return new Bart(cache, base_margin);
