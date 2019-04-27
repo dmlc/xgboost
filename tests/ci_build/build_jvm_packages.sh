@@ -9,7 +9,7 @@ set -x
 rm -rf build/
 cd jvm-packages
 
-mvn --no-transfer-progress package -DskipTests
+mvn --no-transfer-progress package
 
 set +x
 set +e

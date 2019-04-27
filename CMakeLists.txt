@@ -78,7 +78,7 @@ else ()
 endif (MINGW OR R_LIB)
 add_library(rabit STATIC ${RABIT_SOURCES})
 target_include_directories(rabit PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include/rabit>)
 set_target_properties(rabit
   PROPERTIES
