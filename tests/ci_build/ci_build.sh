@@ -52,7 +52,7 @@ if [[ "$1" == "-it" ]]; then
 fi
 
 while [[ "$1" == "--build-arg" ]]; do
-    CI_DOCKER_BUILD_ARG+="$1"
+    CI_DOCKER_BUILD_ARG+=" $1"
     CI_DOCKER_BUILD_ARG+=" $2"
     shift 2
 done
