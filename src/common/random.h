@@ -115,8 +115,16 @@ class ColumnSampler {
  public:
   /** 
    * \brief Column sampler constructor.
-   * \note This constructor synchronizes the RNG seed across processes.
+   * \note This constructor manually sets the rng seed
    */
+  explicit ColumnSampler(uint32_t seed) {
+    rng_.seed(seed);
+  }
+
+  /**
+  * \brief Column sampler constructor.
+  * \note This constructor synchronizes the RNG seed across processes.
+  */
   ColumnSampler() {
     uint32_t seed = common::GlobalRandom()();
     rabit::Broadcast(&seed, sizeof(seed), 0);
