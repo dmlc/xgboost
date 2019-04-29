@@ -213,7 +213,6 @@ TEST(HostDeviceVector, Reshard) {
   auto span = vec.DeviceSpan(0);  // sync to device
   PlusOne(&vec);
 
-  // GPU data is preserved.
   vec.Reshard(GPUDistribution::Empty());
   ASSERT_EQ(vec.Size(), h_vec.size());
   ASSERT_TRUE(vec.Devices().IsEmpty());
@@ -221,20 +220,6 @@ TEST(HostDeviceVector, Reshard) {
   auto h_vec_1 = vec.HostVector();
   for (size_t i = 0; i < h_vec_1.size(); ++i) {
     ASSERT_EQ(h_vec_1.at(i), i + 1);
-  }
-
-  vec.Reshard(GPUDistribution::Block(devices));
-  span = vec.DeviceSpan(0);  // sync to device
-  PlusOne(&vec);
-
-  vec.Reshard(GPUDistribution::Empty(), /*preserve=*/false);
-  ASSERT_EQ(vec.Size(), h_vec.size());
-  ASSERT_TRUE(vec.Devices().IsEmpty());
-
-  auto h_vec_2 = vec.HostVector();
-  for (size_t i = 0; i < h_vec_2.size(); ++i) {
-    // The second `PlusOne()` has no effect.
-    ASSERT_EQ(h_vec_2.at(i), i + 1);
   }
 }
 
@@ -333,27 +318,6 @@ TEST(HostDeviceVector, MGPU_Reshard) {
   auto h_vec_1 = vec.HostVector();
   for (size_t i = 0; i < h_vec_1.size(); ++i) {
     ASSERT_EQ(h_vec_1.at(i), i + 1);
-  }
-
-  for (size_t i = 0; i < devices.Size(); ++i) {
-    auto span = vec.DeviceSpan(i);  // sync to device
-  }
-  PlusOne(&vec);
-
-  vec.Reshard(GPUDistribution::Overlap(devices, 11), /*preserve=*/false);
-  total_size = 0;
-  for (size_t i = 0; i < devices.Size(); ++i) {
-    total_size += vec.DeviceSize(i);
-    devices_size[i] = vec.DeviceSize(i);
-  }
-  overlap = 11 * (devices.Size() - 1);
-  ASSERT_EQ(total_size, h_vec.size() + overlap);
-  ASSERT_EQ(total_size, vec.Size() + overlap);
-
-  auto h_vec_2 = vec.HostVector();
-  for (size_t i = 0; i < h_vec_2.size(); ++i) {
-    // The second `PlusOne()` has no effect.
-    ASSERT_EQ(h_vec_2.at(i), i + 1);
   }
 }
 #endif

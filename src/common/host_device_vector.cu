@@ -370,14 +370,11 @@ struct HostDeviceVectorImpl {
     Shard(GPUDistribution::Block(new_devices));
   }
 
-  void Reshard(const GPUDistribution &distribution, bool preserve) {
+  void Reshard(const GPUDistribution &distribution) {
     if (distribution_ == distribution) { return; }
-    if (preserve) {
-      LazySyncHost(GPUAccess::kWrite);
-    }
+    LazySyncHost(GPUAccess::kWrite);
     distribution_ = distribution;
     shards_.clear();
-    perm_h_.Grant(kWrite);
     InitShards();
   }
 
@@ -604,8 +601,8 @@ void HostDeviceVector<T>::Shard(const GPUDistribution &distribution) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution, bool preserve) {
-  impl_->Reshard(distribution, preserve);
+void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution) {
+  impl_->Reshard(distribution);
 }
 
 template <typename T>
