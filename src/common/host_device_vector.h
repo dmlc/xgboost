@@ -259,7 +259,7 @@ class HostDeviceVector {
   /*!
    * \brief Change memory distribution.
    */
-  void Reshard(const GPUDistribution &distribution, bool preserve=true);
+  void Reshard(const GPUDistribution &distribution, bool preserve = true);
 
   void Resize(size_t new_size, T v = T());
 
