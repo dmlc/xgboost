@@ -6,9 +6,7 @@ cmake_policy(SET CMP0022 NEW)
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 if (MSVC)
-  if (${CMAKE_VERSION} VERSION_LESS "3.11.0")
-    message(FATAL_ERROR "To compile with Visual Studio, please use CMake 3.11 or newer")
-  endif (${CMAKE_VERSION} VERSION_LESS "3.11.0")
+  cmake_minimum_required(VERSION 3.11)
 endif (MSVC)
 
 set_default_configuration_release()
@@ -47,9 +45,7 @@ endif (USE_AVX)
 # Sanitizer
 if (USE_SANITIZER)
   # Older CMake versions have had troubles with Sanitizer
-  if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    message(FATAL_ERROR "To use sanitizer, please use CMake 3.12 or newer")
-  endif (${CMAKE_VERSION} VERSION_LESS "3.12.0")
+  cmake_minimum_required(VERSION 3.12)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)
