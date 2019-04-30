@@ -171,6 +171,7 @@ def BuildCPU() {
     """
     // Sanitizer test
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 --cap-add SYS_PTRACE'"
+    def docker_args = "--build-arg CMAKE_VERSION=3.12"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address" \
       -DCMAKE_BUILD_TYPE=Debug -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/

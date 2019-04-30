@@ -45,6 +45,10 @@ endif (USE_AVX)
 
 # Sanitizer
 if (USE_SANITIZER)
+  # Older CMake versions have had troubles with Sanitizer
+  if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    message(FATAL_ERROR "To use sanitizer, please use CMake 3.12 or newer")
+  endif (${CMAKE_VERSION} VERSION_LESS "3.12.0")
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)
