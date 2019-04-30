@@ -1,8 +1,14 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.3)
 project(xgboost LANGUAGES CXX C VERSION 0.82)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+
+if (MSVC)
+  if (${CMAKE_VERSION} VERSION_LESS "3.11.0")
+    message(FATAL_ERROR "To compile with Visual Studio, please use CMake 3.11 or newer")
+  endif (${CMAKE_VERSION} VERSION_LESS "3.11.0")
+endif (MSVC)
 
 set_default_configuration_release()
 msvc_use_static_runtime()
@@ -42,6 +48,11 @@ if (USE_SANITIZER)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)
+
+# Create OpenMP target if enabled
+if (USE_OPENMP)
+  use_openmp()
+endif (USE_OPENMP)
 
 if (USE_CUDA)
   cmake_minimum_required(VERSION 3.12)
@@ -103,6 +114,7 @@ target_include_directories(xgboost
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+target_link_libraries(xgboost PUBLIC ${LINKED_LIBRARIES_PUBLIC})
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
@@ -119,6 +131,7 @@ target_include_directories(runxgboost
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
   ${PROJECT_SOURCE_DIR}/rabit/include)
 target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+target_link_libraries(runxgboost PUBLIC ${LINKED_LIBRARIES_PUBLIC})
 set_target_properties(
   runxgboost PROPERTIES
   OUTPUT_NAME xgboost

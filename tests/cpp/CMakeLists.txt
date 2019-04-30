@@ -47,10 +47,9 @@ set_target_properties(
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES}
-  ${LINKED_LIBRARIES_PRIVATE}
-  ${OpenMP_CXX_LIBRARIES})
+  ${LINKED_LIBRARIES_PRIVATE})
 target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
 if (USE_OPENMP)
-  target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
+  target_link_libraries(testxgboost PUBLIC OpenMP::OpenMP_CXX)
 endif (USE_OPENMP)
 set_output_directory(testxgboost ${PROJECT_BINARY_DIR})

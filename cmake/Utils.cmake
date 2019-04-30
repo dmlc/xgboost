@@ -1,3 +1,18 @@
+# Adopted from https://cliutils.gitlab.io/modern-cmake/chapters/packages/OpenMP.html
+function(use_openmp)
+  # For CMake < 3.9, we need to make the target ourselves
+  find_package(OpenMP REQUIRED)
+  if(NOT TARGET OpenMP::OpenMP_CXX)
+    find_package(Threads REQUIRED)
+    add_library(OpenMP::OpenMP_CXX IMPORTED INTERFACE)
+    set_property(TARGET OpenMP::OpenMP_CXX
+                 PROPERTY INTERFACE_COMPILE_OPTIONS ${OpenMP_CXX_FLAGS})
+    # Only works if the same flag is passed to the linker; use CMake 3.9+ otherwise (Intel, AppleClang)
+    set_property(TARGET OpenMP::OpenMP_CXX
+                 PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
+  endif()
+endfunction(use_openmp)
+
 # Automatically set source group based on folder
 function(auto_source_group SOURCES)
 

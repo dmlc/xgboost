@@ -23,7 +23,7 @@ int main() {
 # Add plugins to source files
 if (PLUGIN_LZ4)
   list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/lz4/sparse_page_lz4_format.cc)
-  list(APPEND SRC_LIBS lz4)
+  list(APPEND SRC_PRIVATE_LIBS lz4)
 endif (PLUGIN_LZ4)
 if (PLUGIN_DENSE_PARSER)
   list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
@@ -49,7 +49,7 @@ if (USE_CUDA)
     find_package(Nccl REQUIRED)
     target_include_directories(objxgboost PRIVATE ${NCCL_INCLUDE_DIR})
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
-    list(APPEND SRC_LIBS ${NCCL_LIBRARY})
+    list(APPEND SRC_PRIVATE_LIBS ${NCCL_LIBRARY})
   endif (USE_NCCL)
 
   if (USE_NVTX)
@@ -58,7 +58,6 @@ if (USE_CUDA)
   endif (USE_NVTX)
 
   # OpenMP is mandatory for cuda version
-  find_package(OpenMP REQUIRED)
   target_compile_options(objxgboost PRIVATE  
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
@@ -77,7 +76,7 @@ target_include_directories(objxgboost
 target_compile_options(objxgboost
   PRIVATE
   $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
-  $<$<COMPILE_LANGUAGE:CXX>:-funroll-loops>)
+  $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
@@ -103,11 +102,9 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
 if (USE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  if (OpenMP_CXX_FOUND OR OPENMP_FOUND)
-    target_compile_options(objxgboost PRIVATE  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-    list(APPEND SRC_LIBS ${OpenMP_CXX_LIBRARIES})
-    set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
-  endif (OpenMP_CXX_FOUND OR OPENMP_FOUND)
+  list(APPEND SRC_PUBLIC_LIBS OpenMP::OpenMP_CXX)
+  target_compile_options(objxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
 endif (USE_OPENMP)
+set(LINKED_LIBRARIES_PUBLIC "${LINKED_LIBRARIES_PUBLIC};${SRC_PUBLIC_LIBS}" PARENT_SCOPE)
+set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_PRIVATE_LIBS}" PARENT_SCOPE)
 #-- End object library
