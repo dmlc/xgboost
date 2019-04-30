@@ -77,7 +77,7 @@ target_include_directories(objxgboost
 target_compile_options(objxgboost
   PRIVATE
   $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
-  $<$<COMPILE_LANGUAGE:CXX>:-funroll-loops>)
+  $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
