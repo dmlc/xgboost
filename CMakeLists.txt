@@ -1,8 +1,14 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.3)
 project(xgboost LANGUAGES CXX C VERSION 0.82)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+
+if (MSVC)
+  if (${CMAKE_VERSION} VERSION_LESS "3.11.0")
+    message(FATAL_ERROR "To compile with Visual Studio, please use CMake 3.11 or newer")
+  endif (${CMAKE_VERSION} VERSION_LESS "3.11.0")
+endif (MSVC)
 
 set_default_configuration_release()
 msvc_use_static_runtime()
