@@ -44,9 +44,9 @@ set_target_properties(
   testxgboost PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON)
-if (NOT OpenMP_CXX_LIBRARIES)  # old CMake doesn't define this variable
+if ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))  # old CMake doesn't define this variable
   set(OpenMP_CXX_LIBRARIES "gomp;pthread")
-endif (NOT OpenMP_CXX_LIBRARIES)
+endif ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES}
