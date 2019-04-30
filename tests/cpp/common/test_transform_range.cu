@@ -22,10 +22,10 @@ TEST(Transform, MGPU_Basic) {
         GPUDistribution::Block(GPUSet::Empty())};
   out_vec.Fill(0);
 
-  in_vec.Reshard(GPUDistribution::Granular(devices, 8));
-  out_vec.Reshard(GPUDistribution::Block(devices));
+  in_vec.Shard(GPUDistribution::Granular(devices, 8));
+  out_vec.Shard(GPUDistribution::Block(devices));
 
-  // Granularity is different, resharding will throw.
+  // Granularity is different, sharding will throw.
   EXPECT_ANY_THROW(
       Transform<>::Init(TestTransformRange<bst_float>{}, Range{0, size}, devices)
       .Eval(&out_vec, &in_vec));

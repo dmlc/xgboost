@@ -57,13 +57,13 @@ class Transform {
   template <typename Functor>
   struct Evaluator {
    public:
-    Evaluator(Functor func, Range range, GPUSet devices, bool reshard) :
+    Evaluator(Functor func, Range range, GPUSet devices, bool shard) :
         func_(func), range_{std::move(range)},
-        reshard_{reshard},
+        shard_{shard},
         distribution_{std::move(GPUDistribution::Block(devices))} {}
     Evaluator(Functor func, Range range, GPUDistribution dist,
-              bool reshard) :
-        func_(func), range_{std::move(range)}, reshard_{reshard},
+              bool shard) :
+        func_(func), range_{std::move(range)}, shard_{shard},
         distribution_{std::move(dist)} {}
 
     /*!
@@ -106,25 +106,25 @@ class Transform {
       return Span<T const> {_vec->ConstHostPointer(),
             static_cast<typename Span<T>::index_type>(_vec->Size())};
     }
-    // Recursive unpack for Reshard.
+    // Recursive unpack for Shard.
     template <typename T>
-    void UnpackReshard(GPUDistribution dist, const HostDeviceVector<T>* vector) const {
-      vector->Reshard(dist);
+    void UnpackShard(GPUDistribution dist, const HostDeviceVector<T> *vector) const {
+      vector->Shard(dist);
     }
     template <typename Head, typename... Rest>
-    void UnpackReshard(GPUDistribution dist,
-                       const HostDeviceVector<Head>* _vector,
-                       const HostDeviceVector<Rest>*... _vectors) const {
-      _vector->Reshard(dist);
-      UnpackReshard(dist, _vectors...);
+    void UnpackShard(GPUDistribution dist,
+                     const HostDeviceVector<Head> *_vector,
+                     const HostDeviceVector<Rest> *... _vectors) const {
+      _vector->Shard(dist);
+      UnpackShard(dist, _vectors...);
     }
 
 #if defined(__CUDACC__)
     template <typename std::enable_if<CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
-      if (reshard_)
-        UnpackReshard(distribution_, _vectors...);
+      if (shard_)
+        UnpackShard(distribution_, _vectors...);
 
       GPUSet devices = distribution_.Devices();
       size_t range_size = *range_.end() - *range_.begin();
@@ -170,8 +170,8 @@ class Transform {
     Functor func_;
     /*! \brief Range object specifying parallel threads index range. */
     Range range_;
-    /*! \brief Whether resharding for vectors is required. */
-    bool reshard_;
+    /*! \brief Whether sharding for vectors is required. */
+    bool shard_;
     GPUDistribution distribution_;
   };
 
@@ -187,19 +187,19 @@ class Transform {
    * \param range   Range object specifying parallel threads index range.
    * \param devices GPUSet specifying GPUs to use, when compiling for CPU,
    *                  this should be GPUSet::Empty().
-   * \param reshard Whether Reshard for HostDeviceVector is needed.
+   * \param shard Whether Shard for HostDeviceVector is needed.
    */
   template <typename Functor>
   static Evaluator<Functor> Init(Functor func, Range const range,
                                  GPUSet const devices,
-                                 bool const reshard = true) {
-    return Evaluator<Functor> {func, std::move(range), std::move(devices), reshard};
+                                 bool const shard = true) {
+    return Evaluator<Functor> {func, std::move(range), std::move(devices), shard};
   }
   template <typename Functor>
   static Evaluator<Functor> Init(Functor func, Range const range,
                                  GPUDistribution const dist,
-                                 bool const reshard = true) {
-    return Evaluator<Functor> {func, std::move(range), std::move(dist), reshard};
+                                 bool const shard = true) {
+    return Evaluator<Functor> {func, std::move(range), std::move(dist), shard};
   }
 };
 
