@@ -153,6 +153,36 @@ Now, we have a DataFrame containing only two columns, "features" which contains 
 "sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
+Dealing with missing values (NaN / Null):
+--------------------------
+
+In case a feature (column) contains missing values (NaN / NULLs) for any reason (could be related to business logic / wrong data ingestion process / any other reason), one should handle it in the below manner, following the below steps:
+
+1. Set some irregular value to that feature.
+For example: A feature that contains values in the range of 0 to 1, we can set the missing values as -999.
+(Note: The missing value should be replaced with the same value on whole of the dataset, and not only on a specific feature)
+
+2. Once we have "padded" our dataframe with irregular values for the missing values, we should tell our XGBoostClassifier / XGBoostRegressor about it, via a parameter called "missing", which represents the missing value.
+The algorithm will automatically learn what's the ideal direction to go when a value is missing, based on that value. 
+
+Example:
+
+.. code-block:: scala
+
+  import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
+  val xgbParam = Map("eta" -> 0.1f,
+        "missing" -> -999,
+        "objective" -> "multi:softprob",
+        "num_class" -> 3,
+        "num_round" -> 100,
+        "num_workers" -> 2)
+  val xgbClassifier = new XGBoostClassifier(xgbParam).
+        setFeaturesCol("features").
+        setLabelCol("classIndex")
+
+3. Then, once we transform (test) our XGBoost model, we should see that indeed the number of records match the number we "fed" our model with.
+
+
 Training
 ========
 
