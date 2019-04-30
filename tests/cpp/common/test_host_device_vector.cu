@@ -286,7 +286,6 @@ TEST(HostDeviceVector, MGPU_Reshard) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;
   }
-  SetCudaSetDeviceHandler(SetDevice);
 
   size_t n = 1001;
   int n_devices = 2;
@@ -314,8 +313,6 @@ TEST(HostDeviceVector, MGPU_Reshard) {
   CheckDevice(&v, starts1, sizes1, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
   CheckHost(&v, GPUAccess::kWrite);
-
-  SetCudaSetDeviceHandler(nullptr);
 }
 #endif
 
