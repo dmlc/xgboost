@@ -329,7 +329,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
   test("train with multiple validation datasets (ranking)") {
     val training = buildDataFrameWithGroup(Ranking.train, 5)
-    val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2))
+    val Array(train, eval1, eval2) = training.randomSplit(Array(0.6, 0.2, 0.2), 0)
     val paramMap1 = Map("eta" -> "1", "max_depth" -> "6",
       "objective" -> "rank:pairwise",
       "num_round" -> 5, "num_workers" -> numWorkers, "group_col" -> "group")
