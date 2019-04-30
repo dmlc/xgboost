@@ -134,9 +134,9 @@ class MultiClassMetricsReduction {
         allocators_.clear();
         allocators_.resize(devices.Size());
       }
-      preds.Reshard(GPUDistribution::Granular(devices, n_class));
-      labels.Reshard(devices);
-      weights.Reshard(devices);
+      preds.Shard(GPUDistribution::Granular(devices, n_class));
+      labels.Shard(devices);
+      weights.Shard(devices);
       std::vector<PackedReduceResult> res_per_device(devices.Size());
 
 #pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)

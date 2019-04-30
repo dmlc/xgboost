@@ -836,7 +836,7 @@ struct DeviceShard {
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      p_feature_set->Reshard(GPUSet(device_id, 1));
+      p_feature_set->Shard(GPUSet(device_id, 1));
       auto d_feature_set = p_feature_set->DeviceSpan(device_id);
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
@@ -1527,7 +1527,7 @@ class GPUHistMakerSpecialised{
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
-    p_out_preds->Reshard(dist_.Devices());
+    p_out_preds->Shard(dist_.Devices());
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
