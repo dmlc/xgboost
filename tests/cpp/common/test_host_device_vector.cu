@@ -304,7 +304,7 @@ TEST(HostDeviceVector, MGPU_Reshard) {
   auto distribution1 = GPUDistribution::Overlap(GPUSet::Range(0, n_devices), 1);
   v.Reshard(distribution1);
 
-  for (size_t i = 0; i < devices.Size(); ++i) {
+  for (size_t i = 0; i < n_devices; ++i) {
     auto span = v.DeviceSpan(i);  // sync to device
   }
 
