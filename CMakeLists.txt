@@ -4,6 +4,7 @@ include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
 
+message(STATUS "CMake version ${CMAKE_VERSION}")
 if (MSVC)
   if (${CMAKE_VERSION} VERSION_LESS "3.11.0")
     message(FATAL_ERROR "To compile with Visual Studio, please use CMake 3.11 or newer")
