@@ -571,24 +571,19 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
   }
   GHistRow node_hist = hist[nid];
 
-  // filter unvalidated candidates to narrow search space
-  std::vector<bst_uint> validFeatures;
-  for (bst_uint i = 0; i < nfeature; ++i) {
-    const bst_uint fid = static_cast<const bst_uint>(feature_set[i]);
-    if (spliteval_->CheckFeatureConstraint(nid, fid)) {
-      validFeatures.push_back(fid);
-    }
-  }
-  const auto n_valid_feature = static_cast<bst_omp_uint>(validFeatures.size());
-
 #pragma omp parallel for schedule(dynamic) num_threads(nthread)
-  for (bst_omp_uint i = 0; i < n_valid_feature; ++i) {  // NOLINT(*)
-    const bst_uint fid = validFeatures[i];
-    const unsigned tid = omp_get_thread_num();
-    this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
-                         &best_split_tloc_[tid], fid, nid);
-    this->EnumerateSplit(+1, gmat, node_hist, snode_[nid], info,
-                         &best_split_tloc_[tid], fid, nid);
+  for (bst_omp_uint i = 0; i < nfeature; ++i) {  // NOLINT(*)
+    const auto feature_id = static_cast<bst_uint>(feature_set[i]);
+    const auto tid = static_cast<unsigned>(omp_get_thread_num());
+    const auto node_id = static_cast<bst_uint>(nid);
+    // Narrow search space by dropping features that are not feasible under the
+    // given set of constraints (e.g. feature interaction constraints)
+    if (spliteval_->CheckFeatureConstraint(node_id, feature_id)) {
+      this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
+                           &best_split_tloc_[tid], feature_id, node_id);
+      this->EnumerateSplit(+1, gmat, node_hist, snode_[nid], info,
+                           &best_split_tloc_[tid], feature_id, node_id);
+    }
   }
   for (unsigned tid = 0; tid < nthread; ++tid) {
     snode_[nid].best.Update(best_split_tloc_[tid]);
