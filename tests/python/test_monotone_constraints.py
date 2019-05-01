@@ -1,7 +1,9 @@
 import numpy as np
 import xgboost as xgb
 import unittest
+from sklearn.metrics import accuracy_score
 
+dpath = 'demo/data/'
 
 def is_increasing(y):
     return np.count_nonzero(np.diff(y) < 0.0) == 0
@@ -97,3 +99,20 @@ class TestMonotoneConstraints(unittest.TestCase):
         )
 
         assert is_correctly_constrained(constrained_hist_method)
+
+    def test_training_accuracy(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
+        params = {'eta': 1, 'max_depth': 6, 'objective': 'binary:logistic',
+                  'tree_method': 'hist', 'monotone_constraints': '(1, 0)'}
+        num_boost_round = 5
+
+        params['grow_policy'] = 'lossguide'
+        bst = xgb.train(params, dtrain, num_boost_round)
+        pred_dtest = (bst.predict(dtest) < 0.5)
+        assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
+
+        params['grow_policy'] = 'depthwise'
+        bst = xgb.train(params, dtrain, num_boost_round)
+        pred_dtest = (bst.predict(dtest) < 0.5)
+        assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1

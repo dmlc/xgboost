@@ -499,8 +499,12 @@ class InteractionConstraint final : public SplitEvaluator {
   //   permissible in a given node; returns false otherwise
   inline bool CheckInteractionConstraint(bst_uint featureid, bst_uint nodeid) const {
     // short-circuit if no constraint is specified
-    return (params_.interaction_constraints.empty()
-            || int_cont_[nodeid].count(featureid) > 0);
+    if (params_.interaction_constraints.empty()) {
+      return true;
+    }
+    CHECK_LT(nodeid, int_cont_.size()) << "Invariant violated: nodeid = "
+      << nodeid << ", int_cont_.size() = " << int_cont_.size();
+    return (int_cont_[nodeid].count(featureid) > 0);
   }
 };
 
