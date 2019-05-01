@@ -575,7 +575,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
   std::vector<bst_uint> validFeatures;
   for (bst_uint i = 0; i < nfeature; ++i) {
     const bst_uint fid = static_cast<const bst_uint>(feature_set[i]);
-    if (spliteval_->CheckValidation(fid, static_cast<const bst_uint>(nid))) {
+    if (spliteval_->CheckValidation(nid, fid)) {
       validFeatures.push_back(fid);
     }
   }
