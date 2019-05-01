@@ -61,7 +61,7 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
-bool SplitEvaluator::CheckValidation(bst_uint nodeid, bst_uint featureid) const {
+bool SplitEvaluator::CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const {
   return true;
 }
 
@@ -157,7 +157,7 @@ class ElasticNet final : public SplitEvaluator {
     return w;
   }
 
-  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
     return true;
   }
 
@@ -305,7 +305,7 @@ class MonotonicConstraint final : public SplitEvaluator {
     }
   }
 
-  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
     return true;
   }
 
@@ -493,7 +493,7 @@ class InteractionConstraint final : public SplitEvaluator {
     }
   }
 
-  bool CheckValidation(bst_uint nodeid, bst_uint featureid) const override {
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
     return CheckInteractionConstraint(featureid, nodeid);
   }
 

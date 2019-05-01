@@ -70,9 +70,10 @@ class SplitEvaluator {
                         bst_float leftweight,
                         bst_float rightweight);
 
-  // Check validation before evaluating splits to narrow search space
-  virtual bool CheckValidation(bst_uint nodeid,
-                               bst_uint featureid) const = 0;
+  // Check whether a given feature is feasible for a given node.
+  // Use this function to narrow the search space for split candidates
+  virtual bool CheckFeatureConstraint(bst_uint nodeid,
+                                      bst_uint featureid) const = 0;
 };
 
 struct SplitEvaluatorReg
