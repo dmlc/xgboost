@@ -153,16 +153,22 @@ Now, we have a DataFrame containing only two columns, "features" which contains 
 "sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
-Dealing with missing values (NaN / Null):
+Dealing with missing values (NaN / Null)
 --------------------------
 
-In case a feature (column) contains missing values (NaN / NULLs) for any reason (could be related to business logic / wrong data ingestion process / any other reason), one should handle it in the below manner, following the below steps:
+In case a feature (column) contains missing values (NaN / NULLs) for any reason (could be related to business logic / wrong data ingestion process / etc.), one should decide on a strategy of how to handle it.
 
-1. Set some irregular value to that feature.
+Possible ways are - 
+1. One can ignore it in the VectorAssembler (using setHandleInvalid = "skip"); 
+2. keep it (using setHandleInvalid = "keep"), and then XGBoost will handle it.
+
+In case a user chose strategy #2, it should handle it in the below manner:
+
+2.1. Set some irregular value to that feature.
 For example: A feature that contains values in the range of 0 to 1, we can set the missing values as -999.
 (Note: The missing value should be replaced with the same value on whole of the dataset, and not only on a specific feature)
 
-2. Once we have "padded" our dataframe with irregular values for the missing values, we should tell our XGBoostClassifier / XGBoostRegressor about it, via a parameter called "missing", which represents the missing value.
+2.2. Once we have "padded" our dataframe with irregular values for the missing values, we should tell our XGBoostClassifier / XGBoostRegressor about it, via a parameter called "missing", which represents the missing value.
 The algorithm will automatically learn what's the ideal direction to go when a value is missing, based on that value. 
 
 Example:
@@ -182,6 +188,18 @@ Example:
 
 3. Then, once we transform (test) our XGBoost model, we should see that indeed the number of records match the number we "fed" our model with.
 
+
+Dealing with 0's as missing values
+--------------------------
+In case a dataset contains 0 as a missing value, and those are meaning values (i.e. represent some kind of a behavior in the data), one should handle it, due to the fact that Spark's VectorAssembler transformer only accepts 0 as the missing values. This issue creates a problem when the user has 0 as meaningful value, plus there are enough 0's to use SparseVector.
+
+In case the dataset is represented by a DenseVector, the 0 is kept.
+
+In order to handle it, one should follow the below manner:
+
+1. Transform 0 to other value, for example: A feature that contains values in the range of 0 to 1, we can set the missing values as -999.
+
+2. Note that 0 values will be filtered in case Spark's VectorAssembler uses SparseVector (and not DenseVector).
 
 Training
 ========
