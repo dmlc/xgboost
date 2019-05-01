@@ -264,7 +264,6 @@ class GBTree : public GradientBooster {
                             int bst_group,
                             std::vector<std::unique_ptr<RegTree> >* ret) {
     this->InitUpdater();
-
     std::vector<RegTree*> new_trees;
     ret->clear();
     // create the trees

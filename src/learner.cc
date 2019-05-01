@@ -481,7 +481,6 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-
     this->ValidateDMatrix(train);
     this->PerformTreeMethodHeuristic(train);
 

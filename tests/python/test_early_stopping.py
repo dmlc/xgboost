@@ -33,7 +33,6 @@ class TestEarlyStopping(unittest.TestCase):
         assert clf1.best_score != 1
         # check overfit
         clf3 = xgb.XGBClassifier()
-
         clf3.fit(X_train, y_train, early_stopping_rounds=15, eval_metric="auc",
                  eval_set=[(X_test, y_test)])
         assert clf3.best_score == 1

@@ -60,12 +60,9 @@ class RowSetCollection {
   /*! \brief return corresponding element set given the node_id */
   inline Elem operator[](unsigned node_id) const {
     std::lock_guard<std::mutex> lock(mutex_);
-
     const Elem e = elem_of_each_node_[node_id];
     return e;
   }
-
-
   // clear up things
   inline void Clear() {
     std::lock_guard<std::mutex> lock(mutex_);

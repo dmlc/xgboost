@@ -77,7 +77,6 @@ inline double CoordinateDeltaBias(double sum_grad, double sum_hess) {
 inline std::pair<double, double> GetGradient(int group_idx, int num_group, int fidx,
                                              const std::vector<GradientPair> &gpair,
                                              DMatrix *p_fmat) {
-  printf("1111111111111111111111111111\n");
   double sum_grad = 0.0, sum_hess = 0.0;
   for (const auto &batch : p_fmat->GetColumnBatches()) {
     auto col = batch[fidx];

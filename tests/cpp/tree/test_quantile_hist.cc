@@ -103,7 +103,6 @@ class QuantileHistMock : public QuantileHistMaker {
       hist_.AddHistRow(nid);
 
       RegTreeThreadSafe safe_tree(const_cast<RegTree*>(&tree), snode_, param_);
-
       BuildHist(gpair, row_set_collection_[nid],
                 gmat, dummy, hist_[nid], &safe_tree, nid, hist_[nid], hist_[nid], nid, -1, false);
 
@@ -201,7 +200,6 @@ class QuantileHistMock : public QuantileHistMaker {
           const auto split_gain
             = evaluator->ComputeSplitScore(0, fid, GradStats(left_sum),
                                            GradStats(right_sum));
-
           if (split_gain > best_split_gain) {
             best_split_gain = split_gain;
             best_split_feature = fid;
@@ -212,7 +210,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
       /* Now compare against result given by EvaluateSplit() */
       RealImpl::EvaluateSplit(0, gmat, hist_, *(*dmat), &safe_tree.Snode(0), 0);
-
       ASSERT_EQ(safe_tree.Snode(0).best.SplitIndex(), best_split_feature);
       ASSERT_EQ(safe_tree.Snode(0).best.split_value, gmat.cut.cut[best_split_threshold]);
 

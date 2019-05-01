@@ -13,6 +13,7 @@
 #include <vector>
 #include "hist_util.h"
 
+
 namespace xgboost {
 namespace common {
 
@@ -117,6 +118,7 @@ class ColumnMatrix {
       boundary_[fid].index_end = accum_index_;
       boundary_[fid].row_ind_end = accum_row_ind_;
     }
+
     index_.resize(boundary_[nfeature - 1].index_end);
     row_ind_.resize(boundary_[nfeature - 1].row_ind_end);
 

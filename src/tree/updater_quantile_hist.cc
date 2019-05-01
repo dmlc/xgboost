@@ -29,7 +29,6 @@
 #include "thread_safe_tree.h"
 
 namespace xgboost {
-
 namespace common {
 template class GHistBuilder<tree::QuantileHistMaker::Builder::HistTLS>;
 }

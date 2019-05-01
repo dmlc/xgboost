@@ -145,7 +145,6 @@ class QuantileHistMaker: public TreeUpdater {
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
 
-
  protected:
   // training parameter
   TrainParam param_;
@@ -418,7 +417,6 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
-
 
     std::unique_ptr<RowCollectionTLS> prow_set_collection_tls_;
     std::unique_ptr<HistTLS> hist_tls_;
