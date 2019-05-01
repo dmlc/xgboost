@@ -69,6 +69,11 @@ class SplitEvaluator {
                         bst_uint featureid,
                         bst_float leftweight,
                         bst_float rightweight);
+
+  // Check whether a given feature is feasible for a given node.
+  // Use this function to narrow the search space for split candidates
+  virtual bool CheckFeatureConstraint(bst_uint nodeid,
+                                      bst_uint featureid) const = 0;
 };
 
 struct SplitEvaluatorReg
