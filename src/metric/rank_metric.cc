@@ -143,9 +143,9 @@ struct EvalAMS : public Metric {
 struct EvalAuc : public Metric {
  private:
   template <typename WeightPolicy>
-  bst_float _Eval(const HostDeviceVector<bst_float> &preds,
-                  const MetaInfo &info,
-                  bool distributed) {
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
@@ -220,9 +220,9 @@ struct EvalAuc : public Metric {
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
     if (is_ranking_task) {
-      return _Eval<PerGroupWeightPolicy>(preds, info, distributed);
+      return Eval<PerGroupWeightPolicy>(preds, info, distributed);
     } else {
-      return _Eval<PerInstanceWeightPolicy>(preds, info, distributed);
+      return Eval<PerInstanceWeightPolicy>(preds, info, distributed);
     }
   }
   const char* Name() const override {
@@ -443,9 +443,9 @@ struct EvalAucPR : public Metric {
   // see https://doi.org/10.1371/journal.pone.0092209
  private:
   template <typename WeightPolicy>
-  bst_float _Eval(const HostDeviceVector<bst_float> &preds,
-                  const MetaInfo &info,
-                  bool distributed) {
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label size predict size not match";
@@ -538,9 +538,9 @@ struct EvalAucPR : public Metric {
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
     if (is_ranking_task) {
-      return _Eval<PerGroupWeightPolicy>(preds, info, distributed);
+      return Eval<PerGroupWeightPolicy>(preds, info, distributed);
     } else {
-      return _Eval<PerInstanceWeightPolicy>(preds, info, distributed);
+      return Eval<PerInstanceWeightPolicy>(preds, info, distributed);
     }
   }
   const char *Name() const override { return "aucpr"; }
