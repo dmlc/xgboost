@@ -1,47 +1,22 @@
 ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
+FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install all basic requirements
 RUN \
-    yum -y update && \
-    yum install -y tar unzip wget xz git centos-release-scl yum-utils && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum -y update && \
-    yum install -y devtoolset-4-gcc devtoolset-4-binutils devtoolset-4-gcc-c++ && \
+    apt-get update && \
+    apt-get install -y wget unzip bzip2 libgomp1 && \
     # Python
-    wget https://repo.continuum.io/miniconda/Miniconda2-4.3.27-Linux-x86_64.sh && \
-    bash Miniconda2-4.3.27-Linux-x86_64.sh -b -p /opt/python && \
-    # CMake
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
-
-# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
-RUN \
-    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
-    if [ "${CUDA_SHORT}" != "10.0" ]; then \
-    wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
-    tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
-    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
-    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
-    rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
-    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; else \
-    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    yum -y update && \
-    yum install -y libnccl-2.4.2-1+cuda10.0 libnccl-devel-2.4.2-1+cuda10.0 libnccl-static-2.4.2-1+cuda10.0 && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm; fi
+    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
-ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
 
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn wheel kubernetes urllib3==1.22
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz
 
 ENV GOSU_VERSION 1.10
 

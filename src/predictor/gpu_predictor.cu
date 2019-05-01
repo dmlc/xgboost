@@ -327,11 +327,11 @@ class GPUPredictor : public xgboost::Predictor {
 
     for (const auto &batch : dmat->GetRowBatches()) {
       CHECK_EQ(i_batch, 0) << "External memory not supported";
-      // out_preds have been resharded and resized in InitOutPredictions()
-      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+      // out_preds have been sharded and resized in InitOutPredictions()
+      batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
-      batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
+      batch.data.Shard(GPUDistribution::Explicit(devices_, device_offsets));
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, dmat->Info(), out_preds, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
@@ -342,7 +342,8 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  GPUPredictor() : cpu_predictor_(Predictor::Create("cpu_predictor")) {}
+  GPUPredictor()                                               // NOLINT
+      : cpu_predictor_(Predictor::Create("cpu_predictor")) {}  // NOLINT
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
@@ -372,7 +373,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Reshard(GPUDistribution::Granular(devices_, n_classes));
+    out_preds->Shard(GPUDistribution::Granular(devices_, n_classes));
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
@@ -391,7 +392,7 @@ class GPUPredictor : public xgboost::Predictor {
         const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           monitor_.StartCuda("PredictFromCache");
-          out_preds->Reshard(y.Distribution());
+          out_preds->Shard(y.Distribution());
           out_preds->Resize(y.Size());
           out_preds->Copy(y);
           monitor_.StopCuda("PredictFromCache");

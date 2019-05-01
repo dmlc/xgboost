@@ -73,6 +73,18 @@
           </plugin>
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>3.0.2</version>
+              <executions>
+                  <execution>
+                      <goals>
+                          <goal>test-jar</goal>
+                      </goals>
+                  </execution>
+              </executions>
+          </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-resources-plugin</artifactId>
               <version>3.1.0</version>
               <configuration>

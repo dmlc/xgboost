@@ -11,6 +11,7 @@
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./quantile.h"
+#include "./../tree/updater_quantile_hist.h"
 
 namespace xgboost {
 namespace common {

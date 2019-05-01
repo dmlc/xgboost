@@ -1,8 +1,5 @@
 FROM centos:6
 
-# Environment
-ENV DEBIAN_FRONTEND noninteractive
-
 # Install all basic requirements
 RUN \
     yum -y update && \

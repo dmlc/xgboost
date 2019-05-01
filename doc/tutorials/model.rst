@@ -72,8 +72,7 @@ Decision Tree Ensembles
 ***********************
 Now that we have introduced the elements of supervised learning, let us get started with real trees.
 To begin with, let us first learn about the model choice of XGBoost: **decision tree ensembles**.
-The tree ensemble model consists of a set of classification and regression trees (CART). Here's a simple example of a CART
-that classifies whether someone will like computer games.
+The tree ensemble model consists of a set of classification and regression trees (CART). Here's a simple example of a CART that classifies whether someone will like a hypothetical computer game X.
 
 .. image:: https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/cart.png
   :width: 100%
@@ -82,7 +81,7 @@ that classifies whether someone will like computer games.
 We classify the members of a family into different leaves, and assign them the score on the corresponding leaf.
 A CART is a bit different from decision trees, in which the leaf only contains decision values. In CART, a real score
 is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
-This also allows for a pricipled, unified approach to optimization, as we will see in a later part of this tutorial.
+This also allows for a principled, unified approach to optimization, as we will see in a later part of this tutorial.
 
 Usually, a single tree is not strong enough to be used in practice. What is actually used is the ensemble model,
 which sums the prediction of multiple trees together.
@@ -257,7 +256,7 @@ A left to right scan is sufficient to calculate the structure score of all possi
 
 .. note:: Limitation of additive tree learning
 
-  Since it is intractable to enumerate all possible tree structures, we add one split at a time. This approach works well most of the time, but there are some edge cases that fail due to this approach. For those edge cases, training results in a degenerate model because we consider only one feature dimension at a time. See `Can Gradient Boosting Learn Simple Arithmetic? <http://mariofilho.com/can-gradient-boosting-learn-simple-arithmetic/>`_ for an example. 
+  Since it is intractable to enumerate all possible tree structures, we add one split at a time. This approach works well most of the time, but there are some edge cases that fail due to this approach. For those edge cases, training results in a degenerate model because we consider only one feature dimension at a time. See `Can Gradient Boosting Learn Simple Arithmetic? <http://mariofilho.com/can-gradient-boosting-learn-simple-arithmetic/>`_ for an example.
 
 **********************
 Final words on XGBoost
