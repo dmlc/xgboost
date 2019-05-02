@@ -69,9 +69,9 @@ class HistMaker: public BaseMaker {
     std::vector<GradStats> data;
     /*! \brief */
     inline HistUnit operator[](size_t fid) {
-      return HistUnit(cut + rptr[fid],
-                      &data[0] + rptr[fid],
-                      rptr[fid+1] - rptr[fid]);
+      return {cut + rptr[fid],
+              &data[0] + rptr[fid],
+              rptr[fid+1] - rptr[fid]};
     }
   };
   // thread workspace

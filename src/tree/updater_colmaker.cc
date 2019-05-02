@@ -77,7 +77,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    NodeEntry() : root_gain(0.0f), weight(0.0f) {}
+    NodeEntry() : root_gain{0.0f}, weight{0.0f} {}
   };
   // actual builder that runs the algorithm
   class Builder {
@@ -595,9 +595,10 @@ class ColMaker: public TreeUpdater {
       const MetaInfo& info = p_fmat->Info();
       // start enumeration
       const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
-      #if defined(_OPENMP)
-      const int batch_size = std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
-      #endif  // defined(_OPENMP)
+#if defined(_OPENMP)
+      const int batch_size =  // NOLINT
+          std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
+#endif  // defined(_OPENMP)
       int poption = param_.parallel_option;
       if (poption == 2) {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
@@ -631,10 +632,9 @@ class ColMaker: public TreeUpdater {
                           const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
-      auto p_feature_set = column_sampler_.GetFeatureSet(depth);
-      const auto& feat_set = *p_feature_set;
+      auto feat_set = column_sampler_.GetFeatureSet(depth);
       for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
-        this->UpdateSolution(batch, feat_set, gpair, p_fmat);
+        this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);

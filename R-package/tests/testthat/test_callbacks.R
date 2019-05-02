@@ -282,7 +282,7 @@ test_that("prediction in xgb.cv works for gblinear too", {
 })
 
 test_that("prediction in early-stopping xgb.cv works", {
-  set.seed(1)
+  set.seed(11)
   expect_output(
     cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
                  early_stopping_rounds = 5, maximize = FALSE, prediction = TRUE)
