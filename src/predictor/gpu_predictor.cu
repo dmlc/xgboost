@@ -329,7 +329,7 @@ class GPUPredictor : public xgboost::Predictor {
     for (const auto &batch : dmat->GetRowBatches()) {
       CHECK(i_batch == 0 || devices_.Size() == 1) << "External memory not supported for multi-GPU";
       // out_preds have been sharded and resized in InitOutPredictions()
-      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+      batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
@@ -337,8 +337,7 @@ class GPUPredictor : public xgboost::Predictor {
         shard.PredictInternal(batch, dmat->Info(), out_preds, batch_offset, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
       });
-      size_t num_rows = batch.Size();
-      batch_offset += num_rows * model.param.num_output_group;
+      batch_offset += batch.Size() * model.param.num_output_group;
       i_batch++;
     }
     monitor_.StopCuda("DevicePredictInternal");
