@@ -1,6 +1,6 @@
 /*!
  * Copyright 2014 (c) by Contributors
- * \file xgboost_wrapper_R.h
+ * \file xgboost_R.h
  * \author Tianqi Chen
  * \brief R wrapper of xgboost
  */

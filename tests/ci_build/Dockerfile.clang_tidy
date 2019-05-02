@@ -7,23 +7,14 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential cmake python3 python3-pip llvm-7 clang-tidy-7 clang-7
+    apt-get install -y tar unzip wget git build-essential python3 python3-pip llvm-7 clang-tidy-7 clang-7 && \
+    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # Set default clang-tidy version
 RUN \
     update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-7 100 && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
-
-# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
-RUN \
-    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
-    if [ "${CUDA_SHORT}" != "10.0" ]; then \
-    wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
-    tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
-    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
-    cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/lib/* /usr/lib && \
-    rm -f nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz && \
-    rm -r nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64; fi
 
 # Install Python packages
 RUN \

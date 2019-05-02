@@ -11,11 +11,11 @@ cb.cv.predict(save_models = FALSE)
 }
 \value{
 Predictions are returned inside of the \code{pred} element, which is either a vector or a matrix,
-depending on the number of prediction outputs per data row. The order of predictions corresponds 
-to the order of rows in the original dataset. Note that when a custom \code{folds} list is 
-provided in \code{xgb.cv}, the predictions would only be returned properly when this list is a 
-non-overlapping list of k sets of indices, as in a standard k-fold CV. The predictions would not be 
-meaningful when user-profided folds have overlapping indices as in, e.g., random sampling splits.
+depending on the number of prediction outputs per data row. The order of predictions corresponds
+to the order of rows in the original dataset. Note that when a custom \code{folds} list is
+provided in \code{xgb.cv}, the predictions would only be returned properly when this list is a
+non-overlapping list of k sets of indices, as in a standard k-fold CV. The predictions would not be
+meaningful when user-provided folds have overlapping indices as in, e.g., random sampling splits.
 When some of the indices in the training dataset are not included into user-provided \code{folds},
 their prediction value would be \code{NA}.
 }

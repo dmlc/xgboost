@@ -28,7 +28,7 @@ E.g., when an \code{xgb.Booster} model is saved as an R object and then is loade
 its handle (pointer) to an internal xgboost model would be invalid. The majority of xgboost methods
 should still work for such a model object since those methods would be using
 \code{xgb.Booster.complete} internally. However, one might find it to be more efficient to call the
-\code{xgb.Booster.complete} function explicitely once after loading a model as an R-object.
+\code{xgb.Booster.complete} function explicitly once after loading a model as an R-object.
 That would prevent further repeated implicit reconstruction of an internal booster model.
 }
 \examples{

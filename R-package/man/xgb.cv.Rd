@@ -16,7 +16,7 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 \itemize{
   \item \code{objective} objective function, common ones are
   \itemize{
-    \item \code{reg:squarederror} Regression with squared loss.
+    \item \code{reg:squarederror} Regression with squared loss
     \item \code{binary:logistic} logistic regression for classification
   }
   \item \code{eta} step size of each boosting step
@@ -35,11 +35,11 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 
 \item{label}{vector of response values. Should be provided only when data is an R-matrix.}
 
-\item{missing}{is only used when input is a dense matrix. By default is set to NA, which means 
-that NA values should be considered as 'missing' by the algorithm. 
+\item{missing}{is only used when input is a dense matrix. By default is set to NA, which means
+that NA values should be considered as 'missing' by the algorithm.
 Sometimes, 0 or other extreme value might be used to represent missing values.}
 
-\item{prediction}{A logical value indicating whether to return the test fold predictions 
+\item{prediction}{A logical value indicating whether to return the test fold predictions
 from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callback.}
 
 \item{showsd}{\code{boolean}, whether to show standard deviation of cross validation}
@@ -56,28 +56,28 @@ from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callb
   \item \code{merror} Exact matching error, used to evaluate multi-class classification
 }}
 
-\item{obj}{customized objective function. Returns gradient and second order 
+\item{obj}{customized objective function. Returns gradient and second order
 gradient with given prediction and dtrain.}
 
-\item{feval}{custimized evaluation function. Returns 
-\code{list(metric='metric-name', value='metric-value')} with given 
+\item{feval}{customized evaluation function. Returns
+\code{list(metric='metric-name', value='metric-value')} with given
 prediction and dtrain.}
 
-\item{stratified}{a \code{boolean} indicating whether sampling of folds should be stratified 
+\item{stratified}{a \code{boolean} indicating whether sampling of folds should be stratified
 by the values of outcome labels.}
 
 \item{folds}{\code{list} provides a possibility to use a list of pre-defined CV folds
-(each element must be a vector of test fold's indices). When folds are supplied, 
+(each element must be a vector of test fold's indices). When folds are supplied,
 the \code{nfold} and \code{stratified} parameters are ignored.}
 
 \item{verbose}{\code{boolean}, print the statistics during the process}
 
 \item{print_every_n}{Print each n-th iteration evaluation messages when \code{verbose>0}.
-Default is 1 which means all messages are printed. This parameter is passed to the 
+Default is 1 which means all messages are printed. This parameter is passed to the
 \code{\link{cb.print.evaluation}} callback.}
 
-\item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered. 
-If set to an integer \code{k}, training with a validation set will stop if the performance 
+\item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
+If set to an integer \code{k}, training with a validation set will stop if the performance
 doesn't improve for \code{k} rounds.
 Setting this parameter engages the \code{\link{cb.early.stop}} callback.}
 
@@ -87,8 +87,8 @@ When it is \code{TRUE}, it means the larger the evaluation score the better.
 This parameter is passed to the \code{\link{cb.early.stop}} callback.}
 
 \item{callbacks}{a list of callback functions to perform various task during boosting.
-See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the 
-parameters' values. User can provide either existing or their own callback methods in order 
+See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the
+parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.}
 
 \item{...}{other parameters to pass to \code{params}.}
@@ -97,26 +97,26 @@ to customize the training process.}
 An object of class \code{xgb.cv.synchronous} with the following elements:
 \itemize{
   \item \code{call} a function call.
-  \item \code{params} parameters that were passed to the xgboost library. Note that it does not 
+  \item \code{params} parameters that were passed to the xgboost library. Note that it does not
         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
-  \item \code{callbacks} callback functions that were either automatically assigned or 
+  \item \code{callbacks} callback functions that were either automatically assigned or
         explicitly passed.
-  \item \code{evaluation_log} evaluation history storead as a \code{data.table} with the
-        first column corresponding to iteration number and the rest corresponding to the 
+  \item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
+        first column corresponding to iteration number and the rest corresponding to the
         CV-based evaluation means and standard deviations for the training and test CV-sets.
         It is created by the \code{\link{cb.evaluation.log}} callback.
   \item \code{niter} number of boosting iterations.
   \item \code{nfeatures} number of features in training data.
-  \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds} 
+  \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
         parameter or randomly generated.
   \item \code{best_iteration} iteration number with the best evaluation metric value
         (only available with early stopping).
-  \item \code{best_ntreelimit} the \code{ntreelimit} value corresponding to the best iteration, 
+  \item \code{best_ntreelimit} the \code{ntreelimit} value corresponding to the best iteration,
         which could further be used in \code{predict} method
         (only available with early stopping).
-  \item \code{pred} CV prediction values available when \code{prediction} is set. 
+  \item \code{pred} CV prediction values available when \code{prediction} is set.
         It is either vector or matrix (see \code{\link{cb.cv.predict}}).
-  \item \code{models} a liost of the CV folds' models. It is only available with the explicit 
+  \item \code{models} a liost of the CV folds' models. It is only available with the explicit
         setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
 }
 }
@@ -124,9 +124,9 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
 The cross validation function of xgboost
 }
 \details{
-The original sample is randomly partitioned into \code{nfold} equal size subsamples. 
+The original sample is randomly partitioned into \code{nfold} equal size subsamples.
 
-Of the \code{nfold} subsamples, a single subsample is retained as the validation data for testing the model, and the remaining \code{nfold - 1} subsamples are used as training data. 
+Of the \code{nfold} subsamples, a single subsample is retained as the validation data for testing the model, and the remaining \code{nfold - 1} subsamples are used as training data.
 
 The cross-validation process is then repeated \code{nrounds} times, with each of the \code{nfold} subsamples used exactly once as the validation data.
 

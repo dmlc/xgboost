@@ -114,6 +114,7 @@ class XGBoostJNI {
   public final static native int XGBoosterDumpModelExWithFeatures(
     long handle, String[] feature_names, int with_stats, String format, String[][] out_strings);
 
+  public final static native int XGBoosterGetAttrNames(long handle, String[][] out_strings);
   public final static native int XGBoosterGetAttr(long handle, String key, String[] out_string);
   public final static native int XGBoosterSetAttr(long handle, String key, String value);
   public final static native int XGBoosterLoadRabitCheckpoint(long handle, int[] out_version);

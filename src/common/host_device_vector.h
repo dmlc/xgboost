@@ -14,7 +14,7 @@
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
  * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'Reshard' method
+ * allocate/resize memory explicitly, and use the 'Shard' method
  * to specify the devices.
  *
  * Accessing underlying data:<br/>
@@ -93,11 +93,13 @@ class GPUDistribution {
 
  private:
   GPUDistribution(GPUSet devices, int granularity, int overlap,
-                  std::vector<size_t> offsets)
+                  std::vector<size_t> &&offsets)
     : devices_(devices), granularity_(granularity), overlap_(overlap),
     offsets_(std::move(offsets)) {}
 
  public:
+  static GPUDistribution Empty() { return GPUDistribution(); }
+
   static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }
 
   static GPUDistribution Overlap(GPUSet devices, int overlap) {
@@ -109,7 +111,7 @@ class GPUDistribution {
   }
 
   static GPUDistribution Explicit(GPUSet devices, std::vector<size_t> offsets) {
-    return GPUDistribution(devices, 1, 0, offsets);
+    return GPUDistribution(devices, 1, 0, std::move(offsets));
   }
 
   friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
@@ -195,11 +197,11 @@ template <typename T>
 class HostDeviceVector {
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(),
-                            GPUDistribution distribution = GPUDistribution());
+                            const GPUDistribution &distribution = GPUDistribution());
   HostDeviceVector(std::initializer_list<T> init,
-                   GPUDistribution distribution = GPUDistribution());
+                   const GPUDistribution &distribution = GPUDistribution());
   explicit HostDeviceVector(const std::vector<T>& init,
-                            GPUDistribution distribution = GPUDistribution());
+                            const GPUDistribution &distribution = GPUDistribution());
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&);
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);
@@ -250,11 +252,15 @@ class HostDeviceVector {
 
   /*!
    * \brief Specify memory distribution.
-   *
-   *   If GPUSet::Empty() is used, all data will be drawn back to CPU.
    */
-  void Reshard(const GPUDistribution& distribution) const;
-  void Reshard(GPUSet devices) const;
+  void Shard(const GPUDistribution &distribution) const;
+  void Shard(GPUSet devices) const;
+
+  /*!
+   * \brief Change memory distribution.
+   */
+  void Reshard(const GPUDistribution &distribution);
+
   void Resize(size_t new_size, T v = T());
 
  private:

@@ -3,7 +3,7 @@
 // to change behavior of libxgboost
 
 #include <xgboost/logging.h>
-#include "src/common/random.h"
+#include "../../src/common/random.h"
 #include "./xgboost_R.h"
 
 // redirect the messages to R's console.

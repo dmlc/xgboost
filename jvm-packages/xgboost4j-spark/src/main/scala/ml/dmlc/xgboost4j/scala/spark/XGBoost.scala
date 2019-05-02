@@ -18,9 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.Files
-import java.util.Properties
 
-import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
@@ -32,8 +30,8 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkException, SparkParallelismTracker, TaskContext}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
 
@@ -70,30 +68,55 @@ private[spark] case class XGBLabeledPointGroup(
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private[spark] def removeMissingValues(
-      xgbLabelPoints: Iterator[XGBLabeledPoint],
-      missing: Float): Iterator[XGBLabeledPoint] = {
-    if (!missing.isNaN) {
-      xgbLabelPoints.map { labeledPoint =>
-        val indicesBuilder = new mutable.ArrayBuilder.ofInt()
-        val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
-        for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
-          indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
-          valuesBuilder += value
+  private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
+      Iterator[XGBLabeledPoint] = {
+    if (missing != 0.0f) {
+      xgbLabelPoints.map(labeledPoint => {
+        if (labeledPoint.indices != null) {
+            throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
+              s" set value $missing) when you have SparseVector or Empty vector as your feature" +
+              " format")
         }
-        labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
-      }
+        labeledPoint
+      })
     } else {
       xgbLabelPoints
     }
   }
 
-  private def removeMissingValuesWithGroup(
+  private def removeMissingValues(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
+      missing: Float,
+      keepCondition: Float => Boolean): Iterator[XGBLabeledPoint] = {
+    xgbLabelPoints.map { labeledPoint =>
+      val indicesBuilder = new mutable.ArrayBuilder.ofInt()
+      val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
+      for ((value, i) <- labeledPoint.values.zipWithIndex if keepCondition(value)) {
+        indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
+        valuesBuilder += value
+      }
+      labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
+    }
+  }
+
+  private[spark] def processMissingValues(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
+      missing: Float): Iterator[XGBLabeledPoint] = {
+    if (!missing.isNaN) {
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+        missing, (v: Float) => v != missing)
+    } else {
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+        missing, (v: Float) => !v.isNaN)
+    }
+  }
+
+  private def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
       missing: Float): Iterator[Array[XGBLabeledPoint]] = {
     if (!missing.isNaN) {
       xgbLabelPointGroups.map {
-        labeledPoints => XGBoost.removeMissingValues(labeledPoints.iterator, missing).toArray
+        labeledPoints => XGBoost.processMissingValues(labeledPoints.iterator, missing).toArray
       }
     } else {
       xgbLabelPointGroups
@@ -310,7 +333,7 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
-          removeMissingValues(labeledPoints, missing),
+          processMissingValues(labeledPoints, missing),
           getCacheDirName(useExternalMemory))
         buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
           obj, eval, prevBooster)
@@ -320,7 +343,7 @@ object XGBoost extends Serializable {
         nameAndLabeledPointSets =>
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
-              case (name, iter) => (name, removeMissingValues(iter, missing))},
+              case (name, iter) => (name, processMissingValues(iter, missing))},
             getCacheDirName(useExternalMemory))
           buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
             obj, eval, prevBooster)
@@ -340,7 +363,7 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(params,
-          removeMissingValuesWithGroup(labeledPointGroups, missing),
+          processMissingValuesWithGroup(labeledPointGroups, missing),
           getCacheDirName(useExternalMemory))
         buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
       }).cache()
@@ -349,7 +372,7 @@ object XGBoost extends Serializable {
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
-              case (name, iter) => (name, removeMissingValuesWithGroup(iter, missing))
+              case (name, iter) => (name, processMissingValuesWithGroup(iter, missing))
             },
             getCacheDirName(useExternalMemory))
           buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval,

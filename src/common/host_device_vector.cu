@@ -171,7 +171,7 @@ struct HostDeviceVectorImpl {
     HostDeviceVectorImpl<T>* vec_;
   };
 
-  HostDeviceVectorImpl(size_t size, T v, GPUDistribution distribution)
+  HostDeviceVectorImpl(size_t size, T v, const GPUDistribution &distribution)
     : distribution_(distribution), perm_h_(distribution.IsEmpty()), size_d_(0) {
     if (!distribution_.IsEmpty()) {
       size_d_ = size;
@@ -194,7 +194,7 @@ struct HostDeviceVectorImpl {
 
   // Initializer can be std::vector<T> or std::initializer_list<T>
   template <class Initializer>
-  HostDeviceVectorImpl(const Initializer& init, GPUDistribution distribution)
+  HostDeviceVectorImpl(const Initializer& init, const GPUDistribution &distribution)
     : distribution_(distribution), perm_h_(distribution.IsEmpty()), size_d_(0) {
     if (!distribution_.IsEmpty()) {
       size_d_ = init.size();
@@ -318,7 +318,7 @@ struct HostDeviceVectorImpl {
     // Data is on device;
     if (distribution_ != other->distribution_) {
       distribution_ = GPUDistribution();
-      Reshard(other->Distribution());
+      Shard(other->Distribution());
       size_d_ = other->size_d_;
     }
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
@@ -358,19 +358,24 @@ struct HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void Reshard(const GPUDistribution& distribution) {
+  void Shard(const GPUDistribution& distribution) {
     if (distribution_ == distribution) { return; }
-    CHECK(distribution_.IsEmpty() || distribution.IsEmpty());
-    if (distribution.IsEmpty()) {
-      LazySyncHost(GPUAccess::kWrite);
-    }
+    CHECK(distribution_.IsEmpty());
     distribution_ = distribution;
     InitShards();
   }
 
-  void Reshard(GPUSet new_devices) {
+  void Shard(GPUSet new_devices) {
     if (distribution_.Devices() == new_devices) { return; }
-    Reshard(GPUDistribution::Block(new_devices));
+    Shard(GPUDistribution::Block(new_devices));
+  }
+
+  void Reshard(const GPUDistribution &distribution) {
+    if (distribution_ == distribution) { return; }
+    LazySyncHost(GPUAccess::kWrite);
+    distribution_ = distribution;
+    shards_.clear();
+    InitShards();
   }
 
   void Resize(size_t new_size, T v) {
@@ -435,19 +440,19 @@ struct HostDeviceVectorImpl {
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(size_t size, T v, GPUDistribution distribution) : impl_(nullptr) {
+(size_t size, T v, const GPUDistribution &distribution) : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v, distribution);
 }
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(std::initializer_list<T> init, GPUDistribution distribution) : impl_(nullptr) {
+(std::initializer_list<T> init, const GPUDistribution &distribution) : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, distribution);
 }
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(const std::vector<T>& init, GPUDistribution distribution) : impl_(nullptr) {
+(const std::vector<T>& init, const GPUDistribution &distribution) : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, distribution);
 }
 
@@ -461,8 +466,10 @@ template <typename T>
 HostDeviceVector<T>& HostDeviceVector<T>::operator=
 (const HostDeviceVector<T>& other) {
   if (this == &other) { return *this; }
+
+  std::unique_ptr<HostDeviceVectorImpl<T>> newImpl(new HostDeviceVectorImpl<T>(*other.impl_));
   delete impl_;
-  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
+  impl_ = newImpl.release();
   return *this;
 }
 
@@ -584,12 +591,17 @@ bool HostDeviceVector<T>::DeviceCanAccess(int device, GPUAccess access) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(GPUSet new_devices) const {
-  impl_->Reshard(new_devices);
+void HostDeviceVector<T>::Shard(GPUSet new_devices) const {
+  impl_->Shard(new_devices);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) const {
+void HostDeviceVector<T>::Shard(const GPUDistribution &distribution) const {
+  impl_->Shard(distribution);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution) {
   impl_->Reshard(distribution);
 }
 
