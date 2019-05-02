@@ -326,7 +326,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     size_t i_batch = 0;
     size_t batch_offset = 0;
-    for (const auto &batch : dmat->GetRowBatches()) {
+    for (auto &batch : dmat->GetRowBatches()) {
       CHECK(i_batch == 0 || devices_.Size() == 1) << "External memory not supported for multi-GPU";
       // out_preds have been sharded and resized in InitOutPredictions()
       batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
