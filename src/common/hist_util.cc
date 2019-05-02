@@ -502,6 +502,7 @@ void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t*
   const size_t cache_line_size = 64;
   const size_t prefetch_step = cache_line_size / sizeof(*index);
   const size_t prefetch_offset = 10;
+
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 

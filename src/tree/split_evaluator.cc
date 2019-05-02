@@ -282,7 +282,8 @@ class MonotonicConstraint final : public SplitEvaluator {
                 bst_float leftweight,
                 bst_float rightweight) override {
     inner_->AddSplit(nodeid, leftid, rightid, featureid, leftweight, rightweight);
-    bst_uint newsize = std::max(leftid, rightid) + 1;
+    bst_uint newsize = std::max(lower_.size(), size_t(std::max(leftid, rightid) + 1));
+
     lower_.resize(newsize);
     upper_.resize(newsize);
     bst_int constraint = GetConstraint(featureid);

@@ -119,9 +119,9 @@ void QuantileHistMaker::Builder::BuildNodeStatBatch(
     const std::vector<GradientPair> &gpair_h,
     const std::vector<ExpandEntry>& nodes) {
   perf_monitor.TickStart();
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const int32_t sibling_nid = nodes[i].sibling_nid;
+  for (const auto& node : nodes) {
+    const int32_t nid = node.nid;
+    const int32_t sibling_nid = node.sibling_nid;
     BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, nid);
     if (sibling_nid > -1) {
       BuildNodeStat(gmat, p_fmat, p_tree, gpair_h, sibling_nid);
@@ -300,14 +300,14 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
         buffers_by_nids.back().push_back({ buffer + cur_buff_offset,
             buffer + cur_buff_offset + (iend-istart) });
         cur_buff_offset += 2*(iend-istart);
-        tasks.push_back({ cond_to_split.size() - 1,  i});
+        tasks.emplace_back(cond_to_split.size() - 1,  i);
       }
-      sizes_by_nids.push_back(std::vector<std::pair<size_t, size_t>>(n_blocks));
+      sizes_by_nids.emplace_back(n_blocks);
     }
   };
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const int32_t sibling_nid = nodes[i].sibling_nid;
+  for (const auto& node : nodes) {
+    const int32_t nid = node.nid;
+    const int32_t sibling_nid = node.sibling_nid;
     create_nodes(nid);
 
     if (sibling_nid > -1) {
@@ -318,12 +318,12 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   // buffer to store # of rows in left part for each row-block
   std::vector<size_t> left_sizes;
 
-  const size_t size = tasks.size();
+  const int32_t size = tasks.size();
   #pragma omp parallel
   {
     // compute partial partitions
     #pragma omp for schedule(guided)
-    for (size_t i = 0; i < size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       const size_t node_idx = tasks[i].first;
       const size_t iblock   = tasks[i].second;
       const int32_t split_cond = cond_to_split[node_idx];
@@ -363,8 +363,8 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     {
       for (size_t inode = 0; inode < nids_to_split.size(); ++inode) {
         size_t nLeft = 0;
-        for (size_t iblock = 0; iblock < sizes_by_nids[inode].size(); ++iblock) {
-          nLeft += sizes_by_nids[inode][iblock].first;
+        for (auto& size : sizes_by_nids[inode]) {
+          nLeft += size.first;
         }
         left_sizes.push_back(nLeft);
       }
@@ -372,7 +372,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
 
     // merge partial results to one
     #pragma omp for schedule(guided)
-    for (size_t i = 0; i < size; ++i) {
+    for (int32_t i = 0; i < size; ++i) {
       const size_t node_idx = tasks[i].first;
       const size_t iblock   = tasks[i].second;
 
@@ -448,7 +448,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   hist_is_init->resize(nodes.size());
 
   // input data for tasks
-  size_t n_tasks = 0;
+  int32_t n_tasks = 0;
   std::vector<int32_t> task_nid;
   std::vector<int32_t> task_node_idx;
   std::vector<int32_t> task_block_idx;
@@ -489,7 +489,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
   // execute tasks in parallel
   #pragma omp parallel for schedule(guided)
-  for (size_t itask = 0; itask < n_tasks; ++itask) {
+  for (int32_t itask = 0; itask < n_tasks; ++itask) {
     const size_t tid = omp_get_thread_num();
     const int32_t nid = task_nid[itask];
     const int32_t block_id = task_block_idx[itask];
@@ -593,7 +593,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.push_back(ExpandEntry(0, -1, -1, p_tree->GetDepth(0), 0.0, timestamp++));
+  qexpand_depth_wise_.emplace_back(0, -1, -1, p_tree->GetDepth(0), 0.0, timestamp++);
   ++num_leaves;
 
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
@@ -751,7 +751,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
   }
 
   #pragma omp parallel for schedule(guided)
-  for (size_t k = 0; k < tasks_elem.size(); ++k) {
+  for (int32_t k = 0; k < tasks_elem.size(); ++k) {
     const RowSetCollection::Elem rowset = tasks_elem[k];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.node_id != -1) {
       const size_t nrows = rowset.Size();
@@ -887,10 +887,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
   row_set_collection_.Init();
   buffer_for_partition_.reserve(2 * info.num_row_);
 
-  row_set_collection_.Init();
-
-  row_set_collection_.Init();
-
   {
     /* determine layout of data */
     const size_t nrow = info.num_row_;
@@ -978,7 +974,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
   // parallel enumeration
   #pragma omp parallel for schedule(guided)
-  for (size_t i = 0; i < tasks.size(); ++i) {
+  for (int32_t i = 0; i < tasks.size(); ++i) {
     const int32_t  node_idx    = tasks[i].first;
     const size_t   fid         = tasks[i].second;
     const int32_t  nid         = nodes[node_idx].nid;
@@ -1133,8 +1129,9 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
     }
     p_best->Update(best);
 
-    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess())
+    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
       return false;
+    }
   } else {
     for (int32_t i = ibegin; i != iend; i--) {
       e.Add(hist[i].GetGrad(), hist[i].GetHess());
@@ -1163,8 +1160,9 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
     }
     p_best->Update(best);
 
-    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess())
+    if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
       return false;
+    }
   }
 
   return true;

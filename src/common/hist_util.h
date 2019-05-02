@@ -316,11 +316,7 @@ class HistCollection {
     if (nid >= data_arr_.size()) {
       AddHistRow(nid);
     }
-<<<<<<< HEAD
     return { const_cast<GradStatHist*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
-=======
-    return { const_cast<tree::GradStats*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
->>>>>>> next part of optimizations
   }
 
   // have we computed a histogram for i-th node?
@@ -433,10 +429,10 @@ void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
 
   const size_t size = (2*nbins_);
   const size_t block_size = 1024;  // aproximatly 1024 values per block
-  size_t n_blocks = size/block_size + !!(size%block_size);
+  int32_t n_blocks = size/block_size + !!(size%block_size);
 
   #pragma omp parallel for
-  for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
+  for (int32_t iblock = 0; iblock < n_blocks; ++iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
     for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {
