@@ -1,8 +1,8 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2019 by Contributors
  * \file updater_quantile_hist.h
  * \brief use quantized feature values to construct a tree
- * \author Philip Cho, Tianqi Chen
+ * \author Philip Cho, Tianqi Chen, Egor Smirnov
  */
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
@@ -15,14 +15,15 @@
 #include <vector>
 #include <string>
 #include <queue>
+#include <deque>
 #include <iomanip>
 #include <unordered_map>
 #include <utility>
+#include <tuple>
 
 #include "./param.h"
 #include "./split_evaluator.h"
 #include "../common/random.h"
-#include "../common/timer.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/column_matrix.h"
@@ -88,6 +89,7 @@ class QuantileHistMaker: public TreeUpdater {
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
 
+
  protected:
   // training parameter
   TrainParam param_;
@@ -100,6 +102,7 @@ class QuantileHistMaker: public TreeUpdater {
   bool is_gmat_initialized_;
 
   // data structure
+ public:
   struct NodeEntry {
     /*! \brief statics for node entry */
     GradStats stats;
@@ -111,7 +114,8 @@ class QuantileHistMaker: public TreeUpdater {
     SplitEntry best;
     // constructor
     explicit NodeEntry(const TrainParam& param)
-        : root_gain(0.0f), weight(0.0f) {}
+        : root_gain(0.0f), weight(0.0f) {
+    }
   };
   // actual builder that runs the algorithm
 
@@ -121,11 +125,8 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval)
-      : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)), p_last_tree_(nullptr),
-        p_last_fmat_(nullptr) {
-      builder_monitor_.Init("Quantile::Builder");
-    }
+      : param_(param), pruner_(std::move(pruner)), spliteval_(std::move(spliteval)),
+      p_last_tree_(nullptr), p_last_fmat_(nullptr) {  }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const GHistIndexBlockMatrix& gmatb,
@@ -134,42 +135,103 @@ class QuantileHistMaker: public TreeUpdater {
                         DMatrix* p_fmat,
                         RegTree* p_tree);
 
-    inline void BuildHist(const std::vector<GradientPair>& gpair,
-                          const RowSetCollection::Elem row_indices,
-                          const GHistIndexMatrix& gmat,
-                          const GHistIndexBlockMatrix& gmatb,
-                          GHistRow hist,
-                          bool sync_hist) {
-      builder_monitor_.Start("BuildHist");
-      if (param_.enable_feature_grouping > 0) {
-        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
-      } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
-      }
-      if (sync_hist) {
-        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
-      }
-      builder_monitor_.Stop("BuildHist");
-    }
-
-    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-      builder_monitor_.Start("SubtractionTrick");
-      hist_builder_.SubtractionTrick(self, sibling, parent);
-      builder_monitor_.Stop("SubtractionTrick");
-    }
-
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
+
+    std::tuple<float*, GradStats*> GetHistBuffer(std::vector<uint8_t>* hist_is_init,
+      std::vector<GradStats>* grad_stats, size_t block_id, size_t nthread,
+      size_t tid, std::vector<float*>* data_hist, size_t hist_size);
 
    protected:
     /* tree growing policies */
     struct ExpandEntry {
       int nid;
+      int sibling_nid;
+      int parent_nid;
       int depth;
       bst_float loss_chg;
       unsigned timestamp;
-      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
-              : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+      ExpandEntry(int nid, int sibling_nid, int parent_nid, int depth, bst_float loss_chg,
+        unsigned tstmp) : nid(nid), sibling_nid(sibling_nid), parent_nid(parent_nid),
+        depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+    };
+
+    struct TreeGrowingPerfMonitor {
+      enum timer_name {INIT_DATA, INIT_NEW_NODE, BUILD_HIST, EVALUATE_SPLIT, APPLY_SPLIT};
+
+      double global_start;
+
+      // performance counters
+      double tstart;
+      double time_init_data = 0;
+      double time_init_new_node = 0;
+      double time_build_hist = 0;
+      double time_evaluate_split = 0;
+      double time_apply_split = 0;
+
+      inline void StartPerfMonitor() {
+        global_start = dmlc::GetTime();
+      }
+
+      inline void EndPerfMonitor() {
+        CHECK_GT(global_start, 0);
+        double total_time = dmlc::GetTime() - global_start;
+        LOG(INFO) << "\nInitData:          "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_data / total_time * 100 << "%)\n"
+                  << "InitNewNode:       "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_init_new_node / total_time * 100 << "%)\n"
+                  << "BuildHist:         "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_build_hist / total_time * 100 << "%)\n"
+                  << "EvaluateSplit:     "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_evaluate_split / total_time * 100 << "%)\n"
+                  << "ApplySplit:        "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
+                  << " (" << std::fixed << std::setw(5) << std::setprecision(2)
+                  << time_apply_split / total_time * 100 << "%)\n"
+                  << "========================================\n"
+                  << "Total:             "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time << std::endl;
+        // clear performance counters
+        time_init_data = 0;
+        time_init_new_node = 0;
+        time_build_hist = 0;
+        time_evaluate_split = 0;
+        time_apply_split = 0;
+      }
+
+      inline void TickStart() {
+        tstart = dmlc::GetTime();
+      }
+
+      inline void UpdatePerfTimer(const timer_name &timer_name) {
+        // CHECK_GT(tstart, 0); // TODO Fix
+        switch (timer_name) {
+          case INIT_DATA:
+            time_init_data += dmlc::GetTime() - tstart;
+            break;
+          case INIT_NEW_NODE:
+            time_init_new_node += dmlc::GetTime() - tstart;
+            break;
+          case BUILD_HIST:
+            time_build_hist += dmlc::GetTime() - tstart;
+            break;
+          case EVALUATE_SPLIT:
+            time_evaluate_split += dmlc::GetTime() - tstart;
+            break;
+          case APPLY_SPLIT:
+            time_apply_split += dmlc::GetTime() - tstart;
+            break;
+        }
+        tstart = -1;
+      }
     };
 
     // initialize temp data structure
@@ -178,43 +240,16 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-    void EvaluateSplit(const int nid,
-                       const GHistIndexMatrix& gmat,
-                       const HistCollection& hist,
-                       const DMatrix& fmat,
-                       const RegTree& tree);
-
-    void ApplySplit(int nid,
-                    const GHistIndexMatrix& gmat,
-                    const ColumnMatrix& column_matrix,
-                    const HistCollection& hist,
-                    const DMatrix& fmat,
-                    RegTree* p_tree);
-
-    void ApplySplitDenseData(const RowSetCollection::Elem rowset,
-                             const GHistIndexMatrix& gmat,
-                             std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                             const Column& column,
-                             bst_int split_cond,
-                             bool default_left);
-
-    void ApplySplitSparseData(const RowSetCollection::Elem rowset,
-                              const GHistIndexMatrix& gmat,
-                              std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                              const Column& column,
-                              bst_uint lower_bound,
-                              bst_uint upper_bound,
-                              bst_int split_cond,
-                              bool default_left);
-
     void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
                      const std::vector<GradientPair>& gpair,
                      const DMatrix& fmat,
-                     const RegTree& tree);
+                     RegTree* tree,
+                     QuantileHistMaker::NodeEntry* snode,
+                     int32_t parentid);
 
     // enumerate the split values of specific feature
-    void EnumerateSplit(int d_step,
+    bool EnumerateSplit(int d_step,
                         const GHistIndexMatrix& gmat,
                         const GHistRow& hist,
                         const NodeEntry& snode,
@@ -223,6 +258,17 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint fid,
                         bst_uint nodeID);
 
+    void EvaluateSplitsBatch(const std::vector<ExpandEntry>& nodes,
+                               const GHistIndexMatrix& gmat,
+                               const DMatrix& fmat,
+                               const std::vector<std::vector<uint8_t>>& hist_is_init,
+                               const std::vector<std::vector<float*>>& hist_buffers,
+                               RegTree* p_tree);
+
+    void ReduceHistograms(float* hist_data, float* sibling_hist_data, float* parent_hist_data,
+        size_t fid, size_t inode, const std::vector<std::vector<uint8_t>>& hist_is_init,
+        const GHistIndexMatrix &gmat, const std::vector<std::vector<float*>>& hist_buffers);
+
     void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               const ColumnMatrix &column_matrix,
@@ -230,30 +276,6 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void BuildLocalHistograms(int *starting_index,
-                              int *sync_count,
-                              const GHistIndexMatrix &gmat,
-                              const GHistIndexBlockMatrix &gmatb,
-                              RegTree *p_tree,
-                              const std::vector<GradientPair> &gpair_h);
-
-    void SyncHistograms(int starting_index,
-                        int sync_count,
-                        RegTree *p_tree);
-
-    void BuildNodeStats(const GHistIndexMatrix &gmat,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        const std::vector<GradientPair> &gpair_h);
-
-    void EvaluateSplits(const GHistIndexMatrix &gmat,
-                        const ColumnMatrix &column_matrix,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        int *num_leaves,
-                        int depth,
-                        unsigned *timestamp,
-                        std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
@@ -262,6 +284,55 @@ class QuantileHistMaker: public TreeUpdater {
                              RegTree* p_tree,
                              const std::vector<GradientPair>& gpair_h);
 
+
+    void BuildHistsBatch(const std::vector<ExpandEntry>& nodes, RegTree* tree,
+      const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair, bool sync_hist,
+      std::vector<std::vector<float*>>* hist_buffers,
+      std::vector<std::vector<uint8_t>>* hist_is_init);
+
+    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
+
+    void BuildNodeStat(const GHistIndexMatrix &gmat,
+                        DMatrix *p_fmat,
+                        RegTree *p_tree,
+                        const std::vector<GradientPair> &gpair_h,
+                        int32_t nid);
+    void BuildNodeStatBatch(
+        const GHistIndexMatrix &gmat,
+        DMatrix *p_fmat,
+        RegTree *p_tree,
+        const std::vector<GradientPair> &gpair_h,
+        const std::vector<ExpandEntry>& nodes);
+
+    void CreateNewNodes(const GHistIndexMatrix &gmat,
+        const ColumnMatrix &column_matrix,
+        DMatrix *p_fmat,
+        RegTree *p_tree,
+        int *num_leaves,
+        int depth,
+        unsigned *timestamp,
+        std::vector<ExpandEntry> *temp_qexpand_depth,
+        int32_t nid,
+        std::mutex* mutex_add_nodes,
+        const QuantileHistMaker::NodeEntry& snode,
+        RegTree::Node node);
+
+    int32_t FindSplitCond(int32_t nid,
+                          RegTree *p_tree,
+                          const GHistIndexMatrix &gmat);
+
+    void CreateNewNodesBatch(
+        const std::vector<ExpandEntry>& nodes,
+        const GHistIndexMatrix &gmat,
+        const ColumnMatrix &column_matrix,
+        DMatrix *p_fmat,
+        RegTree *p_tree,
+        int *num_leaves,
+        int depth,
+        unsigned *timestamp,
+        std::vector<ExpandEntry> *temp_qexpand_depth);
+
+
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
         return lhs.timestamp > rhs.timestamp;  // favor small timestamp
@@ -269,6 +340,8 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
+
+    HistCollection hist_buff_;
 
     //  --data fields--
     const TrainParam& param_;
@@ -280,6 +353,7 @@ class QuantileHistMaker: public TreeUpdater {
     // the temp space for split
     std::vector<RowSetCollection::Split> row_split_tloc_;
     std::vector<SplitEntry> best_split_tloc_;
+    std::vector<size_t> buffer_for_partition_;
     /*! \brief TreeNode Data: statistics for each constructed node */
     std::vector<NodeEntry> snode_;
     /*! \brief culmulative histogram of gradients. */
@@ -311,7 +385,7 @@ class QuantileHistMaker: public TreeUpdater {
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
-    common::Monitor builder_monitor_;
+    TreeGrowingPerfMonitor perf_monitor;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
 
