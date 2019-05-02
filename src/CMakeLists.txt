@@ -77,7 +77,7 @@ target_include_directories(objxgboost
 target_compile_options(objxgboost
   PRIVATE
   $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>
-  $<$<COMPILE_LANGUAGE:CXX>:-funroll-loops>)
+  $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-funroll-loops>)
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
@@ -106,6 +106,9 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
   if (OpenMP_CXX_FOUND OR OPENMP_FOUND)
     target_compile_options(objxgboost PRIVATE  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
+    if ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))  # old CMake doesn't define this variable
+      set(OpenMP_CXX_LIBRARIES "gomp;pthread")
+    endif ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))
     list(APPEND SRC_LIBS ${OpenMP_CXX_LIBRARIES})
     set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
   endif (OpenMP_CXX_FOUND OR OPENMP_FOUND)

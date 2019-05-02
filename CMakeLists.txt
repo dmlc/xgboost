@@ -1,8 +1,13 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.3)
 project(xgboost LANGUAGES CXX C VERSION 0.82)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+
+message(STATUS "CMake version ${CMAKE_VERSION}")
+if (MSVC)
+  cmake_minimum_required(VERSION 3.11)
+endif (MSVC)
 
 set_default_configuration_release()
 msvc_use_static_runtime()
@@ -39,6 +44,8 @@ endif (USE_AVX)
 
 # Sanitizer
 if (USE_SANITIZER)
+  # Older CMake versions have had troubles with Sanitizer
+  cmake_minimum_required(VERSION 3.12)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)

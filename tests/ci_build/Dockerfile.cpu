@@ -1,4 +1,5 @@
 FROM ubuntu:18.04
+ARG CMAKE_VERSION=3.3
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -6,10 +7,10 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-$CMAKE_VERSION.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
