@@ -65,12 +65,12 @@ class TestPlotting(unittest.TestCase):
     def test_importance_plot_lim(self):
         np.random.seed(1)
         dm = xgb.DMatrix(np.random.randn(100, 100), label=[0, 1] * 50)
-        bst = xgb.train({}, dm)
-        assert len(bst.get_fscore()) == 71
+        bst = xgb.train({}, dm, num_boost_round=50)
+        assert len(bst.get_fscore()) == 95
         ax = xgb.plot_importance(bst)
-        assert ax.get_xlim() == (0., 11.)
-        assert ax.get_ylim() == (-1., 71.)
+        assert ax.get_xlim() == (0., 28.6)
+        assert ax.get_ylim() == (-1., 95)
 
-        ax = xgb.plot_importance(bst, xlim=(0, 5), ylim=(10, 71))
+        ax = xgb.plot_importance(bst, xlim=(0, 5), ylim=(10, 95))
         assert ax.get_xlim() == (0., 5.)
-        assert ax.get_ylim() == (10., 71.)
+        assert ax.get_ylim() == (10., 95.)

@@ -97,8 +97,6 @@ void QuantileHistMaker::Builder::BuildNodeStat(
     int32_t nid) {
 
   auto parent_id = (*p_tree)[nid].Parent();
-
-  this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree, &(snode_[nid]), parent_id);
   // add constraints
   if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
     // it's a right child
@@ -119,6 +117,14 @@ void QuantileHistMaker::Builder::BuildNodeStatBatch(
     const std::vector<GradientPair> &gpair_h,
     const std::vector<ExpandEntry>& nodes) {
   perf_monitor.TickStart();
+  for (const auto& node : nodes) {
+    const int32_t nid = node.nid;
+    const int32_t sibling_nid = node.sibling_nid;
+    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree, &(snode_[nid]), (*p_tree)[nid].Parent());
+    if (sibling_nid > -1) {
+      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree, &(snode_[sibling_nid]), (*p_tree)[sibling_nid].Parent());
+    }
+  }
   for (const auto& node : nodes) {
     const int32_t nid = node.nid;
     const int32_t sibling_nid = node.sibling_nid;
@@ -593,7 +599,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.emplace_back(0, -1, -1, p_tree->GetDepth(0), 0.0, timestamp++);
+  qexpand_depth_wise_.emplace_back(0, -1, ROOT_PARENT_ID, p_tree->GetDepth(0), 0.0, timestamp++);
   ++num_leaves;
 
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
@@ -641,7 +647,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
   for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
     std::vector<ExpandEntry> nodes_to_build{ExpandEntry(
-        0, -1, -1, p_tree->GetDepth(0), 0.0, timestamp++)};
+        0, -1, ROOT_PARENT_ID, p_tree->GetDepth(0), 0.0, timestamp++)};
 
     BuildHistsBatch(nodes_to_build, p_tree, gmat, gpair_h, false, &hist_buffers, &hist_is_init);
     BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, nodes_to_build);
@@ -966,7 +972,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     const auto& feature_set = p_feature_set->HostVector();
     const auto nfeature = static_cast<bst_uint>(feature_set.size());
     for (size_t j = 0; j < nfeature; ++j) {
-      tasks.push_back({i, feature_set[j]});
+      tasks.emplace_back(i, feature_set[j]);
     }
   }
 
