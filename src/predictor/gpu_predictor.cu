@@ -338,7 +338,10 @@ class GPUPredictor : public xgboost::Predictor {
 
     size_t batch_offset = 0;
     for (auto &batch : dmat->GetRowBatches()) {
-      batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
+      GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size());
+      ConfigureShards(devices);
+
+      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
 
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
