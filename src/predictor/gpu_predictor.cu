@@ -355,18 +355,18 @@ class GPUPredictor : public xgboost::Predictor {
       // be resharded based on the number of devices present already
       struct RowReset {
         public:
-          RowReset(MetaInfo &minfo, const SparsePage &r_batch)
+          RowReset(MetaInfo *minfo, const SparsePage &r_batch)
             : minfo_(minfo) {
-              orig_nrows_ = minfo_.num_row_;
-              minfo.num_row_ = r_batch.Size();
+              orig_nrows_ = minfo_->num_row_;
+              minfo->num_row_ = r_batch.Size();
           }
           ~RowReset() {
-            minfo_.num_row_ = orig_nrows_;
+            minfo_->num_row_ = orig_nrows_;
           }
         private:
-          MetaInfo &minfo_;
+          MetaInfo *minfo_;
           size_t orig_nrows_;
-      }rowgd(dmat->Info(), batch);
+      }rowgd(&dmat->Info(), batch);
 
       HostDeviceVector<bst_float> batchPreds;
       this->InitOutPredictions(dmat->Info(), &batchPreds, model);
