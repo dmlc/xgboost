@@ -237,6 +237,19 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
+  void PredictionDeviceOffsets(size_t total_size, size_t batch_offset, size_t batch_size,
+                               int n_classes, std::vector<size_t>* out_offsets) {
+    auto& offsets = *out_offsets;
+    size_t n_shards = devices_.Size();
+    offsets.resize(n_shards + 2);
+    size_t rows_per_shard = (batch_size + n_shards - 1) / n_shards; 
+    for (int shard = 0; shard < devices_.Size(); ++shard) {
+      offsets[shard] = batch_offset + shard * rows_per_shard * n_classes;
+    }
+    offsets[n_shards] = batch_offset + batch_size * n_classes;
+    offsets[n_shards + 1] = total_size;
+  }
+
   struct DeviceShard {
     DeviceShard() : device_{-1} {}
     void Init(int device) {
@@ -246,7 +259,6 @@ class GPUPredictor : public xgboost::Predictor {
     void PredictInternal
     (const SparsePage& batch, const MetaInfo& info,
      HostDeviceVector<bst_float>* predictions,
-     const size_t batch_offset,
      const gbm::GBTreeModel& model,
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
@@ -285,8 +297,8 @@ class GPUPredictor : public xgboost::Predictor {
                                                  data_distr.Devices().Index(device_));
 
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_).subspan(batch_offset),
-         dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
+        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments_),
+         dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
          batch.data.DeviceSpan(device_), tree_begin, tree_end, info.num_col_,
          num_rows, entry_start, use_shared, model.param.num_output_group);
     }
@@ -324,21 +336,24 @@ class GPUPredictor : public xgboost::Predictor {
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
 
-    size_t i_batch = 0;
     size_t batch_offset = 0;
     for (auto &batch : dmat->GetRowBatches()) {
-      CHECK(i_batch == 0 || devices_.Size() == 1) << "External memory not supported for multi-GPU";
-      // out_preds have been sharded and resized in InitOutPredictions()
       batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
+
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
+
+      std::vector<size_t> out_preds_offsets;
+      PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
+                              model.param.num_output_group, &out_preds_offsets);
+      out_preds->Reshard(GPUDistribution::Explicit(devices_, out_preds_offsets));
+
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, dmat->Info(), out_preds, batch_offset, model,
+        shard.PredictInternal(batch, dmat->Info(), out_preds, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
       });
       batch_offset += batch.Size() * model.param.num_output_group;
-      i_batch++;
     }
     monitor_.StopCuda("DevicePredictInternal");
   }
