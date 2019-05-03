@@ -26,7 +26,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix();
+  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(12, 64);
 
   // Test the data read into the first row
   auto &batch = *dmat->GetRowBatches().begin();
