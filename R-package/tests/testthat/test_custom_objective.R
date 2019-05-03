@@ -45,7 +45,7 @@ test_that("custom objective in CV works", {
 })
 
 test_that("custom objective using DMatrix attr works", {
-  
+
   attr(dtrain, 'label') <- getinfo(dtrain, 'label')
 
   logregobjattr <- function(preds, dtrain) {
@@ -55,8 +55,8 @@ test_that("custom objective using DMatrix attr works", {
     hess <- preds * (1 - preds)
     return(list(grad = grad, hess = hess))
   }
-  param$objective = logregobjattr
-  bst <- xgb.train(param, dtrain, num_round, watchlist)
+  ## param$objective = logregobjattr
+  bst <- xgb.train(param, dtrain, num_round, watchlist, obj=logregobjattr)
   expect_equal(class(bst), "xgb.Booster")
   expect_equal(length(bst$raw), 1094)
 })
