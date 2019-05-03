@@ -84,6 +84,46 @@ TEST(gpu_predictor, Test) {
   delete dmat;
 }
 
+TEST(gpu_predictor, ExternalMemoryTest) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  gpu_predictor->Init({}, {});
+  gbm::GBTreeModel model = CreateTestModel();
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
+
+  // Test predict batch
+  HostDeviceVector<float> out_predictions;
+  gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_);
+  for (const auto& v : out_predictions.HostVector()) {
+    ASSERT_EQ(v, 1.5);
+  }
+
+  // Test predict leaf
+  std::vector<float> leaf_out_predictions;
+  gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  EXPECT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+
+  // Test predict contribution
+  std::vector<float> out_contribution;
+  gpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_);
+  for (const auto& v : out_contribution) {
+    ASSERT_EQ(v, 1.5);
+  }
+
+  // Test predict contribution (approximate method)
+  std::vector<float> out_contribution_approximate;
+  gpu_predictor->PredictContribution(dmat.get(), &out_contribution_approximate, model, true);
+  EXPECT_EQ(out_contribution_approximate.size(), dmat->Info().num_row_);
+  for (const auto& v : out_contribution_approximate) {
+    ASSERT_EQ(v, 1.5);
+  }
+}
+
 #if defined(XGBOOST_USE_NCCL)
 // Test whether pickling preserves predictor parameters
 TEST(gpu_predictor, MGPU_PicklingTest) {

@@ -104,6 +104,10 @@ void SparsePageSource::BeforeFirst() {
   }
 }
 
+SparsePage& SparsePageSource::Value() {
+  return *page_;
+}
+
 const SparsePage& SparsePageSource::Value() const {
   return *page_;
 }
