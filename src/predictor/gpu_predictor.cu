@@ -354,7 +354,7 @@ class GPUPredictor : public xgboost::Predictor {
       // to what is present in the batch. The local batch prediction should
       // be resharded based on the number of devices present already
       struct RowReset {
-        public:
+       public:
           RowReset(MetaInfo *minfo, const SparsePage &r_batch)
             : minfo_(minfo) {
               orig_nrows_ = minfo_->num_row_;
@@ -363,7 +363,7 @@ class GPUPredictor : public xgboost::Predictor {
           ~RowReset() {
             minfo_->num_row_ = orig_nrows_;
           }
-        private:
+       private:
           MetaInfo *minfo_;
           size_t orig_nrows_;
       }rowgd(&dmat->Info(), batch);
@@ -372,7 +372,8 @@ class GPUPredictor : public xgboost::Predictor {
       this->InitOutPredictions(dmat->Info(), &batchPreds, model);
       // Starting from hitr copy batch size * model.param.num_output_group
       // that were previously present into batchPreds
-      std::copy(hitr, hitr + (batch.Size() * model.param.num_output_group), batchPreds.HostVector().begin());
+      std::copy(hitr, hitr + (batch.Size() * model.param.num_output_group),
+                batchPreds.HostVector().begin());
 
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, dmat->Info(), &batchPreds, model,
