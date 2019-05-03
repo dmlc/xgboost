@@ -327,7 +327,7 @@ void CLIPredict(const CLIParam& param) {
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
   for (bst_float p : preds.ConstHostVector()) {
-    os << std::setprecision(std::numeric_limits<bst_float>::max_digits10 + 2)
+    os << std::setprecision(std::numeric_limits<bst_float>::max_digits10)
        << p << '\n';
   }
   // force flush before fo destruct.

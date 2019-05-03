@@ -10,7 +10,7 @@ The deprecated parameters would be removed in the next release.
 \details{
 To see all the current deprecated and new parameters, check the \code{xgboost:::depr_par_lut} table.
 
-A deprecation warning is shown when any of the deprecated parameters is used in a call. 
-An additional warning is shown when there was a partial match to a deprecated parameter 
+A deprecation warning is shown when any of the deprecated parameters is used in a call.
+An additional warning is shown when there was a partial match to a deprecated parameter
 (as R is able to partially match parameter names).
 }

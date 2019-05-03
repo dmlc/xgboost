@@ -14,7 +14,7 @@ rm -rf release-1.7.0.zip*
 rm -rf build
 mkdir build
 cd build
-cmake .. "$@" -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest
+cmake .. "$@" -DGOOGLE_TEST=ON -DGTEST_ROOT=$PWD/../gtest -DCMAKE_VERBOSE_MAKEFILE=ON
 make clean
-make -j
+make -j$(nproc)
 cd ..

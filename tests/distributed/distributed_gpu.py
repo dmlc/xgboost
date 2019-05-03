@@ -54,7 +54,8 @@ base_params = {
     'max_depth': 2,
     'eta': 1,
     'verbosity': 0,
-    'objective': 'binary:logistic'
+    'objective': 'binary:logistic',
+    'debug_synchronize': True
 }
 
 
