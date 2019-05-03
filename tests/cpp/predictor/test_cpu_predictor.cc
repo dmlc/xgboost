@@ -55,7 +55,7 @@ TEST(cpu_predictor, Test) {
 }
 
 TEST(cpu_predictor, ExternalMemoryTest) {
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix();
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64);
 
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));

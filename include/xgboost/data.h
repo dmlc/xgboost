@@ -284,6 +284,7 @@ class BatchIteratorImpl {
  public:
   virtual ~BatchIteratorImpl() {}
   virtual BatchIteratorImpl* Clone() = 0;
+  virtual SparsePage& operator*() = 0;
   virtual const SparsePage& operator*() const = 0;
   virtual void operator++() = 0;
   virtual bool AtEnd() const = 0;
@@ -305,6 +306,11 @@ class BatchIterator {
   void operator++() {
     CHECK(impl_ != nullptr);
     ++(*impl_);
+  }
+
+  SparsePage& operator*() {
+    CHECK(impl_ != nullptr);
+    return *(*impl_);
   }
 
   const SparsePage& operator*() const {
