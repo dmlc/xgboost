@@ -436,15 +436,16 @@ struct EvalAucPR : public Metric {
       }
     }
     CHECK(!auc_error) << "AUC-PR: the dataset only contains pos or neg samples";
-    CHECK_LE(sum_auc, static_cast<double>(ngroup)) << "AUC-PR: AUC > 1.0";
     /* Report average AUC across all groups */
     if (distributed) {
       bst_float dat[2];
       dat[0] = static_cast<bst_float>(sum_auc);
       dat[1] = static_cast<bst_float>(ngroup);
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
+      CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
       return dat[0] / dat[1];
     } else {
+      CHECK_LE(sum_auc, static_cast<double>(ngroup)) << "AUC-PR: AUC > 1.0";
       return static_cast<bst_float>(sum_auc) / ngroup;
     }
   }
