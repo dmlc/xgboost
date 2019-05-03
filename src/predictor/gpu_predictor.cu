@@ -178,7 +178,6 @@ __device__ float GetLeafWeight(bst_uint ridx, const DevicePredictionNode* tree,
   return n.GetWeight();
 }
 
-template <int BLOCK_THREADS>
 __global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
                               common::Span<float> d_out_predictions,
                               common::Span<size_t> d_tree_segments,
@@ -231,9 +230,16 @@ class GPUPredictor : public xgboost::Predictor {
       auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
       // copy the last element from every shard
-      dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
-                               &data_span[data_span.size()-1],
-                               sizeof(size_t), cudaMemcpyDeviceToHost));
+      if (!data_span.size()) {
+        size_t zero_size = 0;
+        dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
+                                 &zero_size,
+                                 sizeof(size_t), cudaMemcpyHostToHost));
+      } else {
+        dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
+                                 &data_span[data_span.size()-1],
+                                 sizeof(size_t), cudaMemcpyDeviceToHost));
+      }
     }
   }
 
@@ -246,7 +252,6 @@ class GPUPredictor : public xgboost::Predictor {
     void PredictInternal
     (const SparsePage& batch, const MetaInfo& info,
      HostDeviceVector<bst_float>* predictions,
-     const size_t batch_offset,
      const gbm::GBTreeModel& model,
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
@@ -268,7 +273,7 @@ class GPUPredictor : public xgboost::Predictor {
                                     cudaMemcpyHostToDevice));
 
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.DeviceSize(device_) - 1;
+      ssize_t num_rows = batch.offset.DeviceSize(device_) - 1;
       if (num_rows < 1) { return; }
 
       const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
@@ -284,11 +289,20 @@ class GPUPredictor : public xgboost::Predictor {
       size_t entry_start = data_distr.ShardStart(batch.data.Size(),
                                                  data_distr.Devices().Index(device_));
 
-      PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_).subspan(batch_offset),
-         dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
-         batch.data.DeviceSpan(device_), tree_begin, tree_end, info.num_col_,
-         num_rows, entry_start, use_shared, model.param.num_output_group);
+      PredictKernel<<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
+        (dh::ToSpan(nodes_),
+         predictions->DeviceSpan(device_),
+         dh::ToSpan(tree_segments_),
+         dh::ToSpan(tree_group_),
+         batch.offset.DeviceSpan(device_),
+         batch.data.DeviceSpan(device_),
+         tree_begin,
+         tree_end,
+         info.num_col_,
+         num_rows,
+         entry_start,
+         use_shared,
+         model.param.num_output_group);
     }
 
    private:
@@ -324,21 +338,50 @@ class GPUPredictor : public xgboost::Predictor {
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
 
-    size_t i_batch = 0;
-    size_t batch_offset = 0;
+    // Accumulate all predictions from multiple batches into this
+    std::vector<float> &hvec = out_preds->HostVector();
+    std::vector<float>::iterator hitr = hvec.begin();
     for (auto &batch : dmat->GetRowBatches()) {
-      CHECK(i_batch == 0 || devices_.Size() == 1) << "External memory not supported for multi-GPU";
       // out_preds have been sharded and resized in InitOutPredictions()
       batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
+
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
+
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
+
+      // Gather the batch predictions; but, first reset the number of rows
+      // to what is present in the batch. The local batch prediction should
+      // be resharded based on the number of devices present already
+      struct RowReset {
+        public:
+          RowReset(MetaInfo &minfo, const SparsePage &r_batch)
+            : minfo_(minfo) {
+              orig_nrows_ = minfo_.num_row_;
+              minfo.num_row_ = r_batch.Size();
+          }
+          ~RowReset() {
+            minfo_.num_row_ = orig_nrows_;
+          }
+        private:
+          MetaInfo &minfo_;
+          size_t orig_nrows_;
+      }rowgd(dmat->Info(), batch);
+
+      HostDeviceVector<bst_float> batchPreds;
+      this->InitOutPredictions(dmat->Info(), &batchPreds, model);
+      // Starting from hitr copy batch size * model.param.num_output_group
+      // that were previously present into batchPreds
+      std::copy(hitr, hitr + (batch.Size() * model.param.num_output_group), batchPreds.HostVector().begin());
+
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, dmat->Info(), out_preds, batch_offset, model,
+        shard.PredictInternal(batch, dmat->Info(), &batchPreds, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
       });
-      batch_offset += batch.Size() * model.param.num_output_group;
-      i_batch++;
+
+      // Copy the batch predictions to the global prediction array
+      std::copy(batchPreds.ConstHostVector().begin(), batchPreds.ConstHostVector().end(), hitr);
+      std::advance(hitr, batchPreds.Size());
     }
     monitor_.StopCuda("DevicePredictInternal");
   }
