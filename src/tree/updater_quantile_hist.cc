@@ -122,7 +122,8 @@ void QuantileHistMaker::Builder::BuildNodeStatBatch(
     const int32_t sibling_nid = node.sibling_nid;
     this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree, &(snode_[nid]), (*p_tree)[nid].Parent());
     if (sibling_nid > -1) {
-      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree, &(snode_[sibling_nid]), (*p_tree)[sibling_nid].Parent());
+      this->InitNewNode(nid, gmat, gpair_h, *p_fmat, p_tree,
+                        &(snode_[sibling_nid]), (*p_tree)[sibling_nid].Parent());
     }
   }
   for (const auto& node : nodes) {
