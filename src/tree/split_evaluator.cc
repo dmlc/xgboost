@@ -61,6 +61,10 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
+bool SplitEvaluator::CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const {
+  return true;
+}
+
 //! \brief Encapsulates the parameters for ElasticNet
 struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
   bst_float reg_lambda;
@@ -151,6 +155,10 @@ class ElasticNet final : public SplitEvaluator {
       w = std::copysign(params_.max_delta_step, w);
     }
     return w;
+  }
+
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
+    return true;
   }
 
  private:
@@ -295,6 +303,10 @@ class MonotonicConstraint final : public SplitEvaluator {
       upper_[leftid] = mid;
       lower_[rightid] = mid;
     }
+  }
+
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
+    return true;
   }
 
  private:
@@ -481,6 +493,10 @@ class InteractionConstraint final : public SplitEvaluator {
     }
   }
 
+  bool CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid) const override {
+    return CheckInteractionConstraint(featureid, nodeid);
+  }
+
  private:
   InteractionConstraintParams params_;
   std::unique_ptr<SplitEvaluator> inner_;
@@ -499,12 +515,8 @@ class InteractionConstraint final : public SplitEvaluator {
   //   permissible in a given node; returns false otherwise
   inline bool CheckInteractionConstraint(bst_uint featureid, bst_uint nodeid) const {
     // short-circuit if no constraint is specified
-    if (params_.interaction_constraints.empty()) {
-      return true;
-    }
-    CHECK_LT(nodeid, int_cont_.size()) << "Invariant violated: nodeid = "
-      << nodeid << ", int_cont_.size() = " << int_cont_.size();
-    return (int_cont_[nodeid].count(featureid) > 0);
+    return (params_.interaction_constraints.empty()
+            || int_cont_.at(nodeid).count(featureid) > 0);
   }
 };
 
