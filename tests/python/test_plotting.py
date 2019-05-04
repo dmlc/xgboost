@@ -65,7 +65,7 @@ class TestPlotting(unittest.TestCase):
     def test_importance_plot_lim(self):
         np.random.seed(1)
         dm = xgb.DMatrix(np.random.randn(100, 100), label=[0, 1] * 50)
-        bst = xgb.train({}, dm, num_boost_round=50)
+        bst = xgb.train({}, dm, num_boost_round=100)
         assert len(bst.get_fscore()) == 95
         ax = xgb.plot_importance(bst)
         assert ax.get_xlim() == (0., 28.6)
