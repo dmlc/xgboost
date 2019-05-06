@@ -155,6 +155,12 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 
 Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~
+SparseVector VS. DenseVector in Spark and XGBoost:
+due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value, plus there are enough 0's to use SparseVector.
+
+However, In case the dataset is represented by a DenseVector, the 0 is kept.
+
+Strategies to handle missing values (and therefore overcome issues as above):
 
 In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
 The choice of approach depends on the value representing 'missing' which fall into four different categories:
