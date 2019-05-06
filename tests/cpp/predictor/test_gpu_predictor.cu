@@ -242,7 +242,6 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
   std::vector<std::unique_ptr<DMatrix>> dmats;
   dmats.push_back(CreateSparsePageDMatrix(9, 64UL));
   dmats.push_back(CreateSparsePageDMatrix(128, 128UL));
-  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL));
 
   for (const auto& dmat: dmats) {
     // Test predict batch
