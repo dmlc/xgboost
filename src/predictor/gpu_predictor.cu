@@ -242,7 +242,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto& offsets = *out_offsets;
     size_t n_shards = devices_.Size();
     offsets.resize(n_shards + 2);
-    size_t rows_per_shard = (batch_size + n_shards - 1) / n_shards; 
+    size_t rows_per_shard = (batch_size + n_shards - 1) / n_shards;
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       offsets[shard] = batch_offset + shard * rows_per_shard * n_classes;
     }
