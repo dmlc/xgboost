@@ -170,7 +170,7 @@ We introduce the following approaches dealing with missing value and their fitti
 1. Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
 2. Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
 3. Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
-4. Transform it to other values. Used in (1).
+4. Nothing to be done, used in (1). 
 
 Then, XGBoost will automatically learn what's the ideal direction to go when a value is missing, based on that value and strategy.
 
