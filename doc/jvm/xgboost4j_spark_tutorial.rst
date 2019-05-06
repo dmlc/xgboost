@@ -153,7 +153,7 @@ Now, we have a DataFrame containing only two columns, "features" which contains 
 "sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
-Dealing with missing values:
+Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~
 
 In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
