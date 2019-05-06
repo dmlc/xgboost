@@ -156,17 +156,18 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 Dealing with missing values:
 
 In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
-The choice of approach depends on the value representing 'missing' which fall into four different categories: 
-(1) 0
-(2) NaN 
-(3) NULL
-(4) any other value which is not mentioned in (1) / (2) / (3)
+The choice of approach depends on the value representing 'missing' which fall into four different categories:
+1. 0.
+2. NaN.
+3. Null.
+4. any other value which is not mentioned in (1) / (2) / (3).
 
 We introduce the following approaches dealing with missing value and their fitting scenarios:
-(*) Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
-(*) Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
-(*) Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
-(*) Transform it to other values. Used in (1).
+
+1. Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
+2. Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
+3. Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
+4. Transform it to other values. Used in (1).
 
 Then, XGBoost will automatically learn what's the ideal direction to go when a value is missing, based on that value and strategy.
 
