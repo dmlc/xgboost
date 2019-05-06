@@ -340,17 +340,15 @@ class GPUPredictor : public xgboost::Predictor {
     for (auto &batch : dmat->GetRowBatches()) {
       GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size());
       ConfigureShards(devices);
-
-      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
-
-      std::vector<size_t> device_offsets;
-      DeviceOffsets(batch.offset, &device_offsets);
-      batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
-
       std::vector<size_t> out_preds_offsets;
       PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
                               model.param.num_output_group, &out_preds_offsets);
       out_preds->Reshard(GPUDistribution::Explicit(devices_, out_preds_offsets));
+
+      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+      std::vector<size_t> device_offsets;
+      DeviceOffsets(batch.offset, &device_offsets);
+      batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, dmat->Info(), out_preds, model,
@@ -358,6 +356,11 @@ class GPUPredictor : public xgboost::Predictor {
       });
       batch_offset += batch.Size() * model.param.num_output_group;
     }
+
+    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, dmat->Info().num_row_);
+    ConfigureShards(devices);
+    out_preds->Reshard(GPUDistribution::Granular(devices_, model.param.num_output_group));
+
     monitor_.StopCuda("DevicePredictInternal");
   }
 
@@ -393,7 +396,6 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Shard(GPUDistribution::Granular(devices_, n_classes));
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
