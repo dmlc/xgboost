@@ -160,6 +160,7 @@ Strategies to handle missing values (and therefore overcome issues as above):
 
 In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
 The choice of approach depends on the value representing 'missing' which fall into four different categories:
+
 1. 0.
 2. NaN.
 3. Null.
