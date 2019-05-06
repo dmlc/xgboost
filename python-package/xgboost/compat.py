@@ -11,14 +11,13 @@ PY3 = (sys.version_info[0] == 3)
 
 if PY3:
     # pylint: disable=invalid-name, redefined-builtin
-    STRING_TYPES = str,
+    STRING_TYPES = (str,)
 
     def py_str(x):
         """convert c string back to python string"""
         return x.decode('utf-8')
 else:
-    # pylint: disable=invalid-name
-    STRING_TYPES = basestring,
+    STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
 
     def py_str(x):
         """convert c string back to python string"""
@@ -37,13 +36,13 @@ try:
     PANDAS_INSTALLED = True
 except ImportError:
 
+    # pylint: disable=too-few-public-methods
     class MultiIndex(object):
         """ dummy for pandas.MultiIndex """
-        pass
 
+    # pylint: disable=too-few-public-methods
     class DataFrame(object):
         """ dummy for pandas.DataFrame """
-        pass
 
     PANDAS_INSTALLED = False
 
@@ -83,9 +82,9 @@ try:
     DT_INSTALLED = True
 except ImportError:
 
+    # pylint: disable=too-few-public-methods
     class DataTable(object):
         """ dummy for datatable.DataTable """
-        pass
 
     DT_INSTALLED = False
 

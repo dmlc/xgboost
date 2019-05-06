@@ -2,6 +2,7 @@
 import numpy as np
 import xgboost
 import unittest
+from sklearn.metrics import accuracy_score
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
@@ -19,7 +20,7 @@ class TestInteractionConstraints(unittest.TestCase):
         dtrain = xgboost.DMatrix(X, label=y)
 
         params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'verbosity': 0,
-                  'interaction_constraints': '[[0, 1]]'}
+                  'interaction_constraints': '[[0, 1]]', 'tree_method': 'hist'}
         num_boost_round = 100
         # Fit a model that only allows interaction between x1 and x2
         bst = xgboost.train(params, dtrain, num_boost_round, evals=[(dtrain, 'train')])
@@ -38,3 +39,20 @@ class TestInteractionConstraints(unittest.TestCase):
         assert np.all(np.abs(diff1 - diff1[0]) < 1e-4)
         diff2 = preds[2] - preds[1]
         assert np.all(np.abs(diff2 - diff2[0]) < 1e-4)
+
+    def test_training_accuracy(self):
+        dtrain = xgboost.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
+        dtest = xgboost.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
+        params = {'eta': 1, 'max_depth': 6, 'objective': 'binary:logistic',
+                  'tree_method': 'hist', 'interaction_constraints': '[[1,2],[2,3,4]]'}
+        num_boost_round = 5
+
+        params['grow_policy'] = 'lossguide'
+        bst = xgboost.train(params, dtrain, num_boost_round)
+        pred_dtest = (bst.predict(dtest) < 0.5)
+        assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
+
+        params['grow_policy'] = 'depthwise'
+        bst = xgboost.train(params, dtrain, num_boost_round)
+        pred_dtest = (bst.predict(dtest) < 0.5)
+        assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1

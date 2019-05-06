@@ -3,7 +3,6 @@
 rm -f *.model*
 
 export DMLC_SUBMIT_CLUSTER=local
-export PYTHONPATH=../../python-package
 submit="timeout 30 python ../../dmlc-core/tracker/dmlc-submit"
 
 echo -e "\n ====== 1. Basic distributed-gpu test with Python: 4 workers; 1 GPU per worker ====== \n"

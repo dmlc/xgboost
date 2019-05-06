@@ -33,13 +33,7 @@ TEST(gpu_predictor, Test) {
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
-  gbm::GBTreeModel model(0.5);
-  model.CommitModel(std::move(trees), 0);
-  model.param.num_output_group = 1;
+  gbm::GBTreeModel model = CreateTestModel();
 
   int n_row = 5;
   int n_col = 5;
@@ -88,6 +82,46 @@ TEST(gpu_predictor, Test) {
   }
 
   delete dmat;
+}
+
+TEST(gpu_predictor, ExternalMemoryTest) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  gpu_predictor->Init({}, {});
+  gbm::GBTreeModel model = CreateTestModel();
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
+
+  // Test predict batch
+  HostDeviceVector<float> out_predictions;
+  gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_);
+  for (const auto& v : out_predictions.HostVector()) {
+    ASSERT_EQ(v, 1.5);
+  }
+
+  // Test predict leaf
+  std::vector<float> leaf_out_predictions;
+  gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  EXPECT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+
+  // Test predict contribution
+  std::vector<float> out_contribution;
+  gpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_);
+  for (const auto& v : out_contribution) {
+    ASSERT_EQ(v, 1.5);
+  }
+
+  // Test predict contribution (approximate method)
+  std::vector<float> out_contribution_approximate;
+  gpu_predictor->PredictContribution(dmat.get(), &out_contribution_approximate, model, true);
+  EXPECT_EQ(out_contribution_approximate.size(), dmat->Info().num_row_);
+  for (const auto& v : out_contribution_approximate) {
+    ASSERT_EQ(v, 1.5);
+  }
 }
 
 #if defined(XGBOOST_USE_NCCL)
@@ -181,13 +215,7 @@ TEST(gpu_predictor, MGPU_Test) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
-    std::vector<std::unique_ptr<RegTree>> trees;
-    trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-    (*trees.back())[0].SetLeaf(1.5f);
-    (*trees.back()).Stat(0).sum_hess = 1.0f;
-    gbm::GBTreeModel model(0.5);
-    model.CommitModel(std::move(trees), 0);
-    model.param.num_output_group = 1;
+    gbm::GBTreeModel model = CreateTestModel();
 
     // Test predict batch
     HostDeviceVector<float> gpu_out_predictions;

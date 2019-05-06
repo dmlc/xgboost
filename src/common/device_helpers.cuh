@@ -13,6 +13,7 @@
 #include "span.h"
 
 #include <algorithm>
+#include <omp.h>
 #include <chrono>
 #include <ctime>
 #include <cub/cub.cuh>
@@ -781,6 +782,29 @@ void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
                                        });
 }
 
+class SaveCudaContext {
+ private:
+  int saved_device_;
+
+ public:
+  template <typename Functor>
+  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
+    // When compiled with CUDA but running on CPU only device,
+    // cudaGetDevice will fail.
+    try {
+      safe_cuda(cudaGetDevice(&saved_device_));
+    } catch (const dmlc::Error &except) {
+      saved_device_ = -1;
+    }
+    func();
+  }
+  ~SaveCudaContext() {
+    if (saved_device_ != -1) {
+      safe_cuda(cudaSetDevice(saved_device_));
+    }
+  }
+};
+
 /**
  * \class AllReducer
  *
@@ -806,8 +830,18 @@ class AllReducer {
                  allreduce_calls_(0) {}
 
   /**
-   * \fn  void Init(const std::vector<int> &device_ordinals)
-   *
+   * \brief If we are using a single GPU only
+   */
+  bool IsSingleGPU() {
+#ifdef XGBOOST_USE_NCCL
+    CHECK(device_counts.size() > 0) << "AllReducer not initialised.";
+    return device_counts.size() <= 1 && device_counts.at(0) == 1;
+#else
+    return true;
+#endif
+  }
+
+  /**
    * \brief Initialise with the desired device ordinals for this communication
    * group.
    *
@@ -985,6 +1019,22 @@ class AllReducer {
 #endif
   };
 
+  /**
+   * \brief Synchronizes the device 
+   *
+   * \param device_id Identifier for the device.
+   */
+  void Synchronize(int device_id) {
+#ifdef XGBOOST_USE_NCCL
+    SaveCudaContext([&]() {
+      dh::safe_cuda(cudaSetDevice(device_id));
+      int idx = std::find(device_ordinals.begin(), device_ordinals.end(), device_id) - device_ordinals.begin();
+      CHECK(idx < device_ordinals.size());
+      dh::safe_cuda(cudaStreamSynchronize(streams[idx]));
+    });
+#endif
+  };
+
 #ifdef XGBOOST_USE_NCCL
   /**
    * \fn  ncclUniqueId GetUniqueId()
@@ -1009,29 +1059,6 @@ class AllReducer {
 #endif
 };
 
-class SaveCudaContext {
- private:
-  int saved_device_;
-
- public:
-  template <typename Functor>
-  explicit SaveCudaContext (Functor func) : saved_device_{-1} {
-    // When compiled with CUDA but running on CPU only device,
-    // cudaGetDevice will fail.
-    try {
-      safe_cuda(cudaGetDevice(&saved_device_));
-    } catch (const dmlc::Error &except) {
-      saved_device_ = -1;
-    }
-    func();
-  }
-  ~SaveCudaContext() {
-    if (saved_device_ != -1) {
-      safe_cuda(cudaSetDevice(saved_device_));
-    }
-  }
-};
-
 /**
  * \brief Executes some operation on each element of the input vector, using a
  * single controlling thread for each element. In addition, passes the shard index
@@ -1046,11 +1073,15 @@ class SaveCudaContext {
 template <typename T, typename FunctionT>
 void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
   SaveCudaContext{[&]() {
+    // Temporarily turn off dynamic so we have a guaranteed number of threads
+    bool dynamic = omp_get_dynamic();
+    omp_set_dynamic(false);
     const long shards_size = static_cast<long>(shards->size());
 #pragma omp parallel for schedule(static, 1) if (shards_size > 1)
     for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
+    omp_set_dynamic(dynamic);
   }};
 }
 

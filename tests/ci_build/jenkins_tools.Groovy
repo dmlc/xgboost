@@ -6,20 +6,6 @@
 // Command to run command inside a docker container
 dockerRun = 'tests/ci_build/ci_build.sh'
 
-// initialize source codes
-def checkoutSrcs() {
-  retry(5) {
-    try {
-      timeout(time: 2, unit: 'MINUTES') {
-        checkout scm
-        sh 'git submodule update --init'
-      }
-    } catch (exc) {
-      deleteDir()
-      error "Failed to fetch source codes"
-    }
-  }
-}
 
 /**
  * Creates cmake and make builds

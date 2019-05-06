@@ -13,7 +13,7 @@
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
  * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'Reshard' method
+ * allocate/resize memory explicitly, and use the 'Shard' method
  * to specify the devices.
  *
  * Accessing underlying data:<br/>
@@ -97,6 +97,8 @@ class GPUDistribution {
     offsets_(std::move(offsets)) {}
 
  public:
+  static GPUDistribution Empty() { return GPUDistribution(); }
+
   static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }
 
   static GPUDistribution Overlap(GPUSet devices, int overlap) {
@@ -257,11 +259,15 @@ class HostDeviceVector {
 
   /*!
    * \brief Specify memory distribution.
-   *
-   *   If GPUSet::Empty() is used, all data will be drawn back to CPU.
    */
-  void Reshard(const GPUDistribution& distribution) const;
-  void Reshard(GPUSet devices) const;
+  void Shard(const GPUDistribution &distribution) const;
+  void Shard(GPUSet devices) const;
+
+  /*!
+   * \brief Change memory distribution.
+   */
+  void Reshard(const GPUDistribution &distribution);
+
   void Resize(size_t new_size, T v = T());
 
  private:

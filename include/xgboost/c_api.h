@@ -20,9 +20,6 @@
 #include <stdint.h>
 #endif  // __cplusplus
 
-// XGBoost C API will include APIs in Rabit C API
-#include <rabit/c_api.h>
-
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
