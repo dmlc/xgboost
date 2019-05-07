@@ -64,7 +64,7 @@ except ImportError:
 
     class CUDF_CPP(object):
         """ dummy object for cudf.bindings.cudf_cpp """
-        def column_view_handle(self, object):
+        def column_view_handle(self, *args, **kwargs):
             """ dummy function for extracting cuDF column handle """
             return
         pass
