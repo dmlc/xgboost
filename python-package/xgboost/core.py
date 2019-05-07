@@ -19,7 +19,7 @@ import warnings
 import numpy as np
 import scipy.sparse
 
-from .compat import (STRING_TYPES, PY3, DataFrame, CUDF, CUDF_COL, CUDF_CPP, MultiIndex, py_str,
+from .compat import (STRING_TYPES, PY3, DataFrame, CUDF, CUDF_COL, MultiIndex, py_str,
                      PANDAS_INSTALLED, DataTable)
 from .libpath import find_lib_path
 
@@ -436,7 +436,7 @@ class DMatrix(object):
         Initialize data from a GPU data frame.
         """
         self.handle = ctypes.c_void_p()
-        col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(df[col]._column)) for col in df.columns]
+        col_ptrs = [ctypes.c_void_p(df[col]._column._handle) for col in df.columns]
         col_ptr_arr = (ctypes.c_void_p * len(col_ptrs))(*col_ptrs)
         _check_call(_LIB.XGDMatrixCreateFromCUDF
                     (col_ptr_arr,
@@ -641,9 +641,9 @@ class DMatrix(object):
     def set_cudf_info(self, field, data):
         col_ptrs = []
         if isinstance(data, CUDF):
-            col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(data[col]._column)) for col in data.columns]
+            col_ptrs = [ctypes.c_void_p(data[col]._column._handle) for col in data.columns]
         else:
-            col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(data._column))]
+            col_ptrs = [ctypes.c_void_p(data._column._handle)]
         col_ptr_arr = (ctypes.c_void_p * len(col_ptrs))(*col_ptrs)
         _check_call(_LIB.XGDMatrixSetCUDFInfo
                     (self.handle, c_str(field),

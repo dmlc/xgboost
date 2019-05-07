@@ -50,7 +50,6 @@ except ImportError:
 try:
     from cudf.dataframe import DataFrame as CUDF
     from cudf.dataframe.column import Column as CUDF_COL
-    from cudf.bindings import cudf_cpp as CUDF_CPP
     CUDF_INSTALLED = True
 except ImportError:
 
@@ -60,13 +59,6 @@ except ImportError:
 
     class CUDF_COL(object):
         """ dummy object for cudf.dataframe.column.Column """
-        pass
-
-    class CUDF_CPP(object):
-        """ dummy object for cudf.bindings.cudf_cpp """
-        def column_view_handle(self, *args, **kwargs):
-            """ dummy function for extracting cuDF column handle """
-            return
         pass
 
     CUDF_INSTALLED = False
