@@ -153,6 +153,49 @@ Now, we have a DataFrame containing only two columns, "features" which contains 
 "sepal length", "sepal width", "petal length" and "petal width" and "classIndex" which has Double-typed
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
+Dealing with missing values
+~~~~~~~~~~~~~~~~~~~~~~
+
+Strategies to handle missing values (and therefore overcome issues as above):
+
+In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
+The choice of approach depends on the value representing 'missing' which fall into four different categories:
+
+1. 0
+2. NaN
+3. Null
+4. Any other value which is not mentioned in (1) / (2) / (3)
+
+We introduce the following approaches dealing with missing value and their fitting scenarios:
+
+1. Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
+2. Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
+3. Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
+4. Nothing to be done, used in (1). 
+
+Then, XGBoost will automatically learn what's the ideal direction to go when a value is missing, based on that value and strategy.
+
+Example of setting a missing value (e.g. -999) to the "missing" parameter in XGBoostClassifier:
+
+.. code-block:: scala
+
+  import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
+  val xgbParam = Map("eta" -> 0.1f,
+        "missing" -> -999,
+        "objective" -> "multi:softprob",
+        "num_class" -> 3,
+        "num_round" -> 100,
+        "num_workers" -> 2)
+  val xgbClassifier = new XGBoostClassifier(xgbParam).
+        setFeaturesCol("features").
+        setLabelCol("classIndex")
+
+.. note:: Using 0 to represent meaningful value
+
+Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
+
+In this case, users are also supposed to transform 0 to some other values to avoid the issue.
+
 Training
 ========
 
