@@ -239,6 +239,8 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
   gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
 
   gbm::GBTreeModel model = CreateTestModel();
+  const int n_classes = 3;
+  model.param.num_output_group = n_classes;
   std::vector<std::unique_ptr<DMatrix>> dmats;
   dmats.push_back(CreateSparsePageDMatrix(9, 64UL));
   dmats.push_back(CreateSparsePageDMatrix(128, 128UL));
@@ -247,9 +249,12 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
     // Test predict batch
     HostDeviceVector<float> out_predictions;
     gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_);
-    for (const auto& v : out_predictions.HostVector()) {
-      ASSERT_EQ(v, 1.5);
+    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
+    const std::vector<float> &host_vector = out_predictions.ConstHostVector();
+    for (int i = 0; i < host_vector.size() / n_classes; i++) {
+      ASSERT_EQ(host_vector[i * n_classes], 1.5);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
     }
   }
 }
