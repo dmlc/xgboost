@@ -19,7 +19,7 @@ import warnings
 import numpy as np
 import scipy.sparse
 
-from .compat import (STRING_TYPES, PY3, DataFrame, CUDF, CUDF_COL, CUDF_FFI, MultiIndex, py_str,
+from .compat import (STRING_TYPES, PY3, DataFrame, CUDF, CUDF_COL, CUDF_CPP, MultiIndex, py_str,
                      PANDAS_INSTALLED, DataTable)
 from .libpath import find_lib_path
 
@@ -436,10 +436,10 @@ class DMatrix(object):
         Initialize data from a GPU data frame.
         """
         self.handle = ctypes.c_void_p()
-        col_ptrs = [df[col]._column.cffi_view for col in df.columns]
-        col_ptr_arr = CUDF_FFI.new('gdf_column*[]', col_ptrs)
+        col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(df[col]._column)) for col in df.columns]
+        col_ptr_arr = (ctypes.c_void_p * len(col_ptrs))(*col_ptrs)
         _check_call(_LIB.XGDMatrixCreateFromCUDF
-                    (ctypes.c_void_p(int(CUDF_FFI.cast('uintptr_t', col_ptr_arr))),
+                    (col_ptr_arr,
                      ctypes.c_size_t(len(df.columns)),
                      ctypes.byref(self.handle)))
         
@@ -641,14 +641,13 @@ class DMatrix(object):
     def set_cudf_info(self, field, data):
         col_ptrs = []
         if isinstance(data, CUDF):
-            col_ptrs = [data[col]._column.cffi_view for col in data.columns]
+            col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(data[col]._column)) for col in data.columns]
         else:
-            # data is a single CUDF column
-            col_ptrs = [data.cffi_view]
-        col_ptr_arr = CUDF_FFI.new('gdf_column*[]', col_ptrs)
+            col_ptrs = [ctypes.c_void_p(CUDF_CPP.column_view_handle(data._column))]
+        col_ptr_arr = (ctypes.c_void_p * len(col_ptrs))(*col_ptrs)
         _check_call(_LIB.XGDMatrixSetCUDFInfo
                     (self.handle, c_str(field),
-                     ctypes.c_void_p(int(CUDF_FFI.cast('uintptr_t', col_ptr_arr))),
+                     col_ptr_arr,
                      ctypes.c_size_t(len(col_ptrs))))
 
     def set_uint_info(self, field, data):

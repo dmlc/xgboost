@@ -50,7 +50,7 @@ except ImportError:
 try:
     from cudf.dataframe import DataFrame as CUDF
     from cudf.dataframe.column import Column as CUDF_COL
-    from libgdf_cffi import ffi as CUDF_FFI
+    from cudf.bindings import cudf_cpp as CUDF_CPP
     CUDF_INSTALLED = True
 except ImportError:
 
@@ -62,13 +62,12 @@ except ImportError:
         """ dummy object for cudf.dataframe.column.Column """
         pass
 
-    class CUDF_FFI(object):
-        """ dummy object for libgdf_cffi.ffi ... FFI bindings to cudf """
-        def new(self, *args, **kwargs):
-            pass
-
-        def cast(self, *args, **kwargs):
-            pass
+    class CUDF_CPP(object):
+        """ dummy object for cudf.bindings.cudf_cpp """
+        def column_view_handle(self, object):
+            """ dummy function for extracting cuDF column handle """
+            return
+        pass
 
     CUDF_INSTALLED = False
 

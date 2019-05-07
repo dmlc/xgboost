@@ -61,8 +61,6 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
-  GPUSet devices = GPUSet::Range(0, 1);
-  batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
 
   common::HistCutMatrix cmat;
   cmat.row_ptr = {0, 3, 6, 9, 12, 15, 18, 21, 24};
