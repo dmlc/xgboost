@@ -24,6 +24,7 @@ import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
@@ -157,13 +158,17 @@ object XGBoost extends Serializable {
     try {
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
-      if (numEarlyStoppingRounds > 0) {
-        if (!params.contains("maximize_evaluation_metrics")) {
-          throw new IllegalArgumentException("maximize_evaluation_metrics has to be specified")
-        }
+      val overridedParams = if (numEarlyStoppingRounds > 0 &&
+          !params.contains("maximize_evaluation_metrics")) {
+        val eval_metric = params("eval_metric").toString
+        val maximize = LearningTaskParams.evalMetricsToMaximize contains eval_metric
+        logger.info("parameter \"maximize_evaluation_metrics\" is set to " + maximize)
+        params + ("maximize_evaluation_metrics" -> maximize)
+      } else {
+        params
       }
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
-      val booster = SXGBoost.train(watches.toMap("train"), params, round,
+      val booster = SXGBoost.train(watches.toMap("train"), overridedParams, round,
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
