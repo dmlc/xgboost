@@ -361,6 +361,7 @@ class GPUPredictor : public xgboost::Predictor {
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
+      // TODO(rongou): only copy the model once for all the batches.
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, dmat->Info(), out_preds, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
