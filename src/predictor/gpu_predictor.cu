@@ -268,6 +268,9 @@ class GPUPredictor : public xgboost::Predictor {
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
      size_t tree_begin, size_t tree_end) {
+      if (predictions->DeviceSize(device_) == 0) {
+        return;
+      }
       dh::safe_cuda(cudaSetDevice(device_));
       nodes_.resize(h_nodes.size());
       dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
