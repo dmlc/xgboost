@@ -225,15 +225,20 @@ class GPUPredictor : public xgboost::Predictor {
     auto& offsets = *out_offsets;
     offsets.resize(devices_.Size() + 1);
     offsets[0] = 0;
+    auto host_data = data.ConstHostVector();
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
       auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
-      // copy the last element from every shard
-      dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
-                               &data_span[data_span.size()-1],
-                               sizeof(size_t), cudaMemcpyDeviceToHost));
+      if (data_span.size() == 0) {
+        offsets[shard + 1] = host_data[data.Size() - 1];
+      } else {
+        // copy the last element from every shard
+        dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
+                                 &data_span[data_span.size()-1],
+                                 sizeof(size_t), cudaMemcpyDeviceToHost));
+      }
     }
   }
 
@@ -351,7 +356,7 @@ class GPUPredictor : public xgboost::Predictor {
                               model.param.num_output_group, &out_preds_offsets);
       out_preds->Reshard(GPUDistribution::Explicit(devices_, out_preds_offsets));
 
-      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+      batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
@@ -362,7 +367,6 @@ class GPUPredictor : public xgboost::Predictor {
       });
       batch_offset += batch.Size() * model.param.num_output_group;
     }
-
     out_preds->Reshard(GPUDistribution::Granular(devices_, model.param.num_output_group));
 
     monitor_.StopCuda("DevicePredictInternal");
