@@ -225,14 +225,13 @@ class GPUPredictor : public xgboost::Predictor {
     auto& offsets = *out_offsets;
     offsets.resize(devices_.Size() + 1);
     offsets[0] = 0;
-    auto host_data = data.ConstHostVector();
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
       auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
       if (data_span.size() == 0) {
-        offsets[shard + 1] = host_data[data.Size() - 1];
+        offsets[shard + 1] = data.ConstHostVector().back();
       } else {
         // copy the last element from every shard
         dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
@@ -273,9 +272,7 @@ class GPUPredictor : public xgboost::Predictor {
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
      size_t tree_begin, size_t tree_end) {
-      if (predictions->DeviceSize(device_) == 0) {
-        return;
-      }
+      if (predictions->DeviceSize(device_) == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
       nodes_.resize(h_nodes.size());
       dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
@@ -295,7 +292,6 @@ class GPUPredictor : public xgboost::Predictor {
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize(device_) - 1;
       if (num_rows < 1) { return; }
-
       const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
