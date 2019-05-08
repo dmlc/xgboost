@@ -237,14 +237,19 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
+  // This function populates the explicit offsets that can be used to create a window into the
+  // underlying host vector. The window starts from the `batch_offset` and has a size of
+  // `batch_size`, and is sharded across all the devices. Each shard is granular depending on
+  // the number of output classes `n_classes`.
   void PredictionDeviceOffsets(size_t total_size, size_t batch_offset, size_t batch_size,
                                int n_classes, std::vector<size_t>* out_offsets) {
     auto& offsets = *out_offsets;
     size_t n_shards = devices_.Size();
     offsets.resize(n_shards + 2);
-    size_t rows_per_shard = (batch_size + n_shards - 1) / n_shards;
-    for (int shard = 0; shard < devices_.Size(); ++shard) {
-      offsets[shard] = batch_offset + shard * rows_per_shard * n_classes;
+    size_t rows_per_shard = dh::DivRoundUp(batch_size, n_shards);
+    for (size_t shard = 0; shard < devices_.Size(); ++shard) {
+      size_t n_rows = std::min(batch_size, shard * rows_per_shard);
+      offsets[shard] = batch_offset + n_rows * n_classes;
     }
     offsets[n_shards] = batch_offset + batch_size * n_classes;
     offsets[n_shards + 1] = total_size;
@@ -338,8 +343,6 @@ class GPUPredictor : public xgboost::Predictor {
 
     size_t batch_offset = 0;
     for (auto &batch : dmat->GetRowBatches()) {
-      GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size());
-      ConfigureShards(devices);
       std::vector<size_t> out_preds_offsets;
       PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
                               model.param.num_output_group, &out_preds_offsets);
@@ -357,8 +360,6 @@ class GPUPredictor : public xgboost::Predictor {
       batch_offset += batch.Size() * model.param.num_output_group;
     }
 
-    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, dmat->Info().num_row_);
-    ConfigureShards(devices);
     out_preds->Reshard(GPUDistribution::Granular(devices_, model.param.num_output_group));
 
     monitor_.StopCuda("DevicePredictInternal");
