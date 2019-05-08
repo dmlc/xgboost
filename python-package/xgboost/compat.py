@@ -50,7 +50,6 @@ except ImportError:
 try:
     from cudf.dataframe import DataFrame as CUDF
     from cudf.dataframe.column import Column as CUDF_COL
-    from libgdf_cffi import ffi as CUDF_FFI
     CUDF_INSTALLED = True
 except ImportError:
 
@@ -61,14 +60,6 @@ except ImportError:
     class CUDF_COL(object):
         """ dummy object for cudf.dataframe.column.Column """
         pass
-
-    class CUDF_FFI(object):
-        """ dummy object for libgdf_cffi.ffi ... FFI bindings to cudf """
-        def new(self, *args, **kwargs):
-            pass
-
-        def cast(self, *args, **kwargs):
-            pass
 
     CUDF_INSTALLED = False
 

@@ -5,7 +5,6 @@ try:
 except ImportError as e:
     print("Failed to import cuDF: " + str(e))
     print("Skipping this test")
-    return 0
 from sklearn import datasets
 import sys
 import unittest
