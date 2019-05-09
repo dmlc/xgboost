@@ -327,7 +327,7 @@ struct GPUSketcher {
          public:
           explicit ColLocker(std::atomic_flag *lock)
             : col_lock_(lock) {
-              while (col_lock_->test_and_set());
+              while (col_lock_->test_and_set()) {}
             }
           ~ColLocker() {
             col_lock_->clear();
@@ -386,10 +386,10 @@ struct GPUSketcher {
 
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, SketchContainer &sketch_container,
+   const tree::TrainParam& param, SketchContainer *sketch_container,
    int gpu_batch_nrows) {
   GPUSketcher sketcher(param, info.num_row_);
-  sketcher.Sketch(batch, info, &sketch_container, gpu_batch_nrows);
+  sketcher.Sketch(batch, info, sketch_container, gpu_batch_nrows);
 }
 
 }  // namespace common

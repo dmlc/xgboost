@@ -1465,7 +1465,7 @@ class GPUHistMakerSpecialised{
       sketch_container.col_locks_[icol].reset(new std::atomic_flag(ATOMIC_FLAG_INIT)); // NOLINT
     }
 
-    size_t row_stride(0); // Max row_stride across the entire dataset
+    size_t row_stride(0);  // Max row_stride across the entire dataset
     size_t processed_size(0);
 
     // Rows allocated to each GPU in a batch
@@ -1489,7 +1489,7 @@ class GPUHistMakerSpecialised{
       }rowgd(info_, batch);
 
       // Find the cuts for each batch
-      common::DeviceSketch(batch, *info_, param_, sketch_container,
+      common::DeviceSketch(batch, *info_, param_, &sketch_container,
                            hist_maker_param_.gpu_batch_nrows);
       const auto &offset_vec = batch.offset.HostVector();
       for (size_t i = 1; i < offset_vec.size(); ++i) {
@@ -1504,9 +1504,8 @@ class GPUHistMakerSpecialised{
         ssize_t rem_elems = shards_[i]->row_end_idx - processed_size;
         if (num_elems <= 0 || rem_elems <= 0) {
           batch_allocation[i] = 0;
-        }
-        // How many elements do I process from this batch?
-        else {
+        } else {
+          // How many elements do I process from this batch?
           num_elems = std::min(
                         std::min(
                           std::min(num_elems, rem_elems),

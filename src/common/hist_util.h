@@ -10,6 +10,7 @@
 #include <xgboost/data.h>
 #include <limits>
 #include <vector>
+#include <memory>
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
@@ -130,7 +131,7 @@ struct SketchContainer {
 /*! \brief Builds the cut matrix on the GPU */
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, SketchContainer &sketches,
+   const tree::TrainParam& param, SketchContainer *sketches,
    int gpu_batch_nrows);
 
 
