@@ -115,10 +115,24 @@ struct HistCutMatrix {
   Monitor monitor_;
 };
 
+/*!
+ * \brief A container that holds the device sketches across all
+ *  sparse page batches which are distributed to different devices.
+ *  As sketches are aggregated by column, the atomic flag simulates
+ *  a lock in user land when multiple devices could be pushing
+ *  sketch summary for the same column across distinct rows.
+ */
+struct SketchContainer {
+  std::vector<HistCutMatrix::WXQSketch> sketches_;
+  std::vector<std::unique_ptr<std::atomic_flag>> col_locks_;
+};
+
 /*! \brief Builds the cut matrix on the GPU */
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows);
+   const tree::TrainParam& param, SketchContainer &sketches,
+   int gpu_batch_nrows);
+
 
 /*!
  * \brief A single row in global histogram index.

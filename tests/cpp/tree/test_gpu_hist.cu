@@ -77,7 +77,13 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
 
   auto is_dense = (*dmat)->Info().num_nonzero_ ==
                   (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
-  shard->InitCompressedData(cmat, batch, is_dense);
+  size_t row_stride = 0;
+  const auto &offset_vec = batch.offset.HostVector();
+  for (size_t i = 1; i < offset_vec.size(); ++i) {
+    row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
+  }
+  shard->InitCompressedData(cmat, row_stride, is_dense);
+  shard->CreateHistIndices(batch, 0, std::vector<size_t>(1, batch.Size()), cmat.row_ptr.back(), -1);
 
   delete dmat;
 }
@@ -485,5 +491,45 @@ TEST(GpuHist, SortPosition) {
   TestSortPosition({2, 2, 2, 2}, 1, 2);
   TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
 }
+
+TEST(GpuHist, TestHistogramIndex) {
+  // Test if the compressed histogram index matches when using a sparse
+  // dmatrix with and without using external memory
+
+  int constexpr kNRows = 1000, kNCols = 10;
+
+  // Build 2 matrices and build a histogram maker with that
+  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker, hist_maker_ext;
+  std::unique_ptr<DMatrix> hist_maker_dmat(
+    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
+  std::unique_ptr<DMatrix> hist_maker_ext_dmat(
+    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
+
+  std::vector<std::pair<std::string, std::string>> training_params;
+  training_params.push_back({"max_depth", "1"});
+  training_params.push_back({"max_leaves", "0"});
+  training_params.push_back({"n_gpus", "1"});
+
+  hist_maker.Init(training_params);
+  hist_maker.InitDataOnce(hist_maker_dmat.get());
+  hist_maker_ext.Init(training_params);
+  hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
+
+  // Extract the device shards from the histogram makers and from that its compressed
+  // histogram index
+  const auto &dev_shard = hist_maker.shards_[0];
+  std::vector<common::CompressedByteT> h_gidx_buffer(dev_shard->gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&h_gidx_buffer, dev_shard->gidx_buffer);
+
+  const auto &dev_shard_ext = hist_maker_ext.shards_[0];
+  std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
+
+  ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
+  ASSERT_EQ(dev_shard->gidx_buffer.size(), dev_shard_ext->gidx_buffer.size());
+
+  ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
+}
+
 }  // namespace tree
 }  // namespace xgboost
