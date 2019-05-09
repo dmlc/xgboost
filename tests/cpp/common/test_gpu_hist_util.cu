@@ -20,7 +20,7 @@ namespace common {
 void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
   // create the data
   int nrows = 10001;
-  std::shared_ptr<xgboost::DMatrix> *dmat = NULL;
+  std::shared_ptr<xgboost::DMatrix> *dmat = nullptr;
 
   size_t num_cols = 1;
   if (!use_external_memory) {
@@ -54,10 +54,10 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
   std::string gpu_batch_nrows; CONVERT_TO_STR(gpu_batch_nrows, -1)
 
   std::vector<std::pair<std::string, std::string>> training_params;
-  training_params.push_back({"max_bin", max_bin});
-  training_params.push_back({"debug_synchronize", debug_synchronize});
-  training_params.push_back({"n_gpus", n_gpus});
-  training_params.push_back({"gpu_batch_nrows", gpu_batch_nrows});
+  training_params.emplace_back(std::make_pair("max_bin", max_bin));
+  training_params.emplace_back(std::make_pair("debug_synchronize", debug_synchronize));
+  training_params.emplace_back(std::make_pair("n_gpus", n_gpus));
+  training_params.emplace_back(std::make_pair("gpu_batch_nrows", gpu_batch_nrows));
 
   // find quantiles on the CPU
   HistCutMatrix hmat_cpu;

@@ -506,9 +506,9 @@ TEST(GpuHist, TestHistogramIndex) {
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
 
   std::vector<std::pair<std::string, std::string>> training_params;
-  training_params.push_back({"max_depth", "1"});
-  training_params.push_back({"max_leaves", "0"});
-  training_params.push_back({"n_gpus", "1"});
+  training_params.emplace_back(std::make_pair("max_depth", "1"));
+  training_params.emplace_back(std::make_pair("max_leaves", "0"));
+  training_params.emplace_back(std::make_pair("n_gpus", "1"));
 
   hist_maker.Init(training_params);
   hist_maker.InitDataOnce(hist_maker_dmat.get());

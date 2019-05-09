@@ -96,7 +96,7 @@ struct GPUSketcher {
     bool has_weights_{false};
 
     tree::TrainParam param_;
-    SketchContainer &sketch_container_;
+    SketchContainer *sketch_container_;
     thrust::device_vector<size_t> row_ptrs_;
     thrust::device_vector<Entry> entries_;
     thrust::device_vector<bst_float> fvalues_;
@@ -112,7 +112,7 @@ struct GPUSketcher {
 
    public:
     DeviceShard(int device, bst_uint row_begin, bst_uint row_end,
-                tree::TrainParam param, SketchContainer &sketch_container) :
+                tree::TrainParam param, SketchContainer *sketch_container) :
       device_(device), row_begin_(row_begin), row_end_(row_end),
       n_rows_(row_end - row_begin), param_(std::move(param)), sketch_container_(sketch_container) {
     }
@@ -324,18 +324,18 @@ struct GPUSketcher {
 
         // Spin in user land until we we can grab this lock
         struct ColLocker {
-          ColLocker(std::atomic_flag &lock)
+          explicit ColLocker(std::atomic_flag *lock)
             : lock_(lock) {
-              while (lock.test_and_set());
+              while (lock_->test_and_set());
             }
           ~ColLocker() {
-            lock_.clear();
+            lock_->clear();
           }
 
-          std::atomic_flag &lock_;
-        }lock(*sketch_container_.col_locks_[icol]);
+          std::atomic_flag *lock_;
+        }lock(sketch_container_->col_locks_[icol].get());
 
-        sketch_container_.sketches_[icol].PushSummary(summary);
+        sketch_container_->sketches_[icol].PushSummary(summary);
       }
     }
 
@@ -354,7 +354,7 @@ struct GPUSketcher {
   };
 
   void Sketch(const SparsePage& batch, const MetaInfo& info,
-              SketchContainer &sketch_container, int gpu_batch_nrows) {
+              SketchContainer *sketch_container, int gpu_batch_nrows) {
     // create device shards
     shards_.resize(dist_.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -388,7 +388,7 @@ void DeviceSketch
    const tree::TrainParam& param, SketchContainer &sketch_container,
    int gpu_batch_nrows) {
   GPUSketcher sketcher(param, info.num_row_);
-  sketcher.Sketch(batch, info, sketch_container, gpu_batch_nrows);
+  sketcher.Sketch(batch, info, &sketch_container, gpu_batch_nrows);
 }
 
 }  // namespace common

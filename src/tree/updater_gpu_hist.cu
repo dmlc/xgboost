@@ -1462,7 +1462,7 @@ class GPUHistMakerSpecialised{
 #pragma omp parallel for schedule(static)
     for (int icol = 0; icol < info_->num_col_; ++icol) {
       sketch_container.sketches_[icol].Init(info_->num_row_, 1.0 / (8 * param_.max_bin));
-      sketch_container.col_locks_[icol].reset(new std::atomic_flag(ATOMIC_FLAG_INIT));
+      sketch_container.col_locks_[icol].reset(new std::atomic_flag(ATOMIC_FLAG_INIT)); // NOLINT
     }
 
     size_t row_stride(0); // Max row_stride across the entire dataset
@@ -1502,7 +1502,9 @@ class GPUHistMakerSpecialised{
         // Does this batch pertain to me?
         ssize_t num_elems = processed_size + batch.Size() - shards_[i]->row_begin_idx;
         ssize_t rem_elems = shards_[i]->row_end_idx - processed_size;
-        if (num_elems <= 0 || rem_elems <= 0) batch_allocation[i] = 0;
+        if (num_elems <= 0 || rem_elems <= 0) {
+          batch_allocation[i] = 0;
+        }
         // How many elements do I process from this batch?
         else {
           num_elems = std::min(
