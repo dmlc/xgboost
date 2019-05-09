@@ -225,13 +225,14 @@ class GPUPredictor : public xgboost::Predictor {
     auto& offsets = *out_offsets;
     offsets.resize(devices_.Size() + 1);
     offsets[0] = 0;
+    const size_t last = data.ConstHostVector().back();
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
       auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
       if (data_span.size() == 0) {
-        offsets[shard + 1] = data.ConstHostVector().back();
+        offsets[shard + 1] = last;
       } else {
         // copy the last element from every shard
         dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
@@ -346,10 +347,13 @@ class GPUPredictor : public xgboost::Predictor {
 
     size_t batch_offset = 0;
     for (auto &batch : dmat->GetRowBatches()) {
-      std::vector<size_t> out_preds_offsets;
-      PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
-                              model.param.num_output_group, &out_preds_offsets);
-      out_preds->Reshard(GPUDistribution::Explicit(devices_, out_preds_offsets));
+      bool is_external_memory = batch.Size() < dmat->Info().num_row_;
+      if (is_external_memory) {
+        std::vector<size_t> out_preds_offsets;
+        PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
+                                model.param.num_output_group, &out_preds_offsets);
+        out_preds->Reshard(GPUDistribution::Explicit(devices_, out_preds_offsets));
+      }
 
       batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
@@ -400,6 +404,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
+    out_preds->Shard(GPUDistribution::Granular(devices_, n_classes));
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
