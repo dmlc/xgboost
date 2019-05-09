@@ -53,11 +53,12 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
   // Training every row in a single GPU batch
   std::string gpu_batch_nrows; CONVERT_TO_STR(gpu_batch_nrows, -1)
 
-  std::vector<std::pair<std::string, std::string>> training_params;
-  training_params.emplace_back(std::make_pair("max_bin", max_bin));
-  training_params.emplace_back(std::make_pair("debug_synchronize", debug_synchronize));
-  training_params.emplace_back(std::make_pair("n_gpus", n_gpus));
-  training_params.emplace_back(std::make_pair("gpu_batch_nrows", gpu_batch_nrows));
+  std::vector<std::pair<std::string, std::string>> training_params = {
+    {"max_bin", max_bin},
+    {"debug_synchronize", debug_synchronize},
+    {"n_gpus", n_gpus},
+    {"gpu_batch_nrows", gpu_batch_nrows}
+  };
 
   // find quantiles on the CPU
   HistCutMatrix hmat_cpu;
