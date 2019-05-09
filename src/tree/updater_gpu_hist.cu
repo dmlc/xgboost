@@ -1321,7 +1321,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
   size_t begin_idx(0);
   for (size_t i = 0; i < shard_idx; ++i) begin_idx += shard_allocations[i];
 
-  const auto& offset_vec = row_batch.offset.HostVector();
+  const auto& offset_vec = row_batch.offset.ConstHostVector();
   /*! \brief row offset in SparsePage (the input data). */
   thrust::device_vector<size_t> row_ptrs(num_elems+1);
   thrust::copy(offset_vec.data() + begin_idx,
@@ -1341,7 +1341,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
   } else {
      gpu_batch_nrows = std::min(num_elems, static_cast<size_t>(rows_per_batch));
   }
-  const std::vector<Entry>& data_vec = row_batch.data.HostVector();
+  const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
   thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
   size_t gpu_nbatches = dh::DivRoundUp(num_elems, gpu_batch_nrows);
@@ -1491,7 +1491,7 @@ class GPUHistMakerSpecialised{
       // Find the cuts for each batch
       common::DeviceSketch(batch, *info_, param_, &sketch_container,
                            hist_maker_param_.gpu_batch_nrows);
-      const auto &offset_vec = batch.offset.HostVector();
+      const auto &offset_vec = batch.offset.ConstHostVector();
       for (size_t i = 1; i < offset_vec.size(); ++i) {
         row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
       }

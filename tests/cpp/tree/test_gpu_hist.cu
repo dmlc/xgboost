@@ -78,7 +78,7 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
   auto is_dense = (*dmat)->Info().num_nonzero_ ==
                   (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
   size_t row_stride = 0;
-  const auto &offset_vec = batch.offset.HostVector();
+  const auto &offset_vec = batch.offset.ConstHostVector();
   for (size_t i = 1; i < offset_vec.size(); ++i) {
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
