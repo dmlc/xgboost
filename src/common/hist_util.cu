@@ -324,6 +324,7 @@ struct GPUSketcher {
 
         // Spin in user land until we we can grab this lock
         struct ColLocker {
+         public:
           explicit ColLocker(std::atomic_flag *lock)
             : col_lock_(lock) {
               while (col_lock_->test_and_set());
@@ -331,7 +332,7 @@ struct GPUSketcher {
           ~ColLocker() {
             col_lock_->clear();
           }
-
+         private:
           std::atomic_flag *col_lock_;
         }lock(sketch_container_->col_locks_[icol].get());
 
