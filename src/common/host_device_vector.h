@@ -134,6 +134,7 @@ class GPUDistribution {
     if (size == 0) { return 0; }
     if (offsets_.size() > 0) {
       // explicit offsets are provided
+      CHECK_EQ(offsets_.back(), size);
       return offsets_.at(index);
     }
     // no explicit offsets
@@ -146,7 +147,7 @@ class GPUDistribution {
     if (size == 0) { return 0; }
     if (offsets_.size() > 0) {
       // explicit offsets are provided
-      if (!offsets_.at(index+1)) return 0;
+      CHECK_EQ(offsets_.back(), size);
       return offsets_.at(index + 1)  - offsets_.at(index) +
         (index == devices_.Size() - 1 ? overlap_ : 0);
     }

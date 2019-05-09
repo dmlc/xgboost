@@ -84,14 +84,12 @@ TEST(gpu_predictor, Test) {
   delete dmat;
 }
 
-void
-PredictWithExternalMemory(bool use_mgpu) {
+TEST(gpu_predictor, ExternalMemoryTest) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
   gpu_predictor->Init({}, {});
   gbm::GBTreeModel model = CreateTestModel();
-  // Create very many batches so that sparse pages gets reused
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(64, 8);
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
 
   // Test predict batch
   HostDeviceVector<float> out_predictions;
@@ -124,42 +122,6 @@ PredictWithExternalMemory(bool use_mgpu) {
   for (const auto& v : out_contribution_approximate) {
     ASSERT_EQ(v, 1.5);
   }
-
-  if (use_mgpu) {
-    // Predict using multi-GPU and compare results with ones obtained from single GPU
-    std::unique_ptr<Predictor> mgpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
-    mgpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
-
-    // PredictBatch mutates on the DMatrix, thus changing its distribution. As the distribution
-    // is going to be different due to multiple devices, create another DMatrix for this test
-    std::unique_ptr<DMatrix> mdmat = CreateSparsePageDMatrix(64, 8);
-
-    // Test predict batch
-    HostDeviceVector<float> mout_predictions;
-    mgpu_predictor->PredictBatch(mdmat.get(), &mout_predictions, model, 0);
-    EXPECT_EQ(out_predictions.HostVector(), mout_predictions.HostVector());
-
-    // All of the following prediction happens on the CPU
-    // Test predict leaf
-    std::vector<float> mleaf_out_predictions;
-    mgpu_predictor->PredictLeaf(mdmat.get(), &mleaf_out_predictions, model);
-    EXPECT_EQ(leaf_out_predictions, mleaf_out_predictions);
-
-    // Test predict contribution
-    std::vector<float> mout_contribution;
-    mgpu_predictor->PredictContribution(mdmat.get(), &mout_contribution, model);
-    EXPECT_EQ(out_contribution, mout_contribution);
-
-    // Test predict contribution (approximate method)
-    std::vector<float> mout_contribution_approximate;
-    mgpu_predictor->PredictContribution(mdmat.get(), &mout_contribution_approximate, model, true);
-    EXPECT_EQ(out_contribution_approximate, mout_contribution_approximate);
-  }
-}
-
-TEST(gpu_predictor, ExternalMemoryTest) {
-  PredictWithExternalMemory(false /* use multiple GPUs */);
 }
 
 #if defined(XGBOOST_USE_NCCL)
@@ -270,11 +232,6 @@ TEST(gpu_predictor, MGPU_Test) {
     }
     delete dmat;
   }
-}
-
-// multi-GPU predictor external memory test
-TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
-  PredictWithExternalMemory(true /* use multiple GPUs */);
 }
 #endif  // defined(XGBOOST_USE_NCCL)
 }  // namespace predictor
