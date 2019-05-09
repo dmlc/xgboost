@@ -34,7 +34,7 @@
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
         <flink.version>1.5.0</flink.version>
-        <spark.version>2.4.2</spark.version>
+        <spark.version>2.4.3</spark.version>
         <scala.version>2.11.12</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
     </properties>
