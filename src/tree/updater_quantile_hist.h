@@ -28,41 +28,6 @@
 #include "../common/column_matrix.h"
 
 namespace xgboost {
-
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
- */
-template<typename T, size_t MaxStackSize>
-class MemStackAllocator {
- public:
-  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
-  }
-
-  T* Get() {
-    if (!ptr_) {
-      if (MaxStackSize >= required_size_) {
-        ptr_ = stack_mem_;
-      } else {
-        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
-        do_free_ = true;
-      }
-    }
-
-    return ptr_;
-  }
-
-  ~MemStackAllocator() {
-    if (do_free_) free(ptr_);
-  }
-
-
- private:
-  T* ptr_ = nullptr;
-  bool do_free_ = false;
-  size_t required_size_;
-  T stack_mem_[MaxStackSize];
-};
-
 namespace tree {
 
 using xgboost::common::HistCutMatrix;
