@@ -32,6 +32,10 @@ float SimpleDMatrix::GetColDensity(size_t cidx) {
 class SimpleBatchIteratorImpl : public BatchIteratorImpl {
  public:
   explicit SimpleBatchIteratorImpl(SparsePage* page) : page_(page) {}
+  SparsePage& operator*() override {
+    CHECK(page_ != nullptr);
+    return *page_;
+  }
   const SparsePage& operator*() const override {
     CHECK(page_ != nullptr);
     return *page_;

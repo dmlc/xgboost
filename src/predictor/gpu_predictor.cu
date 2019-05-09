@@ -246,6 +246,7 @@ class GPUPredictor : public xgboost::Predictor {
     void PredictInternal
     (const SparsePage& batch, const MetaInfo& info,
      HostDeviceVector<bst_float>* predictions,
+     const size_t batch_offset,
      const gbm::GBTreeModel& model,
      const thrust::host_vector<size_t>& h_tree_segments,
      const thrust::host_vector<DevicePredictionNode>& h_nodes,
@@ -284,8 +285,8 @@ class GPUPredictor : public xgboost::Predictor {
                                                  data_distr.Devices().Index(device_));
 
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments_),
-         dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
+        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_).subspan(batch_offset),
+         dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
          batch.data.DeviceSpan(device_), tree_begin, tree_end, info.num_col_,
          num_rows, entry_start, use_shared, model.param.num_output_group);
     }
@@ -324,25 +325,27 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     size_t i_batch = 0;
-
-    for (const auto &batch : dmat->GetRowBatches()) {
-      CHECK_EQ(i_batch, 0) << "External memory not supported";
-      // out_preds have been resharded and resized in InitOutPredictions()
-      batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+    size_t batch_offset = 0;
+    for (auto &batch : dmat->GetRowBatches()) {
+      CHECK(i_batch == 0 || devices_.Size() == 1) << "External memory not supported for multi-GPU";
+      // out_preds have been sharded and resized in InitOutPredictions()
+      batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
       DeviceOffsets(batch.offset, &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, dmat->Info(), out_preds, model,
+        shard.PredictInternal(batch, dmat->Info(), out_preds, batch_offset, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
       });
+      batch_offset += batch.Size() * model.param.num_output_group;
       i_batch++;
     }
     monitor_.StopCuda("DevicePredictInternal");
   }
 
  public:
-  GPUPredictor() : cpu_predictor_(Predictor::Create("cpu_predictor")) {}
+  GPUPredictor()                                               // NOLINT
+      : cpu_predictor_(Predictor::Create("cpu_predictor")) {}  // NOLINT
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
@@ -372,7 +375,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Reshard(GPUDistribution::Granular(devices_, n_classes));
+    out_preds->Shard(GPUDistribution::Granular(devices_, n_classes));
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(out_preds->Size(), n);
@@ -391,7 +394,7 @@ class GPUPredictor : public xgboost::Predictor {
         const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           monitor_.StartCuda("PredictFromCache");
-          out_preds->Reshard(y.Distribution());
+          out_preds->Shard(y.Distribution());
           out_preds->Resize(y.Size());
           out_preds->Copy(y);
           monitor_.StopCuda("PredictFromCache");

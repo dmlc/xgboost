@@ -154,10 +154,13 @@ bool HostDeviceVector<T>::DeviceCanAccess(int device, GPUAccess access) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution& distribution) const { }
+void HostDeviceVector<T>::Shard(const GPUDistribution& distribution) const { }
 
 template <typename T>
-void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
+void HostDeviceVector<T>::Shard(GPUSet devices) const { }
+
+template <typename T>
+void Reshard(const GPUDistribution &distribution) { }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;

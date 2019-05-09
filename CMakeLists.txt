@@ -1,8 +1,13 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.3)
 project(xgboost LANGUAGES CXX C VERSION 0.82)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+
+message(STATUS "CMake version ${CMAKE_VERSION}")
+if (MSVC)
+  cmake_minimum_required(VERSION 3.11)
+endif (MSVC)
 
 set_default_configuration_release()
 msvc_use_static_runtime()
@@ -20,8 +25,12 @@ set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable multi-GPU support." OFF)
+option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
+endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -39,6 +48,8 @@ endif (USE_AVX)
 
 # Sanitizer
 if (USE_SANITIZER)
+  # Older CMake versions have had troubles with Sanitizer
+  cmake_minimum_required(VERSION 3.12)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)

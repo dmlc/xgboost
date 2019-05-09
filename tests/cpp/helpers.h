@@ -154,7 +154,7 @@ class SimpleRealUniformDistribution {
 std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
                                                  float sparsity, int seed = 0);
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix();
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_size);
 
 gbm::GBTreeModel CreateTestModel();
 
