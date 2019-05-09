@@ -221,18 +221,19 @@ class GPUPredictor : public xgboost::Predictor {
   };
 
  private:
-  void DeviceOffsets(const HostDeviceVector<size_t>& data, std::vector<size_t>* out_offsets) {
+  void DeviceOffsets(const HostDeviceVector<size_t>& data,
+                     size_t total_size,
+                     std::vector<size_t>* out_offsets) {
     auto& offsets = *out_offsets;
     offsets.resize(devices_.Size() + 1);
     offsets[0] = 0;
-    const size_t last = data.ConstHostVector().back();
 #pragma omp parallel for schedule(static, 1) if (devices_.Size() > 1)
     for (int shard = 0; shard < devices_.Size(); ++shard) {
       int device = devices_.DeviceId(shard);
       auto data_span = data.DeviceSpan(device);
       dh::safe_cuda(cudaSetDevice(device));
       if (data_span.size() == 0) {
-        offsets[shard + 1] = last;
+        offsets[shard + 1] = total_size;
       } else {
         // copy the last element from every shard
         dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
@@ -357,7 +358,7 @@ class GPUPredictor : public xgboost::Predictor {
 
       batch.offset.Shard(GPUDistribution::Overlap(devices_, 1));
       std::vector<size_t> device_offsets;
-      DeviceOffsets(batch.offset, &device_offsets);
+      DeviceOffsets(batch.offset, batch.data.Size(), &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
       // TODO(rongou): only copy the model once for all the batches.
