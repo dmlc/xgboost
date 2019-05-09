@@ -25,8 +25,12 @@ set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable multi-GPU support." OFF)
+option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
+endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
