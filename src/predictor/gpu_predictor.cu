@@ -291,7 +291,6 @@ class GPUPredictor : public xgboost::Predictor {
 
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize(device_) - 1;
-      if (num_rows < 1) { return; }
       const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
