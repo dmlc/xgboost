@@ -160,7 +160,7 @@ object XGBoost extends Serializable {
         .map(_.toString.toInt).getOrElse(0)
       val overridedParams = if (numEarlyStoppingRounds > 0 &&
           !params.contains("maximize_evaluation_metrics")) {
-        if params.contains("custom_eval") {
+        if (params.contains("custom_eval")) {
             throw new IllegalArgumentException("maximize_evaluation_metrics has to be "
                 + "specified when custom_eval is set")
         }
