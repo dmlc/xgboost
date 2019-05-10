@@ -268,7 +268,7 @@ class GPUPredictor : public xgboost::Predictor {
       max_shared_memory_bytes_ = dh::MaxSharedMemory(this->device_);
      }
     void PredictInternal
-    (const SparsePage& batch, const MetaInfo& info,
+    (const SparsePage& batch, bool is_first_batch, const MetaInfo& info,
      HostDeviceVector<bst_float>* predictions,
      const gbm::GBTreeModel& model,
      const thrust::host_vector<size_t>& h_tree_segments,
@@ -276,20 +276,22 @@ class GPUPredictor : public xgboost::Predictor {
      size_t tree_begin, size_t tree_end) {
       if (predictions->DeviceSize(device_) == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
-      nodes_.resize(h_nodes.size());
-      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
-                                    sizeof(DevicePredictionNode) * h_nodes.size(),
-                                    cudaMemcpyHostToDevice));
-      tree_segments_.resize(h_tree_segments.size());
+      if (is_first_batch) {
+        nodes_.resize(h_nodes.size());
+        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
+                                      sizeof(DevicePredictionNode) * h_nodes.size(),
+                                      cudaMemcpyHostToDevice));
 
-      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_segments_), h_tree_segments.data(),
-                                    sizeof(size_t) * h_tree_segments.size(),
-                                    cudaMemcpyHostToDevice));
-      tree_group_.resize(model.tree_info.size());
+        tree_segments_.resize(h_tree_segments.size());
+        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_segments_), h_tree_segments.data(),
+                                      sizeof(size_t) * h_tree_segments.size(),
+                                      cudaMemcpyHostToDevice));
 
-      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_group_), model.tree_info.data(),
-                                    sizeof(int) * model.tree_info.size(),
-                                    cudaMemcpyHostToDevice));
+        tree_group_.resize(model.tree_info.size());
+        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_group_), model.tree_info.data(),
+                                      sizeof(int) * model.tree_info.size(),
+                                      cudaMemcpyHostToDevice));
+      }
 
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize(device_) - 1;
@@ -361,9 +363,9 @@ class GPUPredictor : public xgboost::Predictor {
       DeviceOffsets(batch.offset, batch.data.Size(), &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
-      // TODO(rongou): only copy the model once for all the batches.
+      bool is_first_batch = batch_offset == 0;
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, dmat->Info(), out_preds, model,
+        shard.PredictInternal(batch, is_first_batch, dmat->Info(), out_preds, model,
                               h_tree_segments, h_nodes, tree_begin, tree_end);
       });
       batch_offset += batch.Size() * model.param.num_output_group;
