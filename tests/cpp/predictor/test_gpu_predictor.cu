@@ -198,9 +198,7 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
   CheckCAPICall(XGBoosterFree(bst2));
 }
-#endif  // defined(XGBOOST_USE_NCCL)
 
-#if defined(XGBOOST_USE_NCCL)
 // multi-GPU predictor test
 TEST(gpu_predictor, MGPU_Test) {
   std::unique_ptr<Predictor> gpu_predictor =
@@ -231,6 +229,34 @@ TEST(gpu_predictor, MGPU_Test) {
       ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
     }
     delete dmat;
+  }
+}
+
+// multi-GPU predictor external memory test
+TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
+
+  gbm::GBTreeModel model = CreateTestModel();
+  const int n_classes = 3;
+  model.param.num_output_group = n_classes;
+  std::vector<std::unique_ptr<DMatrix>> dmats;
+  dmats.push_back(CreateSparsePageDMatrix(9, 64UL));
+  dmats.push_back(CreateSparsePageDMatrix(128, 128UL));
+  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL));
+
+  for (const auto& dmat: dmats) {
+    // Test predict batch
+    HostDeviceVector<float> out_predictions;
+    gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
+    const std::vector<float> &host_vector = out_predictions.ConstHostVector();
+    for (int i = 0; i < host_vector.size() / n_classes; i++) {
+      ASSERT_EQ(host_vector[i * n_classes], 1.5);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
+    }
   }
 }
 #endif  // defined(XGBOOST_USE_NCCL)
