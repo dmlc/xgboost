@@ -51,11 +51,11 @@ if [[ "$1" == "-it" ]]; then
     shift 1
 fi
 
-if [[ "$1" == "--build-arg" ]]; then
-    CI_DOCKER_BUILD_ARG+="$1"
+while [[ "$1" == "--build-arg" ]]; do
+    CI_DOCKER_BUILD_ARG+=" $1"
     CI_DOCKER_BUILD_ARG+=" $2"
     shift 2
-fi
+done
 
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
     echo "Invalid Dockerfile path: \"${DOCKERFILE_PATH}\""
