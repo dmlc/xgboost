@@ -68,11 +68,14 @@ endfunction(set_default_configuration_release)
 # Generate nvcc compiler flags given a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
 function(format_gencode_flags flags out)
+  if(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
+    set(CUDA_VERSION "${CMAKE_MATCH_1}")
+  endif()
   # Set up architecture flags
   if(NOT flags)
-    if((CUDA_VERSION_MAJOR EQUAL 10) OR (CUDA_VERSION_MAJOR GREATER 10))
+    if(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;52;60;61;70;75")
-    elseif(CUDA_VERSION_MAJOR EQUAL 9)
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")
       set(flags "35;50;52;60;61;70")
     else()
       set(flags "35;50;52;60;61")
