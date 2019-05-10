@@ -7,6 +7,8 @@
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
+#include <xgboost/range.h>
+#include <xgboost/gpuset.h>
 
 #include "common.h"
 #include "span.h"

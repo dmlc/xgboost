@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 
 /**
@@ -53,6 +53,7 @@
 #define XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
 
 #include <dmlc/logging.h>
+#include <xgboost/gpuset.h>
 
 #include <algorithm>
 #include <cstdlib>

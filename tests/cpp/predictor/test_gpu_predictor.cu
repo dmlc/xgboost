@@ -1,6 +1,6 @@
 
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #include <dmlc/logging.h>
 #include <dmlc/filesystem.h>
@@ -25,10 +25,16 @@ namespace xgboost {
 namespace predictor {
 
 TEST(gpu_predictor, Test) {
+  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
+  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+  gpu_lparam.gpu_id = 0;
+  gpu_lparam.n_gpus = 1;
+  cpu_lparam.gpu_id = 0;
+  cpu_lparam.n_gpus = 1;
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
 
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
@@ -85,8 +91,10 @@ TEST(gpu_predictor, Test) {
 }
 
 TEST(gpu_predictor, ExternalMemoryTest) {
+  auto lparam = CreateEmptyGenericParam(0, 1);
+  lparam.n_gpus = 1;
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Init({}, {});
   gbm::GBTreeModel model = CreateTestModel();
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
@@ -127,8 +135,7 @@ TEST(gpu_predictor, ExternalMemoryTest) {
 #if defined(XGBOOST_USE_NCCL)
 // Test whether pickling preserves predictor parameters
 TEST(gpu_predictor, MGPU_PicklingTest) {
-  int ngpu;
-  dh::safe_cuda(cudaGetDeviceCount(&ngpu));
+  int const ngpu = GPUSet::AllVisible().Size();
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -201,12 +208,14 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
 // multi-GPU predictor test
 TEST(gpu_predictor, MGPU_Test) {
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
+  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
 
-  gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
+
   cpu_predictor->Init({}, {});
 
   for (size_t i = 1; i < 33; i *= 2) {
@@ -234,9 +243,13 @@ TEST(gpu_predictor, MGPU_Test) {
 
 // multi-GPU predictor external memory test
 TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
+  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
+  gpu_lparam.gpu_id = 0;
+  gpu_lparam.n_gpus = -1;
+
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
-  gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  gpu_predictor->Init({}, {});
 
   gbm::GBTreeModel model = CreateTestModel();
   const int n_classes = 3;

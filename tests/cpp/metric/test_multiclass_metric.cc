@@ -4,17 +4,12 @@
 
 #include "../helpers.h"
 
-using Arg = std::pair<std::string, std::string>;
-
-#if defined(__CUDACC__)
-#define N_GPU() Arg{"n_gpus", "1"}
-#else
-#define N_GPU() Arg{"n_gpus", "0"}
-#endif
-
-inline void TestMultiClassError(std::vector<Arg> args) {
-  xgboost::Metric * metric = xgboost::Metric::Create("merror");
-  metric->Configure(args);
+inline void TestMultiClassError(xgboost::GPUSet devices) {
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  lparam.gpu_id = *devices.begin();
+  lparam.n_gpus = devices.Size();
+  xgboost::Metric * metric = xgboost::Metric::Create("merror", &lparam);
+  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));
   EXPECT_NEAR(GetMetricEval(
@@ -28,12 +23,16 @@ inline void TestMultiClassError(std::vector<Arg> args) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
-  TestMultiClassError({N_GPU()});
+  auto devices = xgboost::GPUSet::Range(0, NGPUS());
+  TestMultiClassError(devices);
 }
 
-inline void TestMultiClassLogLoss(std::vector<Arg> args) {
-  xgboost::Metric * metric = xgboost::Metric::Create("mlogloss");
-  metric->Configure(args);
+inline void TestMultiClassLogLoss(xgboost::GPUSet devices) {
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  lparam.gpu_id = *devices.begin();
+  lparam.n_gpus = devices.Size();
+  xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &lparam);
+  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}));
   EXPECT_NEAR(GetMetricEval(
@@ -47,15 +46,27 @@ inline void TestMultiClassLogLoss(std::vector<Arg> args) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
-  TestMultiClassLogLoss({N_GPU()});
+  auto devices = xgboost::GPUSet::Range(0, NGPUS());
+  TestMultiClassLogLoss(devices);
 }
 
 #if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
 TEST(Metric, MGPU_MultiClassError) {
-  TestMultiClassError({Arg{"n_gpus", "-1"}});
-  TestMultiClassError({Arg{"n_gpus", "-1"}, Arg{"gpu_id", "1"}});
-
-  TestMultiClassLogLoss({Arg{"n_gpus", "-1"}});
-  TestMultiClassLogLoss({Arg{"n_gpus", "-1"}, Arg{"gpu_id", "1"}});
+  {
+    auto devices = xgboost::GPUSet::All(0, -1);
+    TestMultiClassError(devices);
+  }
+  {
+    auto devices = xgboost::GPUSet::All(1, -1);
+    TestMultiClassError(devices);
+  }
+  {
+    auto devices = xgboost::GPUSet::All(0, -1);
+    TestMultiClassLogLoss(devices);
+  }
+  {
+    auto devices = xgboost::GPUSet::All(1, -1);
+    TestMultiClassLogLoss(devices);
+  }
 }
 #endif  // defined(XGBOOST_USE_NCCL)

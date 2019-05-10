@@ -18,11 +18,20 @@
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
 #include <xgboost/predictor.h>
+#include <xgboost/generic_parameters.h>
+
+#include "../../src/common/common.h"
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
 #else
 #define DeclareUnifiedTest(name) name
+#endif
+
+#if defined(__CUDACC__)
+#define NGPUS() 1
+#else
+#define NGPUS() 0
 #endif
 
 bool FileExists(const std::string& filename);
@@ -157,6 +166,15 @@ std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_size);
 
 gbm::GBTreeModel CreateTestModel();
+
+inline LearnerTrainParam CreateEmptyGenericParam(int gpu_id, int n_gpus) {
+  xgboost::LearnerTrainParam tparam;
+  std::vector<std::pair<std::string, std::string>> args {
+    {"gpu_id", std::to_string(gpu_id)},
+    {"n_gpus", std::to_string(n_gpus)}};
+  tparam.Init(args);
+  return tparam;
+}
 
 }  // namespace xgboost
 #endif

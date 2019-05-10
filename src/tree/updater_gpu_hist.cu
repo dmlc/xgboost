@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/functional.h>
@@ -1377,13 +1377,16 @@ template <typename GradientSumT>
 class GPUHistMakerSpecialised{
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
-  void Init(
-      const std::vector<std::pair<std::string, std::string>>& args) {
+  void Init(const std::vector<std::pair<std::string, std::string>>& args,
+            LearnerTrainParam const* lparam) {
     param_.InitAllowUnknown(args);
+    learner_param_ = lparam;
     hist_maker_param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";
-    n_devices_ = param_.n_gpus;
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus));
+    auto devices = GPUSet::All(learner_param_->gpu_id,
+                               learner_param_->n_gpus);
+    n_devices_ = devices.Size();
+    CHECK(n_devices_ != 0) << "Must have at least one device";
+    dist_ = GPUDistribution::Block(devices);
 
     dh::CheckComputeCapability();
 
@@ -1446,7 +1449,8 @@ class GPUHistMakerSpecialised{
 
     // Find the cuts.
     monitor_.StartCuda("Quantiles");
-    common::DeviceSketch(batch, *info_, param_, &hmat_, hist_maker_param_.gpu_batch_nrows);
+    common::DeviceSketch(batch, *info_, param_, &hmat_, hist_maker_param_.gpu_batch_nrows,
+                         GPUSet::All(learner_param_->gpu_id, learner_param_->n_gpus));
     n_bins_ = hmat_.row_ptr.back();
     monitor_.StopCuda("Quantiles");
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
@@ -1552,6 +1556,7 @@ class GPUHistMakerSpecialised{
   int n_bins_;
 
   GPUHistMakerTrainParam hist_maker_param_;
+  LearnerTrainParam const* learner_param_;
   common::GHistIndexMatrix gmat_;
 
   dh::AllReducer reducer_;
@@ -1573,10 +1578,10 @@ class GPUHistMaker : public TreeUpdater {
     double_maker_.reset();
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
-      float_maker_->Init(args);
+      float_maker_->Init(args, tparam_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
-      double_maker_->Init(args);
+      double_maker_->Init(args, tparam_);
     }
   }
 

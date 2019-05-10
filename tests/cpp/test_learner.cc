@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "helpers.h"
+
 #include "xgboost/learner.h"
 #include "dmlc/filesystem.h"
 
@@ -114,5 +115,44 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   learner->InitModel();
   learner->UpdateOneIter(0, dmat.get());
 }
+
+#if defined(XGBOOST_USE_CUDA)
+
+// TEST(Learner, IO) {
+//   using Arg = std::pair<std::string, std::string>;
+//   size_t constexpr kRows = 10;
+//   auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+//   auto p_dmat = *pp_dmat;
+//   std::vector<bst_float> labels(kRows);
+//   for (size_t i = 0; i < labels.size(); ++i) {
+//     labels[i] = i;
+//   }
+//   p_dmat->Info().labels_.HostVector() = labels;
+//   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+
+//   std::unique_ptr<Learner> learner {Learner::Create(mat)};
+//   learner->Configure({Arg{"predictor", "gpu_predictor"}});
+//   learner->InitModel();
+//   learner->UpdateOneIter(0, p_dmat.get());
+//   ASSERT_EQ(GPUSet::Global().Size(), 1);
+
+//   dmlc::TemporaryDirectory tempdir;
+//   const std::string fname = tempdir.path + "/model.bst";
+
+//   {
+//     // Create a scope to close the stream before next read.
+//     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+//     learner->Save(fo.get());
+//   }
+
+//   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+//   learner->Load(fi.get());
+//   // Loading will reset the Global GPUSet.
+//   ASSERT_TRUE(GPUSet::Global().IsEmpty());
+
+//   delete pp_dmat;
+// }
+
+#endif  // XGBOOST_USE_CUDA
 
 }  // namespace xgboost

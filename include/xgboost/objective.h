@@ -8,19 +8,24 @@
 #define XGBOOST_OBJECTIVE_H_
 
 #include <dmlc/registry.h>
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
+
 #include <vector>
 #include <utility>
 #include <string>
 #include <functional>
-#include "./data.h"
-#include "./base.h"
-#include "../../src/common/host_device_vector.h"
 
+#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 
 /*! \brief interface of objective function */
 class ObjFunction {
+ protected:
+  LearnerTrainParam const* tparam_;
+
  public:
   /*! \brief virtual destructor */
   virtual ~ObjFunction() = default;
@@ -77,9 +82,10 @@ class ObjFunction {
   }
   /*!
    * \brief Create an objective function according to name.
+   * \param tparam Generic parameters.
    * \param name Name of the objective.
    */
-  static ObjFunction* Create(const std::string& name);
+  static ObjFunction* Create(LearnerTrainParam const* tparam, const std::string& name);
 };
 
 // implementing configure.

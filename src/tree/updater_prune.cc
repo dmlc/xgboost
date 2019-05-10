@@ -22,7 +22,7 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 class TreePruner: public TreeUpdater {
  public:
   TreePruner() {
-    syncher_.reset(TreeUpdater::Create("sync"));
+    syncher_.reset(TreeUpdater::Create("sync", tparam_));
   }
   // set training parameter
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {

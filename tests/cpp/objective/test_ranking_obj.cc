@@ -1,11 +1,15 @@
 // Copyright by Contributors
 #include <xgboost/objective.h>
-
+#include <xgboost/generic_parameters.h>
 #include "../helpers.h"
 
 TEST(Objective, PairwiseRankingGPair) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("rank:pairwise");
-  std::vector<std::pair<std::string, std::string> > args;
+  xgboost::LearnerTrainParam tparam;
+  std::vector<std::pair<std::string, std::string>> args;
+  tparam.InitAllowUnknown(args);
+
+  xgboost::ObjFunction * obj =
+      xgboost::ObjFunction::Create(&tparam, "rank:pairwise");
   obj->Configure(args);
   // Test with setting sample weight to second query group
   CheckRankingObjFunction(obj,

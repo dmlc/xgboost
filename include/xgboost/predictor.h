@@ -7,6 +7,7 @@
 #pragma once
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
 
 #include <functional>
 #include <memory>
@@ -38,6 +39,9 @@ namespace xgboost {
  */
 
 class Predictor {
+ protected:
+  LearnerTrainParam const* learner_param_;
+
  public:
   virtual ~Predictor() = default;
 
@@ -170,7 +174,7 @@ class Predictor {
    *
    */
 
-  static Predictor* Create(std::string name);
+  static Predictor* Create(std::string name, LearnerTrainParam const*);
 
  protected:
   /**

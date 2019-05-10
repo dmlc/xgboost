@@ -8,13 +8,15 @@
 #define XGBOOST_METRIC_H_
 
 #include <dmlc/registry.h>
+#include <xgboost/generic_parameters.h>
+#include <xgboost/data.h>
+#include <xgboost/base.h>
+
 #include <vector>
 #include <string>
 #include <functional>
 #include <utility>
 
-#include "./data.h"
-#include "./base.h"
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
@@ -23,6 +25,9 @@ namespace xgboost {
  *  This has nothing to do with training, but merely act as evaluation purpose.
  */
 class Metric {
+ protected:
+  LearnerTrainParam const* tparam_;
+
  public:
   /*!
    * \brief Configure the Metric with the specified parameters.
@@ -63,7 +68,7 @@ class Metric {
    *  and the name will be matched in the registry.
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name);
+  static Metric* Create(const std::string& name, LearnerTrainParam const* tparam);
 };
 
 /*!
