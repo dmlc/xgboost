@@ -262,37 +262,38 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   struct DeviceShard {
+
     DeviceShard() : device_{-1} {}
+
     void Init(int device) {
       this->device_ = device;
       max_shared_memory_bytes_ = dh::MaxSharedMemory(this->device_);
      }
-    void PredictInternal
-    (const SparsePage& batch, bool is_first_batch, const MetaInfo& info,
-     HostDeviceVector<bst_float>* predictions,
-     const gbm::GBTreeModel& model,
+
+    void InitModel(const gbm::GBTreeModel& model,
      const thrust::host_vector<size_t>& h_tree_segments,
-     const thrust::host_vector<DevicePredictionNode>& h_nodes,
-     size_t tree_begin, size_t tree_end) {
+     const thrust::host_vector<DevicePredictionNode>& h_nodes) {
+      dh::safe_cuda(cudaSetDevice(device_));
+      nodes_.resize(h_nodes.size());
+      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
+                                    sizeof(DevicePredictionNode) * h_nodes.size(),
+                                    cudaMemcpyHostToDevice));
+      tree_segments_.resize(h_tree_segments.size());
+      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_segments_), h_tree_segments.data(),
+                                    sizeof(size_t) * h_tree_segments.size(),
+                                    cudaMemcpyHostToDevice));
+      tree_group_.resize(model.tree_info.size());
+      dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_group_), model.tree_info.data(),
+                                    sizeof(int) * model.tree_info.size(),
+                                    cudaMemcpyHostToDevice));
+    }
+
+    void PredictInternal
+    (const SparsePage& batch, const MetaInfo& info,
+     HostDeviceVector<bst_float>* predictions,
+     size_t tree_begin, size_t tree_end, int n_classes) {
       if (predictions->DeviceSize(device_) == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
-      if (is_first_batch) {
-        nodes_.resize(h_nodes.size());
-        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(nodes_), h_nodes.data(),
-                                      sizeof(DevicePredictionNode) * h_nodes.size(),
-                                      cudaMemcpyHostToDevice));
-
-        tree_segments_.resize(h_tree_segments.size());
-        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_segments_), h_tree_segments.data(),
-                                      sizeof(size_t) * h_tree_segments.size(),
-                                      cudaMemcpyHostToDevice));
-
-        tree_group_.resize(model.tree_info.size());
-        dh::safe_cuda(cudaMemcpyAsync(dh::Raw(tree_group_), model.tree_info.data(),
-                                      sizeof(int) * model.tree_info.size(),
-                                      cudaMemcpyHostToDevice));
-      }
-
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize(device_) - 1;
       const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
@@ -312,7 +313,7 @@ class GPUPredictor : public xgboost::Predictor {
         (dh::ToSpan(nodes_), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments_),
          dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
          batch.data.DeviceSpan(device_), tree_begin, tree_end, info.num_col_,
-         num_rows, entry_start, use_shared, model.param.num_output_group);
+         num_rows, entry_start, use_shared, n_classes);
     }
 
    private:
@@ -363,10 +364,14 @@ class GPUPredictor : public xgboost::Predictor {
       DeviceOffsets(batch.offset, batch.data.Size(), &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
-      bool is_first_batch = batch_offset == 0;
+      if (batch_offset == 0) {
+        dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
+          shard.InitModel(model, h_tree_segments, h_nodes);
+        });
+      }
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, is_first_batch, dmat->Info(), out_preds, model,
-                              h_tree_segments, h_nodes, tree_begin, tree_end);
+        shard.PredictInternal(batch, dmat->Info(), out_preds, tree_begin, tree_end,
+                              model.param.num_output_group);
       });
       batch_offset += batch.Size() * model.param.num_output_group;
     }
