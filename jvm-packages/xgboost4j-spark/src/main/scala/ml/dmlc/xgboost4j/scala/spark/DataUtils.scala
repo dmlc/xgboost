@@ -69,7 +69,7 @@ object DataUtils extends Serializable {
       case v: DenseVector =>
         XGBLabeledPoint(0.0f, null, v.values.map(_.toFloat))
       case v: SparseVector =>
-        XGBLabeledPoint(0.0f, v.indices, v.values.map(_.toFloat))
+        XGBLabeledPoint(0.0f, null, v.toArray.map(_.toFloat))
     }
   }
 
@@ -91,17 +91,17 @@ object DataUtils extends Serializable {
     dataFrames.toArray.map {
       df => df.select(selectedColumns: _*).rdd.map {
         case Row(label: Float, features: Vector, weight: Float, group: Int, baseMargin: Float) =>
-          val (indices, values) = features match {
-            case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-            case v: DenseVector => (null, v.values.map(_.toFloat))
+          val values = features match {
+            case v: SparseVector => v.toArray.map(_.toFloat)
+            case v: DenseVector => v.values.map(_.toFloat)
           }
-          XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
+          XGBLabeledPoint(label, null, values, weight, group, baseMargin)
         case Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
-          val (indices, values) = features match {
-            case v: SparseVector => (v.indices, v.values.map(_.toFloat))
-            case v: DenseVector => (null, v.values.map(_.toFloat))
+          val values = features match {
+            case v: SparseVector => v.toArray.map(_.toFloat)
+            case v: DenseVector => v.values.map(_.toFloat)
           }
-          XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
+          XGBLabeledPoint(label, null, values, weight, baseMargin = baseMargin)
       }
     }
   }
