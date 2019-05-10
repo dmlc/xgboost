@@ -110,6 +110,9 @@ class GPUDistribution {
     return GPUDistribution(devices, granularity, 0, std::vector<size_t>());
   }
 
+  // NOTE(rongou): Explicit offsets don't necessarily cover the whole vector. Sections before the
+  // first shard or after the last shard may be on host only. This windowing is done in the GPU
+  // predictor for external memory support.
   static GPUDistribution Explicit(GPUSet devices, std::vector<size_t> offsets) {
     return GPUDistribution(devices, 1, 0, std::move(offsets));
   }
