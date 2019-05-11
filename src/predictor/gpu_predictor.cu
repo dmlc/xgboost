@@ -324,13 +324,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t max_shared_memory_bytes_;
   };
 
-  void DevicePredictInternal(DMatrix* dmat,
-                             HostDeviceVector<bst_float>* out_preds,
-                             const gbm::GBTreeModel& model, size_t tree_begin,
-                             size_t tree_end) {
-    if (tree_end - tree_begin == 0) { return; }
-    monitor_.StartCuda("DevicePredictInternal");
-
+  void InitModel(const gbm::GBTreeModel &model, size_t tree_begin, size_t tree_end) {
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
     thrust::host_vector<size_t> h_tree_segments;
@@ -344,10 +338,23 @@ class GPUPredictor : public xgboost::Predictor {
 
     thrust::host_vector<DevicePredictionNode> h_nodes(h_tree_segments.back());
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
+      auto &src_nodes = model.trees.at(tree_idx)->GetNodes();
       std::copy(src_nodes.begin(), src_nodes.end(),
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
+    dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard &shard) {
+      shard.InitModel(model, h_tree_segments, h_nodes);
+    });
+  }
+
+  void DevicePredictInternal(DMatrix* dmat,
+                             HostDeviceVector<bst_float>* out_preds,
+                             const gbm::GBTreeModel& model, size_t tree_begin,
+                             size_t tree_end) {
+    if (tree_end - tree_begin == 0) { return; }
+    monitor_.StartCuda("DevicePredictInternal");
+
+    InitModel(model, tree_begin, tree_end);
 
     size_t batch_offset = 0;
     for (auto &batch : dmat->GetRowBatches()) {
@@ -364,11 +371,6 @@ class GPUPredictor : public xgboost::Predictor {
       DeviceOffsets(batch.offset, batch.data.Size(), &device_offsets);
       batch.data.Reshard(GPUDistribution::Explicit(devices_, device_offsets));
 
-      if (batch_offset == 0) {
-        dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-          shard.InitModel(model, h_tree_segments, h_nodes);
-        });
-      }
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, dmat->Info(), out_preds, tree_begin, tree_end,
                               model.param.num_output_group);
