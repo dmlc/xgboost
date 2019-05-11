@@ -56,7 +56,7 @@ pipeline {
           parallel ([
             'build-cpu': { BuildCPU() },
             'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
-            'build-gpu-cuda9.2': { BuildCUDA(cuda_version: '9.2') },
+            'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
             'build-jvm-doc': { BuildJVMDoc() }
@@ -72,7 +72,7 @@ pipeline {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
             'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
-            'test-python-gpu-cuda9.2': { TestPythonGPU(cuda_version: '9.2') },
+            'test-python-gpu-cuda9.0': { TestPythonGPU(cuda_version: '9.0') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-mgpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0', multi_gpu: true) },
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
@@ -192,10 +192,13 @@ def BuildCUDA(args) {
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     """
-    // Only stash wheel for CUDA 8.0 target
+    // Stash wheel for CUDA 8.0 / 9.0 target
     if (args.cuda_version == '8.0') {
       echo 'Stashing Python wheel...'
-      stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
+      stash name: 'xgboost_whl_cuda8', includes: 'python-package/dist/*.whl'
+    } else if (args.cuda_version == '9.0') {
+      echo 'Stashing Python wheel...'
+      stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
       archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
@@ -239,7 +242,7 @@ def BuildJVMDoc() {
 
 def TestPythonCPU() {
   node('linux && cpu') {
-    unstash name: 'xgboost_whl'
+    unstash name: 'xgboost_whl_cuda9'
     unstash name: 'srcs'
     echo "Test Python CPU"
     def container_type = "cpu"
@@ -254,7 +257,11 @@ def TestPythonCPU() {
 def TestPythonGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
-    unstash name: 'xgboost_whl'
+    if (args.cuda_version == '8.0') {
+      unstash name: 'xgboost_whl_cuda8'
+    } else {
+      unstash name: 'xgboost_whl_cuda9'
+    }
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
     def container_type = "gpu"
