@@ -95,7 +95,14 @@ CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CUDA_VERSION=[0-9]+\.[0
 JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'JDK_VERSION=[0-9]+' | egrep -o '[0-9]+')
 # Append cmake version if available
 CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CMAKE_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
-DOCKER_IMG_NAME=$DOCKER_IMG_NAME$CUDA_VERSION$JDK_VERSION$CMAKE_VERSION
+# Append R version if available
+USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'USE_R35=[0-9]+' | egrep -o '[0-9]+$')
+if [[ ${USE_R35} == "1" ]]; then
+  USE_R35="_r35"
+elif [[ ${USE_R35} == "0" ]]; then
+  USE_R35="_no_r35"
+fi
+DOCKER_IMG_NAME=$DOCKER_IMG_NAME$CUDA_VERSION$JDK_VERSION$CMAKE_VERSION$USE_R35
 
 # Under Jenkins matrix build, the build tag may contain characters such as
 # commas (,) and equal signs (=), which are not valid inside docker image names.
