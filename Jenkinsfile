@@ -196,7 +196,6 @@ def BuildCUDA(args) {
     if (args.cuda_version == '8.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda8', includes: 'python-package/dist/*.whl'
-      archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
     } else if (args.cuda_version == '9.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
