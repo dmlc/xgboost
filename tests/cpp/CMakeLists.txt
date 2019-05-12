@@ -1,4 +1,8 @@
-find_package(GTest REQUIRED)
+if (BUILD_WITH_EXTERNAL_GTEST)
+  find_package(GTest REQUIRED)
+else (BUILD_WITH_EXTERNAL_GTEST)
+  set(GTEST_LIBRARIES gtest)
+endif (BUILD_WITH_EXTERNAL_GTEST)
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
