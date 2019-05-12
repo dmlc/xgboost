@@ -20,7 +20,7 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(GOOGLE_TEST "Build google tests" OFF)
-option(BUILD_WITH_EXTERNAL_GTEST "Use external gtest lib instead of one provided by dmlc-core" OFF)
+option(USE_DMLC_GTEST "Use gtest lib bundled with dmlc-core" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 ## CUDA
