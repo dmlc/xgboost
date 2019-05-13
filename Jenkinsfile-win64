@@ -7,7 +7,7 @@ pipeline {
   agent none
   // Build stages
   stages {
-    stage('Get sources') {
+    stage('Jenkins Win64: Get sources') {
       agent { label 'win64' }
       steps {
         script {
@@ -17,7 +17,7 @@ pipeline {
         milestone ordinal: 1
       }
     }
-    stage('Build') {
+    stage('Jenkins Win64: Build') {
       agent none
       steps {
         script {

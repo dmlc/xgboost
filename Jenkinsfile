@@ -25,7 +25,7 @@ pipeline {
 
   // Build stages
   stages {
-    stage('Get sources') {
+    stage('Jenkins Linux: Get sources') {
       agent { label 'linux && cpu' }
       steps {
         script {
@@ -35,7 +35,7 @@ pipeline {
         milestone ordinal: 1
       }
     }
-    stage('Formatting Check') {
+    stage('Jenkins Linux: Formatting Check') {
       agent none
       steps {
         script {
@@ -49,7 +49,7 @@ pipeline {
         milestone ordinal: 2
       }
     }
-    stage('Build') {
+    stage('Jenkins Linux: Build') {
       agent none
       steps {
         script {
@@ -65,7 +65,7 @@ pipeline {
         milestone ordinal: 3
       }
     }
-    stage('Test') {
+    stage('Jenkins Linux: Test') {
       agent none
       steps {
         script {
