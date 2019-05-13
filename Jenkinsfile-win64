@@ -51,7 +51,9 @@ def BuildWin64() {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     sh """
-    ECHO "Good Morning"
+    mkdir build
+    cd build
+    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON
     """
     deleteDir()
   }
