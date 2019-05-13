@@ -10,7 +10,6 @@ if (MSVC)
 endif (MSVC)
 
 set_default_configuration_release()
-msvc_use_static_runtime()
 
 #-- Options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
@@ -67,6 +66,7 @@ if (USE_CUDA)
 endif (USE_CUDA)
 
 # dmlc-core
+msvc_use_static_runtime()
 add_subdirectory(${PROJECT_SOURCE_DIR}/dmlc-core)
 set_target_properties(dmlc PROPERTIES
   CXX_STANDARD 11
@@ -214,3 +214,8 @@ if (GOOGLE_TEST)
     PROPERTIES
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
 endif (GOOGLE_TEST)
+
+# For MSVC: Call msvc_use_static_runtime() once again to completely
+# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
+# for issues caused by mixing of /MD and /MT flags
+msvc_use_static_runtime()
