@@ -50,11 +50,12 @@ def BuildWin64() {
   node('win64') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
-    sh """
+    bat """
     mkdir build
     cd build
     cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\MSBuild\\15.0\\Bin\\MSBuild.exe" xgboost.sln /m /p:Configuration=Release -fl -flp:logfile=MSBuild.log;verbosity=diagnostic
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
+    msbuild xgboost.sln /m /p:Configuration=Release -fl -flp:logfile=MSBuild.log;verbosity=diagnostic
     cd ..\\python-package
     conda activate
     python setup.py bdist_wheel --universal
