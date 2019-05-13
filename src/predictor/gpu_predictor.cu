@@ -343,7 +343,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     thrust::host_vector<DevicePredictionNode> h_nodes(h_tree_segments.back());
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-      auto &src_nodes = model.trees.at(tree_idx)->GetNodes();
+      auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
       std::copy(src_nodes.begin(), src_nodes.end(),
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
