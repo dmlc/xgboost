@@ -54,7 +54,15 @@ def BuildWin64() {
     mkdir build
     cd build
     cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
+    msbuild xgboost.sln /m /p:Configuration=Release -fl -flp:logfile=MSBuild.log;verbosity=diagnostic
+    cd ..\\python-package
+    conda activate
+    python setup.py bdist_wheel --universal
     """
+    stash name: 'xgboost_win_whl', includes: 'python-package/dist/*.whl'
+    archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+    archiveArtifacts artifacts: "build/MSBuild.log", allowEmptyArchive: true
     deleteDir()
   }
 }
