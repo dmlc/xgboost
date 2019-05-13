@@ -1,0 +1,58 @@
+#!/usr/bin/groovy
+// -*- mode: groovy -*-
+
+/* Jenkins pipeline for Windows AMD64 target */
+
+pipeline {
+  agent none
+  // Build stages
+  stages {
+    stage('Get sources') {
+      agent { label 'win64' }
+      steps {
+        script {
+          checkoutSrcs()
+        }
+        stash name: 'srcs'
+        milestone ordinal: 1
+      }
+    }
+    stage('Build') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'build-win64': { BuildWin64() }
+          ])
+        }
+        milestone ordinal: 2
+      }
+    }
+  }
+}
+
+// check out source code from git
+def checkoutSrcs() {
+  retry(5) {
+    try {
+      timeout(time: 2, unit: 'MINUTES') {
+        checkout scm
+        sh 'git submodule update --init'
+      }
+    } catch (exc) {
+      deleteDir()
+      error "Failed to fetch source codes"
+    }
+  }
+}
+
+def BuildWin64() {
+  node('win64') {
+    unstash name: 'srcs'
+    echo "Building XGBoost for Windows AMD64 target..."
+    sh """
+    ECHO "Good Morning"
+    """
+    deleteDir()
+  }
+}
