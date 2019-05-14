@@ -58,6 +58,7 @@ pipeline {
             'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
+            'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -74,9 +75,10 @@ pipeline {
             'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
             'test-python-gpu-cuda9.0': { TestPythonGPU(cuda_version: '9.0') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
-            'test-python-mgpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0', multi_gpu: true) },
-            'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
-            'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
+            'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
+            'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
+            'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
