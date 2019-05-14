@@ -28,6 +28,17 @@ pipeline {
         milestone ordinal: 2
       }
     }
+    stage('Jenkins Win64: Test') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'test-win64-cpu': { TestWin64CPU() }
+          ])
+        }
+        milestone ordinal: 3
+      }
+    }
   }
 }
 
@@ -74,6 +85,18 @@ def BuildWin64() {
     archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
+    deleteDir()
+  }
+}
+
+def TestWin64CPU() {
+  node('win64 && cpu') {
+    unstash name: 'xgboost_whl'
+    unstash name: 'srcs'
+    echo "Test Win64 CPU"
+    bat """
+    conda activate && python -m pytest -v -s --fulltrace tests\\python
+    """
     deleteDir()
   }
 }
