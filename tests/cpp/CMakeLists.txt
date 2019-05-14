@@ -1,4 +1,11 @@
-find_package(GTest REQUIRED)
+if (USE_DMLC_GTEST)
+  if (NOT TARGET gtest)
+    message(FATAL_ERROR "USE_DMLC_GTEST=ON but dmlc-core didn't bundle gtest")
+  endif (NOT TARGET gtest)
+  set(GTEST_LIBRARIES gtest)
+else (USE_DMLC_GTEST)
+  find_package(GTest REQUIRED)
+endif (USE_DMLC_GTEST)
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
