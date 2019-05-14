@@ -139,6 +139,8 @@ set_target_properties(
 
 set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
 set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+# Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+add_dependencies(xgboost runxgboost)
 
 #-- Installing XGBoost
 if (R_LIB)
