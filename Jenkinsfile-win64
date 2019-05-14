@@ -63,6 +63,12 @@ def BuildWin64() {
     cd python-package
     conda activate && python setup.py bdist_wheel --universal
     """
+    echo "Insert vcomp140.dll (OpenMP runtime) into the wheel..."
+    bat """
+    cd python-package\\dist
+    COPY /B ..\\..\\tests\\ci_build\\insert_vcomp140.py
+    conda activate && python insert_vcomp140.py *.whl
+    """
     echo 'Stashing Python wheel...'
     stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
     archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
