@@ -21,7 +21,7 @@ RUN \
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
     export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
-    if [ "${CUDA_SHORT}" != "10.0" ]; then \
+    if [ "${CUDA_SHORT}" != "10.0" ] && [ "${CUDA_SHORT}" != "10.1" ]; then \
     wget https://developer.download.nvidia.com/compute/redist/nccl/v2.2/nccl_2.2.13-1%2Bcuda${CUDA_SHORT}_x86_64.txz && \
     tar xf "nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64.txz" && \
     cp nccl_2.2.13-1+cuda${CUDA_SHORT}_x86_64/include/nccl.h /usr/include && \
@@ -31,7 +31,7 @@ RUN \
     wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     yum -y update && \
-    yum install -y libnccl-2.4.2-1+cuda10.0 libnccl-devel-2.4.2-1+cuda10.0 libnccl-static-2.4.2-1+cuda10.0 && \
+    yum install -y libnccl-2.4.2-1+cuda${CUDA_SHORT} libnccl-devel-2.4.2-1+cuda${CUDA_SHORT} libnccl-static-2.4.2-1+cuda${CUDA_SHORT} && \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm; fi
 
 ENV PATH=/opt/python/bin:$PATH
