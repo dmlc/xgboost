@@ -47,13 +47,13 @@ def checkoutSrcs() {
 }
 
 def BuildWin64() {
-  node('win64') {
+  node('win64 && build') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat """
     mkdir build
     cd build
-    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
     """
     bat """
     cd build
@@ -63,8 +63,11 @@ def BuildWin64() {
     cd python-package
     conda activate && python setup.py bdist_wheel --universal
     """
-    stash name: 'xgboost_win_whl', includes: 'python-package/dist/*.whl'
+    echo 'Stashing Python wheel...'
+    stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
     archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+    echo 'Stashing C++ test executable (testxgboost)...'
+    stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
     deleteDir()
   }
 }
