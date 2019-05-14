@@ -27,10 +27,6 @@
 #include "../common/io.h"
 #endif
 
-#if __CUDACC_VER_MAJOR__ == 10 && __CUDACC_VER_MINOR__ == 1
-#error "CUDA 10.1 is not supported, see #4264."
-#endif
-
 namespace dh {
 
 #define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
