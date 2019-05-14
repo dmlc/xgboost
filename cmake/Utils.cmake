@@ -17,6 +17,10 @@ endfunction(auto_source_group)
 function(msvc_use_static_runtime)
   if(MSVC)
       set(variables
+          CMAKE_C_FLAGS_DEBUG
+          CMAKE_C_FLAGS_MINSIZEREL
+          CMAKE_C_FLAGS_RELEASE
+          CMAKE_C_FLAGS_RELWITHDEBINFO
           CMAKE_CXX_FLAGS_DEBUG
           CMAKE_CXX_FLAGS_MINSIZEREL
           CMAKE_CXX_FLAGS_RELEASE
@@ -29,6 +33,7 @@ function(msvc_use_static_runtime)
           endif()
       endforeach()
       set(variables
+          CMAKE_CUDA_FLAGS
           CMAKE_CUDA_FLAGS_DEBUG
           CMAKE_CUDA_FLAGS_MINSIZEREL
           CMAKE_CUDA_FLAGS_RELEASE
@@ -37,6 +42,10 @@ function(msvc_use_static_runtime)
       foreach(variable ${variables})
           if(${variable} MATCHES "-MD")
               string(REGEX REPLACE "-MD" "-MT" ${variable} "${${variable}}")
+              set(${variable} "${${variable}}"  PARENT_SCOPE)
+          endif()
+          if(${variable} MATCHES "/MD")
+              string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
               set(${variable} "${${variable}}"  PARENT_SCOPE)
           endif()
       endforeach()

@@ -42,7 +42,7 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<COMPILE_LANGUAGE:CUDA>:--std=c++11>
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
 
   if (USE_NCCL)
@@ -113,4 +113,10 @@ if (USE_OPENMP)
     set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
   endif (OpenMP_CXX_FOUND OR OPENMP_FOUND)
 endif (USE_OPENMP)
+
+# For MSVC: Call msvc_use_static_runtime() once again to completely
+# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
+# for issues caused by mixing of /MD and /MT flags
+msvc_use_static_runtime()
+
 #-- End object library
