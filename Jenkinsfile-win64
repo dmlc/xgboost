@@ -91,12 +91,16 @@ def BuildWin64() {
 
 def TestWin64CPU() {
   node('win64 && cpu') {
-    unstash name: 'xgboost_whl'
     unstash name: 'srcs'
+    unstash name: 'xgboost_whl'
+    unstash name: 'xgboost_cpp_tests'
     echo "Test Win64 CPU"
+    echo "Installing Python wheel..."
     bat """
-    conda activate && python -m pytest -v -s --fulltrace tests\\python
+    conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
+    echo "Running Python tests..."
+    bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
     deleteDir()
   }
 }
