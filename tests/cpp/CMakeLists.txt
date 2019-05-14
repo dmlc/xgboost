@@ -15,13 +15,16 @@ endif (USE_CUDA)
 add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES})
 
 if (USE_CUDA)
+  # OpenMP is mandatory for CUDA
+  find_package(OpenMP REQUIRED)
   target_include_directories(testxgboost PRIVATE
     ${PROJECT_SOURCE_DIR}/cub/)
   target_compile_options(testxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<COMPILE_LANGUAGE:CUDA>:--std=c++11>
+    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)

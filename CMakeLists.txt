@@ -125,6 +125,10 @@ endif (JVM_BINDINGS)
 #-- CLI for xgboost
 add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 # For cli_main.cc only
+if (USE_OPENMP)
+  find_package(OpenMP REQUIRED)
+  target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
+endif (USE_OPENMP)
 target_include_directories(runxgboost
   PRIVATE
   ${PROJECT_SOURCE_DIR}/include
