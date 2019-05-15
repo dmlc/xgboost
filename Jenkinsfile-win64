@@ -22,7 +22,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64': { BuildWin64() }
+            'build-win64-cuda9.0': { BuildWin64() }
           ])
         }
         milestone ordinal: 2
@@ -35,6 +35,7 @@ pipeline {
           parallel ([
             'test-win64-cpu': { TestWin64CPU() },
             'test-win64-gpu-cuda9.0': { TestWin64GPU(cuda_target: 'cuda9') },
+            'test-win64-gpu-cuda10.0': { TestWin64GPU(cuda_target: 'cuda10_0') },
             'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
           ])
         }
@@ -113,7 +114,7 @@ def TestWin64GPU(args) {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cpp_tests'
-    echo "Test Win64 GPU, CUDA target ${args.cuda_target}"
+    echo "Test Win64 GPU (${args.cuda_target})"
     echo "Running C++ tests..."
     bat "build\\testxgboost.exe"
     echo "Installing Python wheel..."
