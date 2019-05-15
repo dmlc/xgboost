@@ -64,6 +64,7 @@ def BuildWin64() {
   node('win64 && build') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
+    bat "nvcc --version"
     bat """
     mkdir build
     cd build
@@ -115,6 +116,7 @@ def TestWin64GPU(args) {
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cpp_tests'
     echo "Test Win64 GPU (${args.cuda_target})"
+    bat "nvcc --version"
     echo "Running C++ tests..."
     bat "build\\testxgboost.exe"
     echo "Installing Python wheel..."
