@@ -8,7 +8,7 @@ pipeline {
   // Build stages
   stages {
     stage('Jenkins Win64: Get sources') {
-      agent { label 'win64' }
+      agent { label 'win64 && build' }
       steps {
         script {
           checkoutSrcs()
