@@ -33,7 +33,9 @@ pipeline {
       steps {
         script {
           parallel ([
-            'test-win64-cpu': { TestWin64CPU() }
+            'test-win64-cpu': { TestWin64CPU() },
+            'test-win64-gpu-cuda9.0': { TestWin64GPU(cuda_target: 'cuda9') },
+            'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
           ])
         }
         milestone ordinal: 3
@@ -93,7 +95,6 @@ def TestWin64CPU() {
   node('win64 && cpu') {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
-    unstash name: 'xgboost_cpp_tests'
     echo "Test Win64 CPU"
     echo "Installing Python wheel..."
     bat """
@@ -101,6 +102,26 @@ def TestWin64CPU() {
     """
     echo "Running Python tests..."
     bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
+    deleteDir()
+  }
+}
+
+def TestWin64GPU(args) {
+  node("win64 && gpu && ${args.cuda_target}") {
+    unstash name: 'srcs'
+    unstash name: 'xgboost_whl'
+    unstash name: 'xgboost_cpp_tests'
+    echo "Test Win64 GPU, CUDA target ${args.cuda_target}"
+    echo "Running C++ tests..."
+    bat "build\\testxgboost.exe"
+    echo "Installing Python wheel..."
+    bat """
+    conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
+    """
+    echo "Running Python tests..."
+    bat """
+    conda activate && python -m pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
+    """
     deleteDir()
   }
 }
