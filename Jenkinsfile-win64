@@ -1,0 +1,70 @@
+#!/usr/bin/groovy
+// -*- mode: groovy -*-
+
+/* Jenkins pipeline for Windows AMD64 target */
+
+pipeline {
+  agent none
+  // Build stages
+  stages {
+    stage('Jenkins Win64: Get sources') {
+      agent { label 'win64' }
+      steps {
+        script {
+          checkoutSrcs()
+        }
+        stash name: 'srcs'
+        milestone ordinal: 1
+      }
+    }
+    stage('Jenkins Win64: Build') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'build-win64': { BuildWin64() }
+          ])
+        }
+        milestone ordinal: 2
+      }
+    }
+  }
+}
+
+// check out source code from git
+def checkoutSrcs() {
+  retry(5) {
+    try {
+      timeout(time: 2, unit: 'MINUTES') {
+        checkout scm
+        sh 'git submodule update --init'
+      }
+    } catch (exc) {
+      deleteDir()
+      error "Failed to fetch source codes"
+    }
+  }
+}
+
+def BuildWin64() {
+  node('win64') {
+    unstash name: 'srcs'
+    echo "Building XGBoost for Windows AMD64 target..."
+    bat """
+    mkdir build
+    cd build
+    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+    """
+    bat """
+    cd build
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\MSBuild\\15.0\\Bin\\MSBuild.exe" xgboost.sln /m /p:Configuration=Release
+    """
+    bat """
+    cd python-package
+    conda activate && python setup.py bdist_wheel --universal
+    """
+    stash name: 'xgboost_win_whl', includes: 'python-package/dist/*.whl'
+    archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+    deleteDir()
+  }
+}

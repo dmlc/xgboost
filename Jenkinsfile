@@ -25,7 +25,7 @@ pipeline {
 
   // Build stages
   stages {
-    stage('Get sources') {
+    stage('Jenkins Linux: Get sources') {
       agent { label 'linux && cpu' }
       steps {
         script {
@@ -35,7 +35,7 @@ pipeline {
         milestone ordinal: 1
       }
     }
-    stage('Formatting Check') {
+    stage('Jenkins Linux: Formatting Check') {
       agent none
       steps {
         script {
@@ -49,7 +49,7 @@ pipeline {
         milestone ordinal: 2
       }
     }
-    stage('Build') {
+    stage('Jenkins Linux: Build') {
       agent none
       steps {
         script {
@@ -58,6 +58,7 @@ pipeline {
             'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
+            'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -65,7 +66,7 @@ pipeline {
         milestone ordinal: 3
       }
     }
-    stage('Test') {
+    stage('Jenkins Linux: Test') {
       agent none
       steps {
         script {
@@ -74,9 +75,10 @@ pipeline {
             'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
             'test-python-gpu-cuda9.0': { TestPythonGPU(cuda_version: '9.0') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
-            'test-python-mgpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0', multi_gpu: true) },
-            'test-cpp-gpu': { TestCppGPU(cuda_version: '10.0') },
-            'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.0', multi_gpu: true) },
+            'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
+            'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
+            'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
