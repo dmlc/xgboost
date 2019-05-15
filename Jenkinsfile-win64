@@ -97,11 +97,13 @@ def TestWin64CPU() {
     unstash name: 'xgboost_whl'
     echo "Test Win64 CPU"
     echo "Installing Python wheel..."
+    bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
     bat """
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Running Python tests..."
     bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
+    bat "conda activate && python -m pip uninstall -y xgboost"
     deleteDir()
   }
 }
@@ -115,6 +117,7 @@ def TestWin64GPU(args) {
     echo "Running C++ tests..."
     bat "build\\testxgboost.exe"
     echo "Installing Python wheel..."
+    bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
     bat """
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
@@ -122,6 +125,7 @@ def TestWin64GPU(args) {
     bat """
     conda activate && python -m pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
     """
+    bat "conda activate && python -m pip uninstall -y xgboost"
     deleteDir()
   }
 }
