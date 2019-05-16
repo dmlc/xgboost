@@ -674,7 +674,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
                                   DMatrixHandle* out,
-                                  bool allow_groups = false) {
+                                  int allow_groups) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();

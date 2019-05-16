@@ -817,7 +817,7 @@ class DMatrix(object):
                                                c_array(ctypes.c_int, rindex),
                                                c_bst_ulong(len(rindex)),
                                                ctypes.byref(res.handle),
-                                               ctypes.c_int(allow_groups)))
+                                               ctypes.c_int(1 if allow_groups else 0)))
         return res
 
     @property

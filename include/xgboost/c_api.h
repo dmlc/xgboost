@@ -222,7 +222,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int *idxset,
                                   bst_ulong len,
                                   DMatrixHandle *out,
-                                  bool allow_groups);
+                                  int allow_groups);
 /*!
  * \brief free space in data matrix
  * \return 0 when success, -1 when failure happens
