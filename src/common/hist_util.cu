@@ -13,6 +13,8 @@
 
 #include <utility>
 #include <vector>
+#include <memory>
+#include <mutex>
 
 #include "../tree/param.h"
 #include "./host_device_vector.h"
@@ -85,9 +87,9 @@ __global__ void UnpackFeaturesK
 /*!
  * \brief A container that holds the device sketches across all
  *  sparse page batches which are distributed to different devices.
- *  As sketches are aggregated by column, the atomic flag simulates
- *  a lock in user land when multiple devices could be pushing
- *  sketch summary for the same column across distinct rows.
+ *  As sketches are aggregated by column, the mutex guards
+ *  multiple devices pushing sketch summary for the same column
+ *  across distinct rows.
  */
 struct SketchContainer {
   std::vector<HistCutMatrix::WXQSketch> sketches_;
@@ -391,8 +393,8 @@ struct GPUSketcher {
                              shard->Sketch(batch, info);
                            });
     size_t row_stride = 0;
-    for (size_t i = 0; i < shards_.size(); ++i) {
-      row_stride = std::max(row_stride, shards_[i]->GetRowStride());
+    for (const auto &shard : shards_) {
+      row_stride = std::max(row_stride, shard->GetRowStride());
     }
 
     return row_stride;

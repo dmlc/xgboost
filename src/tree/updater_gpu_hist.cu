@@ -15,6 +15,7 @@
 #include <queue>
 #include <utility>
 #include <vector>
+#include <cstdint>
 #include "../common/common.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"

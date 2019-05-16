@@ -10,8 +10,6 @@
 #include <xgboost/data.h>
 #include <limits>
 #include <vector>
-#include <memory>
-#include <atomic>
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
