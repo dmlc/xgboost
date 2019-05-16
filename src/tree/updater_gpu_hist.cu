@@ -15,6 +15,7 @@
 #include <queue>
 #include <utility>
 #include <vector>
+#include <cstdint>
 #include "../common/common.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
@@ -1485,8 +1486,8 @@ class GPUHistMakerSpecialised {
       // Distribute the rows in this batch to the different shards
       for (size_t i = 0; i < shards_.size(); ++i) {
         // Does this batch pertain to me?
-        long num_elems = processed_size + batch.Size() - shards_[i]->row_begin_idx;
-        long rem_elems = shards_[i]->row_end_idx - processed_size;
+        int64_t num_elems = processed_size + batch.Size() - shards_[i]->row_begin_idx;
+        int64_t rem_elems = shards_[i]->row_end_idx - processed_size;
         if (num_elems <= 0 || rem_elems <= 0) {
           shard_allocations[i] = 0;
         } else {

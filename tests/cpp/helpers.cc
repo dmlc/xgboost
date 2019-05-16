@@ -178,7 +178,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_c
 
   std::ofstream fo(tmp_file.c_str());
   size_t cols_per_row = ((std::max(n_rows, n_cols) - 1) / std::min(n_rows, n_cols)) + 1;
-  ssize_t rem_cols = n_cols;
+  int64_t rem_cols = n_cols;
   size_t col_idx = 0;
 
   // Random feature id generator
