@@ -92,6 +92,7 @@ __global__ void UnpackFeaturesK
  *  across distinct rows.
  */
 struct SketchContainer {
+ public:
   std::vector<HistCutMatrix::WXQSketch> sketches_;
   std::vector<std::unique_ptr<std::mutex>> col_locks_;
 };
