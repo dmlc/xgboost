@@ -136,7 +136,7 @@ class TestRanking(unittest.TestCase):
         watchlist = [(self.dtest, 'eval'), (self.dtrain, 'train')]
         bst = xgboost.train(self.params, self.dtrain, num_boost_round=2500,
                         early_stopping_rounds=10, evals=watchlist)
-        assert bst.best_score > 0.99
+        assert bst.best_score > 0.98
 
     def test_cv(self):
         """
