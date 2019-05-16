@@ -1494,7 +1494,8 @@ class GPUHistMakerSpecialised {
           // How many elements do I process from this batch?
           num_elems = std::min(
                         static_cast<size_t>(std::min(
-                          static_cast<bst_uint>(std::min(num_elems, rem_elems)), shards_[i]->n_rows)),
+                          static_cast<bst_uint>(std::min(
+                            num_elems, rem_elems)), shards_[i]->n_rows)),
                         batch.Size());
           shard_allocations[i] = num_elems;
         }

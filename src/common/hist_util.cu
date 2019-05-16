@@ -440,8 +440,8 @@ struct GPUSketcher {
 size_t DeviceSketch
   (const tree::TrainParam &param, int gpu_batch_nrows, DMatrix *dmat,
    std::vector<HistCutMatrix::WXQSketch> *sketches) {
-   GPUSketcher sketcher(param, gpu_batch_nrows);
-   return sketcher.Sketch(dmat, sketches);
+  GPUSketcher sketcher(param, gpu_batch_nrows);
+  return sketcher.Sketch(dmat, sketches);
 }
 
 }  // namespace common
