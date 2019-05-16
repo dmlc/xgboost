@@ -8,8 +8,8 @@ import unittest
 import itertools
 import glob
 import shutil
-import wget
-from unrar import rarfile
+import urllib.request
+import zipfile
 
 
 def test_ranking_with_unweighted_data():
@@ -84,15 +84,16 @@ class TestRanking(unittest.TestCase):
         """
         # download the test data
         cls.dpath = 'demo/rank/'
-        src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.rar'
-        target = os.path.join(cls.dpath, 'MQ2008.rar')
-        wget.download(src, target)
-        rar = rarfile.RarFile(target)
-        rar.extractall(path=cls.dpath)
+        src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
+        target = cls.dpath + '/MQ2008.zip'
+        urllib.request.urlretrieve(url=src, filename=target)
+
+        with zipfile.ZipFile(target, 'r') as f:
+            f.extractall(path=cls.dpath)
 
         x_train, y_train, qid_train, x_test, y_test, qid_test, x_valid, y_valid, qid_valid = load_svmlight_files(
             (cls.dpath + "MQ2008/Fold1/train.txt",
-             cls.dpath + "MQ2008/Fold1//test.txt",
+             cls.dpath + "MQ2008/Fold1/test.txt",
              cls.dpath + "MQ2008/Fold1/vali.txt"),
             query_id=True, zero_based=False)
         # instantiate the matrices
@@ -124,7 +125,7 @@ class TestRanking(unittest.TestCase):
         Cleanup test artifacts from download and unpacking
         :return:
         """
-        os.remove(cls.dpath + "MQ2008.rar")
+        os.remove(cls.dpath + "MQ2008.zip")
         shutil.rmtree(cls.dpath + "MQ2008")
 
     def test_training(self):
