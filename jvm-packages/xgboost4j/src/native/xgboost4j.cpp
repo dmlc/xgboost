@@ -280,7 +280,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSliceDMat
   bst_ulong len = (bst_ulong)jenv->GetArrayLength(jindexset);
 
   // default to not allowing slicing with group ID specified -- feel free to add if necessary
-  jint ret = (jint) XGDMatrixSliceDMatrix(handle, (int const *)indexset, len, &result, 0);
+  jint ret = (jint) XGDMatrixSliceDMatrixEx(handle, (int const *)indexset, len, &result, 0);
   setHandle(jenv, jout, result);
   //release
   jenv->ReleaseIntArrayElements(jindexset, indexset, 0);

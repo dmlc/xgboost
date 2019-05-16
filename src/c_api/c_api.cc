@@ -673,8 +673,15 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
-                                  DMatrixHandle* out,
-                                  int allow_groups) {
+                                  DMatrixHandle* out) {
+  return XGDMatrixSliceDMatrixEx(handle, idxset, len, out, 0);
+}
+
+XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
+                                    const int* idxset,
+                                    xgboost::bst_ulong len,
+                                    DMatrixHandle* out,
+                                    int allow_groups) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();

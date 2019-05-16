@@ -215,14 +215,26 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * \param idxset index set
  * \param len length of index set
  * \param out a sliced new matrix
- * \param allow_groups allow slicing of an array with groups
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int *idxset,
                                   bst_ulong len,
-                                  DMatrixHandle *out,
-                                  int allow_groups);
+                                  DMatrixHandle *out);
+/*!
+ * \brief create a new dmatrix from sliced content of existing matrix
+ * \param handle instance of data matrix to be sliced
+ * \param idxset index set
+ * \param len length of index set
+ * \param out a sliced new matrix
+ * \param allow_groups allow slicing of an array with groups
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
+                                    const int *idxset,
+                                    bst_ulong len,
+                                    DMatrixHandle *out,
+                                    int allow_groups);
 /*!
  * \brief free space in data matrix
  * \return 0 when success, -1 when failure happens
