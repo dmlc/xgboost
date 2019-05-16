@@ -82,6 +82,18 @@ __global__ void UnpackFeaturesK
   }
 }
 
+/*!
+ * \brief A container that holds the device sketches across all
+ *  sparse page batches which are distributed to different devices.
+ *  As sketches are aggregated by column, the atomic flag simulates
+ *  a lock in user land when multiple devices could be pushing
+ *  sketch summary for the same column across distinct rows.
+ */
+struct SketchContainer {
+  std::vector<HistCutMatrix::WXQSketch> sketches_;
+  std::vector<std::unique_ptr<std::mutex>> col_locks_;
+};
+
 // finds quantiles on the GPU
 struct GPUSketcher {
   // manage memory for a single GPU
@@ -94,6 +106,7 @@ struct GPUSketcher {
     size_t n_cuts_{0};
     size_t gpu_batch_nrows_{0};
     bool has_weights_{false};
+    size_t row_stride_{0};
 
     tree::TrainParam param_;
     SketchContainer *sketch_container_;
@@ -115,6 +128,10 @@ struct GPUSketcher {
                 tree::TrainParam param, SketchContainer *sketch_container) :
       device_(device), row_begin_(row_begin), row_end_(row_end),
       n_rows_(row_end - row_begin), param_(std::move(param)), sketch_container_(sketch_container) {
+    }
+
+    inline size_t GetRowStride() {
+       return row_stride_;
     }
 
     void Init(const SparsePage& row_batch, const MetaInfo& info, int gpu_batch_nrows) {
@@ -322,20 +339,7 @@ struct GPUSketcher {
         summary.Reserve(n_cuts_);
         summary.MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
 
-        // Spin in user land until we we can grab this lock
-        struct ColLocker {
-         public:
-          explicit ColLocker(std::atomic_flag *lock)
-            : col_lock_(lock) {
-              while (col_lock_->test_and_set()) {}
-            }
-          ~ColLocker() {
-            col_lock_->clear();
-          }
-         private:
-          std::atomic_flag *col_lock_;
-        }lock(sketch_container_->col_locks_[icol].get());
-
+        std::lock_guard<std::mutex> lock(*sketch_container_->col_locks_[icol]);
         sketch_container_->sketches_[icol].PushSummary(summary);
       }
     }
@@ -351,45 +355,91 @@ struct GPUSketcher {
       for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
         SketchBatch(row_batch, info, gpu_batch);
       }
+
+      // Find the row stride for this batch
+      auto row_iter = row_ptrs_.begin();
+      // Functor for finding the maximum row size for this batch
+      auto get_size = [=] __device__(size_t row) {
+        return row_iter[row + 1] - row_iter[row];
+      }; // NOLINT
+
+      auto counting = thrust::make_counting_iterator(size_t(0));
+      using TransformT = thrust::transform_iterator<decltype(get_size),
+                                                    decltype(counting), size_t>;
+      TransformT row_size_iter = TransformT(counting, get_size);
+      row_stride_ = thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0,
+                                   thrust::maximum<size_t>());
     }
   };
 
-  void Sketch(const SparsePage& batch, const MetaInfo& info,
-              SketchContainer *sketch_container, int gpu_batch_nrows) {
+  size_t SketchBatch(const GPUDistribution &dist, const SparsePage &batch,
+                     const MetaInfo &info, SketchContainer *sketch_container) {
     // create device shards
-    shards_.resize(dist_.Devices().Size());
+    shards_.resize(dist.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
-        size_t start = dist_.ShardStart(info.num_row_, i);
-        size_t size = dist_.ShardSize(info.num_row_, i);
+        size_t start = dist.ShardStart(batch.Size(), i);
+        size_t size = dist.ShardSize(batch.Size(), i);
         shard = std::unique_ptr<DeviceShard>(
-            new DeviceShard(dist_.Devices().DeviceId(i),
-                            start, start + size, param_, sketch_container));
+            new DeviceShard(dist.Devices().DeviceId(i), start,
+                            start + size, param_, sketch_container));
       });
 
     // compute sketches for each shard
     dh::ExecuteIndexShards(&shards_,
                            [&](int idx, std::unique_ptr<DeviceShard>& shard) {
-                             shard->Init(batch, info, gpu_batch_nrows);
+                             shard->Init(batch, info, gpu_batch_nrows_);
                              shard->Sketch(batch, info);
                            });
+    size_t row_stride = 0;
+    for (size_t i = 0; i < shards_.size(); ++i) {
+      row_stride = std::max(row_stride, shards_[i]->GetRowStride());
+    }
+
+    return row_stride;
   }
 
-  GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
+  GPUSketcher(const tree::TrainParam &param, int gpu_nrows)
+    : param_(param), gpu_batch_nrows_(gpu_nrows) {
+  }
+
+  /* Builds the sketches on the GPU */
+  size_t Sketch(DMatrix *dmat, std::vector<HistCutMatrix::WXQSketch> *sketches) {
+    size_t row_stride = 0;
+    const MetaInfo &info = dmat->Info();
+
+    // Initialize Sketches for this dmatrix
+    SketchContainer sketch_container;
+    sketch_container.sketches_.resize(info.num_col_);
+    sketch_container.col_locks_.resize(info.num_col_);
+#pragma omp parallel for schedule(static) if (info.num_col_ > 1000)
+    for (int icol = 0; icol < info.num_col_; ++icol) {
+      sketch_container.sketches_[icol].Init(info.num_row_, 1.0 / (8 * param_.max_bin));
+      sketch_container.col_locks_[icol].reset(new std::mutex);
+    }
+
+    for (const auto &batch : dmat->GetRowBatches()) {
+      GPUDistribution dist =
+        GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size()));
+      size_t batch_row_stride = this->SketchBatch(dist, batch, info, &sketch_container);
+      row_stride = std::max(row_stride, batch_row_stride);
+    }
+
+    sketches->swap(sketch_container.sketches_);
+
+    return row_stride;
   }
 
  private:
   std::vector<std::unique_ptr<DeviceShard>> shards_;
-  tree::TrainParam param_;
-  GPUDistribution dist_;
+  const tree::TrainParam &param_;
+  int gpu_batch_nrows_;
 };
 
-void DeviceSketch
-  (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, SketchContainer *sketch_container,
-   int gpu_batch_nrows) {
-  GPUSketcher sketcher(param, info.num_row_);
-  sketcher.Sketch(batch, info, sketch_container, gpu_batch_nrows);
+size_t DeviceSketch
+  (const tree::TrainParam &param, int gpu_batch_nrows, DMatrix *dmat,
+   std::vector<HistCutMatrix::WXQSketch> *sketches) {
+   GPUSketcher sketcher(param, gpu_batch_nrows);
+   return sketcher.Sketch(dmat, sketches);
 }
 
 }  // namespace common

@@ -697,7 +697,6 @@ struct DeviceShard {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
-  // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int _device_id, int shard_idx, bst_uint row_begin,
               bst_uint row_end, TrainParam _param, uint32_t column_sampler_seed)
       : device_id(_device_id),
@@ -717,9 +716,8 @@ struct DeviceShard {
       const common::HistCutMatrix& hmat, size_t row_stride, bool is_dense);
 
   void CreateHistIndices(
-      const SparsePage& row_batch, size_t shard_idx,
-      const std::vector<size_t> &shard_allocations,
-      int null_gidx_value, int rows_per_batch);
+      const SparsePage& row_batch, const common::HistCutMatrix &hmat,
+      const std::vector<size_t> &shard_allocations, int rows_per_batch);
 
   ~DeviceShard() {
     dh::safe_cuda(cudaSetDevice(device_id));
@@ -1306,10 +1304,9 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
 
 template <typename GradientSumT>
 inline void DeviceShard<GradientSumT>::CreateHistIndices(
-    const SparsePage& row_batch,
-    size_t shard_idx,
+    const SparsePage &row_batch,
+    const common::HistCutMatrix &hmat,
     const std::vector<size_t> &shard_allocations,
-    int null_gidx_value,
     int rows_per_batch) {
   // Has any been allocated for me in this batch?
   size_t num_elems = shard_allocations[shard_idx];
@@ -1374,7 +1371,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          batch_nrows,
          row_ptrs[batch_row_begin],
          row_stride,
-         null_gidx_value);
+         hmat.row_ptr.back());
   }
 
   // This will be the offset into the gidx_buffer for the next batch
@@ -1388,7 +1385,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 }
 
 template <typename GradientSumT>
-class GPUHistMakerSpecialised{
+class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
   void Init(
@@ -1455,73 +1452,15 @@ class GPUHistMakerSpecialised{
                                           column_sampling_seed));
         });
 
-    // Initialize Sketches across all batches
-    common::SketchContainer sketch_container;
-    sketch_container.sketches_.resize(info_->num_col_);
-    sketch_container.col_locks_.resize(info_->num_col_);
-#pragma omp parallel for schedule(static)
-    for (int icol = 0; icol < info_->num_col_; ++icol) {
-      sketch_container.sketches_[icol].Init(info_->num_row_, 1.0 / (8 * param_.max_bin));
-      sketch_container.col_locks_[icol].reset(new std::atomic_flag(ATOMIC_FLAG_INIT)); // NOLINT
-    }
-
-    size_t row_stride(0);  // Max row_stride across the entire dataset
-    size_t processed_size(0);
-
-    // Rows allocated to each GPU in a batch
-    std::vector<std::vector<size_t>> shard_allocations;
     monitor_.StartCuda("Quantiles");
-    for (const auto &batch : dmat->GetRowBatches()) {
-      struct RowReset {
-       public:
-         RowReset(MetaInfo *minfo, const SparsePage &r_batch)
-           : minfo_(minfo) {
-             orig_nrows_ = minfo_->num_row_;
-             minfo->num_row_ = r_batch.Size();
-         }
-
-         ~RowReset() {
-           minfo_->num_row_ = orig_nrows_;
-         }
-       private:
-         MetaInfo *minfo_;
-         size_t orig_nrows_;
-      }rowgd(info_, batch);
-
-      // Find the cuts for each batch
-      common::DeviceSketch(batch, *info_, param_, &sketch_container,
-                           hist_maker_param_.gpu_batch_nrows);
-      const auto &offset_vec = batch.offset.ConstHostVector();
-      for (size_t i = 1; i < offset_vec.size(); ++i) {
-        row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
-      }
-
-      std::vector<size_t> batch_allocation(shards_.size());
-      // Distribute the rows in this batch to the different shards
-      for (size_t i = 0; i < shards_.size(); ++i) {
-        // Does this batch pertain to me?
-        ssize_t num_elems = processed_size + batch.Size() - shards_[i]->row_begin_idx;
-        ssize_t rem_elems = shards_[i]->row_end_idx - processed_size;
-        if (num_elems <= 0 || rem_elems <= 0) {
-          batch_allocation[i] = 0;
-        } else {
-          // How many elements do I process from this batch?
-          num_elems = std::min(
-                        std::min(
-                          std::min(num_elems, rem_elems),
-                          static_cast<ssize_t>(shards_[i]->n_rows)),
-                        static_cast<ssize_t>(batch.Size()));
-          batch_allocation[i] = num_elems;
-        }
-      }
-      shard_allocations.push_back(batch_allocation);
-
-      processed_size += batch.Size();
-    }
+    // Create the quantile sketches for the dmatrix
+    std::vector<common::HistCutMatrix::WXQSketch> sketches;
+    size_t row_stride = common::DeviceSketch(param_, hist_maker_param_.gpu_batch_nrows,
+                                             dmat, &sketches);
     monitor_.StopCuda("Quantiles");
 
     // Initialize hmat_ for the entire data set
-    hmat_.Init(&sketch_container.sketches_, param_.max_bin);
+    hmat_.Init(&sketches, param_.max_bin);
 
     n_bins_ = hmat_.row_ptr.back();
 
@@ -1538,16 +1477,37 @@ class GPUHistMakerSpecialised{
     monitor_.StopCuda("InitCompressedData");
 
     monitor_.StartCuda("BinningCompression");
-    size_t batch_idx(0);
+    size_t processed_size = 0;
+    // TODO(sriramch): Think of a way to utilize *all* the GPUs to build the
+    // compressed bins
     for (const auto &batch : dmat->GetRowBatches()) {
+      std::vector<size_t> shard_allocations(shards_.size());
+      // Distribute the rows in this batch to the different shards
+      for (size_t i = 0; i < shards_.size(); ++i) {
+        // Does this batch pertain to me?
+        ssize_t num_elems = processed_size + batch.Size() - shards_[i]->row_begin_idx;
+        ssize_t rem_elems = shards_[i]->row_end_idx - processed_size;
+        if (num_elems <= 0 || rem_elems <= 0) {
+          shard_allocations[i] = 0;
+        } else {
+          // How many elements do I process from this batch?
+          num_elems = std::min(
+                        std::min(
+                          std::min(num_elems, rem_elems),
+                          static_cast<ssize_t>(shards_[i]->n_rows)),
+                        static_cast<ssize_t>(batch.Size()));
+          shard_allocations[i] = num_elems;
+        }
+      }
+      processed_size += batch.Size();
+
       dh::ExecuteIndexShards(
-          &shards_,
-          [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-            dh::safe_cuda(cudaSetDevice(shard->device_id));
-            shard->CreateHistIndices(batch, idx, shard_allocations[batch_idx],
-                                     hmat_.row_ptr.back(), hist_maker_param_.gpu_batch_nrows);
-          });
-      batch_idx++;
+        &shards_,
+        [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
+          dh::safe_cuda(cudaSetDevice(shard->device_id));
+          shard->CreateHistIndices(batch, hmat_, shard_allocations,
+                                   hist_maker_param_.gpu_batch_nrows);
+        });
     }
     monitor_.StopCuda("BinningCompression");
 

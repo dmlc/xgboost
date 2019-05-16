@@ -196,20 +196,20 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_c
     fo << i;
     size_t j = 0;
     if (rem_cols > 0) {
-       for (size_t j = 0; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
+       for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
          row_data << " " << (col_idx+j) << ":" << (col_idx+j+1)*10;
        }
+       rem_cols -= cols_per_row;
     } else {
        // Take some random number of colums in [1, n_cols] and slot them here
        size_t ncols = dis(*gen);
-       for (size_t j = 0; j < ncols; ++j) {
-         size_t fid = (dis(*gen) - 1);
+       for (; j < ncols; ++j) {
+         size_t fid = (col_idx+j) % n_cols;
          row_data << " " << fid << ":" << (fid+1)*10;
        }
     }
     col_idx += j;
 
-    rem_cols -= cols_per_row;
     fo << row_data.str() << "\n";
   }
   fo.close();
