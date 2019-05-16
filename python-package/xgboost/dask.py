@@ -47,7 +47,19 @@ def __concat(data):
                     ". Got %s" % type(data[0]))
 
 
-def create_worker_dmatrix(*args):
+def __merge_partitions(dd, begin_partition, end_partition, total_partitions):
+    if dd.npartitions != total_partitions:
+        raise ValueError("Dask data must have the same partitions")
+    # Get local partitions
+    partitions = [dd.partitions[i].compute() for i in
+                  range(begin_partition, end_partition)]
+    if not partitions:
+        raise ValueError("Worker " + str(
+            rabit.get_rank()) + " has no data. Try using smaller partitions")
+    return __concat(partitions)
+
+
+def create_worker_dmatrix(*args, **kwargs):
     """
     Creates a DMatrix object local to a given worker. Simply forwards arguments onto the standard
     DMatrix constructor, if one of the arguments is a dask dataframe, unpack the data frame to
@@ -63,18 +75,24 @@ def create_worker_dmatrix(*args):
     begin_partition = partition_size * rabit.get_rank()
     end_partition = min(begin_partition + partition_size, total_partitions)
     dmatrix_args = []
+    dmatrix_kwargs = {}
+    # Convert positional args
     for arg in args:
         if isinstance(arg, (dask.dataframe.core.DataFrame, dask.dataframe.core.Series)):
-            if arg.npartitions != total_partitions:
-                raise ValueError("Dask data must have the same partitions")
-            # Get local partitions
-            partitions = [arg.partitions[i].compute() for i in
-                          range(begin_partition, end_partition)]
-            if not partitions:
-                raise ValueError("Worker " + str(
-                    rabit.get_rank()) + " has no data. Try using smaller partitions")
-            dmatrix_args.append(__concat(partitions))
-    return DMatrix(dmatrix_args[0], *dmatrix_args[1:])
+            dmatrix_args.append(
+                __merge_partitions(arg, begin_partition, end_partition, total_partitions))
+        else:
+            dmatrix_args.append(arg)
+
+    # Convert keyword args
+    for k, v in kwargs.items():
+        if isinstance(v, (dask.dataframe.core.DataFrame, dask.dataframe.core.Series)):
+            dmatrix_kwargs[k] = __merge_partitions(v, begin_partition, end_partition,
+                                                   total_partitions)
+        else:
+            dmatrix_kwargs[k] = v
+
+    return DMatrix(*dmatrix_args, **dmatrix_kwargs)
 
 
 def __run_with_rabit(rabit_args, func, *args):
