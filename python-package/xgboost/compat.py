@@ -6,12 +6,12 @@ from __future__ import absolute_import
 
 import sys
 
-
 PY3 = (sys.version_info[0] == 3)
 
 if PY3:
     # pylint: disable=invalid-name, redefined-builtin
     STRING_TYPES = (str,)
+
 
     def py_str(x):
         """convert c string back to python string"""
@@ -19,36 +19,35 @@ if PY3:
 else:
     STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
 
+
     def py_str(x):
         """convert c string back to python string"""
         return x
 
 try:
-    import cPickle as pickle   # noqa
+    import cPickle as pickle  # noqa
 except ImportError:
-    import pickle              # noqa
-
+    import pickle  # noqa
 
 # pandas
 try:
+    import pandas
     from pandas import DataFrame
+    from pandas import concat
     from pandas import MultiIndex
+
     PANDAS_INSTALLED = True
 except ImportError:
 
-    # pylint: disable=too-few-public-methods
-    class MultiIndex(object):
-        """ dummy for pandas.MultiIndex """
-
-    # pylint: disable=too-few-public-methods
-    class DataFrame(object):
-        """ dummy for pandas.DataFrame """
-
+    pandas = object
+    MultiIndex = object
+    DataFrame = object
     PANDAS_INSTALLED = False
 
 # dt
 try:
     import datatable
+
     if hasattr(datatable, "Frame"):
         DataTable = datatable.Frame
     else:
@@ -60,6 +59,7 @@ except ImportError:
     class DataTable(object):
         """ dummy for datatable.DataTable """
 
+
     DT_INSTALLED = False
 
 # sklearn
@@ -67,6 +67,7 @@ try:
     from sklearn.base import BaseEstimator
     from sklearn.base import RegressorMixin, ClassifierMixin
     from sklearn.preprocessing import LabelEncoder
+
     try:
         from sklearn.model_selection import KFold, StratifiedKFold
     except ImportError:
@@ -92,3 +93,17 @@ except ImportError:
     XGBKFold = None
     XGBStratifiedKFold = None
     XGBLabelEncoder = None
+
+
+# dask
+try:
+    # from dask import DataFrame as DaskDataFrame
+    import dask
+    import distributed
+
+    DASK_INSTALLED = True
+except ImportError:
+    dask = object
+    distributed = object
+
+    DASK_INSTALLED = False

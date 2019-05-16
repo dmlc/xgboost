@@ -4,12 +4,10 @@ import os
 import sys
 import math
 from threading import Thread
-import distributed
-import dask
 import numpy as np
-import pandas as pd
 from . import rabit
 from .core import DMatrix
+from .compat import (DataFrame, pandas, dask, distributed)
 
 # Try to find the dmlc tracker script
 
@@ -42,8 +40,8 @@ def __start_tracker():
 def __concat(data):
     if isinstance(data[0], np.ndarray):
         return np.concatenate(data, axis=0)
-    if isinstance(data[0], (pd.DataFrame, pd.Series)):
-        return pd.concat(data, axis=0)
+    if isinstance(data[0], (DataFrame, pandas.Series)):
+        return pandas.concat(data, axis=0)
 
     raise TypeError("Data must be either numpy arrays or pandas dataframes"
                     ". Got %s" % type(data[0]))
