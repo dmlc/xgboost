@@ -337,6 +337,8 @@ def TestR(args) {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
     """
+    // Save error log, if any
+    archiveArtifacts artifacts: "xgboost.Rcheck/00install.out", allowEmptyArchive: true
     deleteDir()
   }
 }
