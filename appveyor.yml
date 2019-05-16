@@ -50,7 +50,7 @@ install:
     - if /i "%DO_PYTHON%" == "on" (
         conda config --set always_yes true &&
         conda update -q conda &&
-        conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz curl
+        conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz wget
       )
     - set PATH=C:\Miniconda3-x64\Library\bin\graphviz;%PATH%
     # R: based on https://github.com/krlmlr/r-appveyor

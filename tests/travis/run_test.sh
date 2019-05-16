@@ -17,9 +17,9 @@ if [ ${TASK} == "python_test" ]; then
     echo "-------------------------------"
     source activate python3
     python --version
-    conda install numpy scipy pandas matplotlib scikit-learn curl
+    conda install numpy scipy pandas matplotlib scikit-learn wget
 
-    python -m pip install graphviz pytest pytest-cov codecov
+    python -m pip install graphviz pytest pytest-cov codecov unrar
     python -m pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov

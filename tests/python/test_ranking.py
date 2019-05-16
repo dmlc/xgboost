@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.sparse import csr_matrix
 import xgboost
-import subprocess
 import sys
 import os
 from sklearn.datasets import load_svmlight_files
@@ -9,6 +8,8 @@ import unittest
 import itertools
 import glob
 import shutil
+import wget
+from unrar import rarfile
 
 
 def test_ranking_with_unweighted_data():
@@ -81,12 +82,13 @@ class TestRanking(unittest.TestCase):
         """
         Download and setup the test fixtures
         """
+        # download the test data
         cls.dpath = 'demo/rank/'
-        p = subprocess.Popen(['curl', '-oMQ2008.rar', 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.rar'],
-                             cwd=cls.dpath)
-        p.wait()
-        p = subprocess.Popen(['unrar', 'x', 'MQ2008.rar'], cwd=cls.dpath)
-        p.wait()
+        src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.rar'
+        target = os.path.join(cls.dpath, 'MQ2008.rar')
+        wget.download(src, target)
+        rar = rarfile.RarFile(target)
+        rar.extractall(path=cls.dpath)
 
         x_train, y_train, qid_train, x_test, y_test, qid_test, x_valid, y_valid, qid_valid = load_svmlight_files(
             (cls.dpath + "MQ2008/Fold1/train.txt",
