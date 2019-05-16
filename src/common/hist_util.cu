@@ -92,9 +92,8 @@ __global__ void UnpackFeaturesK
  *  across distinct rows.
  */
 struct SketchContainer {
- public:
-  std::vector<HistCutMatrix::WXQSketch> sketches_;
-  std::vector<std::unique_ptr<std::mutex>> col_locks_;
+  std::vector<HistCutMatrix::WXQSketch> sketches_;  // NOLINT
+  std::vector<std::unique_ptr<std::mutex>> col_locks_; // NOLINT
 };
 
 // finds quantiles on the GPU
