@@ -41,6 +41,8 @@ install:
     - conda info
     - where python
     - python --version
+    # Unrar for tests
+    - cinst unrar -y --allow-empty-checksums
     # do python build for mingw and one of the msvc jobs
     - set DO_PYTHON=off
     - if /i "%target%" == "mingw" set DO_PYTHON=on
@@ -48,7 +50,7 @@ install:
     - if /i "%DO_PYTHON%" == "on" (
         conda config --set always_yes true &&
         conda update -q conda &&
-        conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz
+        conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz curl
       )
     - set PATH=C:\Miniconda3-x64\Library\bin\graphviz;%PATH%
     # R: based on https://github.com/krlmlr/r-appveyor
