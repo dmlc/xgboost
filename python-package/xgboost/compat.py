@@ -97,7 +97,6 @@ except ImportError:
 
 # dask
 try:
-    # from dask import DataFrame as DaskDataFrame
     import dask
     import distributed
 

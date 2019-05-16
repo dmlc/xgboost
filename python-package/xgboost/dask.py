@@ -47,11 +47,11 @@ def __concat(data):
                     ". Got %s" % type(data[0]))
 
 
-def __merge_partitions(dd, begin_partition, end_partition, total_partitions):
-    if dd.npartitions != total_partitions:
+def __merge_partitions(data, begin_partition, end_partition, total_partitions):
+    if data.npartitions != total_partitions:
         raise ValueError("Dask data must have the same partitions")
     # Get local partitions
-    partitions = [dd.partitions[i].compute() for i in
+    partitions = [data.partitions[i].compute() for i in
                   range(begin_partition, end_partition)]
     if not partitions:
         raise ValueError("Worker " + str(
