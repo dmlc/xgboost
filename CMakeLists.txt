@@ -19,6 +19,7 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(GOOGLE_TEST "Build google tests" OFF)
+option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule (EXPERIMENTAL)" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 ## CUDA
@@ -55,6 +56,7 @@ endif (USE_SANITIZER)
 
 if (USE_CUDA)
   cmake_minimum_required(VERSION 3.12)
+  SET(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
@@ -124,6 +126,10 @@ endif (JVM_BINDINGS)
 #-- CLI for xgboost
 add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 # For cli_main.cc only
+if (USE_OPENMP)
+  find_package(OpenMP REQUIRED)
+  target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
+endif (USE_OPENMP)
 target_include_directories(runxgboost
   PRIVATE
   ${PROJECT_SOURCE_DIR}/include
