@@ -6,7 +6,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
+
+#include <xgboost/gpuset.h>
 #include <xgboost/logging.h>
+#include <xgboost/range.h>
 
 #include "common.h"
 #include "span.h"
@@ -987,7 +990,7 @@ class AllReducer {
   };
 
   /**
-   * \brief Synchronizes the device 
+   * \brief Synchronizes the device
    *
    * \param device_id Identifier for the device.
    */
