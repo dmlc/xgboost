@@ -1,10 +1,14 @@
 import testing as tm
-from distributed.utils_test import client, loop, cluster_fixture
-import dask.dataframe as dd
-import dask.array as da
+import pytest
 import xgboost as xgb
 import numpy as np
-import pytest
+
+try:
+    from dask.distributed.utils_test import client, loop, cluster_fixture
+    import dask.dataframe as dd
+    import dask.array as da
+except ImportError:
+    pass
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 

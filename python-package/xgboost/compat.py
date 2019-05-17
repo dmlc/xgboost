@@ -97,7 +97,6 @@ try:
     from dask.dataframe import DataFrame as DaskDataFrame
     from dask.dataframe import Series as DaskSeries
     from dask.array import Array as DaskArray
-    from distributed import get_client as distributed_get_client
     from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
@@ -105,7 +104,6 @@ except ImportError:
     DaskDataFrame = object
     DaskSeries = object
     DaskArray = object
-    distributed_get_client = None
     distributed_get_worker = None
 
     DASK_INSTALLED = False

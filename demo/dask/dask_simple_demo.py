@@ -1,4 +1,4 @@
-from distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster
 import dask.dataframe as dd
 import dask.array as da
 import numpy as np

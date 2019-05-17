@@ -4,10 +4,9 @@ import os
 import sys
 import math
 from threading import Thread
-import numpy as np
 from . import rabit
 from .core import DMatrix
-from .compat import (DaskDataFrame, DaskSeries, DaskArray, distributed_get_client,
+from .compat import (DaskDataFrame, DaskSeries, DaskArray,
                      distributed_get_worker)
 
 # Try to find the dmlc tracker script
