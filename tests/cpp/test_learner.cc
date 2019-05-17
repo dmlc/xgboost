@@ -136,8 +136,8 @@ TEST(Learner, IO) {
                       Arg{"n_gpus", "-1"}});
   learner->InitModel();
   learner->UpdateOneIter(0, p_dmat.get());
-  ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, -1);
+  ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, -1);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model.bst";
@@ -150,8 +150,8 @@ TEST(Learner, IO) {
 
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
   learner->Load(fi.get());
-  ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 0);
+  ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 0);
 
   delete pp_dmat;
 }
@@ -174,24 +174,24 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"updater", "gpu_coord_descent"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->Configure({Arg{"tree_method", "gpu_exact"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->Configure({Arg{"tree_method", "gpu_hist"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
   }
   {
     // with CPU algorithm
@@ -199,8 +199,8 @@ TEST(Learner, GPUConfiguration) {
     learner->Configure({Arg{"tree_method", "hist"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 0);
   }
   {
     // with CPU algorithm, but `n_gpus` takes priority
@@ -209,8 +209,8 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"n_gpus", "1"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
@@ -221,8 +221,8 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"predictor", "gpu_predictor"}});
     learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
   }
 
   delete pp_dmat;

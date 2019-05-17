@@ -529,7 +529,7 @@ class LearnerImpl : public Learner {
     return out;
   }
 
-  LearnerTrainParam const& GetLearnTrainParameter() const override {
+  LearnerTrainParam const& GetLearnerTrainParameter() const override {
     return tparam_;
   }
 

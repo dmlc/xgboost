@@ -148,7 +148,7 @@ class Learner : public rabit::Serializable {
    */
   virtual std::vector<std::string> GetAttrNames() const = 0;
 
-  virtual LearnerTrainParam const& GetLearnTrainParameter() const = 0;
+  virtual LearnerTrainParam const& GetLearnerTrainParameter() const = 0;
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
