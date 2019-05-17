@@ -1,9 +1,5 @@
-/*!
- * Copyright 2018-2019 XGBoost contributors
- */
-#include <gtest/gtest.h>
-#include "xgboost/gpuset.h"
 #include "../../../src/common/common.h"
+#include <gtest/gtest.h>
 
 namespace xgboost {
 TEST(GPUSet, Basic) {

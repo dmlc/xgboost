@@ -60,7 +60,6 @@
 #include <utility>
 #include <vector>
 
-#include "xgboost/gpuset.h"
 #include "common.h"
 #include "span.h"
 

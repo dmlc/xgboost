@@ -7,7 +7,6 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/enum_class_param.h>
-#include <xgboost/gpuset.h>
 
 namespace xgboost {
 enum class TreeMethod : int {
@@ -80,10 +79,6 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .set_default(0)
         .set_lower_bound(-1)
         .describe("Number of GPUs to use for multi-gpu algorithms.");
-  }
-
-  GPUSet GetGPUSet() const {
-    return GPUSet::All(gpu_id, n_gpus);
   }
 };
 }  // namespace xgboost

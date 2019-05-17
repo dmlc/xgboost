@@ -1,8 +1,7 @@
 /*!
- * Copyright 2018-2019 XGBoost contributors
+ * Copyright 2018 XGBoost contributors
  */
 #include "common.h"
-#include "xgboost/gpuset.h"
 
 namespace xgboost {
 
