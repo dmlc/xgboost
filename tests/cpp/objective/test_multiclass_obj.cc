@@ -28,7 +28,6 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
   auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
   std::vector<std::pair<std::string, std::string>> args{
     std::pair<std::string, std::string>("num_class", "3")};
-  lparam.InitAllowUnknown(args);
 
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "multi:softmax");
   obj->Configure(args);

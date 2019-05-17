@@ -40,7 +40,7 @@ TEST(GPUSet, GPUBasic) {
   }
 }
 
-TEST(GPUSet, Global) {
+TEST(GPUSet, Verbose) {
   {
     std::map<std::string, std::string> args {};
     args["verbosity"] = "3";  // LOG INFO
