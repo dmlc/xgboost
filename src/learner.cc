@@ -270,6 +270,7 @@ class LearnerImpl : public Learner {
     // FIXME(trivialfis): How do we know dependent parameters are all set?
     if (tparam_.tree_method == TreeMethod::kGPUHist ||
         tparam_.tree_method == TreeMethod::kGPUExact ||
+        (cfg_.find("updater") != cfg_.cend() && cfg_.at("updater") == "gpu_coord_descent") ||
         (cfg_.find("predictor") != cfg_.cend() &&
          cfg_.at("predictor") == "gpu_predictor")) {
       if (cfg_.find("n_gpus") == cfg_.cend()) {
