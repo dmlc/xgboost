@@ -7,7 +7,8 @@ from threading import Thread
 import numpy as np
 from . import rabit
 from .core import DMatrix
-from .compat import (DataFrame, pandas, dask, distributed)
+from .compat import (DaskDataFrame, DaskSeries, distributed_get_client,
+                     distributed_get_worker)
 
 # Try to find the dmlc tracker script
 
@@ -18,9 +19,9 @@ sys.path.append(ALTERNATE_TRACKER_PATH)
 from tracker import RabitTracker  # noqa
 
 
-def __start_tracker():
+def _start_tracker():
     """ Start Rabit tracker """
-    client = distributed.get_client()
+    client = distributed_get_client()
     host = client.scheduler.address
     if '://' in host:
         host = host.rsplit('://', 1)[1]
@@ -37,26 +38,11 @@ def __start_tracker():
     return env
 
 
-def __concat(data):
-    if isinstance(data[0], np.ndarray):
-        return np.concatenate(data, axis=0)
-    if isinstance(data[0], (DataFrame, pandas.Series)):
-        return pandas.concat(data, axis=0)
-
-    raise TypeError("Data must be either numpy arrays or pandas dataframes"
-                    ". Got %s" % type(data[0]))
-
-
-def __merge_partitions(data, begin_partition, end_partition, total_partitions):
+def _merge_partitions(data, begin_partition, end_partition, total_partitions):
     if data.npartitions != total_partitions:
         raise ValueError("Dask data must have the same partitions")
-    # Get local partitions
-    partitions = [data.partitions[i].compute() for i in
-                  range(begin_partition, end_partition)]
-    if not partitions:
-        raise ValueError("Worker " + str(
-            rabit.get_rank()) + " has no data. Try using smaller partitions")
-    return __concat(partitions)
+
+    return data.partitions[begin_partition:end_partition].compute()
 
 
 def create_worker_dmatrix(*args, **kwargs):
@@ -78,25 +64,25 @@ def create_worker_dmatrix(*args, **kwargs):
     dmatrix_kwargs = {}
     # Convert positional args
     for arg in args:
-        if isinstance(arg, (dask.dataframe.core.DataFrame, dask.dataframe.core.Series)):
+        if isinstance(arg, (DaskDataFrame, DaskSeries)):
             dmatrix_args.append(
-                __merge_partitions(arg, begin_partition, end_partition, total_partitions))
+                _merge_partitions(arg, begin_partition, end_partition, total_partitions))
         else:
             dmatrix_args.append(arg)
 
     # Convert keyword args
     for k, v in kwargs.items():
-        if isinstance(v, (dask.dataframe.core.DataFrame, dask.dataframe.core.Series)):
-            dmatrix_kwargs[k] = __merge_partitions(v, begin_partition, end_partition,
-                                                   total_partitions)
+        if isinstance(v, (DaskDataFrame, DaskSeries)):
+            dmatrix_kwargs[k] = _merge_partitions(v, begin_partition, end_partition,
+                                                  total_partitions)
         else:
             dmatrix_kwargs[k] = v
 
     return DMatrix(*dmatrix_args, **dmatrix_kwargs)
 
 
-def __run_with_rabit(rabit_args, func, *args):
-    os.environ["OMP_NUM_THREADS"] = str(distributed.get_worker().ncores)
+def _run_with_rabit(rabit_args, func, *args):
+    os.environ["OMP_NUM_THREADS"] = str(distributed_get_worker().ncores)
     try:
         rabit.init(rabit_args)
         result = func(*args)
@@ -117,6 +103,6 @@ def run(client, func, *args):
     :param args: Arguments to be forwarded to func
     :return: Dict containing the function return value for each worker
     """
-    env = client.run_on_scheduler(__start_tracker)
+    env = client.run_on_scheduler(_start_tracker)
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
-    return client.run(__run_with_rabit, rabit_args, func, *args)
+    return client.run(_run_with_rabit, rabit_args, func, *args)

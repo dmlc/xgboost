@@ -31,15 +31,12 @@ except ImportError:
 
 # pandas
 try:
-    import pandas
     from pandas import DataFrame
-    from pandas import concat
     from pandas import MultiIndex
 
     PANDAS_INSTALLED = True
 except ImportError:
 
-    pandas = object
     MultiIndex = object
     DataFrame = object
     PANDAS_INSTALLED = False
@@ -97,12 +94,16 @@ except ImportError:
 
 # dask
 try:
-    import dask
-    import distributed
+    from dask.dataframe import DataFrame as DaskDataFrame
+    from dask.dataframe import Series as DaskSeries
+    from distributed import get_client as distributed_get_client
+    from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
 except ImportError:
-    dask = object
-    distributed = object
+    DaskDataFrame = object
+    DaskSeries = object
+    distributed_get_client = None
+    distributed_get_worker = None
 
     DASK_INSTALLED = False

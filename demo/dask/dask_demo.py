@@ -1,5 +1,6 @@
 from distributed import Client, LocalCluster
 import dask.dataframe as dd
+import dask.array as da
 import numpy as np
 import xgboost as xgb
 
@@ -36,8 +37,8 @@ def main():
     n = 10
     m = 100
     partition_size = 20
-    X = dd.from_array(np.random.random((m, n)), partition_size)
-    y = dd.from_array(np.random.random(m), partition_size)
+    X = dd.from_array(da.random.random((m, n), partition_size))
+    y = dd.from_array(da.random.random(m, partition_size))
 
     # xgb.dask.run launches an arbitrary function and its arguments on the cluster
     # Here train(X, y) will be called on each worker
