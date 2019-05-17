@@ -1,5 +1,4 @@
 #include "../../../src/common/common.h"
-#include "xgboost/gpuset.h"
 #include <gtest/gtest.h>
 
 namespace xgboost {

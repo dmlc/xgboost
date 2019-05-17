@@ -1,7 +1,6 @@
 /*!
  * Copyright 2018 XGBoost contributors
  */
-#include <xgboost/gpuset.h>
 #include "common.h"
 
 namespace xgboost {

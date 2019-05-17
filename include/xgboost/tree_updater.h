@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file tree_updater.h
  * \brief General primitive for tree learning,
  *   Updating a collection of trees given the information.

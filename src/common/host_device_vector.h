@@ -53,7 +53,6 @@
 #define XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
 
 #include <dmlc/logging.h>
-#include <xgboost/gpuset.h>
 
 #include <algorithm>
 #include <cstdlib>

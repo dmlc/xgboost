@@ -27,10 +27,7 @@ namespace predictor {
 TEST(gpu_predictor, Test) {
   auto cpu_lparam = CreateEmptyGenericParam(0, 0);
   auto gpu_lparam = CreateEmptyGenericParam(0, 1);
-  gpu_lparam.gpu_id = 0;
-  gpu_lparam.n_gpus = 1;
-  cpu_lparam.gpu_id = 0;
-  cpu_lparam.n_gpus = 1;
+
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
   std::unique_ptr<Predictor> cpu_predictor =
@@ -92,7 +89,6 @@ TEST(gpu_predictor, Test) {
 
 TEST(gpu_predictor, ExternalMemoryTest) {
   auto lparam = CreateEmptyGenericParam(0, 1);
-  lparam.n_gpus = 1;
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Init({}, {});
@@ -244,8 +240,6 @@ TEST(gpu_predictor, MGPU_Test) {
 // multi-GPU predictor external memory test
 TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
   auto gpu_lparam = CreateEmptyGenericParam(0, -1);
-  gpu_lparam.gpu_id = 0;
-  gpu_lparam.n_gpus = -1;
 
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
