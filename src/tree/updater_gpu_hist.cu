@@ -322,7 +322,7 @@ __global__ void EvaluateSplitKernel(
         node_histogram,               // histogram for gradients
     common::Span<const int> feature_set,  // Selected features
     DeviceNodeStats node,
-  ELLPackMatrix matrix,
+    ELLPackMatrix matrix,
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,

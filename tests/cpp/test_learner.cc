@@ -156,6 +156,78 @@ TEST(Learner, IO) {
   delete pp_dmat;
 }
 
+// Tests for automatic GPU configuration.
+TEST(Learner, GPUConfiguration) {
+  using Arg = std::pair<std::string, std::string>;
+  size_t constexpr kRows = 10;
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto p_dmat = *pp_dmat;
+  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+  {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"booster", "gblinear"},
+                        Arg{"updater", "gpu_coord_descent"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+  }
+  {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"tree_method", "gpu_exact"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+  }
+  {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"tree_method", "gpu_hist"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+  }
+  {
+    // with CPU algorithm
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"tree_method", "hist"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 0);
+  }
+  {
+    // with CPU algorithm, but `n_gpus` takes priority
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"tree_method", "hist"},
+                        Arg{"n_gpus", "1"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+  }
+  {
+    // With CPU algorithm but GPU Predictor, this is to simulate when
+    // XGBoost is only used for prediction, so tree method is not
+    // specified.
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->Configure({Arg{"tree_method", "hist"},
+                        Arg{"predictor", "gpu_predictor"}});
+    learner->InitModel();
+    learner->UpdateOneIter(0, p_dmat.get());
+    ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 1);
+  }
+
+  delete pp_dmat;
+}
+
 #endif  // XGBOOST_USE_CUDA
 
 }  // namespace xgboost
