@@ -1,5 +1,5 @@
 import testing as tm
-from distributed import Client, LocalCluster
+from distributed.utils_test import client, loop, cluster_fixture
 import dask.dataframe as dd
 import dask.array as da
 import xgboost as xgb
@@ -12,17 +12,16 @@ pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 def run_train():
     # Contains one label equal to rank
     dmat = xgb.DMatrix([[0]], label=[xgb.rabit.get_rank()])
-    bst = xgb.train({"eta": 1.0}, dmat, 1)
-    return bst.predict(dmat)
+    bst = xgb.train({"eta": 1.0, "lambda": 0.0}, dmat, 1)
+    pred = bst.predict(dmat)
+    expected_result = np.average(range(xgb.rabit.get_world_size()))
+    assert all(p == expected_result for p in pred)
 
 
-def test_train():
+def test_train(client):
     # Train two workers, the first has label 0, the second has label 1
     # If they build the model together the output should be 0.5
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
-    client = Client(cluster)
-    preds = xgb.dask.run(client, run_train)
-    assert all(v[0] == 0.5 for v in preds.values())
+    xgb.dask.run(client, run_train)
 
 
 def run_create_dmatrix(X, y, weights):
@@ -31,9 +30,7 @@ def run_create_dmatrix(X, y, weights):
     assert dmat.num_row() == 50
 
 
-def test_dask_dataframe():
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
-    client = Client(cluster)
+def test_dask_dataframe(client):
     n = 10
     m = 100
     partition_size = 25
@@ -43,9 +40,7 @@ def test_dask_dataframe():
     xgb.dask.run(client, run_create_dmatrix, X, y, weights)
 
 
-def test_dask_array():
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
-    client = Client(cluster)
+def test_dask_array(client):
     n = 10
     m = 100
     partition_size = 25
@@ -60,9 +55,7 @@ def run_inconsistent_partitions(X, y):
         xgb.dask.create_worker_dmatrix(X, y)
 
 
-def test_inconsistent_partitions():
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
-    client = Client(cluster)
+def test_inconsistent_partitions(client):
     n = 10
     m = 100
     X = dd.from_array(np.random.random((m, n)), 10)
@@ -76,11 +69,10 @@ def run_sklearn():
     y = [xgb.rabit.get_rank()]
     model = xgb.XGBRegressor(learning_rate=1.0)
     model.fit(X, y)
-    return model.predict(X)
+    pred = model.predict(X)
+    expected_result = np.average(range(xgb.rabit.get_world_size()))
+    assert all(p == expected_result for p in pred)
 
 
-def test_sklearn():
-    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
-    client = Client(cluster)
-    preds = xgb.dask.run(client, run_sklearn)
-    assert all(v[0] == 0.5 for v in preds.values())
+def test_sklearn(client):
+    xgb.dask.run(client, run_sklearn)

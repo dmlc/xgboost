@@ -24,7 +24,7 @@ RUN \
     pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh recommonmark guzzle_sphinx_theme mock \
                 breathe matplotlib graphviz pytest scikit-learn wheel kubernetes urllib3 && \
     pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl && \
-    conda install dask distributed -c conda-forge
+    conda install dask
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

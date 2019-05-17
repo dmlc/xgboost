@@ -19,14 +19,8 @@ sys.path.append(ALTERNATE_TRACKER_PATH)
 from tracker import RabitTracker  # noqa
 
 
-def _start_tracker():
+def _start_tracker(host, n_workers):
     """ Start Rabit tracker """
-    client = distributed_get_client()
-    host = client.scheduler.address
-    if '://' in host:
-        host = host.rsplit('://', 1)[1]
-    host = host.split(':')[0]
-    n_workers = len(client.scheduler_info()['workers'])
     env = {'DMLC_NUM_WORKER': n_workers}
     rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
     env.update(rabit_context.slave_envs())
@@ -106,6 +100,11 @@ def run(client, func, *args):
     :param args: Arguments to be forwarded to func
     :return: Dict containing the function return value for each worker
     """
-    env = client.run_on_scheduler(_start_tracker)
+    host = client.scheduler.address
+    if '://' in host:
+        host = host.rsplit('://', 1)[1]
+    host = host.split(':')[0]
+    n_workers = len(client.scheduler_info()['workers'])
+    env = client.run_on_scheduler(_start_tracker, host, n_workers)
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
     return client.run(_run_with_rabit, rabit_args, func, *args)
