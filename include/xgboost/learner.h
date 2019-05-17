@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -9,17 +9,18 @@
 #define XGBOOST_LEARNER_H_
 
 #include <rabit/rabit.h>
-#include <utility>
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
 
 #include <xgboost/base.h>
 #include <xgboost/gbm.h>
 #include <xgboost/metric.h>
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
+
+#include <utility>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace xgboost {
 /*!
