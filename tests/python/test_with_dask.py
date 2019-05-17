@@ -1,6 +1,7 @@
 import testing as tm
 from distributed import Client, LocalCluster
 import dask.dataframe as dd
+import dask.array as da
 import xgboost as xgb
 import numpy as np
 import pytest
@@ -24,7 +25,7 @@ def test_train():
     assert all(v[0] == 0.5 for v in preds.values())
 
 
-def run_dask_dataframe(X, y, weights):
+def run_create_dmatrix(X, y, weights):
     dmat = xgb.dask.create_worker_dmatrix(X, y, weight=weights)
     # Expect this worker to get two partitions and concatenate them
     assert dmat.num_row() == 50
@@ -39,7 +40,19 @@ def test_dask_dataframe():
     X = dd.from_array(np.random.random((m, n)), partition_size)
     y = dd.from_array(np.random.random(m), partition_size)
     weights = dd.from_array(np.random.random(m), partition_size)
-    xgb.dask.run(client, run_dask_dataframe, X, y, weights)
+    xgb.dask.run(client, run_create_dmatrix, X, y, weights)
+
+
+def test_dask_array():
+    cluster = LocalCluster(n_workers=2, threads_per_worker=2)
+    client = Client(cluster)
+    n = 10
+    m = 100
+    partition_size = 25
+    X = da.random.random((m, n), partition_size)
+    y = da.random.random(m, partition_size)
+    weights = da.random.random(m, partition_size)
+    xgb.dask.run(client, run_create_dmatrix, X, y, weights)
 
 
 def run_inconsistent_partitions(X, y):

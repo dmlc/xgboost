@@ -8,10 +8,10 @@ import xgboost as xgb
 # Define the function to be executed on each worker
 def train(X, y):
     print("Start training with worker #{}".format(xgb.rabit.get_rank()))
-    # X,y are dask data frame objects distributed across the cluster.
+    # X,y are dask objects distributed across the cluster.
     # We must obtain the data local to this worker and convert it to DMatrix for training.
     # xgb.dask.create_worker_dmatrix follows the API exactly of the standard DMatrix constructor
-    # (xgb.DMatrix()), except that it 'unpacks' dask dataframe objects to obtain data local to
+    # (xgb.DMatrix()), except that it 'unpacks' dask distributed objects to obtain data local to
     # this worker
     dtrain = xgb.dask.create_worker_dmatrix(X, y)
 
@@ -30,15 +30,15 @@ def main():
     cluster = LocalCluster(n_workers=2, threads_per_worker=2)
     client = Client(cluster)
 
-    # Generate some small test data and convert to a distributed dask dataframe
+    # Generate some small test data as a dask array
     # These data frames are internally split into partitions of 20 rows each and then distributed
     #  among workers, so we will have 5 partitions distributed among 2 workers
-    # Note that the partition size MUST be consistent across different dask dataframes
+    # Note that the partition size MUST be consistent across different dask dataframes/arrays
     n = 10
     m = 100
     partition_size = 20
-    X = dd.from_array(da.random.random((m, n), partition_size))
-    y = dd.from_array(da.random.random(m, partition_size))
+    X = da.random.random((m, n), partition_size)
+    y = da.random.random(m, partition_size)
 
     # xgb.dask.run launches an arbitrary function and its arguments on the cluster
     # Here train(X, y) will be called on each worker

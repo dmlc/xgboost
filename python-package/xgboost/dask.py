@@ -7,7 +7,7 @@ from threading import Thread
 import numpy as np
 from . import rabit
 from .core import DMatrix
-from .compat import (DaskDataFrame, DaskSeries, distributed_get_client,
+from .compat import (DaskDataFrame, DaskSeries, DaskArray, distributed_get_client,
                      distributed_get_worker)
 
 # Try to find the dmlc tracker script
@@ -42,6 +42,9 @@ def _merge_partitions(data, begin_partition, end_partition, total_partitions):
     if data.npartitions != total_partitions:
         raise ValueError("Dask data must have the same partitions")
 
+    if isinstance(data, DaskArray):
+        return data.blocks[begin_partition:end_partition].compute()
+
     return data.partitions[begin_partition:end_partition].compute()
 
 
@@ -64,7 +67,7 @@ def create_worker_dmatrix(*args, **kwargs):
     dmatrix_kwargs = {}
     # Convert positional args
     for arg in args:
-        if isinstance(arg, (DaskDataFrame, DaskSeries)):
+        if isinstance(arg, (DaskDataFrame, DaskSeries, DaskArray)):
             dmatrix_args.append(
                 _merge_partitions(arg, begin_partition, end_partition, total_partitions))
         else:
@@ -72,7 +75,7 @@ def create_worker_dmatrix(*args, **kwargs):
 
     # Convert keyword args
     for k, v in kwargs.items():
-        if isinstance(v, (DaskDataFrame, DaskSeries)):
+        if isinstance(v, (DaskDataFrame, DaskSeries, DaskArray)):
             dmatrix_kwargs[k] = _merge_partitions(v, begin_partition, end_partition,
                                                   total_partitions)
         else:
