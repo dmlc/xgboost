@@ -118,40 +118,43 @@ TEST(Learner, SLOW_CheckMultiBatch) {
 
 #if defined(XGBOOST_USE_CUDA)
 
-// TEST(Learner, IO) {
-//   using Arg = std::pair<std::string, std::string>;
-//   size_t constexpr kRows = 10;
-//   auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-//   auto p_dmat = *pp_dmat;
-//   std::vector<bst_float> labels(kRows);
-//   for (size_t i = 0; i < labels.size(); ++i) {
-//     labels[i] = i;
-//   }
-//   p_dmat->Info().labels_.HostVector() = labels;
-//   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+TEST(Learner, IO) {
+  using Arg = std::pair<std::string, std::string>;
+  size_t constexpr kRows = 10;
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto p_dmat = *pp_dmat;
 
-//   std::unique_ptr<Learner> learner {Learner::Create(mat)};
-//   learner->Configure({Arg{"predictor", "gpu_predictor"}});
-//   learner->InitModel();
-//   learner->UpdateOneIter(0, p_dmat.get());
-//   ASSERT_EQ(GPUSet::Global().Size(), 1);
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
 
-//   dmlc::TemporaryDirectory tempdir;
-//   const std::string fname = tempdir.path + "/model.bst";
+  std::unique_ptr<Learner> learner {Learner::Create(mat)};
+  learner->Configure({Arg{"predictor", "gpu_predictor"},
+                      Arg{"n_gpus", "-1"}});
+  learner->InitModel();
+  learner->UpdateOneIter(0, p_dmat.get());
+  ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, -1);
 
-//   {
-//     // Create a scope to close the stream before next read.
-//     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-//     learner->Save(fo.get());
-//   }
+  dmlc::TemporaryDirectory tempdir;
+  const std::string fname = tempdir.path + "/model.bst";
 
-//   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-//   learner->Load(fi.get());
-//   // Loading will reset the Global GPUSet.
-//   ASSERT_TRUE(GPUSet::Global().IsEmpty());
+  {
+    // Create a scope to close the stream before next read.
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+    learner->Save(fo.get());
+  }
 
-//   delete pp_dmat;
-// }
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+  learner->Load(fi.get());
+  ASSERT_EQ(learner->GetLearnTrainParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetLearnTrainParameter().n_gpus, 0);
+
+  delete pp_dmat;
+}
 
 #endif  // XGBOOST_USE_CUDA
 

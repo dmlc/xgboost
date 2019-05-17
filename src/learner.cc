@@ -279,6 +279,8 @@ class LearnerImpl : public Learner {
   }
 
   void Load(dmlc::Stream* fi) override {
+    tparam_ = LearnerTrainParam();
+    tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
     // backward compatible header check.
@@ -526,6 +528,10 @@ class LearnerImpl : public Learner {
     return out;
   }
 
+  LearnerTrainParam const& GetLearnTrainParameter() const override {
+    return tparam_;
+  }
+
   std::pair<std::string, bst_float> Evaluate(DMatrix* data,
                                              std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
@@ -735,8 +741,6 @@ class LearnerImpl : public Learner {
 
   // model parameter
   LearnerModelParam mparam_;
-  // training parameter
-  LearnerTrainParam tparam_;
   // configurations
   std::map<std::string, std::string> cfg_;
   // attributes

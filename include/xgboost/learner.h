@@ -14,10 +14,12 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "./base.h"
-#include "./gbm.h"
-#include "./metric.h"
-#include "./objective.h"
+
+#include <xgboost/base.h>
+#include <xgboost/gbm.h>
+#include <xgboost/metric.h>
+#include <xgboost/objective.h>
+#include <xgboost/generic_parameters.h>
 
 namespace xgboost {
 /*!
@@ -144,6 +146,8 @@ class Learner : public rabit::Serializable {
    * \return vector of attribute name strings.
    */
   virtual std::vector<std::string> GetAttrNames() const = 0;
+
+  virtual LearnerTrainParam const& GetLearnTrainParameter() const = 0;
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
@@ -195,6 +199,8 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
+  /*! \brief Training parameter. */
+  LearnerTrainParam tparam_;
 };
 
 // implementation of inline functions.
