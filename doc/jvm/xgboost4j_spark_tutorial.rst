@@ -192,9 +192,9 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
 
 .. note:: Using 0 to represent meaningful value
 
-Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
+  Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
 
-In this case, users are also supposed to transform 0 to some other values to avoid the issue.
+  In this case, users are also supposed to transform 0 to some other values to avoid the issue.
 
 Training
 ========
