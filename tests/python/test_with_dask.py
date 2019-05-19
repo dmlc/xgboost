@@ -4,7 +4,7 @@ import xgboost as xgb
 import numpy as np
 
 try:
-    from dask.distributed.utils_test import client, loop, cluster_fixture
+    from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
 except ImportError:
