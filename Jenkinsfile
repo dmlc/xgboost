@@ -155,8 +155,11 @@ def Doxygen() {
     def container_type = "cpu"
     def docker_binary = "docker"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
     """
+    archiveArtifacts artifacts: "build/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
+    echo 'Uploading doc...'
+    s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
     deleteDir()
   }
 }

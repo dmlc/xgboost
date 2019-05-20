@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(xgboost LANGUAGES CXX C VERSION 0.82)
+project(xgboost LANGUAGES CXX C VERSION 0.90)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)

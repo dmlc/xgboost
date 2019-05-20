@@ -33,6 +33,11 @@ try:
   call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
 except HTTPError:
   print('JVM doc not found. Skipping...')
+try:
+  filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{}.tar.bz2'.format(git_branch[0]))
+  call('mkdir -p tmp/dev; cd tmp/dev; tar xvf {}; mv doc_doxygen/html/* .; rm -rf doc_doxygen'.format(filename), shell=True)
+except HTTPError:
+  print('C API doc not found. Skipping...')
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
