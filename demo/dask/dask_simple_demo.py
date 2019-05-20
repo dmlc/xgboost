@@ -25,6 +25,16 @@ def train(X, y):
     return bst.get_dump()
 
 
+def train_with_sklearn(X, y):
+    print("Training with worker #{} using the sklearn API".format(xgb.rabit.get_rank()))
+    X_local = xgb.dask.get_local_data(X)
+    y_local = xgb.dask.get_local_data(y)
+    model = xgb.XGBRegressor(n_estimators=10)
+    model.fit(X_local, y_local)
+    print("Finished training with worker #{} using the sklearn API".format(xgb.rabit.get_rank()))
+    return model.predict(X_local)
+
+
 def main():
     # Launch a very simple local cluster using two distributed workers with two CPU threads each
     cluster = LocalCluster(n_workers=2, threads_per_worker=2)
@@ -49,6 +59,9 @@ def main():
     # We expect that the models are the same over all workers
     first_model = next(iter(models.values()))
     assert all(model == first_model for worker, model in models.items())
+
+    # We can also train using the sklearn API
+    results = xgb.dask.run(client, train_with_sklearn, X, y)
 
 
 if __name__ == '__main__':

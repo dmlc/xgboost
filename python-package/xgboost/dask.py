@@ -36,10 +36,19 @@ def _start_tracker(n_workers):
     return env
 
 
-def _merge_partitions(data, begin_partition, end_partition, total_partitions):
-    if data.npartitions != total_partitions:
-        raise ValueError("Dask data must have the same partitions")
-
+def get_local_data(data):
+    """
+    Unpacks a distributed data object to get the rows local to this worker
+    :param data: A distributed dask data object
+    :return: Local data partition e.g. numpy or pandas
+    """
+    if isinstance(data, DaskArray):
+        total_partitions = len(data.chunks[0])
+    else:
+        total_partitions = data.npartitions
+    partition_size = int(math.ceil(total_partitions / rabit.get_world_size()))
+    begin_partition = partition_size * rabit.get_rank()
+    end_partition = min(begin_partition + partition_size, total_partitions)
     if isinstance(data, DaskArray):
         return data.blocks[begin_partition:end_partition].compute()
 
@@ -57,25 +66,19 @@ def create_worker_dmatrix(*args, **kwargs):
     :param args: DMatrix constructor args.
     :return: DMatrix object containing data local to current dask worker
     """
-    total_partitions = args[0].npartitions
-    partition_size = int(math.ceil(total_partitions / rabit.get_world_size()))
-    begin_partition = partition_size * rabit.get_rank()
-    end_partition = min(begin_partition + partition_size, total_partitions)
     dmatrix_args = []
     dmatrix_kwargs = {}
     # Convert positional args
     for arg in args:
         if isinstance(arg, (DaskDataFrame, DaskSeries, DaskArray)):
-            dmatrix_args.append(
-                _merge_partitions(arg, begin_partition, end_partition, total_partitions))
+            dmatrix_args.append(get_local_data(arg))
         else:
             dmatrix_args.append(arg)
 
     # Convert keyword args
     for k, v in kwargs.items():
         if isinstance(v, (DaskDataFrame, DaskSeries, DaskArray)):
-            dmatrix_kwargs[k] = _merge_partitions(v, begin_partition, end_partition,
-                                                  total_partitions)
+            dmatrix_kwargs[k] = get_local_data(v)
         else:
             dmatrix_kwargs[k] = v
 

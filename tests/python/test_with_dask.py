@@ -26,6 +26,8 @@ def test_train(client):
     # Train two workers, the first has label 0, the second has label 1
     # If they build the model together the output should be 0.5
     xgb.dask.run(client, run_train)
+    # Run again to check we can have multiple sessions
+    # xgb.dask.run(client, run_train)
 
 
 def run_create_dmatrix(X, y, weights):
@@ -54,17 +56,20 @@ def test_dask_array(client):
     xgb.dask.run(client, run_create_dmatrix, X, y, weights)
 
 
-def run_inconsistent_partitions(X, y):
-    with pytest.raises(ValueError) as e_info:
-        xgb.dask.create_worker_dmatrix(X, y)
+def run_get_local_data(X, y):
+    X_local = xgb.dask.get_local_data(X)
+    y_local = xgb.dask.get_local_data(y)
+    assert (X_local.shape == (50, 10))
+    assert (y_local.shape == (50,))
 
 
-def test_inconsistent_partitions(client):
+def test_get_local_data(client):
     n = 10
     m = 100
-    X = dd.from_array(np.random.random((m, n)), 10)
-    y = dd.from_array(np.random.random(m), 20)
-    xgb.dask.run(client, run_inconsistent_partitions, X, y)
+    partition_size = 25
+    X = da.random.random((m, n), partition_size)
+    y = da.random.random(m, partition_size)
+    xgb.dask.run(client, run_get_local_data, X, y)
 
 
 def run_sklearn():
@@ -76,7 +81,9 @@ def run_sklearn():
     pred = model.predict(X)
     expected_result = np.average(range(xgb.rabit.get_world_size()))
     assert all(p == expected_result for p in pred)
+    return pred
 
 
 def test_sklearn(client):
-    xgb.dask.run(client, run_sklearn)
+    result = xgb.dask.run(client, run_sklearn)
+    print(result)
