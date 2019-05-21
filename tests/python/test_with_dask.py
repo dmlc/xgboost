@@ -2,6 +2,10 @@ import testing as tm
 import pytest
 import xgboost as xgb
 import numpy as np
+import sys
+
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 try:
     from distributed.utils_test import client, loop, cluster_fixture
@@ -10,7 +14,7 @@ try:
 except ImportError:
     pass
 
-pytestmark = pytest.mark.skipif(**tm.no_sklearn())
+pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 
 def run_train():
@@ -27,7 +31,7 @@ def test_train(client):
     # If they build the model together the output should be 0.5
     xgb.dask.run(client, run_train)
     # Run again to check we can have multiple sessions
-    # xgb.dask.run(client, run_train)
+    xgb.dask.run(client, run_train)
 
 
 def run_create_dmatrix(X, y, weights):
