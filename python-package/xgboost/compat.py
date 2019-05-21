@@ -43,6 +43,9 @@ except ImportError:
 
 # dt
 try:
+    # Workaround for #4473, compatibility with dask
+    if sys.__stdin__.closed:
+        sys.__stdin__ = None
     import datatable
 
     if hasattr(datatable, "Frame"):
