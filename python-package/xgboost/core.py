@@ -231,7 +231,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_fields = [data.columns[i] for i, dtype in
+        bad_fields = [str(data.columns[i]) for i, dtype in
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
