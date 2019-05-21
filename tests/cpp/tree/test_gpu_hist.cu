@@ -83,7 +83,8 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
   shard->InitCompressedData(cmat, row_stride, is_dense);
-  shard->CreateHistIndices(batch, cmat, std::vector<size_t>(1, batch.Size()), -1);
+  shard->CreateHistIndices(batch, cmat,
+                           std::vector<std::pair<size_t, size_t>>(1, {0, batch.Size()}), -1);
 
   delete dmat;
 }
