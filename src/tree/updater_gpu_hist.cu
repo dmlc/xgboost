@@ -1476,7 +1476,8 @@ class GPUHistMakerSpecialised {
     // TODO(sriramch): Think of a way to utilize *all* the GPUs to build the
     // compressed bins
     // 1st element in the pair for a given shard keeps track of rows processed thus far
-    // 2nd element in the pair for a given shard specifies the number of rows to process in this batch
+    // 2nd element in the pair for a given shard specifies the number of rows to 
+    // process in this batch
     std::vector<std::pair<size_t, size_t>> shard_allocations(shards_.size(), std::make_pair(0, 0));
     for (const auto &batch : dmat->GetRowBatches()) {
       // Distribute the rows in this batch to the different shards
@@ -1484,7 +1485,8 @@ class GPUHistMakerSpecialised {
       for (size_t i = 0; i < shards_.size(); ++i) {
         if (shards_[i]->n_rows > shard_allocations[i].first) {
           // There are still some rows that needs to be assigned to this shard
-          shard_allocations[i].second = std::min(shards_[i]->n_rows - shard_allocations[i].first, rem_rows);
+          shard_allocations[i].second = std::min(
+                          shards_[i]->n_rows - shard_allocations[i].first, rem_rows);
         } else {
           // All rows have been assigned to this shard
           shard_allocations[i].second = 0;
