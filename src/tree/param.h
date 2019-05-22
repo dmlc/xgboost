@@ -291,7 +291,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);
-    T ret = CalcGainGivenWeight(p, sum_grad, sum_hess, w);
+    T ret = CalcGainGivenWeight<TrainingParams, T>(p, sum_grad, sum_hess, w);
     if (p.reg_alpha == 0.0f) {
       return ret;
     } else {
@@ -311,7 +311,7 @@ template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
                                  T test_grad, T test_hess) {
   T w = CalcWeight(sum_grad, sum_hess);
-  T ret = CalcGainGivenWeight(p, test_grad, test_hess);
+  T ret = CalcGainGivenWeight<TrainingParams, T>(p, test_grad, test_hess);
   if (p.reg_alpha == 0.0f) {
     return ret;
   } else {
@@ -423,7 +423,7 @@ struct ValueConstraint {
 
   template <typename ParamT>
   XGBOOST_DEVICE inline double CalcGain(const ParamT &param, GradStats stats) const {
-    return CalcGainGivenWeight(param, stats.sum_grad, stats.sum_hess,
+    return CalcGainGivenWeight<ParamT, float>(param, stats.sum_grad, stats.sum_hess,
                                CalcWeight(param, stats));
   }
 
@@ -434,8 +434,8 @@ struct ValueConstraint {
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double gain =
-        CalcGainGivenWeight(param, left.sum_grad, left.sum_hess, wleft) +
-        CalcGainGivenWeight(param, right.sum_grad, right.sum_hess, wright);
+        CalcGainGivenWeight<ParamT, float>(param, left.sum_grad, left.sum_hess, wleft) +
+        CalcGainGivenWeight<ParamT, float>(param, right.sum_grad, right.sum_hess, wright);
     if (constraint == 0) {
       return gain;
     } else if (constraint > 0) {
