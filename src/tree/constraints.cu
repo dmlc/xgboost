@@ -17,8 +17,6 @@ InteractionConstraints::InteractionConstraints(std::string interaction_constrain
   }
   std::istringstream iss(interaction_constraints_str);
   dmlc::JSONReader reader(&iss);
-  // Read std::vector<std::vector<bst_uint>> first and then
-  //   convert to std::vector<std::unordered_set<bst_uint>>
   std::vector<std::vector<bst_uint>> tmp;
   reader.Read(&tmp);
 
@@ -31,31 +29,32 @@ InteractionConstraints::InteractionConstraints(std::string interaction_constrain
       }
     }
   }
+}
 
-  size_t total_size = 0;
-  for (const auto& constraints : feature_interactions_) {
-    total_size += constraints.size();
+std::shared_ptr<HostDeviceVector<int32_t>> InteractionConstraints::GetAllowedFeatures(
+    std::shared_ptr<HostDeviceVector<int32_t>> feature_set, int32_t nid) {
+  if (!is_used) {
+    // interaction constraint is not used.
+    return feature_set;
   }
-
-  std::vector<int32_t> h_feature_interactions (total_size);
-  std::vector<int32_t> h_feature_interactions_ptr;
-  size_t pointer = 0;
-  h_feature_interactions_ptr.emplace_back(pointer);
-  for (size_t i = 0; i < feature_interactions_.size(); ++i) {
-    std::copy(feature_interactions_[i].cbegin(), feature_interactions_[i].cend(),
-              h_feature_interactions.begin() + pointer);
-    pointer += feature_interactions_[i].size();
-    h_feature_interactions_ptr.emplace_back(pointer);
+  auto& node_features_constraints = node_interactions_.at(nid);
+  if (node_features_constraints.size() == 0) {
+    return feature_set;
   }
-  d_feature_interactions_ptr_.resize(h_feature_interactions_ptr.size());
-  thrust::copy(h_feature_interactions_ptr.cbegin(), h_feature_interactions_ptr.cend(),
-               d_feature_interactions_ptr_.begin());
-  d_feature_interactions_.resize(h_feature_interactions.size());
-  thrust::copy(h_feature_interactions.cbegin(), h_feature_interactions.cend(),
-               d_feature_interactions_.begin());
+  auto& h_feature_set = feature_set->HostVector();
+  auto& h_feature_buffer = feature_buffer->HostVector();
+  h_feature_buffer.clear();
 
-  split_evaluator_.feature_interaction_ = dh::ToSpan(d_feature_interactions_);
-  split_evaluator_.feature_interaction_ptr_ = dh::ToSpan(d_feature_interactions_ptr_);
+  // evaluate each feature from input
+  for (auto fid : h_feature_set) {
+    for (auto features_index : node_features_constraints) {
+      auto const& features = feature_interactions_.at(features_index);
+      if (features.find(fid) != features.cend()) {
+        h_feature_buffer.push_back(fid);
+      }
+    }
+  }
+  return feature_buffer;
 }
 
 void InteractionConstraints::ApplySplit(int32_t nid, int32_t left, int32_t right, int32_t fid) {
@@ -68,33 +67,6 @@ void InteractionConstraints::ApplySplit(int32_t nid, int32_t left, int32_t right
   // Permit previous feature.
   node_interactions_[left].insert(fid);
   node_interactions_[right].insert(fid);
-
-  size_t n_features_in_node = 0;
-  for (auto const& interactions : node_interactions_) {
-    n_features_in_node += interactions.size();
-  }
-
-  std::vector<int32_t> h_node_interactions (n_features_in_node);
-  std::vector<int32_t> h_node_interactions_ptr {0};
-
-  int32_t count = 0;
-  for (size_t i = 0; i < node_interactions_.size(); ++i) {
-    CHECK_LT(count, h_node_interactions.size());
-    std::copy(node_interactions_[i].begin(), node_interactions_[i].end(),
-              h_node_interactions.begin() + count);
-    count += node_interactions_[i].size();
-    h_node_interactions_ptr.push_back(count);
-  }
-
-  d_node_interactions_.resize(h_node_interactions.size());
-  thrust::copy(h_node_interactions.cbegin(), h_node_interactions.cend(),
-               d_node_interactions_.begin());
-  d_node_interactions_ptr_.resize(h_node_interactions_ptr.size());
-  thrust::copy(h_node_interactions_ptr.cbegin(), h_node_interactions_ptr.cend(),
-               d_node_interactions_ptr_.begin());
-
-  split_evaluator_.node_interactions_span_ = dh::ToSpan(d_node_interactions_);
-  split_evaluator_.node_interactions_ptr_span_ = dh::ToSpan(d_node_interactions_ptr_);
 
   feature_buffer = std::make_shared<HostDeviceVector<int>>();
 }

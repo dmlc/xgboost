@@ -191,7 +191,6 @@ __device__ float inline LossChangeMissing(
     const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
     const float& parent_gain, const GPUTrainingParam& param, int constraint,
     int32_t nid, int32_t fid,
-    InteractionConstraints::DeviceEvaluator const& interaction_constraint,
     const ValueConstraint& value_constraint,
     bool& missing_left_out) {  // NOLINT
   float missing_left_gain = value_constraint.CalcSplitGain(
@@ -199,9 +198,6 @@ __device__ float inline LossChangeMissing(
       GradStats(parent_sum - (scan + missing)));
   float missing_right_gain = value_constraint.CalcSplitGain(
       param, constraint, GradStats(scan), GradStats(parent_sum - scan));
-
-  // missing_left_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_left_gain);
-  // missing_right_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_right_gain);
 
   if (missing_left_gain >= missing_right_gain) {
     missing_left_out = true;
@@ -257,8 +253,7 @@ __device__ void EvaluateFeature(
     const DeviceNodeStats& node, const GPUTrainingParam& param,
     TempStorageT* temp_storage,  // temp memory for cub operations
     int monotonic_constraint,
-    const ValueConstraint& value_constraint,
-    const InteractionConstraints::DeviceEvaluator& interaction_constraint) {
+    const ValueConstraint& value_constraint) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
   uint32_t gidx_begin = matrix.feature_segments[fidx];  // begining bin
   uint32_t gidx_end =
@@ -289,7 +284,7 @@ __device__ void EvaluateFeature(
     if (thread_active) {
       gain = LossChangeMissing(bin, missing, parent_sum, node.root_gain, param,
                                monotonic_constraint,
-                               nid, fidx, interaction_constraint,
+                               nid, fidx,
                                value_constraint, missing_left);
     }
 
@@ -335,8 +330,7 @@ __global__ void EvaluateSplitKernel(
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,
-    common::Span<int> d_monotonic_constraints,
-    InteractionConstraints::DeviceEvaluator interaction_constraint) {
+    common::Span<int> d_monotonic_constraints) {
   // KeyValuePair here used as threadIdx.x -> gain_value
   using ArgMaxT = cub::KeyValuePair<int, float>;
   using BlockScanT =
@@ -368,7 +362,7 @@ __global__ void EvaluateSplitKernel(
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
       nid, fidx,
       node_histogram, matrix, &best_split, node, gpu_param, &temp_storage,
-      constraint, value_constraint, interaction_constraint);
+      constraint, value_constraint);
 
   __syncthreads();
 
@@ -851,7 +845,12 @@ struct DeviceShard {
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      auto constrainted_feature_set = interaction_constraint.GetAllowedFeatures(p_feature_set, nidx);
+      auto constrainted_feature_set =
+          interaction_constraint.GetAllowedFeatures(p_feature_set, nidx);
+      if (constrainted_feature_set->Size() == 0) {
+        continue;
+      }
+
       constrainted_feature_set->Shard(GPUSet(device_id, 1));
       auto d_feature_set = constrainted_feature_set->DeviceSpan(device_id);
       auto d_split_candidates =
@@ -865,7 +864,7 @@ struct DeviceShard {
               nidx,
               hist.GetNodeHistogram(nidx), d_feature_set, node, ellpack_matrix,
               gpu_param, d_split_candidates, node_value_constraints[nidx],
-              monotone_constraints, interaction_constraint.split_evaluator_);
+              monotone_constraints);
 
       // Reduce over features to find best feature
       auto d_result = d_result_all.subspan(i, 1);
