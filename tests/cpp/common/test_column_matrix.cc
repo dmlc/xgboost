@@ -58,7 +58,7 @@ TEST(HistIndexCreationWithExternalMemory, Test) {
     // in the thread pool
     omp_set_num_threads(i);
     // This should create multiple sparse pages
-    std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix((33-i)*100, 16UL);
+    std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix((33-i)*160, 16UL);
     GHistIndexMatrix gmat;
     gmat.Init(dmat.get(), 256);
   }
