@@ -187,7 +187,7 @@ struct ELLPackMatrix {
 
 // With constraints
 template <typename GradientPairT>
-XGBOOST_DEVICE float inline LossChangeMissing(
+__device__ float inline LossChangeMissing(
     const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
     const float& parent_gain, const GPUTrainingParam& param, int constraint,
     int32_t nid, int32_t fid,
@@ -199,8 +199,9 @@ XGBOOST_DEVICE float inline LossChangeMissing(
       GradStats(parent_sum - (scan + missing)));
   float missing_right_gain = value_constraint.CalcSplitGain(
       param, constraint, GradStats(scan), GradStats(parent_sum - scan));
-  missing_left_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_left_gain);
-  missing_right_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_right_gain);
+
+  // missing_left_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_left_gain);
+  // missing_right_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_right_gain);
 
   if (missing_left_gain >= missing_right_gain) {
     missing_left_out = true;
@@ -850,8 +851,9 @@ struct DeviceShard {
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      p_feature_set->Shard(GPUSet(device_id, 1));
-      auto d_feature_set = p_feature_set->DeviceSpan(device_id);
+      auto constrainted_feature_set = interaction_constraint.GetAllowedFeatures(p_feature_set, nidx);
+      constrainted_feature_set->Shard(GPUSet(device_id, 1));
+      auto d_feature_set = constrainted_feature_set->DeviceSpan(device_id);
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);

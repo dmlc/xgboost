@@ -2,6 +2,7 @@
  * Copyright 2019 XGBoost contributors
  */
 #include <thrust/copy.h>
+#include <memory>
 #include "constraints.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/span.h"
@@ -11,6 +12,7 @@ namespace tree {
 
 InteractionConstraints::InteractionConstraints(std::string interaction_constraints_str, int n_features) {
   if (interaction_constraints_str.size() == 0) {
+    is_used = false;
     return;
   }
   std::istringstream iss(interaction_constraints_str);
@@ -93,6 +95,8 @@ void InteractionConstraints::ApplySplit(int32_t nid, int32_t left, int32_t right
 
   split_evaluator_.node_interactions_span_ = dh::ToSpan(d_node_interactions_);
   split_evaluator_.node_interactions_ptr_span_ = dh::ToSpan(d_node_interactions_ptr_);
+
+  feature_buffer = std::make_shared<HostDeviceVector<int>>();
 }
 }  // namespace tree
 }  // namespace xgboost
