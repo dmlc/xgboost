@@ -1446,7 +1446,7 @@ class GPUHistMakerSpecialised {
 
     // Find the cuts.
     monitor_.StartCuda("Quantiles");
-    // TODO:(sriramch) The return value will be used when we add support for histogram
+    // TODO(sriramch): The return value will be used when we add support for histogram
     // index creation for multiple batches
     (void)common::DeviceSketch(param_, hist_maker_param_.gpu_batch_nrows, dmat, &hmat_);
     n_bins_ = hmat_.row_ptr.back();
