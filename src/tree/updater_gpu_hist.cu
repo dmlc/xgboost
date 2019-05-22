@@ -23,6 +23,7 @@
 #include "../common/timer.h"
 #include "../common/span.h"
 #include "param.h"
+#include "constraints.cuh"
 #include "updater_gpu_common.cuh"
 
 namespace xgboost {
@@ -189,6 +190,8 @@ template <typename GradientPairT>
 XGBOOST_DEVICE float inline LossChangeMissing(
     const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
     const float& parent_gain, const GPUTrainingParam& param, int constraint,
+    int32_t nid, int32_t fid,
+    InteractionConstraints::DeviceEvaluator const& interaction_constraint,
     const ValueConstraint& value_constraint,
     bool& missing_left_out) {  // NOLINT
   float missing_left_gain = value_constraint.CalcSplitGain(
@@ -196,6 +199,8 @@ XGBOOST_DEVICE float inline LossChangeMissing(
       GradStats(parent_sum - (scan + missing)));
   float missing_right_gain = value_constraint.CalcSplitGain(
       param, constraint, GradStats(scan), GradStats(parent_sum - scan));
+  missing_left_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_left_gain);
+  missing_right_gain = interaction_constraint.EvaluateSplit(nid, fid, missing_right_gain);
 
   if (missing_left_gain >= missing_right_gain) {
     missing_left_out = true;
@@ -245,13 +250,14 @@ __device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_h
 template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
           typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
-    int fidx, common::Span<const GradientSumT> node_histogram,
+    int32_t nid, int fidx, common::Span<const GradientSumT> node_histogram,
     const ELLPackMatrix& matrix,
     DeviceSplitCandidate* best_split,  // shared memory storing best split
     const DeviceNodeStats& node, const GPUTrainingParam& param,
     TempStorageT* temp_storage,  // temp memory for cub operations
-    int constraint,              // monotonic_constraints
-    const ValueConstraint& value_constraint) {
+    int monotonic_constraint,
+    const ValueConstraint& value_constraint,
+    const InteractionConstraints::DeviceEvaluator& interaction_constraint) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
   uint32_t gidx_begin = matrix.feature_segments[fidx];  // begining bin
   uint32_t gidx_end =
@@ -281,7 +287,9 @@ __device__ void EvaluateFeature(
     float gain = null_gain;
     if (thread_active) {
       gain = LossChangeMissing(bin, missing, parent_sum, node.root_gain, param,
-                               constraint, value_constraint, missing_left);
+                               monotonic_constraint,
+                               nid, fidx, interaction_constraint,
+                               value_constraint, missing_left);
     }
 
     __syncthreads();
@@ -318,15 +326,16 @@ __device__ void EvaluateFeature(
 
 template <int BLOCK_THREADS, typename GradientSumT>
 __global__ void EvaluateSplitKernel(
-    common::Span<const GradientSumT>
-        node_histogram,               // histogram for gradients
+    int32_t nid,
+    common::Span<const GradientSumT> node_histogram,  // histogram for gradients
     common::Span<const int> feature_set,  // Selected features
     DeviceNodeStats node,
   ELLPackMatrix matrix,
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,
-    common::Span<int> d_monotonic_constraints) {
+    common::Span<int> d_monotonic_constraints,
+    InteractionConstraints::DeviceEvaluator interaction_constraint) {
   // KeyValuePair here used as threadIdx.x -> gain_value
   using ArgMaxT = cub::KeyValuePair<int, float>;
   using BlockScanT =
@@ -356,8 +365,9 @@ __global__ void EvaluateSplitKernel(
   int fidx = feature_set[blockIdx.x];
   int constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
-      fidx, node_histogram, matrix, &best_split, node, gpu_param, &temp_storage,
-      constraint, value_constraint);
+      nid, fidx,
+      node_histogram, matrix, &best_split, node, gpu_param, &temp_storage,
+      constraint, value_constraint, interaction_constraint);
 
   __syncthreads();
 
@@ -687,6 +697,7 @@ struct DeviceShard {
 
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
+  InteractionConstraints interaction_constraint;
   common::ColumnSampler column_sampler;
 
   std::unique_ptr<GPUHistBuilderBase<GradientSumT>> hist_builder;
@@ -697,8 +708,10 @@ struct DeviceShard {
   std::unique_ptr<ExpandQueue> qexpand;
 
   // TODO(canonizer): do add support multi-batch DMatrix here
-  DeviceShard(int _device_id, int shard_idx, bst_uint row_begin,
-              bst_uint row_end, TrainParam _param, uint32_t column_sampler_seed)
+  DeviceShard(int _device_id, int shard_idx,
+              bst_uint row_begin, bst_uint row_end,
+              TrainParam _param, int32_t n_features,
+              uint32_t column_sampler_seed)
       : device_id(_device_id),
         shard_idx(shard_idx),
         row_begin_idx(row_begin),
@@ -707,6 +720,7 @@ struct DeviceShard {
         n_bins(0),
         param(std::move(_param)),
         prediction_cache_initialised(false),
+      interaction_constraint(param.interaction_constraints, n_features),
         column_sampler(column_sampler_seed) {
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
   }
@@ -846,9 +860,10 @@ struct DeviceShard {
       int constexpr kBlockThreads = 256;
       EvaluateSplitKernel<kBlockThreads, GradientSumT>
           <<<uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]>>>(
+              nidx,
               hist.GetNodeHistogram(nidx), d_feature_set, node, ellpack_matrix,
               gpu_param, d_split_candidates, node_value_constraints[nidx],
-              monotone_constraints);
+              monotone_constraints, interaction_constraint.split_evaluator_);
 
       // Reduce over features to find best feature
       auto d_result = d_result_all.subspan(i, 1);
@@ -1441,6 +1456,7 @@ class GPUHistMakerSpecialised{
           shard = std::unique_ptr<DeviceShard<GradientSumT>>(
             new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
                                           start, start + size, param_,
+                                          info_->num_col_,
                                           column_sampling_seed));
         });
 

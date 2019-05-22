@@ -16,6 +16,7 @@
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/common/common.h"
+// #include "../../../src/tree/constraints.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -89,7 +90,7 @@ TEST(GpuHist, BuildGidxDense) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -128,7 +129,7 @@ TEST(GpuHist, BuildGidxSparse) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -172,7 +173,7 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   param.n_gpus = 1;
   param.max_leaves = 0;
 
-  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols);
+  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
 
   BuildGidx(&shard, kNRows, kNCols);
 
@@ -283,7 +284,7 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Initialize DeviceShard
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols)};
+    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols, kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -363,7 +364,7 @@ TEST(GpuHist, ApplySplit) {
 
   hist_maker.shards_.resize(1);
   hist_maker.shards_[0].reset(
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols));
+      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols, kNCols));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.
