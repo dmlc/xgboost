@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include "../../../src/tree/constraints.cuh"
 #include "../../../src/common/device_helpers.cuh"

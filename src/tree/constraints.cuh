@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019 XGBoost contributors
+ */
 #pragma once
 
 #include <thrust/device_vector.h>

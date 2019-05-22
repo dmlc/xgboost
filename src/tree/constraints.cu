@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019 XGBoost contributors
+ */
 #include <thrust/copy.h>
 #include "constraints.cuh"
 #include "../common/device_helpers.cuh"
