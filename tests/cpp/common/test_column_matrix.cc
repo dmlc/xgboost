@@ -50,5 +50,12 @@ TEST(DenseColumnWithMissing, Test) {
   }
   delete dmat;
 }
+
+TEST(HistIndexCreationWithExternalMemory, Test) {
+  // This should create multiple sparse pages
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000, 16UL);
+  GHistIndexMatrix gmat;
+  gmat.Init(dmat.get(), 256);
+}
 }  // namespace common
 }  // namespace xgboost
