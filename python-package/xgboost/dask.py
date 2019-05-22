@@ -12,7 +12,7 @@ from .compat import (DaskDataFrame, DaskSeries, DaskArray,
 # Try to find the dmlc tracker script
 
 TRACKER_PATH = os.path.dirname(__file__) + "/../../dmlc-core/tracker/dmlc_tracker"
-ALTERNATE_TRACKER_PATH = os.path.dirname(__file__) + "/dmlc-core/tracker/dmlc_tracker"
+ALTERNATE_TRACKER_PATH = os.path.dirname(__file__) + "/../dmlc_tracker"
 sys.path.append(TRACKER_PATH)
 sys.path.append(ALTERNATE_TRACKER_PATH)
 from tracker import RabitTracker  # noqa

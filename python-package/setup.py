@@ -5,6 +5,7 @@ import io
 import sys
 import os
 from setuptools import setup, find_packages
+
 # import subprocess
 sys.path.insert(0, '.')
 
@@ -40,7 +41,8 @@ setup(name='xgboost',
       maintainer='Hyunsu Cho',
       maintainer_email='chohyu01@cs.washington.edu',
       zip_safe=False,
-      packages=find_packages(),
+      packages=['dmlc_tracker'] + find_packages(),
+      package_dir={'dmlc_tracker': '../dmlc-core/tracker/dmlc_tracker'},
       # this will use MANIFEST.in during install where we specify additional files,
       # this is the golden line
       include_package_data=True,
