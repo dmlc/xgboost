@@ -115,10 +115,13 @@ struct HistCutMatrix {
   Monitor monitor_;
 };
 
-/*! \brief Builds the cut matrix on the GPU */
-void DeviceSketch
-  (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows);
+/*! \brief Builds the cut matrix on the GPU.
+ *   This returns the row stride across the entire dataset to avoid
+ *   further passes on the dmatrix to compute it.
+ */
+size_t DeviceSketch
+  (const tree::TrainParam& param, int gpu_batch_nrows, DMatrix* dmat,
+   HistCutMatrix* hmat);
 
 /*!
  * \brief A single row in global histogram index.

@@ -1374,7 +1374,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 }
 
 template <typename GradientSumT>
-class GPUHistMakerSpecialised{
+class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
   void Init(
@@ -1446,7 +1446,9 @@ class GPUHistMakerSpecialised{
 
     // Find the cuts.
     monitor_.StartCuda("Quantiles");
-    common::DeviceSketch(batch, *info_, param_, &hmat_, hist_maker_param_.gpu_batch_nrows);
+    // TODO:(sriramch) The return value will be used when we add support for histogram
+    // index creation for multiple batches
+    (void)common::DeviceSketch(param_, hist_maker_param_.gpu_batch_nrows, dmat, &hmat_);
     n_bins_ = hmat_.row_ptr.back();
     monitor_.StopCuda("Quantiles");
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
