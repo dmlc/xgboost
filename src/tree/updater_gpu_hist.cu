@@ -828,7 +828,7 @@ struct DeviceShard {
       if (h_buffer.size() == 0) {
         LOG(INFO) << "No sampled feature satifies constraints.";
       }
-      buffer->Reshard(GPUDistribution(GPUSet(device_id, 1)));
+      buffer->Shard(GPUDistribution(GPUSet(device_id, 1)));
       d_feature_set = buffer->DeviceSpan(device_id);
     } else {
       d_feature_set = p_sampled_features->DeviceSpan(device_id);
