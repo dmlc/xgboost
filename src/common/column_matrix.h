@@ -70,7 +70,7 @@ class ColumnMatrix {
 
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
-                   double  sparse_threshold) {
+                   double sparse_threshold) {
     const int32_t nfeature = static_cast<int32_t>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
