@@ -89,3 +89,5 @@ List of Contributors
 * [Sam Wilkinson](https://samwilkinson.io)
 * [Matthew Jones](https://github.com/mt-jones)
 * [Jiaxiang Li](https://github.com/JiaxiangBU)
+* [Bryan Woods](https://github.com/bryan-woods)
+  - Bryan added support for cross-validation for the ranking objective
