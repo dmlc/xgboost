@@ -136,9 +136,10 @@ SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
     idxvec[i] = INTEGER(idxset)[i] - 1;
   }
   DMatrixHandle res;
-  CHECK_CALL(XGDMatrixSliceDMatrix(R_ExternalPtrAddr(handle),
-                                   BeginPtr(idxvec), len,
-                                   &res));
+  CHECK_CALL(XGDMatrixSliceDMatrixEx(R_ExternalPtrAddr(handle),
+                                     BeginPtr(idxvec), len,
+                                     &res,
+                                     0));
   ret = PROTECT(R_MakeExternalPtr(res, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();

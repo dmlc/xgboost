@@ -234,6 +234,56 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
+def groups_to_rows(groups, boundaries):
+    """
+    Given group row boundaries, convert ground indexes to row indexes
+    :param groups: list of groups for testing
+    :param boundaries: rows index limits of each group
+    :return: row in group
+    """
+    return np.concatenate([np.arange(boundaries[g], boundaries[g+1]) for g in groups])
+
+
+def mkgroupfold(dall, nfold, param, evals=(), fpreproc=None, shuffle=True):
+    """
+    Make n folds for cross-validation maintaining groups
+    :return: cross-validation folds
+    """
+    # we have groups for pairwise ranking... get a list of the group indexes
+    group_boundaries = dall.get_uint_info('group_ptr')
+    group_sizes = np.diff(group_boundaries)
+
+    if shuffle is True:
+        idx = np.random.permutation(len(group_sizes))
+    else:
+        idx = np.arange(len(group_sizes))
+    # list by fold of test group indexes
+    out_group_idset = np.array_split(idx, nfold)
+    # list by fold of train group indexes
+    in_group_idset = [np.concatenate([out_group_idset[i] for i in range(nfold) if k != i])
+                      for k in range(nfold)]
+    # from the group indexes, convert them to row indexes
+    in_idset = [groups_to_rows(in_groups, group_boundaries) for in_groups in in_group_idset]
+    out_idset = [groups_to_rows(out_groups, group_boundaries) for out_groups in out_group_idset]
+
+    # build the folds by taking the appropriate slices
+    ret = []
+    for k in range(nfold):
+        # perform the slicing using the indexes determined by the above methods
+        dtrain = dall.slice(in_idset[k], allow_groups=True)
+        dtrain.set_group(group_sizes[in_group_idset[k]])
+        dtest = dall.slice(out_idset[k], allow_groups=True)
+        dtest.set_group(group_sizes[out_group_idset[k]])
+        # run preprocessing on the data set if needed
+        if fpreproc is not None:
+            dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
+        else:
+            tparam = param
+        plst = list(tparam.items()) + [('eval_metric', itm) for itm in evals]
+        ret.append(CVPack(dtrain, dtest, plst))
+    return ret
+
+
 def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
             folds=None, shuffle=True):
     """
@@ -243,16 +293,17 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     np.random.seed(seed)
 
     if stratified is False and folds is None:
-        # Do standard k-fold cross validation
+        # Do standard k-fold cross validation. Automatically determine the folds.
+        if len(dall.get_uint_info('group_ptr')) > 1:
+            return mkgroupfold(dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle)
+
         if shuffle is True:
             idx = np.random.permutation(dall.num_row())
         else:
             idx = np.arange(dall.num_row())
         out_idset = np.array_split(idx, nfold)
-        in_idset = [
-            np.concatenate([out_idset[i] for i in range(nfold) if k != i])
-            for k in range(nfold)
-        ]
+        in_idset = [np.concatenate([out_idset[i] for i in range(nfold) if k != i])
+                    for k in range(nfold)]
     elif folds is not None:
         # Use user specified custom split using indices
         try:
@@ -274,6 +325,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
 
     ret = []
     for k in range(nfold):
+        # perform the slicing using the indexes determined by the above methods
         dtrain = dall.slice(in_idset[k])
         dtest = dall.slice(out_idset[k])
         # run preprocessing on the data set if needed
