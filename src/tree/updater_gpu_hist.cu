@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/functional.h>
@@ -702,6 +702,7 @@ struct DeviceShard {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
+  bool has_interaction_constraint;
   /* \brief Used for interaction constraints. */
   std::unique_ptr<SplitEvaluator> split_evaluator;
 
@@ -709,6 +710,7 @@ struct DeviceShard {
   DeviceShard(int _device_id, int shard_idx,
               bst_uint row_begin, bst_uint row_end,
               TrainParam _param,
+              bool has_interaction_constraint_,
               std::unique_ptr<SplitEvaluator> spliteval,
               uint32_t column_sampler_seed)
       : device_id(_device_id),
@@ -719,6 +721,7 @@ struct DeviceShard {
         n_bins(0),
         param(std::move(_param)),
         prediction_cache_initialised(false),
+        has_interaction_constraint{has_interaction_constraint_},
         split_evaluator{std::move(spliteval)},
         column_sampler(column_sampler_seed) {
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
@@ -814,14 +817,14 @@ struct DeviceShard {
     split_evaluator->Reset();
   }
 
+  // Run feature sampling and use interaction constraint.
   common::Span<int32_t const> GetFeaturesSet(
       int32_t nidx,
       std::shared_ptr<HostDeviceVector<int32_t> const> p_sampled_features,
       HostDeviceVector<int32_t>* buffer) const {
-    auto const& h_sampled_features = p_sampled_features->ConstHostVector();
     common::Span<int32_t const> d_feature_set;
-
-    if (split_evaluator) {
+    if (has_interaction_constraint) {
+      auto const& h_sampled_features = p_sampled_features->ConstHostVector();
       auto& h_buffer = buffer->HostVector();
       for (auto f : h_sampled_features) {
         if (split_evaluator->CheckFeatureConstraint(nidx, f)) {
@@ -831,7 +834,7 @@ struct DeviceShard {
       if (h_buffer.size() == 0) {
         LOG(INFO) << "No sampled feature satifies constraints.";
       }
-      buffer->Shard(GPUSet(device_id, 1));
+      buffer->Reshard(GPUDistribution(GPUSet(device_id, 1)));
       d_feature_set = buffer->DeviceSpan(device_id);
     } else {
       d_feature_set = p_sampled_features->DeviceSpan(device_id);
@@ -879,6 +882,7 @@ struct DeviceShard {
       std::shared_ptr<HostDeviceVector<int32_t>> p_sampled_features =
           column_sampler.GetFeatureSet(tree.GetDepth(nidx));
       HostDeviceVector<int32_t> constrainted_feature_set;
+      p_sampled_features->Shard(GPUSet(device_id, 1));
       common::Span<int32_t const> d_feature_set =
           GetFeaturesSet(nidx, p_sampled_features, &constrainted_feature_set);
 
@@ -1255,7 +1259,7 @@ struct DeviceShard {
     this->FinalisePosition(p_tree);
     monitor.StopCuda("FinalisePosition");
   }
-};
+};  // end DeviceShard
 
 template <typename GradientSumT>
 struct SharedMemHistBuilder : public GPUHistBuilderBase<GradientSumT> {
@@ -1436,15 +1440,16 @@ class GPUHistMakerSpecialised {
     n_devices_ = param_.n_gpus;
     dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus));
 
-    // Check whether interaction_constraints is used.
     for (auto const& kv : args) {
       if (kv.first == "interaction_constraints") {
         has_interaction_constraint_ = true;
-        split_evaluator_.reset(SplitEvaluator::Create(param_.split_evaluator));
-        split_evaluator_->Init(args);
         break;
       }
     }
+    // elastic_net is only used as an internal base evaluator for
+    // interaction, doens't contribute to GPU Hist.
+    split_evaluator_.reset(SplitEvaluator::Create("elastic_net,interaction"));
+    split_evaluator_->Init(args);
 
     dh::CheckComputeCapability();
 
@@ -1503,8 +1508,8 @@ class GPUHistMakerSpecialised {
               new DeviceShard<GradientSumT>(
                   dist_.Devices().DeviceId(idx), idx,
                   start, start + size, param_,
-                  has_interaction_constraint_ ? std::unique_ptr<SplitEvaluator>(
-                      split_evaluator_->GetHostClone()) : nullptr,
+                  has_interaction_constraint_,
+                  std::unique_ptr<SplitEvaluator>(split_evaluator_->GetHostClone()),
                   column_sampling_seed));
         });
 

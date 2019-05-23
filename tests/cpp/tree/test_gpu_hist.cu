@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 
 #include <thrust/device_vector.h>
@@ -96,7 +96,8 @@ TEST(GpuHist, BuildGidxDense) {
     std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
 
   DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param,
-                                         std::move(spliteval), kNCols);
+                                         false, std::move(spliteval),
+                                         kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -142,7 +143,8 @@ TEST(GpuHist, BuildGidxSparse) {
     std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
 
   DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param,
-                                         std::move(spliteval), kNCols);
+                                         false, std::move(spliteval),
+                                         kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -190,7 +192,9 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
 
   std::unique_ptr<SplitEvaluator> spliteval {
     std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
-  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, std::move(spliteval), kNCols);
+  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param,
+                                  false, std::move(spliteval),
+                                  kNCols);
 
   BuildGidx(&shard, kNRows, kNCols);
 
@@ -305,7 +309,8 @@ TEST(GpuHist, EvaluateSplits) {
     std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
     new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param,
-                                         std::move(spliteval), kNCols)};
+                                         false, std::move(spliteval),
+                                         kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -387,7 +392,8 @@ TEST(GpuHist, ApplySplit) {
   std::unique_ptr<SplitEvaluator> spliteval {
     std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
   hist_maker.shards_[0].reset(
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, std::move(spliteval), kNCols));
+      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param,
+                                           false, std::move(spliteval), kNCols));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.
