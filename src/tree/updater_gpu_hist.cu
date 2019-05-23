@@ -23,7 +23,6 @@
 #include "../common/timer.h"
 #include "../common/span.h"
 #include "param.h"
-#include "constraints.cuh"
 #include "updater_gpu_common.cuh"
 #include "split_evaluator.h"
 
