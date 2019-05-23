@@ -105,7 +105,7 @@ private[spark] trait LearningTaskParams extends Params {
 }
 
 private[spark] object LearningTaskParams {
-  val supportedObjective = HashSet("reg:squarederror", "reg:logistic", "binary:logistic",
+  val supportedObjective = HashSet("reg:linear", "reg:squarederror", "reg:logistic", "binary:logistic",
     "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
     "rank:ndcg", "rank:map", "reg:gamma", "reg:tweedie")
 
