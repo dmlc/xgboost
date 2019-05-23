@@ -3,6 +3,8 @@
 import os
 import sys
 import math
+import platform
+import logging
 from threading import Thread
 from . import rabit
 from .core import DMatrix
@@ -10,13 +12,14 @@ from .compat import (DaskDataFrame, DaskSeries, DaskArray,
                      distributed_get_worker)
 
 # Try to find the dmlc tracker script
-
+# For developers it will be the following
 TRACKER_PATH = os.path.dirname(__file__) + "/../../dmlc-core/tracker/dmlc_tracker"
-ALTERNATE_TRACKER_PATH = os.path.dirname(__file__) + "/../dmlc_tracker"
 sys.path.append(TRACKER_PATH)
-sys.path.append(ALTERNATE_TRACKER_PATH)
-from tracker import RabitTracker  # noqa
-
+try:
+    from tracker import RabitTracker  # noqa
+except ImportError:
+    # If packaged it will be local
+    from .tracker import RabitTracker  # noqa
 
 def _start_tracker(n_workers):
     """ Start Rabit tracker """
@@ -101,12 +104,18 @@ def run(client, func, *args):
     distributed training. The environment variable OMP_NUM_THREADS is defined on each worker
     according to dask - this means that calls to xgb.train() will use the threads allocated by
     dask by default, unless the user overrides the nthread parameter.
+
+    Note: Windows platforms are not officially supported. Contributions are welcome here.
     :param client: Dask client representing the cluster
     :param func: Python function to be executed by each worker. Typically contains xgboost
     training code.
     :param args: Arguments to be forwarded to func
     :return: Dict containing the function return value for each worker
     """
+    if platform.system() == 'Windows':
+        logging.warning(
+            'Windows is not officially supported for dask/xgboost integration. Contributions '
+            'welcome.')
     workers = list(client.scheduler_info()['workers'].keys())
     env = client.run(_start_tracker, len(workers), workers=[workers[0]])
     rabit_args = [('%s=%s' % item).encode() for item in env[workers[0]].items()]

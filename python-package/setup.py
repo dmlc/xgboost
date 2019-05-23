@@ -3,6 +3,7 @@
 from __future__ import absolute_import
 import io
 import sys
+import shutil
 import os
 from setuptools import setup, find_packages
 
@@ -28,6 +29,10 @@ for libfile in libpath['find_lib_path']():
         continue
 
 print("Install libxgboost from: %s" % LIB_PATH)
+
+# Get dmlc tracker script
+shutil.copy('../dmlc-core/tracker/dmlc_tracker/tracker.py', 'xgboost/')
+
 # Please use setup_pip.py for generating and deploying pip installation
 # detailed instruction in setup_pip.py
 setup(name='xgboost',
@@ -41,8 +46,7 @@ setup(name='xgboost',
       maintainer='Hyunsu Cho',
       maintainer_email='chohyu01@cs.washington.edu',
       zip_safe=False,
-      packages=['dmlc_tracker'] + find_packages(),
-      package_dir={'dmlc_tracker': '../dmlc-core/tracker/dmlc_tracker'},
+      packages=find_packages(),
       # this will use MANIFEST.in during install where we specify additional files,
       # this is the golden line
       include_package_data=True,
