@@ -187,10 +187,9 @@ struct ELLPackMatrix {
 
 // With constraints
 template <typename GradientPairT>
-__device__ float inline LossChangeMissing(
+XGBOOST_DEVICE float inline LossChangeMissing(
     const GradientPairT& scan, const GradientPairT& missing, const GradientPairT& parent_sum,
     const float& parent_gain, const GPUTrainingParam& param, int constraint,
-    int32_t nid, int32_t fid,
     const ValueConstraint& value_constraint,
     bool& missing_left_out) {  // NOLINT
   float missing_left_gain = value_constraint.CalcSplitGain(
@@ -247,7 +246,7 @@ __device__ GradientSumT ReduceFeature(common::Span<const GradientSumT> feature_h
 template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
           typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
-    int32_t nid, int fidx, common::Span<const GradientSumT> node_histogram,
+    int fidx, common::Span<const GradientSumT> node_histogram,
     const ELLPackMatrix& matrix,
     DeviceSplitCandidate* best_split,  // shared memory storing best split
     const DeviceNodeStats& node, const GPUTrainingParam& param,
@@ -283,9 +282,7 @@ __device__ void EvaluateFeature(
     float gain = null_gain;
     if (thread_active) {
       gain = LossChangeMissing(bin, missing, parent_sum, node.root_gain, param,
-                               monotonic_constraint,
-                               nid, fidx,
-                               value_constraint, missing_left);
+                               monotonic_constraint, value_constraint, missing_left);
     }
 
     __syncthreads();
@@ -322,7 +319,6 @@ __device__ void EvaluateFeature(
 
 template <int BLOCK_THREADS, typename GradientSumT>
 __global__ void EvaluateSplitKernel(
-    int32_t nid,
     common::Span<const GradientSumT> node_histogram,  // histogram for gradients
     common::Span<const int> feature_set,  // Selected features
     DeviceNodeStats node,
@@ -360,8 +356,7 @@ __global__ void EvaluateSplitKernel(
   int fidx = feature_set[blockIdx.x];
   int constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
-      nid, fidx,
-      node_histogram, matrix, &best_split, node, gpu_param, &temp_storage,
+      fidx, node_histogram, matrix, &best_split, node, gpu_param, &temp_storage,
       constraint, value_constraint);
 
   __syncthreads();
@@ -893,7 +888,6 @@ struct DeviceShard {
       int constexpr kBlockThreads = 256;
       EvaluateSplitKernel<kBlockThreads, GradientSumT>
           <<<uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]>>>(
-              nidx,
               hist.GetNodeHistogram(nidx), d_feature_set, node, ellpack_matrix,
               gpu_param, d_split_candidates, node_value_constraints[nidx],
               monotone_constraints);
@@ -1622,6 +1616,7 @@ class GPUHistMakerSpecialised {
 
   GPUHistMakerTrainParam hist_maker_param_;
   common::GHistIndexMatrix gmat_;
+  // Only used for interaction constraint.
   std::unique_ptr<SplitEvaluator> split_evaluator_;
 
   dh::AllReducer reducer_;
