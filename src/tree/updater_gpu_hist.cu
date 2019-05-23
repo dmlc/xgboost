@@ -879,6 +879,9 @@ struct DeviceShard {
       p_sampled_features->Shard(GPUSet(device_id, 1));
       common::Span<int32_t const> d_feature_set =
           GetFeaturesSet(nidx, p_sampled_features, &constrainted_feature_set);
+      if (d_feature_set.size() == 0) {
+        continue;
+      }
 
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
