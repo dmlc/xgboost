@@ -53,12 +53,12 @@ TEST(DenseColumnWithMissing, Test) {
 
 TEST(HistIndexCreationWithExternalMemory, Test) {
   for (int i = 1; i <= 32; ++i) {
+    // This should create multiple sparse pages
+    std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix((33-i)*100, 16UL);
     // Vary the number of threads to make sure that the last batch
     // is distributed properly to the available number of threads
     // in the thread pool
     omp_set_num_threads(i);
-    // This should create multiple sparse pages
-    std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix((33-i)*160, 16UL);
     GHistIndexMatrix gmat;
     gmat.Init(dmat.get(), 256);
   }

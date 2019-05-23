@@ -159,6 +159,8 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_s
     batch_count++;
     row_count += batch.Size();
   }
+  std::cout << "*** DEBUG: n_entries " << n_entries << ", page_size " << page_size 
+            << ", batch_count " << batch_count << ", row_count " << row_count << std::endl;
   EXPECT_GE(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
