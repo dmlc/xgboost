@@ -18,7 +18,7 @@ TEST(GPUInteractionConstraint, Init) {
   Arg args {{"interaction_constraints", constraints_str}};
   param.Init(args);
 
-  size_t constexpr kCols = 10;
+  int32_t constexpr kCols = 10;
   InteractionConstraints constraints{param.interaction_constraints, kCols};
   std::vector< std::set<int32_t> > feature_interactions_solution {
     {0, 2},

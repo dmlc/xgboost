@@ -25,6 +25,7 @@
 #include "param.h"
 #include "constraints.cuh"
 #include "updater_gpu_common.cuh"
+#include "split_evaluator.h"
 
 namespace xgboost {
 namespace tree {
@@ -692,7 +693,6 @@ struct DeviceShard {
 
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
-  InteractionConstraints interaction_constraint;
   common::ColumnSampler column_sampler;
 
   std::unique_ptr<GPUHistBuilderBase<GradientSumT>> hist_builder;
@@ -702,10 +702,14 @@ struct DeviceShard {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
+  /* \brief Used for interaction constraints. */
+  std::unique_ptr<SplitEvaluator> split_evaluator;
+
   // TODO(canonizer): do add support multi-batch DMatrix here
   DeviceShard(int _device_id, int shard_idx,
               bst_uint row_begin, bst_uint row_end,
-              TrainParam _param, int32_t n_features,
+              TrainParam _param,
+              std::unique_ptr<SplitEvaluator> spliteval,
               uint32_t column_sampler_seed)
       : device_id(_device_id),
         shard_idx(shard_idx),
@@ -715,7 +719,7 @@ struct DeviceShard {
         n_bins(0),
         param(std::move(_param)),
         prediction_cache_initialised(false),
-      interaction_constraint(param.interaction_constraints, n_features),
+        split_evaluator{std::move(spliteval)},
         column_sampler(column_sampler_seed) {
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
   }
@@ -806,6 +810,34 @@ struct DeviceShard {
         gpair.size() * sizeof(GradientPair), cudaMemcpyHostToHost));
     SubsampleGradientPair(device_id, gpair, param.subsample, row_begin_idx);
     hist.Reset();
+
+    split_evaluator->Reset();
+  }
+
+  common::Span<int32_t const> GetFeaturesSet(
+      int32_t nidx,
+      std::shared_ptr<HostDeviceVector<int32_t> const> p_sampled_features,
+      HostDeviceVector<int32_t>* buffer) const {
+    auto const& h_sampled_features = p_sampled_features->ConstHostVector();
+    common::Span<int32_t const> d_feature_set;
+
+    if (split_evaluator) {
+      auto& h_buffer = buffer->HostVector();
+      for (auto f : h_sampled_features) {
+        if (split_evaluator->CheckFeatureConstraint(nidx, f)) {
+          h_buffer.emplace_back(f);
+        }
+      }
+      if (h_buffer.size() == 0) {
+        LOG(INFO) << "No sampled feature satifies constraints.";
+      }
+      buffer->Shard(GPUSet(device_id, 1));
+      d_feature_set = buffer->DeviceSpan(device_id);
+    } else {
+      d_feature_set = p_sampled_features->DeviceSpan(device_id);
+    }
+
+    return d_feature_set;
   }
 
   std::vector<DeviceSplitCandidate> EvaluateSplits(
@@ -844,15 +876,12 @@ struct DeviceShard {
     auto& streams = this->GetStreams(nidxs.size());
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
-      auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      auto constrainted_feature_set =
-          interaction_constraint.GetAllowedFeatures(p_feature_set, nidx);
-      if (constrainted_feature_set->Size() == 0) {
-        continue;
-      }
+      std::shared_ptr<HostDeviceVector<int32_t>> p_sampled_features =
+          column_sampler.GetFeatureSet(tree.GetDepth(nidx));
+      HostDeviceVector<int32_t> constrainted_feature_set;
+      common::Span<int32_t const> d_feature_set =
+          GetFeaturesSet(nidx, p_sampled_features, &constrainted_feature_set);
 
-      constrainted_feature_set->Shard(GPUSet(device_id, 1));
-      auto d_feature_set = constrainted_feature_set->DeviceSpan(device_id);
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
@@ -1129,6 +1158,11 @@ struct DeviceShard {
         candidate.split.left_sum;
     node_sum_gradients[tree[candidate.nid].RightChild()] =
         candidate.split.right_sum;
+
+    split_evaluator->AddSplit(candidate.nid,
+                              tree[candidate.nid].LeftChild(), tree[candidate.nid].RightChild(),
+                              tree[candidate.nid].SplitIndex(),
+                              left_weight, right_weight);
   }
 
   void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all,
@@ -1390,9 +1424,10 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 }
 
 template <typename GradientSumT>
-class GPUHistMakerSpecialised{
+class GPUHistMakerSpecialised {
  public:
-  GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
+  GPUHistMakerSpecialised() :
+      initialised_{false}, has_interaction_constraint_{false}, p_last_fmat_{nullptr} {}
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) {
     param_.InitAllowUnknown(args);
@@ -1400,6 +1435,16 @@ class GPUHistMakerSpecialised{
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
     n_devices_ = param_.n_gpus;
     dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus));
+
+    // Check whether interaction_constraints is used.
+    for (auto const& kv : args) {
+      if (kv.first == "interaction_constraints") {
+        has_interaction_constraint_ = true;
+        split_evaluator_.reset(SplitEvaluator::Create(param_.split_evaluator));
+        split_evaluator_->Init(args);
+        break;
+      }
+    }
 
     dh::CheckComputeCapability();
 
@@ -1455,10 +1500,12 @@ class GPUHistMakerSpecialised{
           size_t start = dist_.ShardStart(info_->num_row_, idx);
           size_t size = dist_.ShardSize(info_->num_row_, idx);
           shard = std::unique_ptr<DeviceShard<GradientSumT>>(
-            new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
-                                          start, start + size, param_,
-                                          info_->num_col_,
-                                          column_sampling_seed));
+              new DeviceShard<GradientSumT>(
+                  dist_.Devices().DeviceId(idx), idx,
+                  start, start + size, param_,
+                  has_interaction_constraint_ ? std::unique_ptr<SplitEvaluator>(
+                      split_evaluator_->GetHostClone()) : nullptr,
+                  column_sampling_seed));
         });
 
     // Find the cuts.
@@ -1564,12 +1611,14 @@ class GPUHistMakerSpecialised{
 
  private:
   bool initialised_;
+  bool has_interaction_constraint_;
 
   int n_devices_;
   int n_bins_;
 
   GPUHistMakerTrainParam hist_maker_param_;
   common::GHistIndexMatrix gmat_;
+  std::unique_ptr<SplitEvaluator> split_evaluator_;
 
   dh::AllReducer reducer_;
 

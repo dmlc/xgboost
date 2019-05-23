@@ -16,7 +16,6 @@
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/common/common.h"
-// #include "../../../src/tree/constraints.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -86,11 +85,18 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
 TEST(GpuHist, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
   TrainParam param;
-  param.max_depth = 1;
-  param.n_gpus = 1;
-  param.max_leaves = 0;
+  std::vector<std::pair<std::string, std::string>> args = {
+    {"n_gpus", "1"},
+    {"max_depth", "1"},
+    {"max_leaves", "0"}
+  };
+  param.InitAllowUnknown(args);
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
+  std::unique_ptr<SplitEvaluator> spliteval {
+    std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
+
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param,
+                                         std::move(spliteval), kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -125,11 +131,18 @@ TEST(GpuHist, BuildGidxDense) {
 TEST(GpuHist, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
   TrainParam param;
-  param.max_depth = 1;
-  param.n_gpus = 1;
-  param.max_leaves = 0;
+  std::vector<std::pair<std::string, std::string>> args = {
+    {"n_gpus", "1"},
+    {"max_depth", "1"},
+    {"max_leaves", "0"}
+  };
+  param.InitAllowUnknown(args);
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
+  std::unique_ptr<SplitEvaluator> spliteval {
+    std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
+
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param,
+                                         std::move(spliteval), kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -167,13 +180,17 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
 template <typename GradientSumT>
 void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   int const kNRows = 16, kNCols = 8;
-
+  std::vector<std::pair<std::string, std::string>> args = {
+    {"n_gpus", "1"},
+    {"max_depth", "6"},
+    {"max_leaves", "0"}
+  };
   TrainParam param;
-  param.max_depth = 6;
-  param.n_gpus = 1;
-  param.max_leaves = 0;
+  param.InitAllowUnknown(args);
 
-  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
+  std::unique_ptr<SplitEvaluator> spliteval {
+    std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
+  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, std::move(spliteval), kNCols);
 
   BuildGidx(&shard, kNRows, kNCols);
 
@@ -262,19 +279,20 @@ common::HistCutMatrix GetHostCutMatrix () {
 TEST(GpuHist, EvaluateSplits) {
   constexpr int kNRows = 16;
   constexpr int kNCols = 8;
-
+  std::vector<std::pair<std::string, std::string>> args = {
+    {"n_gpus", "1"},
+    {"max_depth", "1"},
+    {"colsample_bynode", "1"},
+    {"colsample_bylevel", "1"},
+    {"colsample_bytree", "1"},
+    {"min_child_weight", "0.01"},
+    // Disable all parameters.
+    {"reg_alpha", "0.0"},
+    {"reg_lambda", "0.0"},
+    {"max_delta_step", "0.0"}
+  };
   TrainParam param;
-  param.max_depth = 1;
-  param.n_gpus = 1;
-  param.colsample_bynode = 1;
-  param.colsample_bylevel = 1;
-  param.colsample_bytree = 1;
-  param.min_child_weight = 0.01;
-
-  // Disable all parameters.
-  param.reg_alpha = 0.0;
-  param.reg_lambda = 0;
-  param.max_delta_step = 0.0;
+  param.InitAllowUnknown(args);
 
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
@@ -283,8 +301,11 @@ TEST(GpuHist, EvaluateSplits) {
   int max_bins = 4;
 
   // Initialize DeviceShard
+  std::unique_ptr<SplitEvaluator> spliteval {
+    std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols, kNCols)};
+    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param,
+                                         std::move(spliteval), kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -323,10 +344,10 @@ TEST(GpuHist, EvaluateSplits) {
                shard->hist.Data().begin());
 
   shard->column_sampler.Init(kNCols,
-                                  param.colsample_bynode,
-                                  param.colsample_bylevel,
-                                  param.colsample_bytree,
-                                  false);
+                             param.colsample_bynode,
+                             param.colsample_bylevel,
+                             param.colsample_bytree,
+                             false);
 
   RegTree tree;
   MetaInfo info;
@@ -363,8 +384,10 @@ TEST(GpuHist, ApplySplit) {
   }
 
   hist_maker.shards_.resize(1);
+  std::unique_ptr<SplitEvaluator> spliteval {
+    std::unique_ptr<SplitEvaluator>{SplitEvaluator::Create(param.split_evaluator)}};
   hist_maker.shards_[0].reset(
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols, kNCols));
+      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, std::move(spliteval), kNCols));
 
   auto& shard = hist_maker.shards_.at(0);
   shard->ridx_segments.resize(3);  // 3 nodes.
@@ -485,6 +508,59 @@ TEST(GpuHist, SortPosition) {
   TestSortPosition({1, 1, 1, 1}, 1, 2);
   TestSortPosition({2, 2, 2, 2}, 1, 2);
   TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
+}
+
+TEST(GpuHist, InteractionConstraint) {
+  int constexpr kRows = 16;
+  int constexpr kCols = 4;
+  float constexpr kSparsity = 0.3;
+
+  GPUHistMakerSpecialised<GradientPairPrecise> hist_maker =
+      GPUHistMakerSpecialised<GradientPairPrecise>();
+  std::vector<std::pair<std::string, std::string>> args = {
+    {"interaction_constraints", "[[0, 1, 2]]"},
+    {"num_feature", std::to_string(kCols)},
+    {"n_gpus", "1"}
+  };
+  TrainParam param;
+  param.InitAllowUnknown(args);
+
+  auto pp_dmat = CreateDMatrix(kRows, kCols, kSparsity, 3);
+  auto p_dmat = *pp_dmat;
+  std::vector<float> labels (kRows);
+  auto& info = p_dmat->Info();
+  info.labels_.HostVector() = labels;
+
+  hist_maker.Init(args);
+
+  HostDeviceVector<GradientPair> gpair;
+  auto& h_gpair = gpair.HostVector();
+  h_gpair.resize(kRows);
+  for (auto& v : h_gpair) { v = {1.0f, 1.0f}; }
+  RegTree tree;
+  hist_maker.Update(&gpair, p_dmat.get(), {&tree});  // just used for initialization
+  ASSERT_GE(hist_maker.shards_.size(), 1);
+
+  auto const& p_shard = hist_maker.shards_[0];
+  auto const& p_spliteval = p_shard->split_evaluator;
+  // set feature 1 as the split index
+  p_spliteval->AddSplit(0, 1, 2, 1, 0.0f, 0.0f);
+
+  HostDeviceVector<int32_t> constrained_features;
+  auto p_sampled_features = std::make_shared<HostDeviceVector<int32_t>>();
+  for (auto v : {0, 1, 2, 3}) {
+    p_sampled_features->HostVector().emplace_back(v);
+  }
+  p_shard->GetFeaturesSet(1, p_sampled_features, &constrained_features);
+
+  // fid 3 is not in the interactions set when fid 1 is used for split.
+  std::vector<int32_t> solution {0, 1, 2};
+  ASSERT_EQ(constrained_features.HostVector().size(), solution.size());
+  for (size_t i = 0; i < solution.size(); ++i) {
+    ASSERT_EQ(constrained_features.HostVector()[i], solution[i]);
+  }
+
+  delete pp_dmat;
 }
 }  // namespace tree
 }  // namespace xgboost

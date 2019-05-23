@@ -3,9 +3,10 @@
  */
 #pragma once
 
-#include <thrust/device_vector.h>
 #include <vector>
 #include <set>
+#include <memory>
+#include <string>
 
 #include "../common/span.h"
 #include "../common/host_device_vector.h"

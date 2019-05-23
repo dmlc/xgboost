@@ -1,16 +1,20 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
-#include <thrust/copy.h>
+#include <dmlc/json.h>
+
 #include <memory>
+#include <string>
+#include <algorithm>
+
 #include "constraints.cuh"
-#include "../common/device_helpers.cuh"
 #include "../common/span.h"
 
 namespace xgboost {
 namespace tree {
 
-InteractionConstraints::InteractionConstraints(std::string interaction_constraints_str, int n_features) {
+InteractionConstraints::InteractionConstraints(
+    std::string interaction_constraints_str, int n_features) {
   if (interaction_constraints_str.size() == 0) {
     is_used = false;
     return;
