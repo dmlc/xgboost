@@ -412,11 +412,12 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     const int32_t right_id = node.RightChild();
     row_set_collection_.AddSplit(nid, nLeft, left_id, right_id);
 
-    if (row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
-        temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
+    if (rabit::IsDistributed() ||
+        row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
+      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
             depth + 1, 0.0, (*timestamp)++));
     } else {
-        temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
+      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
             depth + 1, 0.0, (*timestamp)++));
     }
   }
@@ -424,7 +425,8 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 }
 
-std::tuple<common::GradStatHist::GradType*, common::GradStatHist*>  QuantileHistMaker::Builder::GetHistBuffer(
+std::tuple<common::GradStatHist::GradType*, common::GradStatHist*>
+  QuantileHistMaker::Builder::GetHistBuffer(
     std::vector<uint8_t>* hist_is_init, std::vector<common::GradStatHist>* grad_stats,
     size_t block_id, size_t nthread, size_t tid,
     std::vector<common::GradStatHist::GradType*>* data_hist, size_t hist_size) {
@@ -443,7 +445,7 @@ std::tuple<common::GradStatHist::GradType*, common::GradStatHist*>  QuantileHist
 
 void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>& nodes,
     RegTree* p_tree, const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair,
-    bool sync_hist, std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
+    std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
     std::vector<std::vector<uint8_t>>* hist_is_init) {
   perf_monitor.TickStart();
   const size_t block_size_rows = 256;
@@ -486,13 +488,15 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
     (*hist_buffers)[i].clear();
     for (size_t j = 0; j < n_local_histograms; j++) {
-      (*hist_buffers)[i].push_back(reinterpret_cast<common::GradStatHist::GradType*>(hist_buff_[i_hist++].data()));
+      (*hist_buffers)[i].push_back(
+        reinterpret_cast<common::GradStatHist::GradType*>(hist_buff_[i_hist++].data()));
     }
     (*hist_is_init)[i].clear();
     (*hist_is_init)[i].resize(n_local_histograms, false);
     grad_stats[i].resize(n_local_histograms);
   }
-  const GradientPair::ValueT* const pgh = reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
+  const GradientPair::ValueT* const pgh =
+      reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
 
   // execute tasks in parallel
   #pragma omp parallel for schedule(guided)
@@ -524,8 +528,48 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     }
   }
 
+  SyncHistograms(p_tree, nodes, hist_buffers, hist_is_init, grad_stats);
+
+  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
+}
+
+void QuantileHistMaker::Builder::SyncHistograms(
+    RegTree* p_tree,
+    const std::vector<ExpandEntry>& nodes,
+    std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
+    std::vector<std::vector<uint8_t>>* hist_is_init,
+    const std::vector<std::vector<common::GradStatHist>>& grad_stats) {
+  if (rabit::IsDistributed()) {
+    #pragma omp parallel for  // TODO(egorsmir): replace to n_features * nodes.size()
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      const int32_t nid = nodes[i].nid;
+      common::GradStatHist::GradType* hist_data =
+          reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
+
+      ReduceHistograms(hist_data, nullptr, nullptr, 0,  hist_builder_.GetNumBins() * 2, i,
+          *hist_is_init, *hist_buffers);
+    }
+
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      const int32_t nid = nodes[i].nid;
+
+      this->histred_.Allreduce(hist_[nid].data(), hist_builder_.GetNumBins());
+    }
+
+    // TODO(egorsmir): add parallel for
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      const int32_t nid = nodes[i].nid;
+      const int32_t sibling_nid = nodes[i].sibling_nid;
+
+      if (sibling_nid > -1) {
+        SubtractionTrick(hist_[sibling_nid], hist_[nid],
+                       hist_[(*p_tree)[sibling_nid].Parent()]);
+      }
+    }
+  }
+
   // merge grad stats
-  if (!sync_hist) {
+  {
     for (size_t inode = 0; inode < nodes.size(); ++inode) {
       const int32_t nid = nodes[inode].nid;
       const int32_t sibling_nid = nodes[inode].sibling_nid;
@@ -540,7 +584,9 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
       if (snode_.size() <= size_t(nid)) {
         snode_.resize(nid + 1, NodeEntry(param_));
       }
+      this->histred_.Allreduce(&grad_stat, 1);
       snode_[nid].stats = grad_stat.ToGradStat();
+
 
       if (sibling_nid > -1) {
         if (snode_.size() <= size_t(sibling_nid)) {
@@ -552,21 +598,24 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
         auto& st = snode_[parent_nid].stats;
         snode_[sibling_nid].stats.SetSubstract(st, grad_stat.ToGradStat());
+
+        common::GradStatHist tmp; tmp.Add(snode_[sibling_nid].stats);
+        this->histred_.Allreduce(&tmp, 1);
+        snode_[sibling_nid].stats = tmp.ToGradStat();
       }
     }
   }
-
-  perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
 
-void QuantileHistMaker::Builder::ReduceHistograms(common::GradStatHist::GradType* hist_data, common::GradStatHist::GradType* sibling_hist_data,
-    common::GradStatHist::GradType* parent_hist_data, size_t fid, size_t inode,
-    const std::vector<std::vector<uint8_t>>& hist_is_init, const GHistIndexMatrix &gmat,
+void QuantileHistMaker::Builder::ReduceHistograms(
+    common::GradStatHist::GradType* hist_data,
+    common::GradStatHist::GradType* sibling_hist_data,
+    common::GradStatHist::GradType* parent_hist_data,
+    const size_t ibegin,
+    const size_t iend,
+    const size_t inode,
+    const std::vector<std::vector<uint8_t>>& hist_is_init,
     const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers) {
-  const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
-  const size_t ibegin = 2 * cut_ptr[fid];
-  const size_t iend = 2 * cut_ptr[fid + 1];
-
   bool is_init = false;
   for (size_t ihist = 0; ihist < hist_is_init[inode].size(); ++ihist) {
     common::GradStatHist::GradType* partial_data = hist_buffers[inode][ihist];
@@ -588,6 +637,10 @@ void QuantileHistMaker::Builder::ReduceHistograms(common::GradStatHist::GradType
     }
   }
 }
+
+// void QuantileHistMaker::Builder::SyncHistograms() {
+
+// }
 
 void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   const GHistIndexMatrix &gmat,
@@ -612,7 +665,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     // to std::vector<bool> - thread unsafe
     std::vector<std::vector<uint8_t>> hist_is_init;
 
-    BuildHistsBatch(qexpand_depth_wise_, p_tree, gmat, gpair_h, false,
+    BuildHistsBatch(qexpand_depth_wise_, p_tree, gmat, gpair_h,
         &hist_buffers, &hist_is_init);
     BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, qexpand_depth_wise_);
     EvaluateSplitsBatch(qexpand_depth_wise_, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
@@ -650,7 +703,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     std::vector<ExpandEntry> nodes_to_build{ExpandEntry(
         0, -1, ROOT_PARENT_ID, p_tree->GetDepth(0), 0.0, timestamp++)};
 
-    BuildHistsBatch(nodes_to_build, p_tree, gmat, gpair_h, false, &hist_buffers, &hist_is_init);
+    BuildHistsBatch(nodes_to_build, p_tree, gmat, gpair_h, &hist_buffers, &hist_is_init);
     BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, nodes_to_build);
     EvaluateSplitsBatch(nodes_to_build, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
 
@@ -672,7 +725,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
         &num_leaves, candidate.depth, &timestamp, &successors);
 
     if (!successors.empty()) {
-      BuildHistsBatch(successors, p_tree, gmat, gpair_h, false, &hist_buffers, &hist_is_init);
+      BuildHistsBatch(successors, p_tree, gmat, gpair_h, &hist_buffers, &hist_is_init);
       BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, successors);
       EvaluateSplitsBatch(successors, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
 
@@ -714,7 +767,8 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
     p_tree->Stat(nid).base_weight = snode_[nid].weight;
-    p_tree->Stat(nid).sum_hess = static_cast<common::GradStatHist::GradType>(snode_[nid].stats.sum_hess);
+    p_tree->Stat(nid).sum_hess =
+      static_cast<common::GradStatHist::GradType>(snode_[nid].stats.sum_hess);
   }
 
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
@@ -988,15 +1042,22 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     const int32_t  sibling_nid = nodes[node_idx].sibling_nid;
     const int32_t  parent_nid  = nodes[node_idx].parent_nid;
 
-    common::GradStatHist::GradType* hist_data         = reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
+    common::GradStatHist::GradType* hist_data =
+        reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
     common::GradStatHist::GradType* sibling_hist_data = sibling_nid > -1 ?
-        reinterpret_cast<common::GradStatHist::GradType*>(hist_[sibling_nid].data()) : nullptr;
+        reinterpret_cast<common::GradStatHist::GradType*>(
+          hist_[sibling_nid].data()) : nullptr;
     common::GradStatHist::GradType* parent_hist_data  = sibling_nid > -1 ?
         reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
 
     // reduce needed part of a hist here to have it in cache before enumeratation
-    ReduceHistograms(hist_data, sibling_hist_data, parent_hist_data, fid, node_idx,
-        hist_is_init, gmat, hist_buffers);
+    if (!rabit::IsDistributed()) {
+      const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
+      const size_t ibegin = 2 * cut_ptr[fid];
+      const size_t iend = 2 * cut_ptr[fid + 1];
+      ReduceHistograms(hist_data, sibling_hist_data, parent_hist_data, ibegin, iend, node_idx,
+          hist_is_init, hist_buffers);
+    }
 
     if (spliteval_->CheckFeatureConstraint(nid, fid)) {
       auto& snode = snode_[nid];

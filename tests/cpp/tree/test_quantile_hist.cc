@@ -105,7 +105,7 @@ class QuantileHistMock : public QuantileHistMaker {
       std::vector<std::vector<float*>> hist_buffers;
       std::vector<std::vector<uint8_t>> hist_is_init;
       std::vector<ExpandEntry> nodes = {ExpandEntry(nid, -1, -1, tree.GetDepth(0), 0.0, 0)};
-      BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, gpair, false, &hist_buffers, &hist_is_init);
+      BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, gpair, &hist_buffers, &hist_is_init);
       RealImpl::InitNewNode(nid, gmat, gpair, fmat, const_cast<RegTree*>(&tree), &snode_[0], tree[0].Parent());
       EvaluateSplitsBatch(nodes, gmat, fmat, hist_is_init, hist_buffers, const_cast<RegTree*>(&tree));
 
@@ -151,7 +151,7 @@ class QuantileHistMock : public QuantileHistMaker {
       std::vector<ExpandEntry> nodes = {ExpandEntry(0, -1, -1, tree.GetDepth(0), 0.0, 0)};
       std::vector<std::vector<float*>> hist_buffers;
       std::vector<std::vector<uint8_t>> hist_is_init;
-      BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, row_gpairs, false, &hist_buffers, &hist_is_init);
+      BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, row_gpairs, &hist_buffers, &hist_is_init);
       RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), const_cast<RegTree*>(&tree), &snode_[0], tree[0].Parent());
       EvaluateSplitsBatch(nodes, gmat, **dmat, hist_is_init, hist_buffers, const_cast<RegTree*>(&tree));
 

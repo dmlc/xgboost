@@ -422,25 +422,6 @@ void BuildBlockHist(const std::vector<GradientPair>& gpair,
   }
 }
 
-void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  GradStatHist* p_self = self.data();
-  GradStatHist* p_sibling = sibling.data();
-  GradStatHist* p_parent = parent.data();
-
-  const size_t size = (2*nbins_);
-  const size_t block_size = 1024;  // aproximatly 1024 values per block
-  int32_t n_blocks = size/block_size + !!(size%block_size);
-
-  #pragma omp parallel for
-  for (int32_t iblock = 0; iblock < n_blocks; ++iblock) {
-    const size_t ibegin = iblock*block_size;
-    const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
-    for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {
-      p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
-    }
-  }
-}
-
   uint32_t GetNumBins() {
       return nbins_;
   }

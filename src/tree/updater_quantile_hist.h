@@ -106,7 +106,8 @@ class QuantileHistMaker: public TreeUpdater {
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
 
-    std::tuple<common::GradStatHist::GradType*, common::GradStatHist*> GetHistBuffer(std::vector<uint8_t>* hist_is_init,
+    std::tuple<common::GradStatHist::GradType*, common::GradStatHist*>
+    GetHistBuffer(std::vector<uint8_t>* hist_is_init,
       std::vector<common::GradStatHist>* grad_stats, size_t block_id, size_t nthread,
       size_t tid, std::vector<common::GradStatHist::GradType*>* data_hist, size_t hist_size);
 
@@ -227,15 +228,28 @@ class QuantileHistMaker: public TreeUpdater {
                         bst_uint nodeID);
 
     void EvaluateSplitsBatch(const std::vector<ExpandEntry>& nodes,
-                               const GHistIndexMatrix& gmat,
-                               const DMatrix& fmat,
-                               const std::vector<std::vector<uint8_t>>& hist_is_init,
-                               const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers,
-                               RegTree* p_tree);
+          const GHistIndexMatrix& gmat,
+          const DMatrix& fmat,
+          const std::vector<std::vector<uint8_t>>& hist_is_init,
+          const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers,
+          RegTree* p_tree);
 
-    void ReduceHistograms(common::GradStatHist::GradType* hist_data, common::GradStatHist::GradType* sibling_hist_data, common::GradStatHist::GradType* parent_hist_data,
-        size_t fid, size_t inode, const std::vector<std::vector<uint8_t>>& hist_is_init,
-        const GHistIndexMatrix &gmat, const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers);
+    void ReduceHistograms(
+        common::GradStatHist::GradType* hist_data,
+        common::GradStatHist::GradType* sibling_hist_data,
+        common::GradStatHist::GradType* parent_hist_data,
+        const size_t ibegin,
+        const size_t iend,
+        const size_t inode,
+        const std::vector<std::vector<uint8_t>>& hist_is_init,
+        const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers);
+
+    void SyncHistograms(
+        RegTree* p_tree,
+        const std::vector<ExpandEntry>& nodes,
+        std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
+        std::vector<std::vector<uint8_t>>* hist_is_init,
+        const std::vector<std::vector<common::GradStatHist>>& grad_stats);
 
     void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
@@ -254,17 +268,16 @@ class QuantileHistMaker: public TreeUpdater {
 
 
     void BuildHistsBatch(const std::vector<ExpandEntry>& nodes, RegTree* tree,
-      const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair, bool sync_hist,
+      const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair,
       std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
       std::vector<std::vector<uint8_t>>* hist_is_init);
-
-    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
     void BuildNodeStat(const GHistIndexMatrix &gmat,
                         DMatrix *p_fmat,
                         RegTree *p_tree,
                         const std::vector<GradientPair> &gpair_h,
                         int32_t nid);
+
     void BuildNodeStatBatch(
         const GHistIndexMatrix &gmat,
         DMatrix *p_fmat,
