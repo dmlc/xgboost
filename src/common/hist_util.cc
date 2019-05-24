@@ -436,46 +436,85 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   cut_ = &gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
+  // total number of bins for all features.
   const uint32_t nbins = gmat.cut.row_ptr.back();
 
   /* step 1: form feature groups */
-  auto groups = FastFeatureGrouping(gmat, colmat, param);
+  std::vector<std::vector<unsigned>> groups = FastFeatureGrouping(gmat, colmat, param);
   const auto nblock = static_cast<uint32_t>(groups.size());
 
   /* step 2: build a new CSR matrix for each feature group */
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
+
+  std::vector<std::vector<uint32_t>> block2bin(nblock);
   for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
-    for (auto& fid : groups[group_id]) {
+    auto const& group = groups[group_id];
+    for (auto const& fid : group) {
       const uint32_t bin_begin = gmat.cut.row_ptr[fid];
       const uint32_t bin_end = gmat.cut.row_ptr[fid + 1];
       for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
+        // many bins can map to same group
         bin2block[bin_id] = group_id;
+        block2bin[group_id].push_back(bin_id);
       }
     }
   }
+  // LOG(INFO) << "bin2block.size(): " << bin2block.size();
+  // std::set<uint32_t> groupids_set;
+  // for (auto v : bin2block) {
+  //   groupids_set.insert(v);
+  // }
+  // LOG(INFO) << "groupids_set.size(): " << groupids_set.size() << ", "
+  //           << "nblock: " << nblock;
+
   std::vector<std::vector<uint32_t>> index_temp(nblock);
   std::vector<std::vector<size_t>> row_ptr_temp(nblock);
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     row_ptr_temp[block_id].push_back(0);
   }
+
   for (size_t rid = 0; rid < nrow; ++rid) {
     const size_t ibegin = gmat.row_ptr[rid];
     const size_t iend = gmat.row_ptr[rid + 1];
+
+    // index_temp[block_id] needs iend - ibegin more
     for (size_t j = ibegin; j < iend; ++j) {
       const uint32_t bin_id = gmat.index[j];
       const uint32_t block_id = bin2block[bin_id];
       index_temp[block_id].push_back(bin_id);
     }
+
+    // block_id needs nblock more
     for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
       row_ptr_temp[block_id].push_back(index_temp[block_id].size()); // HOT-0
     }
   }
+  // size_t total_size = 0;
+  // for (auto& bidx : index_temp) {
+  //   total_size += bidx.size();
+  //   // LOG(INFO) << "bidx.size(): " << bidx.size();
+  // }
+  // LOG(INFO) << "index_temp total size: " << total_size << ", "
+  //           << "index_temp.size(): " << index_temp.size() << ", "
+  //           << "gmat.row_ptr.back(): " << gmat.row_ptr.back();
+  // total_size = 0;
+  // for (auto& b2b : block2bin) {
+  //   total_size += b2b.size();
+  // }
+  // LOG(INFO) << "block2bin total size: " << total_size;
+  // total_size = 0;
+  // for (auto& rb : row_ptr_temp) {
+  //   total_size += rb.size();
+  //   // LOG(INFO) << "rb.size(): " << rb.size();
+  // }
+  // LOG(INFO) << "row_ptr_temp total size: " << total_size << ", "
+  //           << "nrow * nblock: " << nrow * nblock << ", "
+  //           << "per rb: " << nrow * nblock / row_ptr_temp.size() << ", "
+  //           << "nrow: " << nrow;
 
   /* step 3: concatenate CSR matrices into one (index, row_ptr) pair */
-  std::vector<size_t> index_blk_ptr;
-  std::vector<size_t> row_ptr_blk_ptr;
-  index_blk_ptr.push_back(0);
-  row_ptr_blk_ptr.push_back(0);
+  std::vector<size_t> index_blk_ptr {0};
+  std::vector<size_t> row_ptr_blk_ptr {0};
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     index_.insert(index_.end(), index_temp[block_id].begin(), index_temp[block_id].end());
     row_ptr_.insert(row_ptr_.end(), row_ptr_temp[block_id].begin(), row_ptr_temp[block_id].end()); // HOT-1
@@ -492,6 +531,8 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     blk.row_ptr_end = &row_ptr_[row_ptr_blk_ptr[block_id + 1]];
     blocks_.push_back(blk);
   }
+
+  LOG(INFO) << "Memory: " << this->totalMemorySize();
 }
 
 void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,

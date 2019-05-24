@@ -180,10 +180,11 @@ class FeatureBundler {
   }
 
  public:
-  void GroupFeatures(GPUSet devices, const common::GHistIndexMatrix& gmat,
-                     const common::ColumnMatrix& colmat,
-                     const tree::TrainParam& param) {
-    FastFeatureGrouping(gmat, colmat, param);
+  std::vector<std::vector<unsigned>> GroupFeatures(
+      const common::GHistIndexMatrix& gmat,
+      const common::ColumnMatrix& colmat,
+      const tree::TrainParam& param) {
+    return FastFeatureGrouping(gmat, colmat, param);
   }
 };
 

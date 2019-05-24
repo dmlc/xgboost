@@ -60,8 +60,6 @@ class Benchmark {
   common::GHistIndexMatrix index_matrix_;
   static float constexpr kSparsityThreshold = 0.2;
 
-  common::GHistIndexBlockMatrix block_matrix_;
-
   tree::TrainParam tparam_;
   common::Monitor monitor_;
 
@@ -78,7 +76,7 @@ class Benchmark {
     // CreateBigTestData(tmp_file, param.n_rows * param.n_cols, param.n_cols);
     // auto pp_dmat = createDMatrix(param.n_rows, param.n_cols, param.sparsity, 0);
     DMatrixHandle dmat[1];
-    std::string path {"/home/fis/Others/datasets/resources/HIGGS/small"};
+    std::string path {"/home/fis/Others/datasets/resources/HIGGS/HIGGS"};
     XGDMatrixCreateFromFile(path.c_str(), 0, &dmat[0]);
     auto pp_dmat = static_cast<std::shared_ptr<DMatrix>*>(dmat[0]);
     monitor_.Stop("Create dmatrix");
@@ -88,9 +86,21 @@ class Benchmark {
     std::vector<std::pair<std::string, std::string>> args;
     tparam_.InitAllowUnknown(args);
 
-    monitor_.Start("block matrix initialization");
-    block_matrix_.Init(index_matrix_, column_matrix_, tparam_);
-    monitor_.Stop("block matrix initialization");
+    // {
+    //   LOG(INFO) << "Init";
+    //   monitor_.Start("block matrix initialization");
+    //   common::GHistIndexBlockMatrix block_matrix_;
+    //   block_matrix_.Init(index_matrix_, column_matrix_, tparam_);
+    //   monitor_.Stop("block matrix initialization");
+    // }
+
+    {
+      LOG(INFO) << "Build";
+      common::GHistIndexBlockMatrix block_matrix_;
+      monitor_.Start("block matrix Build");
+      block_matrix_.Build(index_matrix_, column_matrix_, tparam_);
+      monitor_.Stop("block matrix Build");
+    }
   }
 };
 
@@ -103,7 +113,7 @@ int main(int argc, char const* argv[]) {
     {"verbosity", "3"}};
   xgboost::ConsoleLogger::Configure(args.begin(), args.end());
   args.clear();
-  omp_set_num_threads(16);
+  omp_set_num_threads(4);
 
   for (size_t i = 1; i < argc; i++) {
     std::pair<std::string, std::string> arg;

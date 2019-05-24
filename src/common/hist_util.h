@@ -85,8 +85,6 @@ struct SimpleArray {
 };
 
 
-
-
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
@@ -178,6 +176,9 @@ class GHistIndexBlockMatrix {
   void Init(const GHistIndexMatrix& gmat,
             const ColumnMatrix& colmat,
             const tree::TrainParam& param);
+  void Build(const GHistIndexMatrix& gmat,
+             const ColumnMatrix& colmat,
+             const tree::TrainParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
     return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
@@ -185,6 +186,12 @@ class GHistIndexBlockMatrix {
 
   inline size_t GetNumBlock() const {
     return blocks_.size();
+  }
+
+  size_t totalMemorySize() const {
+    return row_ptr_.size() * sizeof(size_t) +
+        index_.size() * sizeof(uint32_t) +
+        blocks_.size() * sizeof(Block);
   }
 
  private:
