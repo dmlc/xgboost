@@ -551,19 +551,14 @@ void QuantileHistMaker::Builder::SyncHistograms(
     }
 
     for (auto elem : nodes) {
-      const int32_t nid = elem.nid;
-
-      this->histred_.Allreduce(hist_[nid].data(), hist_builder_.GetNumBins());
+      this->histred_.Allreduce(hist_[elem.nid].data(), hist_builder_.GetNumBins());
     }
 
     // TODO(egorsmir): add parallel for
     for (auto elem : nodes) {
-      const int32_t nid = elem.nid;
-      const int32_t sibling_nid = elem.sibling_nid;
-
-      if (sibling_nid > -1) {
-        SubtractionTrick(hist_[sibling_nid], hist_[nid],
-                       hist_[(*p_tree)[sibling_nid].Parent()]);
+      if (elem.sibling_nid > -1) {
+        SubtractionTrick(hist_[elem.sibling_nid], hist_[elem.nid],
+                       hist_[(*p_tree)[elem.sibling_nid].Parent()]);
       }
     }
   }
@@ -574,34 +569,40 @@ void QuantileHistMaker::Builder::SyncHistograms(
       const int32_t nid = nodes[inode].nid;
       const int32_t sibling_nid = nodes[inode].sibling_nid;
 
-      common::GradStatHist grad_stat;
-
-      for (size_t ihist = 0; ihist < (*hist_is_init)[inode].size(); ++ihist) {
-        if ((*hist_is_init)[inode][ihist]) {
-          grad_stat.Add(grad_stats[inode][ihist]);
-        }
-      }
       if (snode_.size() <= size_t(nid)) {
         snode_.resize(nid + 1, NodeEntry(param_));
       }
-      this->histred_.Allreduce(&grad_stat, 1);
-      snode_[nid].stats = grad_stat.ToGradStat();
 
+      if (sibling_nid > -1 && snode_.size() <= size_t(sibling_nid)) {
+        snode_.resize(sibling_nid + 1, NodeEntry(param_));
+      }
 
-      if (sibling_nid > -1) {
-        if (snode_.size() <= size_t(sibling_nid)) {
-          snode_.resize(sibling_nid + 1, NodeEntry(param_));
+      if ((*p_tree)[nid].IsRoot()) {
+        common::GradStatHist grad_stat;
+
+        for (size_t ihist = 0; ihist < (*hist_is_init)[inode].size(); ++ihist) {
+          if ((*hist_is_init)[inode][ihist]) {
+            grad_stat.Add(grad_stats[inode][ihist]);
+          }
         }
-
-        auto node = (*p_tree)[nid];
-        int32_t parent_nid = node.Parent();
-
-        auto& st = snode_[parent_nid].stats;
-        snode_[sibling_nid].stats.SetSubstract(st, grad_stat.ToGradStat());
-
-        common::GradStatHist tmp; tmp.Add(snode_[sibling_nid].stats);
-        this->histred_.Allreduce(&tmp, 1);
-        snode_[sibling_nid].stats = tmp.ToGradStat();
+        if (snode_.size() <= size_t(nid)) {
+          snode_.resize(nid + 1, NodeEntry(param_));
+        }
+        this->histred_.Allreduce(&grad_stat, 1);
+        snode_[nid].stats = grad_stat.ToGradStat();
+      } else {
+        const int parent_id = (*p_tree)[nid].Parent();
+        if ((*p_tree)[nid].IsLeftChild()) {
+          snode_[nid].stats = snode_[parent_id].best.left_sum;
+          if (sibling_nid > -1) {
+            snode_[sibling_nid].stats = snode_[parent_id].best.right_sum;
+          }
+        } else {
+          snode_[nid].stats = snode_[parent_id].best.right_sum;
+          if (sibling_nid > -1) {
+            snode_[sibling_nid].stats = snode_[parent_id].best.left_sum;
+          }
+        }
       }
     }
   }
@@ -1105,29 +1106,6 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
                                              RegTree* tree,
                                              QuantileHistMaker::NodeEntry* snode,
                                              int32_t parentid) {
-  if (param_.enable_feature_grouping > 0 || rabit::IsDistributed()) {
-    auto& stats = snode_[nid].stats;
-    if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-      /* specialized code for dense data
-         For dense data (with no missing value),
-         the sum of gradient histogram is equal to snode[nid] */
-      GHistRow hist = hist_[nid];
-      const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
-
-      const uint32_t ibegin = row_ptr[fid_least_bins_];
-      const uint32_t iend = row_ptr[fid_least_bins_ + 1];
-      for (uint32_t i = ibegin; i < iend; ++i) {
-        const common::GradStatHist et = hist[i];
-        stats.Add(et.sum_grad, et.sum_hess);
-      }
-    } else {
-      const RowSetCollection::Elem e = row_set_collection_[nid];
-      for (const size_t* it = e.begin; it < e.end; ++it) {
-        stats.Add(gpair[*it]);
-      }
-    }
-  }
-
   // calculating the weights
   {
     snode->weight = static_cast<float>(
