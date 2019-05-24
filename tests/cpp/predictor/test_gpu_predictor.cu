@@ -132,7 +132,7 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  CreateBigTestData(tmp_file, 600);
+  CreateBigTestData(tmp_file, 600, 3);
 
   DMatrixHandle dmat[1];
   BoosterHandle bst, bst2;

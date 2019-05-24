@@ -31,7 +31,7 @@ int64_t GetFileSize(const std::string& filename);
 
 void CreateSimpleTestData(const std::string& filename);
 
-void CreateBigTestData(const std::string& filename, size_t n_entries);
+void CreateBigTestData(const std::string& filename, size_t n_entries, size_t entries_per_row);
 
 void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> preds,

@@ -19,12 +19,11 @@ int64_t GetFileSize(const std::string& filename) {
 }
 
 void CreateSimpleTestData(const std::string& filename) {
-  CreateBigTestData(filename, 6);
+  CreateBigTestData(filename, 6, 3);
 }
 
-void CreateBigTestData(const std::string& filename, size_t n_entries) {
+void CreateBigTestData(const std::string& filename, size_t n_entries, size_t entries_per_row) {
   std::ofstream fo(filename.c_str());
-  const size_t entries_per_row = 3;
   size_t n_rows = (n_entries + entries_per_row - 1) / entries_per_row;
   for (size_t i = 0; i < n_rows; ++i) {
     const char* row = i % 2 == 0 ? " 0:0 1:10 2:20\n" : " 0:0 3:30 4:40\n";
@@ -147,7 +146,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_s
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, n_entries);
+  CreateBigTestData(tmp_file, n_entries, 3);
   std::unique_ptr<DMatrix> dmat = std::unique_ptr<DMatrix>(DMatrix::Load(
       tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));

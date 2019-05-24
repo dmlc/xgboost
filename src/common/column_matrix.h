@@ -115,7 +115,7 @@ class ColumnMatrix {
     }
 
     index_.resize(boundary_[nfeature - 1].index_end);
-    row_ind_.resize(boundary_[nfeature - 1].row_ind_end);
+    row_ind_.resize(boundary_[nfeature - 1].row_ind_end);  // HOT
 
     // store least bin id for each feature
     index_base_.resize(nfeature);
@@ -125,7 +125,7 @@ class ColumnMatrix {
 
     // pre-fill index_ for dense columns
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int32_t fid = 0; fid < nfeature; ++fid) {
       if (type_[fid] == kDenseColumn) {
         const size_t ibegin = boundary_[fid].index_begin;

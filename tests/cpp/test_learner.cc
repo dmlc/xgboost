@@ -98,7 +98,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 5000000);
+  CreateBigTestData(tmp_file, 5000000, 3);
   std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load( tmp_file + "#" + tmp_file + ".cache", true, false));
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
   EXPECT_FALSE(dmat->SingleColBlock());

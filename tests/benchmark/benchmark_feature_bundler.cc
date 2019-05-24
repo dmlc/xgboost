@@ -1,6 +1,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
 #include <dmlc/parameter.h>
+#include <dmlc/filesystem.h>
 #include "../../src/common/common.h"
 #include "../../src/common/feature_bundling.h"
 #include "../../src/common/hist_util.h"
@@ -71,7 +72,15 @@ class Benchmark {
 
   void Run(BenchmarkParameter const& param) {
     monitor_.Start("Create dmatrix");
-    auto pp_dmat = createDMatrix(param.n_rows, param.n_cols, param.sparsity, 0);
+    dmlc::TemporaryDirectory tempdir;
+    const std::string tmp_file = tempdir.path + "/simple.libsvm";
+    LOG(INFO) << "file name: " << tmp_file;
+    // CreateBigTestData(tmp_file, param.n_rows * param.n_cols, param.n_cols);
+    // auto pp_dmat = createDMatrix(param.n_rows, param.n_cols, param.sparsity, 0);
+    DMatrixHandle dmat[1];
+    std::string path {"/home/fis/Others/datasets/resources/HIGGS/small"};
+    XGDMatrixCreateFromFile(path.c_str(), 0, &dmat[0]);
+    auto pp_dmat = static_cast<std::shared_ptr<DMatrix>*>(dmat[0]);
     monitor_.Stop("Create dmatrix");
 
     index_matrix_.Init((*pp_dmat).get(), param.bins);
