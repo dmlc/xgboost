@@ -541,7 +541,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
     const std::vector<std::vector<common::GradStatHist>>& grad_stats) {
   if (rabit::IsDistributed()) {
     #pragma omp parallel for  // TODO(egorsmir): replace to n_features * nodes.size()
-    for (size_t i = 0; i < nodes.size(); ++i) {
+    for (int i = 0; i < nodes.size(); ++i) {
       const int32_t nid = nodes[i].nid;
       common::GradStatHist::GradType* hist_data =
           reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
@@ -550,16 +550,16 @@ void QuantileHistMaker::Builder::SyncHistograms(
           *hist_is_init, *hist_buffers);
     }
 
-    for (size_t i = 0; i < nodes.size(); ++i) {
-      const int32_t nid = nodes[i].nid;
+    for (auto elem : nodes) {
+      const int32_t nid = elem.nid;
 
       this->histred_.Allreduce(hist_[nid].data(), hist_builder_.GetNumBins());
     }
 
     // TODO(egorsmir): add parallel for
-    for (size_t i = 0; i < nodes.size(); ++i) {
-      const int32_t nid = nodes[i].nid;
-      const int32_t sibling_nid = nodes[i].sibling_nid;
+    for (auto elem : nodes) {
+      const int32_t nid = elem.nid;
+      const int32_t sibling_nid = elem.sibling_nid;
 
       if (sibling_nid > -1) {
         SubtractionTrick(hist_[sibling_nid], hist_[nid],
