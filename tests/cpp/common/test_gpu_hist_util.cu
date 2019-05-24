@@ -16,7 +16,7 @@
 namespace xgboost {
 namespace common {
 
-void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
+void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
   // create the data
   int nrows = 10001;
   std::shared_ptr<xgboost::DMatrix> *dmat = nullptr;
