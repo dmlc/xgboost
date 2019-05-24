@@ -94,6 +94,17 @@ __global__ void UnpackFeaturesK
 struct SketchContainer {
   std::vector<HistCutMatrix::WXQSketch> sketches_;  // NOLINT
   std::vector<std::unique_ptr<std::mutex>> col_locks_; // NOLINT
+  SketchContainer(const tree::TrainParam &param, DMatrix *dmat) {
+    const MetaInfo &info = dmat->Info();
+    // Initialize Sketches for this dmatrix
+    sketches_.resize(info.num_col_);
+    col_locks_.resize(info.num_col_);
+#pragma omp parallel for schedule(static) if (info.num_col_ > 1000)
+    for (int icol = 0; icol < info.num_col_; ++icol) {
+      sketches_[icol].Init(info.num_row_, 1.0 / (8 * param.max_bin));
+      col_locks_[icol].reset(new std::mutex);
+    }
+  }
 };
 
 // finds quantiles on the GPU
@@ -132,7 +143,7 @@ struct GPUSketcher {
       n_rows_(row_end - row_begin), param_(std::move(param)), sketch_container_(sketch_container) {
     }
 
-    inline size_t GetRowStride() {
+    inline size_t GetRowStride() const {
        return row_stride_;
     }
 
@@ -335,7 +346,7 @@ struct GPUSketcher {
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) if (num_cols_ > 1000)
       for (int icol = 0; icol < num_cols_; ++icol) {
         WXQSketch::SummaryContainer summary;
         summary.Reserve(n_cuts_);
@@ -346,18 +357,7 @@ struct GPUSketcher {
       }
     }
 
-    void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
-      // copy rows to the device
-      dh::safe_cuda(cudaSetDevice(device_));
-      const auto& offset_vec = row_batch.offset.HostVector();
-      row_ptrs_.resize(n_rows_ + 1);
-      thrust::copy(offset_vec.data() + row_begin_,
-                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
-      size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
-      for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
-        SketchBatch(row_batch, info, gpu_batch);
-      }
-
+    void ComputeRowStride() {
       // Find the row stride for this batch
       auto row_iter = row_ptrs_.begin();
       // Functor for finding the maximum row size for this batch
@@ -372,10 +372,25 @@ struct GPUSketcher {
       row_stride_ = thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0,
                                    thrust::maximum<size_t>());
     }
+
+    void Sketch(const SparsePage& row_batch, const MetaInfo& info) {
+      // copy rows to the device
+      dh::safe_cuda(cudaSetDevice(device_));
+      const auto& offset_vec = row_batch.offset.HostVector();
+      row_ptrs_.resize(n_rows_ + 1);
+      thrust::copy(offset_vec.data() + row_begin_,
+                   offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
+      size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
+      for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
+        SketchBatch(row_batch, info, gpu_batch);
+      }
+    }
   };
 
-  size_t SketchBatch(const GPUDistribution &dist, const SparsePage &batch,
-                     const MetaInfo &info, SketchContainer *sketch_container) {
+  void SketchBatch(const SparsePage &batch, const MetaInfo &info) {
+    GPUDistribution dist =
+      GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size()));
+
     // create device shards
     shards_.resize(dist.Devices().Size());
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
@@ -383,7 +398,7 @@ struct GPUSketcher {
         size_t size = dist.ShardSize(batch.Size(), i);
         shard = std::unique_ptr<DeviceShard>(
             new DeviceShard(dist.Devices().DeviceId(i), start,
-                            start + size, param_, sketch_container));
+                            start + size, param_, sketch_container_.get()));
       });
 
     // compute sketches for each shard
@@ -391,50 +406,40 @@ struct GPUSketcher {
                            [&](int idx, std::unique_ptr<DeviceShard>& shard) {
                              shard->Init(batch, info, gpu_batch_nrows_);
                              shard->Sketch(batch, info);
+                             shard->ComputeRowStride();
                            });
-    size_t row_stride = 0;
-    for (const auto &shard : shards_) {
-      row_stride = std::max(row_stride, shard->GetRowStride());
-    }
 
-    return row_stride;
+    // compute row stride across all shards
+    for (const auto &shard : shards_) {
+      row_stride_ = std::max(row_stride_, shard->GetRowStride());
+    }
   }
 
   GPUSketcher(const tree::TrainParam &param, int gpu_nrows)
-    : param_(param), gpu_batch_nrows_(gpu_nrows) {
+    : param_(param), gpu_batch_nrows_(gpu_nrows), row_stride_(0) {
   }
 
-  /* Builds the sketches on the GPU */
+  /* Builds the sketches on the GPU for the dmatrix */
   size_t Sketch(DMatrix *dmat, HistCutMatrix *hmat) {
-    size_t row_stride = 0;
     const MetaInfo &info = dmat->Info();
 
-    // Initialize Sketches for this dmatrix
-    SketchContainer sketch_container;
-    sketch_container.sketches_.resize(info.num_col_);
-    sketch_container.col_locks_.resize(info.num_col_);
-#pragma omp parallel for schedule(static) if (info.num_col_ > 1000)
-    for (int icol = 0; icol < info.num_col_; ++icol) {
-      sketch_container.sketches_[icol].Init(info.num_row_, 1.0 / (8 * param_.max_bin));
-      sketch_container.col_locks_[icol].reset(new std::mutex);
-    }
-
+    row_stride_ = 0;
+    sketch_container_.reset(new SketchContainer(param_, dmat));
     for (const auto &batch : dmat->GetRowBatches()) {
-      GPUDistribution dist =
-        GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size()));
-      size_t batch_row_stride = this->SketchBatch(dist, batch, info, &sketch_container);
-      row_stride = std::max(row_stride, batch_row_stride);
+      this->SketchBatch(batch, info);
     }
 
-    hmat->Init(&sketch_container.sketches_, param_.max_bin);
+    hmat->Init(&sketch_container_.get()->sketches_, param_.max_bin);
 
-    return row_stride;
+    return row_stride_;
   }
 
  private:
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   const tree::TrainParam &param_;
   int gpu_batch_nrows_;
+  size_t row_stride_;
+  std::unique_ptr<SketchContainer> sketch_container_;
 };
 
 size_t DeviceSketch

@@ -22,7 +22,11 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
   std::shared_ptr<xgboost::DMatrix> *dmat = nullptr;
 
   size_t num_cols = 1;
-  if (!use_external_memory) {
+  if (use_external_memory) {
+     auto sp_dmat = CreateSparsePageDMatrix(nrows * 3, 128UL); // 3 entries/row
+     dmat = new std::shared_ptr<xgboost::DMatrix>(std::move(sp_dmat));
+     num_cols = 5;
+  } else {
      std::vector<float> test_data(nrows);
      auto count_iter = thrust::make_counting_iterator(0);
      // fill in reverse order
@@ -33,10 +37,6 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
      XGDMatrixCreateFromMat(test_data.data(), nrows, 1, -1,
                             &dmat_handle);
      dmat = static_cast<std::shared_ptr<xgboost::DMatrix> *>(dmat_handle);
-  } else {
-     auto sp_dmat = CreateSparsePageDMatrix(nrows * 3, 128UL); // 3 entries/row
-     dmat = new std::shared_ptr<xgboost::DMatrix>(std::move(sp_dmat));
-     num_cols = 5;
   }
 
   tree::TrainParam p;
@@ -51,7 +51,7 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
 
   // find the cuts on the GPU
   HistCutMatrix hmat_gpu;
-  (void)DeviceSketch(p, gpu_batch_nrows, (*dmat).get(), &hmat_gpu);
+  (void)DeviceSketch(p, gpu_batch_nrows, dmat->get(), &hmat_gpu);
 
   // compare the cuts
   double eps = 1e-2;
@@ -67,7 +67,7 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory = false) {
 }
 
 TEST(gpu_hist_util, DeviceSketch) {
-  TestDeviceSketch(GPUSet::Range(0, 1));
+  TestDeviceSketch(GPUSet::Range(0, 1), false);
 }
 
 TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
@@ -78,7 +78,7 @@ TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
 TEST(gpu_hist_util, MGPU_DeviceSketch) {
   auto devices = GPUSet::AllVisible();
   CHECK_GT(devices.Size(), 1);
-  TestDeviceSketch(devices);
+  TestDeviceSketch(devices, false);
 }
 
 TEST(gpu_hist_util, MGPU_DeviceSketch_ExternalMemory) {
