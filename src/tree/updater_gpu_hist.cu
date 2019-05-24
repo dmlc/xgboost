@@ -879,7 +879,16 @@ struct DeviceShard {
       p_sampled_features->Shard(GPUSet(device_id, 1));
       common::Span<int32_t const> d_feature_set =
           GetFeaturesSet(nidx, p_sampled_features, &constrainted_feature_set);
+      auto d_result = d_result_all.subspan(i, 1);
+
       if (d_feature_set.size() == 0) {
+        // Acting as a device site constructor for DeviceSplitCandidate.
+        // DeviceSplitCandidate::IsValid is false so that ApplySplit can reject this
+        // candidate.
+        auto worst_candidate = DeviceSplitCandidate();
+        dh::safe_cuda(cudaMemcpy(d_result.data(), &worst_candidate,
+                                 sizeof(DeviceSplitCandidate),
+                                 cudaMemcpyHostToDevice));
         continue;
       }
 
@@ -895,11 +904,10 @@ struct DeviceShard {
               gpu_param, d_split_candidates, node_value_constraints[nidx],
               monotone_constraints);
 
-      // Reduce over features to find best feature
-      auto d_result = d_result_all.subspan(i, 1);
       auto d_cub_memory =
           d_cub_memory_all.subspan(i * cub_memory_size, cub_memory_size);
       size_t cub_bytes = d_cub_memory.size() * sizeof(DeviceSplitCandidate);
+      // Reduce over features to find best feature
       cub::DeviceReduce::Reduce(reinterpret_cast<void*>(d_cub_memory.data()),
                                 cub_bytes, d_split_candidates.data(),
                                 d_result.data(), d_split_candidates.size(), op,
