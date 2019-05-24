@@ -423,9 +423,9 @@ void BuildBlockHist(const std::vector<GradientPair>& gpair,
 }
 
 void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  tree::GradStats* p_self = self.data();
-  tree::GradStats* p_sibling = sibling.data();
-  tree::GradStats* p_parent = parent.data();
+  GradStatHist* p_self = self.data();
+  GradStatHist* p_sibling = sibling.data();
+  GradStatHist* p_parent = parent.data();
 
   const size_t size = (2*nbins_);
   const size_t block_size = 1024;  // aproximatly 1024 values per block

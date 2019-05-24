@@ -158,7 +158,7 @@ def test_feature_importances_gain():
                     0., 0., 0.08240705, 0., 0., 0., 0., 0., 0., 0.,
                     0.00100649, 0., 0., 0., 0., 0.], dtype=np.float32)
 
-    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp, decimal=6)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     # numeric columns
     import pandas as pd
@@ -166,11 +166,11 @@ def test_feature_importances_gain():
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
         random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
-    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp, decimal=6)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
         random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
-    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp, decimal=6)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
 def test_boston_housing_regression():

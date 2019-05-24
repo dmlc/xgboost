@@ -34,7 +34,7 @@ test_that("updating the model works", {
   # all should be the same when no subsampling
   expect_equal(bst1$evaluation_log, bst1r$evaluation_log)
   if (!win32_flag) {
-    expect_equal(tr1, tr1r, tolerance = 0.00002, check.attributes = FALSE)
+    expect_equal(tr1, tr1r, tolerance = 0.00001, check.attributes = FALSE)
   }
 
   # the same boosting with subsampling with an extra 'refresh' updater:
@@ -56,7 +56,7 @@ test_that("updating the model works", {
   tr1u <- xgb.model.dt.tree(model = bst1u)
   # all should be the same when no subsampling
   expect_equal(bst1$evaluation_log, bst1u$evaluation_log)
-  expect_equal(tr1, tr1u, tolerance = 0.00002, check.attributes = FALSE)
+  expect_equal(tr1, tr1u, tolerance = 0.00001, check.attributes = FALSE)
 
   # process type 'update' for model with subsampling, refreshing only the tree stats from training data:
   p2u <- modifyList(p2, list(process_type = 'update', updater = 'refresh', refresh_leaf = FALSE))

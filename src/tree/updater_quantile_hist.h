@@ -29,6 +29,9 @@
 #include "../common/column_matrix.h"
 
 namespace xgboost {
+namespace common {
+  struct GradStatHist;
+}
 namespace tree {
 
 using xgboost::common::HistCutMatrix;
@@ -103,9 +106,9 @@ class QuantileHistMaker: public TreeUpdater {
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
 
-    std::tuple<float*, GradStats*> GetHistBuffer(std::vector<uint8_t>* hist_is_init,
-      std::vector<GradStats>* grad_stats, size_t block_id, size_t nthread,
-      size_t tid, std::vector<float*>* data_hist, size_t hist_size);
+    std::tuple<common::GradStatHist::GradType*, common::GradStatHist*> GetHistBuffer(std::vector<uint8_t>* hist_is_init,
+      std::vector<common::GradStatHist>* grad_stats, size_t block_id, size_t nthread,
+      size_t tid, std::vector<common::GradStatHist::GradType*>* data_hist, size_t hist_size);
 
    protected:
     /* tree growing policies */
@@ -227,12 +230,12 @@ class QuantileHistMaker: public TreeUpdater {
                                const GHistIndexMatrix& gmat,
                                const DMatrix& fmat,
                                const std::vector<std::vector<uint8_t>>& hist_is_init,
-                               const std::vector<std::vector<float*>>& hist_buffers,
+                               const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers,
                                RegTree* p_tree);
 
-    void ReduceHistograms(float* hist_data, float* sibling_hist_data, float* parent_hist_data,
+    void ReduceHistograms(common::GradStatHist::GradType* hist_data, common::GradStatHist::GradType* sibling_hist_data, common::GradStatHist::GradType* parent_hist_data,
         size_t fid, size_t inode, const std::vector<std::vector<uint8_t>>& hist_is_init,
-        const GHistIndexMatrix &gmat, const std::vector<std::vector<float*>>& hist_buffers);
+        const GHistIndexMatrix &gmat, const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers);
 
     void ExpandWithDepthWidth(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
@@ -252,7 +255,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     void BuildHistsBatch(const std::vector<ExpandEntry>& nodes, RegTree* tree,
       const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair, bool sync_hist,
-      std::vector<std::vector<float*>>* hist_buffers,
+      std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
       std::vector<std::vector<uint8_t>>* hist_is_init);
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
@@ -351,7 +354,7 @@ class QuantileHistMaker: public TreeUpdater {
     DataLayout data_layout_;
 
     TreeGrowingPerfMonitor perf_monitor;
-    rabit::Reducer<GradStats, GradStats::Reduce> histred_;
+    rabit::Reducer<common::GradStatHist, common::GradStatHist::Reduce> histred_;
   };
 
   std::unique_ptr<Builder> builder_;

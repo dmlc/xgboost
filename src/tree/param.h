@@ -351,24 +351,25 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 
 /*! \brief core statistics used for tree construction */
 struct  GradStats {
+  typedef double GradType;
   /*! \brief sum gradient statistics */
-  float sum_grad;
+  GradType sum_grad;
   /*! \brief sum hessian statistics */
-  float sum_hess;
+  GradType sum_hess;
 
  public:
-  XGBOOST_DEVICE float GetGrad() const { return sum_grad; }
-  XGBOOST_DEVICE float GetHess() const { return sum_hess; }
+  XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
+  XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
 
   XGBOOST_DEVICE GradStats() : sum_grad{0}, sum_hess{0} {
-    static_assert(sizeof(GradStats) == 8,
-                  "Size of GradStats is not 8 bytes.");
+    static_assert(sizeof(GradStats) == 16,
+                  "Size of GradStats is not 16 bytes.");
   }
 
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const float grad, const float hess)
+  explicit GradStats(const GradType grad, const GradType hess)
       : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
@@ -393,7 +394,7 @@ struct  GradStats {
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief add statistics to the data */
-  inline void Add(double grad, double hess) {
+  inline void Add(GradType grad, GradType hess) {
     sum_grad += grad;
     sum_hess += hess;
   }
