@@ -78,9 +78,7 @@ void GHistIndexBlockMatrix::Build(const GHistIndexMatrix& gmat,
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     Block& blk = blocks_[block_id];
     blk.index_begin = &index_[indices_ptr[block_id]];
-    blk.index_end = &index_[indices_ptr[block_id+1]];
     blk.row_ptr_begin = &row_ptr_[row_ptr_count[block_id]];
-    blk.row_ptr_end = &row_ptr_[row_ptr_count[block_id+1]];
   }
 }
 

@@ -57,13 +57,13 @@ class Benchmark {
     std::vector<std::pair<std::string, std::string>> args;
     tparam_.InitAllowUnknown(args);
 
-    common::GHistIndexBlockMatrix block_matrix_old;
-    {
-      LOG(INFO) << "Init";
-      monitor_.Start("block matrix initialization");
-      block_matrix_old.Init(index_matrix_, column_matrix_, tparam_);
-      monitor_.Stop("block matrix initialization");
-    }
+    // common::GHistIndexBlockMatrix block_matrix_old;
+    // {
+    //   LOG(INFO) << "Init";
+    //   monitor_.Start("block matrix initialization");
+    //   block_matrix_old.Init(index_matrix_, column_matrix_, tparam_);
+    //   monitor_.Stop("block matrix initialization");
+    // }
 
     common::GHistIndexBlockMatrix block_matrix_new;
     {

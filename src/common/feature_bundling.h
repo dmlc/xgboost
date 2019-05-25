@@ -8,11 +8,13 @@
 #include "column_matrix.h"
 #include "random.h"
 #include "common.h"
+#include "timer.h"
 
 namespace xgboost {
 
 // Exclusive Feature Bundling
 class FeatureBundler {
+  common::Monitor monitor_;
   using BitSet = std::vector<bool>;
 
   void MarkUsed(BitSet* p_mark, const common::Column& column) {
@@ -66,6 +68,7 @@ class FeatureBundler {
       const common::ColumnMatrix& colmat,
       size_t nrow,
       const tree::TrainParam& param) {
+    monitor_.Start("FindGroups");
     /* Goal: Bundle features together that has little or no "overlap", i.e.
        only a few data points should have nonzero values for
        member features.
@@ -120,6 +123,7 @@ class FeatureBundler {
         group_nnz.emplace_back(cur_fid_nnz);
       }
     }
+    monitor_.Stop("FindGroups");
     return groups;
   }
 
@@ -127,6 +131,7 @@ class FeatureBundler {
   FastFeatureGrouping(const common::GHistIndexMatrix& gmat,
                       const common::ColumnMatrix& colmat,
                       const tree::TrainParam& param) {
+    monitor_.Start("FeatureGrouping");
     const size_t nrow = gmat.row_ptr.size() - 1;
     const size_t nfeature = gmat.cut.row_ptr.size() - 1;
 
@@ -136,6 +141,7 @@ class FeatureBundler {
     // sort features by nonzero counts, descending order
     std::vector<size_t> feature_nnz(nfeature);
     std::vector<unsigned> features_by_nnz(feature_list);
+    // FIXME: Can this be done in DMatrix?
     gmat.GetFeatureCounts(&feature_nnz[0]);
     std::sort(features_by_nnz.begin(), features_by_nnz.end(),
               [&feature_nnz](unsigned a, unsigned b) {
@@ -175,11 +181,14 @@ class FeatureBundler {
 
     // shuffle groups
     std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
-
+    monitor_.Stop("FeatureGrouping");
     return groups;
   }
 
  public:
+  FeatureBundler() {
+    monitor_.Init("FeatureBundler");
+  }
   std::vector<std::vector<unsigned>> GroupFeatures(
       const common::GHistIndexMatrix& gmat,
       const common::ColumnMatrix& colmat,

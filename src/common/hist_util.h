@@ -197,12 +197,9 @@ class GHistIndexBlockMatrix {
  // private:
   std::vector<size_t> row_ptr_;
   std::vector<uint32_t> index_;
-  const HistCutMatrix* cut_;
   struct Block {
     const size_t* row_ptr_begin;
-    const size_t* row_ptr_end;
     const uint32_t* index_begin;
-    const uint32_t* index_end;
   };
   std::vector<Block> blocks_;
 };

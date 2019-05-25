@@ -11,7 +11,7 @@
 #include <limits>
 #include <vector>
 #include "hist_util.h"
-
+#include "timer.h"
 
 namespace xgboost {
 namespace common {
@@ -62,7 +62,13 @@ class Column {
 /*! \brief a collection of columns, with support for construction from
     GHistIndexMatrix. */
 class ColumnMatrix {
+  Monitor monitor_;
+
  public:
+  ColumnMatrix() {
+    monitor_.Init("ColumnMatrix");
+  }
+
   // get number of features
   inline bst_uint GetNumFeature() const {
     return static_cast<bst_uint>(type_.size());
@@ -71,6 +77,7 @@ class ColumnMatrix {
   // construct column matrix from GHistIndexMatrix
   inline void Init(const GHistIndexMatrix& gmat,
                    double sparse_threshold) {
+    monitor_.Start(__FUNCTION__);
     const int32_t nfeature = static_cast<int32_t>(gmat.cut.row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
@@ -125,7 +132,6 @@ class ColumnMatrix {
 
     // pre-fill index_ for dense columns
 
-#pragma omp parallel for
     for (int32_t fid = 0; fid < nfeature; ++fid) {
       if (type_[fid] == kDenseColumn) {
         const size_t ibegin = boundary_[fid].index_begin;
@@ -141,6 +147,8 @@ class ColumnMatrix {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
+
+// #pragma omp parallel for
     for (size_t rid = 0; rid < nrow; ++rid) {
       const size_t ibegin = gmat.row_ptr[rid];
       const size_t iend = gmat.row_ptr[rid + 1];
@@ -161,6 +169,7 @@ class ColumnMatrix {
         }
       }
     }
+    monitor_.Stop(__FUNCTION__);
   }
 
   /* Fetch an individual column. This code should be used with XGBOOST_TYPE_SWITCH

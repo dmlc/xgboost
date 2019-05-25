@@ -433,8 +433,6 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
                                  const tree::TrainParam& param) {
-  cut_ = &gmat.cut;
-
   const size_t nrow = gmat.row_ptr.size() - 1;
   // total number of bins for all features.
   const uint32_t nbins = gmat.cut.row_ptr.back();
@@ -497,8 +495,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     Block blk;
     blk.index_begin = &index_[index_blk_ptr[block_id]];
     blk.row_ptr_begin = &row_ptr_[row_ptr_blk_ptr[block_id]];
-    blk.index_end = &index_[index_blk_ptr[block_id + 1]];
-    blk.row_ptr_end = &row_ptr_[row_ptr_blk_ptr[block_id + 1]];
     blocks_.push_back(blk);
   }
 }
