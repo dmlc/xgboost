@@ -43,6 +43,14 @@ Scikit-Learn API
     :members:
     :inherited-members:
     :show-inheritance:
+.. autoclass:: xgboost.XGBRFRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+.. autoclass:: xgboost.XGBRFClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 Plotting API
 ------------
