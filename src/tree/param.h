@@ -481,6 +481,7 @@ struct SplitEntry {
   bst_float split_value{0.0f};
   GradStats left_sum;
   GradStats right_sum;
+  bool default_left{true};
 
   /*! \brief constructor */
   SplitEntry()  = default;
@@ -513,6 +514,7 @@ struct SplitEntry {
       this->split_value = e.split_value;
       this->left_sum = e.left_sum;
       this->right_sum = e.right_sum;
+      this->default_left = e.default_left;
       return true;
     } else {
       return false;
@@ -527,13 +529,11 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     bst_float new_split_value, bool default_left,
+                     bst_float new_split_value, bool new_default_left,
                      const GradStats &left_sum, const GradStats &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
-      if (default_left) {
-        split_index |= (1U << 31);
-      }
+      this->default_left = new_default_left;
       this->sindex = split_index;
       this->split_value = new_split_value;
       this->left_sum = left_sum;
@@ -549,9 +549,9 @@ struct SplitEntry {
     dst.Update(src);
   }
   /*!\return feature index to split on */
-  inline unsigned SplitIndex() const { return sindex & ((1U << 31) - 1U); }
+  inline unsigned SplitIndex() const { return sindex; }
   /*!\return whether missing value goes to left branch */
-  inline bool DefaultLeft() const { return (sindex >> 31) != 0; }
+  inline bool DefaultLeft() const { return default_left; }
 };
 
 }  // namespace tree

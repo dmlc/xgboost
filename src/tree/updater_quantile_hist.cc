@@ -96,9 +96,9 @@ void QuantileHistMaker::Builder::BuildNodeStat(
     const std::vector<GradientPair> &gpair_h,
     int32_t nid) {
 
-  auto parent_id = (*p_tree)[nid].Parent();
   // add constraints
   if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+    auto parent_id = (*p_tree)[nid].Parent();
     // it's a right child
     auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
     auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
@@ -145,7 +145,7 @@ std::pair<size_t, size_t> PartitionDenseLeftDefaultKernel(const RowIdxType* rid,
   size_t iright = 0;
 
   for (size_t i = istart; i < iend; i++) {
-    if ( idx[rid[i]] == std::numeric_limits<uint32_t>::max() ||
+    if ( idx[rid[i]] == std::numeric_limits<IdxType>::max() ||
         static_cast<int32_t>(idx[rid[i]] + offset) <= split_cond) {
       p_left[ileft++] = rid[i];
     } else {
@@ -163,7 +163,7 @@ std::pair<size_t, size_t> PartitionDenseRightDefaultKernel(const RowIdxType* rid
   size_t iright = 0;
 
   for (size_t i = istart; i < iend; i++) {
-    if (idx[rid[i]] == std::numeric_limits<uint32_t>::max() ||
+    if (idx[rid[i]] == std::numeric_limits<IdxType>::max() ||
       static_cast<int32_t>(idx[rid[i]] + offset) > split_cond) {
       p_right[iright++] = rid[i];
     } else {
@@ -567,42 +567,27 @@ void QuantileHistMaker::Builder::SyncHistograms(
   {
     for (size_t inode = 0; inode < nodes.size(); ++inode) {
       const int32_t nid = nodes[inode].nid;
-      const int32_t sibling_nid = nodes[inode].sibling_nid;
 
       if (snode_.size() <= size_t(nid)) {
         snode_.resize(nid + 1, NodeEntry(param_));
       }
 
-      if (sibling_nid > -1 && snode_.size() <= size_t(sibling_nid)) {
-        snode_.resize(sibling_nid + 1, NodeEntry(param_));
+      common::GradStatHist grad_stat;
+      for (size_t ihist = 0; ihist < (*hist_is_init)[inode].size(); ++ihist) {
+        if ((*hist_is_init)[inode][ihist]) {
+          grad_stat.Add(grad_stats[inode][ihist]);
+        }
       }
+      this->histred_.Allreduce(&grad_stat, 1);
+      snode_[nid].stats = grad_stat.ToGradStat();
 
-      if ((*p_tree)[nid].IsRoot()) {
-        common::GradStatHist grad_stat;
-
-        for (size_t ihist = 0; ihist < (*hist_is_init)[inode].size(); ++ihist) {
-          if ((*hist_is_init)[inode][ihist]) {
-            grad_stat.Add(grad_stats[inode][ihist]);
-          }
+      const int32_t sibling_nid = nodes[inode].sibling_nid;
+      if (sibling_nid > -1) {
+        if (snode_.size() <= size_t(sibling_nid)) {
+          snode_.resize(sibling_nid + 1, NodeEntry(param_));
         }
-        if (snode_.size() <= size_t(nid)) {
-          snode_.resize(nid + 1, NodeEntry(param_));
-        }
-        this->histred_.Allreduce(&grad_stat, 1);
-        snode_[nid].stats = grad_stat.ToGradStat();
-      } else {
         const int parent_id = (*p_tree)[nid].Parent();
-        if ((*p_tree)[nid].IsLeftChild()) {
-          snode_[nid].stats = snode_[parent_id].best.left_sum;
-          if (sibling_nid > -1) {
-            snode_[sibling_nid].stats = snode_[parent_id].best.right_sum;
-          }
-        } else {
-          snode_[nid].stats = snode_[parent_id].best.right_sum;
-          if (sibling_nid > -1) {
-            snode_[sibling_nid].stats = snode_[parent_id].best.left_sum;
-          }
-        }
+        snode_[sibling_nid].stats.SetSubstract(snode_[parent_id].stats, snode_[nid].stats);
       }
     }
   }
@@ -1025,6 +1010,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   std::vector<std::pair<int32_t, size_t>> tasks;
   for (size_t i = 0; i < nodes.size(); ++i) {
     auto p_feature_set = column_sampler_.GetFeatureSet(nodes[i].depth);
+
     const auto& feature_set = p_feature_set->HostVector();
     const auto nfeature = static_cast<bst_uint>(feature_set.size());
     for (size_t j = 0; j < nfeature; ++j) {
@@ -1062,9 +1048,9 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
     if (spliteval_->CheckFeatureConstraint(nid, fid)) {
       auto& snode = snode_[nid];
-
       bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[nid], snode,
           info, &splits[i].first, fid, nid);
+
       if (compute_backward) {
         this->EnumerateSplit(-1, gmat, hist_[nid], snode, info,
             &splits[i].first, fid, nid);
@@ -1073,6 +1059,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
     if (sibling_nid > -1 && spliteval_->CheckFeatureConstraint(sibling_nid, fid)) {
       auto& snode = snode_[sibling_nid];
+
       bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[sibling_nid], snode,
           info, &splits[i].second, fid, sibling_nid);
 
@@ -1088,11 +1075,9 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     const int32_t  node_idx = tasks[i].first;
     const int32_t  nid = nodes[node_idx].nid;
     const int32_t  sibling_nid = nodes[node_idx].sibling_nid;
-    auto& snode = snode_[nid];
-    snode.best.Update(splits[i].first);
+    snode_[nid].best.Update(splits[i].first);
     if (sibling_nid > -1) {
-      auto& snode = snode_[sibling_nid];
-      snode.best.Update(splits[i].second);
+      snode_[sibling_nid].best.Update(splits[i].second);
     }
   }
 
@@ -1132,8 +1117,8 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
   const std::vector<bst_float>& cut_val = gmat.cut.cut;
 
   // statistics on both sides of split
-  common::GradStatHist c;
-  common::GradStatHist e;
+  GradStats c;
+  GradStats e;
   // best split so far
   SplitEntry best;
 
@@ -1166,11 +1151,11 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           bst_float split_pt;
           {
             loss_chg = static_cast<bst_float>(spliteval_->ComputeSplitScore(nodeID,
-              fid, e.ToGradStat(), c.ToGradStat()) - snode.root_gain);
+              fid, e, c) - snode.root_gain);
           }
 
           split_pt = cut_val[i];
-          best.Update(loss_chg, fid, split_pt, d_step == -1, e.ToGradStat(), c.ToGradStat());
+          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
         }
       }
     }
@@ -1191,7 +1176,7 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           // backward enumeration: split at left bound of each bin
           {
             loss_chg = static_cast<bst_float>(
-                spliteval_->ComputeSplitScore(nodeID, fid, c.ToGradStat(), e.ToGradStat()) -
+                spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
                 snode.root_gain);
           }
 
@@ -1201,7 +1186,7 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           } else {
             split_pt = cut_val[i - 1];
           }
-          best.Update(loss_chg, fid, split_pt, d_step == -1, c.ToGradStat(), e.ToGradStat());
+          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
         }
       }
     }
