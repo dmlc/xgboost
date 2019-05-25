@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "../../../src/common/hist_util.h"
+#include "../../../src/common/column_matrix.h"
 #include "../helpers.h"
 
 namespace xgboost {
@@ -45,6 +46,27 @@ TEST(HistCutMatrix, SearchGroupInd) {
   EXPECT_ANY_THROW(hmat.SearchGroupIndFromBaseRow(p_mat->Info().group_ptr_, 17));
 
   delete pp_mat;
+}
+
+TEST(HistBlockMatrix, Init) {
+  common::ColumnMatrix column_matrix;
+  common::GHistIndexMatrix index_matrix;
+  GHistIndexBlockMatrix block;
+  size_t constexpr kRows = 17;
+  size_t constexpr kCols = 15;
+  float constexpr kSparsityThreshold = 0.2;
+  tree::TrainParam tparam;
+  std::vector<std::pair<std::string, std::string>> args;
+  tparam.InitAllowUnknown(args);
+
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  index_matrix.Init((*pp_dmat).get(), 100);
+  column_matrix.Init(index_matrix, kSparsityThreshold);
+  block.Init(index_matrix, column_matrix, tparam);
+
+  // Dense matrix
+  ASSERT_EQ(block.GetNumBlock(), 15);
+  delete pp_dmat;
 }
 
 }  // namespace common

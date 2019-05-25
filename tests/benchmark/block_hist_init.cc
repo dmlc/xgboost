@@ -1,31 +1,25 @@
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
 #include <dmlc/parameter.h>
+#include <dmlc/registry.h>
 #include "../../src/common/common.h"
-#include "../../src/common/feature_bundling.h"
+#include "../../src/common/column_matrix.h"
 #include "../../src/common/hist_util.h"
 #include "../../src/common/timer.h"
-#include "../cpp/helpers.h"
 
 namespace xgboost {
 
 struct BenchmarkParameter : public dmlc::Parameter<BenchmarkParameter> {
-  int32_t n_rows;
-  int32_t n_cols;
-  float sparsity;
   int32_t bins;
   std::string data_path;
+
   DMLC_DECLARE_PARAMETER(BenchmarkParameter) {
-    DMLC_DECLARE_FIELD(n_rows)
-        .set_default(100);
-    DMLC_DECLARE_FIELD(n_cols)
-        .set_default(100);
-    DMLC_DECLARE_FIELD(sparsity)
-        .set_default(0.7);
     DMLC_DECLARE_FIELD(bins)
-        .set_default(100);
+        .set_default(100)
+        .describe("Maximum number of bins.");
     DMLC_DECLARE_FIELD(data_path)
-        .set_default("");
+        .set_default("")
+        .describe("Path to dataset for benchmarking.");
   }
 };
 
@@ -57,41 +51,12 @@ class Benchmark {
     std::vector<std::pair<std::string, std::string>> args;
     tparam_.InitAllowUnknown(args);
 
-    // common::GHistIndexBlockMatrix block_matrix_old;
-    // {
-    //   LOG(INFO) << "Init";
-    //   monitor_.Start("block matrix initialization");
-    //   block_matrix_old.Init(index_matrix_, column_matrix_, tparam_);
-    //   monitor_.Stop("block matrix initialization");
-    // }
-
     common::GHistIndexBlockMatrix block_matrix_new;
     {
       LOG(INFO) << "Build";
-      monitor_.Start("block matrix Build");
-      block_matrix_new.Build(index_matrix_, column_matrix_, tparam_);
-      monitor_.Stop("block matrix Build");
-    }
-
-    // check(block_matrix_old, block_matrix_new);
-  }
-
-  void check(common::GHistIndexBlockMatrix const& block_matrix_old,
-             common::GHistIndexBlockMatrix const& block_matrix_new) {
-    CHECK_EQ(block_matrix_old.index_.size(), block_matrix_new.index_.size());
-    CHECK_EQ(block_matrix_old.row_ptr_.size(), block_matrix_new.row_ptr_.size());
-    CHECK_EQ(block_matrix_old.blocks_.size(), block_matrix_new.blocks_.size());
-
-    for (size_t i = 0; i < block_matrix_new.index_.size(); ++i) {
-      CHECK_EQ(block_matrix_old.index_[i],
-               block_matrix_new.index_[i]) << " i: " << i << ", "
-                                           << "size: " << block_matrix_new.index_.size();
-    }
-
-    for (size_t i = 0; i < block_matrix_old.row_ptr_.size(); ++i) {
-      CHECK_EQ(block_matrix_old.row_ptr_[i],
-               block_matrix_new.row_ptr_[i]) << " i: " << i << ", "
-                                             << "size: " << block_matrix_new.row_ptr_.size();
+      monitor_.Start("block matrix Initialization");
+      block_matrix_new.Init(index_matrix_, column_matrix_, tparam_);
+      monitor_.Stop("block matrix Initialization");
     }
   }
 };
@@ -99,6 +64,14 @@ class Benchmark {
 constexpr float Benchmark::kSparsityThreshold;
 
 }  // namespace xgboost
+
+void Help(xgboost::BenchmarkParameter const& param) {
+  std::cerr << "Usage: [OPTION]=[ARGUMENT]\n\n";
+  for (auto const& field :   param.__FIELDS__()) {
+    std::cerr << "\t" << field.name << ":\t" << field.description << std::endl;
+  }
+  std::cout << std::endl;
+}
 
 int main(int argc, char const* argv[]) {
   std::vector<std::pair<std::string, std::string>> args {
@@ -118,6 +91,13 @@ int main(int argc, char const* argv[]) {
 
   xgboost::BenchmarkParameter param;
   param.Init(args);
+
+  if (param.data_path.length() == 0) {
+    std::cerr << "Please provide path to dataset.\n" << std::endl;
+    Help(param);
+    return 1;
+  }
+
   xgboost::Benchmark bm;
   bm.Run(param);
   return 0;

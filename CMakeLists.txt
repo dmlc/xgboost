@@ -223,22 +223,6 @@ if (GOOGLE_TEST)
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
 endif (GOOGLE_TEST)
 
-add_executable(feature_bundle_benchmark
-  tests/benchmark/benchmark_feature_bundler.cc
-  tests/cpp/helpers.cc)
-find_package(GTest REQUIRED)
-target_include_directories(feature_bundle_benchmark
-  PRIVATE
-  ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
-target_link_libraries(feature_bundle_benchmark
-  xgboost
-  ${OpenMP_CXX_LIBRARIES}
-  ${GTEST_LIBRARIES})
-target_compile_options(feature_bundle_benchmark PRIVATE
-  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags

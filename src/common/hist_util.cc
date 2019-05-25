@@ -102,13 +102,13 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
       }
     }
   }
-
-  Init(&sketchs, max_num_bins);
   monitor_.Stop("Init");
+  Init(&sketchs, max_num_bins);
 }
 
 void HistCutMatrix::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
+  monitor_.Start("Sketch");
   std::vector<WXQSketch>& sketchs = *in_sketchs;
   constexpr int kFactor = 8;
   // gather the histogram data
@@ -161,6 +161,7 @@ void HistCutMatrix::Init
     CHECK_GT(cut_size, row_ptr.back());
     row_ptr.push_back(cut_size);
   }
+  monitor_.Stop("Sketch");
 }
 
 uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
@@ -433,69 +434,89 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
                                  const tree::TrainParam& param) {
-  const size_t nrow = gmat.row_ptr.size() - 1;
-  // total number of bins for all features.
-  const uint32_t nbins = gmat.cut.row_ptr.back();
+  std::vector<std::vector<uint32_t>> groups = FastFeatureGrouping(gmat, colmat, param);
+  /*
+    block matrix is a concationation of multiple CSR matrices, one for
+    each block.  Here we compute all CSR matrices at one go, hence
+    mutiple `block_ptr`s and running offsets are defined to keep track of
+    each block.
+   */
 
-  /* step 1: form feature groups */
-  std::vector<std::vector<unsigned>> groups = FastFeatureGrouping(gmat, colmat, param);
+  const auto nrow   = gmat.row_ptr.size() - 1;
   const auto nblock = static_cast<uint32_t>(groups.size());
+  const auto nbins  = gmat.cut.row_ptr.back();
 
-  /* step 2: build a new CSR matrix for each feature group */
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
-
   for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
     auto const& group = groups[group_id];
     for (auto const& fid : group) {
       const uint32_t bin_begin = gmat.cut.row_ptr[fid];
-      const uint32_t bin_end = gmat.cut.row_ptr[fid + 1];
+      const uint32_t bin_end   = gmat.cut.row_ptr[fid + 1];
       for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
-        // many bins can map to same group
+        // multiple bins can map to same group
         bin2block[bin_id] = group_id;
       }
     }
   }
 
-  std::vector<std::vector<uint32_t>> index_temp(nblock);
-  std::vector<std::vector<size_t>> row_ptr_temp(nblock);
-  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    row_ptr_temp[block_id].push_back(0);
-  }
+  // track the size of CSR indices for each block
+  std::vector<uint32_t> indices_block_size(nblock+1, 0);
+  indices_block_size[0] = 0;
+  // running offset of CSR row_ptr for each block
+  std::vector<uint32_t> row_ptr_block_offsets(nblock+1, 0);
 
+  uint32_t const row_ptr_step_size = nrow + 1;
+  row_ptr_.resize(row_ptr_step_size * nblock);
+  index_.resize(gmat.row_ptr.back());
 
-  for (size_t rid = 0; rid < nrow; ++rid) {
-    const size_t ibegin = gmat.row_ptr[rid];
-    const size_t iend = gmat.row_ptr[rid + 1];
+  for (uint32_t rid = 0; rid < nrow; ++rid) {
+    auto const ibegin = gmat.row_ptr[rid];
+    auto const iend   = gmat.row_ptr[rid + 1];
 
-    // index_temp[block_id] needs iend - ibegin more
-    for (size_t j = ibegin; j < iend; ++j) {
-      const uint32_t bin_id = gmat.index[j];
-      const uint32_t block_id = bin2block[bin_id];
-      index_temp[block_id].push_back(bin_id);
+    for (auto j = ibegin; j < iend; ++j) {
+      uint32_t const bin_id   = gmat.index[j];
+      uint32_t const block_id = bin2block[bin_id];
+      indices_block_size[block_id + 1] += 1;
     }
 
-    // row_ptr_temp needs nblock more
     for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-      row_ptr_temp[block_id].push_back(index_temp[block_id].size()); // HOT-0
+      uint32_t const begin = block_id * row_ptr_step_size;
+      uint32_t const ind   = begin + row_ptr_block_offsets[block_id + 1] + 1;
+      row_ptr_[ind] = indices_block_size[block_id + 1];
+      row_ptr_block_offsets[block_id + 1] ++;
     }
   }
 
-  /* step 3: concatenate CSR matrices into one (index, row_ptr) pair */
-  std::vector<size_t> index_blk_ptr {0};
-  std::vector<size_t> row_ptr_blk_ptr {0};
-  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    index_.insert(index_.end(), index_temp[block_id].begin(), index_temp[block_id].end());
-    row_ptr_.insert(row_ptr_.end(), row_ptr_temp[block_id].begin(), row_ptr_temp[block_id].end()); // HOT-1
-    index_blk_ptr.push_back(index_.size());
-    row_ptr_blk_ptr.push_back(row_ptr_.size());
+  // scan indices_block_size into ptrs for CSR matrix
+  std::vector<uint32_t> indices_block_ptr (std::move(indices_block_size));
+  for (uint32_t i = 1; i < indices_block_ptr.size(); ++i) {
+    indices_block_ptr[i] += indices_block_ptr[i-1];
+  }
+  // running offset for each block
+  std::vector<uint32_t> indices_block_offsets(nblock, 0);
+  for (uint32_t rid = 0; rid < nrow; ++rid) {
+    const auto ibegin = gmat.row_ptr[rid];
+    const auto iend = gmat.row_ptr[rid + 1];
+    for (auto j = ibegin; j < iend; ++j) {
+      auto const bin_id = gmat.index[j];
+      auto const block_id = bin2block[bin_id];
+      auto const block_begin = indices_block_ptr[block_id];
+      index_[block_begin + indices_block_offsets[block_id]] = bin_id;
+      indices_block_offsets[block_id] ++;
+    }
   }
 
-  // save shortcut for each block
+  // scan row_ptr_offsets into pointer to blocks
+  std::vector<uint32_t> row_ptr_block_ptr(std::move(row_ptr_block_offsets));
+  for (uint32_t i = 1; i < row_ptr_block_ptr.size(); ++i) {
+    row_ptr_block_ptr[i] = row_ptr_block_ptr[i+1];
+  }
+
+  blocks_.resize(nblock);
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-    Block blk;
-    blk.index_begin = &index_[index_blk_ptr[block_id]];
-    blk.row_ptr_begin = &row_ptr_[row_ptr_blk_ptr[block_id]];
-    blocks_.push_back(blk);
+    Block& blk = blocks_[block_id];
+    blk.index_begin   = &index_[indices_block_ptr[block_id]];
+    blk.row_ptr_begin = &row_ptr_[row_ptr_block_ptr[block_id]];
   }
 }
 
