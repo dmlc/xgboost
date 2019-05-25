@@ -425,7 +425,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
   }
 
   // shuffle groups
-  // std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
+  std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
 
   return groups;
 }
@@ -476,7 +476,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       index_temp[block_id].push_back(bin_id);
     }
 
-    // block_id needs nblock more
+    // row_ptr_temp needs nblock more
     for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
       row_ptr_temp[block_id].push_back(index_temp[block_id].size()); // HOT-0
     }
@@ -491,10 +491,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     index_blk_ptr.push_back(index_.size());
     row_ptr_blk_ptr.push_back(row_ptr_.size());
   }
-  // for (auto v : row_ptr_) {
-  //   std::cout << v << ", ";
-  // }
-  // std::cout << std::endl;
 
   // save shortcut for each block
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {

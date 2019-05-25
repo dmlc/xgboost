@@ -73,7 +73,7 @@ class Benchmark {
       monitor_.Stop("block matrix Build");
     }
 
-    check(block_matrix_old, block_matrix_new);
+    // check(block_matrix_old, block_matrix_new);
   }
 
   void check(common::GHistIndexBlockMatrix const& block_matrix_old,

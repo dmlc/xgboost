@@ -174,7 +174,7 @@ class FeatureBundler {
     }
 
     // shuffle groups
-    // std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
+    std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
 
     return groups;
   }
