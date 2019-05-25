@@ -76,7 +76,7 @@ class Benchmark {
     // CreateBigTestData(tmp_file, param.n_rows * param.n_cols, param.n_cols);
     // auto pp_dmat = createDMatrix(param.n_rows, param.n_cols, param.sparsity, 0);
     DMatrixHandle dmat[1];
-    std::string path {"/home/fis/Others/datasets/resources/HIGGS/HIGGS"};
+    std::string path {"/home/fis/Others/datasets/resources/HIGGS/small"};
     XGDMatrixCreateFromFile(path.c_str(), 0, &dmat[0]);
     auto pp_dmat = static_cast<std::shared_ptr<DMatrix>*>(dmat[0]);
     monitor_.Stop("Create dmatrix");
@@ -86,20 +86,34 @@ class Benchmark {
     std::vector<std::pair<std::string, std::string>> args;
     tparam_.InitAllowUnknown(args);
 
-    // {
-    //   LOG(INFO) << "Init";
-    //   monitor_.Start("block matrix initialization");
-    //   common::GHistIndexBlockMatrix block_matrix_;
-    //   block_matrix_.Init(index_matrix_, column_matrix_, tparam_);
-    //   monitor_.Stop("block matrix initialization");
-    // }
+    common::GHistIndexBlockMatrix block_matrix_old;
+    {
+      LOG(INFO) << "Init";
+      monitor_.Start("block matrix initialization");
+      block_matrix_old.Init(index_matrix_, column_matrix_, tparam_);
+      monitor_.Stop("block matrix initialization");
+    }
 
+    common::GHistIndexBlockMatrix block_matrix_new;
     {
       LOG(INFO) << "Build";
-      common::GHistIndexBlockMatrix block_matrix_;
       monitor_.Start("block matrix Build");
-      block_matrix_.Build(index_matrix_, column_matrix_, tparam_);
+      block_matrix_new.Build(index_matrix_, column_matrix_, tparam_);
       monitor_.Stop("block matrix Build");
+    }
+
+    CHECK_EQ(block_matrix_old.index_.size(), block_matrix_new.index_.size());
+    CHECK_EQ(block_matrix_old.row_ptr_.size(), block_matrix_new.row_ptr_.size());
+    CHECK_EQ(block_matrix_old.blocks_.size(), block_matrix_new.blocks_.size());
+
+    for (size_t i = 0; i < block_matrix_new.index_.size(); ++i) {
+      CHECK_EQ(block_matrix_old.index_[i],
+               block_matrix_new.index_[i]);
+    }
+
+    for (size_t i = 0; i < block_matrix_old.row_ptr_.size(); ++i) {
+      CHECK_EQ(block_matrix_old.row_ptr_[i],
+               block_matrix_new.row_ptr_[i]);
     }
   }
 };

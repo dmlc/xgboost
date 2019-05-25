@@ -489,28 +489,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       row_ptr_temp[block_id].push_back(index_temp[block_id].size()); // HOT-0
     }
   }
-  // size_t total_size = 0;
-  // for (auto& bidx : index_temp) {
-  //   total_size += bidx.size();
-  //   // LOG(INFO) << "bidx.size(): " << bidx.size();
-  // }
-  // LOG(INFO) << "index_temp total size: " << total_size << ", "
-  //           << "index_temp.size(): " << index_temp.size() << ", "
-  //           << "gmat.row_ptr.back(): " << gmat.row_ptr.back();
-  // total_size = 0;
-  // for (auto& b2b : block2bin) {
-  //   total_size += b2b.size();
-  // }
-  // LOG(INFO) << "block2bin total size: " << total_size;
-  // total_size = 0;
-  // for (auto& rb : row_ptr_temp) {
-  //   total_size += rb.size();
-  //   // LOG(INFO) << "rb.size(): " << rb.size();
-  // }
-  // LOG(INFO) << "row_ptr_temp total size: " << total_size << ", "
-  //           << "nrow * nblock: " << nrow * nblock << ", "
-  //           << "per rb: " << nrow * nblock / row_ptr_temp.size() << ", "
-  //           << "nrow: " << nrow;
 
   /* step 3: concatenate CSR matrices into one (index, row_ptr) pair */
   std::vector<size_t> index_blk_ptr {0};
@@ -531,8 +509,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     blk.row_ptr_end = &row_ptr_[row_ptr_blk_ptr[block_id + 1]];
     blocks_.push_back(blk);
   }
-
-  LOG(INFO) << "Memory: " << this->totalMemorySize();
 }
 
 void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,

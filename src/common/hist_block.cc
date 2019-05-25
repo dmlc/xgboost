@@ -47,39 +47,49 @@ void GHistIndexBlockMatrix::Build(const GHistIndexMatrix& gmat,
     index_size[block_id+1] += 1;
   }
 
-  {
-    std::vector<size_t> indices_ptr = std::move(index_size);
-    for (size_t i = 1; i < index_size.size(); ++i) {
-      indices_ptr[i] += indices_ptr[i-1];
+  std::vector<size_t> indices_ptr = std::move(index_size);
+  for (size_t i = 1; i < indices_ptr.size(); ++i) {
+    indices_ptr[i] += indices_ptr[i-1];
+  }
+  std::vector<size_t> indices_count(nblock, 0);
+  std::vector<size_t> row_ptr_count(nblock+1, 0);
+  size_t row_ptr_step_size = nrow + 1;
+  row_ptr_.resize(row_ptr_step_size * nblock);
+  index_.resize(gmat.row_ptr.back());
+
+  for (size_t rid = 0; rid < nrow; ++rid) {
+    const size_t ibegin = gmat.row_ptr[rid];
+    const size_t iend = gmat.row_ptr[rid + 1];
+
+    for (size_t j = ibegin; j < iend; ++j) {
+      const uint32_t bin_id = gmat.index[j];
+      const uint32_t block_id = bin2block[bin_id];
+      size_t index_begin = indices_ptr[block_id];
+      index_[index_begin + indices_count[block_id]] = bin_id;
+      indices_count[block_id] ++;
     }
-    std::vector<size_t> indices_count(nblock, 0);
-    std::vector<size_t> row_ptr_count(nblock, 0);
-    size_t row_ptr_step_size = nrow + 1;
-    std::vector<size_t> final_row_ptr (row_ptr_step_size * nblock);
-    std::vector<size_t> final_index (gmat.row_ptr.back());
 
-    for (size_t rid = 0; rid < nrow; ++rid) {
-      const size_t ibegin = gmat.row_ptr[rid];
-      const size_t iend = gmat.row_ptr[rid + 1];
-
-      // index_temp[block_id] needs iend - ibegin more
-      for (size_t j = ibegin; j < iend; ++j) {
-        const uint32_t bin_id = gmat.index[j];
-        const uint32_t block_id = bin2block[bin_id];
-        size_t index_begin = indices_ptr[block_id];
-        final_index[index_begin + indices_count[block_id]] = bin_id;
-        indices_count[block_id] ++;
-      }
-
-      // block_id needs nblock more
-      for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
-        size_t const begin = block_id * row_ptr_step_size;
-        size_t const ind = begin + row_ptr_count[block_id];
-        final_row_ptr[ind] = indices_ptr[block_id+1] - indices_ptr[block_id+1];
-        row_ptr_count[block_id] ++;
-      }
+    for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
+      size_t const begin = block_id * row_ptr_step_size;
+      size_t const ind = begin + row_ptr_count[block_id+1];
+      row_ptr_[ind] = indices_ptr[block_id+1] - indices_ptr[block_id];
+      row_ptr_count[block_id+1] ++;
     }
   }
+
+  for (size_t i = 1; i < row_ptr_count.size(); ++i) {
+    row_ptr_count[i] = row_ptr_count[i+1];
+  }
+
+  blocks_.resize(nblock);
+  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
+    Block& blk = blocks_[block_id];
+    blk.index_begin = &index_[indices_ptr[block_id]];
+    blk.index_end = &index_[indices_ptr[block_id+1]];
+    blk.row_ptr_begin = &row_ptr_[row_ptr_count[block_id]];
+    blk.row_ptr_end = &row_ptr_[row_ptr_count[block_id+1]];
+  }
 }
+
 }
 }
