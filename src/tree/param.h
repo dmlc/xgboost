@@ -496,7 +496,11 @@ struct SplitEntry {
    * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
-    if (this->SplitIndex() <= split_index) {
+    if (!std::isfinite(new_loss_chg)) {  // in some cases new_loss_chg can be NaN or Inf,
+                                         // for example when lambda = 0 & min_child_weight = 0
+                                         // skip value in this case
+      return false;
+    } else if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
       return !(this->loss_chg > new_loss_chg);
