@@ -1,7 +1,6 @@
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
 #include <dmlc/parameter.h>
-#include <dmlc/filesystem.h>
 #include "../../src/common/common.h"
 #include "../../src/common/feature_bundling.h"
 #include "../../src/common/hist_util.h"
@@ -10,37 +9,12 @@
 
 namespace xgboost {
 
-std::shared_ptr<xgboost::DMatrix>* createDMatrix(int rows, int columns,
-                                                 float sparsity, int seed) {
-  const float missing_value = -1;
-  std::vector<float> test_data(rows * columns);
-
-  std::random_device dev;
-  std::uniform_real_distribution<> dist;
-
-#pragma omp parallel for
-  for (size_t i = 0; i < test_data.size(); ++i) {
-    auto& e = test_data[i];
-    if (dist(dev) < sparsity) {
-      e = missing_value;
-    } else {
-      e = dist(dev);
-    }
-  }
-
-  DMatrixHandle handle;
-  auto nt = omp_get_max_threads();
-  LOG(INFO) << "nt: " << nt;
-  XGDMatrixCreateFromMat_omp(test_data.data(), rows, columns, missing_value,
-                             &handle, 8);
-  return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-}
-
 struct BenchmarkParameter : public dmlc::Parameter<BenchmarkParameter> {
   int32_t n_rows;
   int32_t n_cols;
   float sparsity;
   int32_t bins;
+  std::string data_path;
   DMLC_DECLARE_PARAMETER(BenchmarkParameter) {
     DMLC_DECLARE_FIELD(n_rows)
         .set_default(100);
@@ -50,6 +24,8 @@ struct BenchmarkParameter : public dmlc::Parameter<BenchmarkParameter> {
         .set_default(0.7);
     DMLC_DECLARE_FIELD(bins)
         .set_default(100);
+    DMLC_DECLARE_FIELD(data_path)
+        .set_default("");
   }
 };
 
@@ -70,13 +46,8 @@ class Benchmark {
 
   void Run(BenchmarkParameter const& param) {
     monitor_.Start("Create dmatrix");
-    dmlc::TemporaryDirectory tempdir;
-    const std::string tmp_file = tempdir.path + "/simple.libsvm";
-    LOG(INFO) << "file name: " << tmp_file;
-    // CreateBigTestData(tmp_file, param.n_rows * param.n_cols, param.n_cols);
-    // auto pp_dmat = createDMatrix(param.n_rows, param.n_cols, param.sparsity, 0);
     DMatrixHandle dmat[1];
-    std::string path {"/home/fis/Others/datasets/resources/HIGGS/small"};
+    std::string path {param.data_path};
     XGDMatrixCreateFromFile(path.c_str(), 0, &dmat[0]);
     auto pp_dmat = static_cast<std::shared_ptr<DMatrix>*>(dmat[0]);
     monitor_.Stop("Create dmatrix");
@@ -102,18 +73,25 @@ class Benchmark {
       monitor_.Stop("block matrix Build");
     }
 
+    check(block_matrix_old, block_matrix_new);
+  }
+
+  void check(common::GHistIndexBlockMatrix const& block_matrix_old,
+             common::GHistIndexBlockMatrix const& block_matrix_new) {
     CHECK_EQ(block_matrix_old.index_.size(), block_matrix_new.index_.size());
     CHECK_EQ(block_matrix_old.row_ptr_.size(), block_matrix_new.row_ptr_.size());
     CHECK_EQ(block_matrix_old.blocks_.size(), block_matrix_new.blocks_.size());
 
     for (size_t i = 0; i < block_matrix_new.index_.size(); ++i) {
       CHECK_EQ(block_matrix_old.index_[i],
-               block_matrix_new.index_[i]);
+               block_matrix_new.index_[i]) << " i: " << i << ", "
+                                           << "size: " << block_matrix_new.index_.size();
     }
 
     for (size_t i = 0; i < block_matrix_old.row_ptr_.size(); ++i) {
       CHECK_EQ(block_matrix_old.row_ptr_[i],
-               block_matrix_new.row_ptr_[i]);
+               block_matrix_new.row_ptr_[i]) << " i: " << i << ", "
+                                             << "size: " << block_matrix_new.row_ptr_.size();
     }
   }
 };

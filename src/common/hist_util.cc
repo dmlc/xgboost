@@ -425,7 +425,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
   }
 
   // shuffle groups
-  std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
+  // std::shuffle(groups.begin(), groups.end(), common::GlobalRandom());
 
   return groups;
 }
@@ -446,7 +446,6 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   /* step 2: build a new CSR matrix for each feature group */
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
 
-  std::vector<std::vector<uint32_t>> block2bin(nblock);
   for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
     auto const& group = groups[group_id];
     for (auto const& fid : group) {
@@ -455,23 +454,16 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
         // many bins can map to same group
         bin2block[bin_id] = group_id;
-        block2bin[group_id].push_back(bin_id);
       }
     }
   }
-  // LOG(INFO) << "bin2block.size(): " << bin2block.size();
-  // std::set<uint32_t> groupids_set;
-  // for (auto v : bin2block) {
-  //   groupids_set.insert(v);
-  // }
-  // LOG(INFO) << "groupids_set.size(): " << groupids_set.size() << ", "
-  //           << "nblock: " << nblock;
 
   std::vector<std::vector<uint32_t>> index_temp(nblock);
   std::vector<std::vector<size_t>> row_ptr_temp(nblock);
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     row_ptr_temp[block_id].push_back(0);
   }
+
 
   for (size_t rid = 0; rid < nrow; ++rid) {
     const size_t ibegin = gmat.row_ptr[rid];
@@ -499,6 +491,10 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
     index_blk_ptr.push_back(index_.size());
     row_ptr_blk_ptr.push_back(row_ptr_.size());
   }
+  // for (auto v : row_ptr_) {
+  //   std::cout << v << ", ";
+  // }
+  // std::cout << std::endl;
 
   // save shortcut for each block
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
