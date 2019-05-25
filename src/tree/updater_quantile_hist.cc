@@ -1048,7 +1048,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
     if (spliteval_->CheckFeatureConstraint(nid, fid)) {
       auto& snode = snode_[nid];
-      bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[nid], snode,
+      const bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[nid], snode,
           info, &splits[i].first, fid, nid);
 
       if (compute_backward) {
@@ -1060,7 +1060,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     if (sibling_nid > -1 && spliteval_->CheckFeatureConstraint(sibling_nid, fid)) {
       auto& snode = snode_[sibling_nid];
 
-      bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[sibling_nid], snode,
+      const bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[sibling_nid], snode,
           info, &splits[i].second, fid, sibling_nid);
 
       if (compute_backward) {
