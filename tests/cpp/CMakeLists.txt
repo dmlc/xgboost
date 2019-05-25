@@ -69,18 +69,20 @@ endif (USE_OPENMP)
 set_output_directory(testxgboost ${PROJECT_BINARY_DIR})
 
 #[- Benchmark
-
-add_executable(block_init_benchmark
-  ${xgboost_SOURCE_DIR}/tests/benchmark/block_hist_init.cc)
-target_include_directories(block_init_benchmark
-  PRIVATE
-  ${xgboost_SOURCE_DIR}/include
-  ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include)
-target_link_libraries(block_init_benchmark
-  xgboost
-  ${LINKED_LIBRARIES_PRIVATE}
-  ${OpenMP_CXX_LIBRARIES})
-target_compile_options(block_init_benchmark PRIVATE
-  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-set_output_directory(block_init_benchmark ${PROJECT_BINARY_DIR})
+if (NOT WIN32)
+  # Disable benchmark on Windows since it doesn't support dynamic linking.
+  add_executable(block_init_benchmark
+    ${xgboost_SOURCE_DIR}/tests/benchmark/block_hist_init.cc)
+  target_include_directories(block_init_benchmark
+    PRIVATE
+    ${xgboost_SOURCE_DIR}/include
+    ${xgboost_SOURCE_DIR}/dmlc-core/include
+    ${xgboost_SOURCE_DIR}/rabit/include)
+  target_link_libraries(block_init_benchmark
+    xgboost
+    ${LINKED_LIBRARIES_PRIVATE}
+    ${OpenMP_CXX_LIBRARIES})
+  target_compile_options(block_init_benchmark PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
+  set_output_directory(block_init_benchmark ${PROJECT_BINARY_DIR})
+endif(NOT WIN32)
