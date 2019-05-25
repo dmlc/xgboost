@@ -148,7 +148,6 @@ class ColumnMatrix {
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
 
-// #pragma omp parallel for
     for (size_t rid = 0; rid < nrow; ++rid) {
       const size_t ibegin = gmat.row_ptr[rid];
       const size_t iend = gmat.row_ptr[rid + 1];

@@ -483,12 +483,12 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       uint32_t const begin = block_id * row_ptr_step_size;
       uint32_t const ind   = begin + row_ptr_block_offsets[block_id + 1] + 1;
       row_ptr_[ind] = indices_block_size[block_id + 1];
-      row_ptr_block_offsets[block_id + 1] ++;
+      row_ptr_block_offsets[block_id + 1]++;
     }
   }
 
   // scan indices_block_size into ptrs for CSR matrix
-  std::vector<uint32_t> indices_block_ptr (std::move(indices_block_size));
+  std::vector<uint32_t> indices_block_ptr(std::move(indices_block_size));
   for (uint32_t i = 1; i < indices_block_ptr.size(); ++i) {
     indices_block_ptr[i] += indices_block_ptr[i-1];
   }
@@ -502,7 +502,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       auto const block_id = bin2block[bin_id];
       auto const block_begin = indices_block_ptr[block_id];
       index_[block_begin + indices_block_offsets[block_id]] = bin_id;
-      indices_block_offsets[block_id] ++;
+      indices_block_offsets[block_id]++;
     }
   }
 
