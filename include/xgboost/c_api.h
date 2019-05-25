@@ -17,9 +17,6 @@
 #include <stdint.h>
 #endif  // __cplusplus
 
-// XGBoost C API will include APIs in Rabit C API
-#include <rabit/c_api.h>
-
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
@@ -224,6 +221,20 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int *idxset,
                                   bst_ulong len,
                                   DMatrixHandle *out);
+/*!
+ * \brief create a new dmatrix from sliced content of existing matrix
+ * \param handle instance of data matrix to be sliced
+ * \param idxset index set
+ * \param len length of index set
+ * \param out a sliced new matrix
+ * \param allow_groups allow slicing of an array with groups
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
+                                    const int *idxset,
+                                    bst_ulong len,
+                                    DMatrixHandle *out,
+                                    int allow_groups);
 /*!
  * \brief free space in data matrix
  * \return 0 when success, -1 when failure happens

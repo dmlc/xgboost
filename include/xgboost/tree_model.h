@@ -62,6 +62,13 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
         .describe("Size of leaf vector, reserved for vector tree");
   }
+
+  bool operator==(const TreeParam& b) const {
+    return num_roots == b.num_roots && num_nodes == b.num_nodes &&
+           num_deleted == b.num_deleted && max_depth == b.max_depth &&
+           num_feature == b.num_feature &&
+           size_leaf_vector == b.size_leaf_vector;
+  }
 };
 
 /*! \brief node statistics used in regression tree */
@@ -74,6 +81,10 @@ struct RTreeNodeStat {
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
   int leaf_child_cnt;
+  bool operator==(const RTreeNodeStat& b) const {
+    return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
+           base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
 };
 
 /*!
@@ -179,10 +190,19 @@ class RegTree {
     XGBOOST_DEVICE void MarkDelete() {
       this->sindex_ = std::numeric_limits<unsigned>::max();
     }
+    /*! \brief Reuse this deleted node. */
+    XGBOOST_DEVICE void Reuse() {
+      this->sindex_ = 0;
+    }
     // set parent
     XGBOOST_DEVICE void SetParent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
       this->parent_ = pidx;
+    }
+    bool operator==(const Node& b) const {
+      return parent_ == b.parent_ && cleft_ == b.cleft_ &&
+             cright_ == b.cright_ && sindex_ == b.sindex_ &&
+             info_.leaf_value == b.info_.leaf_value;
     }
 
    private:
@@ -298,6 +318,11 @@ class RegTree {
     CHECK_NE(param.num_nodes, 0);
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
     fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
+  }
+
+  bool operator==(const RegTree& b) const {
+    return nodes_ == b.nodes_ && stats_ == b.stats_ &&
+           deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
 
   /**
@@ -503,10 +528,11 @@ class RegTree {
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   int AllocNode() {
     if (param.num_deleted != 0) {
-      int nd = deleted_nodes_.back();
+      int nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
+      nodes_[nid].Reuse();
       --param.num_deleted;
-      return nd;
+      return nid;
     }
     int nd = param.num_nodes++;
     CHECK_LT(param.num_nodes, std::numeric_limits<int>::max())

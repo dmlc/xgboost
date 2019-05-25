@@ -22,14 +22,22 @@ import os, subprocess
 import shlex
 import guzzle_sphinx_theme
 
-git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
-git_branch = [x for x in git_branch if 'HEAD' not in x]
+git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
+if git_branch is None:
+    # If SPHINX_GIT_BRANCH environment variable is not given, run git to determine branch name
+    git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
+    git_branch = [x for x in git_branch if 'HEAD' not in x]
 print('git_branch = {}'.format(git_branch[0]))
 try:
   filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch[0]))
   call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
 except HTTPError:
   print('JVM doc not found. Skipping...')
+try:
+  filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{}.tar.bz2'.format(git_branch[0]))
+  call('mkdir -p tmp/dev; cd tmp/dev; tar xvf {}; mv doc_doxygen/html/* .; rm -rf doc_doxygen'.format(filename), shell=True)
+except HTTPError:
+  print('C API doc not found. Skipping...')
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the

@@ -2,15 +2,20 @@
 #
 # Execute command within a docker container
 #
-# Usage: ci_build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                    <COMMAND>
+# Usage: ci_build.sh <CONTAINER_TYPE> <DOCKER_BINARY>
+#                    [--dockerfile <DOCKERFILE_PATH>] [-it]
+#                    [--build-arg <BUILD_ARG>] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
 #
+# DOCKER_BINARY: Command to invoke docker, e.g. (docker | nvidia-docker).
+#
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
+#
+# BUILD_ARG: (Optional) an argument to be passed to docker build
 #
 # COMMAND: Command to be executed in the docker container
 #
@@ -24,6 +29,10 @@ shift 1
 DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}"
 DOCKER_CONTEXT_PATH="${SCRIPT_DIR}"
 
+# Get docker binary command (should be either docker or nvidia-docker)
+DOCKER_BINARY="$1"
+shift 1
+
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
     DOCKER_CONTEXT_PATH=$(dirname "${DOCKERFILE_PATH}")
@@ -32,16 +41,21 @@ if [[ "$1" == "--dockerfile" ]]; then
     shift 2
 fi
 
+if [[ -n "${CI_DOCKER_EXTRA_PARAMS_INIT}" ]]
+then
+    IFS=' ' read -r -a CI_DOCKER_EXTRA_PARAMS <<< "${CI_DOCKER_EXTRA_PARAMS_INIT}"
+fi
+
 if [[ "$1" == "-it" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('-it')
     shift 1
 fi
 
-if [[ "$1" == "--build-arg" ]]; then
-    CI_DOCKER_BUILD_ARG+="$1"
+while [[ "$1" == "--build-arg" ]]; do
+    CI_DOCKER_BUILD_ARG+=" $1"
     CI_DOCKER_BUILD_ARG+=" $2"
     shift 2
-fi
+done
 
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
     echo "Invalid Dockerfile path: \"${DOCKERFILE_PATH}\""
@@ -61,13 +75,6 @@ if [ "$#" -lt 1 ] || [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
       exit 1
 fi
 
-# Use nvidia-docker if the container is GPU.
-if [[ "${CONTAINER_TYPE}" == *"gpu"* ]]; then
-    DOCKER_BINARY="nvidia-docker"
-else
-    DOCKER_BINARY="docker"
-fi
-
 # Helper function to traverse directories up until given file is found.
 function upsearch () {
     test / == "$PWD" && return || \
@@ -83,8 +90,19 @@ WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
 DOCKER_IMG_NAME="xgb-ci.${CONTAINER_TYPE}"
 
 # Append cuda version if available
-CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep CUDA_VERSION | egrep -o '[0-9]*\.[0-9]*')
-DOCKER_IMG_NAME=$DOCKER_IMG_NAME$CUDA_VERSION 
+CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CUDA_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+# Append jdk version if available
+JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'JDK_VERSION=[0-9]+' | egrep -o '[0-9]+')
+# Append cmake version if available
+CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CMAKE_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+# Append R version if available
+USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'USE_R35=[0-9]+' | egrep -o '[0-9]+$')
+if [[ ${USE_R35} == "1" ]]; then
+  USE_R35="_r35"
+elif [[ ${USE_R35} == "0" ]]; then
+  USE_R35="_no_r35"
+fi
+DOCKER_IMG_NAME=$DOCKER_IMG_NAME$CUDA_VERSION$JDK_VERSION$CMAKE_VERSION$USE_R35
 
 # Under Jenkins matrix build, the build tag may contain characters such as
 # commas (,) and equal signs (=), which are not valid inside docker image names.
@@ -98,7 +116,7 @@ UBUNTU_ON_WINDOWS=$([ -e /proc/version ] && grep -l Microsoft /proc/version || e
 # MSYS, Git Bash, etc.
 MSYS=$([ -e /proc/version ] && grep -l MINGW /proc/version || echo "")
 
-if [[ -z "$UBUNTU_ON_WINDOWS" ]] && [[ -z "$MSYS" ]]; then
+if [[ -z "$UBUNTU_ON_WINDOWS" ]] && [[ -z "$MSYS" ]] && [[ ! "$OSTYPE" == "darwin"* ]]; then
     USER_IDS="-e CI_BUILD_UID=$( id -u ) -e CI_BUILD_GID=$( id -g ) -e CI_BUILD_USER=$( id -un ) -e CI_BUILD_GROUP=$( id -gn ) -e CI_BUILD_HOME=${WORKSPACE}"
 fi
 
@@ -181,6 +199,7 @@ echo "Running '${COMMAND[*]}' inside ${DOCKER_IMG_NAME}..."
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
+set -x
 ${DOCKER_BINARY} run --rm --pid=host \
     -v "${WORKSPACE}":/workspace \
     -w /workspace \

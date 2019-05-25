@@ -32,8 +32,8 @@ public class ExternalMemory {
     //this is the only difference, add a # followed by a cache prefix name
     //several cache file with the prefix will be generated
     //currently only support convert from libsvm file
-    DMatrix trainMat = new DMatrix("../demo/data/agaricus.txt.train#dtrain.cache");
-    DMatrix testMat = new DMatrix("../demo/data/agaricus.txt.test#dtest.cache");
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train#dtrain.cache");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test#dtest.cache");
 
     //specify parameters
     HashMap<String, Object> params = new HashMap<String, Object>();

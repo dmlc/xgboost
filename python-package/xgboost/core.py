@@ -1,6 +1,6 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
-# pylint: disable=too-many-branches, too-many-lines, W0141
+# pylint: disable=too-many-branches, too-many-lines, too-many-locals
 """Core XGBoost Library."""
 from __future__ import absolute_import
 import collections
@@ -30,7 +30,6 @@ c_bst_ulong = ctypes.c_uint64
 
 class XGBoostError(Exception):
     """Error thrown by xgboost trainer."""
-    pass
 
 
 class EarlyStopException(Exception):
@@ -67,18 +66,16 @@ def from_pystr_to_cstr(data):
         list of str
     """
 
-    if isinstance(data, list):
-        pointers = (ctypes.c_char_p * len(data))()
-        if PY3:
-            data = [bytes(d, 'utf-8') for d in data]
-        else:
-            data = [d.encode('utf-8') if isinstance(d, unicode) else d
-                    for d in data]
-        pointers[:] = data
-        return pointers
-    else:
-        # copy from above when we actually use it
+    if not isinstance(data, list):
         raise NotImplementedError
+    pointers = (ctypes.c_char_p * len(data))()
+    if PY3:
+        data = [bytes(d, 'utf-8') for d in data]
+    else:
+        data = [d.encode('utf-8') if isinstance(d, unicode) else d  # pylint: disable=undefined-variable
+                for d in data]
+    pointers[:] = data
+    return pointers
 
 
 def from_cstr_to_pystr(data, length):
@@ -104,6 +101,7 @@ def from_cstr_to_pystr(data, length):
             try:
                 res.append(str(data[i].decode('ascii')))
             except UnicodeDecodeError:
+                # pylint: disable=undefined-variable
                 res.append(unicode(data[i].decode('utf-8')))
     return res
 
@@ -123,7 +121,7 @@ def _get_log_callback_func():
 def _load_lib():
     """Load xgboost Library."""
     lib_paths = find_lib_path()
-    if len(lib_paths) == 0:
+    if not lib_paths:
         return None
     try:
         pathBackup = os.environ['PATH'].split(os.pathsep)
@@ -233,7 +231,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_fields = [data.columns[i] for i, dtype in
+        bad_fields = [str(data.columns[i]) for i, dtype in
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
@@ -243,7 +241,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
     if feature_names is None:
         if isinstance(data.columns, MultiIndex):
             feature_names = [
-                ' '.join(map(str, i))
+                ' '.join([str(x) for x in i])
                 for i in data.columns
             ]
         else:
@@ -267,8 +265,7 @@ def _maybe_pandas_label(label):
         label_dtypes = label.dtypes
         if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in label_dtypes):
             raise ValueError('DataFrame.dtypes for label must be int, float or bool')
-        else:
-            label = label.values.astype('float')
+        label = label.values.astype('float')
     # pd.Series can be passed to xgb as it is
 
     return label
@@ -301,8 +298,7 @@ def _maybe_dt_data(data, feature_names, feature_types):
         # always return stypes for dt ingestion
         if feature_types is not None:
             raise ValueError('DataTable has own feature types, cannot pass them in')
-        else:
-            feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
+        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
 
     return data, feature_names, feature_types
 
@@ -512,7 +508,7 @@ class DMatrix(object):
                 ptrs[icol] = ctypes.c_void_p(ptr)
         else:
             # datatable<=0.8.0
-            from datatable.internal import frame_column_data_r
+            from datatable.internal import frame_column_data_r  # pylint: disable=no-name-in-module,import-error
             for icol in range(data.ncols):
                 ptrs[icol] = frame_column_data_r(data, icol)
 
@@ -802,13 +798,15 @@ class DMatrix(object):
                                          ctypes.byref(ret)))
         return ret.value
 
-    def slice(self, rindex):
+    def slice(self, rindex, allow_groups=False):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
 
         Parameters
         ----------
         rindex : list
             List of indices to be selected.
+        allow_groups : boolean
+            Allow slicing of a matrix with a groups attribute
 
         Returns
         -------
@@ -818,10 +816,11 @@ class DMatrix(object):
         res = DMatrix(None, feature_names=self.feature_names,
                       feature_types=self.feature_types)
         res.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
-                                               c_array(ctypes.c_int, rindex),
-                                               c_bst_ulong(len(rindex)),
-                                               ctypes.byref(res.handle)))
+        _check_call(_LIB.XGDMatrixSliceDMatrixEx(self.handle,
+                                                 c_array(ctypes.c_int, rindex),
+                                                 c_bst_ulong(len(rindex)),
+                                                 ctypes.byref(res.handle),
+                                                 ctypes.c_int(1 if allow_groups else 0)))
         return res
 
     @property
@@ -1042,8 +1041,7 @@ class Booster(object):
             self.handle, c_str(key), ctypes.byref(ret), ctypes.byref(success)))
         if success.value != 0:
             return py_str(ret.value)
-        else:
-            return None
+        return None
 
     def attributes(self):
         """Get attributes stored in the Booster as a dictionary.
@@ -1059,8 +1057,7 @@ class Booster(object):
                                                ctypes.byref(length),
                                                ctypes.byref(sarr)))
         attr_names = from_cstr_to_pystr(sarr, length)
-        res = dict([(n, self.attr(n)) for n in attr_names])
-        return res
+        return {n: self.attr(n) for n in attr_names}
 
     def set_attr(self, **kwargs):
         """Set the attribute of the Booster.
@@ -1402,13 +1399,13 @@ class Booster(object):
         ret = self.get_dump(fmap, with_stats, dump_format)
         if dump_format == 'json':
             fout.write('[\n')
-            for i in range(len(ret)):
+            for i, _ in enumerate(ret):
                 fout.write(ret[i])
                 if i < len(ret) - 1:
                     fout.write(",\n")
             fout.write('\n]')
         else:
-            for i in range(len(ret)):
+            for i, _ in enumerate(ret):
                 fout.write('booster[{}]:\n'.format(i))
                 fout.write(ret[i])
         if need_close:
@@ -1541,51 +1538,50 @@ class Booster(object):
 
             return fmap
 
-        else:
-            average_over_splits = True
-            if importance_type == 'total_gain':
-                importance_type = 'gain'
-                average_over_splits = False
-            elif importance_type == 'total_cover':
-                importance_type = 'cover'
-                average_over_splits = False
+        average_over_splits = True
+        if importance_type == 'total_gain':
+            importance_type = 'gain'
+            average_over_splits = False
+        elif importance_type == 'total_cover':
+            importance_type = 'cover'
+            average_over_splits = False
 
-            trees = self.get_dump(fmap, with_stats=True)
+        trees = self.get_dump(fmap, with_stats=True)
 
-            importance_type += '='
-            fmap = {}
-            gmap = {}
-            for tree in trees:
-                for line in tree.split('\n'):
-                    # look for the opening square bracket
-                    arr = line.split('[')
-                    # if no opening bracket (leaf node), ignore this line
-                    if len(arr) == 1:
-                        continue
+        importance_type += '='
+        fmap = {}
+        gmap = {}
+        for tree in trees:
+            for line in tree.split('\n'):
+                # look for the opening square bracket
+                arr = line.split('[')
+                # if no opening bracket (leaf node), ignore this line
+                if len(arr) == 1:
+                    continue
 
-                    # look for the closing bracket, extract only info within that bracket
-                    fid = arr[1].split(']')
+                # look for the closing bracket, extract only info within that bracket
+                fid = arr[1].split(']')
 
-                    # extract gain or cover from string after closing bracket
-                    g = float(fid[1].split(importance_type)[1].split(',')[0])
+                # extract gain or cover from string after closing bracket
+                g = float(fid[1].split(importance_type)[1].split(',')[0])
 
-                    # extract feature name from string before closing bracket
-                    fid = fid[0].split('<')[0]
+                # extract feature name from string before closing bracket
+                fid = fid[0].split('<')[0]
 
-                    if fid not in fmap:
-                        # if the feature hasn't been seen yet
-                        fmap[fid] = 1
-                        gmap[fid] = g
-                    else:
-                        fmap[fid] += 1
-                        gmap[fid] += g
+                if fid not in fmap:
+                    # if the feature hasn't been seen yet
+                    fmap[fid] = 1
+                    gmap[fid] = g
+                else:
+                    fmap[fid] += 1
+                    gmap[fid] += g
 
-            # calculate average value (gain/cover) for each feature
-            if average_over_splits:
-                for fid in gmap:
-                    gmap[fid] = gmap[fid] / fmap[fid]
+        # calculate average value (gain/cover) for each feature
+        if average_over_splits:
+            for fid in gmap:
+                gmap[fid] = gmap[fid] / fmap[fid]
 
-            return gmap
+        return gmap
 
     def trees_to_dataframe(self, fmap=''):
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
@@ -1724,9 +1720,9 @@ class Booster(object):
         xgdump = self.get_dump(fmap=fmap)
         values = []
         regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
-        for i in range(len(xgdump)):
+        for i, _ in enumerate(xgdump):
             m = re.findall(regexp, xgdump[i])
-            values.extend(map(float, m))
+            values.extend([float(x) for x in m])
 
         n_unique = len(np.unique(values))
         bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
@@ -1737,7 +1733,7 @@ class Booster(object):
 
         if as_pandas and PANDAS_INSTALLED:
             return DataFrame(nph, columns=['SplitValue', 'Count'])
-        elif as_pandas and not PANDAS_INSTALLED:
+        if as_pandas and not PANDAS_INSTALLED:
             sys.stderr.write(
                 "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
             return nph

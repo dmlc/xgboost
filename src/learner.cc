@@ -172,7 +172,7 @@ class LearnerImpl : public Learner {
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
       : cache_(std::move(cache)) {
     // boosted tree
-    name_obj_ = "reg:linear";
+    name_obj_ = "reg:squarederror";
     name_gbm_ = "gbtree";
   }
 
@@ -293,7 +293,7 @@ class LearnerImpl : public Learner {
     }
 
     if (cfg_.count("objective") == 0) {
-      cfg_["objective"] = "reg:linear";
+      cfg_["objective"] = "reg:squarederror";
     }
     if (cfg_.count("booster") == 0) {
       cfg_["booster"] = "gbtree";

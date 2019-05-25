@@ -18,22 +18,21 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.Files
-import java.util.Properties
 
-import scala.collection.mutable.ListBuffer
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkException, SparkParallelismTracker, TaskContext}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
 
@@ -75,8 +74,9 @@ object XGBoost extends Serializable {
     if (missing != 0.0f) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
-            throw new RuntimeException("you can only specify missing value as 0.0 when you have" +
-              " SparseVector as your feature format")
+            throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
+              s" set value $missing) when you have SparseVector or Empty vector as your feature" +
+              " format")
         }
         labeledPoint
       })
@@ -107,7 +107,8 @@ object XGBoost extends Serializable {
       removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(xgbLabelPoints, missing, (v: Float) => !v.isNaN)
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+        missing, (v: Float) => !v.isNaN)
     }
   }
 
@@ -157,13 +158,21 @@ object XGBoost extends Serializable {
     try {
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
-      if (numEarlyStoppingRounds > 0) {
-        if (!params.contains("maximize_evaluation_metrics")) {
-          throw new IllegalArgumentException("maximize_evaluation_metrics has to be specified")
+      val overridedParams = if (numEarlyStoppingRounds > 0 &&
+          !params.contains("maximize_evaluation_metrics")) {
+        if (params.contains("custom_eval")) {
+            throw new IllegalArgumentException("maximize_evaluation_metrics has to be "
+                + "specified when custom_eval is set")
         }
+        val eval_metric = params("eval_metric").toString
+        val maximize = LearningTaskParams.evalMetricsToMaximize contains eval_metric
+        logger.info("parameter \"maximize_evaluation_metrics\" is set to " + maximize)
+        params + ("maximize_evaluation_metrics" -> maximize)
+      } else {
+        params
       }
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
-      val booster = SXGBoost.train(watches.toMap("train"), params, round,
+      val booster = SXGBoost.train(watches.toMap("train"), overridedParams, round,
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)

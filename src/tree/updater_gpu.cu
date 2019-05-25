@@ -566,7 +566,7 @@ class GPUMaker : public TreeUpdater {
   int maxNodes_;
   int maxLeaves_;
 
-  // devices are only used for resharding the HostDeviceVector passed as a parameter;
+  // devices are only used for sharding the HostDeviceVector passed as a parameter;
   // the algorithm works with a single GPU only
   GPUSet devices_;
 
@@ -594,7 +594,7 @@ class GPUMaker : public TreeUpdater {
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
 
-    gpair->Reshard(devices_);
+    gpair->Shard(devices_);
 
     try {
       // build tree

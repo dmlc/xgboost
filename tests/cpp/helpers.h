@@ -17,6 +17,7 @@
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
+#include <xgboost/predictor.h>
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
@@ -152,6 +153,10 @@ class SimpleRealUniformDistribution {
  */
 std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
                                                  float sparsity, int seed = 0);
+
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_size);
+
+gbm::GBTreeModel CreateTestModel();
 
 }  // namespace xgboost
 #endif

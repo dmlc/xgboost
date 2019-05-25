@@ -51,7 +51,7 @@ class TestGPU(unittest.TestCase):
         variable_param = {'n_gpus': [-1], 'max_depth': [2, 10],
                           'max_leaves': [255, 4],
                           'max_bin': [2, 256],
-                          'grow_policy': ['lossguide']}
+                          'grow_policy': ['lossguide'], 'debug_synchronize': [True]}
         for param in parameter_combinations(variable_param):
             param['tree_method'] = 'gpu_hist'
             gpu_results = run_suite(param, select_datasets=datasets)

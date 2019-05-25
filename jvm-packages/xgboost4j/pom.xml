@@ -6,10 +6,10 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm</artifactId>
-        <version>0.83-SNAPSHOT</version>
+        <version>0.90</version>
     </parent>
     <artifactId>xgboost4j</artifactId>
-    <version>0.83-SNAPSHOT</version>
+    <version>0.90</version>
     <packaging>jar</packaging>
 
     <dependencies>
@@ -68,6 +68,18 @@
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                       </configuration>
+                  </execution>
+              </executions>
+          </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>3.0.2</version>
+              <executions>
+                  <execution>
+                      <goals>
+                          <goal>test-jar</goal>
+                      </goals>
                   </execution>
               </executions>
           </plugin>

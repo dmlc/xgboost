@@ -3,9 +3,9 @@
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
-import numpy as np
 import warnings
 import json
+import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
@@ -107,15 +107,15 @@ class XGBModel(XGBModelBase):
     importance_type: string, default "gain"
         The feature importance type for the feature_importances_ property: either "gain",
         "weight", "cover", "total_gain" or "total_cover".
-    \*\*kwargs : dict, optional
+    \\*\\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
-        Attempting to set a parameter via the constructor args and \*\*kwargs dict simultaneously
+        Attempting to set a parameter via the constructor args and \\*\\*kwargs dict simultaneously
         will result in a TypeError.
 
-        .. note:: \*\*kwargs unsupported by scikit-learn
+        .. note:: \\*\\*kwargs unsupported by scikit-learn
 
-            \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
+            \\*\\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
             passed via this argument will interact properly with scikit-learn.
 
     Note
@@ -611,7 +611,7 @@ class XGBModel(XGBModelBase):
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
-    # pylint: disable=missing-docstring,too-many-arguments,invalid-name
+    # pylint: disable=missing-docstring,too-many-arguments,invalid-name,too-many-instance-attributes
     __doc__ = "Implementation of the scikit-learn API for XGBoost classification.\n\n" \
         + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
@@ -1042,15 +1042,15 @@ class XGBRanker(XGBModel):
         missing : float, optional
             Value in the data which needs to be present as a missing value. If
             None, defaults to np.nan.
-        \*\*kwargs : dict, optional
+        \\*\\*kwargs : dict, optional
             Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
             be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
-            Attempting to set a parameter via the constructor args and \*\*kwargs dict
+            Attempting to set a parameter via the constructor args and \\*\\*kwargs dict
             simultaneously will result in a TypeError.
 
-            .. note:: \*\*kwargs unsupported by scikit-learn
+            .. note:: \\*\\*kwargs unsupported by scikit-learn
 
-                \*\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
+                \\*\\*kwargs is unsupported by scikit-learn.  We do not guarantee that parameters
                 passed via this argument will interact properly with scikit-learn.
 
         Note
@@ -1107,7 +1107,7 @@ class XGBRanker(XGBModel):
             random_state=random_state, seed=seed, missing=missing, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
-        elif "rank:" not in self.objective:
+        if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
     def fit(self, X, y, group, sample_weight=None, eval_set=None, sample_weight_eval_set=None,
@@ -1192,9 +1192,9 @@ class XGBRanker(XGBModel):
         if eval_set is not None:
             if eval_group is None:
                 raise ValueError("eval_group is required if eval_set is not None")
-            elif len(eval_group) != len(eval_set):
+            if len(eval_group) != len(eval_set):
                 raise ValueError("length of eval_group should match that of eval_set")
-            elif any(group is None for group in eval_group):
+            if any(group is None for group in eval_group):
                 raise ValueError("group is required for all eval datasets for ranking task")
 
         def _dmat_init(group, **params):
