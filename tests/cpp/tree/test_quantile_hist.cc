@@ -271,7 +271,8 @@ class QuantileHistMock : public QuantileHistMaker {
 
 TEST(Updater, QuantileHist_InitData) {
   std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
+      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
+       {"enable_feature_grouping", std::to_string(0)}};
   QuantileHistMock maker(cfg);
   maker.TestInitData();
 }
@@ -288,6 +289,7 @@ TEST(Updater, QuantileHist_BuildHist) {
 TEST(Updater, QuantileHist_EvalSplits) {
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
+       {"enable_feature_grouping", std::to_string(0)},
        {"split_evaluator", "elastic_net"},
        {"reg_lambda", "0"}, {"reg_alpha", "0"}, {"max_delta_step", "0"},
        {"min_child_weight", "0"}};
