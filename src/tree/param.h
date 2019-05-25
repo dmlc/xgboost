@@ -206,7 +206,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     // ------ From cpu quantile histogram -------.
     DMLC_DECLARE_FIELD(sparse_threshold).set_range(0, 1.0).set_default(0.2)
         .describe("percentage threshold for treating a feature as sparse");
-    DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(1)
+    DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(0)
         .describe("if > 0, enable feature grouping to ameliorate work imbalance "
                   "among worker threads");
     DMLC_DECLARE_FIELD(max_conflict_rate).set_range(0, 1.0).set_default(0)
