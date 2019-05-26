@@ -509,7 +509,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   // scan row_ptr_offsets into pointer to blocks
   std::vector<uint32_t> row_ptr_block_ptr(std::move(row_ptr_block_offsets));
   for (uint32_t i = 1; i < row_ptr_block_ptr.size(); ++i) {
-    row_ptr_block_ptr[i] = row_ptr_block_ptr[i+1];
+    row_ptr_block_ptr[i] += row_ptr_block_ptr[i-1];
   }
 
   blocks_.resize(nblock);

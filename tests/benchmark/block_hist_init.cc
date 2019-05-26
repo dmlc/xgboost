@@ -1,7 +1,9 @@
-#include <xgboost/c_api.h>
-#include <xgboost/logging.h>
 #include <dmlc/parameter.h>
 #include <dmlc/registry.h>
+
+#include <xgboost/c_api.h>
+#include <xgboost/logging.h>
+
 #include "../../src/common/common.h"
 #include "../../src/common/column_matrix.h"
 #include "../../src/common/hist_util.h"
