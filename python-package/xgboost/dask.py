@@ -1,5 +1,5 @@
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
-"""Dask extensions for xgboost"""
+"""Dask extensions for distributed training. See xgboost/demo/dask for examples."""
 import os
 import sys
 import math
@@ -20,6 +20,7 @@ try:
 except ImportError:
     # If packaged it will be local
     from .tracker import RabitTracker  # noqa
+
 
 def _start_tracker(n_workers):
     """ Start Rabit tracker """
