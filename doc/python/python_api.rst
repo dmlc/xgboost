@@ -43,6 +43,14 @@ Scikit-Learn API
     :members:
     :inherited-members:
     :show-inheritance:
+.. autoclass:: xgboost.XGBRFRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+.. autoclass:: xgboost.XGBRFClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 Plotting API
 ------------
@@ -65,3 +73,13 @@ Callback API
 .. autofunction:: xgboost.callback.reset_learning_rate
 
 .. autofunction:: xgboost.callback.early_stop
+
+Dask API
+--------
+.. automodule:: xgboost.dask
+
+.. autofunction:: xgboost.dask.run
+
+.. autofunction:: xgboost.dask.create_worker_dmatrix
+
+.. autofunction:: xgboost.dask.get_local_data

@@ -231,7 +231,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_fields = [data.columns[i] for i, dtype in
+        bad_fields = [str(data.columns[i]) for i, dtype in
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
@@ -795,13 +795,15 @@ class DMatrix(object):
                                          ctypes.byref(ret)))
         return ret.value
 
-    def slice(self, rindex):
+    def slice(self, rindex, allow_groups=False):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
 
         Parameters
         ----------
         rindex : list
             List of indices to be selected.
+        allow_groups : boolean
+            Allow slicing of a matrix with a groups attribute
 
         Returns
         -------
@@ -811,10 +813,11 @@ class DMatrix(object):
         res = DMatrix(None, feature_names=self.feature_names,
                       feature_types=self.feature_types)
         res.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
-                                               c_array(ctypes.c_int, rindex),
-                                               c_bst_ulong(len(rindex)),
-                                               ctypes.byref(res.handle)))
+        _check_call(_LIB.XGDMatrixSliceDMatrixEx(self.handle,
+                                                 c_array(ctypes.c_int, rindex),
+                                                 c_bst_ulong(len(rindex)),
+                                                 ctypes.byref(res.handle),
+                                                 ctypes.c_int(1 if allow_groups else 0)))
         return res
 
     @property

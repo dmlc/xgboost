@@ -3,6 +3,142 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v0.90 (2019.05.18)
+
+### XGBoost Python package drops Python 2.x (#4379, #4381)
+Python 2.x is reaching its end-of-life at the end of this year. [Many scientific Python packages are now moving to drop Python 2.x](https://python3statement.org/).
+
+### XGBoost4J-Spark now requires Spark 2.4.x (#4377)
+* Spark 2.3 is reaching its end-of-life soon. See discussion at #4389.
+* **Consistent handling of missing values** (#4309, #4349, #4411): Many users had reported issue with inconsistent predictions between XGBoost4J-Spark and the Python XGBoost package. The issue was caused by Spark mis-handling non-zero missing values (NaN, -1, 999 etc). We now alert the user whenever Spark doesn't handle missing values correctly (#4309, #4349). See [the tutorial for dealing with missing values in XGBoost4J-Spark](https://xgboost.readthedocs.io/en/release_0.90/jvm/xgboost4j_spark_tutorial.html#dealing-with-missing-values). This fix also depends on the availability of Spark 2.4.x.
+
+### Roadmap: better performance scaling for multi-core CPUs (#4310)
+* Poor performance scaling of the `hist` algorithm for multi-core CPUs has been under investigation (#3810). #4310 optimizes quantile sketches and other pre-processing tasks. Special thanks to @SmirnovEgorRu.
+
+### Roadmap: Harden distributed training (#4250)
+* Make distributed training in XGBoost more robust by hardening [Rabit](https://github.com/dmlc/rabit), which implements [the AllReduce primitive](https://en.wikipedia.org/wiki/Reduce_%28parallel_pattern%29). In particular, improve test coverage on mechanisms for fault tolerance and recovery. Special thanks to @chenqin.
+
+### New feature: Multi-class metric functions for GPUs (#4368)
+* Metrics for multi-class classification have been ported to GPU: `merror`, `mlogloss`. Special thanks to @trivialfis.
+* With supported metrics, XGBoost will select the correct devices based on your system and `n_gpus` parameter.
+
+### New feature: Scikit-learn-like random forest API (#4148, #4255, #4258)
+* XGBoost Python package now offers `XGBRFClassifier` and `XGBRFRegressor` API to train random forests. See [the tutorial](https://xgboost.readthedocs.io/en/release_0.90/tutorials/rf.html). Special thanks to @canonizer
+
+### New feature: use external memory in GPU predictor (#4284, #4396, #4438, #4457)
+* It is now possible to make predictions on GPU when the input is read from external memory. This is useful when you want to make predictions with big dataset that does not fit into the GPU memory. Special thanks to @rongou, @canonizer, @sriramch.
+
+  ```python
+  dtest = xgboost.DMatrix('test_data.libsvm#dtest.cache')
+  bst.set_param('predictor', 'gpu_predictor')
+  bst.predict(dtest)
+  ```
+
+* Coming soon: GPU training (`gpu_hist`) with external memory
+
+### New feature: XGBoost can now handle comments in LIBSVM files (#4430)
+* Special thanks to @trivialfis and @hcho3
+
+### New feature: Embed XGBoost in your C/C++ applications using CMake (#4323, #4333, #4453)
+* It is now easier than ever to embed XGBoost in your C/C++ applications. In your CMakeLists.txt, add `xgboost::xgboost` as a linked library:
+
+  ```cmake
+  find_package(xgboost REQUIRED)
+  add_executable(api-demo c-api-demo.c)
+  target_link_libraries(api-demo xgboost::xgboost)
+  ```
+
+  [XGBoost C API documentation is available.](https://xgboost.readthedocs.io/en/release_0.90/dev) Special thanks to @trivialfis
+
+### Performance improvements
+* Use feature interaction constraints to narrow split search space (#4341, #4428)
+* Additional optimizations for `gpu_hist` (#4248, #4283)
+* Reduce OpenMP thread launches in `gpu_hist` (#4343)
+* Additional optimizations for multi-node multi-GPU random forests. (#4238)
+* Allocate unique prediction buffer for each input matrix, to avoid re-sizing GPU array (#4275)
+* Remove various synchronisations from CUDA API calls (#4205)
+* XGBoost4J-Spark
+  - Allow the user to control whether to cache partitioned training data, to potentially reduce execution time (#4268)
+
+### Bug-fixes
+* Fix node reuse in `hist` (#4404)
+* Fix GPU histogram allocation (#4347)
+* Fix matrix attributes not sliced (#4311)
+* Revise AUC and AUCPR metrics now work with weighted ranking task (#4216, #4436)
+* Fix timer invocation for InitDataOnce() in `gpu_hist` (#4206)
+* Fix R-devel errors (#4251)
+* Make gradient update in GPU linear updater thread-safe (#4259)
+* Prevent out-of-range access in column matrix (#4231)
+* Don't store DMatrix handle in Python object until it's initialized, to improve exception safety (#4317)
+* XGBoost4J-Spark
+  - Fix non-deterministic order within a zipped partition on prediction (#4388)
+  - Remove race condition on tracker shutdown (#4224)
+  - Allow set the parameter `maxLeaves`. (#4226)
+  - Allow partial evaluation of dataframe before prediction (#4407)
+  - Automatically set `maximize_evaluation_metrics` if not explicitly given (#4446)
+
+### API changes
+* Deprecate `reg:linear` in favor of `reg:squarederror`. (#4267, #4427)
+* Add attribute getter and setter to the Booster object in XGBoost4J (#4336)
+
+### Maintenance: Refactor C++ code for legibility and maintainability
+* Fix clang-tidy warnings. (#4149)
+* Remove deprecated C APIs. (#4266)
+* Use Monitor class to time functions in `hist`. (#4273)
+* Retire DVec class in favour of c++20 style span for device memory. (#4293)
+* Improve HostDeviceVector exception safety (#4301)
+
+### Maintenance: testing, continuous integration, build system
+* **Major refactor of CMakeLists.txt** (#4323, #4333, #4453): adopt modern CMake and export XGBoost as a target
+* **Major improvement in Jenkins CI pipeline** (#4234)
+  - Migrate all Linux tests to Jenkins (#4401)
+  - Builds and tests are now de-coupled, to test an artifact against multiple versions of CUDA, JDK, and other dependencies (#4401)
+  - Add Windows GPU to Jenkins CI pipeline (#4463, #4469)
+* Support CUDA 10.1 (#4223, #4232, #4265, #4468)
+* Python wheels are now built with CUDA 9.0, so that JIT is not required on Volta architecture (#4459)
+* Integrate with NVTX CUDA profiler (#4205)
+* Add a test for cpu predictor using external memory (#4308)
+* Refactor tests to get rid of duplication (#4358)
+* Remove test dependency on `craigcitro/r-travis`, since it's deprecated (#4353)
+* Add files from local R build to `.gitignore` (#4346)
+* Make XGBoost4J compatible with Java 9+ by revising NativeLibLoader (#4351)
+* Jenkins build for CUDA 10.0 (#4281)
+* Remove remaining `silent` and `debug_verbose` in Python tests (#4299)
+* Use all cores to build XGBoost4J lib on linux (#4304)
+* Upgrade Jenkins Linux build environment to GCC 5.3.1, CMake 3.6.0 (#4306)
+* Make CMakeLists.txt compatible with CMake 3.3 (#4420)
+* Add OpenMP option in CMakeLists.txt (#4339)
+* Get rid of a few trivial compiler warnings (#4312)
+* Add external Docker build cache, to speed up builds on Jenkins CI (#4331, #4334, #4458)
+* Fix Windows tests (#4403)
+* Fix a broken python test (#4395)
+* Use a fixed seed to split data in XGBoost4J-Spark tests, for reproducibility (#4417)
+* Add additional Python tests to test training under constraints (#4426)
+* Enable building with shared NCCL. (#4447)
+
+### Usability Improvements, Documentation
+* Document limitation of one-split-at-a-time Greedy tree learning heuristic (#4233)
+* Update build doc: PyPI wheel now support multi-GPU (#4219)
+* Fix docs for `num_parallel_tree` (#4221)
+* Fix document about `colsample_by*` parameter (#4340)
+* Make the train and test input with same colnames. (#4329)
+* Update R contribute link. (#4236)
+* Fix travis R tests (#4277)
+* Log version number in crash log in XGBoost4J-Spark (#4271, #4303)
+* Allow supression of Rabit output in Booster::train in XGBoost4J (#4262)
+* Add tutorial on handling missing values in XGBoost4J-Spark (#4425)
+* Fix typos (#4345, #4393, #4432, #4435)
+* Added language classifier in setup.py (#4327)
+* Added Travis CI badge (#4344)
+* Add BentoML to use case section (#4400)
+* Remove subtly sexist remark (#4418)
+* Add R vignette about parsing JSON dumps (#4439)
+
+### Acknowledgement
+**Contributors**: Nan Zhu (@CodingCat), Adam Pocock (@Craigacp), Daniel Hen (@Daniel8hen), Jiaxiang Li (@JiaxiangBU), Rory Mitchell (@RAMitchell), Egor Smirnov (@SmirnovEgorRu), Andy Adinets (@canonizer), Jonas (@elcombato), Harry Braviner (@harrybraviner), Philip Hyunsu Cho (@hcho3), Tong He (@hetong007), James Lamb (@jameslamb), Jean-Francois Zinque (@jeffzi), Yang Yang (@jokerkeny), Mayank Suman (@mayanksuman), jess (@monkeywithacupcake), Hajime Morrita (@omo), Ravi Kalia (@project-delphi), @ras44, Rong Ou (@rongou), Shaochen Shi (@shishaochen), Xu Xiao (@sperlingxx), @sriramch, Jiaming Yuan (@trivialfis), Christopher Suchanek (@wsuchy), Bozhao (@yubozhao)
+
+**Reviewers**: Nan Zhu (@CodingCat), Adam Pocock (@Craigacp), Daniel Hen (@Daniel8hen), Jiaxiang Li (@JiaxiangBU), Laurae (@Laurae2), Rory Mitchell (@RAMitchell), Egor Smirnov (@SmirnovEgorRu), @alois-bissuel, Andy Adinets (@canonizer), Chen Qin (@chenqin), Harry Braviner (@harrybraviner), Philip Hyunsu Cho (@hcho3), Tong He (@hetong007), @jakirkham, James Lamb (@jameslamb), Julien Schueller (@jschueller), Mayank Suman (@mayanksuman), Hajime Morrita (@omo), Rong Ou (@rongou), Sara Robinson (@sararob), Shaochen Shi (@shishaochen), Xu Xiao (@sperlingxx), @sriramch, Sean Owen (@srowen), Sergei Lebedev (@superbobry), Yuan (Terry) Tang (@terrytangyuan), Theodore Vasiloudis (@thvasilo), Matthew Tovbin (@tovbinm), Jiaming Yuan (@trivialfis), Xin Yin (@xydrolase)
+
 ## v0.82 (2019.03.03)
 This release is packed with many new features and bug fixes.
 
