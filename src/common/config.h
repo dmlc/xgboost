@@ -55,8 +55,8 @@ class ConfigParse {
 
       if (line.empty() || name.empty() || value.empty())
         continue;  // skip a line if # at beginning or there is no value or no name.
-      CleanString(name);  // clean the string
-      CleanString(value);
+      CleanString(&name);  // clean the string
+      CleanString(&value);
       results.emplace_back(name, value);
     }
     return results;
