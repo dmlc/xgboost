@@ -3,6 +3,8 @@ import pickle
 import unittest
 import numpy as np
 import subprocess
+import os
+import xgboost as xgb
 
 model_path = './model.pkl'
 
@@ -17,8 +19,6 @@ def build_dataset():
 
 class TestPickling(unittest.TestCase):
     def test_pickling(self):
-        import os
-        import xgboost as xgb
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
         param = {'tree_method': 'gpu_hist',
@@ -29,7 +29,6 @@ class TestPickling(unittest.TestCase):
 
         with open(model_path, 'wb') as fd:
             pickle.dump(bst, fd)
-        sys_path = os.environ['PATH']
         args = ["pytest",
                 "--verbose",
                 "-s",
@@ -39,9 +38,16 @@ class TestPickling(unittest.TestCase):
         for arg in args:
             command += arg
             command += ' '
+
+        cuda_environment = {'CUDA_VISIBLE_DEVICES': ''}
+        env = os.environ
+        # Passing new_environment directly to `env' argument results
+        # in failure on Windows:
+        #    Fatal Python error: _Py_HashRandomization_Init: failed to
+        #    get random numbers to initialize Python
+        env.update(cuda_environment)
+
         # Load model in a CPU only environment.
-        status = subprocess.call(command,
-                                 env={'CUDA_VISIBLE_DEVICES': '',
-                                      'PATH': sys_path}, shell=True)
+        status = subprocess.call(command, env=env, shell=True)
         assert status == 0
         os.remove(model_path)
