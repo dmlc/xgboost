@@ -81,6 +81,6 @@ class ConfigParse {
     *str = str->substr(firstIndx, lastIndx - firstIndx + 1);
   }
 };
-}  // namespace commmon
+}  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_CONFIG_H_
