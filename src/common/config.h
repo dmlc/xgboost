@@ -65,7 +65,7 @@ namespace xgboost {
 
     private:
       std::ifstream fi_;
-      std::string allowableChar="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.-\\";
+      std::string allowableChar="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.-/\\";
       /*!
       * \brief remove unnecessary chars.
       */
