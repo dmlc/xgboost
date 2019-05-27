@@ -16,7 +16,8 @@ ENV PATH=/opt/python/bin:$PATH
 
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
+    conda install dask
 
 ENV GOSU_VERSION 1.10
 
