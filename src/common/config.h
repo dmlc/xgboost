@@ -74,13 +74,13 @@ class ConfigParse {
   /*!
   * \brief remove unnecessary chars.
   */
-  void CleanString(std::string &str) {
-    size_t firstIndx = str.find_first_of(allowableChar);
-    size_t lastIndx = str.find_last_of(allowableChar);
+  void CleanString(std::string * str) {
+    size_t firstIndx = str->find_first_of(allowableChar);
+    size_t lastIndx = str->find_last_of(allowableChar);
     // this line can be more efficient, but keep as is for simplicity.
-    str = str.substr(firstIndx, lastIndx - firstIndx + 1);
+    *str = str->substr(firstIndx, lastIndx - firstIndx + 1);
   }
 };
 }
-}  // namespace xgboost
+}  // namespace commmon
 #endif  // XGBOOST_COMMON_CONFIG_H_
