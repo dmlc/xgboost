@@ -264,7 +264,7 @@ class LearnerImpl : public Learner {
   // Configuration can only be done after data is known
   void ConfigurationWithKnownData(DMatrix* dmat) {
     CHECK(ModelInitialized())
-        << "Always call InitModel or LoadModel before any evaluation.";
+        << "Always call InitModel or Load before any evaluation.";
     this->ValidateDMatrix(dmat);
     // Configure GPU parameters
     // FIXME(trivialfis): How do we know dependent parameters are all set?
@@ -349,14 +349,13 @@ class LearnerImpl : public Learner {
               << "  * JVM packages:   bst.setParam(\""
               << saved_param << "\", [new value])";
           }
-#else
-          if (saved_param == "predictor" && kv.second == "gpu_predictor") {
-            LOG(INFO) << "Parameter 'predictor' will be set to 'cpu_predictor' "
-                      << "since XGBoost wasn't compiled with GPU support.";
+#endif  // XGBOOST_USE_CUDA
+          // NO visiable GPU on current environment
+          if (GPUSet::AllVisible().Size() == 0 &&
+              (saved_param == "predictor" && kv.second == "gpu_predictor")) {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
-#endif  // XGBOOST_USE_CUDA
         }
       }
       attributes_ =
