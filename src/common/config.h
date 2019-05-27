@@ -13,8 +13,7 @@
 #include <istream>
 #include <fstream>
 
-namespace xgboost {
-  namespace common {
+namespace xgboost::common{
 /*!
  * \brief Implementation of config reader
  */
@@ -31,7 +30,6 @@ namespace xgboost {
           LOG(FATAL) << "cannot open file " << cfgFileName;
         }
       }
-
       /*!
       * \brief parse the configure file
       */
@@ -45,7 +43,7 @@ namespace xgboost {
 
         while( !fi_.eof() ) {
           getline( fi_, line); //read a line of configure file
-          line=line.substr(0,line.find(comment)); //anything beyond # is comment
+          line = line.substr(0,line.find(comment)); //anything beyond # is comment
           size_t delimiterPos = line.find(delimiter); //find the = sign
           name = line.substr(0,delimiterPos); //anything before = is the name
           value = line.substr(delimiterPos+1, line.length()-delimiterPos-1); //after this = is the value
@@ -55,17 +53,14 @@ namespace xgboost {
           CleanString(value);
           results.emplace_back(name,value);
         }
-
         return results;
       }
-
       ~ConfigParse(){
         fi_.close();
       }
-
     private:
       std::ifstream fi_;
-      std::string allowableChar="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.-/\\";
+      std::string allowableChar = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-./\\";
       /*!
       * \brief remove unnecessary chars.
       */
@@ -75,7 +70,5 @@ namespace xgboost {
         str = str.substr(firstIndx,lastIndx-firstIndx+1); //this line can be more efficient, but keep as is for simplicity.
       }
     };
-
-  }  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_CONFIG_H_
