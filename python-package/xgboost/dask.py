@@ -43,6 +43,7 @@ def _start_tracker(n_workers):
 def get_local_data(data):
     """
     Unpacks a distributed data object to get the rows local to this worker
+
     :param data: A distributed dask data object
     :return: Local data partition e.g. numpy or pandas
     """
@@ -107,6 +108,7 @@ def run(client, func, *args):
     dask by default, unless the user overrides the nthread parameter.
 
     Note: Windows platforms are not officially supported. Contributions are welcome here.
+
     :param client: Dask client representing the cluster
     :param func: Python function to be executed by each worker. Typically contains xgboost
     training code.
