@@ -11,6 +11,7 @@ import os
 from .core import DMatrix, Booster
 from .training import train, cv
 from . import rabit                   # noqa
+from . import dask  # noqa
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor
