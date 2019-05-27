@@ -37,6 +37,8 @@ def find_lib_path():
         dll_path = [os.path.join(p, 'libxgboost.so') for p in dll_path]
     elif sys.platform == 'darwin':
         dll_path = [os.path.join(p, 'libxgboost.dylib') for p in dll_path]
+    elif sys.platform == 'cygwin':
+        dll_path = [os.path.join(p, 'cygxgboost.dll') for p in dll_path]
 
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
 
