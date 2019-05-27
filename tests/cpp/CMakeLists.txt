@@ -82,6 +82,10 @@ if (NOT WIN32)
     xgboost
     ${LINKED_LIBRARIES_PRIVATE}
     ${OpenMP_CXX_LIBRARIES})
+  set_target_properties(
+    block_init_benchmark PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON)
   target_compile_options(block_init_benchmark PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
   set_output_directory(block_init_benchmark ${PROJECT_BINARY_DIR})

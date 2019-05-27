@@ -80,7 +80,7 @@ int main(int argc, char const* argv[]) {
     {"verbosity", "3"}};
   xgboost::ConsoleLogger::Configure(args.begin(), args.end());
   args.clear();
-  omp_set_num_threads(4);
+  omp_set_num_threads(1);
 
   for (size_t i = 1; i < argc; i++) {
     std::pair<std::string, std::string> arg;
