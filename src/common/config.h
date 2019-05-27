@@ -1,8 +1,8 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2019 by Contributors
  * \file config.h
  * \brief helper class to load in configures from file
- * \author Tianqi Chen
+ * \author Haoda Fu
  */
 #ifndef XGBOOST_COMMON_CONFIG_H_
 #define XGBOOST_COMMON_CONFIG_H_
@@ -65,7 +65,7 @@ namespace xgboost {
 
     private:
       std::ifstream fi_;
-      std::string allowableChar="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.";
+      std::string allowableChar="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.-\\";
       /*!
       * \brief remove unnecessary chars.
       */
