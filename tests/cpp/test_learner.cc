@@ -132,7 +132,8 @@ TEST(Learner, IO) {
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
 
   std::unique_ptr<Learner> learner {Learner::Create(mat)};
-  learner->Configure({Arg{"predictor", "gpu_predictor"},
+  learner->Configure({Arg{"tree_method", "auto"},
+                      Arg{"predictor", "gpu_predictor"},
                       Arg{"n_gpus", "-1"}});
   learner->InitModel();
   learner->UpdateOneIter(0, p_dmat.get());

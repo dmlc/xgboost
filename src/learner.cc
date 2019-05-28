@@ -684,7 +684,6 @@ class LearnerImpl : public Learner {
       CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
         << "Unfortunately, XGBoost does not support data matrices with "
         << std::numeric_limits<unsigned>::max() << " features or greater";
-      // FIXME(trivialfis): Do we need this max since num_feature is just unsigned 0?
       num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
