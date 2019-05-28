@@ -74,6 +74,8 @@ Callback API
 
 .. autofunction:: xgboost.callback.early_stop
 
+.. _dask_api:
+
 Dask API
 --------
 .. automodule:: xgboost.dask
@@ -83,3 +85,4 @@ Dask API
 .. autofunction:: xgboost.dask.create_worker_dmatrix
 
 .. autofunction:: xgboost.dask.get_local_data
+
