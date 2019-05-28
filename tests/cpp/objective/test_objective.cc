@@ -11,8 +11,8 @@ TEST(Objective, UnknownFunction) {
   std::vector<std::pair<std::string, std::string>> args;
   tparam.InitAllowUnknown(args);
 
-  EXPECT_ANY_THROW(obj = xgboost::ObjFunction::Create(&tparam, "unknown_name"));
-  EXPECT_NO_THROW(obj = xgboost::ObjFunction::Create(&tparam, "reg:squarederror"));
+  EXPECT_ANY_THROW(obj = xgboost::ObjFunction::Create("unknown_name", &tparam));
+  EXPECT_NO_THROW(obj = xgboost::ObjFunction::Create("reg:squarederror", &tparam));
   if (obj) {
     delete obj;
   }

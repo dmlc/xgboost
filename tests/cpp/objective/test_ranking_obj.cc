@@ -9,7 +9,7 @@ TEST(Objective, PairwiseRankingGPair) {
   tparam.InitAllowUnknown(args);
 
   xgboost::ObjFunction * obj =
-      xgboost::ObjFunction::Create(&tparam, "rank:pairwise");
+      xgboost::ObjFunction::Create("rank:pairwise", &tparam);
   obj->Configure(args);
   // Test with setting sample weight to second query group
   CheckRankingObjFunction(obj,

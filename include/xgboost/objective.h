@@ -85,7 +85,7 @@ class ObjFunction {
    * \param tparam Generic parameters.
    * \param name Name of the objective.
    */
-  static ObjFunction* Create(LearnerTrainParam const* tparam, const std::string& name);
+  static ObjFunction* Create(const std::string& name, LearnerTrainParam const* tparam);
 };
 
 // implementing configure.

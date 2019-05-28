@@ -7,9 +7,9 @@
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "multi:softmax");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -25,11 +25,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args{
     std::pair<std::string, std::string>("num_class", "3")};
 
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "multi:softmax");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
   obj->Configure(args);
 
   xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
@@ -47,11 +47,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "multi:softprob");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softprob", &lparam);
   obj->Configure(args);
 
   xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f};

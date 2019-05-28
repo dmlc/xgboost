@@ -7,11 +7,11 @@
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
-  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
 
   xgboost::ObjFunction * obj =
-      xgboost::ObjFunction::Create(&tparam, "reg:squarederror");
+      xgboost::ObjFunction::Create("reg:squarederror", &tparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -32,9 +32,9 @@ TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
-  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&tparam, "reg:logistic");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:logistic", &tparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -48,9 +48,9 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "reg:logistic");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:logistic", &lparam);
 
   obj->Configure(args);
 
@@ -78,9 +78,9 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "binary:logitraw");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:logitraw", &lparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -94,9 +94,9 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "count:poisson");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("count:poisson", &lparam);
 
   args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
   obj->Configure(args);
@@ -116,9 +116,9 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "count:poisson");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("count:poisson", &lparam);
 
   obj->Configure(args);
 
@@ -144,9 +144,9 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "reg:gamma");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:gamma", &lparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -165,9 +165,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "reg:gamma");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:gamma", &lparam);
 
   obj->Configure(args);
 
@@ -193,9 +193,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "reg:tweedie");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:tweedie", &lparam);
 
   args.emplace_back(std::make_pair("tweedie_variance_power", "1.1f"));
   obj->Configure(args);
@@ -220,7 +220,7 @@ TEST(Objective, CPU_vs_CUDA) {
   xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, 1);
 
   xgboost::ObjFunction * obj =
-      xgboost::ObjFunction::Create(&lparam, "reg:squarederror");
+      xgboost::ObjFunction::Create("reg:squarederror", &lparam);
   xgboost::HostDeviceVector<xgboost::GradientPair> cpu_out_preds;
   xgboost::HostDeviceVector<xgboost::GradientPair> cuda_out_preds;
 
@@ -270,9 +270,9 @@ TEST(Objective, CPU_vs_CUDA) {
 #endif
 
 TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&lparam, "reg:tweedie");
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:tweedie", &lparam);
 
   obj->Configure(args);
 
@@ -304,7 +304,7 @@ TEST(Objective, CoxRegressionGPair) {
   xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, 0);
   std::vector<std::pair<std::string, std::string>> args;
   xgboost::ObjFunction * obj =
-      xgboost::ObjFunction::Create(&lparam, "survival:cox");
+      xgboost::ObjFunction::Create("survival:cox", &lparam);
 
   obj->Configure(args);
   CheckObjFunction(obj,

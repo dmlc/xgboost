@@ -213,8 +213,7 @@ class LearnerImpl : public Learner {
           return m->Name() != kv.second;
         };
         if (std::all_of(metrics_.begin(), metrics_.end(), dup_check)) {
-          metrics_.emplace_back(Metric::Create(kv.second,
-                                               static_cast<LearnerTrainParam* const>(&tparam_)));
+          metrics_.emplace_back(Metric::Create(kv.second, &tparam_));
           mparam_.contain_eval_metrics = 1;
         }
       } else {
@@ -318,10 +317,8 @@ class LearnerImpl : public Learner {
     }
     CHECK(fi->Read(&name_gbm_)) << "BoostLearner: wrong model format";
     // duplicated code with LazyInitModel
-    obj_.reset(ObjFunction::Create(static_cast<LearnerTrainParam* const>(&tparam_),
-                                   name_obj_));
-    gbm_.reset(GradientBooster::Create(name_gbm_,
-                                       static_cast<LearnerTrainParam* const>(&tparam_),
+    obj_.reset(ObjFunction::Create(name_obj_, &tparam_));
+    gbm_.reset(GradientBooster::Create(name_gbm_, &tparam_,
                                        cache_, mparam_.base_score));
     gbm_->Load(fi);
     if (mparam_.contain_extra_attrs != 0) {
@@ -371,7 +368,7 @@ class LearnerImpl : public Learner {
       fi->Read(&metr);
       for (auto name : metr) {
         metrics_.emplace_back(
-            Metric::Create(name, static_cast<LearnerTrainParam* const>(&tparam_)));
+            Metric::Create(name, &tparam_));
       }
     }
     cfg_["num_class"] = common::ToString(mparam_.num_class);
@@ -480,8 +477,7 @@ class LearnerImpl : public Learner {
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(),
-                                           static_cast<LearnerTrainParam* const>(&tparam_)));
+      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &tparam_));
       metrics_.back()->Configure(cfg_.begin(), cfg_.end());
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
@@ -535,8 +531,7 @@ class LearnerImpl : public Learner {
   std::pair<std::string, bst_float> Evaluate(DMatrix* data,
                                              std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
-    std::unique_ptr<Metric> ev(Metric::Create(
-        metric.c_str(), static_cast<LearnerTrainParam* const>(&tparam_)));
+    std::unique_ptr<Metric> ev(Metric::Create(metric.c_str(), &tparam_));
     this->ConfigurationWithKnownData(data);
     this->PredictRaw(data, &preds_[data]);
     obj_->EvalTransform(&preds_[data]);
@@ -702,12 +697,11 @@ class LearnerImpl : public Learner {
     // setup
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     CHECK(obj_ == nullptr && gbm_ == nullptr);
-    obj_.reset(ObjFunction::Create(&tparam_, name_obj_));
+    obj_.reset(ObjFunction::Create(name_obj_, &tparam_));
     obj_->Configure(cfg_.begin(), cfg_.end());
     // reset the base score
     mparam_.base_score = obj_->ProbToMargin(mparam_.base_score);
-    gbm_.reset(GradientBooster::Create(name_gbm_,
-                                       static_cast<LearnerTrainParam* const>(&tparam_),
+    gbm_.reset(GradientBooster::Create(name_gbm_, &tparam_,
                                        cache_, mparam_.base_score));
     gbm_->Configure(cfg_.begin(), cfg_.end());
   }

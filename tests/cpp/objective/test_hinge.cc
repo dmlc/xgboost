@@ -6,8 +6,8 @@
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(HingeObj)) {
-  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create(&tparam, "binary:hinge");
+  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:hinge", &tparam);
 
   xgboost::bst_float eps = std::numeric_limits<xgboost::bst_float>::min();
   CheckObjFunction(obj,

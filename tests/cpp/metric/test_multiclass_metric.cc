@@ -4,8 +4,8 @@
 
 #include "../helpers.h"
 
-inline void TestMultiClassError(xgboost::GPUSet devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+inline void TestMultiClassError(xgboost::GPUSet const& devices) {
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   lparam.gpu_id = *devices.begin();
   lparam.n_gpus = devices.Size();
   xgboost::Metric * metric = xgboost::Metric::Create("merror", &lparam);
@@ -23,12 +23,12 @@ inline void TestMultiClassError(xgboost::GPUSet devices) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS());
+  auto devices = xgboost::GPUSet::Range(0, NGPUS);
   TestMultiClassError(devices);
 }
 
-inline void TestMultiClassLogLoss(xgboost::GPUSet devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS());
+inline void TestMultiClassLogLoss(xgboost::GPUSet const& devices) {
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   lparam.gpu_id = *devices.begin();
   lparam.n_gpus = devices.Size();
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &lparam);
@@ -46,7 +46,7 @@ inline void TestMultiClassLogLoss(xgboost::GPUSet devices) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS());
+  auto devices = xgboost::GPUSet::Range(0, NGPUS);
   TestMultiClassLogLoss(devices);
 }
 

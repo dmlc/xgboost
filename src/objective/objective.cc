@@ -14,7 +14,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 
 namespace xgboost {
 // implement factory functions
-ObjFunction* ObjFunction::Create(LearnerTrainParam const* tparam, const std::string& name) {
+ObjFunction* ObjFunction::Create(const std::string& name, LearnerTrainParam const* tparam) {
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {

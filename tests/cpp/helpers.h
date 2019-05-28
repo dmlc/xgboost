@@ -29,9 +29,9 @@
 #endif
 
 #if defined(__CUDACC__)
-#define NGPUS() 1
+#define NGPUS 1
 #else
-#define NGPUS() 0
+#define NGPUS 0
 #endif
 
 bool FileExists(const std::string& filename);

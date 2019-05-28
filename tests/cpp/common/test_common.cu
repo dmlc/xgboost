@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "xgboost/logging.h"
+#include <xgboost/logging.h>
 #include "../../../src/common/common.h"
 #include "../helpers.h"
 
