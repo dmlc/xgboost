@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "xgboost/data.h"
+#include "../helpers.h"
 
 namespace xgboost {
 TEST(SparsePage, PushCSC) {
@@ -50,6 +51,17 @@ TEST(SparsePage, PushCSC) {
   std::vector<size_t> indices_sol {1, 2, 3};
   for (size_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
+  }
+}
+
+TEST(SparsePage, PushCSCAfterTranspose) {
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(9, 64UL);
+  int ncols = dmat->Info().num_col_;
+  SparsePage page; // Consolidated sparse page
+  for (auto& batch : dmat->GetRowBatches()) {
+    // Transpose each batch and push
+    SparsePage tmp = batch.GetTranspose(ncols);
+    page.PushCSC(tmp);
   }
 }
 }  // namespace xgboost
