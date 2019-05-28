@@ -229,7 +229,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
-  size_t nthread = omp_get_max_threads();
+  const size_t nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
@@ -250,18 +250,18 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     // The number of threads is pegged to the batch size. If the OMP
     // block is parallelized on anything other than the batch/block size,
     // it should be reassigned
-    nthread = std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads()));
-    MemStackAllocator<size_t, 128> partial_sums(nthread);
+    const size_t batch_threads = std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads()));
+    MemStackAllocator<size_t, 128> partial_sums(batch_threads);
     size_t* p_part = partial_sums.Get();
 
-    size_t block_size =  batch.Size() / nthread;
+    size_t block_size =  batch.Size() / batch_threads;
 
-    #pragma omp parallel num_threads(nthread)
+    #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
-      for (int32_t tid = 0; tid < nthread; ++tid) {
+      for (int32_t tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
-        size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
+        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
         size_t sum = 0;
         for (size_t i = ibegin; i < iend; ++i) {
@@ -273,15 +273,15 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       #pragma omp single
       {
         p_part[0] = prev_sum;
-        for (int32_t i = 1; i < nthread; ++i) {
+        for (int32_t i = 1; i < batch_threads; ++i) {
           p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
         }
       }
 
       #pragma omp for
-      for (int32_t tid = 0; tid < nthread; ++tid) {
+      for (int32_t tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
-        size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
+        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
         for (size_t i = ibegin; i < iend; ++i) {
           row_ptr[rbegin + 1 + i] += p_part[tid];
@@ -293,7 +293,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
 
     CHECK_GT(cut.cut.size(), 0U);
 
-    #pragma omp parallel for num_threads(nthread) schedule(static)
+    #pragma omp parallel for num_threads(batch_threads) schedule(static)
     for (omp_ulong i = 0; i < batch.Size(); ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
@@ -310,7 +310,6 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       std::sort(index.begin() + ibegin, index.begin() + iend);
     }
 
-    nthread = omp_get_max_threads();
     #pragma omp parallel for num_threads(nthread) schedule(static)
     for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
       for (size_t tid = 0; tid < nthread; ++tid) {
