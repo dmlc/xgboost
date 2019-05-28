@@ -15,7 +15,7 @@ void Predictor::Init(
     cache_[d.get()].data = d;
   }
 }
-Predictor* Predictor::Create(std::string name, LearnerTrainParam const* learner_param) {
+Predictor* Predictor::Create(std::string const& name, LearnerTrainParam const* learner_param) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown predictor type " << name;

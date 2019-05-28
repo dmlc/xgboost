@@ -174,7 +174,7 @@ class Predictor {
    *
    */
 
-  static Predictor* Create(std::string name, LearnerTrainParam const*);
+  static Predictor* Create(std::string const& name, LearnerTrainParam const*);
 
  protected:
   /**
