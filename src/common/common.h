@@ -135,8 +135,8 @@ class Range {
   Iterator begin_;
   Iterator end_;
 };
-
 }  // namespace common
+
 struct AllVisibleImpl {
   static int AllVisible();
 };
@@ -160,33 +160,7 @@ class GPUSet {
   }
   /*! \brief n_gpus and num_rows both are upper bounds. */
   static GPUSet All(GpuIdType gpu_id, GpuIdType n_gpus,
-                    GpuIdType num_rows = std::numeric_limits<GpuIdType>::max()) {
-    CHECK_GE(gpu_id, 0) << "gpu_id must be >= 0.";
-    CHECK_GE(n_gpus, -1) << "n_gpus must be >= -1.";
-
-    GpuIdType const n_devices_visible = AllVisible().Size();
-    if (n_devices_visible == 0 || n_gpus == 0) { return Empty(); }
-
-    GpuIdType const n_available_devices = n_devices_visible - gpu_id;
-
-    if (n_gpus == kAll) {  // Use all devices starting from `gpu_id'.
-      CHECK(gpu_id < n_devices_visible)
-          << "\ngpu_id should be less than number of visible devices.\ngpu_id: "
-          << gpu_id
-          << ", number of visible devices: "
-          << n_devices_visible;
-      GpuIdType n_devices =
-          n_available_devices < num_rows ? n_available_devices : num_rows;
-      return Range(gpu_id, n_devices);
-    } else {  // Use devices in ( gpu_id, gpu_id + n_gpus ).
-      CHECK_LE(n_gpus, n_available_devices)
-          << "Starting from gpu id: " << gpu_id << ", there are only "
-          << n_available_devices << " available devices, while n_gpus is set to: "
-          << n_gpus;
-      GpuIdType n_devices = n_gpus < num_rows ? n_gpus : num_rows;
-      return Range(gpu_id, n_devices);
-    }
-  }
+                    GpuIdType num_rows = std::numeric_limits<GpuIdType>::max());
 
   static GPUSet AllVisible() {
     GpuIdType n =  AllVisibleImpl::AllVisible();

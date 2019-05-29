@@ -18,29 +18,12 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(hinge_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct HingeObjParam : public dmlc::Parameter<HingeObjParam> {
-  int n_gpus;
-  int gpu_id;
-  DMLC_DECLARE_PARAMETER(HingeObjParam) {
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for objective function evaluation");
-  }
-};
-
 class HingeObj : public ObjFunction {
  public:
   HingeObj() = default;
 
   void Configure(
-      const std::vector<std::pair<std::string, std::string> > &args) override {
-    param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
-  }
+      const std::vector<std::pair<std::string, std::string> > &args) override {}
 
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
@@ -57,7 +40,6 @@ class HingeObj : public ObjFunction {
     out_gpair->Resize(ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
-                           common::Span<int> _label_correct,
                            common::Span<GradientPair> _out_gpair,
                            common::Span<const bst_float> _preds,
                            common::Span<const bst_float> _labels,
@@ -75,8 +57,9 @@ class HingeObj : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair(g, h);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices_).Eval(
-            &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
+        common::Range{0, static_cast<int64_t>(ndata)},
+        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata)).Eval(
+            out_gpair, &preds, &info.labels_, &info.weights_);
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
@@ -84,22 +67,16 @@ class HingeObj : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, devices_)
+        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
+        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
         .Eval(io_preds);
   }
 
   const char* DefaultEvalMetric() const override {
     return "error";
   }
-
- private:
-  GPUSet devices_;
-  HostDeviceVector<int> label_correct_;
-  HingeObjParam param_;
 };
 
-// register the objective functions
-DMLC_REGISTER_PARAMETER(HingeObjParam);
 // register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(HingeObj, "binary:hinge")
 .describe("Hinge loss. Expects labels to be in [0,1f]")

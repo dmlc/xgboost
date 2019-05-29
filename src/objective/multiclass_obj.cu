@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+
+#include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
 
@@ -25,18 +27,10 @@ DMLC_REGISTRY_FILE_TAG(multiclass_obj_gpu);
 
 struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
   int num_class;
-  int n_gpus;
-  int gpu_id;
   // declare parameters
   DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
     DMLC_DECLARE_FIELD(num_class).set_lower_bound(1)
         .describe("Number of output class in the multi-class classification.");
-    DMLC_DECLARE_FIELD(n_gpus).set_default(1).set_lower_bound(GPUSet::kAll)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for objective function evaluation");
   }
 };
 // TODO(trivialfis): Currently the sharding in softmax is less than ideal
@@ -49,8 +43,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   }
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    devices_ = GPUSet::All(param_.gpu_id, param_.n_gpus);
-    label_correct_.Resize(devices_.IsEmpty() ? 1 : devices_.Size());
   }
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
@@ -63,11 +55,14 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    out_gpair->Shard(GPUDistribution::Granular(devices_, nclass));
-    info.labels_.Shard(GPUDistribution::Block(devices_));
-    info.weights_.Shard(GPUDistribution::Block(devices_));
-    preds.Shard(GPUDistribution::Granular(devices_, nclass));
-    label_correct_.Shard(GPUDistribution::Block(devices_));
+    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
+    out_gpair->Shard(GPUDistribution::Granular(devices, nclass));
+    info.labels_.Shard(GPUDistribution::Block(devices));
+    info.weights_.Shard(GPUDistribution::Block(devices));
+    preds.Shard(GPUDistribution::Granular(devices, nclass));
+
+    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
+    label_correct_.Shard(GPUDistribution::Block(devices));
 
     out_gpair->Resize(preds.Size());
     label_correct_.Fill(1);
@@ -101,7 +96,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             p = label == k ? p - 1.0f : p;
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
-        }, common::Range{0, ndata}, devices_, false)
+        }, common::Range{0, ndata}, devices, false)
         .Eval(out_gpair, &info.labels_, &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -126,6 +121,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
+    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
@@ -133,11 +129,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 _preds.subspan(_idx * nclass, nclass);
             common::Softmax(point.begin(), point.end());
           },
-          common::Range{0, ndata}, GPUDistribution::Granular(devices_, nclass))
+          common::Range{0, ndata}, GPUDistribution::Granular(devices, nclass))
         .Eval(io_preds);
     } else {
-      io_preds->Shard(GPUDistribution::Granular(devices_, nclass));
-      max_preds_.Shard(GPUDistribution::Block(devices_));
+      io_preds->Shard(GPUDistribution::Granular(devices, nclass));
+      max_preds_.Shard(GPUDistribution::Block(devices));
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx,
                              common::Span<const bst_float> _preds,
@@ -148,7 +144,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 common::FindMaxIndex(point.cbegin(),
                                      point.cend()) - point.cbegin();
           },
-          common::Range{0, ndata}, devices_, false)
+          common::Range{0, ndata}, devices, false)
         .Eval(io_preds, &max_preds_);
     }
     if (!prob) {
@@ -162,7 +158,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   bool output_prob_;
   // parameter
   SoftmaxMultiClassParam param_;
-  GPUSet devices_;
   // Cache for max_preds
   HostDeviceVector<bst_float> max_preds_;
   HostDeviceVector<int> label_correct_;

@@ -1,11 +1,13 @@
-#include "../../../src/common/device_helpers.cuh"
-#include "../../../src/common/hist_util.h"
 #include "gtest/gtest.h"
 #include "xgboost/c_api.h"
 #include <algorithm>
 #include <cmath>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
+
+#include "../helpers.h"
+#include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/hist_util.h"
 
 namespace xgboost {
 namespace common {
@@ -27,8 +29,6 @@ void TestDeviceSketch(const GPUSet& devices) {
   // parameters for finding quantiles
   tree::TrainParam p;
   p.max_bin = 20;
-  p.gpu_id = 0;
-  p.n_gpus = devices.Size();
   // ensure that the exact quantiles are found
   int gpu_batch_nrows = nrows * 10;
 
@@ -39,7 +39,7 @@ void TestDeviceSketch(const GPUSet& devices) {
   // find the cuts on the GPU
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
   HistCutMatrix hmat_gpu;
-  DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu, gpu_batch_nrows);
+  DeviceSketch(batch, (*dmat)->Info(), p, &hmat_gpu, gpu_batch_nrows, devices);
 
   // compare the cuts
   double eps = 1e-2;

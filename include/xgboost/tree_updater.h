@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file tree_updater.h
  * \brief General primitive for tree learning,
  *   Updating a collection of trees given the information.
@@ -9,13 +9,16 @@
 #define XGBOOST_TREE_UPDATER_H_
 
 #include <dmlc/registry.h>
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/tree_model.h>
+#include <xgboost/generic_parameters.h>
+
 #include <functional>
 #include <vector>
 #include <utility>
 #include <string>
-#include "./base.h"
-#include "./data.h"
-#include "./tree_model.h"
+
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
@@ -23,6 +26,9 @@ namespace xgboost {
  * \brief interface of tree update module, that performs update of a tree.
  */
 class TreeUpdater {
+ protected:
+  LearnerTrainParam const* tparam_;
+
  public:
   /*! \brief virtual destructor */
   virtual ~TreeUpdater() = default;
@@ -63,7 +69,7 @@ class TreeUpdater {
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
    */
-  static TreeUpdater* Create(const std::string& name);
+  static TreeUpdater* Create(const std::string& name, LearnerTrainParam const* tparam);
 };
 
 /*!
