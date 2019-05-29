@@ -94,14 +94,14 @@ __global__ void UnpackFeaturesK
 struct SketchContainer {
   std::vector<HistCutMatrix::WXQSketch> sketches_;  // NOLINT
   std::vector<std::mutex> col_locks_; // NOLINT
-  static constexpr int OMP_NUM_COLS_PARALLELIZE_LIMIT = 1000;
+  static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
   SketchContainer(const tree::TrainParam &param, DMatrix *dmat) :
     col_locks_(dmat->Info().num_col_) {
     const MetaInfo &info = dmat->Info();
     // Initialize Sketches for this dmatrix
     sketches_.resize(info.num_col_);
-#pragma omp parallel for schedule(static) if (info.num_col_ > OMP_NUM_COLS_PARALLELIZE_LIMIT)
+#pragma omp parallel for schedule(static) if (info.num_col_ > kOmpNumColsParallelizeLimit)
     for (int icol = 0; icol < info.num_col_; ++icol) {
       sketches_[icol].Init(info.num_row_, 1.0 / (8 * param.max_bin));
     }
@@ -354,7 +354,7 @@ struct GPUSketcher {
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
 #pragma omp parallel for schedule(static) \
-      if (num_cols_ > SketchContainer::OMP_NUM_COLS_PARALLELIZE_LIMIT)
+      if (num_cols_ > SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
       for (int icol = 0; icol < num_cols_; ++icol) {
         WXQSketch::SummaryContainer summary;
         summary.Reserve(n_cuts_);
