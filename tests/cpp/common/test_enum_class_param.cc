@@ -1,6 +1,6 @@
-#include "../../../src/common/enum_class_param.h"
 #include <dmlc/parameter.h>
 #include <gtest/gtest.h>
+#include <xgboost/enum_class_param.h>
 
 enum class Foo : int {
   kBar = 0, kFrog = 1, kCat = 2, kDog = 3

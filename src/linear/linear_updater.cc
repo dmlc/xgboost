@@ -11,12 +11,14 @@ DMLC_REGISTRY_ENABLE(::xgboost::LinearUpdaterReg);
 
 namespace xgboost {
 
-LinearUpdater* LinearUpdater::Create(const std::string& name) {
+LinearUpdater* LinearUpdater::Create(const std::string& name, LearnerTrainParam const* lparam) {
   auto *e = ::dmlc::Registry< ::xgboost::LinearUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown linear updater " << name;
   }
-  return (e->body)();
+  auto p_linear = (e->body)();
+  p_linear->learner_param_ = lparam;
+  return p_linear;
 }
 
 }  // namespace xgboost

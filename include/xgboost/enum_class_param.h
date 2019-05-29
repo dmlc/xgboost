@@ -5,8 +5,8 @@
  * \author Hyunsu Philip Cho
  */
 
-#ifndef XGBOOST_COMMON_ENUM_CLASS_PARAM_H_
-#define XGBOOST_COMMON_ENUM_CLASS_PARAM_H_
+#ifndef XGBOOST_ENUM_CLASS_PARAM_H_
+#define XGBOOST_ENUM_CLASS_PARAM_H_
 
 #include <dmlc/parameter.h>
 #include <string>
@@ -78,4 +78,4 @@ class FieldEntry<EnumClass> : public FieldEntry<int> {  \
 }  /* namespace parameter */  \
 }  /* namespace dmlc */
 
-#endif  // XGBOOST_COMMON_ENUM_CLASS_PARAM_H_
+#endif  // XGBOOST_ENUM_CLASS_PARAM_H_

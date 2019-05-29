@@ -9,15 +9,18 @@
 #define XGBOOST_GBM_H_
 
 #include <dmlc/registry.h>
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/objective.h>
+#include <xgboost/feature_map.h>
+#include <xgboost/generic_parameters.h>
+
 #include <vector>
 #include <utility>
 #include <string>
 #include <functional>
 #include <memory>
-#include "./base.h"
-#include "./data.h"
-#include "./objective.h"
-#include "./feature_map.h"
+
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
@@ -25,6 +28,9 @@ namespace xgboost {
  * \brief interface of gradient boosting model.
  */
 class GradientBooster {
+ protected:
+  LearnerTrainParam const* learner_param_;
+
  public:
   /*! \brief virtual destructor */
   virtual ~GradientBooster() = default;
@@ -149,6 +155,7 @@ class GradientBooster {
    */
   static GradientBooster* Create(
       const std::string& name,
+      LearnerTrainParam const* gparam,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
 };

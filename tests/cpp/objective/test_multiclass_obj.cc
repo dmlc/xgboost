@@ -1,13 +1,16 @@
 /*!
- * Copyright 2018 XGBoost contributors
+ * Copyright 2018-2019 XGBoost contributors
  */
 #include <xgboost/objective.h>
-
+#include <xgboost/generic_parameters.h>
+#include "../../src/common/common.h"
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax");
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
+
   obj->Configure(args);
   CheckObjFunction(obj,
 		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
@@ -22,9 +25,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax");
-  std::vector<std::pair<std::string, std::string>> args
-    {std::pair<std::string, std::string>("num_class", "3")};
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  std::vector<std::pair<std::string, std::string>> args{
+    std::pair<std::string, std::string>("num_class", "3")};
+
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
   obj->Configure(args);
 
   xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
@@ -42,9 +47,11 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softprob");
-  std::vector<std::pair<std::string, std::string>> args
-    {std::pair<std::string, std::string>("num_class", "3")};
+  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  std::vector<std::pair<std::string, std::string>> args {
+    std::pair<std::string, std::string>("num_class", "3")};
+
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softprob", &lparam);
   obj->Configure(args);
 
   xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f};

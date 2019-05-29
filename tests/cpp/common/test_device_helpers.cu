@@ -5,6 +5,7 @@
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
+#include "../helpers.h"
 #include "gtest/gtest.h"
 
 using xgboost::common::Span;
@@ -65,7 +66,9 @@ void TestLbs() {
   }
 }
 
-TEST(cub_lbs, Test) { TestLbs(); }
+TEST(cub_lbs, Test) {
+  TestLbs();
+}
 
 TEST(sumReduce, Test) {
   thrust::device_vector<float> data(100, 1.0f);
@@ -89,4 +92,6 @@ void TestAllocator() {
 }
 
 // Define the test in a function so we can use device lambda
-TEST(bulkAllocator, Test) { TestAllocator(); }
+TEST(bulkAllocator, Test) {
+  TestAllocator();
+}

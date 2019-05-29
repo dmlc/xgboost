@@ -9,7 +9,9 @@
 #include <vector>
 #include <limits>
 
+#include "xgboost/data.h"
 #include "./param.h"
+#include "../gbm/gblinear_model.h"
 #include "../common/random.h"
 
 namespace xgboost {

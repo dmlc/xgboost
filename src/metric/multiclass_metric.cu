@@ -168,11 +168,6 @@ class MultiClassMetricsReduction {
  */
 template<typename Derived>
 struct EvalMClassBase : public Metric {
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
-  }
-
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
@@ -185,7 +180,7 @@ struct EvalMClassBase : public Metric {
         << " use logloss for binary classification";
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
 
-    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
+    GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
     auto result = reducer_.Reduce(devices, nclass, info.weights_, info.labels_, preds);
     double dat[2] { result.Residue(), result.Weights() };
 
@@ -215,7 +210,6 @@ struct EvalMClassBase : public Metric {
 
  private:
   MultiClassMetricsReduction<Derived> reducer_;
-  MetricParam param_;
   // used to store error message
   const char *error_msg_;
 };

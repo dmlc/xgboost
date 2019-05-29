@@ -314,11 +314,6 @@ struct EvalEWiseBase : public Metric {
   explicit EvalEWiseBase(char const* policy_param) :
     policy_{policy_param}, reducer_{policy_} {}
 
-  void Configure(
-      const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
-  }
-
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) override {
@@ -328,7 +323,7 @@ struct EvalEWiseBase : public Metric {
         << "hint: use merror or mlogloss for multi-class classification";
     const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
     // Dealing with ndata < n_gpus.
-    GPUSet devices = GPUSet::All(param_.gpu_id, param_.n_gpus, ndata);
+    GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
 
     auto result =
         reducer_.Reduce(devices, info.weights_, info.labels_, preds);
@@ -346,8 +341,6 @@ struct EvalEWiseBase : public Metric {
 
  private:
   Policy policy_;
-
-  MetricParam param_;
 
   ElementWiseMetricsReduction<Policy> reducer_;
 };
