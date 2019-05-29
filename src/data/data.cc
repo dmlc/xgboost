@@ -376,7 +376,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<size_t> offset(other_offset.size());
   offset[0] = 0;
 
-  std::vector<xgboost::Entry> data(self_data.size() + batch.data.Size());
+  std::vector<xgboost::Entry> data(self_data.size() + other_data.size());
 
   // n_cols in original csr data matrix, here in csc is n_rows
   size_t const n_features = other_offset.size() - 1;
@@ -385,7 +385,11 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   for (size_t i = 0; i < n_features; ++i) {
     size_t const self_beg = self_offset.at(i);
     size_t const self_length = self_offset.at(i+1) - self_beg;
-    CHECK_LT(beg, data.size());
+    // It is possible that the current feature and further features aren't referenced
+    // in any rows accumulated thus far. It is also possible for this to happen
+    // in the current sparse page row batch as well.
+    // Hence, the incremental number of rows may stay constant thus equaling the data size
+    CHECK_LE(beg, data.size());
     std::memcpy(dmlc::BeginPtr(data)+beg,
                 dmlc::BeginPtr(self_data) + self_beg,
                 sizeof(Entry) * self_length);
@@ -393,7 +397,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
 
     size_t const other_beg = other_offset.at(i);
     size_t const other_length = other_offset.at(i+1) - other_beg;
-    CHECK_LT(beg, data.size());
+    CHECK_LE(beg, data.size());
     std::memcpy(dmlc::BeginPtr(data)+beg,
                 dmlc::BeginPtr(other_data) + other_beg,
                 sizeof(Entry) * other_length);
