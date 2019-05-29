@@ -8,6 +8,7 @@
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
 #include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
 #include <limits>
 #include <vector>
 #include "row_set.h"
@@ -84,9 +85,6 @@ struct SimpleArray {
   size_t n_ = 0;
 };
 
-
-
-
 /*! \brief Cut configuration for all the features. */
 struct HistCutMatrix {
   /*! \brief Unit pointer to rows by element position */
@@ -115,11 +113,13 @@ struct HistCutMatrix {
   Monitor monitor_;
 };
 
-/*! \brief Builds the cut matrix on the GPU */
-void DeviceSketch
-  (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows,
-   GPUSet const& devices);
+/*! \brief Builds the cut matrix on the GPU.
+ *  
+ *  \return The row stride across the entire dataset.
+ */
+size_t DeviceSketch
+  (const tree::TrainParam& param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
+   DMatrix* dmat, HistCutMatrix* hmat);
 
 /*!
  * \brief A single row in global histogram index.
