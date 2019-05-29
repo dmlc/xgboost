@@ -67,11 +67,6 @@ The experimental parameter ``single_precision_histogram`` can be set to True to 
 
 The device ordinal can be selected using the ``gpu_id`` parameter, which defaults to 0.
 
-Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the selected gpu devices will be from ``gpu_id`` to ``gpu_id+n_gpus``, please note that ``gpu_id+n_gpus`` must be less than or equal to the number of available GPUs on your system.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
-
-.. note:: Enabling multi-GPU training
-
-  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.
 
 The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
 
@@ -81,6 +76,24 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
   param['gpu_id'] = 0
   param['max_bin'] = 16
   param['tree_method'] = 'gpu_hist'
+
+
+Single Node Multi-GPU
+=====================
+Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the selected gpu devices will be from ``gpu_id`` to ``gpu_id+n_gpus``, please note that ``gpu_id+n_gpus`` must be less than or equal to the number of available GPUs on your system.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
+
+.. note:: Enabling multi-GPU training
+
+  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.
+XGBoost supports multi-GPU training on a single machine via specifying the `n_gpus' parameter.
+
+
+Multi-node Multi-GPU Training
+=============================
+XGBoost supports fully distributed GPU training using `Dask
+<https://dask.org/>`_. See Python documentation :ref:`dask_api` and worked examples `here
+<https://github.com/dmlc/xgboost/tree/master/demo/dask>`_.
+
 
 Objective functions
 ===================
@@ -209,6 +222,7 @@ References
 Contributors
 =======
 Many thanks to the following contributors (alphabetical order):
+
 * Andrey Adinets
 * Jiaming Yuan
 * Jonathan C. McKinney

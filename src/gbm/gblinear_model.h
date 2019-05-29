@@ -4,6 +4,7 @@
 #pragma once
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+#include <xgboost/base.h>
 #include <xgboost/feature_map.h>
 #include <vector>
 #include <string>

@@ -6,11 +6,12 @@
 namespace xgboost {
 
 TEST(Linear, GPUCoordinate) {
-  dh::safe_cuda(cudaSetDevice(0));
   auto mat = xgboost::CreateDMatrix(10, 10, 0);
+  auto lparam = CreateEmptyGenericParam(0, 1);
+  lparam.n_gpus = 1;
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-      xgboost::LinearUpdater::Create("gpu_coord_descent"));
-  updater->Init({{"eta", "1."}, {"n_gpus", "1"}});
+      xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
+  updater->Init({{"eta", "1."}});
   xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
       (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
@@ -26,12 +27,13 @@ TEST(Linear, GPUCoordinate) {
 
 #if defined(XGBOOST_USE_NCCL)
 TEST(Linear, MGPU_GPUCoordinate) {
-  dh::safe_cuda(cudaSetDevice(0));
   {
     auto mat = xgboost::CreateDMatrix(10, 10, 0);
+    auto lparam = CreateEmptyGenericParam(0, -1);
+    lparam.n_gpus = -1;
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create("gpu_coord_descent"));
-    updater->Init({{"eta", "1."}, {"n_gpus", "-1"}});
+        xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
+    updater->Init({{"eta", "1."}});
     xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
         (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
     xgboost::gbm::GBLinearModel model;
@@ -44,15 +46,13 @@ TEST(Linear, MGPU_GPUCoordinate) {
     delete mat;
   }
 
-  dh::safe_cuda(cudaSetDevice(0));
   {
+    auto lparam = CreateEmptyGenericParam(1, -1);
+    lparam.n_gpus = -1;
     auto mat = xgboost::CreateDMatrix(10, 10, 0);
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create("gpu_coord_descent"));
-    updater->Init({
-        {"eta", "1."},
-        {"n_gpus", "-1"},
-        {"gpu_id", "1"}});
+        xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
+    updater->Init({{"eta", "1."}});
     xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
         (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
     xgboost::gbm::GBLinearModel model;

@@ -41,8 +41,6 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 
   tree::TrainParam p;
   p.max_bin = 20;
-  p.gpu_id = 0;
-  p.n_gpus = devices.Size();
   int gpu_batch_nrows = 0;
 
   // find quantiles on the CPU
@@ -51,7 +49,19 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 
   // find the cuts on the GPU
   HistCutMatrix hmat_gpu;
-  (void)DeviceSketch(p, gpu_batch_nrows, dmat->get(), &hmat_gpu);
+  size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0, devices.Size()), gpu_batch_nrows,
+                                   dmat->get(), &hmat_gpu);
+
+  // compare the row stride with the one obtained from the dmatrix
+  size_t expected_row_stride = 0;
+  for (const auto &batch : dmat->get()->GetRowBatches()) {
+    const auto &offset_vec = batch.offset.ConstHostVector();
+    for (int i = 1; i <= offset_vec.size() -1; ++i) {
+      expected_row_stride = std::max(expected_row_stride, offset_vec[i] - offset_vec[i-1]);
+    }
+  }
+
+  ASSERT_EQ(expected_row_stride, row_stride);
 
   // compare the cuts
   double eps = 1e-2;

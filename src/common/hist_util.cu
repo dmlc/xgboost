@@ -93,18 +93,25 @@ __global__ void UnpackFeaturesK
  */
 struct SketchContainer {
   std::vector<HistCutMatrix::WXQSketch> sketches_;  // NOLINT
-  std::vector<std::unique_ptr<std::mutex>> col_locks_; // NOLINT
-  SketchContainer(const tree::TrainParam &param, DMatrix *dmat) {
+  std::vector<std::mutex> col_locks_; // NOLINT
+  static constexpr int OMP_NUM_COLS_PARALLELIZE_LIMIT = 1000;
+
+  SketchContainer(const tree::TrainParam &param, DMatrix *dmat) :
+    col_locks_(dmat->Info().num_col_) {
     const MetaInfo &info = dmat->Info();
     // Initialize Sketches for this dmatrix
     sketches_.resize(info.num_col_);
-    col_locks_.resize(info.num_col_);
-#pragma omp parallel for schedule(static) if (info.num_col_ > 1000)
+#pragma omp parallel for schedule(static) if (info.num_col_ > OMP_NUM_COLS_PARALLELIZE_LIMIT)
     for (int icol = 0; icol < info.num_col_; ++icol) {
       sketches_[icol].Init(info.num_row_, 1.0 / (8 * param.max_bin));
-      col_locks_[icol].reset(new std::mutex);
     }
   }
+
+  // Prevent copying/assigning/moving this as its internals can't be assigned/copied/moved
+  SketchContainer(const SketchContainer &) = delete;
+  SketchContainer(const SketchContainer &&) = delete;
+  SketchContainer &operator=(const SketchContainer &) = delete;
+  SketchContainer &operator=(const SketchContainer &&) = delete;
 };
 
 // finds quantiles on the GPU
@@ -346,13 +353,14 @@ struct GPUSketcher {
 
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
-#pragma omp parallel for schedule(static) if (num_cols_ > 1000)
+#pragma omp parallel for schedule(static) \
+      if (num_cols_ > SketchContainer::OMP_NUM_COLS_PARALLELIZE_LIMIT)
       for (int icol = 0; icol < num_cols_; ++icol) {
         WXQSketch::SummaryContainer summary;
         summary.Reserve(n_cuts_);
         summary.MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
 
-        std::lock_guard<std::mutex> lock(*sketch_container_->col_locks_[icol]);
+        std::lock_guard<std::mutex> lock(sketch_container_->col_locks_[icol]);
         sketch_container_->sketches_[icol].PushSummary(summary);
       }
     }
@@ -389,7 +397,8 @@ struct GPUSketcher {
 
   void SketchBatch(const SparsePage &batch, const MetaInfo &info) {
     GPUDistribution dist =
-      GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, batch.Size()));
+      GPUDistribution::Block(GPUSet::All(learner_param_.gpu_id, learner_param_.n_gpus,
+                                         batch.Size()));
 
     // create device shards
     shards_.resize(dist.Devices().Size());
@@ -415,11 +424,12 @@ struct GPUSketcher {
     }
   }
 
-  GPUSketcher(const tree::TrainParam &param, int gpu_nrows)
-    : param_(param), gpu_batch_nrows_(gpu_nrows), row_stride_(0) {
+  GPUSketcher(const tree::TrainParam &param, const LearnerTrainParam &learner_param, int gpu_nrows)
+    : param_(param), learner_param_(learner_param), gpu_batch_nrows_(gpu_nrows), row_stride_(0) {
   }
 
-  /* Builds the sketches on the GPU for the dmatrix */
+  /* Builds the sketches on the GPU for the dmatrix and returns the row stride
+   * for the entire dataset */
   size_t Sketch(DMatrix *dmat, HistCutMatrix *hmat) {
     const MetaInfo &info = dmat->Info();
 
@@ -437,15 +447,16 @@ struct GPUSketcher {
  private:
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   const tree::TrainParam &param_;
+  const LearnerTrainParam &learner_param_;
   int gpu_batch_nrows_;
   size_t row_stride_;
   std::unique_ptr<SketchContainer> sketch_container_;
 };
 
 size_t DeviceSketch
-  (const tree::TrainParam &param, int gpu_batch_nrows, DMatrix *dmat,
-   HistCutMatrix *hmat) {
-  GPUSketcher sketcher(param, gpu_batch_nrows);
+  (const tree::TrainParam &param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
+   DMatrix *dmat, HistCutMatrix *hmat) {
+  GPUSketcher sketcher(param, learner_param, gpu_batch_nrows);
   return sketcher.Sketch(dmat, hmat);
 }
 

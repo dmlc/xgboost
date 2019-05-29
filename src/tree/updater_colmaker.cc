@@ -769,7 +769,7 @@ class DistColMaker : public ColMaker {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    pruner_.reset(TreeUpdater::Create("prune"));
+    pruner_.reset(TreeUpdater::Create("prune", tparam_));
     pruner_->Init(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);

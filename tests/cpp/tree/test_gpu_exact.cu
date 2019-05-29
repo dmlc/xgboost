@@ -12,12 +12,10 @@ namespace tree {
 
 TEST(GPUExact, Update) {
   using Arg = std::pair<std::string, std::string>;
-  std::vector<Arg> args{
-    {"n_gpus", "1"},
-    {"gpu_id", "0"},
-    {"max_depth", "1"}};
+  auto lparam = CreateEmptyGenericParam(0, 1);
+  std::vector<Arg> args{{"max_depth", "1"}};
 
-  auto* p_gpuexact_maker = TreeUpdater::Create("grow_gpu");
+  auto* p_gpuexact_maker = TreeUpdater::Create("grow_gpu", &lparam);
   p_gpuexact_maker->Init(args);
 
   size_t constexpr kNRows = 4;
