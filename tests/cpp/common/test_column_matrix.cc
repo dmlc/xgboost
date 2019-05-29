@@ -50,5 +50,23 @@ TEST(DenseColumnWithMissing, Test) {
   }
   delete dmat;
 }
+
+void
+TestGHistIndexMatrixCreation(size_t nthreads) {
+  /* This should create multiple sparse pages */
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(1024, 1024);
+  omp_set_num_threads(nthreads);
+  GHistIndexMatrix gmat;
+  gmat.Init(dmat.get(), 256);
+}
+
+TEST(HistIndexCreationWithExternalMemory, Test) {
+  // Vary the number of threads to make sure that the last batch
+  // is distributed properly to the available number of threads
+  // in the thread pool
+  TestGHistIndexMatrixCreation(20);
+  TestGHistIndexMatrixCreation(30);
+  TestGHistIndexMatrixCreation(40);
+}
 }  // namespace common
 }  // namespace xgboost
