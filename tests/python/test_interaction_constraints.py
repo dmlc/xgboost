@@ -9,27 +9,36 @@ rng = np.random.RandomState(1994)
 
 
 class TestInteractionConstraints(unittest.TestCase):
-
-    def test_interaction_constraints(self):
+    def test_interaction_constraints(self, tree_method='hist'):
         x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x2 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x3 = np.random.choice([1, 2, 3], size=1000, replace=True)
         y = x1 + x2 + x3 + x1 * x2 * x3 \
-            + np.random.normal(loc=0.001, scale=1.0, size=1000) + 3 * np.sin(x1)
+            + np.random.normal(
+                loc=0.001, scale=1.0, size=1000) + 3 * np.sin(x1)
         X = np.column_stack((x1, x2, x3))
         dtrain = xgboost.DMatrix(X, label=y)
 
-        params = {'max_depth': 3, 'eta': 0.1, 'nthread': 2, 'verbosity': 0,
-                  'interaction_constraints': '[[0, 1]]', 'tree_method': 'hist'}
-        num_boost_round = 100
+        params = {
+            'max_depth': 3,
+            'eta': 0.1,
+            'nthread': 2,
+            'interaction_constraints': '[[0, 1]]',
+            'tree_method': tree_method,
+            'verbosity': 3
+        }
+        num_boost_round = 12
         # Fit a model that only allows interaction between x1 and x2
-        bst = xgboost.train(params, dtrain, num_boost_round, evals=[(dtrain, 'train')])
+        bst = xgboost.train(
+            params, dtrain, num_boost_round, evals=[(dtrain, 'train')])
 
         # Set all observations to have the same x3 values then increment
         #   by the same amount
         def f(x):
-            tmat = xgboost.DMatrix(np.column_stack((x1, x2, np.repeat(x, 1000))))
+            tmat = xgboost.DMatrix(
+                np.column_stack((x1, x2, np.repeat(x, 1000))))
             return bst.predict(tmat)
+
         preds = [f(x) for x in [1, 2, 3]]
 
         # Check incrementing x3 has the same effect on all observations
@@ -40,11 +49,16 @@ class TestInteractionConstraints(unittest.TestCase):
         diff2 = preds[2] - preds[1]
         assert np.all(np.abs(diff2 - diff2[0]) < 1e-4)
 
-    def test_training_accuracy(self):
+    def test_training_accuracy(self, tree_method='hist'):
         dtrain = xgboost.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
         dtest = xgboost.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
-        params = {'eta': 1, 'max_depth': 6, 'objective': 'binary:logistic',
-                  'tree_method': 'hist', 'interaction_constraints': '[[1,2],[2,3,4]]'}
+        params = {
+            'eta': 1,
+            'max_depth': 6,
+            'objective': 'binary:logistic',
+            'tree_method': tree_method,
+            'interaction_constraints': '[[1,2], [2,3,4]]'
+        }
         num_boost_round = 5
 
         params['grow_policy'] = 'lossguide'

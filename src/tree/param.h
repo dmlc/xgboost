@@ -70,8 +70,13 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool cache_opt;
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
-  // auxiliary data structure
+
+  // FIXME(trivialfis): Following constraints are used by gpu
+  // algorithm, duplicated with those defined split evaluator due to
+  // their different code paths.
   std::vector<int> monotone_constraints;
+  std::string interaction_constraints;
+
   // the criteria to use for ranking splits
   std::string split_evaluator;
 
@@ -187,6 +192,13 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");
+    DMLC_DECLARE_FIELD(interaction_constraints)
+        .set_default("")
+        .describe("Constraints for interaction representing permitted interactions."
+                  "The constraints must be specified in the form of a nest list,"
+                  "e.g. [[0, 1], [2, 3, 4]], where each inner list is a group of"
+                  "indices of features that are allowed to interact with each other."
+                  "See tutorial for more information");
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");
