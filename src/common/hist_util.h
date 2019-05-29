@@ -118,7 +118,8 @@ struct HistCutMatrix {
 /*! \brief Builds the cut matrix on the GPU */
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows);
+   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows,
+   GPUSet const& devices);
 
 /*!
  * \brief A single row in global histogram index.

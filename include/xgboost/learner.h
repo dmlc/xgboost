@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -9,15 +9,18 @@
 #define XGBOOST_LEARNER_H_
 
 #include <rabit/rabit.h>
+
+#include <xgboost/base.h>
+#include <xgboost/gbm.h>
+#include <xgboost/metric.h>
+#include <xgboost/objective.h>
+#include <xgboost/generic_parameters.h>
+
 #include <utility>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
-#include "./base.h"
-#include "./gbm.h"
-#include "./metric.h"
-#include "./objective.h"
 #include "./model_visitor.h"
 
 namespace xgboost {
@@ -145,6 +148,8 @@ class Learner : public rabit::Serializable {
    * \return vector of attribute name strings.
    */
   virtual std::vector<std::string> GetAttrNames() const = 0;
+
+  virtual LearnerTrainParam const& GetLearnerTrainParameter() const = 0;
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
@@ -205,6 +210,8 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
+  /*! \brief Training parameter. */
+  LearnerTrainParam tparam_;
 };
 
 // implementation of inline functions.

@@ -147,7 +147,7 @@ class GBTree : public GradientBooster {
     }
 
     // configure predictor
-    predictor_ = std::unique_ptr<Predictor>(Predictor::Create(tparam_.predictor));
+    predictor_ = std::unique_ptr<Predictor>(Predictor::Create(tparam_.predictor, learner_param_));
     predictor_->Init(cfg, cache_);
     monitor_.Init("GBTree");
   }
@@ -257,7 +257,7 @@ class GBTree : public GradientBooster {
     std::string tval = tparam_.updater_seq;
     std::vector<std::string> ups = common::Split(tval, ',');
     for (const std::string& pstr : ups) {
-      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str()));
+      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
       up->Init(this->cfg_);
       updaters_.push_back(std::move(up));
     }

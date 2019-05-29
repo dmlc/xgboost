@@ -72,10 +72,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
-  // gpu to use for single gpu algorithms
-  int gpu_id;
-  // number of GPUs to use
-  int n_gpus;
   // the criteria to use for ranking splits
   std::string split_evaluator;
 
@@ -191,14 +187,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");
-    DMLC_DECLARE_FIELD(gpu_id)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("gpu to use for single gpu algorithms");
-    DMLC_DECLARE_FIELD(n_gpus)
-        .set_lower_bound(-1)
-        .set_default(1)
-        .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic,interaction")
         .describe("The criteria to use for ranking splits");

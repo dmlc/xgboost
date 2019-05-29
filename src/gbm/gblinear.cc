@@ -65,7 +65,7 @@ class GBLinear : public GradientBooster {
       model_.param.InitAllowUnknown(cfg);
     }
     param_.InitAllowUnknown(cfg);
-    updater_.reset(LinearUpdater::Create(param_.updater));
+    updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
     updater_->Init(cfg);
     monitor_.Init("GBLinear");
   }

@@ -96,3 +96,6 @@ plugin/updater_gpu/test/cpp/data
 # files from R-package source install
 **/config.status
 R-package/src/Makevars
+
+# Python install
+python-package/xgboost/tracker.py

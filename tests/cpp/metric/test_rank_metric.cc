@@ -4,8 +4,9 @@
 #include "../helpers.h"
 
 TEST(Metric, AMS) {
-  EXPECT_ANY_THROW(xgboost::Metric::Create("ams"));
-  xgboost::Metric * metric = xgboost::Metric::Create("ams@0.5f");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  EXPECT_ANY_THROW(xgboost::Metric::Create("ams", &tparam));
+  xgboost::Metric * metric = xgboost::Metric::Create("ams@0.5f", &tparam);
   ASSERT_STREQ(metric->Name(), "ams@0.5");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -14,7 +15,7 @@ TEST(Metric, AMS) {
               0.29710f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ams@0");
+  metric = xgboost::Metric::Create("ams@0", &tparam);
   ASSERT_STREQ(metric->Name(), "ams@0");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
 
@@ -22,7 +23,8 @@ TEST(Metric, AMS) {
 }
 
 TEST(Metric, AUC) {
-  xgboost::Metric * metric = xgboost::Metric::Create("auc");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  xgboost::Metric * metric = xgboost::Metric::Create("auc", &tparam);
   ASSERT_STREQ(metric->Name(), "auc");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -36,7 +38,8 @@ TEST(Metric, AUC) {
 }
 
 TEST(Metric, AUCPR) {
-  xgboost::Metric *metric = xgboost::Metric::Create("aucpr");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
   ASSERT_STREQ(metric->Name(), "aucpr");
   EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}),
@@ -62,7 +65,8 @@ TEST(Metric, Precision) {
   // When the limit for precision is not given, it takes the limit at
   // std::numeric_limits<unsigned>::max(); hence all values are very small
   // NOTE(AbdealiJK): Maybe this should be fixed to be num_row by default.
-  xgboost::Metric * metric = xgboost::Metric::Create("pre");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  xgboost::Metric * metric = xgboost::Metric::Create("pre", &tparam);
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-7);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -71,7 +75,7 @@ TEST(Metric, Precision) {
               0, 1e-7);
 
   delete metric;
-  metric = xgboost::Metric::Create("pre@2");
+  metric = xgboost::Metric::Create("pre@2", &tparam);
   ASSERT_STREQ(metric->Name(), "pre@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.5f, 1e-7);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -85,7 +89,8 @@ TEST(Metric, Precision) {
 }
 
 TEST(Metric, NDCG) {
-  xgboost::Metric * metric = xgboost::Metric::Create("ndcg");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  xgboost::Metric * metric = xgboost::Metric::Create("ndcg", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_NEAR(GetMetricEval(metric,
@@ -98,7 +103,7 @@ TEST(Metric, NDCG) {
               0.6509f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@2");
+  metric = xgboost::Metric::Create("ndcg@2", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -107,7 +112,7 @@ TEST(Metric, NDCG) {
               0.3868f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@-");
+  metric = xgboost::Metric::Create("ndcg@-", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg@-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
@@ -119,7 +124,7 @@ TEST(Metric, NDCG) {
               0.6509f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@2-");
+  metric = xgboost::Metric::Create("ndcg@2-", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg@2-");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -131,7 +136,8 @@ TEST(Metric, NDCG) {
 }
 
 TEST(Metric, MAP) {
-  xgboost::Metric * metric = xgboost::Metric::Create("map");
+  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  xgboost::Metric * metric = xgboost::Metric::Create("map", &tparam);
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
@@ -143,14 +149,14 @@ TEST(Metric, MAP) {
                             std::vector<xgboost::bst_float>{}), 1, 1e-10);
 
   delete metric;
-  metric = xgboost::Metric::Create("map@-");
+  metric = xgboost::Metric::Create("map@-", &tparam);
   ASSERT_STREQ(metric->Name(), "map@-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
                             {}), 0, 1e-10);
 
   delete metric;
-  metric = xgboost::Metric::Create("map@2");
+  metric = xgboost::Metric::Create("map@2", &tparam);
   ASSERT_STREQ(metric->Name(), "map@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
