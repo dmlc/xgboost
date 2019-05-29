@@ -29,6 +29,7 @@ class TestGPUPredict(unittest.TestCase):
                     "objective": "binary:logistic",
                     "predictor": "gpu_predictor",
                     'eval_metric': 'auc',
+                    'verbosity': '3'
                 }
                 bst = xgb.train(param, dtrain, iterations, evals=watchlist,
                                 evals_result=res)
@@ -42,12 +43,13 @@ class TestGPUPredict(unittest.TestCase):
                 cpu_pred_train = bst_cpu.predict(dtrain, output_margin=True)
                 cpu_pred_test = bst_cpu.predict(dtest, output_margin=True)
                 cpu_pred_val = bst_cpu.predict(dval, output_margin=True)
+
                 np.testing.assert_allclose(cpu_pred_train, gpu_pred_train,
-                                           rtol=1e-5)
+                                           rtol=1e-3)
                 np.testing.assert_allclose(cpu_pred_val, gpu_pred_val,
-                                           rtol=1e-5)
+                                           rtol=1e-3)
                 np.testing.assert_allclose(cpu_pred_test, gpu_pred_test,
-                                           rtol=1e-5)
+                                           rtol=1e-3)
 
     def non_decreasing(self, L):
         return all((x - y) < 0.001 for x, y in zip(L, L[1:]))

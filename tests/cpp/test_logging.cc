@@ -52,6 +52,9 @@ TEST(Logging, Basic) {
   LOG(CONSOLE) << "Test Log Console";  // ignore global setting.
   output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Test Log Console"), std::string::npos);
+
+  args["verbosity"] = "1";  // restore
+  ConsoleLogger::Configure(args.cbegin(), args.cend());
 }
 
 }  // namespace xgboost

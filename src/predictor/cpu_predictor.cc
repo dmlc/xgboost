@@ -82,7 +82,7 @@ class CPUPredictor : public Predictor {
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
-         auto inst = batch[i];
+        auto inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=

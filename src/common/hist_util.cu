@@ -383,8 +383,8 @@ struct GPUSketcher {
     hmat->Init(&sketches, param_.max_bin);
   }
 
-  GPUSketcher(tree::TrainParam param, size_t n_rows) : param_(std::move(param)) {
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus, n_rows));
+  GPUSketcher(tree::TrainParam param, GPUSet const& devices) : param_(std::move(param)) {
+    dist_ = GPUDistribution::Block(devices);
   }
 
  private:
@@ -395,8 +395,9 @@ struct GPUSketcher {
 
 void DeviceSketch
   (const SparsePage& batch, const MetaInfo& info,
-   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows) {
-  GPUSketcher sketcher(param, info.num_row_);
+   const tree::TrainParam& param, HistCutMatrix* hmat, int gpu_batch_nrows,
+   GPUSet const& devices) {
+  GPUSketcher sketcher(param, devices);
   sketcher.Sketch(batch, info, hmat, gpu_batch_nrows);
 }
 

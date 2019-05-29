@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  */
 #include "../helpers.h"
 #include "../../../src/common/host_device_vector.h"
@@ -29,12 +29,14 @@ TEST(Updater, Prune) {
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
   auto dmat = CreateDMatrix(32, 16, 0.4, 3);
 
+  auto lparam = CreateEmptyGenericParam(0, 0);
+
   // prepare tree
   RegTree tree = RegTree();
   tree.param.InitAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
-  std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune"));
+  std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));
   pruner->Init(cfg);
 
   // loss_chg < min_split_loss;
