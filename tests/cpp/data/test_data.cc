@@ -55,13 +55,26 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(9, 64UL);
-  int ncols = dmat->Info().num_col_;
+  const int n_entries = 9;
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(n_entries, 64UL);
+  const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
-  for (auto& batch : dmat->GetRowBatches()) {
+  for (const auto &batch : dmat->GetRowBatches()) {
     // Transpose each batch and push
     SparsePage tmp = batch.GetTranspose(ncols);
     page.PushCSC(tmp);
+  }
+
+  // Make sure that the final sparse page has the right number of entries
+  ASSERT_EQ(n_entries, page.data.Size());
+
+  // The feature value for a feature in each row should be identical, as that is
+  // how the dmatrix has been created
+  for (int i = 0; i < page.Size(); ++i) {
+    auto inst = page[i];
+    for (int j = 1; j < inst.size(); ++j) {
+      ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
+    }
   }
 }
 }  // namespace xgboost
