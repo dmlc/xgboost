@@ -46,7 +46,7 @@ class ConfigParse {
     std::string value{};
 
     while (!fi_.eof()) {
-      getline(fi_, line);  // read a line of configure file
+      std::getline(fi_, line);  // read a line of configure file
       line = line.substr(0, line.find(comment));  // anything beyond # is comment
       size_t delimiterPos = line.find(delimiter);  // find the = sign
       name = line.substr(0, delimiterPos);  // anything before = is the name
