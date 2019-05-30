@@ -95,3 +95,20 @@ void TestAllocator() {
 TEST(bulkAllocator, Test) {
   TestAllocator();
 }
+
+ // Test thread safe max reduction
+TEST(AllReducer, HostMaxAllReduce) {
+  dh::AllReducer reducer;
+  size_t num_threads = 50;
+  std::vector<std::vector<size_t>> thread_data(num_threads);
+#pragma omp parallel num_threads(num_threads)
+  {
+    int tid = omp_get_thread_num();
+    thread_data[tid] = {size_t(tid)};
+    reducer.HostMaxAllReduce(&thread_data[tid]);
+  }
+
+  for (auto data : thread_data) {
+    ASSERT_EQ(data.front(), num_threads - 1);
+  }
+}
