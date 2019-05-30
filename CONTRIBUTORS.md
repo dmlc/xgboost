@@ -91,3 +91,4 @@ List of Contributors
 * [Jiaxiang Li](https://github.com/JiaxiangBU)
 * [Bryan Woods](https://github.com/bryan-woods)
   - Bryan added support for cross-validation for the ranking objective
+* [Haoda Fu](https://github.com/fuhaoda)
