@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file config.h
  * \brief helper class to load in configures from file
  * \author Haoda Fu
@@ -23,10 +23,9 @@ namespace common {
 class ConfigParse {
  public:
   /*!
-* \brief constructor
-* \param cfgFileName name of configure file
-*/
-
+   * \brief constructor
+   * \param cfgFileName name of configure file
+   */
   explicit ConfigParse(const std::string &cfgFileName) {
     fi_.open(cfgFileName);
     if (fi_.fail()) {
@@ -35,8 +34,8 @@ class ConfigParse {
   }
 
   /*!
-  * \brief parse the configure file
-  */
+   * \brief parse the configure file
+   */
   std::vector<std::pair<std::string, std::string> > Parse() {
     std::vector<std::pair<std::string, std::string> > results{};
     char delimiter = '=';
@@ -68,15 +67,15 @@ class ConfigParse {
 
  private:
   std::ifstream fi_;
-  std::string allowableChar =
+  std::string allowableChar_ =
       "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-./\\";
 
   /*!
-  * \brief remove unnecessary chars.
-  */
+   * \brief remove unnecessary chars.
+   */
   void CleanString(std::string * str) {
-    size_t firstIndx = str->find_first_of(allowableChar);
-    size_t lastIndx = str->find_last_of(allowableChar);
+    size_t firstIndx = str->find_first_of(allowableChar_);
+    size_t lastIndx = str->find_last_of(allowableChar_);
     // this line can be more efficient, but keep as is for simplicity.
     *str = str->substr(firstIndx, lastIndx - firstIndx + 1);
   }
