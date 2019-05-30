@@ -1376,7 +1376,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 }
 
 template <typename GradientSumT>
-class GPUHistMakerSpecialised{
+class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
   void Init(const std::vector<std::pair<std::string, std::string>>& args,
@@ -1451,10 +1451,12 @@ class GPUHistMakerSpecialised{
 
     // Find the cuts.
     monitor_.StartCuda("Quantiles");
-    common::DeviceSketch(batch, *info_, param_, &hmat_, hist_maker_param_.gpu_batch_nrows,
-                         GPUSet::All(learner_param_->gpu_id, learner_param_->n_gpus));
+    // TODO(sriramch): The return value will be used when we add support for histogram
+    // index creation for multiple batches
+    common::DeviceSketch(param_, *learner_param_, hist_maker_param_.gpu_batch_nrows, dmat, &hmat_);
     n_bins_ = hmat_.row_ptr.back();
     monitor_.StopCuda("Quantiles");
+
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
 
     monitor_.StartCuda("BinningCompression");
@@ -1562,7 +1564,6 @@ class GPUHistMakerSpecialised{
 
   GPUHistMakerTrainParam hist_maker_param_;
   LearnerTrainParam const* learner_param_;
-  common::GHistIndexMatrix gmat_;
 
   dh::AllReducer reducer_;
 
