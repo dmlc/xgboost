@@ -119,7 +119,7 @@ class Learner : public rabit::Serializable {
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,
-                       bool pred_interactions = false) const = 0;
+                       bool pred_interactions = false) = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.
