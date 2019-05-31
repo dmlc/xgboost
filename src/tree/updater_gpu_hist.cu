@@ -1054,15 +1054,17 @@ struct DeviceShard {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
-    // If we are using a single GPU, build the histogram for the node with the
-    // fewest training instances
-    // If we are distributed, don't bother
-    if (reducer->IsSingleGPU()) {
-      bool fewer_right =
-          ridx_segments[nidx_right].Size() < ridx_segments[nidx_left].Size();
-      if (fewer_right) {
-        std::swap(build_hist_nidx, subtraction_trick_nidx);
-      }
+    auto left_node_rows = ridx_segments[nidx_left].Size();
+    auto right_node_rows = ridx_segments[nidx_right].Size();
+    // Decide whether to build the left histogram or right histogram
+    // Find the largest number of training instances on any given Shard
+    // Assume this will be the bottleneck and avoid building this node if
+    // possible
+    std::vector<size_t> max_reduce = {left_node_rows, right_node_rows};
+    reducer->HostMaxAllReduce(&max_reduce);
+    bool fewer_right = max_reduce[1] < max_reduce[0];
+    if (fewer_right) {
+      std::swap(build_hist_nidx, subtraction_trick_nidx);
     }
 
     this->BuildHist(build_hist_nidx);
