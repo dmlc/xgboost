@@ -61,12 +61,6 @@ if (USE_CUDA)
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
-
-  if(USE_CUDF)
-    find_package(CUDF REQUIRED)
-    include_directories(${CUDF_INCLUDE_DIR})
-    add_definitions(-DXGBOOST_USE_CUDF)
-  endif(USE_CUDF)
 endif (USE_CUDA)
 
 # dmlc-core

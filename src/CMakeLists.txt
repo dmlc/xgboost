@@ -51,6 +51,12 @@ if (USE_CUDA)
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
     list(APPEND SRC_LIBS ${NCCL_LIBRARY})
   endif (USE_NCCL)
+  
+  if (USE_CUDF)
+    find_package(CUDF REQUIRED)
+    include_directories(${CUDF_INCLUDE_DIR})
+    add_definitions(-DXGBOOST_USE_CUDF)
+  endif (USE_CUDF)
 
   if (USE_NVTX)
     target_include_directories(objxgboost PRIVATE "${NVTX_HEADER_DIR}")
