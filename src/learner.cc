@@ -549,9 +549,9 @@ class LearnerImpl : public Learner {
                HostDeviceVector<bst_float>* out_preds, unsigned ntree_limit,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
                bool pred_interactions) override {
-    bool multiple_predictions = static_cast<int>(pred_leaf) +
-                                static_cast<int>(pred_interactions) +
-                                static_cast<int>(pred_contribs);
+    int multiple_predictions = static_cast<int>(pred_leaf) +
+                               static_cast<int>(pred_interactions) +
+                               static_cast<int>(pred_contribs);
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
       gbm_->PredictContribution(data, &out_preds->HostVector(), ntree_limit, approx_contribs);
