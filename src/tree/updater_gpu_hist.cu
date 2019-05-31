@@ -626,27 +626,26 @@ struct DeviceShard;
 // Instances of this type are created while creating the histogram bins for the
 // entire dataset across multiple sparse page batches. This keeps track of the number
 // of rows to process from a batch and the position from which to process on each device.
-class RowStateOnDevice {
- public:
-  const size_t n_rows_; // Number of rows assigned to this device
-  size_t n_rows_processed_; // Number of rows processed thus far
-  size_t batch_n_rows_; // Number of rows to process from the current sparse page batch
-  size_t row_offset_; // Offset from the current sparse page batch to begin processing
+struct RowStateOnDevice {
+  const size_t n_rows; // Number of rows assigned to this device
+  size_t n_rows_processed; // Number of rows processed thus far
+  size_t batch_n_rows; // Number of rows to process from the current sparse page batch
+  size_t row_offset; // Offset from the current sparse page batch to begin processing
 
   explicit RowStateOnDevice(size_t nrows)
-    : n_rows_(nrows), n_rows_processed_(0), batch_n_rows_(0), row_offset_(0) {
+    : n_rows(nrows), n_rows_processed(0), batch_n_rows(0), row_offset(0) {
   }
 
   // Advance the row state by the number of rows processed
   void Advance() {
-    n_rows_processed_ += batch_n_rows_;
-    CHECK_LE(n_rows_processed_, n_rows_);
-    batch_n_rows_ = row_offset_ = 0;
+    n_rows_processed += batch_n_rows;
+    CHECK_LE(n_rows_processed, n_rows);
+    batch_n_rows = row_offset = 0;
   }
 
   static RowStateOnDevice CreateRowStateOnDevice(size_t total_rows, size_t batch_rows) {
     RowStateOnDevice rstate(total_rows);
-    rstate.batch_n_rows_ = batch_rows;
+    rstate.batch_n_rows = batch_rows;
     return rstate;
   }
 };
@@ -1335,16 +1334,16 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     const RowStateOnDevice &device_row_state,
     int rows_per_batch) {
   // Has any been allocated for me in this batch?
-  if (!device_row_state.batch_n_rows_) return;
+  if (!device_row_state.batch_n_rows) return;
 
   size_t row_stride = this->ellpack_matrix.row_stride;
 
   const auto &offset_vec = row_batch.offset.ConstHostVector();
   /*! \brief row offset in SparsePage (the input data). */
-  thrust::device_vector<size_t> row_ptrs(device_row_state.batch_n_rows_+1);
+  thrust::device_vector<size_t> row_ptrs(device_row_state.batch_n_rows+1);
   thrust::copy(
-    offset_vec.data() + device_row_state.row_offset_,
-    offset_vec.data() + device_row_state.row_offset_ + device_row_state.batch_n_rows_ + 1,
+    offset_vec.data() + device_row_state.row_offset,
+    offset_vec.data() + device_row_state.row_offset + device_row_state.batch_n_rows + 1,
     row_ptrs.begin());
 
   int num_symbols = n_bins + 1;
@@ -1354,23 +1353,23 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
      gpu_batch_nrows =
       std::min
       (dh::TotalMemory(device_id) / (16 * row_stride * sizeof(Entry)),
-       static_cast<size_t>(device_row_state.batch_n_rows_));
+       static_cast<size_t>(device_row_state.batch_n_rows));
   } else if (rows_per_batch == -1) {
-     gpu_batch_nrows = device_row_state.batch_n_rows_;
+     gpu_batch_nrows = device_row_state.batch_n_rows;
   } else {
      gpu_batch_nrows =
-       std::min(device_row_state.batch_n_rows_, static_cast<size_t>(rows_per_batch));
+       std::min(device_row_state.batch_n_rows, static_cast<size_t>(rows_per_batch));
   }
   const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
   thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
-  size_t gpu_nbatches = dh::DivRoundUp(device_row_state.batch_n_rows_, gpu_batch_nrows);
+  size_t gpu_nbatches = dh::DivRoundUp(device_row_state.batch_n_rows, gpu_batch_nrows);
 
   for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
     size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
     size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
-    if (batch_row_end > device_row_state.batch_n_rows_) {
-      batch_row_end = device_row_state.batch_n_rows_;
+    if (batch_row_end > device_row_state.batch_n_rows) {
+      batch_row_end = device_row_state.batch_n_rows;
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
     // number of entries in this batch.
@@ -1381,7 +1380,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          (entries_d.data().get(), data_vec.data() + row_ptrs[batch_row_begin],
           n_entries * sizeof(Entry), cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
-    const dim3 grid3(dh::DivRoundUp(device_row_state.batch_n_rows_, block3.x),
+    const dim3 grid3(dh::DivRoundUp(device_row_state.batch_n_rows, block3.x),
                      dh::DivRoundUp(row_stride, block3.y), 1);
     CompressBinEllpackKernel<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols),
@@ -1390,7 +1389,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          entries_d.data().get(),
          gidx_fvalue_map.data(),
          feature_segments.data(),
-         device_row_state.n_rows_processed_ + batch_row_begin,
+         device_row_state.n_rows_processed + batch_row_begin,
          batch_nrows,
          row_ptrs[batch_row_begin],
          row_stride,
@@ -1430,18 +1429,18 @@ class DeviceHistogramBuilderState {
     size_t row_offset = 0;
     for (auto &device_row_state : device_row_states_) {
       // Do we have anymore left to process from this batch on this device?
-      if (device_row_state.n_rows_ > device_row_state.n_rows_processed_) {
+      if (device_row_state.n_rows > device_row_state.n_rows_processed) {
         // There are still some rows that needs to be assigned to this device
-        device_row_state.batch_n_rows_ =
-          std::min(device_row_state.n_rows_ - device_row_state.n_rows_processed_, rem_rows);
+        device_row_state.batch_n_rows =
+          std::min(device_row_state.n_rows - device_row_state.n_rows_processed, rem_rows);
       } else {
         // All rows have been assigned to this device
-        device_row_state.batch_n_rows_ = 0;
+        device_row_state.batch_n_rows = 0;
       }
 
-      device_row_state.row_offset_ = row_offset;
-      row_offset += device_row_state.batch_n_rows_;
-      rem_rows -= device_row_state.batch_n_rows_;
+      device_row_state.row_offset = row_offset;
+      row_offset += device_row_state.batch_n_rows;
+      rem_rows -= device_row_state.batch_n_rows;
     }
   }
 
