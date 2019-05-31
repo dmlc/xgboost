@@ -6,6 +6,7 @@
 #include <random>
 #include <cinttypes>
 #include <dmlc/filesystem.h>
+#include "../../src/data/simple_csr_source.h"
 
 bool FileExists(const std::string& filename) {
   struct stat st;
@@ -163,6 +164,71 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_s
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   return dmat;
+}
+
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
+                                                       size_t page_size, bool deterministic) {
+  if (!n_rows || !n_cols) {
+    return nullptr;
+  }
+
+  // Create the svm file in a temp dir
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/big.libsvm";
+
+  std::ofstream fo(tmp_file.c_str());
+  size_t cols_per_row = ((std::max(n_rows, n_cols) - 1) / std::min(n_rows, n_cols)) + 1;
+  int64_t rem_cols = n_cols;
+  size_t col_idx = 0;
+
+  // Random feature id generator
+  std::random_device rdev;
+  std::unique_ptr<std::mt19937> gen;
+  if (deterministic) {
+     // Seed it with a constant value for this configuration - without getting too fancy
+     // like ordered pairing functions and its likes to make it truely unique
+     gen.reset(new std::mt19937(n_rows * n_cols));
+  } else {
+     gen.reset(new std::mt19937(rdev()));
+  }
+  std::uniform_int_distribution<size_t> dis(1, n_cols);
+
+  for (size_t i = 0; i < n_rows; ++i) {
+    // Make sure that all cols are slotted in the first few rows; randomly distribute the
+    // rest
+    std::stringstream row_data;
+    fo << i;
+    size_t j = 0;
+    if (rem_cols > 0) {
+       for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
+         row_data << " " << (col_idx+j) << ":" << (col_idx+j+1)*10;
+       }
+       rem_cols -= cols_per_row;
+    } else {
+       // Take some random number of colums in [1, n_cols] and slot them here
+       size_t ncols = dis(*gen);
+       for (; j < ncols; ++j) {
+         size_t fid = (col_idx+j) % n_cols;
+         row_data << " " << fid << ":" << (fid+1)*10;
+       }
+    }
+    col_idx += j;
+
+    fo << row_data.str() << "\n";
+  }
+  fo.close();
+
+  std::unique_ptr<DMatrix> dmat(DMatrix::Load(
+    tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
+  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
+
+  if (!page_size) {
+    std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource);
+    source->CopyFrom(dmat.get());
+    return std::unique_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  } else {
+    return dmat;
+  }
 }
 
 gbm::GBTreeModel CreateTestModel() {
