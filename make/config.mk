@@ -17,9 +17,9 @@
 #----------------------------------------------------
 
 # choice of compiler, by default use system preference.
-# export CC = gcc
-# export CXX = g++
-# export MPICXX = mpicxx
+export CC = gcc
+export CXX = g++
+export MPICXX = mpicxx
 
 # the additional link flags you want to add
 ADD_LDFLAGS =
@@ -52,7 +52,7 @@ endif
 # Rabit library version,
 # - librabit.a Normal distributed version.
 # - librabit_empty.a Non distributed mock version,
-LIB_RABIT = librabit.a
+LIB_RABIT = librabit_mock.a
 
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
