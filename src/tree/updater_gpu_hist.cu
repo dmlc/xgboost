@@ -626,13 +626,14 @@ struct DeviceShard;
 // Instances of this type are created while creating the histogram bins for the
 // entire dataset across multiple sparse page batches. This keeps track of the number
 // of rows to process from a batch and the position from which to process on each device.
-struct RowStateOnDevice {
+class RowStateOnDevice {
+ public:
   const size_t n_rows_; // Number of rows assigned to this device
   size_t n_rows_processed_; // Number of rows processed thus far
   size_t batch_n_rows_; // Number of rows to process from the current sparse page batch
   size_t row_offset_; // Offset from the current sparse page batch to begin processing
 
-  RowStateOnDevice(size_t nrows)
+  explicit RowStateOnDevice(size_t nrows)
     : n_rows_(nrows), n_rows_processed_(0), batch_n_rows_(0), row_offset_(0) {
   }
 
@@ -1409,7 +1410,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 class DeviceHistogramBuilderState {
  public:
   template <typename GradientSumT>
-  DeviceHistogramBuilderState(
+  explicit DeviceHistogramBuilderState(
     const std::vector<std::unique_ptr<DeviceShard<GradientSumT>>> &shards) {
     device_row_states_.reserve(shards.size());
     for (const auto &shard : shards) {
@@ -1427,8 +1428,7 @@ class DeviceHistogramBuilderState {
   void BeginBatch(const SparsePage &batch) {
     size_t rem_rows = batch.Size();
     size_t row_offset = 0;
-    for (size_t i = 0; i < device_row_states_.size(); ++i) {
-      RowStateOnDevice &device_row_state = device_row_states_[i];
+    for (auto &device_row_state : device_row_states_) {
       // Do we have anymore left to process from this batch on this device?
       if (device_row_state.n_rows_ > device_row_state.n_rows_processed_) {
         // There are still some rows that needs to be assigned to this device
