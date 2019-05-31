@@ -627,10 +627,10 @@ struct DeviceShard;
 // entire dataset across multiple sparse page batches. This keeps track of the number
 // of rows to process from a batch and the position from which to process on each device.
 struct RowStateOnDevice {
-  const size_t n_rows; // Number of rows assigned to this device
-  size_t n_rows_processed; // Number of rows processed thus far
-  size_t batch_n_rows; // Number of rows to process from the current sparse page batch
-  size_t row_offset; // Offset from the current sparse page batch to begin processing
+  const size_t n_rows;  // Number of rows assigned to this device
+  size_t n_rows_processed;  // Number of rows processed thus far
+  size_t batch_n_rows;  // Number of rows to process from the current sparse page batch
+  size_t row_offset;  // Offset from the current sparse page batch to begin processing
 
   explicit RowStateOnDevice(size_t nrows)
     : n_rows(nrows), n_rows_processed(0), batch_n_rows(0), row_offset(0) {
