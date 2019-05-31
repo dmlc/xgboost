@@ -139,7 +139,7 @@ class ConfigParser {
     }
 
     /* Match value */
-    buf.erase(buf.begin(), m[0].second);
+    buf = m.suffix().str();
     buf = TrimWhitespace(buf);
     if (std::regex_search(buf, m, value_regex_)) {
       // Value doesn't have whitespace or #
