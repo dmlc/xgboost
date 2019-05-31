@@ -15,12 +15,13 @@ TEST(ConfigParser, NormalizeEOL) {
   /* Old Mac OS uses \r for line ending */
   {
     {
-      std::ofstream fp(tmp_file);
+      std::ofstream fp(tmp_file, std::ios_base::out | std::ios_base::trunc
+                                  | std::ios_base::binary);
       fp << "foo\rbar\rdog\r";
     }
     ConfigParser::NormalizeEOL(tmp_file);
     {
-      std::ifstream fp(tmp_file);
+      std::ifstream fp(tmp_file, std::ios_base::in | std::ios_base::binary);
       std::string content{std::istreambuf_iterator<char>(fp),
                           std::istreambuf_iterator<char>()};
       ASSERT_EQ(content, "foo\nbar\ndog\n");
@@ -29,12 +30,13 @@ TEST(ConfigParser, NormalizeEOL) {
   /* Windows uses \r\n for line ending */
   {
     {
-      std::ofstream fp(tmp_file);
+      std::ofstream fp(tmp_file, std::ios_base::out | std::ios_base::trunc
+                                 | std::ios_base::binary);
       fp << "foo\r\nbar\r\ndog\r\n";
     }
     ConfigParser::NormalizeEOL(tmp_file);
     {
-      std::ifstream fp(tmp_file);
+      std::ifstream fp(tmp_file, std::ios_base::in | std::ios_base::binary);
       std::string content{std::istreambuf_iterator<char>(fp),
                           std::istreambuf_iterator<char>()};
       ASSERT_EQ(content, "foo\n\nbar\n\ndog\n\n");

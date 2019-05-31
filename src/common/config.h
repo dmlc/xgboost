@@ -73,7 +73,7 @@ class ConfigParser {
    * \param path path to configuration file
    */
   static void NormalizeEOL(const std::string& path) {
-    std::FILE* fp = std::fopen(path.c_str(), "r+");
+    std::FILE* fp = std::fopen(path.c_str(), "rb+");
     CHECK(fp) << "Cannot open file " << path;
     int ch;
     while ((ch = std::fgetc(fp)) != EOF) {
