@@ -1082,7 +1082,7 @@ void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
     bool dynamic = omp_get_dynamic();
     omp_set_dynamic(false);
     const long shards_size = static_cast<long>(shards->size());
-#pragma omp parallel for schedule(static, 1) if (shards_size > 1)
+#pragma omp parallel for schedule(static, 1) if (shards_size > 1) num_threads(shards_size)
     for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
