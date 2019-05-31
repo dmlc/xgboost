@@ -192,9 +192,9 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
 
 .. note:: Using 0 to represent meaningful value
 
-Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
+  Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
 
-In this case, users are also supposed to transform 0 to some other values to avoid the issue.
+  In this case, users are also supposed to transform 0 to some other values to avoid the issue.
 
 Training
 ========
@@ -239,7 +239,7 @@ Early Stopping
 
 Early stopping is a feature to prevent the unnecessary training iterations. By specifying ``num_early_stopping_rounds`` or directly call ``setNumEarlyStoppingRounds`` over a XGBoostClassifier or XGBoostRegressor, we can define number of rounds if the evaluation metric going away from the best iteration and early stop training iterations.
 
-In additional to ``num_early_stopping_rounds``, you also need to define ``maximize_evaluation_metrics`` or call ``setMaximizeEvaluationMetrics`` to specify whether you want to maximize or minimize the metrics in training.
+When it comes to custom eval metrics, in additional to ``num_early_stopping_rounds``, you also need to define ``maximize_evaluation_metrics`` or call ``setMaximizeEvaluationMetrics`` to specify whether you want to maximize or minimize the metrics in training. For built-in eval metrics, XGBoost4J-Spark will automatically select the direction.
 
 For example, we need to maximize the evaluation metrics (set ``maximize_evaluation_metrics`` with true), and set ``num_early_stopping_rounds`` with 5. The evaluation metric of 10th iteration is the maximum one until now. In the following iterations, if there is no evaluation metric greater than the 10th iteration's (best one), the traning would be early stopped at 15th iteration.  
 

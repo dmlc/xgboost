@@ -1,6 +1,6 @@
 
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #include <dmlc/logging.h>
 #include <dmlc/filesystem.h>
@@ -25,10 +25,13 @@ namespace xgboost {
 namespace predictor {
 
 TEST(gpu_predictor, Test) {
+  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
+  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
 
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
@@ -85,8 +88,9 @@ TEST(gpu_predictor, Test) {
 }
 
 TEST(gpu_predictor, ExternalMemoryTest) {
+  auto lparam = CreateEmptyGenericParam(0, 1);
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Init({}, {});
   gbm::GBTreeModel model = CreateTestModel();
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
@@ -127,8 +131,7 @@ TEST(gpu_predictor, ExternalMemoryTest) {
 #if defined(XGBOOST_USE_NCCL)
 // Test whether pickling preserves predictor parameters
 TEST(gpu_predictor, MGPU_PicklingTest) {
-  int ngpu;
-  dh::safe_cuda(cudaGetDeviceCount(&ngpu));
+  int const ngpu = GPUSet::AllVisible().Size();
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -198,17 +201,17 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
   CheckCAPICall(XGBoosterFree(bst2));
 }
-#endif  // defined(XGBOOST_USE_NCCL)
 
-#if defined(XGBOOST_USE_NCCL)
 // multi-GPU predictor test
 TEST(gpu_predictor, MGPU_Test) {
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
+  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
 
-  gpu_predictor->Init({std::pair<std::string, std::string>("n_gpus", "-1")}, {});
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
+
   cpu_predictor->Init({}, {});
 
   for (size_t i = 1; i < 33; i *= 2) {
@@ -231,6 +234,36 @@ TEST(gpu_predictor, MGPU_Test) {
       ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
     }
     delete dmat;
+  }
+}
+
+// multi-GPU predictor external memory test
+TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
+  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
+
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  gpu_predictor->Init({}, {});
+
+  gbm::GBTreeModel model = CreateTestModel();
+  const int n_classes = 3;
+  model.param.num_output_group = n_classes;
+  std::vector<std::unique_ptr<DMatrix>> dmats;
+  dmats.push_back(CreateSparsePageDMatrix(9, 64UL));
+  dmats.push_back(CreateSparsePageDMatrix(128, 128UL));
+  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL));
+
+  for (const auto& dmat: dmats) {
+    // Test predict batch
+    HostDeviceVector<float> out_predictions;
+    gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
+    const std::vector<float> &host_vector = out_predictions.ConstHostVector();
+    for (int i = 0; i < host_vector.size() / n_classes; i++) {
+      ASSERT_EQ(host_vector[i * n_classes], 1.5);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
+    }
   }
 }
 #endif  // defined(XGBOOST_USE_NCCL)

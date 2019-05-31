@@ -13,13 +13,16 @@ DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 namespace xgboost {
 GradientBooster* GradientBooster::Create(
     const std::string& name,
+    LearnerTrainParam const* learner_param,
     const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
     bst_float base_margin) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown gbm type " << name;
   }
-  return (e->body)(cache_mats, base_margin);
+  auto p_bst =  (e->body)(cache_mats, base_margin);
+  p_bst->learner_param_ = learner_param;
+  return p_bst;
 }
 
 }  // namespace xgboost

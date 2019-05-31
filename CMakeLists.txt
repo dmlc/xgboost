@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(xgboost LANGUAGES CXX C VERSION 0.82)
+project(xgboost LANGUAGES CXX C VERSION 0.90)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -10,7 +10,6 @@ if (MSVC)
 endif (MSVC)
 
 set_default_configuration_release()
-msvc_use_static_runtime()
 
 #-- Options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
@@ -20,14 +19,19 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(GOOGLE_TEST "Build google tests" OFF)
+option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule (EXPERIMENTAL)" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable multi-GPU support." OFF)
 option(USE_CUDF  "Build with CUDA DataFrame support" OFF)
+option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
+endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -53,6 +57,7 @@ endif (USE_SANITIZER)
 
 if (USE_CUDA)
   cmake_minimum_required(VERSION 3.12)
+  SET(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   message(STATUS "Configured CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
@@ -64,6 +69,7 @@ if (USE_CUDA)
 endif (USE_CUDA)
 
 # dmlc-core
+msvc_use_static_runtime()
 add_subdirectory(${PROJECT_SOURCE_DIR}/dmlc-core)
 set_target_properties(dmlc PROPERTIES
   CXX_STANDARD 11
@@ -121,6 +127,10 @@ endif (JVM_BINDINGS)
 #-- CLI for xgboost
 add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 # For cli_main.cc only
+if (USE_OPENMP)
+  find_package(OpenMP REQUIRED)
+  target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
+endif (USE_OPENMP)
 target_include_directories(runxgboost
   PRIVATE
   ${PROJECT_SOURCE_DIR}/include
@@ -136,6 +146,8 @@ set_target_properties(
 
 set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
 set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+# Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+add_dependencies(xgboost runxgboost)
 
 #-- Installing XGBoost
 if (R_LIB)
@@ -211,3 +223,8 @@ if (GOOGLE_TEST)
     PROPERTIES
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
 endif (GOOGLE_TEST)
+
+# For MSVC: Call msvc_use_static_runtime() once again to completely
+# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
+# for issues caused by mixing of /MD and /MT flags
+msvc_use_static_runtime()

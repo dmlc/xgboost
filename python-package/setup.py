@@ -3,8 +3,10 @@
 from __future__ import absolute_import
 import io
 import sys
+import shutil
 import os
 from setuptools import setup, find_packages
+
 # import subprocess
 sys.path.insert(0, '.')
 
@@ -27,6 +29,10 @@ for libfile in libpath['find_lib_path']():
         continue
 
 print("Install libxgboost from: %s" % LIB_PATH)
+
+# Get dmlc tracker script
+shutil.copy('../dmlc-core/tracker/dmlc_tracker/tracker.py', 'xgboost/')
+
 # Please use setup_pip.py for generating and deploying pip installation
 # detailed instruction in setup_pip.py
 setup(name='xgboost',
@@ -54,4 +60,5 @@ setup(name='xgboost',
                    'Programming Language :: Python :: 3.5',
                    'Programming Language :: Python :: 3.6',
                    'Programming Language :: Python :: 3.7'],
+      python_requires='>=3.4',
       url='https://github.com/dmlc/xgboost')

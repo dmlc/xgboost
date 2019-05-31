@@ -50,7 +50,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   constexpr int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
-  const size_t nthread = omp_get_max_threads();
+  const int nthread = omp_get_max_threads();
 
   unsigned const nstep =
       static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
@@ -68,85 +68,34 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   // Use group index for weights?
   bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
 
-  if (use_group_ind) {
-    for (const auto &batch : p_fmat->GetRowBatches()) {
-      size_t group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
-      #pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
-      {
-        CHECK_EQ(nthread, omp_get_num_threads());
-        auto tid = static_cast<unsigned>(omp_get_thread_num());
-        unsigned begin = std::min(nstep * tid, ncol);
-        unsigned end = std::min(nstep * (tid + 1), ncol);
-
-        // do not iterate if no columns are assigned to the thread
-        if (begin < end && end <= ncol) {
-          for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-            size_t const ridx = batch.base_rowid + i;
-            SparsePage::Inst const inst = batch[i];
-            if (group_ptr[group_ind] == ridx &&
-                // maximum equals to weights.size() - 1
-                group_ind < num_groups - 1) {
-              // move to next group
-              group_ind++;
-            }
-            for (auto const& entry : inst) {
-              if (entry.index >= begin && entry.index < end) {
-                size_t w_idx = group_ind;
-                sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
-              }
-            }
-          }
-        }
-      }
+  for (const auto &batch : p_fmat->GetRowBatches()) {
+    size_t group_ind = 0;
+    if (use_group_ind) {
+      group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
     }
-  } else {
-    for (const auto &batch : p_fmat->GetRowBatches()) {
-      const size_t size = batch.Size();
-      const size_t block_size = 512;
-      const size_t block_size_iter = block_size * nthread;
-      const size_t n_blocks = size / block_size_iter + !!(size % block_size_iter);
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
+    {
+      CHECK_EQ(nthread, omp_get_num_threads());
+      auto tid = static_cast<unsigned>(omp_get_thread_num());
+      unsigned begin = std::min(nstep * tid, ncol);
+      unsigned end = std::min(nstep * (tid + 1), ncol);
 
-      std::vector<std::vector<std::pair<float, float>>> buff(nthread);
-      for (size_t tid = 0; tid < nthread; ++tid) {
-        buff[tid].resize(block_size * ncol);
-      }
-
-      std::vector<size_t> sizes(nthread * ncol, 0);
-
-      for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
-        #pragma omp parallel num_threads(nthread)
-        {
-          int tid = omp_get_thread_num();
-
-          const size_t ibegin = iblock * block_size_iter + tid * block_size;
-          const size_t iend = std::min(ibegin + block_size, size);
-
-          auto* p_sizes = sizes.data() + ncol * tid;
-          auto* p_buff = buff[tid].data();
-
-          for (size_t i = ibegin; i < iend; ++i) {
-            size_t const ridx = batch.base_rowid + i;
-            bst_float w = info.GetWeight(ridx);
-            SparsePage::Inst const inst = batch[i];
-
-            for (auto const& entry : inst) {
-              const size_t idx = entry.index;
-              p_buff[idx * block_size + p_sizes[idx]] = { entry.fvalue, w };
-              p_sizes[idx]++;
-            }
+      // do not iterate if no columns are assigned to the thread
+      if (begin < end && end <= ncol) {
+        for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
+          size_t const ridx = batch.base_rowid + i;
+          SparsePage::Inst const inst = batch[i];
+          if (use_group_ind &&
+              group_ptr[group_ind] == ridx &&
+              // maximum equals to weights.size() - 1
+              group_ind < num_groups - 1) {
+            // move to next group
+            group_ind++;
           }
-          #pragma omp barrier
-          #pragma omp for schedule(static)
-          for (int32_t icol = 0; icol < static_cast<int32_t>(ncol); ++icol) {
-            for (size_t tid = 0; tid < nthread; ++tid) {
-              auto* p_sizes = sizes.data() + ncol * tid;
-              auto* p_buff = buff[tid].data() + icol * block_size;
-
-              for (size_t i = 0; i < p_sizes[icol]; ++i) {
-                sketchs[icol].Push(p_buff[i].first,  p_buff[i].second);
-              }
-
-              p_sizes[icol] = 0;
+          for (auto const& entry : inst) {
+            if (entry.index >= begin && entry.index < end) {
+              size_t w_idx = use_group_ind ? group_ind : ridx;
+              sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
         }
@@ -229,8 +178,7 @@ uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   cut.Init(p_fmat, max_num_bins);
-  const int32_t nthread = omp_get_max_threads();
-  // const int nthread = 1;
+  const size_t nthread = omp_get_max_threads();
   const uint32_t nbins = cut.row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
@@ -248,17 +196,21 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   size_t prev_sum = 0;
 
   for (const auto &batch : p_fmat->GetRowBatches()) {
-    MemStackAllocator<size_t, 128> partial_sums(nthread);
+    // The number of threads is pegged to the batch size. If the OMP
+    // block is parallelized on anything other than the batch/block size,
+    // it should be reassigned
+    const size_t batch_threads = std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads()));
+    MemStackAllocator<size_t, 128> partial_sums(batch_threads);
     size_t* p_part = partial_sums.Get();
 
-    size_t block_size =  batch.Size() / nthread;
+    size_t block_size =  batch.Size() / batch_threads;
 
-    #pragma omp parallel num_threads(nthread)
+    #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
-      for (int32_t tid = 0; tid < nthread; ++tid) {
+      for (int32_t tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
-        size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
+        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
         size_t sum = 0;
         for (size_t i = ibegin; i < iend; ++i) {
@@ -270,15 +222,15 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       #pragma omp single
       {
         p_part[0] = prev_sum;
-        for (int32_t i = 1; i < nthread; ++i) {
+        for (int32_t i = 1; i < batch_threads; ++i) {
           p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
         }
       }
 
       #pragma omp for
-      for (int32_t tid = 0; tid < nthread; ++tid) {
+      for (int32_t tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
-        size_t iend = (tid == (nthread-1) ? batch.Size() : (block_size * (tid+1)));
+        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
         for (size_t i = ibegin; i < iend; ++i) {
           row_ptr[rbegin + 1 + i] += p_part[tid];
@@ -286,13 +238,12 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       }
     }
 
-    index.resize(row_ptr.back());
+    index.resize(row_ptr[rbegin + batch.Size()]);
 
     CHECK_GT(cut.cut.size(), 0U);
 
-    auto bsize = static_cast<omp_ulong>(batch.Size());
-    #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (omp_ulong i = 0; i < bsize; ++i) { // NOLINT(*)
+    #pragma omp parallel for num_threads(batch_threads) schedule(static)
+    for (omp_ulong i = 0; i < batch.Size(); ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];

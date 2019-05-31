@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  */
 #include "../helpers.h"
 #include "../../../src/common/host_device_vector.h"
@@ -25,9 +25,10 @@ TEST(Updater, Refresh) {
     {"reg_lambda", "1"}};
 
   RegTree tree = RegTree();
+  auto lparam = CreateEmptyGenericParam(0, 0);
   tree.param.InitAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
-  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh"));
+  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam));
 
   tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f);
   int cleft = tree[0].LeftChild();

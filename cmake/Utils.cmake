@@ -17,6 +17,10 @@ endfunction(auto_source_group)
 function(msvc_use_static_runtime)
   if(MSVC)
       set(variables
+          CMAKE_C_FLAGS_DEBUG
+          CMAKE_C_FLAGS_MINSIZEREL
+          CMAKE_C_FLAGS_RELEASE
+          CMAKE_C_FLAGS_RELWITHDEBINFO
           CMAKE_CXX_FLAGS_DEBUG
           CMAKE_CXX_FLAGS_MINSIZEREL
           CMAKE_CXX_FLAGS_RELEASE
@@ -29,6 +33,7 @@ function(msvc_use_static_runtime)
           endif()
       endforeach()
       set(variables
+          CMAKE_CUDA_FLAGS
           CMAKE_CUDA_FLAGS_DEBUG
           CMAKE_CUDA_FLAGS_MINSIZEREL
           CMAKE_CUDA_FLAGS_RELEASE
@@ -37,6 +42,10 @@ function(msvc_use_static_runtime)
       foreach(variable ${variables})
           if(${variable} MATCHES "-MD")
               string(REGEX REPLACE "-MD" "-MT" ${variable} "${${variable}}")
+              set(${variable} "${${variable}}"  PARENT_SCOPE)
+          endif()
+          if(${variable} MATCHES "/MD")
+              string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
               set(${variable} "${${variable}}"  PARENT_SCOPE)
           endif()
       endforeach()
@@ -68,11 +77,14 @@ endfunction(set_default_configuration_release)
 # Generate nvcc compiler flags given a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
 function(format_gencode_flags flags out)
+  if(CMAKE_CUDA_COMPILER_VERSION MATCHES "^([0-9]+\\.[0-9]+)")
+    set(CUDA_VERSION "${CMAKE_MATCH_1}")
+  endif()
   # Set up architecture flags
   if(NOT flags)
-    if((CUDA_VERSION_MAJOR EQUAL 10) OR (CUDA_VERSION_MAJOR GREATER 10))
+    if(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;52;60;61;70;75")
-    elseif(CUDA_VERSION_MAJOR EQUAL 9)
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")
       set(flags "35;50;52;60;61;70")
     else()
       set(flags "35;50;52;60;61")

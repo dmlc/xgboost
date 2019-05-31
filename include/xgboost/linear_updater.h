@@ -6,6 +6,7 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
 #include <functional>
 #include <string>
 #include <utility>
@@ -18,6 +19,9 @@ namespace xgboost {
  * \brief interface of linear updater
  */
 class LinearUpdater {
+ protected:
+  LearnerTrainParam const* learner_param_;
+
  public:
   /*! \brief virtual destructor */
   virtual ~LinearUpdater() = default;
@@ -45,7 +49,7 @@ class LinearUpdater {
    * \brief Create a linear updater given name
    * \param name Name of the linear updater.
    */
-  static LinearUpdater* Create(const std::string& name);
+  static LinearUpdater* Create(const std::string& name, LearnerTrainParam const*);
 };
 
 /*!

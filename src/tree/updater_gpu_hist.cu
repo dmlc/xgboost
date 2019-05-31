@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/functional.h>
@@ -322,7 +322,7 @@ __global__ void EvaluateSplitKernel(
         node_histogram,               // histogram for gradients
     common::Span<const int> feature_set,  // Selected features
     DeviceNodeStats node,
-  ELLPackMatrix matrix,
+    ELLPackMatrix matrix,
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,
@@ -1054,15 +1054,17 @@ struct DeviceShard {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
-    // If we are using a single GPU, build the histogram for the node with the
-    // fewest training instances
-    // If we are distributed, don't bother
-    if (reducer->IsSingleGPU()) {
-      bool fewer_right =
-          ridx_segments[nidx_right].Size() < ridx_segments[nidx_left].Size();
-      if (fewer_right) {
-        std::swap(build_hist_nidx, subtraction_trick_nidx);
-      }
+    auto left_node_rows = ridx_segments[nidx_left].Size();
+    auto right_node_rows = ridx_segments[nidx_right].Size();
+    // Decide whether to build the left histogram or right histogram
+    // Find the largest number of training instances on any given Shard
+    // Assume this will be the bottleneck and avoid building this node if
+    // possible
+    std::vector<size_t> max_reduce = {left_node_rows, right_node_rows};
+    reducer->HostMaxAllReduce(&max_reduce);
+    bool fewer_right = max_reduce[1] < max_reduce[0];
+    if (fewer_right) {
+      std::swap(build_hist_nidx, subtraction_trick_nidx);
     }
 
     this->BuildHist(build_hist_nidx);
@@ -1374,16 +1376,19 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 }
 
 template <typename GradientSumT>
-class GPUHistMakerSpecialised{
+class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
-  void Init(
-      const std::vector<std::pair<std::string, std::string>>& args) {
+  void Init(const std::vector<std::pair<std::string, std::string>>& args,
+            LearnerTrainParam const* lparam) {
     param_.InitAllowUnknown(args);
+    learner_param_ = lparam;
     hist_maker_param_.InitAllowUnknown(args);
-    CHECK(param_.n_gpus != 0) << "Must have at least one device";
-    n_devices_ = param_.n_gpus;
-    dist_ = GPUDistribution::Block(GPUSet::All(param_.gpu_id, param_.n_gpus));
+    auto devices = GPUSet::All(learner_param_->gpu_id,
+                               learner_param_->n_gpus);
+    n_devices_ = devices.Size();
+    CHECK(n_devices_ != 0) << "Must have at least one device";
+    dist_ = GPUDistribution::Block(devices);
 
     dh::CheckComputeCapability();
 
@@ -1446,9 +1451,12 @@ class GPUHistMakerSpecialised{
 
     // Find the cuts.
     monitor_.StartCuda("Quantiles");
-    common::DeviceSketch(batch, *info_, param_, &hmat_, hist_maker_param_.gpu_batch_nrows);
+    // TODO(sriramch): The return value will be used when we add support for histogram
+    // index creation for multiple batches
+    common::DeviceSketch(param_, *learner_param_, hist_maker_param_.gpu_batch_nrows, dmat, &hmat_);
     n_bins_ = hmat_.row_ptr.back();
     monitor_.StopCuda("Quantiles");
+
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
 
     monitor_.StartCuda("BinningCompression");
@@ -1552,7 +1560,7 @@ class GPUHistMakerSpecialised{
   int n_bins_;
 
   GPUHistMakerTrainParam hist_maker_param_;
-  common::GHistIndexMatrix gmat_;
+  LearnerTrainParam const* learner_param_;
 
   dh::AllReducer reducer_;
 
@@ -1573,10 +1581,10 @@ class GPUHistMaker : public TreeUpdater {
     double_maker_.reset();
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
-      float_maker_->Init(args);
+      float_maker_->Init(args, tparam_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
-      double_maker_->Init(args);
+      double_maker_->Init(args, tparam_);
     }
   }
 

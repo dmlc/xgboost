@@ -105,12 +105,16 @@ private[spark] trait LearningTaskParams extends Params {
 }
 
 private[spark] object LearningTaskParams {
-  val supportedObjective = HashSet("reg:squarederror", "reg:logistic", "binary:logistic",
-    "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
-    "rank:ndcg", "rank:map", "reg:gamma", "reg:tweedie")
+  val supportedObjective = HashSet("reg:linear", "reg:squarederror", "reg:logistic",
+    "binary:logistic", "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob",
+    "rank:pairwise", "rank:ndcg", "rank:map", "reg:gamma", "reg:tweedie")
 
   val supportedObjectiveType = HashSet("regression", "classification")
 
-  val supportedEvalMetrics = HashSet("rmse", "mae", "logloss", "error", "merror", "mlogloss",
-    "auc", "aucpr", "ndcg", "map", "gamma-deviance")
+  val evalMetricsToMaximize = HashSet("auc", "aucpr", "ndcg", "map")
+
+  val evalMetricsToMinimize = HashSet("rmse", "mae", "logloss", "error", "merror",
+    "mlogloss", "gamma-deviance")
+
+  val supportedEvalMetrics = evalMetricsToMaximize union evalMetricsToMinimize
 }
