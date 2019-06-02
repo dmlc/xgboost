@@ -8,10 +8,10 @@
 #ifndef XGBOOST_COMMON_COLUMN_MATRIX_H_
 #define XGBOOST_COMMON_COLUMN_MATRIX_H_
 
+#include <dmlc/timer.h>
 #include <limits>
 #include <vector>
 #include "hist_util.h"
-
 
 namespace xgboost {
 namespace common {
@@ -51,6 +51,10 @@ class Column {
   }
   const size_t* GetRowData() const { return row_ind_; }
 
+  const uint32_t* GetIndex() const {
+    return index_;
+  }
+
  private:
   ColumnType type_;
   const uint32_t* index_;
@@ -80,7 +84,7 @@ class ColumnMatrix {
     std::fill(feature_counts_.begin(), feature_counts_.end(), 0);
 
     uint32_t max_val = std::numeric_limits<uint32_t>::max();
-    for (bst_uint fid = 0; fid < nfeature; ++fid) {
+    for (int32_t fid = 0; fid < nfeature; ++fid) {
       CHECK_LE(gmat.cut.row_ptr[fid + 1] - gmat.cut.row_ptr[fid], max_val);
     }
 
@@ -113,13 +117,12 @@ class ColumnMatrix {
       boundary_[fid].index_end = accum_index_;
       boundary_[fid].row_ind_end = accum_row_ind_;
     }
-
     index_.resize(boundary_[nfeature - 1].index_end);
     row_ind_.resize(boundary_[nfeature - 1].row_ind_end);
 
     // store least bin id for each feature
     index_base_.resize(nfeature);
-    for (bst_uint fid = 0; fid < nfeature; ++fid) {
+    for (int32_t fid = 0; fid < nfeature; ++fid) {
       index_base_[fid] = gmat.cut.row_ptr[fid];
     }
 
