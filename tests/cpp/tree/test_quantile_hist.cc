@@ -107,7 +107,7 @@ class QuantileHistMock : public QuantileHistMaker {
       std::vector<ExpandEntry> nodes = {ExpandEntry(nid, -1, -1, tree.GetDepth(0), 0.0, 0)};
       BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, gpair, &hist_buffers, &hist_is_init);
       RealImpl::InitNewNode(nid, gmat, gpair, fmat, const_cast<RegTree*>(&tree), &snode_[0], tree[0].Parent());
-      EvaluateSplitsBatch(nodes, gmat, fmat, hist_is_init, hist_buffers, const_cast<RegTree*>(&tree));
+      EvaluateSplitsBatch(nodes, gmat, fmat, hist_is_init, hist_buffers);
 
       // Check if number of histogram bins is correct
       ASSERT_EQ(hist_[nid].size(), gmat.cut.row_ptr.back());
@@ -153,7 +153,7 @@ class QuantileHistMock : public QuantileHistMaker {
       std::vector<std::vector<uint8_t>> hist_is_init;
       BuildHistsBatch(nodes, const_cast<RegTree*>(&tree), gmat, row_gpairs, &hist_buffers, &hist_is_init);
       RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), const_cast<RegTree*>(&tree), &snode_[0], tree[0].Parent());
-      EvaluateSplitsBatch(nodes, gmat, **dmat, hist_is_init, hist_buffers, const_cast<RegTree*>(&tree));
+      EvaluateSplitsBatch(nodes, gmat, **dmat, hist_is_init, hist_buffers);
 
       /* Compute correct split (best_split) using the computed histogram */
       const size_t num_row = dmat->get()->Info().num_row_;
@@ -214,7 +214,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      EvaluateSplitsBatch(nodes, gmat, **dmat, hist_is_init, hist_buffers, const_cast<RegTree*>(&tree));
+      EvaluateSplitsBatch(nodes, gmat, **dmat, hist_is_init, hist_buffers);
 
       ASSERT_EQ(snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(snode_[0].best.split_value, gmat.cut.cut[best_split_threshold]);

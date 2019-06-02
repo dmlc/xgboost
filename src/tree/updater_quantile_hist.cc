@@ -457,7 +457,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   hist_is_init->resize(nodes.size());
 
   // input data for tasks
-  int32_t n_tasks = 0;
+  int32_t n_hist_buidling_tasks = 0;
   std::vector<int32_t> task_nid;
   std::vector<int32_t> task_node_idx;
   std::vector<int32_t> task_block_idx;
@@ -479,12 +479,13 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     const size_t n_local_blocks = nrows / block_size_rows + !!(nrows % block_size_rows);
     const size_t n_local_histograms = std::min(nthread, n_local_blocks);
 
+
+    task_nid.resize(task_nid.size() + n_local_blocks, nid);
     for (size_t j = 0; j < n_local_blocks; ++j) {
-      task_nid.push_back(nid);
       task_node_idx.push_back(i);
       task_block_idx.push_back(j);
     }
-    n_tasks += n_local_blocks;
+    n_hist_buidling_tasks += n_local_blocks;
 
     (*hist_buffers)[i].clear();
     for (size_t j = 0; j < n_local_histograms; j++) {
@@ -500,7 +501,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
   // execute tasks in parallel
   #pragma omp parallel for schedule(guided)
-  for (int32_t itask = 0; itask < n_tasks; ++itask) {
+  for (int32_t itask = 0; itask < n_hist_buidling_tasks; ++itask) {
     const size_t tid = omp_get_thread_num();
     const int32_t nid = task_nid[itask];
     const int32_t block_id = task_block_idx[itask];
@@ -654,7 +655,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     BuildHistsBatch(qexpand_depth_wise_, p_tree, gmat, gpair_h,
         &hist_buffers, &hist_is_init);
     BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, qexpand_depth_wise_);
-    EvaluateSplitsBatch(qexpand_depth_wise_, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
+    EvaluateSplitsBatch(qexpand_depth_wise_, gmat, *p_fmat, hist_is_init, hist_buffers);
     CreateNewNodesBatch(qexpand_depth_wise_, gmat, column_matrix, p_fmat, p_tree,
         &num_leaves, depth, &timestamp, &temp_qexpand_depth);
 
@@ -691,7 +692,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
     BuildHistsBatch(nodes_to_build, p_tree, gmat, gpair_h, &hist_buffers, &hist_is_init);
     BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, nodes_to_build);
-    EvaluateSplitsBatch(nodes_to_build, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
+    EvaluateSplitsBatch(nodes_to_build, gmat, *p_fmat, hist_is_init, hist_buffers);
 
     qexpand_loss_guided_->push(ExpandEntry(nid, -1, -1, p_tree->GetDepth(nid),
                                snode_[nid].best.loss_chg,
@@ -713,7 +714,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     if (!successors.empty()) {
       BuildHistsBatch(successors, p_tree, gmat, gpair_h, &hist_buffers, &hist_is_init);
       BuildNodeStatBatch(gmat, p_fmat, p_tree, gpair_h, successors);
-      EvaluateSplitsBatch(successors, gmat, *p_fmat, hist_is_init, hist_buffers, p_tree);
+      EvaluateSplitsBatch(successors, gmat, *p_fmat, hist_is_init, hist_buffers);
 
       const int32_t cleft = (*p_tree)[nid].LeftChild();
       const int32_t cright = (*p_tree)[nid].RightChild();
@@ -1002,8 +1003,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
         const GHistIndexMatrix& gmat,
         const DMatrix& fmat,
         const std::vector<std::vector<uint8_t>>& hist_is_init,
-        const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers,
-        RegTree* p_tree) {
+        const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers) {
   perf_monitor.TickStart();
   const MetaInfo& info = fmat.Info();
   // prepare tasks

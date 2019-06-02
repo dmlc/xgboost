@@ -15,7 +15,6 @@
 #include <vector>
 #include <string>
 #include <queue>
-#include <deque>
 #include <iomanip>
 #include <unordered_map>
 #include <utility>
@@ -231,8 +230,7 @@ class QuantileHistMaker: public TreeUpdater {
           const GHistIndexMatrix& gmat,
           const DMatrix& fmat,
           const std::vector<std::vector<uint8_t>>& hist_is_init,
-          const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers,
-          RegTree* p_tree);
+          const std::vector<std::vector<common::GradStatHist::GradType*>>& hist_buffers);
 
     void ReduceHistograms(
         common::GradStatHist::GradType* hist_data,

@@ -55,10 +55,6 @@ class MemStackAllocator {
   T stack_mem_[MaxStackSize];
 };
 
-namespace tree {
-class SplitEvaluator;
-}
-
 namespace common {
 
 /*
@@ -155,7 +151,7 @@ struct HistCutMatrix {
 };
 
 /*! \brief Builds the cut matrix on the GPU.
- *  
+ *
  *  \return The row stride across the entire dataset.
  */
 size_t DeviceSketch
@@ -314,10 +310,8 @@ class HistCollection {
  public:
   // access histogram for i-th node
   inline GHistRow operator[](bst_uint nid) {
-    if (nid >= data_arr_.size()) {
-      AddHistRow(nid);
-    }
-    return { const_cast<GradStatHist*>(dmlc::BeginPtr(*data_arr_[nid])), nbins_};
+    AddHistRow(nid);
+    return { const_cast<GradStatHist*>(dmlc::BeginPtr(data_arr_[nid])), nbins_};
   }
 
   // have we computed a histogram for i-th node?
@@ -328,39 +322,27 @@ class HistCollection {
   // initialize histogram collection
   inline void Init(uint32_t nbins) {
     if (nbins_ != nbins) {
-      for (size_t i = 0; i < data_arr_.size(); ++i) {
-        delete data_arr_[i];
-      }
       data_arr_.clear();
       nbins_ = nbins;
-    }
-  }
-
-  ~HistCollection() {
-    for (size_t i = 0; i < data_arr_.size(); ++i) {
-      delete data_arr_[i];
     }
   }
 
   // create an empty histogram for i-th node
   inline void AddHistRow(bst_uint nid) {
     if (data_arr_.size() <= nid) {
-      data_arr_.resize(nid + 1, nullptr);
-    }
+      size_t prev = data_arr_.size();
+      data_arr_.resize(nid + 1);
 
-    if (data_arr_[nid] == nullptr) {
-      data_arr_[nid] = new std::vector<GradStatHist>;
-    }
-
-    if (data_arr_[nid]->size() == 0) {
-      data_arr_[nid]->resize(nbins_);
+      for(size_t i = prev; i < data_arr_.size(); ++i) {
+        data_arr_[i].resize(nbins_);
+      }
     }
   }
 
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_ = 0;
-  std::vector<std::vector<GradStatHist>*> data_arr_;
+  std::vector<std::vector<GradStatHist>> data_arr_;
 };
 
 
@@ -375,53 +357,53 @@ class GHistBuilder {
     nbins_ = nbins;
   }
 
-void BuildBlockHist(const std::vector<GradientPair>& gpair,
-                                  const RowSetCollection::Elem row_indices,
-                                  const GHistIndexBlockMatrix& gmatb,
-                                  GHistRow hist) {
-  constexpr int kUnroll = 8;  // loop unrolling factor
-  const int32_t nblock = gmatb.GetNumBlock();
-  const size_t nrows = row_indices.end - row_indices.begin;
-  const size_t rest = nrows % kUnroll;
+  void BuildBlockHist(const std::vector<GradientPair>& gpair,
+                                    const RowSetCollection::Elem row_indices,
+                                    const GHistIndexBlockMatrix& gmatb,
+                                    GHistRow hist) {
+    constexpr int kUnroll = 8;  // loop unrolling factor
+    const int32_t nblock = gmatb.GetNumBlock();
+    const size_t nrows = row_indices.end - row_indices.begin;
+    const size_t rest = nrows % kUnroll;
 
-  #pragma omp parallel for
-  for (int32_t bid = 0; bid < nblock; ++bid) {
-    auto gmat = gmatb[bid];
+    #pragma omp parallel for
+    for (int32_t bid = 0; bid < nblock; ++bid) {
+      auto gmat = gmatb[bid];
 
-    for (size_t i = 0; i < nrows - rest; i += kUnroll) {
-      size_t rid[kUnroll];
-      size_t ibegin[kUnroll];
-      size_t iend[kUnroll];
-      GradientPair stat[kUnroll];
-      for (int k = 0; k < kUnroll; ++k) {
-        rid[k] = row_indices.begin[i + k];
+      for (size_t i = 0; i < nrows - rest; i += kUnroll) {
+        size_t rid[kUnroll];
+        size_t ibegin[kUnroll];
+        size_t iend[kUnroll];
+        GradientPair stat[kUnroll];
+        for (int k = 0; k < kUnroll; ++k) {
+          rid[k] = row_indices.begin[i + k];
+        }
+        for (int k = 0; k < kUnroll; ++k) {
+          ibegin[k] = gmat.row_ptr[rid[k]];
+          iend[k] = gmat.row_ptr[rid[k] + 1];
+        }
+        for (int k = 0; k < kUnroll; ++k) {
+          stat[k] = gpair[rid[k]];
+        }
+        for (int k = 0; k < kUnroll; ++k) {
+          for (size_t j = ibegin[k]; j < iend[k]; ++j) {
+            const uint32_t bin = gmat.index[j];
+            hist[bin].Add(stat[k]);
+          }
+        }
       }
-      for (int k = 0; k < kUnroll; ++k) {
-        ibegin[k] = gmat.row_ptr[rid[k]];
-        iend[k] = gmat.row_ptr[rid[k] + 1];
-      }
-      for (int k = 0; k < kUnroll; ++k) {
-        stat[k] = gpair[rid[k]];
-      }
-      for (int k = 0; k < kUnroll; ++k) {
-        for (size_t j = ibegin[k]; j < iend[k]; ++j) {
+      for (size_t i = nrows - rest; i < nrows; ++i) {
+        const size_t rid = row_indices.begin[i];
+        const size_t ibegin = gmat.row_ptr[rid];
+        const size_t iend = gmat.row_ptr[rid + 1];
+        const GradientPair stat = gpair[rid];
+        for (size_t j = ibegin; j < iend; ++j) {
           const uint32_t bin = gmat.index[j];
-          hist[bin].Add(stat[k]);
+          hist[bin].Add(stat);
         }
       }
     }
-    for (size_t i = nrows - rest; i < nrows; ++i) {
-      const size_t rid = row_indices.begin[i];
-      const size_t ibegin = gmat.row_ptr[rid];
-      const size_t iend = gmat.row_ptr[rid + 1];
-      const GradientPair stat = gpair[rid];
-      for (size_t j = ibegin; j < iend; ++j) {
-        const uint32_t bin = gmat.index[j];
-        hist[bin].Add(stat);
-      }
-    }
   }
-}
 
   uint32_t GetNumBins() {
       return nbins_;

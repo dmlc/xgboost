@@ -496,6 +496,8 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   }
 }
 
+// used when data layout is kDenseDataZeroBased or kDenseDataOneBased
+// it means that "row_ptr" is not needed for hist computations
 void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t* rid,
     const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
     GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat_global) {
@@ -548,6 +550,8 @@ void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t*
   grad_stat_global->Add(grad_stat);
 }
 
+// used when data layout is kSparseData
+// it means that "row_ptr" is needed for hist computations
 void BuildHistLocalSparse(size_t istart, size_t iend, size_t nrows, const size_t* rid,
     const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
     GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat_global) {
