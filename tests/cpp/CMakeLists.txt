@@ -67,3 +67,6 @@ if (USE_OPENMP)
   target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
 endif (USE_OPENMP)
 set_output_directory(testxgboost ${PROJECT_BINARY_DIR})
+
+# This grouping organises source files nicely in visual studio
+auto_source_group("${TEST_SOURCES}")
