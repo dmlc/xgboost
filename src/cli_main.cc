@@ -341,10 +341,9 @@ int CLIRunTask(int argc, char *argv[]) {
   }
   rabit::Init(argc, argv);
 
-  common::ConfigParse cp(argv[1]);
+  common::ConfigParser cp(argv[1]);
   auto cfg = cp.Parse();
   cfg.emplace_back("seed", "0");
-
 
   for (int i = 2; i < argc; ++i) {
     char name[256], val[256];
