@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2019 by Contributors
+ */
 #include <fstream>
 #include <string>
 #include <gtest/gtest.h>

@@ -35,7 +35,7 @@ class ConfigParser {
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
       value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
       value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx"),
-      path_ {path} {}
+      path_(path) {}
 
   std::string LoadConfigFile(const std::string& path) {
     std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
@@ -46,10 +46,12 @@ class ConfigParser {
   }
 
   /*!
-   * \brief Normalize end-of-line in a file so that it uses LF for all line
-   *        endings.
-   * This is needed because some OSes use CR or CR LF instead.
-   * So we replace all CR with LF. Replacement will be performed in-place.
+   * \brief Normalize end-of-line in a file so that it uses LF for all
+   *        line endings.
+   *
+   * This is needed because some OSes use CR or CR LF instead.  So we
+   * replace all CR with LF.
+   *
    * \param p_config_str pointer to configuration
    */
   std::string NormalizeConfigEOL(std::string const& config_str) {
