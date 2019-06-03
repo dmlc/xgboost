@@ -9,37 +9,41 @@
 namespace xgboost {
 namespace common {
 
-TEST(ConfigParser, NormalizeEOL) {
+TEST(ConfigParser, NormalizeConfigEOL) {
+  // Test whether strings with NL are loaded correctly.
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/my.conf";
   /* Old Mac OS uses \r for line ending */
   {
+    std::string const input = "foo\rbar\rdog\r";
+    std::string const output = "foo\nbar\ndog\n";
     {
-      std::ofstream fp(tmp_file, std::ios_base::out | std::ios_base::trunc
-                                  | std::ios_base::binary);
-      fp << "foo\rbar\rdog\r";
+      std::ofstream fp(
+          tmp_file,
+          std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+      fp << input;
     }
-    ConfigParser::NormalizeEOL(tmp_file);
     {
-      std::ifstream fp(tmp_file, std::ios_base::in | std::ios_base::binary);
-      std::string content{std::istreambuf_iterator<char>(fp),
-                          std::istreambuf_iterator<char>()};
-      ASSERT_EQ(content, "foo\nbar\ndog\n");
+      ConfigParser parser(tmp_file);
+      auto content = parser.LoadConfigFile(tmp_file);
+      content = parser.NormalizeConfigEOL(content);
+      ASSERT_EQ(content, output);
     }
   }
   /* Windows uses \r\n for line ending */
   {
+    std::string const input = "foo\r\nbar\r\ndog\r\n";
+    std::string const output = "foo\n\nbar\n\ndog\n\n";
     {
-      std::ofstream fp(tmp_file, std::ios_base::out | std::ios_base::trunc
-                                 | std::ios_base::binary);
-      fp << "foo\r\nbar\r\ndog\r\n";
+      std::ofstream fp(tmp_file,
+                       std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+      fp << input;
     }
-    ConfigParser::NormalizeEOL(tmp_file);
     {
-      std::ifstream fp(tmp_file, std::ios_base::in | std::ios_base::binary);
-      std::string content{std::istreambuf_iterator<char>(fp),
-                          std::istreambuf_iterator<char>()};
-      ASSERT_EQ(content, "foo\n\nbar\n\ndog\n\n");
+      ConfigParser parser(tmp_file);
+      auto content = parser.LoadConfigFile(tmp_file);
+      content = parser.NormalizeConfigEOL(content);
+      ASSERT_EQ(content, output);
     }
   }
 }

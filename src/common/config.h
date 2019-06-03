@@ -7,11 +7,12 @@
 #ifndef XGBOOST_COMMON_CONFIG_H_
 #define XGBOOST_COMMON_CONFIG_H_
 
-#include <dmlc/logging.h>
+#include <xgboost/logging.h>
 #include <cstdio>
 #include <string>
-#include <istream>
 #include <fstream>
+#include <istream>
+#include <sstream>
 #include <vector>
 #include <regex>
 #include <iterator>
@@ -33,10 +34,35 @@ class ConfigParser {
       key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
       value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
-      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx") {
-    NormalizeEOL(path);
-    fi_.open(path);
-    CHECK(!fi_.fail()) << "Cannot open file " << path;
+      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx"),
+      path_ {path} {}
+
+  std::string LoadConfigFile(const std::string& path) {
+    std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
+    CHECK(fin) << "Failed to open: " << path;
+    std::string content{std::istreambuf_iterator<char>(fin),
+                        std::istreambuf_iterator<char>()};
+    return content;
+  }
+
+  /*!
+   * \brief Normalize end-of-line in a file so that it uses LF for all line
+   *        endings.
+   * This is needed because some OSes use CR or CR LF instead.
+   * So we replace all CR with LF. Replacement will be performed in-place.
+   * \param p_config_str pointer to configuration
+   */
+  std::string NormalizeConfigEOL(std::string const& config_str) {
+    std::string result;
+    std::stringstream ss(config_str);
+    for (size_t i = 0; i < config_str.size(); ++i) {
+      if (config_str[i] == '\r') {
+        result.push_back('\n');
+        continue;
+      }
+      result.push_back(config_str[i]);
+    }
+    return result;
   }
 
   /*!
@@ -45,13 +71,16 @@ class ConfigParser {
    * \return list of key-value pairs
    */
   std::vector<std::pair<std::string, std::string>> Parse() {
+    std::string content { LoadConfigFile(path_) };
+    content = NormalizeConfigEOL(content);
+    std::stringstream ss { content };
     std::vector<std::pair<std::string, std::string>> results;
     char delimiter = '=';
     char comment = '#';
     std::string line;
     std::string key, value;
     // Loop over every line of the configuration file
-    while (std::getline(fi_, line)) {
+    while (std::getline(ss, line)) {
       if (ParseKeyValuePair(line, &key, &value)) {
         results.emplace_back(key, value);
       }
@@ -60,35 +89,11 @@ class ConfigParser {
   }
 
  private:
-  std::ifstream fi_;
+  std::string path_;
   const std::regex line_comment_regex_, key_regex_, key_regex_escaped_,
     value_regex_, value_regex_escaped_;
 
  public:
-  /*!
-   * \brief Normalize end-of-line in a file so that it uses LF for all line
-   *        endings.
-   * This is needed because some OSes use CR or CR LF instead.
-   * So we replace all CR with LF. Replacement will be performed in-place.
-   * \param path path to configuration file
-   */
-  static void NormalizeEOL(const std::string& path) {
-    std::FILE* fp = std::fopen(path.c_str(), "rb+");
-    CHECK(fp) << "Cannot open file " << path;
-    int ch;
-    while ((ch = std::fgetc(fp)) != EOF) {
-      if (ch == static_cast<int>('\r')) {
-        CHECK_EQ(std::fseek(fp, -1, SEEK_CUR), 0)
-          << "Could not normalize line ending in file " << path;
-        std::fputc(static_cast<int>('\n'), fp);
-        CHECK_EQ(std::fseek(fp, 0, SEEK_CUR), 0)
-          << "Could not normalize line ending in file " << path;
-      }
-    }
-    CHECK_EQ(std::fclose(fp), 0)
-      << "Could not normalize line ending in file " << path;
-  }
-
   /*!
    * \brief Remove leading and trailing whitespaces from a given string
    * \param str string
