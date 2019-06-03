@@ -634,25 +634,30 @@ __forceinline__ __device__ void CountLeft(int64_t* d_count, int val,
 // entire dataset across multiple sparse page batches. This keeps track of the number
 // of rows to process from a batch and the position from which to process on each device.
 struct RowStateOnDevice {
-  const size_t n_rows;  // Number of rows assigned to this device
-  size_t n_rows_processed;  // Number of rows processed thus far
-  size_t batch_n_rows;  // Number of rows to process from the current sparse page batch
-  size_t row_offset;  // Offset from the current sparse page batch to begin processing
+  // Number of rows assigned to this device
+  const size_t total_rows_assigned_to_device;
+  // Number of rows processed thus far
+  size_t total_rows_processed;
+  // Number of rows to process from the current sparse page batch
+  size_t rows_to_process_from_batch;
+  // Offset from the current sparse page batch to begin processing
+  size_t row_offset_in_current_batch;
 
   explicit RowStateOnDevice(size_t nrows)
-    : n_rows(nrows), n_rows_processed(0), batch_n_rows(0), row_offset(0) {
+    : total_rows_assigned_to_device(nrows), total_rows_processed(0),
+      rows_to_process_from_batch(0), row_offset_in_current_batch(0) {
   }
 
   // Advance the row state by the number of rows processed
   void Advance() {
-    n_rows_processed += batch_n_rows;
-    CHECK_LE(n_rows_processed, n_rows);
-    batch_n_rows = row_offset = 0;
+    total_rows_processed += rows_to_process_from_batch;
+    CHECK_LE(total_rows_processed, total_rows_assigned_to_device);
+    rows_to_process_from_batch = row_offset_in_current_batch = 0;
   }
 
   static RowStateOnDevice CreateRowStateOnDevice(size_t total_rows, size_t batch_rows) {
     RowStateOnDevice rstate(total_rows);
-    rstate.batch_n_rows = batch_rows;
+    rstate.rows_to_process_from_batch = batch_rows;
     return rstate;
   }
 };
@@ -1301,42 +1306,52 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     const RowStateOnDevice &device_row_state,
     int rows_per_batch) {
   // Has any been allocated for me in this batch?
-  if (!device_row_state.batch_n_rows) return;
+  if (!device_row_state.rows_to_process_from_batch) return;
 
+  unsigned int null_gidx_value = hmat.row_ptr.back();
   size_t row_stride = this->ellpack_matrix.row_stride;
 
   const auto &offset_vec = row_batch.offset.ConstHostVector();
   /*! \brief row offset in SparsePage (the input data). */
-  thrust::device_vector<size_t> row_ptrs(device_row_state.batch_n_rows+1);
+  CHECK_LE(device_row_state.rows_to_process_from_batch, offset_vec.size());
+  thrust::device_vector<size_t> row_ptrs(device_row_state.rows_to_process_from_batch+1);
   thrust::copy(
-    offset_vec.data() + device_row_state.row_offset,
-    offset_vec.data() + device_row_state.row_offset + device_row_state.batch_n_rows + 1,
+    offset_vec.data() + device_row_state.row_offset_in_current_batch,
+    offset_vec.data() + device_row_state.row_offset_in_current_batch +
+    device_row_state.rows_to_process_from_batch + 1,
     row_ptrs.begin());
 
   int num_symbols = n_bins + 1;
   // bin and compress entries in batches of rows
   size_t gpu_batch_nrows = 0;
+  // config item rows_per_batch:
+  // 0  => process the rows in this sparse page in batches, keeping in
+  //       mind the available GPU memory
+  // -1 => process all the rows in the sparse page batch in one go
+  // any other non-trivial number => process those many rows from the sparse page
+  //                                 batch at a time
   if (rows_per_batch == 0) {
      gpu_batch_nrows =
       std::min
       (dh::TotalMemory(device_id) / (16 * row_stride * sizeof(Entry)),
-       static_cast<size_t>(device_row_state.batch_n_rows));
+       static_cast<size_t>(device_row_state.rows_to_process_from_batch));
   } else if (rows_per_batch == -1) {
-     gpu_batch_nrows = device_row_state.batch_n_rows;
+     gpu_batch_nrows = device_row_state.rows_to_process_from_batch;
   } else {
      gpu_batch_nrows =
-       std::min(device_row_state.batch_n_rows, static_cast<size_t>(rows_per_batch));
+       std::min(device_row_state.rows_to_process_from_batch, static_cast<size_t>(rows_per_batch));
   }
   const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
   thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
-  size_t gpu_nbatches = dh::DivRoundUp(device_row_state.batch_n_rows, gpu_batch_nrows);
+  size_t gpu_nbatches = dh::DivRoundUp(device_row_state.rows_to_process_from_batch,
+                                       gpu_batch_nrows);
 
   for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
     size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
     size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
-    if (batch_row_end > device_row_state.batch_n_rows) {
-      batch_row_end = device_row_state.batch_n_rows;
+    if (batch_row_end > device_row_state.rows_to_process_from_batch) {
+      batch_row_end = device_row_state.rows_to_process_from_batch;
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
     // number of entries in this batch.
@@ -1347,7 +1362,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          (entries_d.data().get(), data_vec.data() + row_ptrs[batch_row_begin],
           n_entries * sizeof(Entry), cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
-    const dim3 grid3(dh::DivRoundUp(device_row_state.batch_n_rows, block3.x),
+    const dim3 grid3(dh::DivRoundUp(device_row_state.rows_to_process_from_batch, block3.x),
                      dh::DivRoundUp(row_stride, block3.y), 1);
     CompressBinEllpackKernel<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols),
@@ -1356,11 +1371,11 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          entries_d.data().get(),
          gidx_fvalue_map.data(),
          feature_segments.data(),
-         device_row_state.n_rows_processed + batch_row_begin,
+         device_row_state.total_rows_processed + batch_row_begin,
          batch_nrows,
          row_ptrs[batch_row_begin],
          row_stride,
-         hmat.row_ptr.back());
+         null_gidx_value);
   }
 
   // free the memory that is no longer needed
@@ -1393,21 +1408,23 @@ class DeviceHistogramBuilderState {
   // TODO(sriramch): Think of a way to utilize *all* the GPUs to build the compressed bins.
   void BeginBatch(const SparsePage &batch) {
     size_t rem_rows = batch.Size();
-    size_t row_offset = 0;
+    size_t row_offset_in_current_batch = 0;
     for (auto &device_row_state : device_row_states_) {
       // Do we have anymore left to process from this batch on this device?
-      if (device_row_state.n_rows > device_row_state.n_rows_processed) {
+      if (device_row_state.total_rows_assigned_to_device > device_row_state.total_rows_processed) {
         // There are still some rows that needs to be assigned to this device
-        device_row_state.batch_n_rows =
-          std::min(device_row_state.n_rows - device_row_state.n_rows_processed, rem_rows);
+        device_row_state.rows_to_process_from_batch =
+          std::min(
+            device_row_state.total_rows_assigned_to_device - device_row_state.total_rows_processed,
+            rem_rows);
       } else {
         // All rows have been assigned to this device
-        device_row_state.batch_n_rows = 0;
+        device_row_state.rows_to_process_from_batch = 0;
       }
 
-      device_row_state.row_offset = row_offset;
-      row_offset += device_row_state.batch_n_rows;
-      rem_rows -= device_row_state.batch_n_rows;
+      device_row_state.row_offset_in_current_batch = row_offset_in_current_batch;
+      row_offset_in_current_batch += device_row_state.rows_to_process_from_batch;
+      rem_rows -= device_row_state.rows_to_process_from_batch;
     }
   }
 
