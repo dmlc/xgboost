@@ -9,6 +9,7 @@
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
 #include <rabit/rabit.h>
+#include <cub/util_allocator.cuh>
 
 #include "common.h"
 #include "span.h"
@@ -299,9 +300,14 @@ namespace detail{
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
-struct XGBDefaultDeviceAllocator : thrust::device_malloc_allocator<T> {
+struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   using super_t = thrust::device_malloc_allocator<T>;
   using pointer = thrust::device_ptr<T>;
+  template<typename U>
+  struct rebind
+  {
+    typedef XGBDefaultDeviceAllocatorImpl<U> other;
+  };
   pointer allocate(size_t n) {
     pointer ptr = super_t::allocate(n);
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n);
@@ -312,16 +318,56 @@ struct XGBDefaultDeviceAllocator : thrust::device_malloc_allocator<T> {
     return super_t::deallocate(ptr, n);
   }
 };
+
+/**
+ * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs allocations if verbose. Does not initialise memory on construction.
+ */
+template <class T>
+struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
+  using pointer = thrust::device_ptr<T>;
+  template<typename U>
+  struct rebind
+  {
+    typedef XGBCachingDeviceAllocatorImpl<U> other;
+  };
+   cub::CachingDeviceAllocator& GetGlobalCachingAllocator ()
+   {
+    // Configure allocator with maximum cached bin size of ~1GB and no limit on
+    // maximum cached bytes
+     static cub::CachingDeviceAllocator allocator(8,3,10);
+     return allocator;
+   }
+   pointer allocate(size_t n) {
+     T *ptr;
+     GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
+                                                n * sizeof(T));
+     pointer thrust_ptr = thrust::device_ptr<T>(ptr);
+     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n);
+     return thrust_ptr;
+   }
+   void deallocate(pointer ptr, size_t n) {
+     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
+     GetGlobalCachingAllocator().DeviceFree(ptr.get());
+   }
+  __host__ __device__
+    void construct(T *)
+  {
+    // no-op
+  }
+};
 };
 
-// Declare xgboost allocator
+// Declare xgboost allocators
 // Replacement of allocator with custom backend should occur here
 template <typename T>
-using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocator<T>;
+using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
+template <typename T>
+using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */
 template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
-
+template <typename T>
+using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;
 /**
  * \brief A double buffer, useful for algorithms like sort.
  */
@@ -331,6 +377,14 @@ class DoubleBuffer {
   cub::DoubleBuffer<T> buff;
   xgboost::common::Span<T> a, b;
   DoubleBuffer() = default;
+  template <typename VectorT>
+  DoubleBuffer(VectorT *v1, VectorT *v2) {
+    a = xgboost::common::Span<T>(v1->data().get(), v1->size());
+    b = xgboost::common::Span<T>(v2->data().get(), v2->size());
+    buff.d_buffers[0] = v1->data().get();
+    buff.d_buffers[1] = v2->data().get();
+    buff.selector = 0;
+  }
 
   size_t Size() const {
     CHECK_EQ(a.size(), b.size());
@@ -357,6 +411,20 @@ class DoubleBuffer {
  */
 template <typename T>
 void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<T> src) {
+  CHECK_EQ(dst->size(), src.size());
+  dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
+                                cudaMemcpyDeviceToHost));
+}
+
+/**
+ * \brief Copies const device span to std::vector.
+ *
+ * \tparam  T Generic type parameter.
+ * \param [in,out]  dst Copy destination.
+ * \param           src Copy source. Must be device memory.
+ */
+template <typename T>
+void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> src) {
   CHECK_EQ(dst->size(), src.size());
   dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
                                 cudaMemcpyDeviceToHost));
@@ -1132,6 +1200,7 @@ class AllReducer {
    * safe) using the master thread. Uses naive reduce algorithm for local
    * threads, don't expect this to scale.*/
   void HostMaxAllReduce(std::vector<size_t> *p_data) {
+#ifdef XGBOOST_USE_NCCL
     auto &data = *p_data;
     // Wait in case some other thread is accessing host_data
 #pragma omp barrier
@@ -1162,6 +1231,7 @@ class AllReducer {
     for (auto i = 0ull; i < data.size(); i++) {
       data[i] = host_data[i];
     }
+#endif
   }
 };
 
