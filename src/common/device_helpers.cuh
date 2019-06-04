@@ -225,6 +225,67 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
 }
 
+class MemoryLogger {
+  size_t currently_allocated_bytes{0};
+  size_t peak_allocated_bytes{0};
+  size_t num_allocations{0};
+  size_t num_deallocations{0};
+  std::map<void *, size_t> allocations;
+  bool should_log{false};  // Keep this state because the global console logger
+                           // can be destructed before this object
+
+public:
+  void RegisterAllocation(void *ptr, size_t n) {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    allocations[ptr] = n;
+    currently_allocated_bytes += n;
+    peak_allocated_bytes =
+      std::max(peak_allocated_bytes, currently_allocated_bytes);
+    num_allocations++;
+  }
+  void RegisterDeallocation(void *ptr) {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    num_deallocations++;
+    currently_allocated_bytes -= allocations[ptr];
+    allocations.erase(ptr);
+  }
+  void Log() {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    LOG(CONSOLE) << "======== Global Device Memory Allocations: "
+      << " ========";
+    LOG(CONSOLE) << "Peak memory usage: " << peak_allocated_bytes / 1000000
+      << "mb";
+    LOG(CONSOLE) << "Number of allocations: " << num_allocations;
+  }
+};
+
+inline MemoryLogger &GlobalMemoryLogger() {
+  static MemoryLogger memory_logger;
+  return memory_logger;
+}
+
+template <class T>
+struct XGBDeviceAllocator : thrust::device_allocator<T> {
+  using super_t = thrust::device_allocator<T>;
+  using pointer = thrust::device_ptr<T>;
+  pointer allocate(size_t n) {
+    pointer ptr = super_t::allocate(n);
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n);
+    return ptr;
+  }
+  void deallocate(pointer ptr, size_t n) {
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get());
+    return super_t::deallocate(ptr, n);
+  }
+};
+
+/** \brief Specialisation of thrust device vector using custom allocator. */
+template <typename T>
+using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
+
 
 /**
  * \brief A double buffer, useful for algorithms like sort.
@@ -335,10 +396,9 @@ class BulkAllocator {
   }
 
   char *AllocateDevice(int device_idx, size_t bytes) {
-    char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaMalloc(&ptr, bytes));
-    return ptr;
+    XGBDeviceAllocator<char> allocator;
+    return allocator.allocate(bytes).get();
   }
 
   template <typename T>
@@ -383,7 +443,8 @@ class BulkAllocator {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
       if (!(d_ptr_[i] == nullptr)) {
         safe_cuda(cudaSetDevice(device_idx_[i]));
-        safe_cuda(cudaFree(d_ptr_[i]));
+        XGBDeviceAllocator<char> allocator;
+        allocator.deallocate(thrust::device_ptr<char>(d_ptr_[i]), size_[i]);
         d_ptr_[i] = nullptr;
       }
     }
@@ -453,14 +514,17 @@ struct CubMemory {
 
   void Free() {
     if (this->IsAllocated()) {
-      safe_cuda(cudaFree(d_temp_storage));
+      XGBDeviceAllocator<uint8_t> allocator;
+      allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
+        temp_storage_bytes);
     }
   }
 
   void LazyAllocate(size_t num_bytes) {
     if (num_bytes > temp_storage_bytes) {
       Free();
-      safe_cuda(cudaMalloc(&d_temp_storage, num_bytes));
+      XGBDeviceAllocator<uint8_t> allocator;
+      d_temp_storage = static_cast<void *>(allocator.allocate(num_bytes).get());
       temp_storage_bytes = num_bytes;
     }
   }
