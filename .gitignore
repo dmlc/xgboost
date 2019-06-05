@@ -15,7 +15,6 @@
 *.Rcheck
 *.rds
 *.tar.gz
-*conf
 *buffer
 *model
 *pyc
@@ -65,7 +64,6 @@ nb-configuration*
 .pydevproject
 .settings/
 build
-config.mk
 /xgboost
 *.data
 build_plugin
