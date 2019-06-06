@@ -612,6 +612,8 @@ class LearnerImpl : public Learner {
     tparam_.tree_method = TreeMethod::kAuto;
 
     if (rabit::IsDistributed()) {
+      // TODO(chenqin) : fix this missing
+      tparam_.dsplit = DataSplitMode::kRow;
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
@@ -718,7 +720,7 @@ class LearnerImpl : public Learner {
       num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
-    printf("[%d] num features\n", rabit::GetRank());
+    //printf("[%d] num features\n", rabit::GetRank());
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;

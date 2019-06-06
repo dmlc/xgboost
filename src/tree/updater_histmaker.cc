@@ -130,6 +130,9 @@ class HistMaker: public BaseMaker {
       (*p_tree)[i].SetLeaf(0.0f, 0);
     }
 
+    //printf("max_depth %d \n", param_.max_depth);
+    param_.max_depth = 5;
+
     for (int depth = 0; depth < param_.max_depth; ++depth) {
       // reset and propose candidate split
       this->ResetPosAndPropose(gpair, p_fmat, fwork_set_, *p_tree);

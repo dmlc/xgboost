@@ -204,7 +204,7 @@ void CLITrain(const CLIParam& param) {
 
     if (version % 2 == 0) {
       LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
-      printf("[%d] i %d version %d round %d\n", rabit::GetRank(), i, version, param.num_round);
+      //printf("[%d] i %d version %d round %d\n", rabit::GetRank(), i, version, param.num_round);
       learner->UpdateOneIter(i, dtrain.get());
       if (learner->AllowLazyCheckPoint()) {
         rabit::LazyCheckPoint(learner.get());

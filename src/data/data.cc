@@ -226,7 +226,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
-  printf("[%d] features %d\n", rabit::GetRank(), dmat->Info().num_col_);
+  //printf("[%d] features %d\n", rabit::GetRank(), dmat->Info().num_col_);
   //rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
   dmat->Info().num_col_ = 127;
   // backward compatiblity code.
