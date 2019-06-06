@@ -9,6 +9,10 @@ if (MSVC)
   cmake_minimum_required(VERSION 3.11)
 endif (MSVC)
 
+if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+  message(FATAL_ERROR "GCC version must be at least 5.0!")
+endif()
+
 set_default_configuration_release()
 
 #-- Options
