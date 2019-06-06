@@ -256,7 +256,6 @@ int XGDMatrixCreateFromDataIter(
     const char *cache_info,
     DMatrixHandle *out) {
   API_BEGIN();
-
   std::string scache;
   if (cache_info != nullptr) {
     scache = cache_info;
@@ -265,6 +264,30 @@ int XGDMatrixCreateFromDataIter(
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
   API_END();
 }
+
+XGB_DLL int XGDMatrixCreateFromCallBackDirect(
+    DataIterHandle data_handle, XGBCallbackSetDataDirect* callback,
+    DMatrixHandle* out, size_t num_rows, size_t num_elements,
+    size_t num_columns) {
+  API_BEGIN();
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  auto& offset_vec = source->page_.offset;
+  auto& data_vec = source->page_.data;
+
+  offset_vec.Resize(num_rows + 1);
+  data_vec.Resize(num_elements);
+  static_assert(
+      sizeof(DataElement) == sizeof(xgboost::Entry),
+      "This API function relies on the internal structure of xgboost::Entry");
+  (*callback)(data_handle, offset_vec.HostVector().data(),
+              reinterpret_cast<DataElement*>(data_vec.HostVector().data()));
+  source->info.num_row_ = num_rows;
+  source->info.num_col_ = num_columns;
+  source->info.num_nonzero_ = num_elements;
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,

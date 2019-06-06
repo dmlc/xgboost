@@ -128,6 +128,39 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     const char* cache_info,
     DMatrixHandle *out);
 
+
+/** \brief Data structure representing an internal DMatrix element in CSR format. */
+typedef struct {
+  uint32_t index;
+  float fvalue;
+} DataElement;
+
+/** \brief User-defined callback function for creating DMatrix. The externally
+ * defined function should set the offsets and elements in CSR format. **/
+XGB_EXTERN_C typedef int XGBCallbackSetDataDirect(  // NOLINT(*)
+    DataIterHandle data_handle, size_t *offset, DataElement *elements);
+
+/**
+ * \brief Allows external libraries to initialise a simple in memory DMatrix by
+ * providing a callback function that copies the data. Unlike
+ * XGDMatrixCreateFromDataIter, this function is designed to use no extra memory
+ * for staging. See demo/c_api/ for an example
+ *
+ * \param data_handle This should be a pointer to your external data
+ * structure, it will be provided as an argument to the callback function
+ * \param callback Function pointer to externally defined callback.
+ * \param out The output DMatrix
+ * \param num_rows Number of rows.
+ * \param num_elements Number of elements.
+ * \param num_columns Number of columns.
+ *
+ * \return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixCreateFromCallBackDirect(
+    DataIterHandle data_handle, XGBCallbackSetDataDirect *callback,
+    DMatrixHandle *out, size_t num_rows, size_t num_elements,
+    size_t num_columns);
+
 /*!
  * \brief create a matrix content from CSR format
  * \param indptr pointer to row headers

@@ -3,7 +3,7 @@ TGT=c-api-demo
 
 cc=cc
 CFLAGS ?=-O3
-XGBOOST_ROOT ?=../..
+XGBOOST_ROOT ?=../../..
 INCLUDE_DIR=-I$(XGBOOST_ROOT)/include -I$(XGBOOST_ROOT)/dmlc-core/include -I$(XGBOOST_ROOT)/rabit/include
 LIB_DIR=-L$(XGBOOST_ROOT)/lib
 
