@@ -607,7 +607,9 @@ class LearnerImpl : public Learner {
       return;
     }
 
-    const TreeMethod current_tree_method = tparam_.tree_method;
+    const TreeMethod current_tree_method = TreeMethod::kAuto;
+    // TODO(chenqin) : fix this missing
+    tparam_.tree_method = TreeMethod::kAuto;
 
     if (rabit::IsDistributed()) {
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
@@ -716,6 +718,7 @@ class LearnerImpl : public Learner {
       num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
+    printf("[%d] num features\n", rabit::GetRank());
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;

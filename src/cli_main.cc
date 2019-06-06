@@ -201,8 +201,10 @@ void CLITrain(const CLIParam& param) {
   const double start = dmlc::GetTime();
   for (int i = version / 2; i < param.num_round; ++i) {
     double elapsed = dmlc::GetTime() - start;
+
     if (version % 2 == 0) {
       LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
+      printf("[%d] i %d version %d round %d\n", rabit::GetRank(), i, version, param.num_round);
       learner->UpdateOneIter(i, dtrain.get());
       if (learner->AllowLazyCheckPoint()) {
         rabit::LazyCheckPoint(learner.get());

@@ -84,6 +84,7 @@ build_tests
 
 .DS_Store
 lib/
+.vscode/
 
 # spark
 metastore_db

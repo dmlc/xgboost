@@ -370,6 +370,7 @@ class CQHistMaker: public HistMaker {
     };
     // sync the histogram
     // if it is C++11, use lazy evaluation for Allreduce
+    printf("[%d] sync histogram\n", rabit::GetRank());
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                              this->wspace_.hset[0].data.size(), lazy_get_hist);
   }

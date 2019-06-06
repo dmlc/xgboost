@@ -1,4 +1,5 @@
 # Originally an example in demo/regression/
+tree_method=approx
 booster = gbtree
 objective = reg:linear
 eta = 1.0

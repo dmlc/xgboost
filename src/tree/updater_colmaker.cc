@@ -858,6 +858,7 @@ class DistColMaker : public ColMaker {
 
       bitmap_.InitFromBool(boolmap_);
       // communicate bitmap
+      printf("[%d] InitFromBool\n", rabit::GetRank());
       rabit::Allreduce<rabit::op::BitOR>(dmlc::BeginPtr(bitmap_.data), bitmap_.data.size());
       // get the new position
       const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
