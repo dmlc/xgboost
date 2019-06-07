@@ -291,7 +291,7 @@ class DenseCuts  : public CutsBuilder {
  *  \return The row stride across the entire dataset.
  */
 size_t DeviceSketch
-  (const tree::TrainParam& param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
+  (const tree::TrainParam& param, const GenericParameter &learner_param, int gpu_batch_nrows,
    DMatrix* dmat, HistogramCuts* hmat);
 
 

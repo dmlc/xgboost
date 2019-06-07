@@ -189,8 +189,8 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_c
 
 gbm::GBTreeModel CreateTestModel();
 
-inline LearnerTrainParam CreateEmptyGenericParam(int gpu_id, int n_gpus) {
-  xgboost::LearnerTrainParam tparam;
+inline GenericParameter CreateEmptyGenericParam(int gpu_id, int n_gpus) {
+  xgboost::GenericParameter tparam;
   std::vector<std::pair<std::string, std::string>> args {
     {"gpu_id", std::to_string(gpu_id)},
     {"n_gpus", std::to_string(n_gpus)}};

@@ -20,7 +20,12 @@ DMLC_REGISTRY_FILE_TAG(updater_sync);
  */
 class TreeSyncher: public TreeUpdater {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {}
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) override {}
+
+  char const* Name() const override {
+    return "prune";
+  }
 
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,

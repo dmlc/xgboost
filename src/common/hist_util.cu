@@ -402,7 +402,7 @@ struct GPUSketcher {
 
   void SketchBatch(const SparsePage &batch, const MetaInfo &info) {
     GPUDistribution dist =
-      GPUDistribution::Block(GPUSet::All(learner_param_.gpu_id, learner_param_.n_gpus,
+      GPUDistribution::Block(GPUSet::All(generic_param_.gpu_id, generic_param_.n_gpus,
                                          batch.Size()));
 
     // create device shards
@@ -429,8 +429,8 @@ struct GPUSketcher {
     }
   }
 
-  GPUSketcher(const tree::TrainParam &param, const LearnerTrainParam &learner_param, int gpu_nrows)
-    : param_(param), learner_param_(learner_param), gpu_batch_nrows_(gpu_nrows), row_stride_(0) {
+  GPUSketcher(const tree::TrainParam &param, const GenericParameter &generic_param, int gpu_nrows)
+    : param_(param), generic_param_(generic_param), gpu_batch_nrows_(gpu_nrows), row_stride_(0) {
   }
 
   /* Builds the sketches on the GPU for the dmatrix and returns the row stride
@@ -452,14 +452,14 @@ struct GPUSketcher {
  private:
   std::vector<std::unique_ptr<DeviceShard>> shards_;
   const tree::TrainParam &param_;
-  const LearnerTrainParam &learner_param_;
+  const GenericParameter &generic_param_;
   int gpu_batch_nrows_;
   size_t row_stride_;
   std::unique_ptr<SketchContainer> sketch_container_;
 };
 
 size_t DeviceSketch
-  (const tree::TrainParam &param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
+  (const tree::TrainParam &param, const GenericParameter &learner_param, int gpu_batch_nrows,
    DMatrix *dmat, HistogramCuts *hmat) {
   GPUSketcher sketcher(param, learner_param, gpu_batch_nrows);
   // We only need to return the result in HistogramCuts container, so it is safe to

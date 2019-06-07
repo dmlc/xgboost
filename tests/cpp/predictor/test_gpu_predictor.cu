@@ -2,10 +2,12 @@
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */
-#include <dmlc/logging.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/c_api.h>
 #include <xgboost/predictor.h>
+#include <xgboost/logging.h>
+#include <xgboost/learner.h>
+
 #include <string>
 #include "gtest/gtest.h"
 #include "../helpers.h"
@@ -20,8 +22,14 @@ inline void CheckCAPICall(int ret) {
 }  // namespace anonymous
 #endif
 
-extern const std::map<std::string, std::string>&
-QueryBoosterConfigurationArguments(BoosterHandle handle);
+const std::map<std::string, std::string>&
+QueryBoosterConfigurationArguments(BoosterHandle handle) {
+  CHECK_NE(handle, static_cast<void*>(nullptr));
+  auto* bst = static_cast<xgboost::Learner*>(handle);
+  bst->Configure();
+  return bst->GetConfigurationArguments();
+}
+
 
 namespace xgboost {
 namespace predictor {
@@ -35,8 +43,8 @@ TEST(gpu_predictor, Test) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
 
-  gpu_predictor->Init({}, {});
-  cpu_predictor->Init({}, {});
+  gpu_predictor->Configure({}, {});
+  cpu_predictor->Configure({}, {});
 
   int n_row = 5;
   int n_col = 5;
@@ -56,35 +64,6 @@ TEST(gpu_predictor, Test) {
   for (int i = 0; i < gpu_out_predictions.Size(); i++) {
     ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
   }
-  // Test predict instance
-  const auto &batch = *(*dmat)->GetRowBatches().begin();
-  for (int i = 0; i < batch.Size(); i++) {
-    std::vector<float> gpu_instance_out_predictions;
-    std::vector<float> cpu_instance_out_predictions;
-    cpu_predictor->PredictInstance(batch[i], &cpu_instance_out_predictions,
-                                   model);
-    gpu_predictor->PredictInstance(batch[i], &gpu_instance_out_predictions,
-                                   model);
-    ASSERT_EQ(gpu_instance_out_predictions[0], cpu_instance_out_predictions[0]);
-  }
-
-  // Test predict leaf
-  std::vector<float> gpu_leaf_out_predictions;
-  std::vector<float> cpu_leaf_out_predictions;
-  cpu_predictor->PredictLeaf((*dmat).get(), &cpu_leaf_out_predictions, model);
-  gpu_predictor->PredictLeaf((*dmat).get(), &gpu_leaf_out_predictions, model);
-  for (int i = 0; i < gpu_leaf_out_predictions.size(); i++) {
-    ASSERT_EQ(gpu_leaf_out_predictions[i], cpu_leaf_out_predictions[i]);
-  }
-
-  // Test predict contribution
-  std::vector<float> gpu_out_contribution;
-  std::vector<float> cpu_out_contribution;
-  cpu_predictor->PredictContribution((*dmat).get(), &cpu_out_contribution, model);
-  gpu_predictor->PredictContribution((*dmat).get(), &gpu_out_contribution, model);
-  for (int i = 0; i < gpu_out_contribution.size(); i++) {
-    ASSERT_EQ(gpu_out_contribution[i], cpu_out_contribution[i]);
-  }
 
   delete dmat;
 }
@@ -93,7 +72,7 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   auto lparam = CreateEmptyGenericParam(0, 1);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
-  gpu_predictor->Init({}, {});
+  gpu_predictor->Configure({}, {});
   gbm::GBTreeModel model = CreateTestModel();
   int n_col = 3;
   model.param.num_feature = n_col;
@@ -107,38 +86,6 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_);
   for (const auto& v : out_predictions.HostVector()) {
     ASSERT_EQ(v, 1.5);
-  }
-
-  // Test predict leaf
-  std::vector<float> leaf_out_predictions;
-  gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
-  EXPECT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
-  for (const auto& v : leaf_out_predictions) {
-    ASSERT_EQ(v, 0);
-  }
-
-  // Test predict contribution
-  std::vector<float> out_contribution;
-  gpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
-  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_ * (n_col + 1));
-  for (int i = 0; i < out_contribution.size(); i++) {
-    if (i % (n_col + 1) == n_col) {
-      ASSERT_EQ(out_contribution[i], 1.5);
-    } else {
-      ASSERT_EQ(out_contribution[i], 0);
-    }
-  }
-
-  // Test predict contribution (approximate method)
-  std::vector<float> out_contribution_approximate;
-  gpu_predictor->PredictContribution(dmat.get(), &out_contribution_approximate, model, true);
-  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_ * (n_col + 1));
-  for (int i = 0; i < out_contribution.size(); i++) {
-    if (i % (n_col + 1) == n_col) {
-      ASSERT_EQ(out_contribution[i], 1.5);
-    } else {
-      ASSERT_EQ(out_contribution[i], 0);
-    }
   }
 }
 
@@ -231,7 +178,7 @@ TEST(gpu_predictor, MGPU_Test) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
 
-  cpu_predictor->Init({}, {});
+  cpu_predictor->Configure({}, {});
 
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
@@ -263,7 +210,7 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
 
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  gpu_predictor->Init({}, {});
+  gpu_predictor->Configure({}, {});
 
   gbm::GBTreeModel model = CreateTestModel();
   model.param.num_feature = 3;

@@ -13,7 +13,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 namespace xgboost {
 GradientBooster* GradientBooster::Create(
     const std::string& name,
-    LearnerTrainParam const* learner_param,
+    GenericParameter const* learner_param,
     const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
     bst_float base_margin) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);

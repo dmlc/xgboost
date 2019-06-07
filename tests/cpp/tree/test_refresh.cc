@@ -37,7 +37,7 @@ TEST(Updater, Refresh) {
   tree.Stat(cleft).base_weight = 1.2;
   tree.Stat(cright).base_weight = 1.3;
 
-  refresher->Init(cfg);
+  refresher->Configure(cfg);
   refresher->Update(&gpair, dmat->get(), trees);
 
   bst_float constexpr kEps = 1e-6;

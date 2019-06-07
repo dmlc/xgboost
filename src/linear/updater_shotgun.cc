@@ -14,7 +14,7 @@ DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Init(const std::vector<std::pair<std::string, std::string> > &args) override {
+  void Configure(Args const& args) override {
     param_.InitAllowUnknown(args);
     if (param_.feature_selector != kCyclic &&
         param_.feature_selector != kShuffle) {

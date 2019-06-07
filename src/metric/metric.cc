@@ -12,7 +12,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
 }
 
 namespace xgboost {
-Metric* Metric::Create(const std::string& name, LearnerTrainParam const* tparam) {
+Metric* Metric::Create(const std::string& name, GenericParameter const* tparam) {
   std::string buf = name;
   std::string prefix = name;
   const char* param;

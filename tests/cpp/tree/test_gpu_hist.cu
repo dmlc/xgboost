@@ -384,10 +384,11 @@ void TestHistogramIndexImpl(int n_gpus) {
     {"max_leaves", "0"}
   };
 
-  LearnerTrainParam learner_param(CreateEmptyGenericParam(0, n_gpus));
-  hist_maker.Init(training_params, &learner_param);
+  GenericParameter generic_param(CreateEmptyGenericParam(0, n_gpus));
+  hist_maker.Configure(training_params, &generic_param);
+
   hist_maker.InitDataOnce(hist_maker_dmat.get());
-  hist_maker_ext.Init(training_params, &learner_param);
+  hist_maker_ext.Configure(training_params, &generic_param);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
   ASSERT_EQ(hist_maker.shards_.size(), hist_maker_ext.shards_.size());

@@ -14,8 +14,8 @@ TEST(Monitor, Logging) {
         monitor_.Stop("basic");
       };
 
-  std::map<std::string, std::string> args = {std::make_pair("verbosity", "3")};
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  Args args = {std::make_pair("verbosity", "3")};
+  ConsoleLogger::Configure(args);
   testing::internal::CaptureStderr();
   run_monitor();
   std::string output = testing::internal::GetCapturedStderr();
@@ -23,7 +23,7 @@ TEST(Monitor, Logging) {
 
   // Monitor only prints messages when set to DEBUG.
   args = {std::make_pair("verbosity", "2")};
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure(args);
   testing::internal::CaptureStderr();
   run_monitor();
   output = testing::internal::GetCapturedStderr();

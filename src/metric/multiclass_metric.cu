@@ -126,7 +126,7 @@ class MultiClassMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
-      const LearnerTrainParam &tparam,
+      const GenericParameter &tparam,
       GPUSet devices,
       size_t n_class,
       const HostDeviceVector<bst_float>& weights,

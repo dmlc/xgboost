@@ -50,7 +50,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
-        << "SoftmaxMultiClassObj: label size and pred size does not match";
+        << "SoftmaxMultiClassObj: label size and pred size does not match.\n"
+        << "label.Size() * num_class: "
+        << info.labels_.Size() * static_cast<size_t>(param_.num_class) << "\n"
+        << "num_class: " << param_.num_class << "\n"
+        << "preds.Size(): " << preds.Size();
 
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);

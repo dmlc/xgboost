@@ -37,7 +37,7 @@ TEST(Updater, Prune) {
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));
-  pruner->Init(cfg);
+  pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 0.0f, 0.0f);

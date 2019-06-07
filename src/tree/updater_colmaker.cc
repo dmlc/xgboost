@@ -25,10 +25,14 @@ DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
+  }
+
+  char const* Name() const override {
+    return "grow_colmaker";
   }
 
   void Update(HostDeviceVector<GradientPair> *gpair,
@@ -768,13 +772,18 @@ class ColMaker: public TreeUpdater {
 // distributed column maker
 class DistColMaker : public ColMaker {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
-    pruner_->Init(args);
+    pruner_->Configure(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
   }
+
+  char const* Name() const override {
+    return "distcol";
+  }
+
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {

@@ -7,7 +7,7 @@
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
 
@@ -47,7 +47,7 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  xgboost::LearnerTrainParam lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 

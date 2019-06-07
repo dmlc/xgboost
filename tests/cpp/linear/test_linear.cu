@@ -11,7 +11,7 @@ TEST(Linear, GPUCoordinate) {
   lparam.n_gpus = 1;
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
-  updater->Init({{"eta", "1."}});
+  updater->Configure({{"eta", "1."}});
   xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
       (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
@@ -33,7 +33,7 @@ TEST(Linear, MGPU_GPUCoordinate) {
     lparam.n_gpus = -1;
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
         xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
-    updater->Init({{"eta", "1."}});
+    updater->Configure({{"eta", "1."}});
     xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
         (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
     xgboost::gbm::GBLinearModel model;
@@ -52,7 +52,7 @@ TEST(Linear, MGPU_GPUCoordinate) {
     auto mat = xgboost::CreateDMatrix(10, 10, 0);
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
         xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));
-    updater->Init({{"eta", "1."}});
+    updater->Configure({{"eta", "1."}});
     xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
         (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
     xgboost::gbm::GBLinearModel model;

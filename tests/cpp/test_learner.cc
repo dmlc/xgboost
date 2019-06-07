@@ -14,7 +14,7 @@ TEST(Learner, Basic) {
   auto mat_ptr = CreateDMatrix(10, 10, 0);
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->Configure(args);
+  learner->SetParams(args);
 
   delete mat_ptr;
 }
@@ -46,9 +46,7 @@ TEST(Learner, CheckGroup) {
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->Configure({Arg{"objective", "rank:pairwise"}});
-  learner->InitModel();
-
+  learner->SetParams({Arg{"objective", "rank:pairwise"}});
   EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat.get()));
 
   group.resize(kNumGroups+1);
@@ -77,9 +75,32 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->Configure({Arg{"objective", "binary:logistic"}});
-  learner->InitModel();
+  learner->SetParams({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
   learner->UpdateOneIter(0, dmat.get());
+}
+
+TEST(Learner, Configuration) {
+  std::string const emetric = "eval_metric";
+  {
+    std::unique_ptr<Learner> learner { Learner::Create({nullptr}) };
+    learner->SetParam(emetric, "auc");
+    learner->SetParam(emetric, "rmsle");
+    learner->SetParam("foo", "bar");
+
+    // eval_metric is not part of configuration
+    auto attr_names = learner->GetConfigurationArguments();
+    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.find(emetric), attr_names.cend());
+    ASSERT_EQ(attr_names.at("foo"), "bar");
+  }
+
+  {
+    std::unique_ptr<Learner> learner { Learner::Create({nullptr}) };
+    learner->SetParams({{"foo", "bar"}, {emetric, "auc"}, {emetric, "entropy"}, {emetric, "KL"}});
+    auto attr_names = learner->GetConfigurationArguments();
+    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.at("foo"), "bar");
+  }
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -98,13 +119,12 @@ TEST(Learner, IO) {
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
 
   std::unique_ptr<Learner> learner {Learner::Create(mat)};
-  learner->Configure({Arg{"tree_method", "auto"},
+  learner->SetParams({Arg{"tree_method", "auto"},
                       Arg{"predictor", "gpu_predictor"},
                       Arg{"n_gpus", "-1"}});
-  learner->InitModel();
   learner->UpdateOneIter(0, p_dmat.get());
-  ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, -1);
+  ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetGenericParameter().n_gpus, -1);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model.bst";
@@ -117,8 +137,8 @@ TEST(Learner, IO) {
 
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
   learner->Load(fi.get());
-  ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 0);
+  ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+  ASSERT_EQ(learner->GetGenericParameter().n_gpus, 0);
 
   delete pp_dmat;
 }
@@ -137,59 +157,53 @@ TEST(Learner, GPUConfiguration) {
   p_dmat->Info().labels_.HostVector() = labels;
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"booster", "gblinear"},
+    learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
-    learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"tree_method", "gpu_exact"}});
-    learner->InitModel();
+    learner->SetParams({Arg{"tree_method", "gpu_exact"}});
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"tree_method", "gpu_hist"}});
-    learner->InitModel();
+    learner->SetParams({Arg{"tree_method", "gpu_hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"tree_method", "hist"}});
-    learner->InitModel();
+    learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 0);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 0);
   }
   {
     // with CPU algorithm, but `n_gpus` takes priority
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"tree_method", "hist"},
+    learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"n_gpus", "1"}});
-    learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
     // XGBoost is only used for prediction, so tree method is not
     // specified.
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->Configure({Arg{"tree_method", "hist"},
+    learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"predictor", "gpu_predictor"}});
-    learner->InitModel();
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetLearnerTrainParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetLearnerTrainParameter().n_gpus, 1);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
 
   delete pp_dmat;

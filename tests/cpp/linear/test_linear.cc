@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  */
 #include <xgboost/linear_updater.h>
 #include "../helpers.h"
@@ -11,7 +11,7 @@ TEST(Linear, shotgun) {
   {
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
         xgboost::LinearUpdater::Create("shotgun", &lparam));
-    updater->Init({{"eta", "1."}});
+    updater->Configure({{"eta", "1."}});
     xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
         (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
     xgboost::gbm::GBLinearModel model;
@@ -26,7 +26,7 @@ TEST(Linear, shotgun) {
   {
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
         xgboost::LinearUpdater::Create("shotgun", &lparam));
-    EXPECT_ANY_THROW(updater->Init({{"feature_selector", "random"}}));
+    EXPECT_ANY_THROW(updater->Configure({{"feature_selector", "random"}}));
   }
   delete mat;
 }
@@ -36,7 +36,7 @@ TEST(Linear, coordinate) {
   auto lparam = xgboost::CreateEmptyGenericParam(0, 0);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent", &lparam));
-  updater->Init({{"eta", "1."}});
+  updater->Configure({{"eta", "1."}});
   xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
       (*mat)->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;

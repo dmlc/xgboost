@@ -236,7 +236,7 @@ class QuantileHistMock : public QuantileHistMaker {
   explicit QuantileHistMock(
       const std::vector<std::pair<std::string, std::string> >& args) :
       cfg_{args} {
-    QuantileHistMaker::Init(args);
+    QuantileHistMaker::Configure(args);
     builder_.reset(
         new BuilderMock(
             param_,

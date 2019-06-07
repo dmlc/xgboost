@@ -26,7 +26,7 @@ namespace xgboost {
  */
 class Metric {
  protected:
-  LearnerTrainParam const* tparam_;
+  GenericParameter const* tparam_;
 
  public:
   /*!
@@ -35,17 +35,6 @@ class Metric {
    */
   virtual void Configure(
       const std::vector<std::pair<std::string, std::string> >& args) {}
-  /*!
-   * \brief set configuration from pair iterators.
-   * \param begin The beginning iterator.
-   * \param end The end iterator.
-   * \tparam PairIter iterator<std::pair<std::string, std::string> >
-   */
-  template<typename PairIter>
-  inline void Configure(PairIter begin, PairIter end) {
-    std::vector<std::pair<std::string, std::string> > vec(begin, end);
-    this->Configure(vec);
-  }
   /*!
    * \brief evaluate a specific metric
    * \param preds prediction
@@ -68,7 +57,7 @@ class Metric {
    *  and the name will be matched in the registry.
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name, LearnerTrainParam const* tparam);
+  static Metric* Create(const std::string& name, GenericParameter const* tparam);
 };
 
 /*!
