@@ -10,4 +10,4 @@ submit="python ../../dmlc-core/tracker/dmlc-submit"
 # instrument worker failure with mock=xxxx
 # check if host recovered from expectected iteration
 echo "====== 1. Fault recovery distributed test with native ======"
-$submit --cluster=local --num-workers=3 --local-num-attempt=10 ~/xgboost/xgboost machine.conf mock=0,5,0,0
+$submit --cluster=local --num-workers=10 --local-num-attempt=11 ~/xgboost/xgboost machine.conf mock=0,10,1,0 mock=1,10,1,0 mock=1,10,1,1 mock=0,10,1,0 mock=4,10,1,0 mock=9,10,1,0 mock=8,10,2,0 mock=4,10,3,0

@@ -1,7 +1,9 @@
 rm -f *.model*
 pkill xgboost
 pkill python
-cd ../../rabit/test
+cd ../../rabit
+make clean;make
+cd test
 make clean;make
 cd ../../
 make clean;make -j 4

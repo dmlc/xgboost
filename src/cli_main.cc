@@ -182,8 +182,8 @@ void CLITrain(const CLIParam& param) {
   }
   // initialize the learner.
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
-  int version = rabit::LoadCheckPoint(learner.get());
-  if (version == 0) {
+  
+  if (rabit::LoadCheckPoint(learner.get()) == 0) {
     // initialize the model if needed.
     if (param.model_in != "NULL") {
       std::unique_ptr<dmlc::Stream> fi(
@@ -199,21 +199,16 @@ void CLITrain(const CLIParam& param) {
 
   // start training.
   const double start = dmlc::GetTime();
-  for (int i = version / 2; i < param.num_round; ++i) {
+  for (int i = rabit::VersionNumber() / 2; i < param.num_round; ++i) {
     double elapsed = dmlc::GetTime() - start;
 
-    if (version % 2 == 0) {
+    if (rabit::VersionNumber() % 2 == 0) {
       LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
-      //printf("[%d] i %d version %d round %d\n", rabit::GetRank(), i, version, param.num_round);
       learner->UpdateOneIter(i, dtrain.get());
-      if (learner->AllowLazyCheckPoint()) {
-        rabit::LazyCheckPoint(learner.get());
-      } else {
-        rabit::CheckPoint(learner.get());
-      }
-      version += 1;
+      LOG(DEBUG) << "Checkpoint on rank " << rabit::GetRank();
+      rabit::CheckPoint(learner.get());
     }
-    CHECK_EQ(version, rabit::VersionNumber());
+
     std::string res = learner->EvalOneIter(i, eval_datasets, eval_data_names);
     if (rabit::IsDistributed()) {
       if (rabit::GetRank() == 0) {
@@ -234,13 +229,7 @@ void CLITrain(const CLIParam& param) {
       learner->Save(fo.get());
     }
 
-    if (learner->AllowLazyCheckPoint()) {
-      rabit::LazyCheckPoint(learner.get());
-    } else {
-      rabit::CheckPoint(learner.get());
-    }
-    version += 1;
-    CHECK_EQ(version, rabit::VersionNumber());
+    rabit::CheckPoint(learner.get());
   }
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
