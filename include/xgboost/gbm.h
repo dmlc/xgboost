@@ -147,6 +147,10 @@ class GradientBooster {
                                              bool with_stats,
                                              std::string format) const = 0;
   /*!
+   * \brief Whether the current booster use GPU.
+   */
+  virtual bool UseGPU() const = 0;
+  /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster
    * \param cache_mats The cache data matrix of the Booster.

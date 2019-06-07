@@ -180,6 +180,14 @@ class GBLinear : public GradientBooster {
     return model_.DumpModel(fmap, with_stats, format);
   }
 
+  bool UseGPU() const override {
+    if (param_.updater == "gpu_coord_descent") {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds) {
@@ -257,6 +265,7 @@ class GBLinear : public GradientBooster {
     }
     preds[gid] = psum;
   }
+
   // biase margin score
   bst_float base_margin_;
   // model field

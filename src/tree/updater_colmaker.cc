@@ -6,12 +6,13 @@
  */
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
+#include <xgboost/logging.h>
 #include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 
-#include "./param.h"
+#include "param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"
 #include "split_evaluator.h"
@@ -603,7 +604,7 @@ class ColMaker: public TreeUpdater {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
       }
       if (poption == 0) {
-        #pragma omp parallel for schedule(dynamic, batch_size)
+#pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < num_features; ++i) {
           int fid = feat_set[i];
           const int tid = omp_get_thread_num();

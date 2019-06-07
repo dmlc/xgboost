@@ -360,7 +360,9 @@ struct HostDeviceVectorImpl {
 
   void Shard(const GPUDistribution& distribution) {
     if (distribution_ == distribution) { return; }
-    CHECK(distribution_.IsEmpty());
+    CHECK(distribution_.IsEmpty())
+        << "This: " << distribution_.Devices().Size() << ", "
+        << "Others: " << distribution.Devices().Size();
     distribution_ = distribution;
     InitShards();
   }

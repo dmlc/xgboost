@@ -19,40 +19,6 @@ TEST(Learner, Basic) {
   delete mat_ptr;
 }
 
-TEST(Learner, SelectTreeMethod) {
-  using Arg = std::pair<std::string, std::string>;
-  auto mat_ptr = CreateDMatrix(10, 10, 0);
-  std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
-  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-
-  // Test if `tree_method` can be set
-  learner->Configure({Arg("tree_method", "approx")});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_histmaker,prune");
-  learner->Configure({Arg("tree_method", "exact")});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_colmaker,prune");
-  learner->Configure({Arg("tree_method", "hist")});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_quantile_histmaker");
-  learner->Configure({Arg{"booster", "dart"}, Arg{"tree_method", "hist"}});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_quantile_histmaker");
-#ifdef XGBOOST_USE_CUDA
-  learner->Configure({Arg("tree_method", "gpu_exact")});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_gpu,prune");
-  learner->Configure({Arg("tree_method", "gpu_hist")});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_gpu_hist");
-  learner->Configure({Arg{"booster", "dart"}, Arg{"tree_method", "gpu_hist"}});
-  ASSERT_EQ(learner->GetConfigurationArguments().at("updater"),
-            "grow_gpu_hist");
-#endif
-
-  delete mat_ptr;
-}
-
 TEST(Learner, CheckGroup) {
   using Arg = std::pair<std::string, std::string>;
   size_t constexpr kNumGroups = 4;
@@ -111,7 +77,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->Configure({Arg{"objective", "binary:logistic"}});
+  learner->Configure({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
   learner->InitModel();
   learner->UpdateOneIter(0, dmat.get());
 }

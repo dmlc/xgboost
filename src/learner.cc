@@ -113,68 +113,6 @@ class LearnerImpl : public Learner {
     name_gbm_ = "gbtree";
   }
 
-  static void AssertGPUSupport() {
-#ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif  // XGBOOST_USE_CUDA
-  }
-
-
-  /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters() {
-    // This method is not applicable to non-tree learners
-    if (cfg_.find("booster") != cfg_.cend() &&
-        (cfg_.at("booster") != "gbtree" && cfg_.at("booster") != "dart")) {
-      return;
-    }
-    // `updater` parameter was manually specified
-    if (cfg_.count("updater") > 0) {
-      LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
-                      "parameter. The `tree_method` parameter will be ignored. "
-                      "Incorrect sequence of updaters will produce undefined "
-                      "behavior. For common uses, we recommend using "
-                      "`tree_method` parameter instead.";
-      return;
-    }
-
-    /* Choose updaters according to tree_method parameters */
-    switch (tparam_.tree_method) {
-     case TreeMethod::kAuto:
-      // Use heuristic to choose between 'exact' and 'approx'
-      // This choice is deferred to PerformTreeMethodHeuristic().
-      break;
-     case TreeMethod::kApprox:
-      cfg_["updater"] = "grow_histmaker,prune";
-      break;
-     case TreeMethod::kExact:
-      cfg_["updater"] = "grow_colmaker,prune";
-      break;
-     case TreeMethod::kHist:
-      LOG(INFO) <<
-          "Tree method is selected to be 'hist', which uses a "
-          "single updater grow_quantile_histmaker.";
-      cfg_["updater"] = "grow_quantile_histmaker";
-      break;
-     case TreeMethod::kGPUExact:
-      this->AssertGPUSupport();
-      cfg_["updater"] = "grow_gpu,prune";
-      if (cfg_.count("predictor") == 0) {
-        cfg_["predictor"] = "gpu_predictor";
-      }
-      break;
-     case TreeMethod::kGPUHist:
-      this->AssertGPUSupport();
-      cfg_["updater"] = "grow_gpu_hist";
-      if (cfg_.count("predictor") == 0) {
-        cfg_["predictor"] = "gpu_predictor";
-      }
-      break;
-     default:
-      LOG(FATAL) << "Unknown tree_method ("
-                 << static_cast<int>(tparam_.tree_method) << ") detected";
-    }
-  }
-
   void ConfigureObjective() {
     if (cfg_.count("num_class") != 0) {
       cfg_["num_output_group"] = cfg_["num_class"];
@@ -191,9 +129,6 @@ class LearnerImpl : public Learner {
 
     if (cfg_.count("objective") == 0) {
       cfg_["objective"] = "reg:squarederror";
-    }
-    if (cfg_.count("booster") == 0) {
-      cfg_["booster"] = "gbtree";
     }
   }
 
@@ -231,13 +166,12 @@ class LearnerImpl : public Learner {
     }
 
     ConfigureObjective();
-    ConfigureUpdaters();
+    name_gbm_ = tparam_.booster;
 
     // FIXME(trivialfis): So which one should go first? Init or Configure?
     if (!this->ModelInitialized()) {
       mparam_.InitAllowUnknown(args);
       name_obj_ = cfg_["objective"];
-      name_gbm_ = cfg_["booster"];
       // set seed only before the model is initialized
       common::GlobalRandom().seed(tparam_.seed);
     }
@@ -263,18 +197,11 @@ class LearnerImpl : public Learner {
   // Configuration can only be done after data is known
   void ConfigurationWithKnownData(DMatrix* dmat) {
     CHECK(ModelInitialized())
-        << "Always call InitModel or Load before any evaluation.";
+        << " Internal Error: Always call InitModel or Load before any evaluation.";
     this->ValidateDMatrix(dmat);
-    // Configure GPU parameters
-    // FIXME(trivialfis): How do we know dependent parameters are all set?
-    if (tparam_.tree_method == TreeMethod::kGPUHist ||
-        tparam_.tree_method == TreeMethod::kGPUExact ||
-        (cfg_.find("updater") != cfg_.cend() && cfg_.at("updater") == "gpu_coord_descent") ||
-        (cfg_.find("predictor") != cfg_.cend() &&
-         cfg_.at("predictor") == "gpu_predictor")) {
-      if (cfg_.find("n_gpus") == cfg_.cend()) {
-        tparam_.n_gpus = 1;
-      }
+    CHECK(this->gbm_) << " Internal: GBM is not set";
+    if (this->gbm_->UseGPU() && cfg_.find("n_gpus") == cfg_.cend()) {
+      tparam_.n_gpus = 1;
     }
   }
 
@@ -443,13 +370,26 @@ class LearnerImpl : public Learner {
     }
   }
 
+  void CheckDataSplitMode() {
+    if (rabit::IsDistributed()) {
+      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
+        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
+      if (tparam_.dsplit == DataSplitMode::kCol) {
+        // 'distcol' updater hidden until it becomes functional again
+        // See discussion at https://github.com/dmlc/xgboost/issues/1832
+        LOG(FATAL) << "Column-wise data split is currently not supported.";
+      }
+    }
+  }
+
   void UpdateOneIter(int iter, DMatrix* train) override {
     monitor_.Start("UpdateOneIter");
 
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->PerformTreeMethodHeuristic(train);
+    // this->PerformTreeMethodHeuristic(train);
+    this->CheckDataSplitMode();
     this->ConfigurationWithKnownData(train);
 
     monitor_.Start("PredictRaw");
@@ -468,7 +408,8 @@ class LearnerImpl : public Learner {
     if (tparam_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam_.seed * kRandSeedMagic + iter);
     }
-    this->PerformTreeMethodHeuristic(train);
+    this->CheckDataSplitMode();
+    // this->PerformTreeMethodHeuristic(train);
     this->ConfigurationWithKnownData(train);
 
     gbm_->DoBoost(train, in_gpair);
@@ -573,108 +514,6 @@ class LearnerImpl : public Learner {
   }
 
  protected:
-  // Revise `tree_method` and `updater` parameters after seeing the training
-  // data matrix
-  inline void PerformTreeMethodHeuristic(DMatrix* p_train) {
-    if (name_gbm_ != "gbtree" || cfg_.count("updater") > 0) {
-      // 1. This method is not applicable for non-tree learners
-      // 2. This method is disabled when `updater` parameter is explicitly
-      //    set, since only experts are expected to do so.
-      return;
-    }
-
-    const TreeMethod current_tree_method = tparam_.tree_method;
-
-    if (rabit::IsDistributed()) {
-      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
-        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
-      if (tparam_.dsplit == DataSplitMode::kCol) {
-        // 'distcol' updater hidden until it becomes functional again
-        // See discussion at https://github.com/dmlc/xgboost/issues/1832
-        LOG(FATAL) << "Column-wise data split is currently not supported.";
-      }
-      switch (current_tree_method) {
-       case TreeMethod::kAuto:
-        LOG(WARNING) <<
-            "Tree method is automatically selected to be 'approx' "
-            "for distributed training.";
-        break;
-       case TreeMethod::kApprox:
-       case TreeMethod::kHist:
-        // things are okay, do nothing
-        break;
-       case TreeMethod::kExact:
-        LOG(WARNING) << "Tree method was set to be "
-                     << "exact"
-                     << "', but only 'approx' and 'hist' is available for distributed "
-                        "training. The `tree_method` parameter is now being "
-                        "changed to 'approx'";
-        break;
-       case TreeMethod::kGPUExact:
-       case TreeMethod::kGPUHist:
-        LOG(FATAL) << "Distributed training is not available with GPU algoritms";
-        break;
-       default:
-        LOG(FATAL) << "Unknown tree_method ("
-                   << static_cast<int>(current_tree_method) << ") detected";
-      }
-      if (current_tree_method != TreeMethod::kHist) {
-        LOG(WARNING) << "Tree method is automatically selected to be 'approx'"
-                        " for distributed training.";
-        tparam_.tree_method = TreeMethod::kApprox;
-      } else {
-        LOG(WARNING) << "Tree method is specified to be 'hist'"
-                        " for distributed training.";
-        tparam_.tree_method = TreeMethod::kHist;
-      }
-    } else if (!p_train->SingleColBlock()) {
-      /* Some tree methods are not available for external-memory DMatrix */
-      switch (current_tree_method) {
-       case TreeMethod::kAuto:
-        LOG(WARNING) << "Tree method is automatically set to 'approx' "
-                        "since external-memory data matrix is used.";
-        break;
-       case TreeMethod::kApprox:
-        // things are okay, do nothing
-        break;
-       case TreeMethod::kExact:
-        LOG(WARNING) << "Tree method was set to be 'exact', "
-                        "but currently we are only able to proceed with "
-                        "approximate algorithm ('approx') because external-"
-                        "memory data matrix is used.";
-        break;
-       case TreeMethod::kHist:
-        // things are okay, do nothing
-        break;
-       case TreeMethod::kGPUExact:
-       case TreeMethod::kGPUHist:
-        LOG(FATAL)
-          << "External-memory data matrix is not available with GPU algorithms";
-        break;
-       default:
-        LOG(FATAL) << "Unknown tree_method ("
-                   << static_cast<int>(current_tree_method) << ") detected";
-      }
-      tparam_.tree_method = TreeMethod::kApprox;
-    } else if (p_train->Info().num_row_ >= (4UL << 20UL)
-               && current_tree_method == TreeMethod::kAuto) {
-      /* Choose tree_method='approx' automatically for large data matrix */
-      LOG(WARNING) << "Tree method is automatically selected to be "
-                      "'approx' for faster speed. To use old behavior "
-                      "(exact greedy algorithm on single machine), "
-                      "set tree_method to 'exact'.";
-      tparam_.tree_method = TreeMethod::kApprox;
-    }
-
-    /* If tree_method was changed, re-configure updaters and gradient boosters */
-    if (tparam_.tree_method != current_tree_method) {
-      ConfigureUpdaters();
-      if (gbm_ != nullptr) {
-        gbm_->Configure(cfg_.begin(), cfg_.end());
-      }
-    }
-  }
-
   // return whether model is already initialized.
   inline bool ModelInitialized() const { return gbm_ != nullptr; }
   // lazily initialize the model based on configuration if it haven't yet been initialized.
