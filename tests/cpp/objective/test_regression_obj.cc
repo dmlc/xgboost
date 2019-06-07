@@ -31,6 +31,24 @@ TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
   delete obj;
 }
 
+TEST(Objective, DeclareUnifiedTest(RootMeanSquaredLog)) {
+  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  std::vector<std::pair<std::string, std::string>> args;
+
+  xgboost::ObjFunction * obj =
+      xgboost::ObjFunction::Create("reg:rmsle", &tparam);
+  obj->Configure(args);
+
+  CheckObjFunction(obj,
+                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
+                   {-0.5978f, -0.5108f, -0.3567f, -0.1054f, 0.2624f},
+                   {0.9091f, 0.8333f, 0.7143, 0.5556, 0.3846f});
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
+  delete obj;
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   std::vector<std::pair<std::string, std::string>> args;
