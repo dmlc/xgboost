@@ -333,6 +333,10 @@ class LearnerImpl : public Learner {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
+    CHECK_EQ(fi->Read(&tparam_.tree_method, sizeof(tparam_.tree_method)), sizeof(tparam_.tree_method))
+        << "BoostLearner: wrong train tree method format";
+    CHECK_EQ(fi->Read(&tparam_.dsplit, sizeof(tparam_.dsplit)), sizeof(tparam_.dsplit))
+        << "BoostLearner: wrong train split modle format";
     {
       // backward compatibility code for compatible with old model type
       // for new model, Read(&name_obj_) is suffice
@@ -440,6 +444,8 @@ class LearnerImpl : public Learner {
       }
     }
     fo->Write(&mparam, sizeof(LearnerModelParam));
+    fo->Write(&tparam_.tree_method, sizeof(TreeMethod));
+    fo->Write(&tparam_.dsplit, sizeof(DataSplitMode));
     fo->Write(name_obj_);
     fo->Write(name_gbm_);
     gbm_->Save(fo);
