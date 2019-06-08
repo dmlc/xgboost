@@ -614,12 +614,8 @@ class LearnerImpl : public Learner {
     }
 
     const TreeMethod current_tree_method = TreeMethod::kAuto;
-    // TODO(chenqin) : fix this missing
-    tparam_.tree_method = TreeMethod::kAuto;
 
     if (rabit::IsDistributed()) {
-      // TODO(chenqin) : fix this missing
-      tparam_.dsplit = DataSplitMode::kRow;
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
