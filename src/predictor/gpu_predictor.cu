@@ -373,7 +373,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  GPUPredictor()
+  GPUPredictor()  // NOLINT
       : cpu_predictor_(Predictor::Create("cpu_predictor", learner_param_)) {}
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
