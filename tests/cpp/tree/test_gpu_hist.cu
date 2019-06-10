@@ -84,7 +84,7 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
   }
   shard->InitCompressedData(cmat, row_stride, is_dense);
   shard->CreateHistIndices(
-    batch, cmat, RowStateOnDevice::CreateRowStateOnDevice(batch.Size(), batch.Size()), -1);
+    batch, cmat, RowStateOnDevice(batch.Size(), batch.Size()), -1);
 
   delete dmat;
 }
