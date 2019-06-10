@@ -383,7 +383,7 @@ class DeviceHistogram {
  private:
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
-  thrust::device_vector<typename GradientSumT::ValueT> data_;
+  dh::device_vector<typename GradientSumT::ValueT> data_;
   int n_bins_;
   int device_id_;
   static constexpr size_t kNumItemsInGradientSum =
@@ -410,7 +410,7 @@ class DeviceHistogram {
     return n_bins_ * kNumItemsInGradientSum;
   }
 
-  thrust::device_vector<typename GradientSumT::ValueT>& Data() {
+  dh::device_vector<typename GradientSumT::ValueT>& Data() {
     return data_;
   }
 
@@ -643,9 +643,14 @@ struct RowStateOnDevice {
   // Offset from the current sparse page batch to begin processing
   size_t row_offset_in_current_batch;
 
-  explicit RowStateOnDevice(size_t nrows)
-    : total_rows_assigned_to_device(nrows), total_rows_processed(0),
+  explicit RowStateOnDevice(size_t total_rows)
+    : total_rows_assigned_to_device(total_rows), total_rows_processed(0),
       rows_to_process_from_batch(0), row_offset_in_current_batch(0) {
+  }
+
+  explicit RowStateOnDevice(size_t total_rows, size_t batch_rows)
+    : total_rows_assigned_to_device(total_rows), total_rows_processed(0),
+      rows_to_process_from_batch(batch_rows), row_offset_in_current_batch(0) {
   }
 
   // Advance the row state by the number of rows processed
@@ -653,12 +658,6 @@ struct RowStateOnDevice {
     total_rows_processed += rows_to_process_from_batch;
     CHECK_LE(total_rows_processed, total_rows_assigned_to_device);
     rows_to_process_from_batch = row_offset_in_current_batch = 0;
-  }
-
-  static RowStateOnDevice CreateRowStateOnDevice(size_t total_rows, size_t batch_rows) {
-    RowStateOnDevice rstate(total_rows);
-    rstate.rows_to_process_from_batch = batch_rows;
-    return rstate;
   }
 };
 
@@ -699,8 +698,8 @@ struct DeviceShard {
   std::vector<GradientPair> node_sum_gradients;
   common::Span<GradientPair> node_sum_gradients_d;
   /*! \brief On-device feature set, only actually used on one of the devices */
-  thrust::device_vector<int> feature_set_d;
-  thrust::device_vector<int64_t>
+  dh::device_vector<int> feature_set_d;
+  dh::device_vector<int64_t>
       left_counts;  // Useful to keep a bunch of zeroed memory for sort position
   /*! The row offset for this shard. */
   bst_uint row_begin_idx;
@@ -1314,7 +1313,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
   const auto &offset_vec = row_batch.offset.ConstHostVector();
   /*! \brief row offset in SparsePage (the input data). */
   CHECK_LE(device_row_state.rows_to_process_from_batch, offset_vec.size());
-  thrust::device_vector<size_t> row_ptrs(device_row_state.rows_to_process_from_batch+1);
+  dh::device_vector<size_t> row_ptrs(device_row_state.rows_to_process_from_batch+1);
   thrust::copy(
     offset_vec.data() + device_row_state.row_offset_in_current_batch,
     offset_vec.data() + device_row_state.row_offset_in_current_batch +
@@ -1323,27 +1322,12 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 
   int num_symbols = n_bins + 1;
   // bin and compress entries in batches of rows
-  size_t gpu_batch_nrows = 0;
-  // config item rows_per_batch:
-  // 0  => process the rows in this sparse page in batches, keeping in
-  //       mind the available GPU memory
-  // -1 => process all the rows in the sparse page batch in one go
-  // any other non-trivial number => process those many rows from the sparse page
-  //                                 batch at a time
-  if (rows_per_batch == 0) {
-     gpu_batch_nrows =
-      std::min
-      (dh::TotalMemory(device_id) / (16 * row_stride * sizeof(Entry)),
-       static_cast<size_t>(device_row_state.rows_to_process_from_batch));
-  } else if (rows_per_batch == -1) {
-     gpu_batch_nrows = device_row_state.rows_to_process_from_batch;
-  } else {
-     gpu_batch_nrows =
-       std::min(device_row_state.rows_to_process_from_batch, static_cast<size_t>(rows_per_batch));
-  }
+  size_t gpu_batch_nrows = std::min(
+    dh::TotalMemory(device_id) / (16 * row_stride * sizeof(Entry)),
+    static_cast<size_t>(device_row_state.rows_to_process_from_batch));
   const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
-  thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
+  dh::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
   size_t gpu_nbatches = dh::DivRoundUp(device_row_state.rows_to_process_from_batch,
                                        gpu_batch_nrows);
 
@@ -1354,6 +1338,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
       batch_row_end = device_row_state.rows_to_process_from_batch;
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
+
     // number of entries in this batch.
     size_t n_entries = row_ptrs[batch_row_end] - row_ptrs[batch_row_begin];
     // copy data entries to device.
@@ -1458,6 +1443,8 @@ class GPUHistMakerSpecialised {
 
     monitor_.Init("updater_gpu_hist");
   }
+
+  ~GPUHistMakerSpecialised() { dh::GlobalMemoryLogger().Log(); }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
