@@ -131,7 +131,7 @@ class HistMaker: public BaseMaker {
     }
 
     //printf("max_depth %d \n", param_.max_depth);
-    param_.max_depth = 5;
+    //param_.max_depth = 5;
 
     for (int depth = 0; depth < param_.max_depth; ++depth) {
       // reset and propose candidate split

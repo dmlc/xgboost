@@ -391,6 +391,9 @@ class LearnerImpl : public Learner {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
+          if (saved_param == "max_depth") {
+            cfg_["max_depth"] = kv.second;
+          }
 #endif  // XGBOOST_USE_CUDA
         }
       }
@@ -435,7 +438,7 @@ class LearnerImpl : public Learner {
     {
       // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
       for (const auto& key : std::vector<std::string>{
-                                   "predictor", "n_gpus", "gpu_id"}) {
+                                   "predictor", "n_gpus", "gpu_id", "max_depth"}) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
           mparam.contain_extra_attrs = 1;
