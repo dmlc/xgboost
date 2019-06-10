@@ -4,9 +4,11 @@
 #pragma once
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
+#include <thrust/device_malloc_allocator.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
+#include <rabit/rabit.h>
 
 #include "common.h"
 #include "span.h"
@@ -47,11 +49,6 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
   return code;
 }
 #endif
-
-template <typename T>
-T *Raw(thrust::device_vector<T> &v) {  //  NOLINT
-  return raw_pointer_cast(v.data());
-}
 
 inline void CudaCheckPointerDevice(void* ptr) {
   cudaPointerAttributes attr;
@@ -224,6 +221,97 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
 }
 
+namespace detail {
+/** \brief Keeps track of global device memory allocations. Thread safe.*/
+class MemoryLogger {
+  // Information for a single device
+  struct DeviceStats {
+    size_t currently_allocated_bytes{ 0 };
+    size_t peak_allocated_bytes{ 0 };
+    size_t num_allocations{ 0 };
+    size_t num_deallocations{ 0 };
+    std::map<void *, size_t> device_allocations;
+    void RegisterAllocation(void *ptr, size_t n) {
+      device_allocations[ptr] = n;
+      currently_allocated_bytes += n;
+      peak_allocated_bytes =
+        std::max(peak_allocated_bytes, currently_allocated_bytes);
+      num_allocations++;
+    }
+    void RegisterDeallocation(void *ptr) {
+      num_deallocations++;
+      currently_allocated_bytes -= device_allocations[ptr];
+      device_allocations.erase(ptr);
+    }
+  };
+  std::map<int, DeviceStats>
+    stats_;  // Map device ordinal to memory information
+  std::mutex mutex_;
+
+public:
+  void RegisterAllocation(void *ptr, size_t n) {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    std::lock_guard<std::mutex> guard(mutex_);
+    int current_device;
+    safe_cuda(cudaGetDevice(&current_device));
+    stats_[current_device].RegisterAllocation(ptr, n);
+  }
+  void RegisterDeallocation(void *ptr) {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    std::lock_guard<std::mutex> guard(mutex_);
+    int current_device;
+    safe_cuda(cudaGetDevice(&current_device));
+    stats_[current_device].RegisterDeallocation(ptr);
+  }
+  void Log() {
+    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
+      return;
+    std::lock_guard<std::mutex> guard(mutex_);
+    for (const auto &kv : stats_) {
+      LOG(CONSOLE) << "======== Device " << kv.first << " Memory Allocations: "
+        << " ========";
+      LOG(CONSOLE) << "Peak memory usage: "
+        << kv.second.peak_allocated_bytes / 1000000 << "mb";
+      LOG(CONSOLE) << "Number of allocations: " << kv.second.num_allocations;
+    }
+  }
+};
+};
+
+inline detail::MemoryLogger &GlobalMemoryLogger() {
+  static detail::MemoryLogger memory_logger;
+  return memory_logger;
+}
+
+namespace detail{
+/**
+ * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
+ */
+template <class T>
+struct XGBDefaultDeviceAllocator : thrust::device_malloc_allocator<T> {
+  using super_t = thrust::device_malloc_allocator<T>;
+  using pointer = thrust::device_ptr<T>;
+  pointer allocate(size_t n) {
+    pointer ptr = super_t::allocate(n);
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n);
+    return ptr;
+  }
+  void deallocate(pointer ptr, size_t n) {
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get());
+    return super_t::deallocate(ptr, n);
+  }
+};
+};
+
+// Declare xgboost allocator
+// Replacement of allocator with custom backend should occur here
+template <typename T>
+using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocator<T>;
+/** \brief Specialisation of thrust device vector using custom allocator. */
+template <typename T>
+using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
 
 /**
  * \brief A double buffer, useful for algorithms like sort.
@@ -334,10 +422,9 @@ class BulkAllocator {
   }
 
   char *AllocateDevice(int device_idx, size_t bytes) {
-    char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaMalloc(&ptr, bytes));
-    return ptr;
+    XGBDeviceAllocator<char> allocator;
+    return allocator.allocate(bytes).get();
   }
 
   template <typename T>
@@ -382,7 +469,8 @@ class BulkAllocator {
     for (size_t i = 0; i < d_ptr_.size(); i++) {
       if (!(d_ptr_[i] == nullptr)) {
         safe_cuda(cudaSetDevice(device_idx_[i]));
-        safe_cuda(cudaFree(d_ptr_[i]));
+        XGBDeviceAllocator<char> allocator;
+        allocator.deallocate(thrust::device_ptr<char>(d_ptr_[i]), size_[i]);
         d_ptr_[i] = nullptr;
       }
     }
@@ -452,14 +540,17 @@ struct CubMemory {
 
   void Free() {
     if (this->IsAllocated()) {
-      safe_cuda(cudaFree(d_temp_storage));
+      XGBDeviceAllocator<uint8_t> allocator;
+      allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
+        temp_storage_bytes);
     }
   }
 
   void LazyAllocate(size_t num_bytes) {
     if (num_bytes > temp_storage_bytes) {
       Free();
-      safe_cuda(cudaMalloc(&d_temp_storage, num_bytes));
+      XGBDeviceAllocator<uint8_t> allocator;
+      d_temp_storage = static_cast<void *>(allocator.allocate(num_bytes).get());
       temp_storage_bytes = num_bytes;
     }
   }
@@ -784,6 +875,7 @@ class AllReducer {
   bool initialised_;
   size_t allreduce_bytes_;  // Keep statistics of the number of bytes communicated
   size_t allreduce_calls_;  // Keep statistics of the number of reduce calls
+  std::vector<size_t> host_data;  // Used for all reduce on host
 #ifdef XGBOOST_USE_NCCL
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
@@ -1024,6 +1116,42 @@ class AllReducer {
     return id;
   }
 #endif
+  /** \brief Perform max all reduce operation on the host. This function first
+   * reduces over omp threads then over nodes using rabit (which is not thread
+   * safe) using the master thread. Uses naive reduce algorithm for local
+   * threads, don't expect this to scale.*/
+  void HostMaxAllReduce(std::vector<size_t> *p_data) {
+    auto &data = *p_data;
+    // Wait in case some other thread is accessing host_data
+#pragma omp barrier
+    // Reset shared buffer
+#pragma omp single
+    {
+      host_data.resize(data.size());
+      std::fill(host_data.begin(), host_data.end(), size_t(0));
+    }
+    // Threads update shared array
+    for (auto i = 0ull; i < data.size(); i++) {
+#pragma omp critical
+      { host_data[i] = std::max(host_data[i], data[i]); }
+    }
+    // Wait until all threads are finished
+#pragma omp barrier
+
+    // One thread performs all reduce across distributed nodes
+#pragma omp master
+    {
+      rabit::Allreduce<rabit::op::Max, size_t>(host_data.data(),
+                                               host_data.size());
+    }
+
+#pragma omp barrier
+
+    // Threads can now read back all reduced values
+    for (auto i = 0ull; i < data.size(); i++) {
+      data[i] = host_data[i];
+    }
+  }
 };
 
 /**
@@ -1044,7 +1172,7 @@ void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
     bool dynamic = omp_get_dynamic();
     omp_set_dynamic(false);
     const long shards_size = static_cast<long>(shards->size());
-#pragma omp parallel for schedule(static, 1) if (shards_size > 1)
+#pragma omp parallel for schedule(static, 1) if (shards_size > 1) num_threads(shards_size)
     for (long shard = 0; shard < shards_size; ++shard) {
       f(shard, shards->at(shard));
     }
@@ -1081,7 +1209,7 @@ ReduceT ReduceShards(std::vector<ShardT> *shards, FunctionT f) {
 template <typename T,
   typename IndexT = typename xgboost::common::Span<T>::index_type>
 xgboost::common::Span<T> ToSpan(
-    thrust::device_vector<T>& vec,
+    device_vector<T>& vec,
     IndexT offset = 0,
     IndexT size = -1) {
   size = size == -1 ? vec.size() : size;
