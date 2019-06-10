@@ -114,7 +114,7 @@ struct HistCutMatrix {
 };
 
 /*! \brief Builds the cut matrix on the GPU.
- *  
+ *
  *  \return The row stride across the entire dataset.
  */
 size_t DeviceSketch
