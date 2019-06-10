@@ -19,6 +19,18 @@ TEST(Metric, DeclareUnifiedTest(RMSE)) {
   delete metric;
 }
 
+TEST(Metric, DeclareUnifiedTest(RMSLE)) {
+  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &lparam);
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "rmsle");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
+                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f}), 0.40632, 1e-4);
+  delete metric;
+}
+
 TEST(Metric, DeclareUnifiedTest(MAE)) {
   auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
   xgboost::Metric * metric = xgboost::Metric::Create("mae", &lparam);
