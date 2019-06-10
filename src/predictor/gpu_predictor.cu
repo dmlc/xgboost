@@ -238,7 +238,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto& offsets = *out_offsets;
     size_t n_shards = devices_.Size();
     offsets.resize(n_shards + 2);
-    size_t rows_per_shard = dh::DivRoundUp(batch_size, n_shards);
+    size_t rows_per_shard = common::DivRoundUp(batch_size, n_shards);
     for (size_t shard = 0; shard < devices_.Size(); ++shard) {
       size_t n_rows = std::min(batch_size, shard * rows_per_shard);
       offsets[shard] = batch_offset + n_rows * n_classes;
@@ -284,7 +284,7 @@ class GPUPredictor : public xgboost::Predictor {
       dh::safe_cuda(cudaSetDevice(device_));
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize(device_) - 1;
-      const int GRID_SIZE = static_cast<int>(dh::DivRoundUp(num_rows, BLOCK_THREADS));
+      const int GRID_SIZE = static_cast<int>(common::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
         (sizeof(float) * num_features * BLOCK_THREADS);

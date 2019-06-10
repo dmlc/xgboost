@@ -48,11 +48,11 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
   int gpu_batch_nrows = 0;
 
   // find quantiles on the CPU
-  HistCutMatrix hmat_cpu;
-  hmat_cpu.Init((*dmat).get(), p.max_bin);
+  HistogramCuts hmat_cpu;
+  hmat_cpu.Build((*dmat).get(), p.max_bin);
 
   // find the cuts on the GPU
-  HistCutMatrix hmat_gpu;
+  HistogramCuts hmat_gpu;
   size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0, devices.Size()), gpu_batch_nrows,
                                    dmat->get(), &hmat_gpu);
 
@@ -69,12 +69,12 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 
   // compare the cuts
   double eps = 1e-2;
-  ASSERT_EQ(hmat_gpu.min_val.size(), num_cols);
-  ASSERT_EQ(hmat_gpu.row_ptr.size(), num_cols + 1);
-  ASSERT_EQ(hmat_gpu.cut.size(), hmat_cpu.cut.size());
-  ASSERT_LT(fabs(hmat_cpu.min_val[0] - hmat_gpu.min_val[0]), eps * nrows);
-  for (int i = 0; i < hmat_gpu.cut.size(); ++i) {
-    ASSERT_LT(fabs(hmat_cpu.cut[i] - hmat_gpu.cut[i]), eps * nrows);
+  ASSERT_EQ(hmat_gpu.MinValues().size(), num_cols);
+  ASSERT_EQ(hmat_gpu.Ptrs().size(), num_cols + 1);
+  ASSERT_EQ(hmat_gpu.Values().size(), hmat_cpu.Values().size());
+  ASSERT_LT(fabs(hmat_cpu.MinValues()[0] - hmat_gpu.MinValues()[0]), eps * nrows);
+  for (int i = 0; i < hmat_gpu.Values().size(); ++i) {
+    ASSERT_LT(fabs(hmat_cpu.Values()[i] - hmat_gpu.Values()[i]), eps * nrows);
   }
 
   delete dmat;

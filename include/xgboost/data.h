@@ -437,6 +437,8 @@ class DMatrix {
                        bool load_row_split,
                        const std::string& file_format = "auto",
                        const size_t page_size = kPageSize);
+
+  virtual char const* Name() const = 0;
   /*!
    * \brief create a new DMatrix, by wrapping a row_iterator, and meta info.
    * \param source The source iterator of the data, the create function takes ownership of the source.

@@ -247,15 +247,15 @@ int32_t QuantileHistMaker::Builder::FindSplitCond(int32_t nid,
   // Categorize member rows
   const bst_uint fid = node.SplitIndex();
   const bst_float split_pt = node.SplitCond();
-  const uint32_t lower_bound = gmat.cut.row_ptr[fid];
-  const uint32_t upper_bound = gmat.cut.row_ptr[fid + 1];
+  const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
+  const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
   int32_t split_cond = -1;
   // convert floating-point split_pt into corresponding bin_id
   // split_cond = -1 indicates that split_pt is less than all known cut points
   CHECK_LT(upper_bound,
            static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   for (uint32_t i = lower_bound; i < upper_bound; ++i) {
-    if (split_pt == gmat.cut.cut[i]) {
+    if (split_pt == gmat.cut.Values()[i]) {
       split_cond = static_cast<int32_t>(i);
     }
   }
@@ -533,7 +533,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   perf_monitor.TickStart();
   const size_t block_size_rows = 256;
   const size_t nthread = static_cast<size_t>(this->nthread_);
-  const size_t nbins = gmat.cut.row_ptr.back();
+  const size_t nbins = gmat.cut.Ptrs().back();
   const size_t hist_size = 2  * nbins;
 
   hist_buffers->resize(nodes.size());
@@ -857,7 +857,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
   }
 
   #pragma omp parallel for schedule(guided)
-  for (int32_t k = 0; k < tasks_elem.size(); ++k) {
+  for (size_t k = 0; k < tasks_elem.size(); ++k) {
     const RowSetCollection::Elem rowset = tasks_elem[k];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.node_id != -1) {
       const size_t nrows = rowset.Size();
@@ -909,7 +909,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     // clear local prediction cache
     leaf_value_cache_.clear();
     // initialize histogram collection
-    uint32_t nbins = gmat.cut.row_ptr.back();
+    uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(nbins);
     hist_buff_.Init(nbins);
 
@@ -999,7 +999,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     const size_t ncol = info.num_col_;
     const size_t nnz = info.num_nonzero_;
     // number of discrete bins for feature 0
-    const uint32_t nbins_f0 = gmat.cut.row_ptr[1] - gmat.cut.row_ptr[0];
+    const uint32_t nbins_f0 = gmat.cut.Ptrs()[1] - gmat.cut.Ptrs()[0];
     if (nrow * ncol == nnz) {
       // dense data with zero-based indexing
       data_layout_ = kDenseDataZeroBased;
@@ -1029,7 +1029,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
        the sum of gradient histogram is equal to snode[nid] */
-    const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
+    const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
     const auto nfeature = static_cast<bst_uint>(row_ptr.size() - 1);
     uint32_t min_nbins_per_feature = 0;
     for (bst_uint i = 0; i < nfeature; ++i) {
@@ -1080,7 +1080,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
   // parallel enumeration
   #pragma omp parallel for schedule(guided)
-  for (int32_t i = 0; i < tasks.size(); ++i) {
+  for (size_t i = 0; i < tasks.size(); ++i) {
     // node_idx : offset within `nodes` list
     const int32_t  node_idx    = tasks[i].first;
     const size_t   fid         = tasks[i].second;
@@ -1098,7 +1098,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
     // reduce needed part of a hist here to have it in cache before enumeration
     if (!rabit::IsDistributed()) {
-      const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
+      const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
       const size_t ibegin = 2 * cut_ptr[fid];
       const size_t iend = 2 * cut_ptr[fid + 1];
       ReduceHistograms(hist_data, sibling_hist_data, parent_hist_data, ibegin, iend, node_idx,
@@ -1179,8 +1179,8 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
   CHECK(d_step == +1 || d_step == -1);
 
   // aliases
-  const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
-  const std::vector<bst_float>& cut_val = gmat.cut.cut;
+  const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
+  const std::vector<bst_float>& cut_val = gmat.cut.Values();
 
   // statistics on both sides of split
   GradStats c;
@@ -1239,7 +1239,7 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
 
           if (i == imin) {
             // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.min_val[fid];
+            split_pt = gmat.cut.MinValues()[fid];
           } else {
             split_pt = cut_val[i - 1];
           }

@@ -40,6 +40,8 @@ class SparsePageDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
+  char const* Name() const override { return "SparsePageDMatrix"; }
+
  private:
   // source data pointers.
   std::unique_ptr<DataSource> row_source_;

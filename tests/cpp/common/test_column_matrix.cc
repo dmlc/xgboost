@@ -7,6 +7,7 @@
 
 namespace xgboost {
 namespace common {
+
 TEST(DenseColumn, Test) {
   auto dmat = CreateDMatrix(100, 10, 0.0);
   GHistIndexMatrix gmat;
@@ -17,7 +18,7 @@ TEST(DenseColumn, Test) {
   for (auto i = 0ull; i < (*dmat)->Info().num_row_; i++) {
     for (auto j = 0ull; j < (*dmat)->Info().num_col_; j++) {
         auto col = column_matrix.GetColumn(j);
-        EXPECT_EQ(gmat.index[i * (*dmat)->Info().num_col_ + j],
+        ASSERT_EQ(gmat.index[i * (*dmat)->Info().num_col_ + j],
                   col.GetGlobalBinIdx(i));
     }
   }
@@ -31,9 +32,10 @@ TEST(SparseColumn, Test) {
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.5);
   auto col = column_matrix.GetColumn(0);
+  LOG(INFO) << "gmat.cut.Ptrs().size(): " << gmat.cut.Ptrs().size();
   ASSERT_EQ(col.Size(), gmat.index.size());
   for (auto i = 0ull; i < col.Size(); i++) {
-    EXPECT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
+    ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
               col.GetGlobalBinIdx(i));
   }
   delete dmat;

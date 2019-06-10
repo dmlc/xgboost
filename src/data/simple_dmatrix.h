@@ -40,6 +40,8 @@ class SimpleDMatrix : public DMatrix {
 
   BatchSet GetSortedColumnBatches() override;
 
+  char const* Name() const override { return "SimpleDMatrix"; }
+
  private:
   // source data pointer.
   std::unique_ptr<DataSource> source_;

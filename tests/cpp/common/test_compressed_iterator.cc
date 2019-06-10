@@ -28,7 +28,7 @@ TEST(CompressedIterator, Test) {
 
       CompressedIterator<int> ci(buffer.data(), alphabet_size);
       std::vector<int> output(input.size());
-      for (int i = 0; i < input.size(); i++) {
+      for (size_t i = 0; i < input.size(); i++) {
         output[i] = ci[i];
       }
 
@@ -38,12 +38,12 @@ TEST(CompressedIterator, Test) {
       std::vector<unsigned char> buffer2(
         CompressedBufferWriter::CalculateBufferSize(input.size(),
           alphabet_size));
-      for (int i = 0; i < input.size(); i++) {
+      for (size_t i = 0; i < input.size(); i++) {
         cbw.WriteSymbol(buffer2.data(), input[i], i);
       }
       CompressedIterator<int> ci2(buffer.data(), alphabet_size);
       std::vector<int> output2(input.size());
-      for (int i = 0; i < input.size(); i++) {
+      for (size_t i = 0; i < input.size(); i++) {
         output2[i] = ci2[i];
       }
       ASSERT_TRUE(input == output2);

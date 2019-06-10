@@ -119,10 +119,9 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
   }
 
   bool Next() override {
-    if ((*next_callback_)(
-            data_handle_,
-            XGBoostNativeDataIterSetData,
-            this) != 0) {
+    if ((*next_callback_)(data_handle_,
+                          XGBoostNativeDataIterSetData,
+                          this) != 0) {
       at_first_ = false;
       return true;
     } else {
