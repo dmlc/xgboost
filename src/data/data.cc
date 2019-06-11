@@ -223,22 +223,27 @@ DMatrix* DMatrix::Load(const std::string& uri,
     LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
                  << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
   }
-  /* sync up number of features after matrix loaded.
+
+  /* chenqin fault recovery with rabit requires failed worker do following in sequence
+   * 1. load model checkpoint
+   * 2. skip iterations(with checkpoint version number) of training til last checkpoint
+   * 3. run allreduce with buildin recovery
+   * DMatrix::Load split and sync num_col_ runs before step1 causing
+   * https://github.com/dmlc/rabit/issues/63
+   */
+  std::string num_col_str_("none");
+  rabit::TrackerGetConfig("num_col_", num_col_str_);
+
+  if (num_col_str_.compare("none") == 0){
+    rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
+    /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
-
-  std::string num_col_str_;
-  rabit::TrackerGetConfig("num_col_", num_col_str_);
-  // TODO (chenqin): fix encoding error
-  printf("num_col_str_ %s\n", num_col_str_);
-  if (num_col_str_.c_str() == "none"){
-    rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
     rabit::TrackerSetConfig("num_col_", std::to_string(dmat->Info().num_col_));
   }else{
     uint64_t value;
     std::istringstream iss(num_col_str_);
     iss >> value;
-    printf("value %ld\n", value);
     dmat->Info().num_col_ = value;
   }
 
