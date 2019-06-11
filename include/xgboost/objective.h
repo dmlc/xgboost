@@ -108,7 +108,7 @@ struct ObjFunctionReg
  *
  * \code
  * // example of registering a objective
- * XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
+ * XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:squarederror")
  * .describe("Linear regression objective")
  * .set_body([]() {
  *     return new RegLossObj(LossType::kLinearSquare);

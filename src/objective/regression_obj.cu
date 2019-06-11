@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -123,6 +123,10 @@ DMLC_REGISTER_PARAMETER(RegLossParam);
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, "reg:squarederror")
 .describe("Regression with squared error.")
 .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(SquareLogError, "reg:squaredlogerror")
+.describe("Regression with root mean squared logarithmic error.")
+.set_body([]() { return new RegLossObj<SquaredLogError>(); });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, "reg:logistic")
 .describe("Logistic regression for probability regression task.")
@@ -437,6 +441,9 @@ class TweedieRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
+    metric_ = os.str();
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -499,13 +506,11 @@ class TweedieRegression : public ObjFunction {
   }
 
   const char* DefaultEvalMetric() const override {
-    std::ostringstream os;
-    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
-    std::string metric = os.str();
-    return metric.c_str();
+    return metric_.c_str();
   }
 
  private:
+  std::string metric_;
   TweedieRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };
