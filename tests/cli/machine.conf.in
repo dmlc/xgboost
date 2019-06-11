@@ -1,6 +1,6 @@
 # Originally an example in demo/regression/
 booster = gbtree
-objective = reg:linear
+objective = reg:squarederror
 eta = 1.0
 gamma = 1.0
 seed = 0
