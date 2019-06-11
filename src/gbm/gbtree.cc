@@ -165,10 +165,8 @@ class GBTree : public GradientBooster {
   }
 
   bool AllowLazyCheckPoint() const override {
-    return false;
-    // TODO(chenqin): disable lazy checkpoiint
-    //return model_.param.num_output_group == 1 ||
-    //    tparam_.updater_seq.find("distcol") != std::string::npos;
+    return model_.param.num_output_group == 1 ||
+        tparam_.updater_seq.find("distcol") != std::string::npos;
   }
 
   void DoBoost(DMatrix* p_fmat,
@@ -177,7 +175,6 @@ class GBTree : public GradientBooster {
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
     const int ngroup = model_.param.num_output_group;
     monitor_.Start("BoostNewTrees");
-    //printf("ngroup %d\n", ngroup);
     if (ngroup == 1) {
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(in_gpair, p_fmat, 0, &ret);
@@ -287,7 +284,6 @@ class GBTree : public GradientBooster {
       }
     }
     // update the trees
-    int i = 0;
     for (auto& up : updaters_) {
       up->Update(gpair, p_fmat, new_trees);
 }

@@ -60,7 +60,6 @@ class BaseMaker: public TreeUpdater {
     }
     /*! \brief synchronize the information */
     inline void SyncInfo() {
-      //printf("[%d] BASEMAKER\n", rabit::GetRank());
       rabit::Allreduce<rabit::op::Max>(dmlc::BeginPtr(fminmax_), fminmax_.size());
     }
     // get feature type, 0:empty 1:binary 2:real

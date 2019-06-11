@@ -232,15 +232,15 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * https://github.com/dmlc/rabit/issues/63
    */
   std::string num_col_str_("none");
-  rabit::TrackerGetConfig("num_col_", num_col_str_);
+  rabit::TrackerGetConfig("num_col_", &num_col_str_);
 
-  if (num_col_str_.compare("none") == 0){
+  if (num_col_str_.compare("none") == 0) {
     rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
     /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
     rabit::TrackerSetConfig("num_col_", std::to_string(dmat->Info().num_col_));
-  }else{
+  } else {
     uint64_t value;
     std::istringstream iss(num_col_str_);
     iss >> value;

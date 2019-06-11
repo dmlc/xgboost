@@ -182,7 +182,6 @@ void CLITrain(const CLIParam& param) {
   }
   // initialize the learner.
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
-  
   if (rabit::LoadCheckPoint(learner.get()) == 0) {
     // initialize the model if needed.
     if (param.model_in != "NULL") {
