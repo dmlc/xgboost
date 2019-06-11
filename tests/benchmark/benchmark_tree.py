@@ -22,7 +22,7 @@ def run_benchmark(args):
         if not (dtest.num_row() == args.rows * args.test_size
                 and dtrain.num_row() == args.rows * (1 - args.test_size)):
             raise ValueError("Wrong rows")
-    except ValueError:
+    except xgb.core.XGBoostError:
         print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
         print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
         tmp = time.time()

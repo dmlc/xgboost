@@ -830,11 +830,7 @@ class GPUMaker : public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUMaker, "grow_gpu")
     .describe("Grow tree with GPU.")
-    .set_body([]() {
-      LOG(WARNING) << "The gpu_exact tree method is deprecated and may be "
-                      "removed in a future version.";
-      return new GPUMaker();
-    });
+    .set_body([]() { return new GPUMaker(); });
 
 }  // namespace tree
 

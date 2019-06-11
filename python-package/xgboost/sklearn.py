@@ -550,7 +550,7 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape ``[n_features]``
 
         """
-        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
+        if getattr(self, 'booster', None) is not None and self.booster != 'gbtree':
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()

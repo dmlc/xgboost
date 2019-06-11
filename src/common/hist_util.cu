@@ -130,18 +130,18 @@ struct GPUSketcher {
 
     tree::TrainParam param_;
     SketchContainer *sketch_container_;
-    dh::device_vector<size_t> row_ptrs_;
-    dh::device_vector<Entry> entries_;
-    dh::device_vector<bst_float> fvalues_;
-    dh::device_vector<bst_float> feature_weights_;
-    dh::device_vector<bst_float> fvalues_cur_;
-    dh::device_vector<WXQSketch::Entry> cuts_d_;
+    thrust::device_vector<size_t> row_ptrs_;
+    thrust::device_vector<Entry> entries_;
+    thrust::device_vector<bst_float> fvalues_;
+    thrust::device_vector<bst_float> feature_weights_;
+    thrust::device_vector<bst_float> fvalues_cur_;
+    thrust::device_vector<WXQSketch::Entry> cuts_d_;
     thrust::host_vector<WXQSketch::Entry> cuts_h_;
-    dh::device_vector<bst_float> weights_;
-    dh::device_vector<bst_float> weights2_;
+    thrust::device_vector<bst_float> weights_;
+    thrust::device_vector<bst_float> weights2_;
     std::vector<size_t> n_cuts_cur_;
-    dh::device_vector<size_t> num_elements_;
-    dh::device_vector<char> tmp_storage_;
+    thrust::device_vector<size_t> num_elements_;
+    thrust::device_vector<char> tmp_storage_;
 
    public:
     DeviceShard(int device, bst_uint row_begin, bst_uint row_end,

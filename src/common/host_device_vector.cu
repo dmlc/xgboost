@@ -161,7 +161,7 @@ struct HostDeviceVectorImpl {
 
    private:
     int device_;
-    dh::device_vector<T> data_;
+    thrust::device_vector<T> data_;
     // cached vector size
     size_t cached_size_;
     size_t start_;

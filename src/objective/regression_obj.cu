@@ -437,9 +437,6 @@ class TweedieRegression : public ObjFunction {
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    std::ostringstream os;
-    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
-    metric_ = os.str();
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -502,11 +499,13 @@ class TweedieRegression : public ObjFunction {
   }
 
   const char* DefaultEvalMetric() const override {
-    return metric_.c_str();
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
+    std::string metric = os.str();
+    return metric.c_str();
   }
 
  private:
-  std::string metric_;
   TweedieRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };

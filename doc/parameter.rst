@@ -111,7 +111,7 @@ Parameters for Tree Booster
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
   - XGBoost supports ``hist`` and ``approx`` for distributed training and only support ``approx`` for external memory version.
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_exact``, ``gpu_hist``
 
     - ``auto``: Use heuristic to choose the fastest method.
 
@@ -123,6 +123,7 @@ Parameters for Tree Booster
     - ``exact``: Exact greedy algorithm.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
+    - ``gpu_exact``: GPU implementation of ``exact`` algorithm.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``sketch_eps`` [default=0.03]
