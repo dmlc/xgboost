@@ -44,7 +44,7 @@ except ImportError:
 # dt
 try:
     # Workaround for #4473, compatibility with dask
-    if sys.__stdin__.closed:
+    if sys.__stdin__ is not None and sys.__stdin__.closed:
         sys.__stdin__ = None
     import datatable
 
