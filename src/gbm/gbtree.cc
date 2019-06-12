@@ -55,10 +55,9 @@ void GBTree::Configure(const std::vector<std::pair<std::string, std::string> >& 
 
 void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
                                         std::map<std::string, std::string> cfg) {
-  if (cfg.count("updater") > 0) {
-    // 1. This method is not applicable for non-tree learners
-    // 2. This method is disabled when `updater` parameter is explicitly
-    //    set, since only experts are expected to do so.
+  if (cfg.find("updater") != cfg.cend()) {
+    // This method is disabled when `updater` parameter is explicitly
+    // set, since only experts are expected to do so.
     return;
   }
 
@@ -142,12 +141,6 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
 }
 
 void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
-  // This method is not applicable to non-tree learners
-  if (cfg.find("booster") != cfg.cend() &&
-      (cfg.at("booster") != "gbtree" && cfg.at("booster") != "dart")) {
-    LOG(WARNING) << "No Configuration for tree updater.";
-    return;
-  }
   // `updater` parameter was manually specified
   if (cfg.find("updater")  != cfg.cend()) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
