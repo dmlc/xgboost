@@ -8,6 +8,8 @@
 #include <dmlc/parameter.h>
 #include <xgboost/enum_class_param.h>
 
+#include <string>
+
 namespace xgboost {
 
 enum class DataSplitMode : int {

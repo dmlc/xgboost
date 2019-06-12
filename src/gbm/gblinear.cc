@@ -182,9 +182,9 @@ class GBLinear : public GradientBooster {
 
   bool UseGPU() const override {
     if (param_.updater == "gpu_coord_descent") {
-      return 1;
+      return true;
     } else {
-      return 0;
+      return false;
     }
   }
 

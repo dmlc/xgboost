@@ -12,6 +12,7 @@ TEST(GBTree, SelectTreeMethod) {
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
 
   LearnerTrainParam learner_param;
+  learner_param.InitAllowUnknown(std::vector<Arg>{Arg("n_gpus", "0")});
   std::unique_ptr<GradientBooster> p_gbm{
     GradientBooster::Create("gbtree", &learner_param, {}, 0)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
@@ -29,6 +30,7 @@ TEST(GBTree, SelectTreeMethod) {
                     Arg{"num_feature", n_feat}});
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
 #ifdef XGBOOST_USE_CUDA
+  learner_param.InitAllowUnknown(std::vector<Arg>{Arg{"n_gpus", "1"}});
   gbtree.Configure({Arg("tree_method", "gpu_exact"),
                     Arg("num_feature", n_feat)});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu,prune");

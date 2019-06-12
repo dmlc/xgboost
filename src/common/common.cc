@@ -37,6 +37,7 @@ GPUSet GPUSet::All(GpuIdType gpu_id, GpuIdType n_gpus, int32_t n_rows) {
   CHECK_GE(n_gpus, -1) << "n_gpus must be >= -1.";
 
   GpuIdType const n_devices_visible = AllVisible().Size();
+  CHECK_LE(n_gpus, n_devices_visible);
   if (n_devices_visible == 0 || n_gpus == 0 || n_rows == 0) {
     LOG(DEBUG) << "Runing on CPU.";
     return Empty();

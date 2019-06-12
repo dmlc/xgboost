@@ -4,26 +4,28 @@
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_GBM_GBTREE_H_
+#define XGBOOST_GBM_GBTREE_H_
+
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
-#include <dmlc/timer.h>
+
 #include <xgboost/logging.h>
 #include <xgboost/gbm.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
+#include <xgboost/enum_class_param.h>
+
 #include <vector>
+#include <map>
 #include <memory>
 #include <utility>
 #include <string>
-#include <limits>
-#include <algorithm>
+
+#include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
-#include "../common/random.h"
-#include "gbtree_model.h"
 #include "../common/timer.h"
-
-#include <xgboost/enum_class_param.h>
 
 namespace xgboost {
 enum class TreeMethod : int {
@@ -55,6 +57,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   std::string updater_seq;
   /*! \brief type of boosting process to run */
   TreeProcessType process_type;
+  // predictor name
   std::string predictor;
   // tree construction method
   TreeMethod tree_method;
@@ -262,3 +265,5 @@ class GBTree : public GradientBooster {
 
 }  // namespace gbm
 }  // namespace xgboost
+
+#endif  // XGBOOST_GBM_GBTREE_H_

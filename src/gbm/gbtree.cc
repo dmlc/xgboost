@@ -349,7 +349,7 @@ class Dart : public GBTree {
   }
 
   bool UseGPU() const override {
-    return 0;
+    return false;
   }
 
  protected:
