@@ -294,7 +294,7 @@ void QuantileHistMaker::Builder::CreateTasksForApplySplit(
         const size_t istart = i*block_size;
         const size_t iend = (i == n_blocks-1) ? nrows : istart + block_size;
 
-        TaskType task {this_nid, split_cond, n_blocks, i, istart, iend, nodes_bounds.size()-1,
+        TaskType task {this_nid, split_cond, n_blocks, i, istart, iend, nodes_bounds->size()-1,
           buffer + cur_buff_offset, buffer + cur_buff_offset + (iend-istart), 0, 0};
         tasks->push_back(task);
         cur_buff_offset += 2*(iend-istart);
@@ -350,13 +350,14 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   // buffer to store # of rows in left part for each row-block
   std::vector<size_t> left_sizes;
   left_sizes.reserve(nodes_bounds.size());
+  const size_t size = tasks.size();
 
   // execute tasks in parallel
   #pragma omp parallel
   {
     // compute partial partitions
-    #pragma omp for schedule(guided)
-    for (int32_t i = 0; i < tasks.size(); ++i) {
+    #pragma omp for
+    for (int32_t i = 0; i < size; ++i) {
       const int32_t nid = tasks[i].nid;
       const int32_t split_cond = tasks[i].split_cond;
       const size_t istart = tasks[i].istart;
@@ -394,11 +395,11 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     // calculate sizes of left parts in each block
     #pragma omp single
     {
-      for (size_t inode = 0; inode < nodes_bounds.size(); ++inode) {
+      for (auto& node : nodes_bounds) {
         size_t n_left = 0;
 
-        size_t begin = nodes_bounds[inode].first;
-        size_t end = nodes_bounds[inode].second;
+        size_t begin = node.first;
+        size_t end = node.second;
 
         for (size_t i = begin; i < end; ++i) {
           n_left += tasks[i].n_left;
@@ -408,8 +409,8 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     }
 
     // merge partial results to one
-    #pragma omp for schedule(guided)
-    for (int32_t i = 0; i < tasks.size(); ++i) {
+    #pragma omp for
+    for (int32_t i = 0; i < size; ++i) {
       const size_t node_idx  = tasks[i].inode;
       const int32_t nid = tasks[i].nid;
       const int32_t iblock = tasks[i].i_block_this_node;
