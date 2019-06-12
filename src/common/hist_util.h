@@ -333,7 +333,7 @@ class HistCollection {
       size_t prev = data_arr_.size();
       data_arr_.resize(nid + 1);
 
-      for(size_t i = prev; i < data_arr_.size(); ++i) {
+      for (size_t i = prev; i < data_arr_.size(); ++i) {
         data_arr_[i].resize(nbins_);
       }
     }

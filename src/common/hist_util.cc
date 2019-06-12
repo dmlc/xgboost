@@ -511,7 +511,11 @@ void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t*
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
-  if (iend < nrows - no_prefetch_size) {
+  // if read each row in some block of bin-matrix - it's dense block
+  // and we dont need SW prefetch in this case
+  const bool denseBlock = (rid[iend-1] - rid[istart]) == (iend - istart - 1);
+
+  if (iend < nrows - no_prefetch_size && !denseBlock) {
     for (size_t i = istart; i < iend; ++i) {
       const size_t icol_start = rid[i] * n_features;
       const size_t icol_start_prefetch = rid[i+prefetch_offset] * n_features;
@@ -564,7 +568,11 @@ void BuildHistLocalSparse(size_t istart, size_t iend, size_t nrows, const size_t
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
-  if (iend < nrows - no_prefetch_size) {
+  // if read each row in some block of bin-matrix - it's dense block
+  // and we dont need SW prefetch in this case
+  const bool denseBlock = (rid[iend-1] - rid[istart]) == (iend - istart);
+
+  if (iend < nrows - no_prefetch_size && !denseBlock) {
     for (size_t i = istart; i < iend; ++i) {
       const size_t icol_start = row_ptr[rid[i]];
       const size_t icol_end = row_ptr[rid[i]+1];

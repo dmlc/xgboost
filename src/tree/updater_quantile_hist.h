@@ -311,6 +311,27 @@ class QuantileHistMaker: public TreeUpdater {
         unsigned *timestamp,
         std::vector<ExpandEntry> *temp_qexpand_depth);
 
+    template<typename TaskType>
+    void CreateTasksForApplySplit(
+          const std::vector<ExpandEntry>& nodes,
+          const GHistIndexMatrix &gmat,
+          RegTree *p_tree,
+          int *num_leaves,
+          const int depth,
+          const size_t block_size,
+          std::vector<TaskType>* tasks,
+          std::vector<std::pair<size_t, size_t>>* nodes_bounds);
+
+    void CreateTasksForBuildHist(
+        size_t block_size_rows,
+        size_t nthread,
+        const std::vector<ExpandEntry>& nodes,
+        std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
+        std::vector<std::vector<uint8_t>>* hist_is_init,
+        std::vector<std::vector<common::GradStatHist>>* grad_stats,
+        std::vector<int32_t>* task_nid,
+        std::vector<int32_t>* task_node_idx,
+        std::vector<int32_t>* task_block_idx);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {

@@ -41,7 +41,7 @@ void QuantileHistMaker::Init(const std::vector<std::pair<std::string, std::strin
   param_.InitAllowUnknown(args);
   is_gmat_initialized_ = false;
 
-  // initialise the split evaluator
+  // initialize the split evaluator
   if (!spliteval_) {
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
   }
@@ -261,6 +261,57 @@ int32_t QuantileHistMaker::Builder::FindSplitCond(int32_t nid,
   return split_cond;
 }
 
+
+// split rows in each node to blocks of rows
+// for future parallel execution
+template<typename TaskType>
+void QuantileHistMaker::Builder::CreateTasksForApplySplit(
+          const std::vector<ExpandEntry>& nodes,
+          const GHistIndexMatrix &gmat,
+          RegTree *p_tree,
+          int *num_leaves,
+          const int depth,
+          const size_t block_size,
+          std::vector<TaskType>* tasks,
+          std::vector<std::pair<size_t, size_t>>* nodes_bounds) {
+  size_t* buffer = buffer_for_partition_.data();
+  size_t cur_buff_offset = 0;
+
+  auto create_nodes = [&](int32_t this_nid) {
+    if (snode_[this_nid].best.loss_chg < kRtEps ||
+        (param_.max_depth > 0 && depth == param_.max_depth) ||
+        (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
+      (*p_tree)[this_nid].SetLeaf(snode_[this_nid].weight * param_.learning_rate);
+    } else {
+      const size_t nrows = row_set_collection_[this_nid].Size();
+      const size_t n_blocks = nrows / block_size + !!(nrows % block_size);
+
+      nodes_bounds->emplace_back(tasks->size(), tasks->size() + n_blocks);
+
+      int32_t split_cond = FindSplitCond(this_nid, p_tree, gmat);
+
+      for (size_t i = 0; i < n_blocks; ++i) {
+        const size_t istart = i*block_size;
+        const size_t iend = (i == n_blocks-1) ? nrows : istart + block_size;
+
+        TaskType task {this_nid, split_cond, n_blocks, i, istart, iend, nodes_bounds.size()-1,
+          buffer + cur_buff_offset, buffer + cur_buff_offset + (iend-istart), 0, 0};
+        tasks->push_back(task);
+        cur_buff_offset += 2*(iend-istart);
+      }
+    }
+  };
+  for (const auto& node : nodes) {
+    const int32_t nid = node.nid;
+    const int32_t sibling_nid = node.sibling_nid;
+    create_nodes(nid);
+
+    if (sibling_nid > -1) {
+      create_nodes(sibling_nid);
+    }
+  }
+}
+
 void QuantileHistMaker::Builder::CreateNewNodesBatch(
     const std::vector<ExpandEntry>& nodes,
     const GHistIndexMatrix &gmat,
@@ -274,74 +325,44 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   perf_monitor.TickStart();
   const size_t block_size = 2048;
 
-  // inputs for tasks
-  std::vector<int32_t> nids_to_split;
-  std::vector<int32_t> cond_to_split;
-  std::vector<size_t> n_blocks_vec;
-  std::vector<std::pair<size_t, size_t>> tasks;
-  size_t* buffer = buffer_for_partition_.data();
-  size_t cur_buff_offset = 0;
-
-  // buffers to store partial results
-  std::vector<std::vector<std::pair<size_t*, size_t*>>> buffers_by_nids;
-  std::vector<std::vector<std::pair<size_t, size_t>>> sizes_by_nids;
-
-  auto create_nodes = [&](int32_t this_nid) {
-    if (snode_[this_nid].best.loss_chg < kRtEps ||
-        (param_.max_depth > 0 && depth == param_.max_depth) ||
-        (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
-      (*p_tree)[this_nid].SetLeaf(snode_[this_nid].weight * param_.learning_rate);
-    } else {
-      nids_to_split.push_back(this_nid);
-      cond_to_split.push_back(FindSplitCond(this_nid, p_tree, gmat));
-
-      const size_t nrows = row_set_collection_[this_nid].Size();
-      const size_t n_blocks = nrows / block_size + !!(nrows % block_size);
-      n_blocks_vec.push_back(n_blocks);
-
-      buffers_by_nids.resize(buffers_by_nids.size() + 1);
-
-      for (size_t i = 0; i < n_blocks; ++i) {
-        const size_t istart = i*block_size;
-        const size_t iend = (i == n_blocks-1) ? nrows : istart + block_size;
-        buffers_by_nids.back().push_back({ buffer + cur_buff_offset,
-            buffer + cur_buff_offset + (iend-istart) });
-        cur_buff_offset += 2*(iend-istart);
-        tasks.emplace_back(cond_to_split.size() - 1,  i);
-      }
-      sizes_by_nids.emplace_back(n_blocks);
-    }
+  struct ApplySplitTaskInfo {
+    // input
+    int32_t nid;
+    int32_t split_cond;
+    size_t n_blocks_this_node;
+    size_t i_block_this_node;
+    size_t istart;
+    size_t iend;
+    size_t inode;
+    // result
+    size_t* left;
+    size_t* right;
+    size_t n_left;
+    size_t n_right;
   };
-  for (const auto& node : nodes) {
-    const int32_t nid = node.nid;
-    const int32_t sibling_nid = node.sibling_nid;
-    create_nodes(nid);
 
-    if (sibling_nid > -1) {
-      create_nodes(sibling_nid);
-    }
-  }
+  // create tasks for partition of row_set_collection_
+  std::vector<ApplySplitTaskInfo> tasks;
+  std::vector<std::pair<size_t, size_t>> nodes_bounds;
+  CreateTasksForApplySplit<ApplySplitTaskInfo>(nodes, gmat, p_tree, num_leaves, depth,
+      block_size, &tasks, &nodes_bounds);
 
   // buffer to store # of rows in left part for each row-block
   std::vector<size_t> left_sizes;
+  left_sizes.reserve(nodes_bounds.size());
 
-  const int32_t size = tasks.size();
+  // execute tasks in parallel
   #pragma omp parallel
   {
     // compute partial partitions
     #pragma omp for schedule(guided)
-    for (int32_t i = 0; i < size; ++i) {
-      const size_t node_idx = tasks[i].first;
-      const size_t iblock   = tasks[i].second;
-      const int32_t split_cond = cond_to_split[node_idx];
-      const int32_t nid = nids_to_split[node_idx];
+    for (int32_t i = 0; i < tasks.size(); ++i) {
+      const int32_t nid = tasks[i].nid;
+      const int32_t split_cond = tasks[i].split_cond;
+      const size_t istart = tasks[i].istart;
+      const size_t iend = tasks[i].iend;
+
       const bst_uint fid = (*p_tree)[nid].SplitIndex();
-
-      const size_t nrows = row_set_collection_[nid].Size();
-      const size_t nblocks = n_blocks_vec[node_idx];
-      const size_t istart = iblock*block_size;
-      const size_t iend = (iblock == nblocks-1) ? nrows : istart + block_size;
-
       const bool default_left = (*p_tree)[nid].DefaultLeft();
       const Column column = column_matrix.GetColumn(fid);
 
@@ -350,67 +371,78 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
 
       if (column.GetType() == xgboost::common::kDenseColumn) {
         if (default_left) {
-          sizes_by_nids[node_idx][iblock] = PartitionDenseLeftDefaultKernel<size_t, uint32_t>(
+          auto res = PartitionDenseLeftDefaultKernel<size_t, uint32_t>(
               rid, idx, column.GetBaseIdx(), split_cond, istart, iend,
-              buffers_by_nids[node_idx][iblock].first, buffers_by_nids[node_idx][iblock].second);
+              tasks[i].left, tasks[i].right);
+          tasks[i].n_left = res.first;
+          tasks[i].n_right = res.second;
         } else {
-          sizes_by_nids[node_idx][iblock] = PartitionDenseRightDefaultKernel<size_t, uint32_t>(
+          auto res = PartitionDenseRightDefaultKernel<size_t, uint32_t>(
               rid, idx, column.GetBaseIdx(), split_cond, istart, iend,
-              buffers_by_nids[node_idx][iblock].first, buffers_by_nids[node_idx][iblock].second);
+              tasks[i].left, tasks[i].right);
+          tasks[i].n_left = res.first;
+          tasks[i].n_right = res.second;
         }
       } else {
-        sizes_by_nids[node_idx][iblock] = PartitionSparseKernel<size_t, uint32_t>(
-          rid, idx, split_cond, istart, iend, buffers_by_nids[node_idx][iblock].first,
-          buffers_by_nids[node_idx][iblock].second, column, default_left);
+        auto res = PartitionSparseKernel<size_t, uint32_t>(
+          rid, idx, split_cond, istart, iend, tasks[i].left, tasks[i].right, column, default_left);
+          tasks[i].n_left = res.first;
+          tasks[i].n_right = res.second;
       }
     }
 
     // calculate sizes of left parts in each block
     #pragma omp single
     {
-      for (size_t inode = 0; inode < nids_to_split.size(); ++inode) {
-        size_t nLeft = 0;
-        for (auto& size : sizes_by_nids[inode]) {
-          nLeft += size.first;
+      for (size_t inode = 0; inode < nodes_bounds.size(); ++inode) {
+        size_t n_left = 0;
+
+        size_t begin = nodes_bounds[inode].first;
+        size_t end = nodes_bounds[inode].second;
+
+        for (size_t i = begin; i < end; ++i) {
+          n_left += tasks[i].n_left;
         }
-        left_sizes.push_back(nLeft);
+        left_sizes.push_back(n_left);
       }
     }
 
     // merge partial results to one
     #pragma omp for schedule(guided)
-    for (int32_t i = 0; i < size; ++i) {
-      const size_t node_idx = tasks[i].first;
-      const size_t iblock   = tasks[i].second;
+    for (int32_t i = 0; i < tasks.size(); ++i) {
+      const size_t node_idx  = tasks[i].inode;
+      const int32_t nid = tasks[i].nid;
+      const int32_t iblock = tasks[i].i_block_this_node;
 
-      const int32_t nid = nids_to_split[node_idx];
       auto* rid = const_cast<size_t*>(row_set_collection_[nid].begin);
 
-      size_t iLeft = 0;
-      size_t iRight = 0;
+      size_t ileft = 0;
+      size_t iright = 0;
 
-      const size_t nLeft = left_sizes[node_idx];
+      const size_t n_left = left_sizes[node_idx];
 
-      for (size_t j = 0; j < iblock; ++j) {
-        iLeft += sizes_by_nids[node_idx][j].first;
-        iRight += sizes_by_nids[node_idx][j].second;
+      for (size_t j = nodes_bounds[node_idx].first;
+           j < nodes_bounds[node_idx].first + iblock; ++j) {
+        ileft  += tasks[j].n_left;
+        iright += tasks[j].n_right;
       }
 
-      memcpy(rid + iLeft, buffers_by_nids[node_idx][iblock].first,
-            sizes_by_nids[node_idx][iblock].first * sizeof(rid[0]));
-      memcpy(rid + nLeft + iRight, buffers_by_nids[node_idx][iblock].second,
-            sizes_by_nids[node_idx][iblock].second * sizeof(rid[0]));
+      std::memcpy(rid + ileft, tasks[i].left,
+            tasks[i].n_left * sizeof(rid[0]));
+      std::memcpy(rid + n_left + iright, tasks[i].right,
+            tasks[i].n_right * sizeof(rid[0]));
     }
   }
+
   // register new nodes
-  for (size_t i = 0; i < nids_to_split.size(); ++i) {
-    const int32_t nid = nids_to_split[i];
-    const size_t nLeft = left_sizes[i];
+  for (size_t i = 0; i < nodes_bounds.size(); ++i) {
+    const int32_t nid = tasks[nodes_bounds[i].first].nid;
+    const size_t n_left = left_sizes[i];
     RegTree::Node node = (*p_tree)[nid];
 
     const int32_t left_id = node.LeftChild();
     const int32_t right_id = node.RightChild();
-    row_set_collection_.AddSplit(nid, nLeft, left_id, right_id);
+    row_set_collection_.AddSplit(nid, n_left, left_id, right_id);
 
     if (rabit::IsDistributed() ||
         row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
@@ -443,6 +475,47 @@ std::tuple<common::GradStatHist::GradType*, common::GradStatHist*>
   return std::make_tuple(local_data_hist, &(*grad_stats)[hist_id]);
 }
 
+void QuantileHistMaker::Builder::CreateTasksForBuildHist(
+        size_t block_size_rows,
+        size_t nthread,
+        const std::vector<ExpandEntry>& nodes,
+        std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
+        std::vector<std::vector<uint8_t>>* hist_is_init,
+        std::vector<std::vector<common::GradStatHist>>* grad_stats,
+        std::vector<int32_t>* task_nid,
+        std::vector<int32_t>* task_node_idx,
+        std::vector<int32_t>* task_block_idx) {
+  size_t i_hist = 0;
+
+  // prepare tasks for parallel execution
+  for (size_t i = 0; i < nodes.size(); ++i) {
+    const int32_t nid = nodes[i].nid;
+    const int32_t sibling_nid = nodes[i].sibling_nid;
+    hist_.AddHistRow(nid);
+    if (sibling_nid > -1) {
+      hist_.AddHistRow(sibling_nid);
+    }
+    const size_t nrows = row_set_collection_[nid].Size();
+    const size_t n_local_blocks = nrows / block_size_rows + !!(nrows % block_size_rows);
+    const size_t n_local_histograms = std::min(nthread, n_local_blocks);
+
+    task_nid->resize(task_nid->size() + n_local_blocks, nid);
+    for (size_t j = 0; j < n_local_blocks; ++j) {
+      task_node_idx->push_back(i);
+      task_block_idx->push_back(j);
+    }
+
+    (*hist_buffers)[i].clear();
+    for (size_t j = 0; j < n_local_histograms; j++) {
+      (*hist_buffers)[i].push_back(
+        reinterpret_cast<common::GradStatHist::GradType*>(hist_buff_[i_hist++].data()));
+    }
+    (*hist_is_init)[i].clear();
+    (*hist_is_init)[i].resize(n_local_histograms, false);
+    (*grad_stats)[i].resize(n_local_histograms);
+  }
+}
+
 void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>& nodes,
     RegTree* p_tree, const GHistIndexMatrix &gmat, const std::vector<GradientPair>& gpair,
     std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
@@ -457,45 +530,16 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   hist_is_init->resize(nodes.size());
 
   // input data for tasks
-  int32_t n_hist_buidling_tasks = 0;
   std::vector<int32_t> task_nid;
   std::vector<int32_t> task_node_idx;
   std::vector<int32_t> task_block_idx;
 
   // result vector
   std::vector<std::vector<common::GradStatHist>> grad_stats(nodes.size());
+  CreateTasksForBuildHist(block_size_rows, nthread, nodes, hist_buffers, hist_is_init, &grad_stats,
+      &task_nid, &task_node_idx, &task_block_idx);
+  int32_t n_hist_buidling_tasks = task_node_idx.size();
 
-  size_t i_hist = 0;
-
-  // prepare tasks for parallel exection
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const int32_t sibling_nid = nodes[i].sibling_nid;
-    hist_.AddHistRow(nid);
-    if (sibling_nid > -1) {
-      hist_.AddHistRow(sibling_nid);
-    }
-    const size_t nrows = row_set_collection_[nid].Size();
-    const size_t n_local_blocks = nrows / block_size_rows + !!(nrows % block_size_rows);
-    const size_t n_local_histograms = std::min(nthread, n_local_blocks);
-
-
-    task_nid.resize(task_nid.size() + n_local_blocks, nid);
-    for (size_t j = 0; j < n_local_blocks; ++j) {
-      task_node_idx.push_back(i);
-      task_block_idx.push_back(j);
-    }
-    n_hist_buidling_tasks += n_local_blocks;
-
-    (*hist_buffers)[i].clear();
-    for (size_t j = 0; j < n_local_histograms; j++) {
-      (*hist_buffers)[i].push_back(
-        reinterpret_cast<common::GradStatHist::GradType*>(hist_buff_[i_hist++].data()));
-    }
-    (*hist_is_init)[i].clear();
-    (*hist_is_init)[i].resize(n_local_histograms, false);
-    grad_stats[i].resize(n_local_histograms);
-  }
   const GradientPair::ValueT* const pgh =
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
 
@@ -624,10 +668,6 @@ void QuantileHistMaker::Builder::ReduceHistograms(
     }
   }
 }
-
-// void QuantileHistMaker::Builder::SyncHistograms() {
-
-// }
 
 void QuantileHistMaker::Builder::ExpandWithDepthWidth(
   const GHistIndexMatrix &gmat,
@@ -1037,7 +1077,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     common::GradStatHist::GradType* parent_hist_data  = sibling_nid > -1 ?
         reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
 
-    // reduce needed part of a hist here to have it in cache before enumeratation
+    // reduce needed part of a hist here to have it in cache before enumeration
     if (!rabit::IsDistributed()) {
       const std::vector<uint32_t>& cut_ptr = gmat.cut.row_ptr;
       const size_t ibegin = 2 * cut_ptr[fid];
