@@ -35,7 +35,6 @@ DMLC_REGISTRY_FILE_TAG(gbtree);
 void GBTree::Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
   this->cfg_ = cfg;
   tparam_.InitAllowUnknown(cfg);
-  auto current_tree_method = tparam_.tree_method;
   std::string updater_seq = tparam_.updater_seq;
 
   ConfigureUpdaters({cfg.begin(), cfg.cend()});

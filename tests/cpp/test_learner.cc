@@ -77,7 +77,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->Configure({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
+  learner->Configure({Arg{"objective", "binary:logistic"}});
   learner->InitModel();
   learner->UpdateOneIter(0, dmat.get());
 }
