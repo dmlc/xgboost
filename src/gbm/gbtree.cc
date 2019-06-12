@@ -83,8 +83,10 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
             "changed to 'approx'";
         break;
       case TreeMethod::kGPUExact:
+        // FIXME(trivialfis): Remove this line once GPU Exact is removed.
+        LOG(FATAL) << "Distributed training is not available with GPU Exact algorithm.";
+        break;
       case TreeMethod::kGPUHist:
-        LOG(FATAL) << "Distributed training is not available with GPU algoritms";
         break;
       default:
         LOG(FATAL) << "Unknown tree_method ("
