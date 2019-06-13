@@ -153,9 +153,11 @@ object XGBoost extends Serializable {
     }
     val taskId = TaskContext.getPartitionId().toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
-    Rabit.init(rabitEnv)
+    rabitEnv.put("DMLC_WORKER_STOP_PROCESS", "false")
 
     try {
+      Rabit.init(rabitEnv)
+
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
       val overridedParams = if (numEarlyStoppingRounds > 0 &&
@@ -176,6 +178,10 @@ object XGBoost extends Serializable {
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+    } catch {
+      case xgbException: XGBoostError =>
+        logger.error(s"XGBooster worker $taskId has failed due to ", xgbException)
+        throw xgbException
     } finally {
       Rabit.shutdown()
       watches.delete()

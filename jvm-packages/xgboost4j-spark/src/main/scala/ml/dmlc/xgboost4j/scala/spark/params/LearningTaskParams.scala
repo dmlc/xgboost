@@ -29,8 +29,7 @@ private[spark] trait LearningTaskParams extends Params {
    * default: reg:squarederror
    */
   final val objective = new Param[String](this, "objective", "objective function used for " +
-    s"training, options: {${LearningTaskParams.supportedObjective.mkString(",")}",
-    (value: String) => LearningTaskParams.supportedObjective.contains(value))
+    s"training, options: {${LearningTaskParams.supportedObjective.mkString(",")}")
 
   final def getObjective: String = $(objective)
 
@@ -63,8 +62,7 @@ private[spark] trait LearningTaskParams extends Params {
   final val evalMetric = new Param[String](this, "evalMetric", "evaluation metrics for " +
     "validation data, a default metric will be assigned according to objective " +
     "(rmse for regression, and error for classification, mean average precision for ranking), " +
-    s"options: {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
-    (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
+    s"options: {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}")
 
   final def getEvalMetric: String = $(evalMetric)
 
