@@ -109,7 +109,7 @@ class RowPartitioner {
       RowIndexT ridx = d_ridx[idx];
       // Missing value
       TreePositionT new_position = op(ridx);
-      assert(new_position == left_nidx || new_position == right_nidx);
+      KERNEL_CHECK(new_position == left_nidx || new_position == right_nidx);
       AtomicIncrement(d_left_count, new_position == left_nidx);
       d_position[idx] = new_position;
     });

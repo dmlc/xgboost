@@ -63,7 +63,7 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   position_b.resize(num_rows);
   ridx = dh::DoubleBuffer<RowIndexT>{&ridx_a, &ridx_b};
   position = dh::DoubleBuffer<TreePositionT>{&position_a, &position_b};
-  ridx_segments.push_back(Segment(0, num_rows));
+  ridx_segments.emplace_back(Segment(0, num_rows));
 
   thrust::sequence(
       thrust::device_pointer_cast(ridx.CurrentSpan().data()),

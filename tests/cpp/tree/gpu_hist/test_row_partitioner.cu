@@ -2,6 +2,7 @@
 #include <vector>
 
 #include <thrust/device_vector.h>
+#include <thrust/sequence.h>
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 
