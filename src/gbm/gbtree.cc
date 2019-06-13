@@ -138,6 +138,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
         "set tree_method to 'exact'.";
     tparam_.tree_method = TreeMethod::kApprox;
   }
+  LOG(DEBUG) << "Using predictor: " << tparam_.predictor;
 }
 
 void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {

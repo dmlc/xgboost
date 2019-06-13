@@ -26,6 +26,7 @@ TEST(GBTree, SelectTreeMethod) {
   ASSERT_EQ(tparam.updater_seq, "grow_colmaker,prune");
   gbtree.Configure({Arg("tree_method", "hist"), Arg("num_feature", n_feat)});
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
+  ASSERT_EQ(tparam.predictor, "cpu_predictor");
   gbtree.Configure({Arg{"booster", "dart"}, Arg{"tree_method", "hist"},
                     Arg{"num_feature", n_feat}});
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
@@ -34,8 +35,10 @@ TEST(GBTree, SelectTreeMethod) {
   gbtree.Configure({Arg("tree_method", "gpu_exact"),
                     Arg("num_feature", n_feat)});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu,prune");
+  ASSERT_EQ(tparam.predictor, "gpu_predictor");
   gbtree.Configure({Arg("tree_method", "gpu_hist"), Arg("num_feature", n_feat)});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
+  ASSERT_EQ(tparam.predictor, "gpu_predictor");
   gbtree.Configure({Arg{"booster", "dart"}, Arg{"tree_method", "gpu_hist"},
                     Arg{"num_feature", n_feat}});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
