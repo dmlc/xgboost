@@ -50,7 +50,7 @@ struct HostDeviceVectorImpl {
         cached_size_{static_cast<size_t>(~0)}, vec_{nullptr} {}
 
     ~DeviceShard() {
-       SetDevice();
+      SetDevice();
     }
 
     void Init(HostDeviceVectorImpl<T>* vec, int device) {

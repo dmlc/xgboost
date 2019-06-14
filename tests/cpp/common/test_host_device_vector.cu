@@ -19,6 +19,17 @@ void SetDevice(int device) {
   dh::safe_cuda(cudaSetDevice(device));
 }
 
+struct HostDeviceVectorSetDeviceHandler {
+  template <typename Functor>
+  HostDeviceVectorSetDeviceHandler(Functor f) {
+    SetCudaSetDeviceHandler(f);
+  }
+
+  ~HostDeviceVectorSetDeviceHandler() {
+    SetCudaSetDeviceHandler(nullptr);
+  }
+};
+
 void InitHostDeviceVector(size_t n, const GPUDistribution& distribution,
                      HostDeviceVector<int> *v) {
   // create the vector
@@ -107,7 +118,7 @@ void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
 void TestHostDeviceVector
 (size_t n, const GPUDistribution& distribution,
  const std::vector<size_t>& starts, const std::vector<size_t>& sizes) {
-  SetCudaSetDeviceHandler(SetDevice);
+  HostDeviceVectorSetDeviceHandler hdvec_dev_hndlr(SetDevice);
   HostDeviceVector<int> v;
   InitHostDeviceVector(n, distribution, &v);
   CheckDevice(&v, starts, sizes, 0, GPUAccess::kRead);
@@ -115,7 +126,6 @@ void TestHostDeviceVector
   CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
   CheckHost(&v, GPUAccess::kWrite);
-  SetCudaSetDeviceHandler(nullptr);
 }
 
 TEST(HostDeviceVector, TestBlock) {
@@ -161,7 +171,7 @@ TEST(HostDeviceVector, TestCopy) {
   auto distribution = GPUDistribution::Block(GPUSet::Range(0, n_devices));
   std::vector<size_t> starts{0, 501};
   std::vector<size_t> sizes{501, 500};
-  SetCudaSetDeviceHandler(SetDevice);
+  HostDeviceVectorSetDeviceHandler hdvec_dev_hndlr(SetDevice);
 
   HostDeviceVector<int> v;
   {
@@ -175,7 +185,6 @@ TEST(HostDeviceVector, TestCopy) {
   CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
   CheckHost(&v, GPUAccess::kWrite);
-  SetCudaSetDeviceHandler(nullptr);
 }
 
 TEST(HostDeviceVector, Shard) {

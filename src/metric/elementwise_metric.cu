@@ -60,7 +60,7 @@ class ElementWiseMetricsReduction {
 
   PackedReduceResult DeviceReduceMetrics(
       GPUSet::GpuIdType device_id,
-      dh::CubMemory &allocator,
+      dh::CubMemory *allocator,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
@@ -78,7 +78,7 @@ class ElementWiseMetricsReduction {
     auto d_policy = policy_;
 
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(allocator),
+        thrust::cuda::par(*allocator),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -118,7 +118,7 @@ class ElementWiseMetricsReduction {
         size_t index = devices.Index(id);
         dh::CubMemory allocator;
         res_per_device.at(index) =
-            DeviceReduceMetrics(id, allocator, weights, labels, preds);
+            DeviceReduceMetrics(id, &allocator, weights, labels, preds);
       }
 
       for (auto const& res : res_per_device) {
