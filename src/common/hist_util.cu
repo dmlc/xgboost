@@ -150,6 +150,10 @@ struct GPUSketcher {
       n_rows_(row_end - row_begin), param_(std::move(param)), sketch_container_(sketch_container) {
     }
 
+    ~DeviceShard() {
+      dh::safe_cuda(cudaSetDevice(device_));
+    }
+
     inline size_t GetRowStride() const {
        return row_stride_;
     }
