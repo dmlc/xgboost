@@ -88,6 +88,11 @@ RowPartitioner::~RowPartitioner() {
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
     TreePositionT nidx) {
   auto segment = ridx_segments.at(nidx);
+  // Return empty span here as a valid result
+  // Will error if we try to construct a span from a pointer with size 0
+  if (segment.Size() == 0) {
+    return common::Span<const RowPartitioner::RowIndexT>();
+  }
   return ridx.CurrentSpan().subspan(segment.begin, segment.Size());
 }
 
