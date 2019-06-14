@@ -391,10 +391,10 @@ class LearnerImpl : public Learner {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
           }
+#endif  // XGBOOST_USE_CUDA
           if (saved_param == "max_depth") {
             cfg_["max_depth"] = kv.second;
           }
-#endif  // XGBOOST_USE_CUDA
         }
       }
       attributes_ =
