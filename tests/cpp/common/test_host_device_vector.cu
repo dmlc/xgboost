@@ -21,7 +21,7 @@ void SetDevice(int device) {
 
 struct HostDeviceVectorSetDeviceHandler {
   template <typename Functor>
-  HostDeviceVectorSetDeviceHandler(Functor f) {
+  explicit HostDeviceVectorSetDeviceHandler(Functor f) {
     SetCudaSetDeviceHandler(f);
   }
 
