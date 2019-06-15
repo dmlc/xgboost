@@ -407,7 +407,6 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
         for (size_t i = begin; i < end; ++i) {
           n_left += tasks[i].n_left;
         }
-        CHECK_GT(n_left, 0U);
         left_sizes.push_back(n_left);
       }
     }
