@@ -285,7 +285,6 @@ void QuantileHistMaker::Builder::CreateTasksForApplySplit(
     } else {
       const size_t nrows = row_set_collection_[this_nid].Size();
       const size_t n_blocks = nrows / block_size + !!(nrows % block_size);
-      CHECK_GT(n_blocks, 0U);
 
       nodes_bounds->emplace_back(tasks->size(), tasks->size() + n_blocks);
 
@@ -299,7 +298,6 @@ void QuantileHistMaker::Builder::CreateTasksForApplySplit(
           buffer + cur_buff_offset, buffer + cur_buff_offset + (iend-istart), 0, 0};
         tasks->push_back(task);
         cur_buff_offset += 2*(iend-istart);
-        CHECK_LE(cur_buff_offset, buffer_for_partition_.capacity());
       }
     }
   };
@@ -430,9 +428,6 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
         ileft  += tasks[j].n_left;
         iright += tasks[j].n_right;
       }
-
-      CHECK_LE(ileft + tasks[i].n_left, row_set_collection_[nid].Size());
-      CHECK_LE(n_left + iright + tasks[i].n_right, row_set_collection_[nid].Size());
 
       std::memcpy(rid + ileft, tasks[i].left,
             tasks[i].n_left * sizeof(rid[0]));
