@@ -144,7 +144,6 @@ std::pair<size_t, size_t> PartitionDenseLeftDefaultKernel(const RowIdxType* rid,
   size_t ileft = 0;
   size_t iright = 0;
 
-  const int32_t cmp = split_cond - offset;
   const IdxType max_val = std::numeric_limits<IdxType>::max();
 
   for (size_t i = istart; i < iend; i++) {
@@ -264,7 +263,6 @@ int32_t QuantileHistMaker::Builder::FindSplitCond(int32_t nid,
   }
   return split_cond;
 }
-
 
 // split rows in each node to blocks of rows
 // for future parallel execution
@@ -436,7 +434,6 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     for (int32_t i = 0; i < size; ++i) {
       const size_t node_idx  = tasks[i].inode;
       const int32_t nid      = tasks[i].nid;
-      const int32_t iblock   = tasks[i].i_block_this_node;
       const size_t n_left    = left_sizes[node_idx];
 
       CHECK_LE(tasks[i].ileft + tasks[i].n_left, row_set_collection_[nid].Size());
@@ -551,6 +548,8 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
   // result vector
   std::vector<std::vector<common::GradStatHist>> grad_stats(nodes.size());
+
+  // 1. Create tasks for hist construction by block of rows for each node
   CreateTasksForBuildHist(block_size_rows, nthread, nodes, hist_buffers, hist_is_init, &grad_stats,
       &task_nid, &task_node_idx, &task_block_idx);
   int32_t n_hist_buidling_tasks = task_node_idx.size();
@@ -558,7 +557,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   const GradientPair::ValueT* const pgh =
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
 
-  // execute tasks in parallel
+  // 2. Build partial histograms for each node
   #pragma omp parallel for schedule(guided)
   for (int32_t itask = 0; itask < n_hist_buidling_tasks; ++itask) {
     const size_t tid = omp_get_thread_num();
@@ -579,6 +578,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     const size_t istart = block_id * block_size_rows;
     const size_t iend = (((block_id+1)*block_size_rows > nrows) ? nrows : istart + block_size_rows);
 
+    // call hist building kernel depending on bin-matrix layout
     if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
       common::BuildHistLocalDense(istart, iend, nrows, rid, gmat.index.data(), pgh,
         row_ptr, data_local_hist, grad_stat);
@@ -588,6 +588,8 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     }
   }
 
+  // 3. Merge grad stats for each node
+  //    Sync histograms in case of distributed computation
   SyncHistograms(p_tree, nodes, hist_buffers, hist_is_init, grad_stats);
 
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
@@ -600,8 +602,9 @@ void QuantileHistMaker::Builder::SyncHistograms(
     std::vector<std::vector<uint8_t>>* hist_is_init,
     const std::vector<std::vector<common::GradStatHist>>& grad_stats) {
   if (rabit::IsDistributed()) {
+    const int size = nodes.size();
     #pragma omp parallel for  // TODO(egorsmir): replace to n_features * nodes.size()
-    for (int i = 0; i < nodes.size(); ++i) {
+    for (int i = 0; i < size; ++i) {
       const int32_t nid = nodes[i].nid;
       common::GradStatHist::GradType* hist_data =
           reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
@@ -653,6 +656,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
   }
 }
 
+// merge some block of partial histograms
 void QuantileHistMaker::Builder::ReduceHistograms(
     common::GradStatHist::GradType* hist_data,
     common::GradStatHist::GradType* sibling_hist_data,
