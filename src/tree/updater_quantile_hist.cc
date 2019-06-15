@@ -345,8 +345,11 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   std::vector<ApplySplitTaskInfo> tasks;
   std::vector<std::pair<size_t, size_t>> nodes_bounds;
 
+  LOG(WARNING) << "before CreateTasksForApplySplit";
+
   CreateTasksForApplySplit<ApplySplitTaskInfo>(nodes, gmat, p_tree, num_leaves, depth,
       block_size, &tasks, &nodes_bounds);
+  LOG(WARNING) << "after CreateTasksForApplySplit";
 
   // buffer to store # of rows in left part for each row-block
   std::vector<size_t> left_sizes;
@@ -396,6 +399,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     // calculate sizes of left parts in each block
     #pragma omp single
     {
+      LOG(WARNING) << "start of merge";
       for (auto& node : nodes_bounds) {
         size_t n_left = 0;
 
@@ -407,6 +411,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
         }
         left_sizes.push_back(n_left);
       }
+      LOG(WARNING) << "end of merge";
     }
 
     // merge partial results to one
@@ -435,6 +440,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
             tasks[i].n_right * sizeof(rid[0]));
     }
   }
+  LOG(WARNING) << "end of partition";
 
   // register new nodes
   for (size_t i = 0; i < nodes_bounds.size(); ++i) {
@@ -455,7 +461,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
             depth + 1, 0.0, (*timestamp)++));
     }
   }
-
+  LOG(WARNING) << "end of APPLY_SPLIT";
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
 }
 
