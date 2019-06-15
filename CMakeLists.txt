@@ -12,6 +12,7 @@ endif (MSVC)
 set_default_configuration_release()
 
 #-- Options
+add_compile_options(-g)
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 ## Bindings
