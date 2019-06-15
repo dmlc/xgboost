@@ -311,7 +311,7 @@ class QuantileHistMaker: public TreeUpdater {
         unsigned *timestamp,
         std::vector<ExpandEntry> *temp_qexpand_depth);
 
-    template<typename TaskType>
+    template<typename TaskType, typename NodeType>
     void CreateTasksForApplySplit(
           const std::vector<ExpandEntry>& nodes,
           const GHistIndexMatrix &gmat,
@@ -320,7 +320,7 @@ class QuantileHistMaker: public TreeUpdater {
           const int depth,
           const size_t block_size,
           std::vector<TaskType>* tasks,
-          std::vector<std::pair<size_t, size_t>>* nodes_bounds);
+          std::vector<NodeType>* nodes_bounds);
 
     void CreateTasksForBuildHist(
         size_t block_size_rows,
