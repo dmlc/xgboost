@@ -546,9 +546,6 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   CreateTasksForBuildHist(block_size_rows, nthread, nodes, hist_buffers, hist_is_init, &grad_stats,
       &task_nid, &task_node_idx, &task_block_idx);
   int32_t n_hist_buidling_tasks = task_node_idx.size();
-  CHECK_GT(n_hist_buidling_tasks, 0U);
-  CHECK_GT(task_nid.size(), 0U);
-  CHECK_GT(task_block_idx.size(), 0U);
 
   const GradientPair::ValueT* const pgh =
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
