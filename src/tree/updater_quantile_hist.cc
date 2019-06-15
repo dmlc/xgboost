@@ -285,10 +285,11 @@ void QuantileHistMaker::Builder::CreateTasksForApplySplit(
     } else {
       const size_t nrows = row_set_collection_[this_nid].Size();
       const size_t n_blocks = nrows / block_size + !!(nrows % block_size);
+      CHECK_GT(n_blocks, 0U);
 
       nodes_bounds->emplace_back(tasks->size(), tasks->size() + n_blocks);
 
-      int32_t split_cond = FindSplitCond(this_nid, p_tree, gmat);
+      const int32_t split_cond = FindSplitCond(this_nid, p_tree, gmat);
 
       for (size_t i = 0; i < n_blocks; ++i) {
         const size_t istart = i*block_size;
@@ -298,6 +299,7 @@ void QuantileHistMaker::Builder::CreateTasksForApplySplit(
           buffer + cur_buff_offset, buffer + cur_buff_offset + (iend-istart), 0, 0};
         tasks->push_back(task);
         cur_buff_offset += 2*(iend-istart);
+        CHECK_LE(cur_buff_offset, buffer_for_partition_.capacity());
       }
     }
   };
@@ -344,6 +346,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
   // create tasks for partition of row_set_collection_
   std::vector<ApplySplitTaskInfo> tasks;
   std::vector<std::pair<size_t, size_t>> nodes_bounds;
+
   CreateTasksForApplySplit<ApplySplitTaskInfo>(nodes, gmat, p_tree, num_leaves, depth,
       block_size, &tasks, &nodes_bounds);
 
@@ -399,11 +402,12 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
         size_t n_left = 0;
 
         size_t begin = node.first;
-        size_t end = node.second;
+        size_t end   = node.second;
 
         for (size_t i = begin; i < end; ++i) {
           n_left += tasks[i].n_left;
         }
+        CHECK_GT(n_left, 0U);
         left_sizes.push_back(n_left);
       }
     }
@@ -421,12 +425,15 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
       size_t iright = 0;
 
       const size_t n_left = left_sizes[node_idx];
+      const size_t block_offset = nodes_bounds[node_idx].first;
 
-      for (size_t j = nodes_bounds[node_idx].first;
-           j < nodes_bounds[node_idx].first + iblock; ++j) {
+      for (size_t j = block_offset; j < block_offset + iblock; ++j) {
         ileft  += tasks[j].n_left;
         iright += tasks[j].n_right;
       }
+
+      CHECK_LE(ileft + tasks[i].n_left, row_set_collection_[nid].Size());
+      CHECK_LE(n_left + iright + tasks[i].n_right, row_set_collection_[nid].Size());
 
       std::memcpy(rid + ileft, tasks[i].left,
             tasks[i].n_left * sizeof(rid[0]));
@@ -540,6 +547,9 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
   CreateTasksForBuildHist(block_size_rows, nthread, nodes, hist_buffers, hist_is_init, &grad_stats,
       &task_nid, &task_node_idx, &task_block_idx);
   int32_t n_hist_buidling_tasks = task_node_idx.size();
+  CHECK_GT(n_hist_buidling_tasks, 0U);
+  CHECK_GT(task_nid.size(), 0U);
+  CHECK_GT(task_block_idx.size(), 0U);
 
   const GradientPair::ValueT* const pgh =
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
