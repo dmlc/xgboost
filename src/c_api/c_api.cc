@@ -266,6 +266,64 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
+XGB_DLL int XGDataSourceCreate(const size_t num_row,
+                               const size_t num_nonzero,
+                               DataSourceHandle *out) {
+  API_BEGIN()
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  auto &offset_vec = source->page_.offset.HostVector();
+  if (num_row > 0) {
+    offset_vec.reserve(num_row);
+  }
+  offset_vec.resize(1);
+  offset_vec[0] = 0;
+  auto& data_vec = source->page_.data.HostVector();
+  if (num_nonzero > 0) {
+    data_vec.reserve(num_nonzero);
+  }
+  *out = new std::unique_ptr<data::SimpleCSRSource>(std::move(source));
+  API_END()
+}
+
+XGB_DLL int XGDataSourceAppendData(const size_t *indptr,
+                                   const unsigned *indices,
+                                   const bst_float *data,
+                                   size_t nindptr,
+                                   DataSourceHandle handle) {
+  API_BEGIN()
+  auto src = static_cast<std::unique_ptr<data::SimpleCSRSource> *>(handle)->get();
+  auto& offset_vec = src->page_.offset.HostVector();
+  auto& data_vec = src->page_.data.HostVector();
+  size_t max_index = 0;
+  for (size_t i = 1; i < nindptr; ++i) {
+    for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
+      if (!common::CheckNAN(data[j])) {
+        // autosrcically skip nan.
+        data_vec.emplace_back(indices[j], data[j]);
+        if (max_index < indices[j]) {
+          max_index = indices[j];
+        }
+      }
+    }
+    offset_vec.push_back(src->page_.data.Size());
+  }
+
+  src->info.num_row_ = src->page_.offset.Size() - 1;
+  src->info.num_nonzero_ = src->page_.data.Size();
+  if (max_index > 0 && max_index >= src->info.num_col_) {
+    src->info.num_col_ = max_index + 1;
+  }
+  API_END()
+}
+
+XGB_DLL int XGDMatrixCreateFromDataSource(DataSourceHandle handle,
+                                          DMatrixHandle *out) {
+  API_BEGIN()
+  auto src_ptr = static_cast<std::unique_ptr<data::SimpleCSRSource> *>(handle);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(*src_ptr)));
+  API_END()
+}
+
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
                                      const bst_float* data,

@@ -35,6 +35,8 @@ typedef void *BoosterHandle;  // NOLINT(*)
 typedef void *DataIterHandle;  // NOLINT(*)
 /*! \brief handle to a internal data holder. */
 typedef void *DataHolderHandle;  // NOLINT(*)
+/*! \brief handle to a data source. */
+typedef void *DataSourceHandle;  // NOLINT(*)
 
 /*! \brief Mini batch used in XGBoost Data Iteration */
 typedef struct {  // NOLINT(*)
@@ -127,6 +129,41 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     XGBCallbackDataIterNext* callback,
     const char* cache_info,
     DMatrixHandle *out);
+
+/*!
+ * \brief create a XGBoost DataSource(SimpleCSRSource)
+ * \param num_row row number, which is used to pre-allocate memory
+ * \param num_nonzero number of elements, which is used to pre-allocate memory
+ * \param out created XGBoost DataSource
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDataSourceCreate(const size_t num_row,
+                               const size_t num_nonzero,
+                               DataSourceHandle *out);
+
+/*!
+ * \brief append CSR format data into XGBoost DataSource
+ * \param indptr pointer to row headers
+ * \param indices findex
+ * \param data fvalue
+ * \param nindptr number of rows in the matrix + 1
+ * \param handle instance of XGBoost DataSource
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDataSourceAppendData(const size_t *indptr,
+                                   const unsigned *indices,
+                                   const float *data,
+                                   size_t nindptr,
+                                   DataSourceHandle handle);
+
+/*!
+ * \brief create a matrix content from XGBoost DataSource(SimpleCSRSource)
+ * \param handle instance of XGBoost DataSource
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromDataSource(DataSourceHandle handle,
+                                          DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from CSR format
