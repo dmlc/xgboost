@@ -828,8 +828,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
   (JNIEnv *jenv, jclass jcls) {
-  RabitFinalize();
-  return 0;
+  return RabitFinalize();
 }
 
 /*
