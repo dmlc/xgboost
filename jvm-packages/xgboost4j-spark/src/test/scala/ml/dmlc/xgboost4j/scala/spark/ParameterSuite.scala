@@ -40,6 +40,18 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     assert(xgbCopy2.MLlib2XGBoostParams("eval_metric").toString === "logloss")
   }
 
+  private def waitForSparkContextShutdown(): Unit = {
+    var totalWaitedTime = 0L
+    while (ss.sparkContext.isStopped) {
+      wait(1000)
+      totalWaitedTime += 1000
+      if (totalWaitedTime > 60000) {
+        assert(ss.sparkContext.isStopped === true)
+      }
+    }
+    assert(ss.sparkContext.isStopped === true)
+  }
+
   test("fail training elegantly with unsupported objective function") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "wrong_objective_function", "num_class" -> "6", "num_round" -> 5,
@@ -51,7 +63,7 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     } catch {
       case e: Throwable => // swallow anything
     } finally {
-      assert(ss.sparkContext.isStopped === true)
+      waitForSparkContextShutdown
     }
   }
 
@@ -66,7 +78,7 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     } catch {
       case e: Throwable => // swallow anything
     } finally {
-      assert(ss.sparkContext.isStopped === true)
+      waitForSparkContextShutdown
     }
   }
 }
