@@ -83,6 +83,8 @@ TEST(c_api, XGDMatrixCreateFromDataSource) {
 
   DMatrixHandle mat_handle;
   XGDMatrixCreateFromDataSource(handle, &mat_handle);
+  delete handle;
+
   std::shared_ptr<xgboost::DMatrix> *dmat =
       static_cast<std::shared_ptr<xgboost::DMatrix> *>(mat_handle);
   xgboost::MetaInfo &info = (*dmat)->Info();
