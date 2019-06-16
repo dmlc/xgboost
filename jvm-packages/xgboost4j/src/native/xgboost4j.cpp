@@ -818,7 +818,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
     argv.push_back(&args[i][0]);
   }
 
-  return RabitInit(args.size(), dmlc::BeginPtr(argv));
+  if (RabitInit(args.size(), dmlc::BeginPtr(argv))) {
+    return 0;
+  } else {
+    return 1;
+  }
 }
 
 /*
@@ -828,7 +832,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
   (JNIEnv *jenv, jclass jcls) {
-  return RabitFinalize();
+  if (RabitFinalize()) {
+    return 0;
+  } else {
+    return 1;
+  }
 }
 
 /*

@@ -17,6 +17,7 @@
 package org.apache.spark
 
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 import org.apache.commons.logging.LogFactory
 
@@ -123,18 +124,31 @@ private[spark] class TaskFailedListener extends SparkListener {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
             s"$taskEndReason, stopping SparkContext")
-        // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
-        // in a separate thread
-        val sparkContextKiller = new Thread() {
-          override def run(): Unit = {
-            LiveListenerBus.withinListenerThread.withValue(false) {
-              SparkContext.getOrCreate().stop()
-            }
+        TaskFailedListener.startedSparkContextKiller()
+      case _ =>
+    }
+  }
+}
+
+object TaskFailedListener {
+
+  var killerStarted = false
+
+  private def startedSparkContextKiller(): Unit = this.synchronized {
+    if (!killerStarted) {
+      // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
+      // in a separate thread
+      val sparkContextKiller = new Thread() {
+        override def run(): Unit = {
+          LiveListenerBus.withinListenerThread.withValue(false) {
+            println("SparkContext killer is running")
+            SparkContext.getOrCreate().stop()
           }
         }
-        sparkContextKiller.setDaemon(true)
-        sparkContextKiller.start()
-      case _ =>
+      }
+      sparkContextKiller.setDaemon(true)
+      sparkContextKiller.start()
+      killerStarted = true
     }
   }
 }
