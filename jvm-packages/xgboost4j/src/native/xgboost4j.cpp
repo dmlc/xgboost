@@ -818,8 +818,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
     argv.push_back(&args[i][0]);
   }
 
-  RabitInit(args.size(), dmlc::BeginPtr(argv));
-  return 0;
+  return RabitInit(args.size(), dmlc::BeginPtr(argv));
 }
 
 /*
