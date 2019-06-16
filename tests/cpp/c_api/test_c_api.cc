@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include <xgboost/data.h>
 
 TEST(c_api, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
@@ -80,18 +81,19 @@ TEST(c_api, XGDMatrixCreateFromDataSource) {
   XGDataSourceAppendData(indptr1.data(), indices1.data(), data1.data(),
                          indptr1.size(),
                          handle);
+  auto *ds = static_cast<std::unique_ptr<xgboost::DataSource> *>(handle);
+  xgboost::MetaInfo &ds_info = (*ds)->info;
+  ASSERT_EQ(ds_info.num_col_, 10);
+  ASSERT_EQ(ds_info.num_row_, 5);
+  ASSERT_EQ(ds_info.num_nonzero_, 10);
 
   DMatrixHandle mat_handle;
   XGDMatrixCreateFromDataSource(handle, &mat_handle);
-  delete handle;
-
-  std::shared_ptr<xgboost::DMatrix> *dmat =
-      static_cast<std::shared_ptr<xgboost::DMatrix> *>(mat_handle);
+  auto *dmat = static_cast<std::shared_ptr<xgboost::DMatrix> *>(mat_handle);
   xgboost::MetaInfo &info = (*dmat)->Info();
   ASSERT_EQ(info.num_col_, 10);
   ASSERT_EQ(info.num_row_, 5);
   ASSERT_EQ(info.num_nonzero_, 10);
-
   for (const auto &batch : (*dmat)->GetRowBatches()) {
     ASSERT_EQ(batch[0][0].index, 1);
     ASSERT_EQ(batch[0][1].index, 3);
@@ -115,6 +117,7 @@ TEST(c_api, XGDMatrixCreateFromDataSource) {
     ASSERT_EQ(batch[4][0].fvalue, -4.0f);
   }
 
+  delete ds;
   delete dmat;
 }
 
