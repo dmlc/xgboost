@@ -153,7 +153,7 @@ object XGBoost extends Serializable {
     }
     val taskId = TaskContext.getPartitionId().toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
-    rabitEnv.put("DMLC_WORKER_STOP_PROCESS", "false")
+    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
       Rabit.init(rabitEnv)

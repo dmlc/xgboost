@@ -271,7 +271,7 @@ class XGBoostRegressionModel private[ml] (
           if (batchCnt == 0) {
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
-              "DMLC_WORKER_STOP_PROCESS" -> "false").toMap
+              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
             Rabit.init(rabitEnv.asJava)
           }
 
