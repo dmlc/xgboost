@@ -31,7 +31,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 

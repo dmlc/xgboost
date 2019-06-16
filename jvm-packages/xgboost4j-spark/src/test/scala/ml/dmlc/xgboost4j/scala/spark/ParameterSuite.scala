@@ -42,9 +42,9 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
   private def waitForSparkContextShutdown(): Unit = {
     var totalWaitedTime = 0L
-    while (!ss.sparkContext.isStopped && totalWaitedTime <= 60000) {
-      Thread.sleep(1000)
-      totalWaitedTime += 1000
+    while (!ss.sparkContext.isStopped && totalWaitedTime <= 120000) {
+      Thread.sleep(10000)
+      totalWaitedTime += 10000
     }
     assert(ss.sparkContext.isStopped === true)
   }
