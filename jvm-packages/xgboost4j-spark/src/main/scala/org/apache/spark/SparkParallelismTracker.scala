@@ -79,6 +79,7 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
+    println("====adding TaskFailedListener====")
     val listener = new TaskFailedListener
     sc.addSparkListener(listener)
     try {
@@ -134,18 +135,17 @@ object TaskFailedListener {
 
   var killerStarted = false
 
-  val sparkContextKiller: Thread = new Thread() {
-    override def run(): Unit = {
-      LiveListenerBus.withinListenerThread.withValue(false) {
-        SparkContext.getOrCreate().stop()
-      }
-    }
-  }
-
   private def startedSparkContextKiller(): Unit = this.synchronized {
     if (!killerStarted) {
       // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
       // in a separate thread
+      val sparkContextKiller = new Thread() {
+        override def run(): Unit = {
+          LiveListenerBus.withinListenerThread.withValue(false) {
+            SparkContext.getOrCreate().stop()
+          }
+        }
+      }
       sparkContextKiller.setDaemon(true)
       sparkContextKiller.start()
       killerStarted = true
