@@ -8,6 +8,7 @@
 
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <bitset>
 #include <string>
 #include <sstream>
@@ -93,13 +94,13 @@ FeatureInteractionConstraint::FeatureInteractionConstraint(
 
   // --- Compute interaction sets attached to each feature.
   // Use a set to eliminate duplicated entries.
-  std::vector<std::set<int32_t> > h_features_set (n_features);
+  std::vector<std::set<int32_t> > h_features_set(n_features);
   int32_t cid = 0;
   for (auto const& constraints : h_feature_constraints_) {
     for (auto const& feat : constraints) {
       h_features_set.at(feat).insert(cid);
     }
-    cid ++;
+    cid++;
   }
   std::vector<int32_t> h_sets;
   int32_t ptr = 0;
@@ -151,6 +152,7 @@ __global__ void ClearBuffersKernel(
 
 void FeatureInteractionConstraint::ClearBuffers() {
   CHECK_EQ(output_buffer_bits_.Size(), input_buffer_bits_.Size());
+  CHECK_LE(feature_buffer_.Size(), output_buffer_bits_.Size());
   int constexpr kBlockThreads = 256;
   const int n_grids = static_cast<int>(
       dh::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
@@ -294,6 +296,8 @@ void FeatureInteractionConstraint::Split(
   CHECK_LT(right_id, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
 
+  ClearBuffers();
+
   BitField node = s_node_constraints_[node_id];
   BitField left = s_node_constraints_[left_id];
   BitField right = s_node_constraints_[right_id];
@@ -308,6 +312,7 @@ void FeatureInteractionConstraint::Split(
        s_fconstraints_ptr_,
        s_sets_,
        s_sets_ptr_);
+
 
   int constexpr kBlockThreads = 256;
   const int n_grids = static_cast<int>(dh::DivRoundUp(node.Size(), kBlockThreads));

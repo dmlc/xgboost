@@ -25,7 +25,7 @@ class TestInteractionConstraints(unittest.TestCase):
             'nthread': 2,
             'interaction_constraints': '[[0, 1]]',
             'tree_method': tree_method,
-            'verbosity': 3
+            'verbosity': 2
         }
         num_boost_round = 12
         # Fit a model that only allows interaction between x1 and x2
