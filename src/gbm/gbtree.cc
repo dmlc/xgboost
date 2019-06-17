@@ -61,84 +61,32 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
     return;
   }
 
-  const TreeMethod current_tree_method = tparam_.tree_method;
+  if (tparam_.tree_method != TreeMethod::kAuto) {
+    return;
+  }
 
+  tparam_.updater_seq = "grow_histmaker,prune";
   if (rabit::IsDistributed()) {
-    switch (current_tree_method) {
-      case TreeMethod::kAuto:
-        LOG(WARNING) <<
-            "Tree method is automatically selected to be 'approx' "
-            "for distributed training.";
-        break;
-      case TreeMethod::kApprox:
-      case TreeMethod::kHist:
-        // things are okay, do nothing
-        break;
-      case TreeMethod::kExact:
-        LOG(WARNING) << "Tree method was set to be "
-                     << "exact"
-                     << "', but only 'approx' and 'hist' is available for distributed "
-            "training. The `tree_method` parameter is now being "
-            "changed to 'approx'";
-        break;
-      case TreeMethod::kGPUExact:
-        // FIXME(trivialfis): Remove this line once GPU Exact is removed.
-        LOG(FATAL) << "Distributed training is not available with GPU Exact algorithm.";
-        break;
-      case TreeMethod::kGPUHist:
-        break;
-      default:
-        LOG(FATAL) << "Unknown tree_method ("
-                   << static_cast<int>(current_tree_method) << ") detected";
-    }
-    if (current_tree_method != TreeMethod::kHist) {
-      LOG(WARNING) << "Tree method is automatically selected to be 'approx'"
-          " for distributed training.";
-      tparam_.tree_method = TreeMethod::kApprox;
-    } else {
-      LOG(WARNING) << "Tree method is specified to be 'hist'"
-          " for distributed training.";
-      tparam_.tree_method = TreeMethod::kHist;
-    }
-  } else if (!p_train->SingleColBlock()) {
-    /* Some tree methods are not available for external-memory DMatrix */
-    switch (current_tree_method) {
-      case TreeMethod::kAuto:
-        LOG(WARNING) << "Tree method is automatically set to 'approx' "
-            "since external-memory data matrix is used.";
-        break;
-      case TreeMethod::kApprox:
-        // things are okay, do nothing
-        break;
-      case TreeMethod::kExact:
-        LOG(WARNING) << "Tree method was set to be 'exact', "
-            "but currently we are only able to proceed with "
-            "approximate algorithm ('approx') because external-"
-            "memory data matrix is used.";
-        break;
-      case TreeMethod::kHist:
-        // things are okay, do nothing
-        break;
-      case TreeMethod::kGPUExact:
-      case TreeMethod::kGPUHist:
-        LOG(FATAL)
-            << "External-memory data matrix is not available with GPU algorithms";
-        break;
-      default:
-        LOG(FATAL) << "Unknown tree_method ("
-                   << static_cast<int>(current_tree_method) << ") detected";
-    }
+    LOG(WARNING) <<
+      "Tree method is automatically selected to be 'approx' "
+      "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
-  } else if (p_train->Info().num_row_ >= (4UL << 20UL)
-             && current_tree_method == TreeMethod::kAuto) {
+  } else if (!p_train->SingleColBlock()) {
+    LOG(WARNING) << "Tree method is automatically set to 'approx' "
+                    "since external-memory data matrix is used.";
+    tparam_.tree_method = TreeMethod::kApprox;
+  } else if (p_train->Info().num_row_ >= (4UL << 20UL)) {
     /* Choose tree_method='approx' automatically for large data matrix */
     LOG(WARNING) << "Tree method is automatically selected to be "
         "'approx' for faster speed. To use old behavior "
         "(exact greedy algorithm on single machine), "
         "set tree_method to 'exact'.";
     tparam_.tree_method = TreeMethod::kApprox;
+  } else {
+    tparam_.tree_method = TreeMethod::kExact;
+    tparam_.updater_seq = "grow_colmaker,prune";
   }
-  LOG(DEBUG) << "Using predictor: " << tparam_.predictor;
+  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
 
 void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
