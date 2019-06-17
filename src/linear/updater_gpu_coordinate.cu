@@ -81,6 +81,10 @@ class DeviceShard {
     RescaleIndices(device_id_, ridx_begin_, data_);
   }
 
+  ~DeviceShard() {
+    dh::safe_cuda(cudaSetDevice(device_id_));
+  }
+
   bool IsEmpty() {
     return (ridx_end_ - ridx_begin_) == 0;
   }

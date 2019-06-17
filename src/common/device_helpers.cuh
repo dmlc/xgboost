@@ -552,6 +552,8 @@ struct CubMemory {
       XGBDeviceAllocator<uint8_t> allocator;
       allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
         temp_storage_bytes);
+      d_temp_storage = nullptr;
+      temp_storage_bytes = 0;
     }
   }
 

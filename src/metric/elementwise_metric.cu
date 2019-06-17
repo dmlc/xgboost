@@ -58,9 +58,17 @@ class ElementWiseMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
+  ~ElementWiseMetricsReduction() {
+    for (GPUSet::GpuIdType id = *devices_.begin(); id < *devices_.end(); ++id) {
+      dh::safe_cuda(cudaSetDevice(id));
+      size_t index = devices_.Index(id);
+      allocators_.at(index).Free();
+    }
+  }
+
   PackedReduceResult DeviceReduceMetrics(
       GPUSet::GpuIdType device_id,
-      dh::CubMemory *allocator,
+      size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
@@ -78,7 +86,7 @@ class ElementWiseMetricsReduction {
     auto d_policy = policy_;
 
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(*allocator),
+        thrust::cuda::par(allocators_.at(device_index)),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -96,6 +104,7 @@ class ElementWiseMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
+      const LearnerTrainParam &tparam,
       GPUSet devices,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
@@ -107,6 +116,10 @@ class ElementWiseMetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
+      if (allocators_.empty()) {
+        devices_ = GPUSet::All(tparam.gpu_id, tparam.n_gpus);
+        allocators_.resize(devices_.Size());
+      }
       preds.Shard(devices);
       labels.Shard(devices);
       weights.Shard(devices);
@@ -116,9 +129,8 @@ class ElementWiseMetricsReduction {
       for (GPUSet::GpuIdType id = *devices.begin(); id < *devices.end(); ++id) {
         dh::safe_cuda(cudaSetDevice(id));
         size_t index = devices.Index(id);
-        dh::CubMemory allocator;
         res_per_device.at(index) =
-            DeviceReduceMetrics(id, &allocator, weights, labels, preds);
+            DeviceReduceMetrics(id, index, weights, labels, preds);
       }
 
       for (auto const& res : res_per_device) {
@@ -131,6 +143,10 @@ class ElementWiseMetricsReduction {
 
  private:
   EvalRow policy_;
+#if defined(XGBOOST_USE_CUDA)
+  GPUSet devices_;
+  std::vector<dh::CubMemory> allocators_;
+#endif  // defined(XGBOOST_USE_CUDA)
 };
 
 struct EvalRowRMSE {
@@ -333,7 +349,7 @@ struct EvalEWiseBase : public Metric {
     GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
 
     auto result =
-        reducer_.Reduce(devices, info.weights_, info.labels_, preds);
+        reducer_.Reduce(*tparam_, devices, info.weights_, info.labels_, preds);
 
     double dat[2] { result.Residue(), result.Weights() };
     if (distributed) {
