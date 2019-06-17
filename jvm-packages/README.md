@@ -27,14 +27,14 @@ XGBoost4J, XGBoost4J-Spark, etc. in maven repository is compiled with g++-4.8.5
 ```
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j</artifactId>
+    <artifactId>xgboost4j_2.12</artifactId>
     <version>latest_version_num</version>
 </dependency>
 ``` 
  
 <b>sbt</b> 
 ```sbt
- "ml.dmlc" % "xgboost4j" % "latest_version_num"
+ "ml.dmlc" %% "xgboost4j" % "latest_version_num"
 ``` 
 
 For the latest release version number, please check [here](https://github.com/dmlc/xgboost/releases).
@@ -68,17 +68,17 @@ the add dependency as following:
 ```
 <dependency>
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j</artifactId>
+    <artifactId>xgboost4j_2.12</artifactId>
     <version>latest_version_num</version>
 </dependency>
 ``` 
  
 <b>sbt</b> 
 ```sbt
- "ml.dmlc" % "xgboost4j" % "latest_version_num"
+ "ml.dmlc" %% "xgboost4j" % "latest_version_num"
 ``` 
 
-For the latest release version number, please check [here](https://github.com/CodingCat/xgboost/tree/maven-repo/ml/dmlc/xgboost4j).
+For the latest release version number, please check [here](https://github.com/CodingCat/xgboost/tree/maven-repo/ml/dmlc/xgboost4j_2.12).
 
 if you want to use `xgboost4j-spark`, you just need to replace xgboost4j with `xgboost4j-spark`
 

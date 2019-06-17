@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost-jvm</artifactId>
+    <artifactId>xgboost-jvm_2.12</artifactId>
     <version>0.90</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
