@@ -187,17 +187,17 @@ struct FeatureInteractionConstraint {
   // Interaction constraints parsed from string parameter.
   std::vector<std::vector<int32_t>> h_feature_constraints_;
 
-  // the feature constraints represented as CSR.
+  // The feature interaction constraints as CSR.
   dh::device_vector<int32_t> d_fconstraints_;
   common::Span<int32_t> s_fconstraints_;
   dh::device_vector<int32_t> d_fconstraints_ptr_;
   common::Span<int32_t> s_fconstraints_ptr_;
-  // interaction sets for each feature.
+  // Interaction sets for each feature as CSR.
   dh::device_vector<int32_t> d_sets_;
   dh::device_vector<int32_t> d_sets_ptr_;
   common::Span<int32_t> s_sets_;
   common::Span<int32_t> s_sets_ptr_;
-
+  // Combined features from all interaction sets one feature belongs to.
   dh::device_vector<BitField::value_type> d_feature_buffer_storage_;
   BitField feature_buffer_;
 
@@ -222,7 +222,11 @@ struct FeatureInteractionConstraint {
  public:
   // size_t Features() { return d_feature_constraints_.size(); }
   size_t Features() const;
+  FeatureInteractionConstraint() = default;
+  void Configure(tree::TrainParam const& param, int32_t const n_features);
   FeatureInteractionConstraint(tree::TrainParam const& param, int32_t const n_features);
+  FeatureInteractionConstraint(FeatureInteractionConstraint const& that) = default;
+  FeatureInteractionConstraint(FeatureInteractionConstraint&& that) = default;
   /*! \brief Reset before constructing a new tree. */
   void Reset();
   /*! \brief Return a list of features given node id */

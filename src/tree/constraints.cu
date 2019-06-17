@@ -28,9 +28,9 @@ size_t FeatureInteractionConstraint::Features() const {
   return d_sets_ptr_.size() - 1;
 }
 
-FeatureInteractionConstraint::FeatureInteractionConstraint(
-    tree::TrainParam const& param, int32_t const n_features) :
-    has_constraint_{true} {
+void FeatureInteractionConstraint::Configure(
+    tree::TrainParam const& param, int32_t const n_features) {
+  has_constraint_ = true;
   if (param.interaction_constraints.length() == 0) {
     has_constraint_ = false;
     return;
@@ -128,6 +128,12 @@ FeatureInteractionConstraint::FeatureInteractionConstraint(
   input_buffer_bits_ = BitField(dh::ToSpan(input_buffer_bits_storage_));
   result_buffer_.resize(n_features);
   s_result_buffer_ = dh::ToSpan(result_buffer_);
+}
+
+FeatureInteractionConstraint::FeatureInteractionConstraint(
+    tree::TrainParam const& param, int32_t const n_features) :
+    has_constraint_{true} {
+  this->Configure(param, n_features);
 }
 
 void FeatureInteractionConstraint::Reset() {
@@ -236,6 +242,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
   return result;
 }
 
+// Find interaction sets for each feature, then store all features in those sets.
 __global__ void RestoreFeatureList(
     BitField feature_buffer,
 
@@ -275,13 +282,17 @@ __global__ void InteractionConstraintSplitKernel(BitField feature,
   // enable constraints from feature
   node |= feature;
 
-  if (tid == feature_id) {
-    // enable the split feature
-    node.Set(feature_id);
-  }
   // enable constraints from parent
   left  |= node;
   right |= node;
+
+  if (tid == feature_id) {
+    // enable the split feature, set all of them at last instead of
+    // setting it for parent to avoid race.
+    node.Set(feature_id);
+    left.Set(feature_id);
+    right.Set(feature_id);
+  }
 }
 
 void FeatureInteractionConstraint::Split(
@@ -302,9 +313,9 @@ void FeatureInteractionConstraint::Split(
   BitField left = s_node_constraints_[left_id];
   BitField right = s_node_constraints_[right_id];
 
-  dim3 block3(16, 64, 1);
-  dim3 grid3(dh::DivRoundUp(h_feature_constraints_.size(), 16),
-             dh::DivRoundUp(s_fconstraints_.size(), 64));
+  dim3 const block3(16, 64, 1);
+  dim3 const grid3(dh::DivRoundUp(h_feature_constraints_.size(), 16),
+                   dh::DivRoundUp(s_fconstraints_.size(), 64));
   RestoreFeatureList<<<grid3, block3>>>
       (feature_buffer_,
        feature_id,
@@ -312,7 +323,6 @@ void FeatureInteractionConstraint::Split(
        s_fconstraints_ptr_,
        s_sets_,
        s_sets_ptr_);
-
 
   int constexpr kBlockThreads = 256;
   const int n_grids = static_cast<int>(dh::DivRoundUp(node.Size(), kBlockThreads));
