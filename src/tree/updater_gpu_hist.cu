@@ -483,8 +483,6 @@ __global__ void CompressBinEllpackKernel(
     const uint32_t* __restrict__ cut_rows,  // HistCutMatrix::row_ptrs
     size_t base_row,                        // batch_row_begin
     size_t n_rows,
-    // row_ptr_begin: row_offset[base_row], the start position of base_row
-    size_t row_ptr_begin,
     size_t row_stride,
     unsigned int null_gidx_value) {
   size_t irow = threadIdx.x + blockIdx.x * blockDim.x;
@@ -495,7 +493,7 @@ __global__ void CompressBinEllpackKernel(
   int row_length = static_cast<int>(row_ptrs[irow + 1] - row_ptrs[irow]);
   unsigned int bin = null_gidx_value;
   if (ifeature < row_length) {
-    Entry entry = entries[row_ptrs[irow] - row_ptr_begin + ifeature];
+    Entry entry = entries[row_ptrs[irow] - row_ptrs[0] + ifeature];
     int feature = entry.index;
     float fvalue = entry.fvalue;
     // {feature_cuts, ncuts} forms the array of cuts of `feature'.
@@ -1311,14 +1309,6 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
   size_t row_stride = this->ellpack_matrix.row_stride;
 
   const auto &offset_vec = row_batch.offset.ConstHostVector();
-  /*! \brief row offset in SparsePage (the input data). */
-  CHECK_LE(device_row_state.rows_to_process_from_batch, offset_vec.size());
-  dh::device_vector<size_t> row_ptrs(device_row_state.rows_to_process_from_batch+1);
-  thrust::copy(
-    offset_vec.data() + device_row_state.row_offset_in_current_batch,
-    offset_vec.data() + device_row_state.row_offset_in_current_batch +
-    device_row_state.rows_to_process_from_batch + 1,
-    row_ptrs.begin());
 
   int num_symbols = n_bins + 1;
   // bin and compress entries in batches of rows
@@ -1327,7 +1317,6 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     static_cast<size_t>(device_row_state.rows_to_process_from_batch));
   const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
-  dh::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
   size_t gpu_nbatches = dh::DivRoundUp(device_row_state.rows_to_process_from_batch,
                                        gpu_batch_nrows);
 
@@ -1339,35 +1328,36 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
 
+    /*! \brief row offset in SparsePage (the input data). */
+    dh::device_vector<size_t> row_ptrs(batch_nrows+1);
+    thrust::copy(
+      offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
+      offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
+      row_ptrs.begin());
+
     // number of entries in this batch.
-    size_t n_entries = row_ptrs[batch_row_end] - row_ptrs[batch_row_begin];
+    size_t n_entries = row_ptrs.back() - row_ptrs.front();
+    dh::device_vector<Entry> entries_d(n_entries);
     // copy data entries to device.
     dh::safe_cuda
         (cudaMemcpy
-         (entries_d.data().get(), data_vec.data() + row_ptrs[batch_row_begin],
+         (entries_d.data().get(), data_vec.data() + row_ptrs.front(),
           n_entries * sizeof(Entry), cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
-    const dim3 grid3(dh::DivRoundUp(device_row_state.rows_to_process_from_batch, block3.x),
+    const dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
                      dh::DivRoundUp(row_stride, block3.y), 1);
     CompressBinEllpackKernel<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols),
          gidx_buffer.data(),
-         row_ptrs.data().get() + batch_row_begin,
+         row_ptrs.data().get(),
          entries_d.data().get(),
          gidx_fvalue_map.data(),
          feature_segments.data(),
          device_row_state.total_rows_processed + batch_row_begin,
          batch_nrows,
-         row_ptrs[batch_row_begin],
          row_stride,
          null_gidx_value);
   }
-
-  // free the memory that is no longer needed
-  row_ptrs.resize(0);
-  row_ptrs.shrink_to_fit();
-  entries_d.resize(0);
-  entries_d.shrink_to_fit();
 }
 
 // An instance of this type is created which keeps track of total number of rows to process,
