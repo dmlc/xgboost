@@ -518,7 +518,6 @@ struct EvalAucPR : public Metric {
       bst_float dat[2];
       dat[0] = static_cast<bst_float>(sum_auc);
       dat[1] = static_cast<bst_float>(ngroup);
-      printf("[%d] AVG AUC\n", rabit::GetRank());
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
       return dat[0] / dat[1];
