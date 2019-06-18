@@ -477,7 +477,7 @@ TEST(GpuHist, SortPosition) {
   TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
 }
 
-TEST(GpuHist, TestHistogramIndex) {
+void TestHistogramIndexImpl(int n_gpus) {
   // Test if the compressed histogram index matches when using a sparse
   // dmatrix with and without using external memory
 
@@ -491,31 +491,47 @@ TEST(GpuHist, TestHistogramIndex) {
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
 
   std::vector<std::pair<std::string, std::string>> training_params = {
-    {"max_depth", "1"},
+    {"max_depth", "10"},
     {"max_leaves", "0"}
   };
 
-  LearnerTrainParam learner_param(CreateEmptyGenericParam(0, 1));
+  LearnerTrainParam learner_param(CreateEmptyGenericParam(0, n_gpus));
   hist_maker.Init(training_params, &learner_param);
   hist_maker.InitDataOnce(hist_maker_dmat.get());
   hist_maker_ext.Init(training_params, &learner_param);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
+  ASSERT_EQ(hist_maker.shards_.size(), hist_maker_ext.shards_.size());
+
   // Extract the device shards from the histogram makers and from that its compressed
   // histogram index
-  const auto &dev_shard = hist_maker.shards_[0];
-  std::vector<common::CompressedByteT> h_gidx_buffer(dev_shard->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, dev_shard->gidx_buffer);
+  for (size_t i = 0; i < hist_maker.shards_.size(); ++i) {
+    const auto &dev_shard = hist_maker.shards_[i];
+    std::vector<common::CompressedByteT> h_gidx_buffer(dev_shard->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer, dev_shard->gidx_buffer);
 
-  const auto &dev_shard_ext = hist_maker_ext.shards_[0];
-  std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
+    const auto &dev_shard_ext = hist_maker_ext.shards_[i];
+    std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
 
-  ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
-  ASSERT_EQ(dev_shard->gidx_buffer.size(), dev_shard_ext->gidx_buffer.size());
+    ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
+    ASSERT_EQ(dev_shard->gidx_buffer.size(), dev_shard_ext->gidx_buffer.size());
 
-  ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
+    ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
+  }
 }
+
+TEST(GpuHist, TestHistogramIndex) {
+  TestHistogramIndexImpl(1);
+}
+
+#if defined(XGBOOST_USE_NCCL)
+TEST(GpuHist, MGPU_TestHistogramIndex) {
+  auto devices = GPUSet::AllVisible();
+  CHECK_GT(devices.Size(), 1);
+  TestHistogramIndexImpl(-1);
+}
+#endif
 
 }  // namespace tree
 }  // namespace xgboost
