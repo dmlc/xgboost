@@ -78,7 +78,8 @@ public class DMatrix {
    * @throws XGBoostError
    */
   @Deprecated
-  public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XGBoostError {
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st)
+      throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
       XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSREx(headers, indices, data, 0, out));
@@ -100,7 +101,7 @@ public class DMatrix {
    *                     row number
    * @throws XGBoostError
    */
-  public DMatrix(long[] headers, int[] indices, float[] data, SparseType st, int shapeParam)
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st, int shapeParam)
           throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
