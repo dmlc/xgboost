@@ -24,6 +24,7 @@ class SparsePageDMatrix : public DMatrix {
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
                              std::string cache_info)
       : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
+  virtual ~SparsePageDMatrix() = default;
 
   MetaInfo& Info() override;
 

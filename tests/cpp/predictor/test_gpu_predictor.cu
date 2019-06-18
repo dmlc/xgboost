@@ -10,6 +10,7 @@
 #include "gtest/gtest.h"
 #include "../helpers.h"
 
+#if defined(XGBOOST_USE_NCCL)
 namespace {
 
 inline void CheckCAPICall(int ret) {
@@ -17,6 +18,7 @@ inline void CheckCAPICall(int ret) {
 }
 
 }  // namespace anonymous
+#endif
 
 extern const std::map<std::string, std::string>&
 QueryBoosterConfigurationArguments(BoosterHandle handle);
@@ -145,25 +147,30 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
   }
 
   // Load data matrix
-  CheckCAPICall(XGDMatrixCreateFromFile(tmp_file.c_str(), 0, &dmat[0]));
-  CheckCAPICall(XGDMatrixSetFloatInfo(dmat[0], "label", label.data(), 200));
+  ASSERT_EQ(XGDMatrixCreateFromFile(
+      tmp_file.c_str(), 0, &dmat[0]), 0) << XGBGetLastError();
+  ASSERT_EQ(XGDMatrixSetFloatInfo(
+      dmat[0], "label", label.data(), 200), 0) << XGBGetLastError();
   // Create booster
-  CheckCAPICall(XGBoosterCreate(dmat, 1, &bst));
+  ASSERT_EQ(XGBoosterCreate(dmat, 1, &bst), 0) << XGBGetLastError();
   // Set parameters
-  CheckCAPICall(XGBoosterSetParam(bst, "seed", "0"));
-  CheckCAPICall(XGBoosterSetParam(bst, "base_score", "0.5"));
-  CheckCAPICall(XGBoosterSetParam(bst, "booster", "gbtree"));
-  CheckCAPICall(XGBoosterSetParam(bst, "learning_rate", "0.01"));
-  CheckCAPICall(XGBoosterSetParam(bst, "max_depth", "8"));
-  CheckCAPICall(XGBoosterSetParam(bst, "objective", "binary:logistic"));
-  CheckCAPICall(XGBoosterSetParam(bst, "seed", "123"));
-  CheckCAPICall(XGBoosterSetParam(bst, "tree_method", "gpu_hist"));
-  CheckCAPICall(XGBoosterSetParam(bst, "n_gpus", std::to_string(ngpu).c_str()));
-  CheckCAPICall(XGBoosterSetParam(bst, "predictor", "gpu_predictor"));
+  ASSERT_EQ(XGBoosterSetParam(bst, "seed", "0"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "base_score", "0.5"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "booster", "gbtree"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "learning_rate", "0.01"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "max_depth", "8"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(
+      bst, "objective", "binary:logistic"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "seed", "123"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(
+      bst, "tree_method", "gpu_hist"), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(
+      bst, "n_gpus", std::to_string(ngpu).c_str()), 0) << XGBGetLastError();
+  ASSERT_EQ(XGBoosterSetParam(bst, "predictor", "gpu_predictor"), 0) << XGBGetLastError();
 
   // Run boosting iterations
   for (int i = 0; i < 10; ++i) {
-    CheckCAPICall(XGBoosterUpdateOneIter(bst, i, dmat[0]));
+    ASSERT_EQ(XGBoosterUpdateOneIter(bst, i, dmat[0]), 0) << XGBGetLastError();
   }
 
   // Delete matrix

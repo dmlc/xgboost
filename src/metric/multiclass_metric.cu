@@ -73,6 +73,14 @@ class MultiClassMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
+  ~MultiClassMetricsReduction() {
+    for (GPUSet::GpuIdType id = *devices_.begin(); id < *devices_.end(); ++id) {
+      dh::safe_cuda(cudaSetDevice(id));
+      size_t index = devices_.Index(id);
+      allocators_.at(index).Free();
+    }
+  }
+
   PackedReduceResult DeviceReduceMetrics(
       GPUSet::GpuIdType device_id,
       size_t device_index,
@@ -118,6 +126,7 @@ class MultiClassMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
+      const LearnerTrainParam &tparam,
       GPUSet devices,
       size_t n_class,
       const HostDeviceVector<bst_float>& weights,
@@ -130,9 +139,9 @@ class MultiClassMetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      if (allocators_.size() != devices.Size()) {
-        allocators_.clear();
-        allocators_.resize(devices.Size());
+      if (allocators_.empty()) {
+        devices_ = GPUSet::All(tparam.gpu_id, tparam.n_gpus);
+        allocators_.resize(devices_.Size());
       }
       preds.Shard(GPUDistribution::Granular(devices, n_class));
       labels.Shard(devices);
@@ -158,6 +167,7 @@ class MultiClassMetricsReduction {
  private:
 #if defined(XGBOOST_USE_CUDA)
   dh::PinnedMemory label_error_;
+  GPUSet devices_;
   std::vector<dh::CubMemory> allocators_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
@@ -181,7 +191,7 @@ struct EvalMClassBase : public Metric {
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
 
     GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
-    auto result = reducer_.Reduce(devices, nclass, info.weights_, info.labels_, preds);
+    auto result = reducer_.Reduce(*tparam_, devices, nclass, info.weights_, info.labels_, preds);
     double dat[2] { result.Residue(), result.Weights() };
 
     if (distributed) {

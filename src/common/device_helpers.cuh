@@ -248,11 +248,19 @@ class MemoryLogger {
       peak_allocated_bytes =
         std::max(peak_allocated_bytes, currently_allocated_bytes);
       num_allocations++;
+      CHECK_GT(num_allocations, num_deallocations);
     }
-    void RegisterDeallocation(void *ptr) {
+    void RegisterDeallocation(void *ptr, size_t n, int current_device) {
+      auto itr = device_allocations.find(ptr);
+      if (itr == device_allocations.end()) {
+        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device "
+                   << current_device << " that was never allocated ";
+      }
       num_deallocations++;
-      currently_allocated_bytes -= device_allocations[ptr];
-      device_allocations.erase(ptr);
+      CHECK_LE(num_deallocations, num_allocations);
+      CHECK_EQ(itr->second, n);
+      currently_allocated_bytes -= itr->second;
+      device_allocations.erase(itr);
     }
   };
   std::map<int, DeviceStats>
@@ -267,14 +275,15 @@ public:
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
     stats_[current_device].RegisterAllocation(ptr, n);
+    CHECK_LE(stats_[current_device].peak_allocated_bytes, dh::TotalMemory(current_device));
   }
-  void RegisterDeallocation(void *ptr) {
+  void RegisterDeallocation(void *ptr, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
     std::lock_guard<std::mutex> guard(mutex_);
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
-    stats_[current_device].RegisterDeallocation(ptr);
+    stats_[current_device].RegisterDeallocation(ptr, n, current_device);
   }
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
@@ -310,7 +319,7 @@ struct XGBDefaultDeviceAllocator : thrust::device_malloc_allocator<T> {
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get());
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
     return super_t::deallocate(ptr, n);
   }
 };
@@ -554,6 +563,8 @@ struct CubMemory {
       XGBDeviceAllocator<uint8_t> allocator;
       allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
         temp_storage_bytes);
+      d_temp_storage = nullptr;
+      temp_storage_bytes = 0;
     }
   }
 
