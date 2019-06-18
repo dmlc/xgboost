@@ -185,9 +185,7 @@ Building with GPU support
 =========================
 XGBoost can be built with GPU support for both Linux and Windows using CMake. GPU support works with the Python package as well as the CLI version. See `Installing R package with GPU support`_ for special instructions for R.
 
-An up-to-date version of the CUDA toolkit is required.  Please note that we
-skipped the support for compiling XGBoost with NVCC 10.1 due a small bug in its
-spliter, see `#4264 <https://github.com/dmlc/xgboost/issues/4264>`_.
+An up-to-date version of the CUDA toolkit is required.
 
 From the command line on Linux starting from the XGBoost directory:
 
