@@ -20,9 +20,10 @@ RUN \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
     # Spark
-    wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop2.7.tgz && \
-    tar xvf spark-$SPARK_VERSION-bin-hadoop2.7.tgz -C /opt && \
-    ln -s /opt/spark-$SPARK_VERSION-bin-hadoop2.7 /opt/spark
+    # This should be: wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz && \
+    wget https://tresata-public.s3.amazonaws.com/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz && \
+    tar xvf spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz -C /opt && \
+    ln -s /opt/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7 /opt/spark
 
 ENV PATH=/opt/python/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 
