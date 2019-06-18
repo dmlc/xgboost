@@ -719,7 +719,7 @@ struct DeviceShard {
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
   common::ColumnSampler column_sampler;
-  std::shared_ptr<FeatureInteractionConstraint> p_interaction_constraints;
+  FeatureInteractionConstraint interaction_constraints;
 
   using ExpandQueue =
       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
@@ -728,7 +728,7 @@ struct DeviceShard {
 
   DeviceShard(int _device_id, int shard_idx, bst_uint row_begin,
               bst_uint row_end, TrainParam _param, uint32_t column_sampler_seed,
-              std::shared_ptr<FeatureInteractionConstraint> interaction_constraint)
+              uint32_t n_features)
       : device_id(_device_id),
         shard_idx(shard_idx),
         row_begin_idx(row_begin),
@@ -738,7 +738,7 @@ struct DeviceShard {
         param(std::move(_param)),
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
-        p_interaction_constraints(std::move(interaction_constraint)) {
+        interaction_constraints(param, n_features) {
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
   }
 
@@ -785,11 +785,9 @@ struct DeviceShard {
     }
     this->column_sampler.Init(num_columns, param.colsample_bynode,
       param.colsample_bylevel, param.colsample_bytree);
-    if (shard_idx == 0) {
-      this->p_interaction_constraints->Reset();
-    }
-
     dh::safe_cuda(cudaSetDevice(device_id));
+    this->interaction_constraints.Reset();
+
     thrust::fill(
         thrust::device_pointer_cast(position.Current()),
         thrust::device_pointer_cast(position.Current() + position.Size()), 0);
@@ -854,7 +852,7 @@ struct DeviceShard {
       p_feature_set->Shard(GPUSet(device_id, 1));
       auto d_sampled_features = p_feature_set->DeviceSpan(device_id);
       common::Span<int32_t> d_feature_set =
-          p_interaction_constraints->Query(d_sampled_features, nidx);
+          interaction_constraints.Query(d_sampled_features, nidx);
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
 
@@ -1163,9 +1161,9 @@ struct DeviceShard {
     node_sum_gradients[tree[candidate.nid].RightChild()] =
         candidate.split.right_sum;
 
-    p_interaction_constraints->Split(candidate.nid, tree[candidate.nid].SplitIndex(),
-                                     tree[candidate.nid].LeftChild(),
-                                     tree[candidate.nid].RightChild());
+    interaction_constraints.Split(candidate.nid, tree[candidate.nid].SplitIndex(),
+                                  tree[candidate.nid].LeftChild(),
+                                  tree[candidate.nid].RightChild());
   }
 
   void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all,
@@ -1523,7 +1521,7 @@ class GPUHistMakerSpecialised {
             new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
                                           start, start + size, param_,
                                           column_sampling_seed,
-                                          p_interaction_constraints_));
+                                          info_->num_col_));
         });
 
     monitor_.StartCuda("Quantiles");

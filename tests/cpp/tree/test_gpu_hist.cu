@@ -97,9 +97,7 @@ TEST(GpuHist, BuildGidxDense) {
     {"max_leaves", "0"},
   };
   param.Init(args);
-  std::unique_ptr<FeatureInteractionConstraint> feat_constraints(
-      new FeatureInteractionConstraint(param, kNCols));
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, std::move(feat_constraints));
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -139,11 +137,9 @@ TEST(GpuHist, BuildGidxSparse) {
     {"max_leaves", "0"},
   };
   param.Init(args);
-  std::unique_ptr<FeatureInteractionConstraint> feat_constraints(
-      new FeatureInteractionConstraint(param, kNCols));
 
   DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols,
-                                         std::move(feat_constraints));
+                                         kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -188,11 +184,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
     {"max_leaves", "0"},
   };
   param.Init(args);
-  std::unique_ptr<FeatureInteractionConstraint> feat_constraints(
-      new FeatureInteractionConstraint(param, kNCols));
-
   DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols,
-                                  std::move(feat_constraints));
+                                  kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   xgboost::SimpleLCG gen;
@@ -294,9 +287,6 @@ TEST(GpuHist, EvaluateSplits) {
     {"max_delta_step", "0"}
   };
   param.Init(args);
-  std::unique_ptr<FeatureInteractionConstraint> feat_constraints(
-      new FeatureInteractionConstraint(param, kNCols));
-
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
   }
@@ -306,7 +296,7 @@ TEST(GpuHist, EvaluateSplits) {
   // Initialize DeviceShard
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
     new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols,
-                                         std::move(feat_constraints))};
+                                         kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -376,16 +366,13 @@ TEST(GpuHist, ApplySplit) {
   TrainParam param;
   std::vector<std::pair<std::string, std::string>> args = {};
   param.InitAllowUnknown(args);
-  std::unique_ptr<FeatureInteractionConstraint> feat_constraints(
-      new FeatureInteractionConstraint(param, kNCols));
-
   // Initialize shard
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
   }
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
     new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols,
-                                         std::move(feat_constraints))};
+                                         kNCols)};
 
   shard->ridx_segments.resize(3);  // 3 nodes.
   shard->node_sum_gradients.resize(3);
