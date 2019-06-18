@@ -1326,9 +1326,9 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
 
-    const auto ent_cnt_begin = 
+    const auto ent_cnt_begin =
       offset_vec[device_row_state.row_offset_in_current_batch + batch_row_begin];
-    const auto ent_cnt_end = 
+    const auto ent_cnt_end =
       offset_vec[device_row_state.row_offset_in_current_batch + batch_row_end];
 
     /*! \brief row offset in SparsePage (the input data). */
