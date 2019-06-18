@@ -123,27 +123,15 @@ struct BitField {
     AtomicAnd(reinterpret_cast<unsigned long long*>(&value), clear_bit);
   }
 
-  XGBOOST_DEVICE bool Check(Pos pos_v, bool debug_log=false) const {
+  XGBOOST_DEVICE bool Check(Pos pos_v) const {
     value_type value = bits_[pos_v.int_pos];
     value_type const test_bit = kOne << (kValueSize - pos_v.bit_pos - kOne);
     value_type result = test_bit & value;
-#if !defined(__CUDA_ARCH__) && defined(GTEST_TEST)
-    if (debug_log) {
-      std::bitset<BitField::kValueSize> res_set(result);
-      std::bitset<BitField::kValueSize> test_set(test_bit);
-      std::bitset<BitField::kValueSize> val_set(value);
-      // std::cerr << "result: " << result   << ": " << res_set  << std::endl
-      //           << "test_b: " << test_bit << ": " << test_set << std::endl
-      //           << "value: "  << value    << ": " << val_set  << std::endl
-      //           << "pos_v.int_pos: " << pos_v.int_pos << std::endl
-      //           << "pos_v.bit_pos: " << pos_v.bit_pos << std::endl;
-    }
-#endif
-    return (bool)result;
+    return static_cast<bool>(result);
   }
-  XGBOOST_DEVICE bool Check(value_type pos, bool debug_log=false) const {
+  XGBOOST_DEVICE bool Check(value_type pos) const {
     Pos pos_v = ToBitPos(pos);
-    return Check(pos_v, debug_log);
+    return Check(pos_v);
   }
 
   friend std::ostream& operator<<(std::ostream& os, BitField field) {

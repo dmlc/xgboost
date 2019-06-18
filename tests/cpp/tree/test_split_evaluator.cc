@@ -36,19 +36,20 @@ TEST(SplitEvaluator, Interaction) {
       ASSERT_EQ(accepted_features[f], solutions[f]);
     }
   }
+
   {
     std::unique_ptr<SplitEvaluator> eval{
         SplitEvaluator::Create("elastic_net,interaction")};
     eval->Init(args);
-    eval->AddSplit(0, 1, 2, /*feature_id=*/4, 0, 0);
+    eval->AddSplit(/*node_id=*/0, /*left_id=*/1, /*right_id=*/2, /*feature_id=*/4, 0, 0);
     std::vector<int32_t> accepted_features; // for node 1
     for (int32_t f = 0; f < 8; ++f) {
       if (eval->CheckFeatureConstraint(1, f)) {
         accepted_features.emplace_back(f);
-        std::cout << f << ", ";
       }
     }
-    std::cout << std::endl;
+    ASSERT_EQ(accepted_features.size(), 1);
+    ASSERT_EQ(accepted_features[0], 4);
   }
 }
 

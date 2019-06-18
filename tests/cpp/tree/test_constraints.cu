@@ -13,6 +13,7 @@
 #include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
+namespace {
 
 struct FConstraintWrapper : public FeatureInteractionConstraint {
   common::Span<BitField> GetNodeConstraints() {
@@ -28,7 +29,6 @@ struct FConstraintWrapper : public FeatureInteractionConstraint {
     return d_sets_ptr_;
   }
 };
-
 
 std::string GetConstraintsStr() {
   std::string const constraints_str = R"constraint([[1, 2], [3, 4, 5]])constraint";
@@ -55,16 +55,19 @@ void CompareBitField(BitField d_field, std::set<uint32_t> positions) {
 
   for (size_t i = 0; i < h_field.Size(); ++i) {
     if (positions.find(i) != positions.cend()) {
-      ASSERT_TRUE(h_field.Check(i, true));
+      ASSERT_TRUE(h_field.Check(i));
     } else {
       ASSERT_FALSE(h_field.Check(i));
     }
   }
 }
 
+}  // anonymous namespace
+
+
 TEST(FeatureInteractionConstraint, Init) {
-  int32_t constexpr kFeatures = 6;
   {
+    int32_t constexpr kFeatures = 6;
     tree::TrainParam param = GetParameter();
     FConstraintWrapper constraints(param, kFeatures);
     ASSERT_EQ(constraints.Features(), kFeatures);
@@ -85,9 +88,11 @@ TEST(FeatureInteractionConstraint, Init) {
   }
 
   {
+    // Test one feature in multiple sets
+    int32_t constexpr kFeatures = 7;
     tree::TrainParam param = GetParameter();
     param.interaction_constraints = R"([[0, 1, 3], [3, 5, 6]])";
-    FConstraintWrapper constraints(param, 7);
+    FConstraintWrapper constraints(param, kFeatures);
     std::vector<int32_t> h_sets {0, 0, 0, 1, 1, 1};
     std::vector<int32_t> h_sets_ptr {0, 1, 2, 2, 4, 4, 5, 6};
     auto d_sets = constraints.GetDSets();
@@ -100,6 +105,21 @@ TEST(FeatureInteractionConstraint, Init) {
     for (size_t i = 0; i < h_sets_ptr.size(); ++i) {
       ASSERT_EQ(h_sets_ptr[i], d_sets_ptr[i]);
     }
+  }
+
+  {
+    // Test having more than 1 BitField::value_type
+    int32_t constexpr kFeatures = 129;
+    tree::TrainParam param = GetParameter();
+    param.interaction_constraints = R"([[0, 1, 3], [3, 5, 128], [127, 128]])";
+    FConstraintWrapper constraints(param, kFeatures);
+    auto d_sets = constraints.GetDSets();
+    auto d_sets_ptr = constraints.GetDSetsPtr();
+    auto _128_beg = d_sets_ptr[128];
+    auto _128_end = d_sets_ptr[128 + 1];
+    ASSERT_EQ(_128_end - _128_beg, 2);
+    ASSERT_EQ(d_sets[_128_beg], 1);
+    ASSERT_EQ(d_sets[_128_end-1], 2);
   }
 }
 
@@ -179,6 +199,8 @@ TEST(FeatureInteractionConstraint, QueryNode) {
   }
 }
 
+namespace {
+
 void CompareFeatureList(common::Span<int32_t> s_output, std::vector<int32_t> solution) {
   std::vector<int32_t> h_output(s_output.size());
   thrust::copy(thrust::device_ptr<int32_t>(s_output.data()),
@@ -189,6 +211,8 @@ void CompareFeatureList(common::Span<int32_t> s_output, std::vector<int32_t> sol
     ASSERT_EQ(h_output[i], solution[i]);
   }
 }
+
+}  // anonymous namespace
 
 TEST(FeatureInteractionConstraint, Query) {
   {
