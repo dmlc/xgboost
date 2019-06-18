@@ -35,18 +35,21 @@ void FeatureInteractionConstraint::Configure(
     has_constraint_ = false;
     return;
   }
-  // Parse interaction constraints
+  // --- Parse interaction constraints
   std::istringstream iss(param.interaction_constraints);
   dmlc::JSONReader reader(&iss);
-
-  reader.Read(&h_feature_constraints_);
+  // Interaction constraints parsed from string parameter.  After
+  // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
+  std::vector<std::vector<int32_t>> h_feature_constraints;
+  reader.Read(&h_feature_constraints);
+  n_sets_ = h_feature_constraints.size();
 
   size_t const n_feat_storage = BitField::ComputeStorageSize(n_features);
   if (n_feat_storage == 0 && n_features != 0) {
     LOG(FATAL) << "Wrong storage size, n_features: " << n_features;
   }
 
-  // Initialize allowed features attached to nodes.
+  // --- Initialize allowed features attached to nodes.
   if (param.max_depth == 0 && param.max_leaves == 0) {
     LOG(FATAL) << "Max leaves and max depth cannot both be unconstrained for gpu_hist.";
   }
@@ -69,8 +72,10 @@ void FeatureInteractionConstraint::Configure(
   s_node_constraints_ = common::Span<BitField>(node_constraints_.data(),
                                                node_constraints_.size());
 
+  // Represent constraints as CSR format, flatten is the value vector,
+  // ptr is row_ptr vector in CSR.
   std::vector<int32_t> h_feature_constraints_flatten;
-  for (auto const& constraints : h_feature_constraints_) {
+  for (auto const& constraints : h_feature_constraints) {
     for (int32_t c : constraints) {
       h_feature_constraints_flatten.emplace_back(c);
     }
@@ -78,11 +83,11 @@ void FeatureInteractionConstraint::Configure(
   std::vector<int32_t> h_feature_constraints_ptr;
   size_t n_features_in_constraints = 0;
   h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
-  for (auto const& v : h_feature_constraints_) {
+  for (auto const& v : h_feature_constraints) {
     n_features_in_constraints += v.size();
     h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
   }
-
+  // Copy the CSR to device.
   d_fconstraints_.resize(h_feature_constraints_flatten.size());
   thrust::copy(h_feature_constraints_flatten.cbegin(), h_feature_constraints_flatten.cend(),
                d_fconstraints_.begin());
@@ -96,12 +101,13 @@ void FeatureInteractionConstraint::Configure(
   // Use a set to eliminate duplicated entries.
   std::vector<std::set<int32_t> > h_features_set(n_features);
   int32_t cid = 0;
-  for (auto const& constraints : h_feature_constraints_) {
+  for (auto const& constraints : h_feature_constraints) {
     for (auto const& feat : constraints) {
       h_features_set.at(feat).insert(cid);
     }
     cid++;
   }
+  // Compute device sets.
   std::vector<int32_t> h_sets;
   int32_t ptr = 0;
   std::vector<int32_t> h_sets_ptr {ptr};
@@ -121,7 +127,7 @@ void FeatureInteractionConstraint::Configure(
   d_feature_buffer_storage_.resize(BitField::ComputeStorageSize(n_features));
   feature_buffer_ = dh::ToSpan(d_feature_buffer_storage_);
 
-  // Initialize result buffers.
+  // --- Initialize result buffers.
   output_buffer_bits_storage_.resize(n_features);
   output_buffer_bits_ = BitField(dh::ToSpan(output_buffer_bits_storage_));
   input_buffer_bits_storage_.resize(n_features);
@@ -150,9 +156,6 @@ __global__ void ClearBuffersKernel(
   }
   if (tid < result_buffer_input.Size()) {
     result_buffer_input.Clear(tid);
-  }
-  if (tid < feature_buffer.Size()) {
-    feature_buffer.Clear(tid);
   }
 }
 
@@ -242,8 +245,9 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
   return result;
 }
 
-// Find interaction sets for each feature, then store all features in those sets.
-__global__ void RestoreFeatureList(
+// Find interaction sets for each feature, then store all features in
+// those sets in a buffer.
+__global__ void RestoreFeatureListFromSetsKernel(
     BitField feature_buffer,
 
     int32_t fid,
@@ -281,6 +285,10 @@ __global__ void InteractionConstraintSplitKernel(BitField feature,
   }
   // enable constraints from feature
   node |= feature;
+  // clear the buffer after use
+  if (tid < feature.Size()) {
+    feature.Clear(tid);
+  }
 
   // enable constraints from parent
   left  |= node;
@@ -307,16 +315,14 @@ void FeatureInteractionConstraint::Split(
   CHECK_LT(right_id, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
 
-  ClearBuffers();
-
   BitField node = s_node_constraints_[node_id];
   BitField left = s_node_constraints_[left_id];
   BitField right = s_node_constraints_[right_id];
 
   dim3 const block3(16, 64, 1);
-  dim3 const grid3(dh::DivRoundUp(h_feature_constraints_.size(), 16),
+  dim3 const grid3(dh::DivRoundUp(n_sets_, 16),
                    dh::DivRoundUp(s_fconstraints_.size(), 64));
-  RestoreFeatureList<<<grid3, block3>>>
+  RestoreFeatureListFromSetsKernel<<<grid3, block3>>>
       (feature_buffer_,
        feature_id,
        s_fconstraints_,
@@ -332,4 +338,4 @@ void FeatureInteractionConstraint::Split(
        node, left, right);
 }
 
-}      // namespace xgboost
+}  // namespace xgboost

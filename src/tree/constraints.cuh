@@ -172,22 +172,22 @@ struct FeatureInteractionConstraint {
  protected:
   // Whether interaction constraint is used.
   bool has_constraint_;
-  // Interaction constraints parsed from string parameter.
-  std::vector<std::vector<int32_t>> h_feature_constraints_;
+  // n interaction sets.
+  int32_t n_sets_ {0};
 
-  // The feature interaction constraints as CSR.
+  // The parsed feature interaction constraints as CSR.
   dh::device_vector<int32_t> d_fconstraints_;
   common::Span<int32_t> s_fconstraints_;
   dh::device_vector<int32_t> d_fconstraints_ptr_;
   common::Span<int32_t> s_fconstraints_ptr_;
   // Interaction sets for each feature as CSR.
   dh::device_vector<int32_t> d_sets_;
-  dh::device_vector<int32_t> d_sets_ptr_;
   common::Span<int32_t> s_sets_;
+  dh::device_vector<int32_t> d_sets_ptr_;
   common::Span<int32_t> s_sets_ptr_;
   // Combined features from all interaction sets one feature belongs to.
   dh::device_vector<BitField::value_type> d_feature_buffer_storage_;
-  BitField feature_buffer_;
+  BitField feature_buffer_;  // of Size n features.
 
   // Allowed features attached to each node, have n_nodes bitfields,
   // each of size n_features.
