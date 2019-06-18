@@ -860,13 +860,13 @@ struct DeviceShard {
 
       auto d_result = d_result_all.subspan(i, 1);
       if (d_feature_set.size() == 0) {
-        // Acting as a device site constructor for DeviceSplitCandidate.
+        // Acting as a device side constructor for DeviceSplitCandidate.
         // DeviceSplitCandidate::IsValid is false so that ApplySplit can reject this
         // candidate.
         auto worst_candidate = DeviceSplitCandidate();
-        dh::safe_cuda(cudaMemcpy(d_result.data(), &worst_candidate,
-                                 sizeof(DeviceSplitCandidate),
-                                 cudaMemcpyHostToDevice));
+        dh::safe_cuda(cudaMemcpyAsync(d_result.data(), &worst_candidate,
+                                      sizeof(DeviceSplitCandidate),
+                                      cudaMemcpyHostToDevice));
         continue;
       }
 
@@ -1506,9 +1506,6 @@ class GPUHistMakerSpecialised {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
-    p_interaction_constraints_.reset(
-        new FeatureInteractionConstraint(param_, info_->num_col_));
-
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(
@@ -1653,7 +1650,6 @@ class GPUHistMakerSpecialised {
 
   GPUHistMakerTrainParam hist_maker_param_;
   LearnerTrainParam const* learner_param_;
-  std::shared_ptr<FeatureInteractionConstraint> p_interaction_constraints_;
 
   dh::AllReducer reducer_;
 

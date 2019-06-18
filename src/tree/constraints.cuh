@@ -155,7 +155,7 @@ inline void PrintDeviceBits(std::string name, BitField field) {
   std::cout << h_field;
 }
 
-inline void PrintSpan(std::string name, common::Span<int32_t> list) {
+inline void PrintDeviceStorage(std::string name, common::Span<int32_t> list) {
   std::cout << name << std::endl;
   std::vector<int32_t> h_list(list.size());
   thrust::copy(thrust::device_ptr<int32_t>(list.data()),
@@ -173,21 +173,25 @@ struct FeatureInteractionConstraint {
   // Whether interaction constraint is used.
   bool has_constraint_;
   // n interaction sets.
-  int32_t n_sets_ {0};
+  int32_t n_sets_;
 
   // The parsed feature interaction constraints as CSR.
   dh::device_vector<int32_t> d_fconstraints_;
   common::Span<int32_t> s_fconstraints_;
   dh::device_vector<int32_t> d_fconstraints_ptr_;
   common::Span<int32_t> s_fconstraints_ptr_;
-  // Interaction sets for each feature as CSR.
+  /* Interaction sets for each feature as CSR.  For an input like:
+   * [[0, 1], [1, 2]], this will have values:
+   *
+   * fid:                                |0 | 1  | 2|
+   * sets a feature belongs to(d_sets_): |0 |0, 1| 1|
+   *
+   * d_sets_ptr_:                        |0, 1, 3, 4|
+   */
   dh::device_vector<int32_t> d_sets_;
   common::Span<int32_t> s_sets_;
   dh::device_vector<int32_t> d_sets_ptr_;
   common::Span<int32_t> s_sets_ptr_;
-  // Combined features from all interaction sets one feature belongs to.
-  dh::device_vector<BitField::value_type> d_feature_buffer_storage_;
-  BitField feature_buffer_;  // of Size n features.
 
   // Allowed features attached to each node, have n_nodes bitfields,
   // each of size n_features.
@@ -204,11 +208,18 @@ struct FeatureInteractionConstraint {
   BitField output_buffer_bits_;
   dh::device_vector<BitField::value_type> input_buffer_bits_storage_;
   BitField input_buffer_bits_;
-  // Clear out all temp buffers
+  /*
+   * Combined features from all interaction sets that one feature belongs to.
+   * For an input with [[0, 1], [1, 2]], the feature 1 belongs to sets {0, 1}
+   */
+  dh::device_vector<BitField::value_type> d_feature_buffer_storage_;
+  BitField feature_buffer_;  // of Size n features.
+
+  // Clear out all temp buffers except for `feature_buffer_', which is
+  // handled in `Split'.
   void ClearBuffers();
 
  public:
-  // size_t Features() { return d_feature_constraints_.size(); }
   size_t Features() const;
   FeatureInteractionConstraint() = default;
   void Configure(tree::TrainParam const& param, int32_t const n_features);

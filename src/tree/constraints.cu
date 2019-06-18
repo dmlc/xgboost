@@ -138,7 +138,7 @@ void FeatureInteractionConstraint::Configure(
 
 FeatureInteractionConstraint::FeatureInteractionConstraint(
     tree::TrainParam const& param, int32_t const n_features) :
-    has_constraint_{true} {
+    has_constraint_{true}, n_sets_{0} {
   this->Configure(param, n_features);
 }
 
