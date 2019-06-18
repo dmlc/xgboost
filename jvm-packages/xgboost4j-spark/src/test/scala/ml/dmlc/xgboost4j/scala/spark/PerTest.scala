@@ -27,7 +27,12 @@ import scala.util.Random
 
 trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
-  protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
+  // Chen Qin: work around Hyper-Threading caused osx test failure
+  // (empty partition) with less workers
+  protected val numWorkers: Int =
+    if (System.getProperty("os.name").toLowerCase.contains("mac")) {
+      scala.math.max( Runtime.getRuntime.availableProcessors()/2 - 1, 3)
+    } else {Runtime.getRuntime.availableProcessors()}
 
   @transient private var currentSession: SparkSession = _
 
