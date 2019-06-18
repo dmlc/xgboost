@@ -695,8 +695,6 @@ struct DeviceShard {
   /*! \brief Sum gradient for each node. */
   std::vector<GradientPair> node_sum_gradients;
   common::Span<GradientPair> node_sum_gradients_d;
-  /*! \brief On-device feature set, only actually used on one of the devices */
-  dh::device_vector<int> feature_set_d;
   dh::device_vector<int64_t>
       left_counts;  // Useful to keep a bunch of zeroed memory for sort position
   /*! The row offset for this shard. */
@@ -1328,20 +1326,22 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
 
+    const auto ent_cnt_begin = offset_vec[device_row_state.row_offset_in_current_batch + batch_row_begin];
+    const auto ent_cnt_end = offset_vec[device_row_state.row_offset_in_current_batch + batch_row_end];
+
     /*! \brief row offset in SparsePage (the input data). */
     dh::device_vector<size_t> row_ptrs(batch_nrows+1);
-    thrust::copy(
-      offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
-      offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
-      row_ptrs.begin());
+    thrust::copy(offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
+                 offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
+                 row_ptrs.begin());
 
     // number of entries in this batch.
-    size_t n_entries = row_ptrs.back() - row_ptrs.front();
+    size_t n_entries = ent_cnt_end - ent_cnt_begin;
     dh::device_vector<Entry> entries_d(n_entries);
     // copy data entries to device.
     dh::safe_cuda
         (cudaMemcpy
-         (entries_d.data().get(), data_vec.data() + row_ptrs.front(),
+         (entries_d.data().get(), data_vec.data() + ent_cnt_begin,
           n_entries * sizeof(Entry), cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
     const dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
