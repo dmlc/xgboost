@@ -616,7 +616,8 @@ class LearnerImpl : public Learner {
       return;
     }
 
-    const TreeMethod current_tree_method = TreeMethod::kAuto;
+    // for recovered worker, read from tparam_
+    const TreeMethod current_tree_method = (&tparam_.tree_method != nullptr) ? tparam_.tree_method : TreeMethod::kAuto;
 
     if (rabit::IsDistributed()) {
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
@@ -700,7 +701,7 @@ class LearnerImpl : public Learner {
     }
 
     /* If tree_method was changed, re-configure updaters and gradient boosters */
-    if (tparam_.tree_method != current_tree_method) {
+    if (tparam_.tree_method != current_tree_method || current_tree_method != TreeMethod::kAuto) {
       ConfigureUpdaters();
       if (gbm_ != nullptr) {
         gbm_->Configure(cfg_.begin(), cfg_.end());
