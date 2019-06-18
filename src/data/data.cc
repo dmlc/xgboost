@@ -231,7 +231,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * DMatrix::Load split and sync num_col_ runs before step1 causing
    * https://github.com/dmlc/rabit/issues/63
    */
-  if (rabit::IsDistributed()){
+  if (rabit::IsDistributed()) {
     std::string num_col_str_("none");
     rabit::TrackerGetConfig("num_col_", &num_col_str_);
 
