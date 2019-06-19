@@ -617,7 +617,8 @@ class LearnerImpl : public Learner {
     }
 
     // for recovered worker, read from tparam_
-    const TreeMethod current_tree_method = (&tparam_.tree_method != nullptr) ? tparam_.tree_method : TreeMethod::kAuto;
+    const TreeMethod current_tree_method =
+      (&tparam_.tree_method != nullptr) ? tparam_.tree_method : TreeMethod::kAuto;
 
     if (rabit::IsDistributed()) {
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
