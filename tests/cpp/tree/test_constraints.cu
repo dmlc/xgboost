@@ -197,6 +197,22 @@ TEST(FeatureInteractionConstraint, QueryNode) {
     ASSERT_EQ(h_result[1], 1);
     ASSERT_EQ(h_result[2], 2);
   }
+
+  {
+    tree::TrainParam large_param = GetParameter();
+    large_param.interaction_constraints = R"([[1, 139], [244, 0], [139, 221]])";
+    FConstraintWrapper large_features(large_param, 256);
+    large_features.Split(0, 139, 1, 2);
+    auto span = large_features.QueryNode(0);
+    std::vector<int32_t> h_result (span.size());
+    thrust::copy(thrust::device_ptr<int32_t>(span.data()),
+                 thrust::device_ptr<int32_t>(span.data() + span.size()),
+                 h_result.begin());
+    ASSERT_EQ(h_result.size(), 3);
+    ASSERT_EQ(h_result[0], 1);
+    ASSERT_EQ(h_result[1], 139);
+    ASSERT_EQ(h_result[2], 221);
+  }
 }
 
 namespace {

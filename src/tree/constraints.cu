@@ -41,7 +41,13 @@ void FeatureInteractionConstraint::Configure(
   // Interaction constraints parsed from string parameter.  After
   // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
   std::vector<std::vector<int32_t>> h_feature_constraints;
-  reader.Read(&h_feature_constraints);
+  try {
+    reader.Read(&h_feature_constraints);
+  } catch (dmlc::Error const& e) {
+    LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
+               << param.interaction_constraints << "\n"
+               << "With error:\n" << e.what();
+  }
   n_sets_ = h_feature_constraints.size();
 
   size_t const n_feat_storage = BitField::ComputeStorageSize(n_features);

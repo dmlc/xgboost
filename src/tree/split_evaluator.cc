@@ -6,6 +6,7 @@
 #include "split_evaluator.h"
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
+#include <xgboost/logging.h>
 #include <algorithm>
 #include <unordered_set>
 #include <vector>
@@ -384,7 +385,13 @@ class InteractionConstraint final : public SplitEvaluator {
     // Read std::vector<std::vector<bst_uint>> first and then
     //   convert to std::vector<std::unordered_set<bst_uint>>
     std::vector<std::vector<bst_uint>> tmp;
-    reader.Read(&tmp);
+    try {
+      reader.Read(&tmp);
+    } catch (dmlc::Error const& e) {
+      LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
+                 << params_.interaction_constraints << "\n"
+                 << "With error:\n" << e.what();
+    }
     for (const auto& e : tmp) {
       interaction_constraints_.emplace_back(e.begin(), e.end());
     }
