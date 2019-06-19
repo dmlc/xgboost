@@ -101,4 +101,44 @@ TEST(Tree, AllocateNode) {
   ASSERT_TRUE(nodes.at(1).IsLeaf());
   ASSERT_TRUE(nodes.at(2).IsLeaf());
 }
+
+RegTree ConstructTree() {
+  RegTree tree;
+  tree.ExpandNode(
+      /*nid=*/0, /*split_index=*/0, /*split_value=*/0.0f,
+      /*default_left=*/true,
+      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  auto left = tree[0].LeftChild();
+  auto right = tree[0].RightChild();
+  tree.ExpandNode(
+      /*nid=*/left, /*split_index=*/1, /*split_value=*/0.0f,
+      /*default_left=*/false,
+      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  tree.ExpandNode(
+      /*nid=*/right, /*split_index=*/0, /*split_value=*/0.0f,
+      /*default_left=*/false,
+      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  return tree;
+}
+
+TEST(Tree, DumpJson) {
+  auto tree = ConstructTree();
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, true, "json");
+  std::cout << str << std::endl;
+}
+
+TEST(Tree, DumpText) {
+  auto tree = ConstructTree();
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, true, "text");
+  std::cout << str << std::endl;
+}
+
+TEST(Tree, DumpDot) {
+  auto tree = ConstructTree();
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, true, "dot");
+  std::cout << str << std::endl;
+}
 }  // namespace xgboost
