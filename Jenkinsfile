@@ -11,7 +11,8 @@ pipeline {
   agent none
 
   environment {
-    DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
+    DOCKER_CACHE_ECR_ID = '492475357299'
+    DOCKER_CACHE_ECR_REGION = 'us-west-2'
   }
 
   // Setup common job properties
