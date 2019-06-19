@@ -6,6 +6,7 @@
  */
 #include <dmlc/io.h>
 #include <dmlc/timer.h>
+#include <xgboost/feature_map.h>
 #include <xgboost/learner.h>
 #include <xgboost/logging.h>
 #include <xgboost/generic_parameters.h>
