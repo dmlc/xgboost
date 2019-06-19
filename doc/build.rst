@@ -196,9 +196,9 @@ From the command line on Linux starting from the XGBoost directory:
   cmake .. -DUSE_CUDA=ON
   make -j4
 
-.. note:: Enabling multi-GPU training
+.. note:: Enabling distributed GPU training
 
-  By default, multi-GPU training is disabled and only a single GPU will be used. To enable multi-GPU training, set the option ``USE_NCCL=ON``. Multi-GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **multi-GPU training is available only for Linux**.
+  By default, distributed GPU training is disabled and only a single GPU will be used. To enable distributed GPU training, set the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 

@@ -80,6 +80,8 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
 
 Single Node Multi-GPU
 =====================
+.. note:: Single node multi-GPU training is deprecated. Please use distributed GPU training with one process per GPU.
+
 Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the selected gpu devices will be from ``gpu_id`` to ``gpu_id+n_gpus``, please note that ``gpu_id+n_gpus`` must be less than or equal to the number of available GPUs on your system.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
 
 .. note:: Enabling multi-GPU training

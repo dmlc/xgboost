@@ -200,8 +200,14 @@ class LearnerImpl : public Learner {
         << " Internal Error: Always call InitModel or Load before any evaluation.";
     this->ValidateDMatrix(dmat);
     CHECK(this->gbm_) << " Internal: GBM is not set";
-    if (this->gbm_->UseGPU() && cfg_.find("n_gpus") == cfg_.cend()) {
-      tparam_.n_gpus = 1;
+    if (this->gbm_->UseGPU()) {
+      if (cfg_.find("n_gpus") == cfg_.cend()) {
+        tparam_.n_gpus = 1;
+      }
+      if (tparam_.n_gpus != 1) {
+        LOG(WARNING) << "Multi-GPU training is deprecated. "
+                        "Please use distributed GPU training with one process per GPU.";
+      }
     }
   }
 

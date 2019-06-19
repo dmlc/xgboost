@@ -66,7 +66,9 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_lower_bound(-1)
-        .describe("Number of GPUs to use for multi-gpu algorithms.");
+        .describe("Deprecated, please use distributed training with one "
+                  "process per GPU. "
+                  "Number of GPUs to use for multi-gpu algorithms.");
     DMLC_DECLARE_FIELD(booster)
         .set_default("gbtree")
         .describe("Gradient booster used for training.");
