@@ -225,4 +225,4 @@ Many thanks to the following contributors (alphabetical order):
 * Shankara Rao Thejaswi Nanditale
 * Vinay Deshpande
 
-Please report bugs to the user forum https://discuss.xgboost.ai/.
+Please report bugs to the XGBoost issues list: https://github.com/dmlc/xgboost/issues.  For general questions please visit our user form: https://discuss.xgboost.ai/.

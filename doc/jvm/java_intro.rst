@@ -25,27 +25,27 @@ supported.
 * Pass arrays to DMatrix constructor to load from sparse matrix.
 
   Suppose we have a sparse matrix
-  
+
   .. code-block:: none
-  
+
     1 0 2 0
     4 0 0 3
     3 1 2 0
-  
+
   We can express the sparse matrix in `Compressed Sparse Row (CSR) <https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_row_(CSR,_CRS_or_Yale_format)>`_ format:
-  
+
   .. code-block:: java
-  
+
     long[] rowHeaders = new long[] {0,2,4,7};
     float[] data = new float[] {1f,2f,4f,3f,3f,1f,2f};
     int[] colIndex = new int[] {0,2,0,3,0,1,2};
     int numColumn = 4;
     DMatrix dmat = new DMatrix(rowHeaders, colIndex, data, DMatrix.SparseType.CSR, numColumn);
-  
+
   ... or in `Compressed Sparse Column (CSC) <https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)>`_ format:
-  
+
   .. code-block:: java
-  
+
     long[] colHeaders = new long[] {0,3,4,6,7};
     float[] data = new float[] {1f,4f,3f,1f,2f,2f,3f};
     int[] rowIndex = new int[] {0,1,2,2,0,2,1};
@@ -157,4 +157,3 @@ After training and loading a model, you can use it to make prediction for other 
   float[][] predicts = booster.predict(dtest);
   // predict leaf
   float[][] leafPredicts = booster.predictLeaf(dtest, 0);
-

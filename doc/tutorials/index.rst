@@ -19,4 +19,4 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   input_format
   param_tuning
   external_memory
-
+  custom_metric_obj
