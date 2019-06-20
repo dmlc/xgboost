@@ -184,18 +184,16 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
     condition_node_params : dict (optional)
-        condition node configuration,
-        {'shape':'box',
-               'style':'filled,rounded',
-               'fillcolor':'#78bceb'
-        }
+      condition node configuration,
+      {'shape':'box',
+       'style':'filled,rounded',
+       'fillcolor':'#78bceb'}
 
     leaf_node_params : dict (optional)
         leaf node configuration
         {'shape':'box',
-               'style':'filled',
-               'fillcolor':'#e48038'
-        }
+         'style':'filled',
+         'fillcolor':'#e48038'}
 
     kwargs :
         Other keywords passed to graphviz graph_attr

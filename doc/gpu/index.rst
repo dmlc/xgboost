@@ -86,8 +86,7 @@ Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus``
 
 .. note:: Enabling multi-GPU training
 
-  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.
-XGBoost supports multi-GPU training on a single machine via specifying the `n_gpus' parameter.
+  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.  XGBoost supports multi-GPU training on a single machine via specifying the `n_gpus' parameter.
 
 
 Multi-node Multi-GPU Training
@@ -100,9 +99,6 @@ XGBoost supports fully distributed GPU training using `Dask
 Objective functions
 ===================
 Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
-
-.. |tick| unicode:: U+2714
-.. |cross| unicode:: U+2718
 
 +-----------------+-------------+
 | Objectives      | GPU support |
@@ -143,9 +139,6 @@ which, by default is set to 1.  To disable running objectives on GPU, just set
 Metric functions
 ===================
 Following table shows current support status for evaluation metrics on the GPU.
-
-.. |tick| unicode:: U+2714
-.. |cross| unicode:: U+2718
 
 +-----------------+-------------+
 | Metric          | GPU Support |

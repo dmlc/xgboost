@@ -171,7 +171,107 @@ parameter:
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
 
-**Choice of tree construction algorithm**. To use feature interaction
-constraints, be sure to set the ``tree_method`` parameter to either ``exact``
-or ``hist``. Currently, GPU algorithms (``gpu_hist``, ``gpu_exact``) do not
-support feature interaction constraints.
+**Choice of tree construction algorithm**. To use feature interaction constraints, be sure
+to set the ``tree_method`` parameter to one of the following: ``exact``, ``hist`` or
+``gpu_hist``.  Support for ``gpu_hist`` is added after (excluding) version 0.90.
+
+
+**************
+Advanced topic
+**************
+
+The intuition behind interaction constraint is simple.  User have prior knowledge about
+relations between different features, and encode it as constraints during model
+construction.  But there are also some subtleties around specifying constraints.  Take
+constraint ``[[1, 2], [2, 3, 4]]`` as an example, the second feature appears in two
+different interaction sets ``[1, 2]`` and ``[2, 3, 4]``, so the union set of features
+allowed to interact with ``2`` is ``{1, 3, 4}``.  In following diagram, root splits at
+feature ``2``.  because all its descendants should be able to interact with it, so at the
+second layer all 4 features are legitimate split candidates for further splitting,
+disregarding specified constraint sets.
+
+.. plot::
+  :nofigs:
+
+  from graphviz import Source
+  source = r"""
+    digraph feature_interaction_illustration4 {
+      graph [fontname = "helvetica"];
+      node [fontname = "helvetica"];
+      edge [fontname = "helvetica"];
+      0 [label=<x<SUB><FONT POINT-SIZE="11">2</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      1 [label=<x<SUB><FONT POINT-SIZE="11">{1, 2, 3, 4}</FONT></SUB>>, shape=box];
+      2 [label=<x<SUB><FONT POINT-SIZE="11">{1, 2, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      3 [label="...", shape=none];
+      4 [label="...", shape=none];
+      5 [label="...", shape=none];
+      6 [label="...", shape=none];
+      0 -> 1;
+      0 -> 2;
+      1 -> 3;
+      1 -> 4;
+      2 -> 5;
+      2 -> 6;
+    }
+  """
+  Source(source, format='png').render('../_static/feature_interaction_illustration4', view=False)
+  Source(source, format='svg').render('../_static/feature_interaction_illustration5', view=False)
+
+.. figure:: ../_static/feature_interaction_illustration4.png
+   :align: center
+   :figwidth: 80 %
+
+   ``{1, 2, 3, 4}`` represents the sets of legitimate split features.
+
+This has lead to some interesting implications of feature interaction constraints.  Take
+``[[0, 1], [0, 1, 2], [1, 2]]`` as another example.  Assuming we have only 3 available
+features in our training datasets for presentation purpose, careful readers might have
+found out that the above constraint is same with ``[0, 1, 2]``.  Since no matter which
+feature is chosen for split in root node, all its descendants have to include every
+feature as legitimate split candidates to avoid violating interaction constraints.
+
+For one last example, we use ``[[0, 1], [1, 3, 4]]`` and choose feature ``0`` as split for
+root node.  At the second layer of built tree, ``1`` is the only legitimate split
+candidate except for ``0`` itself, since they belong to the same constraint set.
+Following the grow path of our example tree below, the node at second layer splits at
+feature ``1``.  But due to the fact that ``1`` also belongs to second constraint set ``[1,
+3, 4]``, at third layer, we need to include all features as candidates to comply with its
+ascendants.
+
+.. plot::
+  :nofigs:
+
+  from graphviz import Source
+  source = r"""
+    digraph feature_interaction_illustration5 {
+      graph [fontname = "helvetica"];
+      node [fontname = "helvetica"];
+      edge [fontname = "helvetica"];
+      0 [label=<x<SUB><FONT POINT-SIZE="11">0</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      1 [label="...", shape=none];
+      2 [label=<x<SUB><FONT POINT-SIZE="11">1</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      3 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      4 [label=<x<SUB><FONT POINT-SIZE="11">{0, 1, 3, 4}</FONT></SUB>>, shape=box, color=black, fontcolor=black];
+      5 [label="...", shape=none];
+      6 [label="...", shape=none];
+      7 [label="...", shape=none];
+      8 [label="...", shape=none];
+      0 -> 1;
+      0 -> 2;
+      2 -> 3;
+      2 -> 4;
+      3 -> 5;
+      3 -> 6;
+      4 -> 7;
+      4 -> 8;
+    }
+  """
+  Source(source, format='png').render('../_static/feature_interaction_illustration6', view=False)
+  Source(source, format='svg').render('../_static/feature_interaction_illustration7', view=False)
+
+
+.. figure:: ../_static/feature_interaction_illustration6.png
+   :align: center
+   :figwidth: 80 %
+
+   ``{0, 1, 3, 4}`` represents the sets of legitimate split features.
