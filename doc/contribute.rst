@@ -10,6 +10,12 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 **Guidelines**
 
 * `Submit Pull Request`_
+* `Running Formatting Checks Locally`_
+
+  - `Linter`_
+  - `Clang-tidy`_
+  - `Running checks inside a Docker container (Recommended)`_
+
 * `Git Workflow Howtos`_
 
   - `How to resolve conflict with master`_
@@ -19,7 +25,6 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 * `Documents`_
 * `Testcases`_
 * `Sanitizers`_
-* `clang-tidy`_
 * `Examples`_
 * `Core Library`_
 * `Python Package`_
@@ -43,6 +48,74 @@ Submit Pull Request
 
   - Fix the problems reported by automatic checks
   - If you are contributing a new module, consider add a testcase in `tests <https://github.com/dmlc/xgboost/tree/master/tests>`_.
+
+*********************************
+Running Formatting Checks Locally
+*********************************
+
+Once you submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_, we perform
+two automatic checks to enforce coding style conventions.
+
+Linter
+======
+We use `pylint <https://github.com/PyCQA/pylint>`_ and `cpplint <https://github.com/cpplint/cpplint>`_ to enforce style convention and find potential errors. Linting is especially useful for Python, as we can catch many errors that would have otherwise occured at run-time.
+
+To run this check locally, run the following command from the top level source tree:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  make lint
+
+This command requires the Python packages pylint and cpplint.
+
+.. note:: Having issue? Try Docker container
+
+  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
+
+Clang-tidy
+==========
+`Clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_ is an advance linter for C++ code, made by the LLVM team. We use it to conform our C++ codebase to modern C++ practices and conventions.
+
+To run this check locally, run the following command from the top level source tree:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  python3 tests/ci_build/tidy.py --gtest-path=/path/to/google-test
+
+where ``--gtest-path`` option specifies the full path of Google Test library.
+
+Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``. By default they are both set to 1, meaning that both C++ and CUDA code will be checked. If the CUDA toolkit is not installed on your machine, you'll encounter an error. To exclude CUDA source from linting, use:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  python3 tests/ci_build/tidy.py --cuda=0 --gtest-path=/path/to/google-test
+
+Similarly, if you want to exclude C++ source from linting:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  python3 tests/ci_build/tidy.py --cpp=0 --gtest-path=/path/to/google-test
+
+.. note:: Having issue? Try Docker container
+
+  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
+
+.. _linting_inside_docker:
+
+Running checks inside a Docker container (Recommended)
+======================================================
+If you have access to Docker on your machine, you can use a Docker container to automatically setup the right environment, so that you can be sure the right packages and dependencies will be available.
+
+.. code-block:: bash
+
+  tests/ci_build/ci_build.sh clang_tidy docker --build-arg CUDA_VERSION=9.2 tests/ci_build/clang_tidy.sh
+  tests/ci_build/ci_build.sh cpu docker make lint
+
+This will run the formatting checks inside the same Docker container that `our testing server <https://xgboost-ci.net>`_ uses.
 
 *******************
 Git Workflow Howtos
@@ -169,35 +242,6 @@ environment variable:
     ASAN_OPTIONS=protect_shadow_gap=0 ${BUILD_DIR}/testxgboost
 
 For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
-
-**********
-clang-tidy
-**********
-To run clang-tidy on both C++ and CUDA source code,  run the following command
-from the top level source tree:
-
-  .. code-block:: bash
-
-    cd /path/to/xgboost/
-    python3 tests/ci_build/tidy.py --gtest-path=/path/to/google-test
-
-The script requires the full path of Google Test library via the ``--gtest-path`` argument.
-
-Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``.
-By default they are both set to 1.  If you want to exclude CUDA source from
-linting, use:
-
-  .. code-block:: bash
-
-    cd /path/to/xgboost/
-    python3 tests/ci_build/tidy.py --cuda=0
-
-Similarly, if you want to exclude C++ source from linting:
-
-  .. code-block:: bash
-
-    cd /path/to/xgboost/
-    python3 tests/ci_build/tidy.py --cpp=0
 
 ********
 Examples
