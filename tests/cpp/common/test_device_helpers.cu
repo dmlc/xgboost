@@ -97,7 +97,8 @@ TEST(bulkAllocator, Test) {
 }
 
  // Test thread safe max reduction
-TEST(AllReducer, HostMaxAllReduce) {
+#if defined(XGBOOST_USE_NCCL)
+TEST(AllReducer, MGPU_HostMaxAllReduce) {
   dh::AllReducer reducer;
   size_t num_threads = 50;
   std::vector<std::vector<size_t>> thread_data(num_threads);
@@ -112,3 +113,4 @@ TEST(AllReducer, HostMaxAllReduce) {
     ASSERT_EQ(data.front(), num_threads - 1);
   }
 }
+#endif
