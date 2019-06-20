@@ -431,8 +431,8 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        data : DMatrix
-            The dmatrix storing the input.
+        data : numpy.array/scipy.sparse
+            Data to predict with
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
