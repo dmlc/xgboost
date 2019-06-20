@@ -197,8 +197,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
     gpair = GradientPair(grad, hess);
   }
 
-  int num_symbols = shard.n_bins + 1;
-
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (
       shard.gidx_buffer.size());
 
