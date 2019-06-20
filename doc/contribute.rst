@@ -10,6 +10,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 **Guidelines**
 
 * `Submit Pull Request`_
+* `Running Formatting Checks Locally`_
 * `Git Workflow Howtos`_
 
   - `How to resolve conflict with master`_
@@ -43,6 +44,24 @@ Submit Pull Request
 
   - Fix the problems reported by automatic checks
   - If you are contributing a new module, consider add a testcase in `tests <https://github.com/dmlc/xgboost/tree/master/tests>`_.
+
+*********************************
+Running Formatting Checks Locally
+*********************************
+
+Once you submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_, we perform
+automatic checks to enforce coding style conventions (we use `pylint <https://github.com/PyCQA/pylint>`_,
+`cpplint <https://github.com/cpplint/cpplint>`_, and `clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_).
+You can run formatting checks locally using the following commands (Docker required):
+
+.. code-block:: bash
+
+  tests/ci_build/ci_build.sh clang_tidy docker --build-arg CUDA_VERSION=9.2 tests/ci_build/clang_tidy.sh
+  tests/ci_build/ci_build.sh cpu docker make lint
+
+Docker containers are used so that necessary dependencies are automatically made available for the formatting checks.
+(In particular, CUDA toolkit is included in the Docker containers so that clang-tidy can check
+both C++ and CUDA code.)
 
 *******************
 Git Workflow Howtos
