@@ -176,7 +176,8 @@ clang-tidy
 To run clang-tidy on both C++ and CUDA source code,  run the following command
 from the top level source tree:
 
-  .. code-black:: bash
+  .. code-block:: bash
+
     cd /path/to/xgboost/
     python3 tests/ci_build/tidy.py --gtest-path=/path/to/google-test
 
@@ -186,13 +187,15 @@ Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``
 By default they are both set to 1.  If you want to exclude CUDA source from
 linting, use:
 
-  .. code-black:: bash
+  .. code-block:: bash
+
     cd /path/to/xgboost/
     python3 tests/ci_build/tidy.py --cuda=0
 
 Similarly, if you want to exclude C++ source from linting:
 
-  .. code-black:: bash
+  .. code-block:: bash
+
     cd /path/to/xgboost/
     python3 tests/ci_build/tidy.py --cpp=0
 
@@ -260,7 +263,7 @@ The following steps are followed to add a new Rmarkdown vignettes:
 
   - If you already cloned the repo to doc, this means ``git add``
 
-- Create PR for both the markdown  and ``dmlc/web-data``.
+- Create PR for both the markdown and ``dmlc/web-data``.
 - You can also build the document locally by typing the following command at the ``doc`` directory:
 
   .. code-block:: bash

@@ -57,6 +57,7 @@ to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 * `Python Package Installation`_
 * `R Package Installation`_
 * `Trouble Shooting`_
+* `Building the documentation`_
 
 ***************************
 Building the Shared Library
@@ -448,3 +449,23 @@ Trouble Shooting
    .. code-block:: bash
 
      git clone https://github.com/dmlc/xgboost --recursive
+
+
+Building the Documentation
+==========================
+XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To build it locally, you need a installed XGBoost with all its dependencies along with:
+
+* System dependencies
+
+  - git
+  - graphviz
+
+* Python dependencies
+
+  - sphinx
+  - breathe
+  - guzzle_sphinx_theme
+  - recommonmark
+  - mock
+
+Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.

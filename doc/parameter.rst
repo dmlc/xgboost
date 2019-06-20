@@ -83,17 +83,12 @@ Parameters for Tree Booster
   - range: (0,1]
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
+
   - This is a family of parameters for subsampling of columns.
-  - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and
-    specify the fraction of columns to be subsampled.
-  - ``colsample_bytree`` is the subsample ratio of columns when constructing each
-    tree. Subsampling occurs once for every tree constructed.
-  - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling
-    occurs once for every new depth level reached in a tree. Columns are subsampled from
-    the set of columns chosen for the current tree.
-  - ``colsample_bynode`` is the subsample ratio of columns for each node
-    (split). Subsampling occurs once every time a new split is evaluated. Columns are
-    subsampled from the set of columns chosen for the current level.
+  - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and specify the fraction of columns to be subsampled.
+  - ``colsample_bytree`` is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
+  - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
+  - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level.
   - ``colsample_by*`` parameters work cumulatively. For instance,
     the combination ``{'colsample_bytree':0.5, 'colsample_bylevel':0.5,
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
@@ -294,7 +289,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``objective`` [default=reg:squarederror]
 
-  - ``reg:squarederror``: regression with squared loss
+  - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
   - ``reg:logistic``: logistic regression
   - ``binary:logistic``: logistic regression for binary classification, output probability
