@@ -892,7 +892,7 @@ class XGBRFClassifier(XGBClassifier):
                  verbosity=1, silent=None,
                  objective="binary:logistic", n_jobs=1, nthread=None, gamma=0,
                  min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
-                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1e-5,
                  scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
                  missing=None, **kwargs):
         super(XGBRFClassifier, self).__init__(
@@ -931,7 +931,7 @@ class XGBRFRegressor(XGBRegressor):
                  verbosity=1, silent=None,
                  objective="reg:squarederror", n_jobs=1, nthread=None, gamma=0,
                  min_child_weight=1, max_delta_step=0, subsample=0.8, colsample_bytree=1,
-                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1,
+                 colsample_bylevel=1, colsample_bynode=0.8, reg_alpha=0, reg_lambda=1e-5,
                  scale_pos_weight=1, base_score=0.5, random_state=0, seed=None,
                  missing=None, **kwargs):
         super(XGBRFRegressor, self).__init__(
