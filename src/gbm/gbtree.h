@@ -197,6 +197,9 @@ class GBTree : public GradientBooster {
   void PredictBatch(DMatrix* p_fmat,
                HostDeviceVector<bst_float>* out_preds,
                unsigned ntree_limit) override {
+    CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+        << "Model trained on different number of features than prediction "
+           "input matrix";
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
@@ -211,6 +214,9 @@ class GBTree : public GradientBooster {
   void PredictLeaf(DMatrix* p_fmat,
                    std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
+    CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+        << "Model trained on different number of features than prediction "
+           "input matrix";
     predictor_->PredictLeaf(p_fmat, out_preds, model_, ntree_limit);
   }
 
@@ -218,12 +224,18 @@ class GBTree : public GradientBooster {
                            std::vector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition,
                            unsigned condition_feature) override {
+    CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+        << "Model trained on different number of features than prediction "
+           "input matrix";
     predictor_->PredictContribution(p_fmat, out_contribs, model_, ntree_limit, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
                                        std::vector<bst_float>* out_contribs,
                                        unsigned ntree_limit, bool approximate) override {
+    CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+        << "Model trained on different number of features than prediction "
+           "input matrix";
     predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
                                                ntree_limit, approximate);
   }

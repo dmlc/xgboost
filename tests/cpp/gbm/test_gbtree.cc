@@ -4,8 +4,8 @@
 #include "../../../src/gbm/gbtree.h"
 
 namespace xgboost {
+using Arg = std::pair<std::string, std::string>;
 TEST(GBTree, SelectTreeMethod) {
-  using Arg = std::pair<std::string, std::string>;
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
   auto mat_ptr = CreateDMatrix(kRows, kCols, 0);
@@ -45,5 +45,32 @@ TEST(GBTree, SelectTreeMethod) {
 #endif
 
   delete mat_ptr;
+}
+
+TEST(GBTree, PredictIncorrect) {
+  size_t constexpr kRows = 10;
+  size_t constexpr kCols = 10;
+  LearnerTrainParam learner_param;
+  learner_param.InitAllowUnknown(std::vector<Arg>{});
+  std::unique_ptr<GradientBooster> p_gbm{
+    GradientBooster::Create("gbtree", &learner_param, {}, 0)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
+  std::string n_feat = std::to_string(kCols);
+  gbtree.Configure({Arg("tree_method", "exact"), Arg("num_feature", n_feat)});
+  auto incorrect_test_mat = CreateDMatrix(kRows, kCols - 1, 0);
+  HostDeviceVector<float> tmp;
+  ASSERT_ANY_THROW(
+      { gbtree.PredictBatch(incorrect_test_mat->get(), &tmp, 0); });
+  ASSERT_ANY_THROW(
+      { gbtree.PredictLeaf(incorrect_test_mat->get(), &tmp.HostVector(), 0); });
+  ASSERT_ANY_THROW({
+    gbtree.PredictContribution(incorrect_test_mat->get(), &tmp.HostVector(), 0,
+                               false, 0, 0);
+  });
+  ASSERT_ANY_THROW({
+    gbtree.PredictInteractionContributions(incorrect_test_mat->get(),
+                                           &tmp.HostVector(), 0, false);
+  });
+  delete incorrect_test_mat;
 }
 }  // namespace xgboost
