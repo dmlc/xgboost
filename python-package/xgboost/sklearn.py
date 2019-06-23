@@ -105,8 +105,8 @@ class XGBModel(XGBModelBase):
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
     importance_type: string, default "gain"
-        The feature importance type for the feature_importances_ property: either "gain",
-        "weight", "cover", "total_gain" or "total_cover".
+        The feature importance type for the feature_importances\\_ property:
+        either "gain", "weight", "cover", "total_gain" or "total_cover".
     \\*\\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
