@@ -15,12 +15,12 @@ class ParamError(Exception):
 class ConvergenceTester():
     """Convergence tester.
 
-        The rule for convergence is idx + n < size * c, where idx is the
-        index best metric value so far and size is the current number of
+        The rule for convergence is idx + 1 + n < size * c, where idx is the
+        index best metric value so far (0-based) and size is the current number of
         points in the series, n and c are parameters for the test.
     """
 
-    def __init__(self, min_num_points=-1, n=0, c=1.0, maximize=False):
+    def __init__(self, min_num_points=-1, n=0, c=1.0):
         """
         Parameters
         ----------
@@ -34,6 +34,18 @@ class ConvergenceTester():
         self.min_num_points = min_num_points
         self.n = n
         self.c = c
+        self.measure_list = []
+        self.best_idx = -1
+
+    def reset(self, maximize=False):
+        """
+        Resets this tester.
+
+        Parameters
+        ----------
+        maximize : bool
+            Whether to maximize the metric.
+        """
         self.maximize = maximize
         self.measure_list = []
         self.best_idx = -1
@@ -51,21 +63,18 @@ class ConvergenceTester():
         -------
         result : A configured ConvergenceTester.
         """
-        maximize = False
         min_num_points = -1
         n = 0
         c = 1.0
         if cc and cc.strip():
             strs = cc.split(":")
-            if strs:
-                maximize = strs[0].lower() == 'true'
+            if len(strs) > 0:
+                min_num_points = int(strs[0])
             if len(strs) > 1:
-                min_num_points = int(strs[1])
+                n = int(strs[1])
             if len(strs) > 2:
-                n = int(strs[2])
-            if len(strs) > 3:
-                c = float(strs[3])
-        return ConvergenceTester(min_num_points, n, c, maximize=maximize)
+                c = float(strs[2])
+        return ConvergenceTester(min_num_points, n, c)
 
     def size(self):
         """
@@ -76,16 +85,6 @@ class ConvergenceTester():
         result : the size of the series.
         """
         return len(self.measure_list)
-
-    def set_maximize(self, maximize):
-        """Sets whether to maximize the metric.
-
-        Parameters
-        ----------
-        maximize : bool
-            Whether to maximize the metric.
-        """
-        self.maximize = maximize
 
     def is_first_better(self, a, b):
         """Returns whether to the 1st metric value is better than the 2nd one.
@@ -330,11 +329,6 @@ def xgb_parameter_checker(params, num_round, num_class=None, skip_list=[]):
     if any(metric.startswith(x) for x in MAXIMIZE_METRICS):
         maximize_score = True
 
-    if 'maximize_eval_metric' in params:
-        maximize_eval_metric = params['maximize_eval_metric'].lower() == 'true'
-        if maximize_eval_metric != maximize_score:
-            warnings.warn(param_invalid_value_info('maximize_eval_metric', str(maximize_score)))
-    else:
-        params['maximize_eval_metric'] = str(maximize_score)
+    params['maximize_eval_metric'] = str(maximize_score)
 
     return params

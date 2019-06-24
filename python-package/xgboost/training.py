@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
+from .automl_core import ConvergenceTester, xgb_parameter_checker
 from . import rabit
 from . import callback
 
@@ -58,6 +59,13 @@ def _train_internal(params, dtrain,
         cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
         cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+    callbacks_early_stop = [
+        cb for cb in callbacks if cb.__dict__.get('early_stop', False)]
+
+    # If early stopping enabled, create booster to store the best round model.
+    if len(callbacks_early_stop) > 0:
+        best_bst = bst.copy()
+        best_iteration = bst.attr('best_iteration')
 
     for i in range(start_iteration, num_boost_round):
         for cb in callbacks_before_iter:
@@ -99,6 +107,10 @@ def _train_internal(params, dtrain,
                                evaluation_result_list=evaluation_result_list))
         except EarlyStopException:
             break
+        finally:
+            if len(callbacks_early_stop) > 0 and best_iteration != bst.attr('best_iteration'):
+                best_bst = bst.copy()
+                best_iteration = bst.attr('best_iteration')
         # do checkpoint after evaluation, in case evaluation also updates booster.
         bst.save_rabit_checkpoint()
         version += 1
@@ -109,12 +121,15 @@ def _train_internal(params, dtrain,
     else:
         bst.best_iteration = nboost - 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+    if len(callbacks_early_stop) > 0:
+        return best_bst
     return bst
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
+          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None,
+          check_params=True):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -134,7 +149,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     feval : function
         Customized evaluation function.
     maximize : bool
-        Whether to maximize feval.
+        Whether to maximize feval. If check_params is turned on, this parameter will
+        be automatically determined by objective and eval_metric and might be overwritten
+        accordingly.
     early_stopping_rounds: int
         Activates early stopping. Validation error needs to decrease at least
         every **early_stopping_rounds** round(s) to continue training.
@@ -183,12 +200,18 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         .. code-block:: python
 
             [xgb.callback.reset_learning_rate(custom_rates)]
+    check_params: bool, default True
+        Whether to check parameters.
 
     Returns
     -------
     Booster : a trained booster model
     """
     callbacks = [] if callbacks is None else callbacks
+
+    if check_params:
+        params = xgb_parameter_checker(params, num_boost_round)
+    maximize=params['maximize_eval_metric'].lower() == 'true'
 
     # Most of legacy advanced options becomes callbacks
     if isinstance(verbose_eval, bool) and verbose_eval:
@@ -201,6 +224,12 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
+
+    if params.get('convergence_criteria') is not None:
+        callbacks.append(callback.convergence_test(params.get('convergence_criteria'),
+                                                   maximize = maximize,
+                                                   verbose = bool(verbose_eval)))
+
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
 

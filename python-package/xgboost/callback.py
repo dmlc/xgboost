@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from . import rabit
 from .core import EarlyStopException
-
+from .automl_core import ConvergenceTester
 
 def _get_callback_context(env):
     """return whether the current callback context is cv or train"""
@@ -247,4 +247,77 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                 msg = "Stopping. Best iteration:\n{}\n\n"
                 rabit.tracker_print(msg.format(best_msg))
             raise EarlyStopException(best_iteration)
+    return callback
+
+def convergence_test(cc, maximize=False, verbose=True):
+    """Create a callback that activates convergence tester.
+
+    Parameters
+    ----------
+    cc : string
+       The initialization string for convergence tester.
+
+    maximize : bool
+        Whether to maximize evaluation metric.
+
+    verbose : optional, bool
+        Whether to print message about convergence tester information.
+
+    Returns
+    -------
+    callback : function
+        The requested callback function.
+    """
+    state = {}
+
+    def init(env):
+        """internal function"""
+        bst = env.model
+
+        if len(env.evaluation_result_list) == 0:
+            raise ValueError('For convergence test you need at least one set in evals.')
+        if len(env.evaluation_result_list) > 1 and verbose:
+            msg = ("Multiple eval metrics have been passed: "
+                   "'{0}' will be used for convergence test.\n\n")
+            rabit.tracker_print(msg.format(env.evaluation_result_list[-1][0]))
+
+        ct = ConvergenceTester.parse(cc)
+        ct.reset(maximize)
+        state['ct'] = ct
+
+        if verbose and env.rank == 0:
+            msg = "Convergence tester parameters: {0}.\n".format(ct.print_params())
+            rabit.tracker_print(msg.format())
+
+    def callback(env):
+        """internal function"""
+        score = env.evaluation_result_list[-1][1]
+        if 'ct' not in state:
+            init(env)
+        ct = state['ct']
+        best_score = ct.get_best_so_far()
+        best_iteration = ct.get_best_idx() + 1
+        maximize_score = ct.is_maximize()
+        ct.add(score)
+        if (maximize_score and score > best_score) or \
+            (not maximize_score and score < best_score):
+            msg = '[%d]\t%s' % (
+                env.iteration,
+                '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
+            state['best_msg'] = msg
+            state['best_score'] = score
+            state['best_iteration'] = env.iteration
+            # save the property to attributes, so they will occur in checkpoint.
+            if env.model is not None:
+                env.model.set_attr(best_score=str(state['best_score']),
+                                   best_iteration=str(state['best_iteration']),
+                                   best_msg=state['best_msg'])
+        if ct.is_converged():
+            best_msg = state['best_msg']
+            if verbose and env.rank == 0:
+                msg = "Stopping. Best iteration:\n{}\n\n"
+                rabit.tracker_print(msg.format(best_msg))
+            raise EarlyStopException(best_iteration)
+
+    callback.early_stop = True
     return callback
