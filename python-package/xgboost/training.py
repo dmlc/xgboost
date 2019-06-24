@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
-from .automl_core import ConvergenceTester, xgb_parameter_checker
+from .automl_core import ConvergenceTester, xgb_parameter_checker, get_optimization_direction
 from . import rabit
 from . import callback
 
@@ -211,7 +211,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
     if check_params:
         params = xgb_parameter_checker(params, num_boost_round)
-    maximize=params['maximize_eval_metric'].lower() == 'true'
+    maximize = get_optimization_direction(params)
 
     # Most of legacy advanced options becomes callbacks
     if isinstance(verbose_eval, bool) and verbose_eval:

@@ -209,6 +209,14 @@ NUM_TREE_LOWER_BOUND = 0
 DEFAULT_METRIC = {'binary': 'auc', 'multi': 'merror', 'reg': 'rmse', 'rank': 'ndcg',\
                   'survival': 'cox-nloglik'}
 
+def get_optimization_direction(params):
+    maximize_score = False
+    metric = params['eval_metric']
+    if any(metric.startswith(x) for x in MAXIMIZE_METRICS):
+        maximize_score = True
+
+    return maximize_score
+
 def xgb_parameter_checker(params, num_round, num_class=None, skip_list=[]):
     """
     XGBoost hyper-parameter checker.
@@ -324,11 +332,7 @@ def xgb_parameter_checker(params, num_round, num_class=None, skip_list=[]):
             warnings.warn(param_invalid_value_info('eval_metric', DEFAULT_METRIC[objective_type]))
             params['eval_metric'] = DEFAULT_METRIC[objective_type]
 
-    maximize_score = False
-    metric = params['eval_metric']
-    if any(metric.startswith(x) for x in MAXIMIZE_METRICS):
-        maximize_score = True
-
+    maximize_score = get_optimization_direction(params)
     params['maximize_eval_metric'] = str(maximize_score)
 
     return params
