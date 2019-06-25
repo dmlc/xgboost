@@ -403,10 +403,11 @@ class JsonGenerator : public TreeGenerator {
   }
 
   std::string BuildTree(RegTree const& tree, int32_t nid, uint32_t depth) override {
-    static std::string const kNodeTemplate = "\n{indent}{nodes}";
+    static std::string const kNodeTemplate = "{newline}{indent}{nodes}";
     auto result = SuperT::Match(
         kNodeTemplate,
-        {{"{indent}", Indent(depth)},
+        {{"{newline}", depth == 0 ? "" : "\n"},
+         {"{indent}", Indent(depth)},
          {"{nodes}",  tree[nid].IsLeaf() ? this->LeafNode(tree, nid, depth) :
                                            this->SplitNode(tree, nid, depth)}});
     return result;

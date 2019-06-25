@@ -1,3 +1,5 @@
+# pylint: disable=too-many-locals, too-many-arguments, invalid-name,
+# pylint: disable=too-many-branches
 # coding: utf-8
 """Plotting Library."""
 from io import BytesIO
@@ -161,7 +163,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     """
     try:
-        from graphviz import Source, Digraph
+        from graphviz import Source
     except ImportError:
         raise ImportError('You must install graphviz to plot tree')
     if isinstance(booster, XGBModel):
@@ -229,8 +231,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
 
     """
     try:
-        import matplotlib.pyplot as plt
-        import matplotlib.image as image
+        from matplotlib import pyplot as plt
+        from matplotlib import image
     except ImportError:
         raise ImportError('You must install matplotlib to plot tree')
 
