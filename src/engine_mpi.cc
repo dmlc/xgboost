@@ -15,6 +15,11 @@
 #include "../include/rabit/internal/utils.h"
 
 namespace rabit {
+
+namespace utils {
+    bool STOP_PROCESS_ON_ERROR = true;
+}
+
 namespace engine {
 /*! \brief implementation of engine using MPI */
 class MPIEngine : public IEngine {

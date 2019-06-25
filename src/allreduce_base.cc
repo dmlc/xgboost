@@ -14,6 +14,11 @@
 #include "./allreduce_base.h"
 
 namespace rabit {
+
+namespace utils {
+  bool STOP_PROCESS_ON_ERROR = true;
+}
+
 namespace engine {
 // constructor
 AllreduceBase::AllreduceBase(void) {
@@ -48,6 +53,7 @@ AllreduceBase::AllreduceBase(void) {
   env_vars.push_back("DMLC_TRACKER_URI");
   env_vars.push_back("DMLC_TRACKER_PORT");
   env_vars.push_back("DMLC_WORKER_CONNECT_RETRY");
+  env_vars.push_back("DMLC_WORKER_STOP_PROCESS_ON_ERROR");
 }
 
 // initialization function
@@ -189,6 +195,15 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   }
   if (!strcmp(name, "DMLC_WORKER_CONNECT_RETRY")) {
     connect_retry = atoi(val);
+  }
+  if (!strcmp(name, "DMLC_WORKER_STOP_PROCESS_ON_ERROR")) {
+    if (!strcmp(val, "true")) {
+      rabit::utils::STOP_PROCESS_ON_ERROR = true;
+    } else if (!strcmp(val, "false")) {
+      rabit::utils::STOP_PROCESS_ON_ERROR = false;
+    } else {
+      throw std::runtime_error("invalid value of DMLC_WORKER_STOP_PROCESS_ON_ERROR");
+    }
   }
 }
 /*!
