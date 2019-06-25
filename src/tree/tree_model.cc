@@ -521,23 +521,33 @@ class GraphvizGenerator : public TreeGenerator {
   }
 
  protected:
+  // Only indicator is different, so we combine all different node
+  // types into this function.
   std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) override {
     auto split = tree[nid].SplitIndex();
     auto cond = tree[nid].SplitCond();
-    static std::string const kNodeTemplate = "    {nid} [ label=\"f{fid}<{cond}\" {params}]\n";
-    std::string result;
-    result = SuperT::Match(kNodeTemplate, {
-        {"{nid}",  std::to_string(nid)},
-        {"{fid}",  split < fmap_.Size() ? fmap_.Name(split) : std::to_string(split)},
-        {"{cond}", SuperT::ToStr(cond)},
+    static std::string const kNodeTemplate = "    {nid} [ label=\"{label}\" {params}]\n";
+    static std::string const kLabelTemplate = R"({fname}{<}{cond})";
+
+    // Indicator only has fname.
+    bool has_less = split > fmap_.Size() || (split < fmap_.Size() && fmap_.type(split));
+    auto label = SuperT::Match(kLabelTemplate, {
+        {"{fname}", split < fmap_.Size() ? fmap_.Name(split) :
+                                           'f' + std::to_string(split)},
+        {"{<}",     has_less ? "<" : ""},
+        {"{cond}",  has_less ? SuperT::ToStr(cond) : ""}});
+    std::string result = SuperT::Match(kNodeTemplate, {
+        {"{nid}",    std::to_string(nid)},
+        {"{label}",  label},
         {"{params}", param_.condition_node_params}});
 
     static std::string const kEdgeTemplate =
         "    {nid} -> {child} [label=\"{is_missing}\" color=\"{color}\"]\n";
+    auto MatchFn = SuperT::Match;  // mingw failed to capture protected fn.
     auto BuildEdge =
-        [&tree, nid, this](int32_t child) {
+        [&tree, nid, MatchFn, this](int32_t child) {
           bool is_missing = tree[nid].DefaultChild() == child;
-          std::string buffer = SuperT::Match(kEdgeTemplate, {
+          std::string buffer = MatchFn(kEdgeTemplate, {
               {"{nid}",        std::to_string(nid)},
               {"{child}",      std::to_string(child)},
               {"{color}",      is_missing ? param_.yes_color : param_.no_color},
