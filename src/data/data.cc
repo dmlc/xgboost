@@ -234,6 +234,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   if (rabit::IsDistributed()) {
     int cache_seq = 0;
     rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1, NULL, NULL, &cache_seq);
+    printf("[%d] cache_seq %d\n", rabit::GetRank(), cache_seq);
   }
 
   // backward compatiblity code.

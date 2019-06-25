@@ -162,6 +162,7 @@ class GBTree : public GradientBooster {
 
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
+    
   }
 
   bool AllowLazyCheckPoint() const override {
