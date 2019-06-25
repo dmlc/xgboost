@@ -50,13 +50,15 @@ Supported parameters
 +--------------------------------+----------------------------+--------------+
 | ``gpu_id``                     | |tick|                     | |tick|       |
 +--------------------------------+----------------------------+--------------+
-| ``n_gpus``                     | |cross|                    | |tick|       |
+| ``n_gpus`` (deprecated)        | |cross|                    | |tick|       |
 +--------------------------------+----------------------------+--------------+
 | ``predictor``                  | |tick|                     | |tick|       |
 +--------------------------------+----------------------------+--------------+
 | ``grow_policy``                | |cross|                    | |tick|       |
 +--------------------------------+----------------------------+--------------+
 | ``monotone_constraints``       | |cross|                    | |tick|       |
++--------------------------------+----------------------------+--------------+
+| ``interaction_constraints``    | |cross|                    | |tick|       |
 +--------------------------------+----------------------------+--------------+
 | ``single_precision_histogram`` | |cross|                    | |tick|       |
 +--------------------------------+----------------------------+--------------+
@@ -65,7 +67,8 @@ GPU accelerated prediction is enabled by default for the above mentioned ``tree_
 
 The experimental parameter ``single_precision_histogram`` can be set to True to enable building histograms using single precision. This may improve speed, in particular on older architectures.
 
-The device ordinal can be selected using the ``gpu_id`` parameter, which defaults to 0.
+The device ordinal (which GPU to use if you have many of them) can be selected using the
+``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
 
 
 The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
@@ -80,13 +83,7 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
 
 Single Node Multi-GPU
 =====================
-Multiple GPUs can be used with the ``gpu_hist`` tree method using the ``n_gpus`` parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If ``gpu_id`` is specified as non-zero, the selected gpu devices will be from ``gpu_id`` to ``gpu_id+n_gpus``, please note that ``gpu_id+n_gpus`` must be less than or equal to the number of available GPUs on your system.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
-
-.. note:: Enabling multi-GPU training
-
-  Default installation may not enable multi-GPU training. To use multiple GPUs, make sure to read :ref:`build_gpu_support`.
-XGBoost supports multi-GPU training on a single machine via specifying the `n_gpus' parameter.
-
+.. note:: Single node multi-GPU training with `n_gpus` parameter is deprecated after 0.90.  Please use distributed GPU training with one process per GPU.
 
 Multi-node Multi-GPU Training
 =============================
@@ -99,56 +96,54 @@ Objective functions
 ===================
 Most of the objective functions implemented in XGBoost can be run on GPU.  Following table shows current support status.
 
-.. |tick| unicode:: U+2714
-.. |cross| unicode:: U+2718
++--------------------+-------------+
+| Objectives         | GPU support |
++--------------------+-------------+
+| reg:squarederror   | |tick|      |
++--------------------+-------------+
+| reg:squaredlogerror| |tick|      |
++--------------------+-------------+
+| reg:logistic       | |tick|      |
++--------------------+-------------+
+| binary:logistic    | |tick|      |
++--------------------+-------------+
+| binary:logitraw    | |tick|      |
++--------------------+-------------+
+| binary:hinge       | |tick|      |
++--------------------+-------------+
+| count:poisson      | |tick|      |
++--------------------+-------------+
+| reg:gamma          | |tick|      |
++--------------------+-------------+
+| reg:tweedie        | |tick|      |
++--------------------+-------------+
+| multi:softmax      | |tick|      |
++--------------------+-------------+
+| multi:softprob     | |tick|      |
++--------------------+-------------+
+| survival:cox       | |cross|     |
++--------------------+-------------+
+| rank:pairwise      | |cross|     |
++--------------------+-------------+
+| rank:ndcg          | |cross|     |
++--------------------+-------------+
+| rank:map           | |cross|     |
++--------------------+-------------+
 
-+-----------------+-------------+
-| Objectives      | GPU support |
-+-----------------+-------------+
-| reg:squarederror| |tick|      |
-+-----------------+-------------+
-| reg:logistic    | |tick|      |
-+-----------------+-------------+
-| binary:logistic | |tick|      |
-+-----------------+-------------+
-| binary:logitraw | |tick|      |
-+-----------------+-------------+
-| binary:hinge    | |tick|      |
-+-----------------+-------------+
-| count:poisson   | |tick|      |
-+-----------------+-------------+
-| reg:gamma       | |tick|      |
-+-----------------+-------------+
-| reg:tweedie     | |tick|      |
-+-----------------+-------------+
-| multi:softmax   | |tick|      |
-+-----------------+-------------+
-| multi:softprob  | |tick|      |
-+-----------------+-------------+
-| survival:cox    | |cross|     |
-+-----------------+-------------+
-| rank:pairwise   | |cross|     |
-+-----------------+-------------+
-| rank:ndcg       | |cross|     |
-+-----------------+-------------+
-| rank:map        | |cross|     |
-+-----------------+-------------+
-
-For multi-gpu support, objective functions also honor the ``n_gpus`` parameter,
-which, by default is set to 1.  To disable running objectives on GPU, just set
-``n_gpus`` to 0.
+Objective will run on GPU if GPU updater (``gpu_hist``), otherwise they will run on CPU by
+default.  For unsupported objectives XGBoost will fall back to using CPU implementation by
+default.
 
 Metric functions
 ===================
 Following table shows current support status for evaluation metrics on the GPU.
 
-.. |tick| unicode:: U+2714
-.. |cross| unicode:: U+2718
-
 +-----------------+-------------+
 | Metric          | GPU Support |
 +=================+=============+
 | rmse            | |tick|      |
++-----------------+-------------+
+| rmsle           | |tick|      |
 +-----------------+-------------+
 | mae             | |tick|      |
 +-----------------+-------------+
@@ -156,9 +151,9 @@ Following table shows current support status for evaluation metrics on the GPU.
 +-----------------+-------------+
 | error           | |tick|      |
 +-----------------+-------------+
-| merror          | |cross|     |
+| merror          | |tick|      |
 +-----------------+-------------+
-| mlogloss        | |cross|     |
+| mlogloss        | |tick|      |
 +-----------------+-------------+
 | auc             | |cross|     |
 +-----------------+-------------+
@@ -179,10 +174,8 @@ Following table shows current support status for evaluation metrics on the GPU.
 | tweedie-nloglik | |tick|      |
 +-----------------+-------------+
 
-As for objective functions, metrics honor the ``n_gpus`` parameter,
-which, by default is set to 1.  To disable running metrics on GPU, just set
-``n_gpus`` to 0.
-
+Similar to objective functions, default device for metrics is selected based on tree
+updater and predictor (which is selected based on tree updater).
 
 Benchmarks
 ==========
@@ -209,7 +202,7 @@ Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations a
 See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_exact`` and ``gpu_hist`` tree methods.
 
 Developer notes
-==========
+===============
 The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
 
 **********
@@ -220,7 +213,7 @@ References
 `Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
 Contributors
-=======
+============
 Many thanks to the following contributors (alphabetical order):
 
 * Andrey Adinets

@@ -1,7 +1,6 @@
 /*!
- * Copyright 2017-2018 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
-
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include <random>
@@ -16,6 +15,7 @@
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/common/common.h"
+#include "../../../src/tree/constraints.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -91,11 +91,13 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
 
 TEST(GpuHist, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
-  TrainParam param;
-  param.max_depth = 1;
-  param.max_leaves = 0;
-
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols);
+  tree::TrainParam param;
+  std::vector<std::pair<std::string, std::string>> args {
+    {"max_depth", "1"},
+    {"max_leaves", "0"},
+  };
+  param.Init(args);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -130,10 +132,14 @@ TEST(GpuHist, BuildGidxDense) {
 TEST(GpuHist, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
   TrainParam param;
-  param.max_depth = 1;
-  param.max_leaves = 0;
+  std::vector<std::pair<std::string, std::string>> args {
+    {"max_depth", "1"},
+    {"max_leaves", "0"},
+  };
+  param.Init(args);
 
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols,
+                                         kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -173,10 +179,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
 
   TrainParam param;
-  param.max_depth = 6;
-  param.max_leaves = 0;
-
-  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols);
+  std::vector<std::pair<std::string, std::string>> args {
+    {"max_depth", "6"},
+    {"max_leaves", "0"},
+  };
+  param.Init(args);
+  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols,
+                                  kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   xgboost::SimpleLCG gen;
@@ -188,8 +197,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
     gpair = GradientPair(grad, hess);
   }
 
-  int num_symbols = shard.n_bins + 1;
-
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (
       shard.gidx_buffer.size());
 
@@ -197,16 +204,10 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   dh::safe_cuda(cudaMemcpy(h_gidx_buffer.data(), d_gidx_buffer_ptr,
                            sizeof(common::CompressedByteT) * shard.gidx_buffer.size(),
                            cudaMemcpyDeviceToHost));
-  auto gidx = common::CompressedIterator<uint32_t>(h_gidx_buffer.data(),
-                                                   num_symbols);
 
-  shard.ridx_segments.resize(1);
-  shard.ridx_segments[0] = Segment(0, kNRows);
+  shard.row_partitioner.reset(new RowPartitioner(0, kNRows));
   shard.hist.AllocateHistogram(0);
   dh::CopyVectorToDeviceSpan(shard.gpair, h_gpair);
-  thrust::sequence(
-      thrust::device_pointer_cast(shard.ridx.Current()),
-      thrust::device_pointer_cast(shard.ridx.Current() + shard.ridx.Size()));
 
   shard.use_shared_memory_histograms = use_shared_memory_histograms;
   shard.BuildHist(0);
@@ -263,17 +264,21 @@ TEST(GpuHist, EvaluateSplits) {
   constexpr int kNCols = 8;
 
   TrainParam param;
-  param.max_depth = 1;
-  param.colsample_bynode = 1;
-  param.colsample_bylevel = 1;
-  param.colsample_bytree = 1;
-  param.min_child_weight = 0.01;
 
-  // Disable all parameters.
-  param.reg_alpha = 0.0;
-  param.reg_lambda = 0;
-  param.max_delta_step = 0.0;
+  std::vector<std::pair<std::string, std::string>> args {
+    {"max_depth", "1"},
+    {"max_leaves", "0"},
 
+    // Disable all other parameters.
+    {"colsample_bynode", "1"},
+    {"colsample_bylevel", "1"},
+    {"colsample_bytree", "1"},
+    {"min_child_weight", "0.01"},
+    {"reg_alpha", "0"},
+    {"reg_lambda", "0"},
+    {"max_delta_step", "0"}
+  };
+  param.Init(args);
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
   }
@@ -282,7 +287,8 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Initialize DeviceShard
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols)};
+    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols,
+                                         kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -344,140 +350,7 @@ TEST(GpuHist, EvaluateSplits) {
   ASSERT_NEAR(res[1].fvalue, 0.26, xgboost::kRtEps);
 }
 
-TEST(GpuHist, ApplySplit) {
-  int constexpr kNId = 0;
-  int constexpr kNRows = 16;
-  int constexpr kNCols = 8;
-
-  TrainParam param;
-  std::vector<std::pair<std::string, std::string>> args = {};
-  param.InitAllowUnknown(args);
-
-  // Initialize shard
-  for (size_t i = 0; i < kNCols; ++i) {
-    param.monotone_constraints.emplace_back(0);
-  }
-
-  std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-      new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols)};
-
-  shard->ridx_segments.resize(3);  // 3 nodes.
-  shard->node_sum_gradients.resize(3);
-
-  shard->ridx_segments[0] = Segment(0, kNRows);
-  shard->ba.Allocate(0, &(shard->ridx), kNRows,
-                     &(shard->position), kNRows);
-  shard->ellpack_matrix.row_stride = kNCols;
-  thrust::sequence(
-      thrust::device_pointer_cast(shard->ridx.Current()),
-      thrust::device_pointer_cast(shard->ridx.Current() + shard->ridx.Size()));
-  RegTree tree;
-
-  DeviceSplitCandidate candidate;
-  candidate.Update(2, kLeftDir,
-                   0.59, 4,  // fvalue has to be equal to one of the cut field
-                   GradientPair(8.2, 2.8), GradientPair(6.3, 3.6),
-                   GPUTrainingParam(param));
-  ExpandEntry candidate_entry {0, 0, candidate, 0};
-  candidate_entry.nid = kNId;
-
-  // Used to get bin_id in update position.
-  common::HistCutMatrix cmat = GetHostCutMatrix();
-
-  MetaInfo info;
-  info.num_row_ = kNRows;
-  info.num_col_ = kNCols;
-  info.num_nonzero_ = kNRows * kNCols;  // Dense
-
-  // Initialize gidx
-  int n_bins = 24;
-  int row_stride = kNCols;
-  int num_symbols = n_bins + 1;
-  size_t compressed_size_bytes =
-      common::CompressedBufferWriter::CalculateBufferSize(row_stride * kNRows,
-                                                          num_symbols);
-  shard->ba.Allocate(0, &(shard->gidx_buffer), compressed_size_bytes,
-                     &(shard->feature_segments), cmat.row_ptr.size(),
-                     &(shard->min_fvalue), cmat.min_val.size(),
-                     &(shard->gidx_fvalue_map), 24);
-  dh::CopyVectorToDeviceSpan(shard->feature_segments, cmat.row_ptr);
-  dh::CopyVectorToDeviceSpan(shard->gidx_fvalue_map, cmat.cut);
-  shard->ellpack_matrix.feature_segments = shard->feature_segments;
-  shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map;
-  dh::CopyVectorToDeviceSpan(shard->min_fvalue, cmat.min_val);
-  shard->ellpack_matrix.min_fvalue = shard->min_fvalue;
-  shard->ellpack_matrix.is_dense = true;
-
-  common::CompressedBufferWriter wr(num_symbols);
-  // gidx 14 should go right, 12 goes left
-  std::vector<int> h_gidx (kNRows * row_stride, 14);
-  h_gidx[4] = 12;
-  h_gidx[12] = 12;
-  std::vector<common::CompressedByteT> h_gidx_compressed (compressed_size_bytes);
-
-  wr.Write(h_gidx_compressed.data(), h_gidx.begin(), h_gidx.end());
-  dh::CopyVectorToDeviceSpan(shard->gidx_buffer, h_gidx_compressed);
-
-  shard->ellpack_matrix.gidx_iter = common::CompressedIterator<uint32_t>(
-      shard->gidx_buffer.data(), num_symbols);
-
-  shard->ApplySplit(candidate_entry, &tree);
-  shard->UpdatePosition(candidate_entry.nid, tree[candidate_entry.nid]);
-
-  ASSERT_FALSE(tree[kNId].IsLeaf());
-
-  int left_nidx = tree[kNId].LeftChild();
-  int right_nidx = tree[kNId].RightChild();
-
-  ASSERT_EQ(shard->ridx_segments[left_nidx].begin, 0);
-  ASSERT_EQ(shard->ridx_segments[left_nidx].end, 2);
-  ASSERT_EQ(shard->ridx_segments[right_nidx].begin, 2);
-  ASSERT_EQ(shard->ridx_segments[right_nidx].end, 16);
-}
-
-void TestSortPosition(const std::vector<int>& position_in, int left_idx,
-                      int right_idx) {
-  std::vector<int64_t> left_count = {
-      std::count(position_in.begin(), position_in.end(), left_idx)};
-  thrust::device_vector<int64_t> d_left_count = left_count;
-  thrust::device_vector<int> position = position_in;
-  thrust::device_vector<int> position_out(position.size());
-
-  thrust::device_vector<bst_uint> ridx(position.size());
-  thrust::sequence(ridx.begin(), ridx.end());
-  thrust::device_vector<bst_uint> ridx_out(ridx.size());
-  dh::CubMemory tmp;
-  SortPosition(
-      &tmp, common::Span<int>(position.data().get(), position.size()),
-      common::Span<int>(position_out.data().get(), position_out.size()),
-      common::Span<bst_uint>(ridx.data().get(), ridx.size()),
-      common::Span<bst_uint>(ridx_out.data().get(), ridx_out.size()), left_idx,
-      right_idx, d_left_count.data().get(), nullptr);
-  thrust::host_vector<int> position_result = position_out;
-  thrust::host_vector<int> ridx_result = ridx_out;
-
-  // Check position is sorted
-  EXPECT_TRUE(std::is_sorted(position_result.begin(), position_result.end()));
-  // Check row indices are sorted inside left and right segment
-  EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin(), ridx_result.begin() + left_count[0]));
-  EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin() + left_count[0], ridx_result.end()));
-
-  // Check key value pairs are the same
-  for (auto i = 0ull; i < ridx_result.size(); i++) {
-    EXPECT_EQ(position_result[i], position_in[ridx_result[i]]);
-  }
-}
-
-TEST(GpuHist, SortPosition) {
-  TestSortPosition({1, 2, 1, 2, 1}, 1, 2);
-  TestSortPosition({1, 1, 1, 1}, 1, 2);
-  TestSortPosition({2, 2, 2, 2}, 1, 2);
-  TestSortPosition({1, 2, 1, 2, 3}, 1, 2);
-}
-
-TEST(GpuHist, TestHistogramIndex) {
+void TestHistogramIndexImpl(int n_gpus) {
   // Test if the compressed histogram index matches when using a sparse
   // dmatrix with and without using external memory
 
@@ -491,31 +364,47 @@ TEST(GpuHist, TestHistogramIndex) {
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
 
   std::vector<std::pair<std::string, std::string>> training_params = {
-    {"max_depth", "1"},
+    {"max_depth", "10"},
     {"max_leaves", "0"}
   };
 
-  LearnerTrainParam learner_param(CreateEmptyGenericParam(0, 1));
+  LearnerTrainParam learner_param(CreateEmptyGenericParam(0, n_gpus));
   hist_maker.Init(training_params, &learner_param);
   hist_maker.InitDataOnce(hist_maker_dmat.get());
   hist_maker_ext.Init(training_params, &learner_param);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
+  ASSERT_EQ(hist_maker.shards_.size(), hist_maker_ext.shards_.size());
+
   // Extract the device shards from the histogram makers and from that its compressed
   // histogram index
-  const auto &dev_shard = hist_maker.shards_[0];
-  std::vector<common::CompressedByteT> h_gidx_buffer(dev_shard->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, dev_shard->gidx_buffer);
+  for (size_t i = 0; i < hist_maker.shards_.size(); ++i) {
+    const auto &dev_shard = hist_maker.shards_[i];
+    std::vector<common::CompressedByteT> h_gidx_buffer(dev_shard->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer, dev_shard->gidx_buffer);
 
-  const auto &dev_shard_ext = hist_maker_ext.shards_[0];
-  std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
+    const auto &dev_shard_ext = hist_maker_ext.shards_[i];
+    std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
 
-  ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
-  ASSERT_EQ(dev_shard->gidx_buffer.size(), dev_shard_ext->gidx_buffer.size());
+    ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
+    ASSERT_EQ(dev_shard->gidx_buffer.size(), dev_shard_ext->gidx_buffer.size());
 
-  ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
+    ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
+  }
 }
+
+TEST(GpuHist, TestHistogramIndex) {
+  TestHistogramIndexImpl(1);
+}
+
+#if defined(XGBOOST_USE_NCCL)
+TEST(GpuHist, MGPU_TestHistogramIndex) {
+  auto devices = GPUSet::AllVisible();
+  CHECK_GT(devices.Size(), 1);
+  TestHistogramIndexImpl(-1);
+}
+#endif
 
 }  // namespace tree
 }  // namespace xgboost

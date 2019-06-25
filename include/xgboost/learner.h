@@ -14,6 +14,7 @@
 #include <xgboost/gbm.h>
 #include <xgboost/metric.h>
 #include <xgboost/objective.h>
+#include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
 
 #include <utility>

@@ -57,6 +57,7 @@ to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 * `Python Package Installation`_
 * `R Package Installation`_
 * `Trouble Shooting`_
+* `Building the documentation`_
 
 ***************************
 Building the Shared Library
@@ -185,9 +186,7 @@ Building with GPU support
 =========================
 XGBoost can be built with GPU support for both Linux and Windows using CMake. GPU support works with the Python package as well as the CLI version. See `Installing R package with GPU support`_ for special instructions for R.
 
-An up-to-date version of the CUDA toolkit is required.  Please note that we
-skipped the support for compiling XGBoost with NVCC 10.1 due a small bug in its
-spliter, see `#4264 <https://github.com/dmlc/xgboost/issues/4264>`_.
+An up-to-date version of the CUDA toolkit is required.
 
 From the command line on Linux starting from the XGBoost directory:
 
@@ -198,9 +197,9 @@ From the command line on Linux starting from the XGBoost directory:
   cmake .. -DUSE_CUDA=ON
   make -j4
 
-.. note:: Enabling multi-GPU training
+.. note:: Enabling distributed GPU training
 
-  By default, multi-GPU training is disabled and only a single GPU will be used. To enable multi-GPU training, set the option ``USE_NCCL=ON``. Multi-GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **multi-GPU training is available only for Linux**.
+  By default, distributed GPU training is disabled and only a single GPU will be used. To enable distributed GPU training, set the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 
@@ -450,3 +449,23 @@ Trouble Shooting
    .. code-block:: bash
 
      git clone https://github.com/dmlc/xgboost --recursive
+
+
+Building the Documentation
+==========================
+XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To build it locally, you need a installed XGBoost with all its dependencies along with:
+
+* System dependencies
+
+  - git
+  - graphviz
+
+* Python dependencies
+
+  - sphinx
+  - breathe
+  - guzzle_sphinx_theme
+  - recommonmark
+  - mock
+
+Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.

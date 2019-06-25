@@ -101,24 +101,25 @@ def _run_with_rabit(rabit_args, func, *args):
 
 
 def run(client, func, *args):
-    """
-    Launch arbitrary function on dask workers. Workers are connected by rabit, allowing
-    distributed training. The environment variable OMP_NUM_THREADS is defined on each worker
-    according to dask - this means that calls to xgb.train() will use the threads allocated by
-    dask by default, unless the user overrides the nthread parameter.
+    """Launch arbitrary function on dask workers. Workers are connected by rabit,
+    allowing distributed training. The environment variable OMP_NUM_THREADS is
+    defined on each worker according to dask - this means that calls to
+    xgb.train() will use the threads allocated by dask by default, unless the
+    user overrides the nthread parameter.
 
-    Note: Windows platforms are not officially supported. Contributions are welcome here.
+    Note: Windows platforms are not officially
+      supported. Contributions are welcome here.
 
     :param client: Dask client representing the cluster
-    :param func: Python function to be executed by each worker. Typically contains xgboost
-    training code.
+    :param func: Python function to be executed by each worker. Typically
+       contains xgboost training code.
     :param args: Arguments to be forwarded to func
     :return: Dict containing the function return value for each worker
+
     """
     if platform.system() == 'Windows':
-        logging.warning(
-            'Windows is not officially supported for dask/xgboost integration. Contributions '
-            'welcome.')
+        logging.warning('Windows is not officially supported for dask/xgboost'
+                        'integration. Contributions welcome.')
     workers = list(client.scheduler_info()['workers'].keys())
     env = client.run(_start_tracker, len(workers), workers=[workers[0]])
     rabit_args = [('%s=%s' % item).encode() for item in env[workers[0]].items()]
