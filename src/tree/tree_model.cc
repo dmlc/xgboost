@@ -175,7 +175,7 @@ class TextGenerator : public TreeGenerator {
       TreeGenerator(fmap, with_stats) {}
 
   std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) override {
-    static std::string kLeafTemplate = "{tabs}{nid}:leaf={leaf} {stats}";
+    static std::string kLeafTemplate = "{tabs}{nid}:leaf={leaf}{stats}";
     static std::string kStatTemplate = ",cover={cover}";
     std::string result = SuperT::Match(
         kLeafTemplate,
@@ -269,7 +269,7 @@ class TextGenerator : public TreeGenerator {
   }
 
   void BuildTree(RegTree const& tree) override {
-    static std::string const& kTreeTemplate = "{nodes}";
+    static std::string const& kTreeTemplate = "{nodes}\n";
     auto result = SuperT::Match(
         kTreeTemplate,
         {{"{nodes}", this->BuildTree(tree, 0, 0)}});
@@ -302,7 +302,7 @@ class JsonGenerator : public TreeGenerator {
     static std::string const kLeafTemplate =
         R"L({ "nodeid": {nid}, "leaf": {leaf} {stat}})L";
     static std::string const kStatTemplate =
-        R"S(", cover": {sum_hess} )S";
+        R"S(, "cover": {sum_hess} )S";
     std::string result = SuperT::Match(
         kLeafTemplate,
         {{"{nid}",  std::to_string(nid)},

@@ -1,9 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name,
-# pylint: disable=too-many-branches
 """Plotting Library."""
-from __future__ import absolute_import
-
 from io import BytesIO
 import numpy as np
 from .core import Booster
@@ -60,7 +56,8 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ImportError('You must install matplotlib to plot importance')
 
     if isinstance(booster, XGBModel):
-        importance = booster.get_booster().get_score(importance_type=importance_type)
+        importance = booster.get_booster().get_score(
+            importance_type=importance_type)
     elif isinstance(booster, Booster):
         importance = booster.get_score(importance_type=importance_type)
     elif isinstance(booster, dict):
@@ -160,11 +157,11 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     Returns
     -------
-    graph: graphviz.Source A graphviz source graph
+    graph: graphviz.Source
 
     """
     try:
-        from graphviz import Source
+        from graphviz import Source, Digraph
     except ImportError:
         raise ImportError('You must install graphviz to plot tree')
     if isinstance(booster, XGBModel):
@@ -204,7 +201,6 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     tree = booster.get_dump(
         fmap=fmap,
         dump_format=parameters)[num_trees]
-    print(tree)
     g = Source(tree)
     return g
 
