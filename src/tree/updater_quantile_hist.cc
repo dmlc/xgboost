@@ -561,6 +561,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     const size_t tid = omp_get_thread_num();
     const int32_t nid = task_nid[itask];
     const int32_t block_id = task_block_idx[itask];
+    // node_idx : location of node `nid` within the `nodes` list. In general, node_idx != nid
     const int32_t node_idx = task_node_idx[itask];
 
     common::GradStatHist::GradType* data_local_hist;
