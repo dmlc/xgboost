@@ -19,7 +19,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 * `Running Unit Tests Locally`_
 
   - :ref:`python_tests_pytest`
-  - `Google Tests`_
+  - `Google Test`_
   - `Running tests inside a Docker container (Recommended)`_
 
 * `Git Workflow Howtos`_
@@ -168,9 +168,9 @@ In addition, to build and test CUDA code, run:
 
   If you are running into issues running the command above, consider using our Docker container. See :ref:`running_tests_inside_docker`.
 
-Google Tests
-============
-To build and run C++ unit tests, install Google Test library with headers
+Google Test
+===========
+To build and run C++ unit tests, install `Google Test <https://github.com/google/googletest>`_ library with headers
 and then enable tests while running CMake:
 
 .. code-block:: bash
