@@ -38,9 +38,9 @@ class AllreduceBase : public IEngine {
   AllreduceBase(void);
   virtual ~AllreduceBase(void) {}
   // initialize the manager
-  virtual void Init(int argc, char* argv[]);
+  virtual bool Init(int argc, char* argv[]);
   // shutdown the engine
-  virtual void Shutdown(void);
+  virtual bool Shutdown(void);
   /*!
    * \brief set parameters to the engine
    * \param name parameter name
@@ -369,7 +369,7 @@ class AllreduceBase : public IEngine {
    *   this function is also used when the engine start up
    * \param cmd possible command to sent to tracker
    */
-  void ReConnectLinks(const char *cmd = "start");
+  bool ReConnectLinks(const char *cmd = "start");
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
    *

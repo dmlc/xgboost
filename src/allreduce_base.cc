@@ -57,7 +57,7 @@ AllreduceBase::AllreduceBase(void) {
 }
 
 // initialization function
-void AllreduceBase::Init(int argc, char* argv[]) {
+bool AllreduceBase::Init(int argc, char* argv[]) {
   // setup from enviroment variables
   // handler to get variables from env
   for (size_t i = 0; i < env_vars.size(); ++i) {
@@ -122,24 +122,30 @@ void AllreduceBase::Init(int argc, char* argv[]) {
   utils::Assert(all_links.size() == 0, "can only call Init once");
   this->host_uri = utils::SockAddr::GetHostName();
   // get information from tracker
-  this->ReConnectLinks();
+  return this->ReConnectLinks();
 }
 
-void AllreduceBase::Shutdown(void) {
-  for (size_t i = 0; i < all_links.size(); ++i) {
-    all_links[i].sock.Close();
-  }
-  all_links.clear();
-  tree_links.plinks.clear();
+bool AllreduceBase::Shutdown(void) {
+  try {
+    for (size_t i = 0; i < all_links.size(); ++i) {
+      all_links[i].sock.Close();
+    }
+    all_links.clear();
+    tree_links.plinks.clear();
 
-  if (tracker_uri == "NULL") return;
-  // notify tracker rank i have shutdown
-  utils::TCPSocket tracker = this->ConnectTracker();
-  tracker.SendStr(std::string("shutdown"));
-  tracker.Close();
-  // close listening sockets
-  sock_listen.Close();
-  utils::TCPSocket::Finalize();
+    if (tracker_uri == "NULL") return true;
+    // notify tracker rank i have shutdown
+    utils::TCPSocket tracker = this->ConnectTracker();
+    tracker.SendStr(std::string("shutdown"));
+    tracker.Close();
+    // close listening sockets
+    sock_listen.Close();
+    utils::TCPSocket::Finalize();
+    return true;
+  } catch (const std::exception& e) {
+    fprintf(stderr, "failed to shutdown due to %s\n", e.what());
+    return false;
+  }
 }
 void AllreduceBase::TrackerPrint(const std::string &msg) {
   if (tracker_uri == "NULL") {
@@ -252,167 +258,179 @@ utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
  * \brief connect to the tracker to fix the the missing links
  *   this function is also used when the engine start up
  */
-void AllreduceBase::ReConnectLinks(const char *cmd) {
+bool AllreduceBase::ReConnectLinks(const char *cmd) {
   // single node mode
   if (tracker_uri == "NULL") {
-    rank = 0; world_size = 1; return;
+    rank = 0; world_size = 1; return true;
   }
-  utils::TCPSocket tracker = this->ConnectTracker();
-  tracker.SendStr(std::string(cmd));
+  try {
+    utils::TCPSocket tracker = this->ConnectTracker();
+    tracker.SendStr(std::string(cmd));
 
-  // the rank of previous link, next link in ring
-  int prev_rank, next_rank;
-  // the rank of neighbors
-  std::map<int, int> tree_neighbors;
-  using utils::Assert;
-  // get new ranks
-  int newrank, num_neighbors;
-  Assert(tracker.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),
+    // the rank of previous link, next link in ring
+    int prev_rank, next_rank;
+    // the rank of neighbors
+    std::map<int, int> tree_neighbors;
+    using utils::Assert;
+    // get new ranks
+    int newrank, num_neighbors;
+    Assert(tracker.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),
            "ReConnectLink failure 4");
-  Assert(tracker.RecvAll(&parent_rank, sizeof(parent_rank)) ==\
+    Assert(tracker.RecvAll(&parent_rank, sizeof(parent_rank)) == \
          sizeof(parent_rank), "ReConnectLink failure 4");
-  Assert(tracker.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size),
-         "ReConnectLink failure 4");
-  Assert(rank == -1 || newrank == rank,
-         "must keep rank to same if the node already have one");
-  rank = newrank;
-  Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) ==  \
-         sizeof(num_neighbors), "ReConnectLink failure 4");
-  for (int i = 0; i < num_neighbors; ++i) {
-    int nrank;
-    Assert(tracker.RecvAll(&nrank, sizeof(nrank)) == sizeof(nrank),
+    Assert(tracker.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size),
            "ReConnectLink failure 4");
-    tree_neighbors[nrank] = 1;
-  }
-  Assert(tracker.RecvAll(&prev_rank, sizeof(prev_rank)) == sizeof(prev_rank),
-         "ReConnectLink failure 4");
-  Assert(tracker.RecvAll(&next_rank, sizeof(next_rank)) == sizeof(next_rank),
-         "ReConnectLink failure 4");
-
-  if (sock_listen == INVALID_SOCKET || sock_listen.AtMark()) {
-    if (!sock_listen.IsClosed()) {
-      sock_listen.Close();
+    Assert(rank == -1 || newrank == rank,
+           "must keep rank to same if the node already have one");
+    rank = newrank;
+    Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) == \
+         sizeof(num_neighbors), "ReConnectLink failure 4");
+    for (int i = 0; i < num_neighbors; ++i) {
+      int nrank;
+      Assert(tracker.RecvAll(&nrank, sizeof(nrank)) == sizeof(nrank),
+             "ReConnectLink failure 4");
+      tree_neighbors[nrank] = 1;
     }
-    // create listening socket
-    sock_listen.Create();
-    sock_listen.SetKeepAlive(true);
-    // http://deepix.github.io/2016/10/21/tcprst.html
-    sock_listen.SetLinger(0);
-    // [slave_port, slave_port+1 .... slave_port + newrank ...slave_port + nport_trial)
-    // work around processes bind to same port without set reuse option,
-    // start explore from slave_port + newrank towards end
-    port = sock_listen.TryBindHost(slave_port+ newrank%nport_trial, slave_port + nport_trial);
-    // if no port bindable, explore first half of range
-    if (port == -1) sock_listen.TryBindHost(slave_port, newrank% nport_trial + slave_port);
+    Assert(tracker.RecvAll(&prev_rank, sizeof(prev_rank)) == sizeof(prev_rank),
+           "ReConnectLink failure 4");
+    Assert(tracker.RecvAll(&next_rank, sizeof(next_rank)) == sizeof(next_rank),
+           "ReConnectLink failure 4");
 
-    utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
-    sock_listen.Listen();
-  }
-
-  // get number of to connect and number of to accept nodes from tracker
-  int num_conn, num_accept, num_error = 1;
-  do {
-    // send over good links
-    std::vector<int> good_link;
-    for (size_t i = 0; i < all_links.size(); ++i) {
-      if (!all_links[i].sock.BadSocket()) {
-        good_link.push_back(static_cast<int>(all_links[i].rank));
-      } else {
-        if (!all_links[i].sock.IsClosed()) all_links[i].sock.Close();
+    if (sock_listen == INVALID_SOCKET || sock_listen.AtMark()) {
+      if (!sock_listen.IsClosed()) {
+        sock_listen.Close();
       }
+      // create listening socket
+      sock_listen.Create();
+      sock_listen.SetKeepAlive(true);
+      // http://deepix.github.io/2016/10/21/tcprst.html
+      sock_listen.SetLinger(0);
+      // [slave_port, slave_port+1 .... slave_port + newrank ...slave_port + nport_trial)
+      // work around processes bind to same port without set reuse option,
+      // start explore from slave_port + newrank towards end
+      port = sock_listen.TryBindHost(slave_port + newrank % nport_trial, slave_port + nport_trial);
+      // if no port bindable, explore first half of range
+      if (port == -1) sock_listen.TryBindHost(slave_port, newrank % nport_trial + slave_port);
+
+      utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
+      sock_listen.Listen();
     }
-    int ngood = static_cast<int>(good_link.size());
-    Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
-           "ReConnectLink failure 5");
-    for (size_t i = 0; i < good_link.size(); ++i) {
-      Assert(tracker.SendAll(&good_link[i], sizeof(good_link[i])) == \
+
+    // get number of to connect and number of to accept nodes from tracker
+    int num_conn, num_accept, num_error = 1;
+    do {
+      // send over good links
+      std::vector<int> good_link;
+      for (size_t i = 0; i < all_links.size(); ++i) {
+        if (!all_links[i].sock.BadSocket()) {
+          good_link.push_back(static_cast<int>(all_links[i].rank));
+        } else {
+          if (!all_links[i].sock.IsClosed()) all_links[i].sock.Close();
+        }
+      }
+      int ngood = static_cast<int>(good_link.size());
+      Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
+             "ReConnectLink failure 5");
+      for (size_t i = 0; i < good_link.size(); ++i) {
+        Assert(tracker.SendAll(&good_link[i], sizeof(good_link[i])) == \
              sizeof(good_link[i]), "ReConnectLink failure 6");
-    }
-    Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
-           "ReConnectLink failure 7");
-    Assert(tracker.RecvAll(&num_accept, sizeof(num_accept)) ==  \
-           sizeof(num_accept), "ReConnectLink failure 8");
-    num_error = 0;
-    for (int i = 0; i < num_conn; ++i) {
-      LinkRecord r;
-      int hport, hrank;
-      std::string hname;
-      tracker.RecvStr(&hname);
-      Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport),
-             "ReConnectLink failure 9");
-      Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank),
-             "ReConnectLink failure 10");
-
-      r.sock.Create();
-      if (!r.sock.Connect(utils::SockAddr(hname.c_str(), hport))) {
-        num_error += 1; r.sock.Close(); continue;
       }
+      Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
+             "ReConnectLink failure 7");
+      Assert(tracker.RecvAll(&num_accept, sizeof(num_accept)) == \
+           sizeof(num_accept), "ReConnectLink failure 8");
+      num_error = 0;
+      for (int i = 0; i < num_conn; ++i) {
+        LinkRecord r;
+        int hport, hrank;
+        std::string hname;
+        tracker.RecvStr(&hname);
+        Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport),
+               "ReConnectLink failure 9");
+        Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank),
+               "ReConnectLink failure 10");
+
+        r.sock.Create();
+        if (!r.sock.Connect(utils::SockAddr(hname.c_str(), hport))) {
+          num_error += 1;
+          r.sock.Close();
+          continue;
+        }
+        Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
+               "ReConnectLink failure 12");
+        Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank),
+               "ReConnectLink failure 13");
+        utils::Check(hrank == r.rank,
+                     "ReConnectLink failure, link rank inconsistent");
+        bool match = false;
+        for (size_t i = 0; i < all_links.size(); ++i) {
+          if (all_links[i].rank == hrank) {
+            Assert(all_links[i].sock.IsClosed(),
+                   "Override a link that is active");
+            all_links[i].sock = r.sock;
+            match = true;
+            break;
+          }
+        }
+        if (!match) all_links.push_back(r);
+      }
+      Assert(tracker.SendAll(&num_error, sizeof(num_error)) == sizeof(num_error),
+             "ReConnectLink failure 14");
+    } while (num_error != 0);
+    // send back socket listening port to tracker
+    Assert(tracker.SendAll(&port, sizeof(port)) == sizeof(port),
+           "ReConnectLink failure 14");
+    // close connection to tracker
+    tracker.Close();
+    // listen to incoming links
+    for (int i = 0; i < num_accept; ++i) {
+      LinkRecord r;
+      r.sock = sock_listen.Accept();
       Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
-             "ReConnectLink failure 12");
+             "ReConnectLink failure 15");
       Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank),
-             "ReConnectLink failure 13");
-      utils::Check(hrank == r.rank,
-                   "ReConnectLink failure, link rank inconsistent");
+             "ReConnectLink failure 15");
       bool match = false;
       for (size_t i = 0; i < all_links.size(); ++i) {
-        if (all_links[i].rank == hrank) {
-          Assert(all_links[i].sock.IsClosed(),
-                 "Override a link that is active");
-          all_links[i].sock = r.sock; match = true; break;
+        if (all_links[i].rank == r.rank) {
+          utils::Assert(all_links[i].sock.IsClosed(),
+                        "Override a link that is active");
+          all_links[i].sock = r.sock;
+          match = true;
+          break;
         }
       }
       if (!match) all_links.push_back(r);
     }
-    Assert(tracker.SendAll(&num_error, sizeof(num_error)) == sizeof(num_error),
-           "ReConnectLink failure 14");
-  } while (num_error != 0);
-  // send back socket listening port to tracker
-  Assert(tracker.SendAll(&port, sizeof(port)) == sizeof(port),
-         "ReConnectLink failure 14");
-  // close connection to tracker
-  tracker.Close();
-  // listen to incoming links
-  for (int i = 0; i < num_accept; ++i) {
-    LinkRecord r;
-    r.sock = sock_listen.Accept();
-    Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
-           "ReConnectLink failure 15");
-    Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank),
-           "ReConnectLink failure 15");
-    bool match = false;
-    for (size_t i = 0; i < all_links.size(); ++i) {
-      if (all_links[i].rank == r.rank) {
-        utils::Assert(all_links[i].sock.IsClosed(),
-                      "Override a link that is active");
-        all_links[i].sock = r.sock; match = true; break;
-      }
-    }
-    if (!match) all_links.push_back(r);
-  }
 
-  this->parent_index = -1;
-  // setup tree links and ring structure
-  tree_links.plinks.clear();
-  for (size_t i = 0; i < all_links.size(); ++i) {
-    utils::Assert(!all_links[i].sock.BadSocket(), "ReConnectLink: bad socket");
-    // set the socket to non-blocking mode, enable TCP keepalive
-    all_links[i].sock.SetNonBlock(true);
-    all_links[i].sock.SetKeepAlive(true);
-    if (tree_neighbors.count(all_links[i].rank) != 0) {
-      if (all_links[i].rank == parent_rank) {
-        parent_index = static_cast<int>(tree_links.plinks.size());
+    this->parent_index = -1;
+    // setup tree links and ring structure
+    tree_links.plinks.clear();
+    for (size_t i = 0; i < all_links.size(); ++i) {
+      utils::Assert(!all_links[i].sock.BadSocket(), "ReConnectLink: bad socket");
+      // set the socket to non-blocking mode, enable TCP keepalive
+      all_links[i].sock.SetNonBlock(true);
+      all_links[i].sock.SetKeepAlive(true);
+      if (tree_neighbors.count(all_links[i].rank) != 0) {
+        if (all_links[i].rank == parent_rank) {
+          parent_index = static_cast<int>(tree_links.plinks.size());
+        }
+        tree_links.plinks.push_back(&all_links[i]);
       }
-      tree_links.plinks.push_back(&all_links[i]);
+      if (all_links[i].rank == prev_rank) ring_prev = &all_links[i];
+      if (all_links[i].rank == next_rank) ring_next = &all_links[i];
     }
-    if (all_links[i].rank == prev_rank) ring_prev = &all_links[i];
-    if (all_links[i].rank == next_rank) ring_next = &all_links[i];
+    Assert(parent_rank == -1 || parent_index != -1,
+           "cannot find parent in the link");
+    Assert(prev_rank == -1 || ring_prev != NULL,
+           "cannot find prev ring in the link");
+    Assert(next_rank == -1 || ring_next != NULL,
+           "cannot find next ring in the link");
+    return true;
+  } catch (const std::exception& e) {
+    fprintf(stderr, "failed in ReconnectLink %s\n", e.what());
+    return false;
   }
-  Assert(parent_rank == -1 || parent_index != -1,
-         "cannot find parent in the link");
-  Assert(prev_rank == -1 || ring_prev != NULL,
-         "cannot find prev ring in the link");
-  Assert(next_rank == -1 || ring_next != NULL,
-         "cannot find next ring in the link");
 }
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure

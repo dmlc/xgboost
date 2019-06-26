@@ -73,12 +73,14 @@ struct BitOR;
  * \brief initializes rabit, call this once at the beginning of your program
  * \param argc number of arguments in argv
  * \param argv the array of input arguments
+ * \return true if initialized successfully, otherwise false
  */
-inline void Init(int argc, char *argv[]);
+inline bool Init(int argc, char *argv[]);
 /*!
  * \brief finalizes the rabit engine, call this function after you finished with all the jobs
+ * \return true if finalized successfully, otherwise false
  */
-inline void Finalize();
+inline bool Finalize();
 /*! \brief gets rank of the current process
  * \return rank number of worker*/
 inline int GetRank();

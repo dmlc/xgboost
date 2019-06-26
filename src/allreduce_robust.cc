@@ -31,31 +31,41 @@ AllreduceRobust::AllreduceRobust(void) {
   env_vars.push_back("rabit_global_replica");
   env_vars.push_back("rabit_local_replica");
 }
-void AllreduceRobust::Init(int argc, char* argv[]) {
-  AllreduceBase::Init(argc, argv);
-  if (num_global_replica == 0) {
-    result_buffer_round = -1;
+bool AllreduceRobust::Init(int argc, char* argv[]) {
+  if (AllreduceBase::Init(argc, argv)) {
+    if (num_global_replica == 0) {
+      result_buffer_round = -1;
+    } else {
+      result_buffer_round = std::max(world_size / num_global_replica, 1);
+    }
+    return true;
   } else {
-    result_buffer_round = std::max(world_size / num_global_replica, 1);
+    return false;
   }
 }
 /*! \brief shutdown the engine */
-void AllreduceRobust::Shutdown(void) {
-  // need to sync the exec before we shutdown, do a pesudo check point
-  // execute checkpoint, note: when checkpoint existing, load will not happen
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
-                "Shutdown: check point must return true");
-  // reset result buffer
-  resbuf.Clear(); seq_counter = 0;
-  // execute check ack step, load happens here
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
-                "Shutdown: check ack must return true");
+bool AllreduceRobust::Shutdown(void) {
+  try {
+    // need to sync the exec before we shutdown, do a pesudo check point
+    // execute checkpoint, note: when checkpoint existing, load will not happen
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
+                  "Shutdown: check point must return true");
+    // reset result buffer
+    resbuf.Clear();
+    seq_counter = 0;
+    // execute check ack step, load happens here
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
+                  "Shutdown: check ack must return true");
 
 #if defined (__APPLE__)
-        sleep(1);
+    sleep(1);
 #endif
 
-  AllreduceBase::Shutdown();
+    return AllreduceBase::Shutdown();
+  } catch (const std::exception& e) {
+    fprintf(stderr, "%s\n", e.what());
+    return false;
+  }
 }
 /*!
  * \brief set parameters to the engine

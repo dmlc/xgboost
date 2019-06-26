@@ -32,14 +32,16 @@ typedef unsigned long rbt_ulong;  // NOLINT(*)
  *  from environment variables.
  * \param argc number of arguments in argv
  * \param argv the array of input arguments
+ * \return true if rabit is initialized successfully otherwise false
  */
-RABIT_DLL void RabitInit(int argc, char *argv[]);
+RABIT_DLL bool RabitInit(int argc, char *argv[]);
 
 /*!
  * \brief finalize the rabit engine,
  * call this function after you finished all jobs.
+ * \return true if rabit is initialized successfully otherwise false
  */
-RABIT_DLL void RabitFinalize(void);
+RABIT_DLL bool RabitFinalize(void);
 
 /*!
  * \brief get rank of current process

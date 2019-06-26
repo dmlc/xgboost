@@ -90,13 +90,25 @@ class MPIEngine : public IEngine {
 // singleton sync manager
 MPIEngine manager;
 
-/*! \brief intiialize the synchronization module */
-void Init(int argc, char *argv[]) {
-  MPI::Init(argc, argv);
+/*! \brief initialize the synchronization module */
+bool Init(int argc, char *argv[]) {
+  try {
+    MPI::Init(argc, argv);
+    return true;
+  } catch (const std::exception& e) {
+    fprintf(stderr, " failed in MPI Init %s\n", e.what());
+    return false;
+  }
 }
 /*! \brief finalize syncrhonization module */
-void Finalize(void) {
-  MPI::Finalize();
+bool Finalize(void) {
+  try {
+    MPI::Finalize();
+    return true;
+  } catch (const std::exception& e) {
+    fprintf(stderr, "failed in MPI shutdown %s\n", e.what());
+    return false;
+  }
 }
 
 /*! \brief singleton method to get engine */

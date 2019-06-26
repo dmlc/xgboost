@@ -161,9 +161,9 @@ class IEngine {
 };
 
 /*! \brief initializes the engine module */
-void Init(int argc, char *argv[]);
+bool Init(int argc, char *argv[]);
 /*! \brief finalizes the engine module */
-void Finalize(void);
+bool Finalize(void);
 /*! \brief singleton method to get engine */
 IEngine *GetEngine(void);
 
