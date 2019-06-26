@@ -18,7 +18,7 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
 
 * `Running Unit Tests Locally`_
 
-  - `pytest`_
+  - :ref:`python_tests_pytest`
   - `Google Tests`_
   - `Running tests inside a Docker container (Recommended)`_
 
@@ -126,6 +126,9 @@ This will run the formatting checks inside the same Docker container that `our t
 **************************
 Running Unit Tests Locally
 **************************
+
+.. _python_tests_pytest:
+
 pytest
 ======
 To run Python unit tests, first install `pytest <https://docs.pytest.org/en/latest/contents.html>`_ package:
