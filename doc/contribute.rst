@@ -211,6 +211,28 @@ corresponding library names:
 
 Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.
 
+How to build and run XGBoost unit tests
+=======================================
+
+To build unit tests one need to install Google Test library with headers
+and one needs to explicitly enable tests while running CMake
+
+  .. code-block:: bash
+
+    mkdir build
+    cd build
+    cmake -DGOOGLE_TEST=ON ..
+    make
+    make test
+
+One can also run all unit test using ctest tool which provides higher flexibility
+
+For example
+
+  .. code-block:: bash
+
+    ctest --verbose
+
 How to build XGBoost with sanitizers
 ====================================
 One can build XGBoost with sanitizer support by specifying -DUSE_SANITIZER=ON.
