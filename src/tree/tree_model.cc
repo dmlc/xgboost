@@ -50,7 +50,9 @@ class TreeGenerator {
     }
     return res;
   }
-
+  /* \brief Find the first occurance of key in input and replace it with corresponding
+   *        value.
+   */
   static std::string Match(std::string const& input,
                            std::map<std::string, std::string> const& replacements) {
     std::string result = input;
@@ -390,12 +392,12 @@ class JsonGenerator : public TreeGenerator {
   }
 
   std::string SplitNode(RegTree const& tree, int32_t nid, uint32_t depth) override {
-    std::string property = SuperT::SplitNode(tree, nid, depth);
+    std::string properties = SuperT::SplitNode(tree, nid, depth);
     static std::string const kSplitNodeTemplate =
         "{{properties} {stat}, \"children\": [{left}, {right}\n{indent}]}";
     auto result = SuperT::Match(
         kSplitNodeTemplate,
-        {{"{properties}", property},
+        {{"{properties}", properties},
          {"{stat}",   with_stats_ ? this->NodeStat(tree, nid) : ""},
          {"{left}",   this->BuildTree(tree, tree[nid].LeftChild(), depth+1)},
          {"{right}",  this->BuildTree(tree, tree[nid].RightChild(), depth+1)},
