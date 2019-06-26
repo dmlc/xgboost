@@ -4,7 +4,6 @@
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/dmlc/rabit
-	branch = allow_do_not_stop_process
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub
