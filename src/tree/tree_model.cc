@@ -71,11 +71,11 @@ class TreeGenerator {
   virtual std::string Quantitive(RegTree const& tree, int32_t nid, uint32_t depth) {
     return "";
   }
-
-  virtual std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) = 0;
   virtual std::string NodeStat(RegTree const& tree, int32_t nid) {
     return "";
   }
+
+  virtual std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) = 0;
 
   virtual std::string SplitNode(RegTree const& tree, int32_t nid, uint32_t depth) {
     auto const split_index = tree[nid].SplitIndex();
@@ -103,6 +103,7 @@ class TreeGenerator {
     }
     return result;
   }
+
   virtual std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) = 0;
   virtual std::string BuildTree(RegTree const& tree, int32_t nid, uint32_t depth) = 0;
 
@@ -119,12 +120,12 @@ class TreeGenerator {
     return ss_.str();
   }
 
-  static TreeGenerator* Create(std::string attrs, FeatureMap const& fmap,
+  static TreeGenerator* Create(std::string const& attrs, FeatureMap const& fmap,
                                bool with_stats);
 };
 
-struct TreeIOReg : public dmlc::FunctionRegEntryBase<
-  TreeIOReg,
+struct TreeGenReg : public dmlc::FunctionRegEntryBase<
+  TreeGenReg,
   std::function<TreeGenerator* (
       FeatureMap const& fmap, std::string attrs, bool with_stats)> > {
 };
@@ -132,7 +133,7 @@ struct TreeIOReg : public dmlc::FunctionRegEntryBase<
 
 
 namespace dmlc {
-DMLC_REGISTRY_ENABLE(::xgboost::TreeIOReg);
+DMLC_REGISTRY_ENABLE(::xgboost::TreeGenReg);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -153,7 +154,7 @@ TreeGenerator* TreeGenerator::Create(std::string const& attrs, FeatureMap const&
   } else {
     name = attrs;
   }
-  auto *e = ::dmlc::Registry< ::xgboost::TreeIOReg>::Get()->Find(name);
+  auto *e = ::dmlc::Registry< ::xgboost::TreeGenReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown Model Builder:" << name;
   }
@@ -162,9 +163,9 @@ TreeGenerator* TreeGenerator::Create(std::string const& attrs, FeatureMap const&
 }
 
 #define XGBOOST_REGISTER_TREE_IO(UniqueId, Name)                        \
-  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeIOReg&                    \
-  __make_ ## TreeIOReg ## _ ## UniqueId ## __ =                         \
-      ::dmlc::Registry< ::xgboost::TreeIOReg>::Get()->__REGISTER__(Name)
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::TreeGenReg&                   \
+  __make_ ## TreeGenReg ## _ ## UniqueId ## __ =                        \
+                  ::dmlc::Registry< ::xgboost::TreeGenReg>::Get()->__REGISTER__(Name)
 
 
 class TextGenerator : public TreeGenerator {
@@ -521,24 +522,22 @@ class GraphvizGenerator : public TreeGenerator {
   }
 
  protected:
-  // Only indicator is different, so we combine all different node
-  // types into this function.
+  // Only indicator is different, so we combine all different node types into this
+  // function.
   std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) override {
     auto split = tree[nid].SplitIndex();
     auto cond = tree[nid].SplitCond();
-    static std::string const kNodeTemplate = "    {nid} [ label=\"{label}\" {params}]\n";
-    static std::string const kLabelTemplate = R"({fname}{<}{cond})";
+    static std::string const kNodeTemplate =
+        "    {nid} [ label=\"{fname}{<}{cond}\" {params}]\n";
 
     // Indicator only has fname.
-    bool has_less = split >= fmap_.Size() || (split < fmap_.Size() && fmap_.type(split));
-    auto label = SuperT::Match(kLabelTemplate, {
-        {"{fname}", split < fmap_.Size() ? fmap_.Name(split) :
-                                           'f' + std::to_string(split)},
-        {"{<}",     has_less ? "<" : ""},
-        {"{cond}",  has_less ? SuperT::ToStr(cond) : ""}});
+    bool has_less = (split >= fmap_.Size()) || fmap_.type(split) != FeatureMap::kIndicator;
     std::string result = SuperT::Match(kNodeTemplate, {
         {"{nid}",    std::to_string(nid)},
-        {"{label}",  label},
+        {"{fname}",  split < fmap_.Size() ? fmap_.Name(split) :
+                                           'f' + std::to_string(split)},
+        {"{<}",      has_less ? "<" : ""},
+        {"{cond}",   has_less ? SuperT::ToStr(cond) : ""},
         {"{params}", param_.condition_node_params}});
 
     static std::string const kEdgeTemplate =
