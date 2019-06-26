@@ -1419,7 +1419,7 @@ class Booster(object):
         with_stats : bool, optional
             Controls whether the split statistics are output.
         dump_format : string, optional
-            Format of model dump. Can be 'text' or 'json'.
+            Format of model dump. Can be 'text', 'json' or 'dot'.
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
