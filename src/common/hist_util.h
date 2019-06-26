@@ -271,11 +271,11 @@ struct GradStatHist {
     sum_hess += b.sum_hess;
   }
 
-  inline void Add(GradientPair p) {
+  inline void Add(const GradientPair& p) {
     this->Add(p.GetGrad(), p.GetHess());
   }
 
-  inline void Add(GradType grad, GradType hess) {
+  inline void Add(const GradType& grad, const GradType& hess) {
     sum_grad += grad;
     sum_hess += hess;
   }

@@ -1,6 +1,6 @@
 /*!
  * Copyright 2017-2019 by Contributors
- * \file hist_util.h
+  * \file hist_util.cc
  */
 #include "./hist_util.h"
 #include <dmlc/timer.h>

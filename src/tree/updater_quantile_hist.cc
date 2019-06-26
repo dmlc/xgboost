@@ -566,7 +566,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
     const int32_t node_idx = task_node_idx[itask];
 
     common::GradStatHist::GradType* data_local_hist;
-    common::GradStatHist* grad_stat;
+    common::GradStatHist* grad_stat;  // total gradient/hessian value for node `nid`
     std::tie(data_local_hist, grad_stat) = GetHistBuffer(&(*hist_is_init)[node_idx],
         &grad_stats[node_idx], block_id, nthread, tid,
         &(*hist_buffers)[node_idx], hist_size);
@@ -1082,9 +1082,10 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   // parallel enumeration
   #pragma omp parallel for schedule(guided)
   for (int32_t i = 0; i < tasks.size(); ++i) {
+    // node_idx : offset within `nodes` list
     const int32_t  node_idx    = tasks[i].first;
     const size_t   fid         = tasks[i].second;
-    const int32_t  nid         = nodes[node_idx].nid;
+    const int32_t  nid         = nodes[node_idx].nid;  // usually node_idx != nid
     const int32_t  sibling_nid = nodes[node_idx].sibling_nid;
     const int32_t  parent_nid  = nodes[node_idx].parent_nid;
 
@@ -1110,6 +1111,9 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
       const bool compute_backward = this->EnumerateSplit(+1, gmat, hist_[nid], snode,
           info, &splits[i].first, fid, nid);
 
+      // Sometimes, we don't need to enumerate backward because forward and backward
+      // enumeration will give same loss values. This is the case if the particular feature 
+      // column contains no missing values. So enumerate backward only if it's necessary.
       if (compute_backward) {
         this->EnumerateSplit(-1, gmat, hist_[nid], snode, info,
             &splits[i].first, fid, nid);
@@ -1161,6 +1165,10 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 }
 
 // enumerate the split values of specific feature
+// d_step: +1 or -1, indicating direction at which we scan candidate thresholds in order
+// fid: feature for which we seek to pick best threshold
+// Returns false if we don't need to enumerate in opposite direction.
+//   This is the case if the particular feature (fid) column contains no missing values.
 bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
                                                 const GHistIndexMatrix& gmat,
                                                 const GHistRow& hist,
@@ -1214,7 +1222,7 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           }
 
           split_pt = cut_val[i];
-          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
+           best.Update(loss_chg, fid, split_pt, false, e, c);
         }
       }
     }
