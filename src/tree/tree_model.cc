@@ -137,7 +137,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::TreeIOReg);
 
 namespace xgboost {
 
-TreeGenerator* TreeGenerator::Create(std::string attrs, FeatureMap const& fmap,
+TreeGenerator* TreeGenerator::Create(std::string const& attrs, FeatureMap const& fmap,
                                      bool with_stats) {
   auto pos = attrs.find(':');
   std::string name;
