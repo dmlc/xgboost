@@ -283,19 +283,6 @@ class QuantileHistMaker: public TreeUpdater {
         const std::vector<GradientPair> &gpair_h,
         const std::vector<ExpandEntry>& nodes);
 
-    void CreateNewNodes(const GHistIndexMatrix &gmat,
-        const ColumnMatrix &column_matrix,
-        DMatrix *p_fmat,
-        RegTree *p_tree,
-        int *num_leaves,
-        int depth,
-        unsigned *timestamp,
-        std::vector<ExpandEntry> *temp_qexpand_depth,
-        int32_t nid,
-        std::mutex* mutex_add_nodes,
-        const QuantileHistMaker::NodeEntry& snode,
-        RegTree::Node node);
-
     int32_t FindSplitCond(int32_t nid,
                           RegTree *p_tree,
                           const GHistIndexMatrix &gmat);
