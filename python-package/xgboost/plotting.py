@@ -155,7 +155,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
          'fillcolor': '#e48038'}
 
     kwargs : Other keywords passed to graphviz graph_attr, E.g.:
-        `graph [ {key} = {value} ]`
+        ``graph [ {key} = {value} ]``
 
     Returns
     -------

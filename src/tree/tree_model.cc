@@ -52,7 +52,7 @@ class TreeGenerator {
   }
 
   static std::string Match(std::string const& input,
-                           std::map<std::string, std::string> replacements) {
+                           std::map<std::string, std::string> const& replacements) {
     std::string result = input;
     for (auto const& kv : replacements) {
       auto pos = result.find(kv.first);
@@ -171,7 +171,7 @@ class TextGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
 
  public:
-  TextGenerator(FeatureMap const& fmap, std::string attrs, bool with_stats) :
+  TextGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
       TreeGenerator(fmap, with_stats) {}
 
   std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) override {
@@ -279,7 +279,7 @@ class TextGenerator : public TreeGenerator {
 
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
 .describe("Dump text representation of tree")
-.set_body([](FeatureMap const& fmap, std::string attrs, bool with_stats) {
+.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
             return new TextGenerator(fmap, attrs, with_stats);
           });
 
@@ -416,7 +416,7 @@ class JsonGenerator : public TreeGenerator {
 
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
 .describe("Dump json representation of tree")
-.set_body([](FeatureMap const& fmap, std::string attrs, bool with_stats) {
+.set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
             return new JsonGenerator(fmap, attrs, with_stats);
           });
 
@@ -458,7 +458,7 @@ class GraphvizGenerator : public TreeGenerator {
   GraphvizParam param_;
 
  public:
-  GraphvizGenerator(FeatureMap const& fmap, std::string attrs, bool with_stats) :
+  GraphvizGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
       TreeGenerator(fmap, with_stats), ss_{SuperT::ss_} {
     param_.InitAllowUnknown(std::map<std::string, std::string>{});
     using KwArg = std::map<std::string, std::map<std::string, std::string>>;
@@ -530,7 +530,7 @@ class GraphvizGenerator : public TreeGenerator {
     static std::string const kLabelTemplate = R"({fname}{<}{cond})";
 
     // Indicator only has fname.
-    bool has_less = split > fmap_.Size() || (split < fmap_.Size() && fmap_.type(split));
+    bool has_less = split >= fmap_.Size() || (split < fmap_.Size() && fmap_.type(split));
     auto label = SuperT::Match(kLabelTemplate, {
         {"{fname}", split < fmap_.Size() ? fmap_.Name(split) :
                                            'f' + std::to_string(split)},
