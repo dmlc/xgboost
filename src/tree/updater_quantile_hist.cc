@@ -103,10 +103,8 @@ void QuantileHistMaker::Builder::BuildNodeStat(
     auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
     auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
 
-    {
-      spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
-          snode_[left_sibling_id].weight, snode_[nid].weight);
-    }
+    spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
+        snode_[left_sibling_id].weight, snode_[nid].weight);
   }
 }
 
@@ -138,7 +136,7 @@ void QuantileHistMaker::Builder::BuildNodeStatBatch(
 }
 
 template<typename RowIdxType, typename IdxType>
-std::pair<size_t, size_t> PartitionDenseLeftDefaultKernel(const RowIdxType* rid,
+inline std::pair<size_t, size_t> PartitionDenseLeftDefaultKernel(const RowIdxType* rid,
   const IdxType* idx, const IdxType offset, const int32_t split_cond,
   const size_t istart, const size_t iend, RowIdxType* p_left, RowIdxType* p_right) {
   size_t ileft = 0;
@@ -158,7 +156,7 @@ std::pair<size_t, size_t> PartitionDenseLeftDefaultKernel(const RowIdxType* rid,
 }
 
 template<typename RowIdxType, typename IdxType>
-std::pair<size_t, size_t> PartitionDenseRightDefaultKernel(const RowIdxType* rid,
+inline std::pair<size_t, size_t> PartitionDenseRightDefaultKernel(const RowIdxType* rid,
   const IdxType* idx, const IdxType offset, const int32_t split_cond,
   const size_t istart, const size_t iend, RowIdxType* p_left, RowIdxType* p_right) {
   size_t ileft = 0;
@@ -177,7 +175,7 @@ std::pair<size_t, size_t> PartitionDenseRightDefaultKernel(const RowIdxType* rid
 }
 
 template<typename RowIdxType, typename IdxType>
-std::pair<size_t, size_t> PartitionSparseKernel(const RowIdxType* rowid,
+inline std::pair<size_t, size_t> PartitionSparseKernel(const RowIdxType* rowid,
     const IdxType* idx, const int32_t split_cond, const size_t ibegin,
     const size_t iend, RowIdxType* p_left, RowIdxType* p_right,
     Column column, bool default_left) {
@@ -688,7 +686,7 @@ void QuantileHistMaker::Builder::ReduceHistograms(
   }
 }
 
-void QuantileHistMaker::Builder::ExpandWithDepthWidth(
+void QuantileHistMaker::Builder::ExpandWithDepthWise(
   const GHistIndexMatrix &gmat,
   const GHistIndexBlockMatrix &gmatb,
   const ColumnMatrix &column_matrix,
@@ -807,7 +805,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   if (param_.grow_policy == TrainParam::kLossGuide) {
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   } else {
-    ExpandWithDepthWidth(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   }
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -1112,7 +1110,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
           info, &splits[i].first, fid, nid);
 
       // Sometimes, we don't need to enumerate backward because forward and backward
-      // enumeration will give same loss values. This is the case if the particular feature 
+      // enumeration will give same loss values. This is the case if the particular feature
       // column contains no missing values. So enumerate backward only if it's necessary.
       if (compute_backward) {
         this->EnumerateSplit(-1, gmat, hist_[nid], snode, info,
@@ -1214,14 +1212,9 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
       if (e.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(snode.stats, e);
         if (c.sum_hess >= param_.min_child_weight) {
-          bst_float loss_chg;
-          bst_float split_pt;
-          {
-            loss_chg = static_cast<bst_float>(spliteval_->ComputeSplitScore(nodeID,
+          bst_float loss_chg = static_cast<bst_float>(spliteval_->ComputeSplitScore(nodeID,
               fid, e, c) - snode.root_gain);
-          }
-
-          split_pt = cut_val[i];
+          bst_float split_pt = cut_val[i];
            best.Update(loss_chg, fid, split_pt, false, e, c);
         }
       }
@@ -1237,15 +1230,11 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
       if (e.sum_hess >= param_.min_child_weight) {
         c.SetSubstract(snode.stats, e);
         if (c.sum_hess >= param_.min_child_weight) {
-          bst_float loss_chg;
           bst_float split_pt;
-
           // backward enumeration: split at left bound of each bin
-          {
-            loss_chg = static_cast<bst_float>(
-                spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
-                snode.root_gain);
-          }
+          bst_float loss_chg = static_cast<bst_float>(
+              spliteval_->ComputeSplitScore(nodeID, fid, c, e) -
+              snode.root_gain);
 
           if (i == imin) {
             // for leftmost bin, left bound is the smallest feature value
@@ -1253,7 +1242,7 @@ bool QuantileHistMaker::Builder::EnumerateSplit(int d_step,
           } else {
             split_pt = cut_val[i - 1];
           }
-          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
+          best.Update(loss_chg, fid, split_pt, true, c, e);
         }
       }
     }
