@@ -122,7 +122,7 @@ parameter:
 
 We will be able to see XGBoost printing something like:
 
-.. code-block::
+.. code-block:: none
 
     [0]	dtrain-PyRMSLE:1.37153	dtest-PyRMSLE:1.31487
     [1]	dtrain-PyRMSLE:1.26619	dtest-PyRMSLE:1.20899
