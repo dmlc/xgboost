@@ -11,7 +11,6 @@ namespace tree {
 
 void TestSortPosition(const std::vector<int>& position_in, int left_idx,
                       int right_idx) {
-  dh::safe_cuda(cudaSetDevice(0));
   std::vector<int64_t> left_count = {
       std::count(position_in.begin(), position_in.end(), left_idx)};
   thrust::device_vector<int64_t> d_left_count = left_count;

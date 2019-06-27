@@ -310,11 +310,11 @@ struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   };
   pointer allocate(size_t n) {
     pointer ptr = super_t::allocate(n);
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n);
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n *sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
     return super_t::deallocate(ptr, n);
   }
 };
@@ -334,19 +334,19 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
    {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
-     static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(8, 3, 10);
-     return *allocator;
+     static cub::CachingDeviceAllocator allocator(8,3,10);
+     return allocator;
    }
    pointer allocate(size_t n) {
      T *ptr;
      GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
                                                 n * sizeof(T));
-     pointer thrust_ptr(ptr);
-     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
+     pointer thrust_ptr = thrust::device_ptr<T>(ptr);
+     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n);
      return thrust_ptr;
    }
    void deallocate(pointer ptr, size_t n) {
-     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n *sizeof(T));
+     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
      GetGlobalCachingAllocator().DeviceFree(ptr.get());
    }
   __host__ __device__
@@ -366,7 +366,8 @@ using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */
 template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
-
+template <typename T>
+using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;
 /**
  * \brief A double buffer, useful for algorithms like sort.
  */
@@ -380,7 +381,9 @@ class DoubleBuffer {
   DoubleBuffer(VectorT *v1, VectorT *v2) {
     a = xgboost::common::Span<T>(v1->data().get(), v1->size());
     b = xgboost::common::Span<T>(v2->data().get(), v2->size());
-    buff = cub::DoubleBuffer<T>(a.data(), b.data());
+    buff.d_buffers[0] = v1->data().get();
+    buff.d_buffers[1] = v2->data().get();
+    buff.selector = 0;
   }
 
   size_t Size() const {

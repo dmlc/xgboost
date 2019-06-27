@@ -50,7 +50,7 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
   size_t temp_storage_bytes = 0;
   cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, in_itr, out_itr,
                                 position.size(), stream);
-  dh::device_vector<uint8_t> temp_storage(temp_storage_bytes);
+  dh::caching_device_vector<uint8_t> temp_storage(temp_storage_bytes);
   cub::DeviceScan::ExclusiveSum(temp_storage.data().get(), temp_storage_bytes,
                                 in_itr, out_itr, position.size(), stream);
 }
