@@ -31,7 +31,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
@@ -153,9 +153,11 @@ object XGBoost extends Serializable {
     }
     val taskId = TaskContext.getPartitionId().toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
-    Rabit.init(rabitEnv)
+    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
+      Rabit.init(rabitEnv)
+
       val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
         .map(_.toString.toInt).getOrElse(0)
       val overridedParams = if (numEarlyStoppingRounds > 0 &&
@@ -176,6 +178,10 @@ object XGBoost extends Serializable {
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+    } catch {
+      case xgbException: XGBoostError =>
+        logger.error(s"XGBooster worker $taskId has failed due to ", xgbException)
+        throw xgbException
     } finally {
       Rabit.shutdown()
       watches.delete()
@@ -467,6 +473,12 @@ object XGBoost extends Serializable {
             tracker.stop()
           }
       }.last
+    } catch {
+      case t: Throwable =>
+        // if the job was aborted due to an exception
+        logger.error("the job was aborted due to ", t)
+        trainingData.sparkContext.stop()
+        throw t
     } finally {
       uncacheTrainingData(params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean],
         transformedTrainingData)

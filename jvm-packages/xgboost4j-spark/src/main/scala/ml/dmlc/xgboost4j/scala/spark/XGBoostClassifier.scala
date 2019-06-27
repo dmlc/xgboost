@@ -292,7 +292,9 @@ class XGBoostClassificationModel private[ml](
 
         private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
           if (batchCnt == 0) {
-            val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+            val rabitEnv = Array(
+              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
+              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
             Rabit.init(rabitEnv.asJava)
           }
 
