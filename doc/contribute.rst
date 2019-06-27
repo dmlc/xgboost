@@ -151,6 +151,7 @@ Now invoke pytest at the project root directory:
 
 .. code:: bash
 
+  export PYTHONPATH=./python-package
   pytest -v -s --fulltrace tests/python
 
 In addition, to build and test CUDA code, run:
