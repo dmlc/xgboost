@@ -38,11 +38,11 @@ TEST(gpu_predictor, Test) {
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
-  gbm::GBTreeModel model = CreateTestModel();
-
   int n_row = 5;
   int n_col = 5;
 
+  gbm::GBTreeModel model = CreateTestModel();
+  model.param.num_feature = n_col;
   auto dmat = CreateDMatrix(n_row, n_col, 0);
 
   // Test predict batch
@@ -95,6 +95,8 @@ TEST(gpu_predictor, ExternalMemoryTest) {
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Init({}, {});
   gbm::GBTreeModel model = CreateTestModel();
+  int n_col = 3;
+  model.param.num_feature = n_col;
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
 
   // Test predict batch
@@ -116,17 +118,25 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   // Test predict contribution
   std::vector<float> out_contribution;
   gpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
-  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_);
-  for (const auto& v : out_contribution) {
-    ASSERT_EQ(v, 1.5);
+  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_ * (n_col + 1));
+  for (int i = 0; i < out_contribution.size(); i++) {
+    if (i % (n_col + 1) == n_col) {
+      ASSERT_EQ(out_contribution[i], 1.5);
+    } else {
+      ASSERT_EQ(out_contribution[i], 0);
+    }
   }
 
   // Test predict contribution (approximate method)
   std::vector<float> out_contribution_approximate;
   gpu_predictor->PredictContribution(dmat.get(), &out_contribution_approximate, model, true);
-  EXPECT_EQ(out_contribution_approximate.size(), dmat->Info().num_row_);
-  for (const auto& v : out_contribution_approximate) {
-    ASSERT_EQ(v, 1.5);
+  EXPECT_EQ(out_contribution.size(), dmat->Info().num_row_ * (n_col + 1));
+  for (int i = 0; i < out_contribution.size(); i++) {
+    if (i % (n_col + 1) == n_col) {
+      ASSERT_EQ(out_contribution[i], 1.5);
+    } else {
+      ASSERT_EQ(out_contribution[i], 0);
+    }
   }
 }
 
@@ -226,6 +236,7 @@ TEST(gpu_predictor, MGPU_Test) {
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
     gbm::GBTreeModel model = CreateTestModel();
+    model.param.num_feature = n_col;
 
     // Test predict batch
     HostDeviceVector<float> gpu_out_predictions;
@@ -253,6 +264,7 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
   gpu_predictor->Init({}, {});
 
   gbm::GBTreeModel model = CreateTestModel();
+  model.param.num_feature = 3;
   const int n_classes = 3;
   model.param.num_output_group = n_classes;
   std::vector<std::unique_ptr<DMatrix>> dmats;
