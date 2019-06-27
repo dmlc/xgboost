@@ -250,6 +250,10 @@ class GPUPredictor : public xgboost::Predictor {
   struct DeviceShard {
     DeviceShard() : device_{-1} {}
 
+    ~DeviceShard() {
+      dh::safe_cuda(cudaSetDevice(device_));
+    }
+
     void Init(int device) {
       this->device_ = device;
       max_shared_memory_bytes_ = dh::MaxSharedMemory(this->device_);
