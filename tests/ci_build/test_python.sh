@@ -10,7 +10,7 @@ for file in python-package/dist/*.whl
 do
   if [ -e "${file}" ]
   then
-    pip install --user ${file}
+    pip install --user "${file}"
     wheel_found=1
     break  # need just one
   fi
