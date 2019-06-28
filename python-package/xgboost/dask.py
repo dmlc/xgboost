@@ -91,7 +91,11 @@ def create_worker_dmatrix(*args, **kwargs):
 
 
 def _run_with_rabit(rabit_args, func, *args):
-    os.environ["OMP_NUM_THREADS"] = str(distributed_get_worker().ncores)
+    worker = distributed_get_worker()
+    try:
+        os.environ["OMP_NUM_THREADS"] = str(worker.ncores)
+    except AttributeError:
+        os.environ["OMP_NUM_THREADS"] = str(worker.nthreads)
     try:
         rabit.init(rabit_args)
         result = func(*args)
