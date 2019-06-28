@@ -43,6 +43,13 @@ setup(name='xgboost',
           'numpy',
           'scipy',
       ],
+      extras_require={
+          'pandas': ['pandas'],
+          'sklearn': ['sklearn'],
+          'dask': ['dask', 'pandas', 'distributed'],
+          'datatable': ['datatable'],
+          'plotting': ['graphviz', 'matplotlib']
+      },
       maintainer='Hyunsu Cho',
       maintainer_email='chohyu01@cs.washington.edu',
       zip_safe=False,
