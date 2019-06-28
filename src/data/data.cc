@@ -224,13 +224,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
                  << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
   }
 
-  /* chenqin fault recovery with rabit requires failed worker do following in sequence
-   * 1. load model checkpoint
-   * 2. skip iterations(with checkpoint version number) of training til last checkpoint
-   * 3. run allreduce with buildin recovery
-   * DMatrix::Load split and sync num_col_ runs before step1 causing
-   * https://github.com/dmlc/rabit/issues/63
-   */
+  // use cache to avoid recovered rabit worker internal seq misalign with rest
   if (rabit::IsDistributed()) {
     if(rabit::GetCache("dmat_num_col",&dmat->Info().num_col_, 1) != -1) {
       printf("[%d] hit dmat_num_col cache %d\n", rabit::GetRank(), dmat->Info().num_col_);

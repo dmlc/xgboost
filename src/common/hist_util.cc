@@ -175,11 +175,11 @@ void HistCutMatrix::Init
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
 
-  if(rabit::GetCache("hist_init", dmlc::BeginPtr(summary_array), nbytes*summary_array.size()) == -1) {
+  // use cache to avoid failed rabit worker seq misalign with rest
+  if(rabit::IsDistributed() && rabit::GetCache("hist_init",
+    dmlc::BeginPtr(summary_array), nbytes*summary_array.size()) == -1) {
     sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
     rabit::SetCache("hist_init", dmlc::BeginPtr(summary_array), nbytes*summary_array.size());
-  }else{
-    printf("[%d] hit hist_init cache.\n", rabit::GetRank());
   }
 
   this->min_val.resize(sketchs.size());

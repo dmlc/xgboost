@@ -127,13 +127,12 @@ class ColumnSampler {
   */
   ColumnSampler() {
     uint32_t seed = common::GlobalRandom()();
-
-    if(rabit::GetCache("column_seed", &seed, sizeof(seed)) == -1) {
+    // use cache to store column_seed for recovered rabit worker
+    if(rabit::IsDistributed() && rabit::GetCache("column_seed", &seed, sizeof(seed)) == -1) {
       rabit::Broadcast(&seed, sizeof(seed), 0);
       rabit::SetCache("column_seed", &seed, sizeof(seed));
-    }else{
-      printf("[%d] hit column_seed cache.\n", rabit::GetRank());
     }
+
     rng_.seed(seed);
   }
 
