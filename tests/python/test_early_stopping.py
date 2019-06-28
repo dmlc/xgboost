@@ -44,6 +44,11 @@ class TestEarlyStopping(unittest.TestCase):
         labels = dtrain.get_label()
         return 'rmse', mean_squared_error(labels, preds)
 
+    @staticmethod
+    def assert_metrics_length(cv, expected_length):
+        for key, value in cv.items():
+          assert len(value) == expected_length
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_cv_early_stopping(self):
         from sklearn.datasets import load_digits
@@ -57,21 +62,21 @@ class TestEarlyStopping(unittest.TestCase):
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=10)
-        assert cv.shape[0] == 10
+        self.assert_metrics_length(cv, 10)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=5)
-        assert cv.shape[0] == 3
+        self.assert_metrics_length(cv, 3)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=1)
-        assert cv.shape[0] == 1
+        self.assert_metrics_length(cv, 1)
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, early_stopping_rounds=10)
-        assert cv.shape[0] == 10
+        self.assert_metrics_length(cv, 10)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, early_stopping_rounds=1)
-        assert cv.shape[0] == 5
+        self.assert_metrics_length(cv, 5)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, maximize=True,
                     early_stopping_rounds=1)
-        assert cv.shape[0] == 1
+        self.assert_metrics_length(cv, 1)
