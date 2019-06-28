@@ -8,9 +8,12 @@ suite=$1
 wheel_found=0
 for file in python-package/dist/*.whl
 do
-  pip install --user ${file}
-  wheel_found=1
-  break  # need just one
+  if [ -e "${file}" ]
+  then
+    pip install --user ${file}
+    wheel_found=1
+    break  # need just one
+  fi
 done
 if [ "$wheel_found" -eq 0 ]
 then
