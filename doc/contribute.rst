@@ -16,6 +16,12 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
   - `Clang-tidy`_
   - `Running checks inside a Docker container (Recommended)`_
 
+* `Running Unit Tests Locally`_
+
+  - :ref:`python_tests_pytest`
+  - `Google Test`_
+  - `Running tests inside a Docker container (Recommended)`_
+
 * `Git Workflow Howtos`_
 
   - `How to resolve conflict with master`_
@@ -23,7 +29,6 @@ Everyone is more than welcome to contribute. It is a way to make the project bet
   - `What is the consequence of force push`_
 
 * `Documents`_
-* `Testcases`_
 * `Sanitizers`_
 * `Examples`_
 * `Core Library`_
@@ -58,6 +63,11 @@ two automatic checks to enforce coding style conventions.
 
 Linter
 ======
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
+
 We use `pylint <https://github.com/PyCQA/pylint>`_ and `cpplint <https://github.com/cpplint/cpplint>`_ to enforce style convention and find potential errors. Linting is especially useful for Python, as we can catch many errors that would have otherwise occured at run-time.
 
 To run this check locally, run the following command from the top level source tree:
@@ -69,12 +79,13 @@ To run this check locally, run the following command from the top level source t
 
 This command requires the Python packages pylint and cpplint.
 
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
-
 Clang-tidy
 ==========
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
+
 `Clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_ is an advance linter for C++ code, made by the LLVM team. We use it to conform our C++ codebase to modern C++ practices and conventions.
 
 To run this check locally, run the following command from the top level source tree:
@@ -100,10 +111,6 @@ Similarly, if you want to exclude C++ source from linting:
   cd /path/to/xgboost/
   python3 tests/ci_build/tidy.py --cpp=0 --gtest-path=/path/to/google-test
 
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
-
 .. _linting_inside_docker:
 
 Running checks inside a Docker container (Recommended)
@@ -112,10 +119,126 @@ If you have access to Docker on your machine, you can use a Docker container to 
 
 .. code-block:: bash
 
-  tests/ci_build/ci_build.sh clang_tidy docker --build-arg CUDA_VERSION=9.2 tests/ci_build/clang_tidy.sh
-  tests/ci_build/ci_build.sh cpu docker make lint
+  tests/ci_build/ci_build.sh clang_tidy docker -it --build-arg CUDA_VERSION=9.2 \
+    tests/ci_build/clang_tidy.sh
+  tests/ci_build/ci_build.sh cpu docker -it make lint
 
-This will run the formatting checks inside the same Docker container that `our testing server <https://xgboost-ci.net>`_ uses.
+This will run the formatting checks inside the same Docker container that `our testing server <https://xgboost-ci.net>`_ uses. Note that you don't need an NVIDIA GPU for this step.
+
+**************************
+Running Unit Tests Locally
+**************************
+
+.. _python_tests_pytest:
+
+pytest
+======
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
+
+To run Python unit tests, first install `pytest <https://docs.pytest.org/en/latest/contents.html>`_ package:
+
+.. code:: bash
+
+  pip3 install --user pytest
+
+Then compile XGBoost:
+
+.. code:: bash
+
+  mkdir build
+  cd build
+  cmake ..
+  make
+  cd ..
+
+Now invoke pytest at the project root directory:
+
+.. code:: bash
+
+  export PYTHONPATH=./python-package
+  pytest -v -s --fulltrace tests/python
+
+In addition, to build and test CUDA code, run:
+
+.. code:: bash
+
+  cd build
+  cmake -DUSE_CUDA=ON -DUSE_NCCL=ON ..
+  make
+  cd ..
+
+  pytest -v -s --fulltrace tests/python-gpu
+
+Google Test
+===========
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
+
+To build and run C++ unit tests, install `Google Test <https://github.com/google/googletest>`_ library with headers
+and then enable tests while running CMake:
+
+.. code-block:: bash
+
+  mkdir build
+  cd build
+  cmake -DGOOGLE_TEST=ON -DGTEST_ROOT=/path/to/google-test ..
+  make
+  make test
+
+To enable tests for CUDA code, add ``-DUSE_CUDA=ON`` and ``-DUSE_NCCL=ON`` (CUDA toolkit required):
+
+.. code-block:: bash
+
+  mkdir build
+  cd build
+  cmake -DGOOGLE_TEST=ON -DGTEST_ROOT=/path/to/google-test -DUSE_CUDA=ON -DUSE_NCCL=ON ..
+  make
+  make test
+
+One can also run all unit test using ctest tool which provides higher flexibility. For example:
+
+.. code-block:: bash
+
+  ctest --verbose
+
+.. _running_tests_inside_docker:
+
+Running tests inside a Docker container (Recommended)
+=====================================================
+If you have access to Docker on your machine, you can use Docker containers to automatically setup the right environment, so that you can be sure the right packages and dependencies will be available.
+
+Note that you need `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ to run CUDA code inside a Docker container.
+
+The following commands will run the unit tests inside the same Docker containers that `our testing server <https://xgboost-ci.net>`_ uses:
+
+.. code-block:: bash
+
+  # Python tests without CUDA
+  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/build_via_cmake.sh
+  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/test_python.sh cpu
+
+  # C++ tests without CUDA
+  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/build_via_cmake.sh
+  tests/ci_build/ci_build.sh cpu docker -it build/testxgboost
+
+  # Python tests with CUDA (NVIDIA GPU required)
+  tests/ci_build/ci_build.sh gpu_build docker -it --build-arg CUDA_VERSION=9.0 \
+    tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON
+  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
+    tests/ci_build/test_python.sh mgpu
+  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
+    tests/ci_build/test_python.sh gpu
+
+  # C++ tests with CUDA (NVIDIA GPU required)
+  tests/ci_build/ci_build.sh gpu_build docker -it --build-arg CUDA_VERSION=9.0 \
+    tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON
+  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
+    build/testxgboost
 
 *******************
 Git Workflow Howtos
@@ -189,12 +312,6 @@ Documents
 * Documentation is built using sphinx.
 * Each document is written in `reStructuredText <http://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_.
 * You can build document locally to see the effect.
-
-*********
-Testcases
-*********
-* All the testcases are in `tests <https://github.com/dmlc/xgboost/tree/master/tests>`_.
-* We use python nose for python test cases.
 
 **********
 Sanitizers
