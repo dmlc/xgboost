@@ -63,6 +63,11 @@ two automatic checks to enforce coding style conventions.
 
 Linter
 ======
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
+
 We use `pylint <https://github.com/PyCQA/pylint>`_ and `cpplint <https://github.com/cpplint/cpplint>`_ to enforce style convention and find potential errors. Linting is especially useful for Python, as we can catch many errors that would have otherwise occured at run-time.
 
 To run this check locally, run the following command from the top level source tree:
@@ -74,12 +79,13 @@ To run this check locally, run the following command from the top level source t
 
 This command requires the Python packages pylint and cpplint.
 
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
-
 Clang-tidy
 ==========
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
+
 `Clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_ is an advance linter for C++ code, made by the LLVM team. We use it to conform our C++ codebase to modern C++ practices and conventions.
 
 To run this check locally, run the following command from the top level source tree:
@@ -105,10 +111,6 @@ Similarly, if you want to exclude C++ source from linting:
   cd /path/to/xgboost/
   python3 tests/ci_build/tidy.py --cpp=0 --gtest-path=/path/to/google-test
 
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`linting_inside_docker`.
-
 .. _linting_inside_docker:
 
 Running checks inside a Docker container (Recommended)
@@ -131,6 +133,11 @@ Running Unit Tests Locally
 
 pytest
 ======
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
+
 To run Python unit tests, first install `pytest <https://docs.pytest.org/en/latest/contents.html>`_ package:
 
 .. code:: bash
@@ -165,12 +172,13 @@ In addition, to build and test CUDA code, run:
 
   pytest -v -s --fulltrace tests/python-gpu
 
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`running_tests_inside_docker`.
-
 Google Test
 ===========
+
+.. note:: Having issue? Try Docker container
+
+  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
+
 To build and run C++ unit tests, install `Google Test <https://github.com/google/googletest>`_ library with headers
 and then enable tests while running CMake:
 
@@ -197,10 +205,6 @@ One can also run all unit test using ctest tool which provides higher flexibilit
 .. code-block:: bash
 
   ctest --verbose
-
-.. note:: Having issue? Try Docker container
-
-  If you are running into issues running the command above, consider using our Docker container. See :ref:`running_tests_inside_docker`.
 
 .. _running_tests_inside_docker:
 
