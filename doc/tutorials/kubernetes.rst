@@ -28,7 +28,7 @@ In order to run the XGBoost job in a Kubernetes cluster, it requires following s
 
 - Step4: Submit job 
 
-  - `Kubectl command <https://github.com/kubeflow/xgboost-operator#creating-a-xgboost-trainingprediction-job>` is used to submit a XGBoost job, and then you can monitor the job status as well. 
+  - `Kubectl command <https://github.com/kubeflow/xgboost-operator#creating-a-xgboost-trainingprediction-job>`_ is used to submit a XGBoost job, and then you can monitor the job status on time. 
 
 **************
 Not Support
