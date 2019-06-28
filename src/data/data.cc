@@ -232,13 +232,11 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * https://github.com/dmlc/rabit/issues/63
    */
   if (rabit::IsDistributed()) {
-    int cache = 0;
-    if(rabit::GetCache("load",&dmat->Info().num_col_, 1) != -1){
-      printf("[%d] hit cache %d\n", rabit::GetRank(), dmat->Info().num_col_);
-    }else{
+    if(rabit::GetCache("dmat_num_col",&dmat->Info().num_col_, 1) != -1) {
+      printf("[%d] hit dmat_num_col cache %d\n", rabit::GetRank(), dmat->Info().num_col_);
+    } else {
       rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
-      rabit::SetCache("load",&dmat->Info().num_col_, 1);
-      printf("[%d] set cache %d\n", rabit::GetRank(), dmat->Info().num_col_);
+      rabit::SetCache("dmat_num_col",&dmat->Info().num_col_, 1);
     }
   }
 

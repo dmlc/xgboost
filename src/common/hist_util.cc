@@ -174,7 +174,14 @@ void HistCutMatrix::Init
   }
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
-  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+
+  if(rabit::GetCache("hist_init", dmlc::BeginPtr(summary_array), nbytes*summary_array.size()) == -1) {
+    sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+    rabit::SetCache("hist_init", dmlc::BeginPtr(summary_array), nbytes*summary_array.size());
+  }else{
+    printf("[%d] hit hist_init cache.\n", rabit::GetRank());
+  }
+
   this->min_val.resize(sketchs.size());
   row_ptr.push_back(0);
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
