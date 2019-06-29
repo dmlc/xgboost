@@ -1,11 +1,13 @@
 /*!
  * Copyright 2016-2018 XGBoost contributors
  */
-#include "./helpers.h"
-#include "xgboost/c_api.h"
+#include <dmlc/filesystem.h>
+#include <xgboost/logging.h>
 #include <random>
 #include <cinttypes>
-#include <dmlc/filesystem.h>
+#include "./helpers.h"
+#include "xgboost/c_api.h"
+
 #include "../../src/data/simple_csr_source.h"
 
 bool FileExists(const std::string& filename) {
@@ -144,13 +146,12 @@ std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
   return static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries, size_t page_size) {
+std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
+    size_t n_entries, size_t page_size, std::string tmp_file) {
   // Create sufficiently large data to make two row pages
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
   CreateBigTestData(tmp_file, n_entries);
-  std::unique_ptr<DMatrix> dmat = std::unique_ptr<DMatrix>(DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
+  std::unique_ptr<DMatrix> dmat { DMatrix::Load(
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size)};
   EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
 
   // Loop over the batches and count the records
