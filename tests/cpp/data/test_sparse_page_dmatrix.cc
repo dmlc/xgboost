@@ -76,11 +76,14 @@ TEST(SparsePageDMatrix, ColAccess) {
 TEST(SparsePageDMatrix, ColAccessBatches) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
-  /* This should create multiple sparse pages */
-  std::unique_ptr<xgboost::DMatrix> dmat{
+  // Create multiple sparse pages
+  std::unique_ptr<xgboost::DMatrix> dmat {
     xgboost::CreateSparsePageDMatrix(1024, 1024, filename)
   };
-  omp_set_num_threads(10);
-  auto const& page = *(dmat->GetColumnBatches().begin());
-  ASSERT_EQ(dmat->Info().num_col_, page.Size());
+  auto n_threads = omp_get_max_threads();
+  omp_set_num_threads(16);
+  for (auto const& page : dmat->GetColumnBatches()) {
+    ASSERT_EQ(dmat->Info().num_col_, page.Size());
+  }
+  omp_set_num_threads(n_threads);
 }
