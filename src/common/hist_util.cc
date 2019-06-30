@@ -178,7 +178,7 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     // We here decouples the logic between build and parallelization
     // to simplify things a bit.
 #pragma omp parallel for num_threads(nthreads) schedule(static)
-    for (size_t i = 0; i < nthreads; ++i) {
+    for (omp_ulong i = 0; i < nthreads; ++i) {
       common::Monitor t_monitor;
       t_monitor.Init("SingleThreadBuild: " + std::to_string(i));
       t_monitor.Start(std::to_string(i));
@@ -381,7 +381,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
-      for (size_t tid = 0; tid < batch_threads; ++tid) {
+      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -401,7 +401,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       }
 
       #pragma omp for
-      for (size_t tid = 0; tid < batch_threads; ++tid) {
+      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -800,8 +800,8 @@ void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   const size_t block_size = 1024;  // aproximatly 1024 values per block
   size_t n_blocks = size/block_size + !!(size%block_size);
 
-  #pragma omp parallel for
-  for (size_t iblock = 0; iblock < n_blocks; ++iblock) {
+#pragma omp parallel for
+  for (omp_ulong iblock = 0; iblock < n_blocks; ++iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
     for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {
