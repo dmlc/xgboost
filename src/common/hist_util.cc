@@ -25,8 +25,9 @@
 namespace xgboost {
 namespace common {
 
-HistogramCuts::HistogramCuts() : cut_ptrs_{0} {
+HistogramCuts::HistogramCuts() {
   monitor_.Init(__FUNCTION__);
+  cut_ptrs_.emplace_back(0);
 }
 
 // Dispatch to specific builder.

@@ -236,7 +236,7 @@ class SparseCuts : public CutsBuilder {
 
  public:
   explicit SparseCuts(HistogramCuts* container) :
-      CutsBuilder{container} {
+      CutsBuilder(container) {
     monitor_.Init(__FUNCTION__);
   }
 
@@ -259,7 +259,7 @@ class DenseCuts  : public CutsBuilder {
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
   explicit DenseCuts(HistogramCuts* container) :
-      CutsBuilder{container} {
+      CutsBuilder(container) {
     monitor_.Init(__FUNCTION__);
   }
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
