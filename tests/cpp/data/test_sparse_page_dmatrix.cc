@@ -1,4 +1,5 @@
 // Copyright by Contributors
+#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 #include <dmlc/filesystem.h>
 #include <cinttypes>
@@ -26,7 +27,10 @@ TEST(SparsePageDMatrix, MetaInfo) {
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(12, 64);
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<xgboost::DMatrix> dmat =
+      xgboost::CreateSparsePageDMatrix(12, 64, filename);
 
   // Test the data read into the first row
   auto &batch = *dmat->GetRowBatches().begin();
@@ -66,4 +70,20 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache.sorted.col.page"));
 
   delete dmat;
+}
+
+// Multi-batches access
+TEST(SparsePageDMatrix, ColAccessBatches) {
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  // Create multiple sparse pages
+  std::unique_ptr<xgboost::DMatrix> dmat {
+    xgboost::CreateSparsePageDMatrix(1024, 1024, filename)
+  };
+  auto n_threads = omp_get_max_threads();
+  omp_set_num_threads(16);
+  for (auto const& page : dmat->GetColumnBatches()) {
+    ASSERT_EQ(dmat->Info().num_col_, page.Size());
+  }
+  omp_set_num_threads(n_threads);
 }

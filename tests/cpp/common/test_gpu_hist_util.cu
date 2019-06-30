@@ -1,7 +1,9 @@
+#include <dmlc/filesystem.h>
+#include <gtest/gtest.h>
+
 #include <algorithm>
 #include <cmath>
 
-#include "gtest/gtest.h"
 
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -22,10 +24,12 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
   std::shared_ptr<xgboost::DMatrix> *dmat = nullptr;
 
   size_t num_cols = 1;
+  dmlc::TemporaryDirectory tmpdir;
+  std::string file = tmpdir.path + "/big.libsvm";
   if (use_external_memory) {
-     auto sp_dmat = CreateSparsePageDMatrix(nrows * 3, 128UL); // 3 entries/row
-     dmat = new std::shared_ptr<xgboost::DMatrix>(std::move(sp_dmat));
-     num_cols = 5;
+    auto sp_dmat = CreateSparsePageDMatrix(nrows * 3, 128UL, file); // 3 entries/row
+    dmat = new std::shared_ptr<xgboost::DMatrix>(std::move(sp_dmat));
+    num_cols = 5;
   } else {
      std::vector<float> test_data(nrows);
      auto count_iter = thrust::make_counting_iterator(0);

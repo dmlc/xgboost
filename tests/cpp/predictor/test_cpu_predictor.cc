@@ -56,7 +56,9 @@ TEST(cpu_predictor, Test) {
 }
 
 TEST(cpu_predictor, ExternalMemoryTest) {
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64);
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(0, 0);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));

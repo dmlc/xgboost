@@ -18,7 +18,7 @@
 
 namespace xgboost {
 namespace data {
-
+// Used for external memory.
 class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
