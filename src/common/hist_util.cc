@@ -26,7 +26,7 @@ namespace xgboost {
 namespace common {
 
 HistogramCuts::HistogramCuts() : cut_ptrs_{0} {
-  monitor_.Init(__func__);
+  monitor_.Init(__FUNCTION__);
 }
 
 // Dispatch to specific builder.
@@ -159,7 +159,7 @@ std::vector<size_t> SparseCuts::LoadBalance(SparsePage const& page,
 }
 
 void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
-  monitor_.Start(__func__);
+  monitor_.Start(__FUNCTION__);
   // Use group index for weights?
   auto use_group = UseGroup(dmat);
   uint32_t nthreads = omp_get_max_threads();
@@ -190,12 +190,12 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     this->Concat(matrics, dmat->Info().num_col_);
   }
 
-  monitor_.Stop(__func__);
+  monitor_.Stop(__FUNCTION__);
 }
 
 void SparseCuts::Concat(
     std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols) {
-  monitor_.Start(__func__);
+  monitor_.Start(__FUNCTION__);
   uint32_t nthreads = omp_get_max_threads();
   p_cuts_->min_vals_.resize(n_cols, std::numeric_limits<float>::max());
   size_t min_vals_tail = 0;
@@ -225,11 +225,11 @@ void SparseCuts::Concat(
     }
     min_vals_tail += cuts[t]->p_cuts_->min_vals_.size();
   }
-  monitor_.Stop(__func__);
+  monitor_.Stop(__FUNCTION__);
 }
 
 void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
-  monitor_.Start(__func__);
+  monitor_.Start(__FUNCTION__);
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -290,7 +290,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 
   Init(&sketchs, max_num_bins);
-  monitor_.Stop(__func__);
+  monitor_.Stop(__FUNCTION__);
 }
 
 void DenseCuts::Init

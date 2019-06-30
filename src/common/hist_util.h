@@ -19,15 +19,14 @@
 #include "../tree/param.h"
 #include "./quantile.h"
 #include "./timer.h"
-#include "../include/rabit/rabit.h"
 #include "random.h"
 
 namespace xgboost {
 
 /*!
- * \brief A C-style array with in-stack allocation. As long as the
- * array is smaller than MaxStackSize, it will be allocated inside the
- * stack. Otherwise, it will be heap-allocated.
+ * \brief A C-style array with in-stack allocation. As long as the array is smaller than
+ * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
+ * heap-allocated.
  */
 template<typename T, size_t MaxStackSize>
 class MemStackAllocator {
@@ -164,7 +163,7 @@ class HistogramCuts {
     return *this;
   }
 
-  /* \brief Build histogram indices. */
+  /* \brief Build histogram cuts. */
   void Build(DMatrix* dmat, uint32_t const max_num_bins);
   /* \brief How many bins a feature has. */
   uint32_t FeatureBins(uint32_t feature) const {
@@ -172,7 +171,7 @@ class HistogramCuts {
   }
 
   // Getters.  Cuts should be of no use after building histogram indices, but currently
-  // its deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
+  // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
   // these for now.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_;   }
   std::vector<float>    const& Values()    const { return cut_values_; }
@@ -240,7 +239,7 @@ class SparseCuts : public CutsBuilder {
  public:
   explicit SparseCuts(HistogramCuts* container) :
       CutsBuilder{container} {
-    monitor_.Init(__func__);
+    monitor_.Init(__FUNCTION__);
   }
 
   /* \brief Concatonate the built cuts in each thread. */
@@ -263,7 +262,7 @@ class DenseCuts  : public CutsBuilder {
 
   explicit DenseCuts(HistogramCuts* container) :
       CutsBuilder{container} {
-    monitor_.Init(__func__);
+    monitor_.Init(__FUNCTION__);
   }
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
@@ -280,7 +279,7 @@ size_t DeviceSketch
 
 
 /*!
- * \brief preprocessed global index matrix, in CSC format
+ * \brief preprocessed global index matrix, in CSR format
  *  Transform floating values to integer index in histogram
  *  This is a global histogram index.
  */
