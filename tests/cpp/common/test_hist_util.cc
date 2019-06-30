@@ -78,7 +78,11 @@ TEST(SparseCuts, MultiThreadedBuild) {
   size_t constexpr kBins = 255;
 
   auto Compare =
+#if defined(_MSC_VER)  // msvc fails to capture
+      [kBins](DMatrix* p_fmat) {
+#else
       [](DMatrix* p_fmat) {
+#endif
         HistogramCuts threaded_container;
         SparseCuts threaded_indices(&threaded_container);
         threaded_indices.Build(p_fmat, kBins);
