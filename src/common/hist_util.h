@@ -149,11 +149,9 @@ class HistogramCuts {
  public:
   HistogramCuts();
   HistogramCuts(HistogramCuts const& that) = delete;
-  HistogramCuts(HistogramCuts&& that) noexcept(true) :
-      monitor_{std::move(that.monitor_)},
-      cut_values_{std::move(that.cut_values_)},
-      cut_ptrs_{std::move(that.cut_ptrs_)},
-      min_vals_{std::move(that.min_vals_)} {}
+  HistogramCuts(HistogramCuts&& that) noexcept(true) {
+    *this = std::forward<HistogramCuts&&>(that);
+  }
   HistogramCuts& operator=(HistogramCuts const& that) = delete;
   HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
     monitor_ = std::move(that.monitor_);
