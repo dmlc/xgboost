@@ -226,7 +226,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 def _maybe_pandas_data(data, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame for DMatrix data """
 
-    if not isinstance(data, DataFrame):
+    if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
         return data, feature_names, feature_types
 
     data_dtypes = data.dtypes
@@ -258,7 +258,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 def _maybe_pandas_label(label):
     """ Extract internal data from pd.DataFrame for DMatrix label """
 
-    if isinstance(label, DataFrame):
+    if PANDAS_INSTALLED and isinstance(label, DataFrame):
         if len(label.columns) > 1:
             raise ValueError('DataFrame for label cannot have multiple columns')
 
