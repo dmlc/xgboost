@@ -134,15 +134,18 @@ using GHistIndexRow = Span<uint32_t const>;
 
 // A CSC matrix representing histogram cuts, used in CPU quantile hist.
 class HistogramCuts {
+  // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
+  // object in many places.
   friend class SparseCuts;
   friend class DenseCuts;
+
  protected:
   using BinIdx = uint32_t;
   common::Monitor monitor_;
 
   std::vector<bst_float> cut_values_;
   std::vector<uint32_t> cut_ptrs_;
-  std::vector<float> min_vals_;
+  std::vector<float> min_vals_;  // storing minimum value in a sketch set.
 
  public:
   HistogramCuts();
@@ -168,6 +171,9 @@ class HistogramCuts {
     return cut_ptrs_.at(feature+1) - cut_ptrs_[feature];
   }
 
+  // Getters.  Cuts should be of no use after building histogram indices, but currently
+  // its deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
+  // these for now.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_;   }
   std::vector<float>    const& Values()    const { return cut_values_; }
   std::vector<float>    const& MinValues() const { return min_vals_;   }
@@ -190,6 +196,12 @@ class HistogramCuts {
   }
 };
 
+/* \brief An interface for building quantile cuts.
+ *
+ * `DenseCuts' always assumes there are `max_bins` for each feature, which makes it not
+ * suitable for sparse dataset.  On the other hand `SparseCuts' uses `GetColumnBatches',
+ * which doubles the memory usage, hence can not be applied to dense dataset.
+ */
 class CutsBuilder {
  protected:
   HistogramCuts* p_cuts_;
@@ -219,6 +231,7 @@ class CutsBuilder {
   virtual void Build(DMatrix* dmat, uint32_t const max_num_bins) = 0;
 };
 
+/*! \brief Cut configuration for sparse dataset. */
 class SparseCuts : public CutsBuilder {
   /* \brief Distrbute columns to each thread according to number of entries. */
   static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
@@ -240,8 +253,11 @@ class SparseCuts : public CutsBuilder {
   void Build(DMatrix* dmat, uint32_t const max_num_bins) override;
 };
 
-/*! \brief Cut configuration for all the features. */
+/*! \brief Cut configuration for dense dataset. */
 class DenseCuts  : public CutsBuilder {
+ protected:
+  Monitor monitor_;
+
  public:
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
@@ -251,9 +267,6 @@ class DenseCuts  : public CutsBuilder {
   }
   void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
-
- protected:
-  Monitor monitor_;
 };
 
 // FIXME(trivialfis): Merge this into generic cut builder.

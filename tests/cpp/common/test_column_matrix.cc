@@ -32,7 +32,6 @@ TEST(SparseColumn, Test) {
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.5);
   auto col = column_matrix.GetColumn(0);
-  LOG(INFO) << "gmat.cut.Ptrs().size(): " << gmat.cut.Ptrs().size();
   ASSERT_EQ(col.Size(), gmat.index.size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],

@@ -856,8 +856,8 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
     }
   }
 
-  #pragma omp parallel for schedule(guided)
-  for (size_t k = 0; k < tasks_elem.size(); ++k) {
+#pragma omp parallel for schedule(guided)
+  for (int32_t k = 0; k < static_cast<int32_t>(tasks_elem.size()); ++k) {
     const RowSetCollection::Elem rowset = tasks_elem[k];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.node_id != -1) {
       const size_t nrows = rowset.Size();
@@ -1079,8 +1079,8 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   // partial results
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
   // parallel enumeration
-  #pragma omp parallel for schedule(guided)
-  for (size_t i = 0; i < tasks.size(); ++i) {
+#pragma omp parallel for schedule(guided)
+  for (int32_t i = 0; i < static_cast<int32_t>(tasks.size()); ++i) {
     // node_idx : offset within `nodes` list
     const int32_t  node_idx    = tasks[i].first;
     const size_t   fid         = tasks[i].second;

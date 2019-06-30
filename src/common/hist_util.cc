@@ -29,13 +29,16 @@ HistogramCuts::HistogramCuts() : cut_ptrs_{0} {
   monitor_.Init(__func__);
 }
 
+// Dispatch to specific builder.
 void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
   auto const& info = dmat->Info();
-  size_t total = info.num_row_ * info.num_col_;
-  size_t nnz = info.num_nonzero_;
+  size_t const total = info.num_row_ * info.num_col_;
+  size_t const nnz = info.num_nonzero_;
   float const sparsity = static_cast<float>(nnz) / static_cast<float>(total);
-  float constexpr kSparsityThreshold = 0.001;
-  if (sparsity < kSparsityThreshold) {
+  // Use a small number to avoid calling `dmat->GetColumnBatches'.
+  float constexpr kSparsityThreshold = 0.0005;
+  // FIXME(trivialfis): Distributed environment is not supported.
+  if (sparsity < kSparsityThreshold && (!rabit::IsDistributed())) {
     LOG(INFO) << "Building quantile cut on a sparse dataset.";
     SparseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
@@ -45,7 +48,6 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     cuts.Build(dmat, max_num_bins);
   }
 }
-
 
 bool CutsBuilder::UseGroup(DMatrix* dmat) {
   auto& info = dmat->Info();
@@ -70,6 +72,7 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
   p_cuts_->min_vals_.resize(end_col - beg_col, 0);
 
   for (uint32_t col_id = beg_col; col_id < page.Size() && col_id < end_col; ++col_id) {
+    // Using a local variable makes things easier, but at the cost of memory trashing.
     WXQSketch sketch;
     common::Span<xgboost::Entry const> const column = page[col_id];
     uint32_t const n_bins = std::min(static_cast<uint32_t>(column.size()),
@@ -99,6 +102,9 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     WXQSketch::SummaryContainer summary;
     summary.Reserve(n_bins * kFactor);
     summary.SetPrune(out_summary, n_bins * kFactor);
+
+    // Can be use data[1] as the min values so that we don't need to
+    // store another array?
     float mval = summary.data[0].value;
     p_cuts_->min_vals_[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
 
@@ -121,8 +127,12 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
   }
 }
 
-std::vector<size_t> SparseCuts::LoadBalance(
-    SparsePage const& page, size_t const nthreads) {
+std::vector<size_t> SparseCuts::LoadBalance(SparsePage const& page,
+                                            size_t const nthreads) {
+  /* Some sparse datasets have their mass concentrating on small
+   * number of features.  To avoid wating for a few threads running
+   * forever, we here distirbute different number of columns to
+   * different threads according to number of entries. */
   size_t const total_entries = page.data.Size();
   size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
 
@@ -140,7 +150,7 @@ std::vector<size_t> SparseCuts::LoadBalance(
       cols_ptr[current_thread] = cols_ptr[current_thread-1];
     }
   }
-
+  // Idle threads.
   for (; current_thread < cols_ptr.size() - 1; ++current_thread) {
     cols_ptr[current_thread+1] = cols_ptr[current_thread];
   }
@@ -165,7 +175,8 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     monitor_.Start("Load balance");
     std::vector<size_t> col_ptr = LoadBalance(page, nthreads);
     monitor_.Stop("Load balance");
-
+    // We here decouples the logic between build and parallelization
+    // to simplify things a bit.
 #pragma omp parallel for num_threads(nthreads) schedule(static)
     for (size_t i = 0; i < nthreads; ++i) {
       common::Monitor t_monitor;
@@ -184,12 +195,13 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
 
 void SparseCuts::Concat(
     std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols) {
-  monitor_.Start("Concat");
+  monitor_.Start(__func__);
   uint32_t nthreads = omp_get_max_threads();
   p_cuts_->min_vals_.resize(n_cols, std::numeric_limits<float>::max());
   size_t min_vals_tail = 0;
 
   for (uint32_t t = 0; t < nthreads; ++t) {
+    // concat csc pointers.
     size_t const old_ptr_size = p_cuts_->cut_ptrs_.size();
     p_cuts_->cut_ptrs_.resize(
         cuts[t]->p_cuts_->cut_ptrs_.size() + p_cuts_->cut_ptrs_.size() - 1);
@@ -198,7 +210,7 @@ void SparseCuts::Concat(
     for (size_t j = old_ptr_size; j < new_icp_size; ++j) {
       p_cuts_->cut_ptrs_[j] = tail + cuts[t]->p_cuts_->cut_ptrs_[j-old_ptr_size+1];
     }
-
+    // concat csc values
     size_t const old_iv_size = p_cuts_->cut_values_.size();
     p_cuts_->cut_values_.resize(
         cuts[t]->p_cuts_->cut_values_.size() + p_cuts_->cut_values_.size());
@@ -206,15 +218,14 @@ void SparseCuts::Concat(
     for (size_t j = old_iv_size; j < new_iv_size; ++j) {
       p_cuts_->cut_values_[j] = cuts[t]->p_cuts_->cut_values_[j-old_iv_size];
     }
-
+    // merge min values
     for (size_t j = 0; j < cuts[t]->p_cuts_->min_vals_.size(); ++j) {
       p_cuts_->min_vals_.at(min_vals_tail + j) =
           std::min(p_cuts_->min_vals_.at(min_vals_tail + j), cuts.at(t)->p_cuts_->min_vals_.at(j));
     }
     min_vals_tail += cuts[t]->p_cuts_->min_vals_.size();
   }
-
-  monitor_.Stop("Concat");
+  monitor_.Stop(__func__);
 }
 
 void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
