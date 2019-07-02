@@ -63,7 +63,7 @@ class LambdaRankObj : public ObjFunction {
       std::vector<ListEntry>  lst;
       std::vector< std::pair<bst_float, unsigned> > rec;
       bst_float sum_weights = 0;
-      for (bst_omp_uint k = 0; k < ngroup; ++k) {
+      for (bst_omp_uint k = 0; k <= ngroup; ++k) {
         sum_weights += info.GetWeight(k);
       }
       bst_float weight_normalization_factor = ngroup/sum_weights;
