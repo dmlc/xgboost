@@ -95,11 +95,11 @@ void QuantileHistMaker::Builder::SyncHistograms(
   builder_monitor_.Start("SyncHistograms");
 
   // chenqin. create a unique caller string to debug fault recovery
-  std::string caller("QuantileHistMaker::Builder::SyncHistograms");
-  caller += " starting_index:" + std::to_string(starting_index) + " sync_count:" + std::to_string(sync_count);
-  caller += " bins:" + std::to_string(hist_builder_.GetNumBins());
+  //std::string caller("QuantileHistMaker::Builder::SyncHistograms");
+  //caller += " starting_index:" + std::to_string(starting_index) + " sync_count:" + std::to_string(sync_count);
+  //caller += " bins:" + std::to_string(hist_builder_.GetNumBins());
 
-  this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count, nullptr, nullptr, caller.c_str());
+  this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
 
   // use Subtraction Trick
   for (auto const& node_pair : nodes_for_subtraction_trick_) {
