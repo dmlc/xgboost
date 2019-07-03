@@ -285,10 +285,13 @@ struct EvalRankList : public Metric {
     minus_ = false;
     if (param != nullptr) {
       std::ostringstream os;
-      os << name << '@' << param;
-      name_ = os.str();
-      if (sscanf(param, "%u[-]?", &topn_) != 1) {
+      if (sscanf(param, "%u[-]?", &topn_) == 1) {
+        os << name << '@' << param;
+        name_ = os.str();
+      } else {
         topn_ = std::numeric_limits<unsigned>::max();
+        os << name << param;
+        name_ = os.str();
       }
       if (param[strlen(param) - 1] == '-') {
         minus_ = true;
