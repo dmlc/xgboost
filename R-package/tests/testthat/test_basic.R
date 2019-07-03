@@ -191,6 +191,20 @@ test_that("xgb.cv works", {
   expect_false(is.null(cv$call))
 })
 
+test_that("xgb.cv works with stratified folds", {
+  dtrain <- xgb.DMatrix(train$data, label = train$label)
+  set.seed(314159)
+  cv <- xgb.cv(data = dtrain, max_depth = 2, nfold = 5,
+               eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
+               verbose=TRUE, stratified = FALSE)
+  set.seed(314159)
+  cv2 <- xgb.cv(data = dtrain, max_depth = 2, nfold = 5,
+                eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
+                verbose=TRUE, stratified = TRUE)
+  # Stratified folds should result in a different evaluation logs
+  expect_true(all(cv$evaluation_log[, test_error_mean] != cv2$evaluation_log[, test_error_mean]))
+})
+
 test_that("train and predict with non-strict classes", {
   # standard dense matrix input
   train_dense <- as.matrix(train$data)
