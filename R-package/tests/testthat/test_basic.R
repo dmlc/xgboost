@@ -202,7 +202,7 @@ test_that("xgb.cv works with stratified folds", {
                 eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
                 verbose=TRUE, stratified = TRUE)
   # Stratified folds should result in a different evaluation logs
-  expect_true(cv$evaluation_log[, test_error_mean] != cv2$evaluation_log[, test_error_mean])
+  expect_true(all(cv$evaluation_log[, test_error_mean] != cv2$evaluation_log[, test_error_mean]))
 })
 
 test_that("train and predict with non-strict classes", {
