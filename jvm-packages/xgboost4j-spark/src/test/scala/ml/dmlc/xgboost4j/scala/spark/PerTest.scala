@@ -19,15 +19,16 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.spark.{SparkConf, SparkContext, TaskFailedListener}
 import org.apache.spark.sql._
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
+
+import scala.math.min
 import scala.util.Random
 
 trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
-  protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
+  protected val numWorkers: Int = min(Runtime.getRuntime.availableProcessors(), 4)
 
   @transient private var currentSession: SparkSession = _
 
@@ -35,7 +36,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
   implicit def sc: SparkContext = ss.sparkContext
 
   protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
-      .master("local[*]")
+      .master(s"local[${numWorkers}]")
       .appName("XGBoostSuite")
       .config("spark.ui.enabled", false)
       .config("spark.driver.memory", "512m")
