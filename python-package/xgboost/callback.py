@@ -222,7 +222,11 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
     def callback(env):
         """internal function"""
-        score = env.evaluation_result_list[-1][1]
+        if not env.evaluation_result_list:
+            score = float('-inf') if maximize_score else float('inf')
+            # if evaluation list is empty, best_score shouldn't be updated
+        else:
+            score = env.evaluation_result_list[-1][1]
         if not state:
             init(env)
         best_score = state['best_score']
