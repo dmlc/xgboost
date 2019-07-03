@@ -278,6 +278,11 @@ class XGBModel(XGBModelBase):
         fname : string
             Output file name
         """
+        warnings.warn("save_model: Useful attributes in the Python " +
+                      "object {} will be lost. ".format(type(self).__name__) +
+                      "If you did not mean to export the model to " +
+                      "a non-Python binding of XGBoost, consider " +
+                      "using `pickle` or `joblib` to save your model.", Warning)
         self.get_booster().save_model(fname)
 
     def load_model(self, fname):
