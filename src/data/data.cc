@@ -225,13 +225,10 @@ DMatrix* DMatrix::Load(const std::string& uri,
   }
 
   // use cache to avoid recovered rabit worker internal seq misalign with rest
-  if (rabit::IsDistributed()) {
-    if(rabit::GetCache(fname.c_str(),&dmat->Info().num_col_, 1) != -1) {
-      printf("[%d] hit dmat_num_col on file %s cache %d\n", rabit::GetRank(), fname.c_str(), dmat->Info().num_col_);
-    } else {
-      rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
-      rabit::SetCache(fname.c_str(),&dmat->Info().num_col_, 1);
-    }
+  if (rabit::IsDistributed()
+    && rabit::GetCache(fname.c_str(), &dmat->Info().num_col_, 1) == -1) {
+    rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
+    rabit::SetCache(fname.c_str(), &dmat->Info().num_col_, 1);
   }
 
   // backward compatiblity code.

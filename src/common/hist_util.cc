@@ -174,12 +174,10 @@ void HistCutMatrix::Init
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
 
-  if(rabit::IsDistributed() && rabit::GetCache("hist_init",
+  if (rabit::IsDistributed() && rabit::GetCache("hist_init",
     dmlc::BeginPtr(summary_array), nbytes*summary_array.size(), true) == -1) {
     sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
     rabit::SetCache("hist_init", dmlc::BeginPtr(summary_array), nbytes*summary_array.size());
-  } else {
-    //TODO (chenqin): use smart pointer
   }
 
   this->min_val.resize(sketchs.size());
