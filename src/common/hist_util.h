@@ -12,18 +12,21 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
+#include <memory>
 #include <utility>
+
 #include "row_set.h"
 #include "../tree/param.h"
 #include "./quantile.h"
 #include "./timer.h"
-#include "../include/rabit/rabit.h"
 #include "random.h"
 
 namespace xgboost {
 
 /*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
+ * \brief A C-style array with in-stack allocation. As long as the array is smaller than
+ * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
+ * heap-allocated.
  */
 template<typename T, size_t MaxStackSize>
 class MemStackAllocator {
@@ -122,47 +125,175 @@ struct SimpleArray {
   size_t n_ = 0;
 };
 
-/*! \brief Cut configuration for all the features. */
-struct HistCutMatrix {
-  /*! \brief Unit pointer to rows by element position */
-  std::vector<uint32_t> row_ptr;
-  /*! \brief minimum value of each feature */
-  std::vector<bst_float> min_val;
-  /*! \brief the cut field */
-  std::vector<bst_float> cut;
-  uint32_t GetBinIdx(const Entry &e);
+/*!
+ * \brief A single row in global histogram index.
+ *  Directly represent the global index in the histogram entry.
+ */
+using GHistIndexRow = Span<uint32_t const>;
 
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
-
-  // create histogram cut matrix given statistics from data
-  // using approximate quantile sketch approach
-  void Init(DMatrix* p_fmat, uint32_t max_num_bins);
-
-  void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
-
-  HistCutMatrix();
-  size_t NumBins() const { return row_ptr.back(); }
+// A CSC matrix representing histogram cuts, used in CPU quantile hist.
+class HistogramCuts {
+  // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
+  // object in many places.
+  friend class SparseCuts;
+  friend class DenseCuts;
+  friend class CutsBuilder;
 
  protected:
-  virtual size_t SearchGroupIndFromBaseRow(
-      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const;
+  using BinIdx = uint32_t;
+  common::Monitor monitor_;
 
-  Monitor monitor_;
+  std::vector<bst_float> cut_values_;
+  std::vector<uint32_t> cut_ptrs_;
+  std::vector<float> min_vals_;  // storing minimum value in a sketch set.
+
+ public:
+  HistogramCuts();
+  HistogramCuts(HistogramCuts const& that) = delete;
+  HistogramCuts(HistogramCuts&& that) noexcept(true) {
+    *this = std::forward<HistogramCuts&&>(that);
+  }
+  HistogramCuts& operator=(HistogramCuts const& that) = delete;
+  HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
+    monitor_ = std::move(that.monitor_);
+    cut_ptrs_ = std::move(that.cut_ptrs_);
+    cut_values_ = std::move(that.cut_values_);
+    min_vals_ = std::move(that.min_vals_);
+    return *this;
+  }
+
+  /* \brief Build histogram cuts. */
+  void Build(DMatrix* dmat, uint32_t const max_num_bins);
+  /* \brief How many bins a feature has. */
+  uint32_t FeatureBins(uint32_t feature) const {
+    return cut_ptrs_.at(feature+1) - cut_ptrs_[feature];
+  }
+
+  // Getters.  Cuts should be of no use after building histogram indices, but currently
+  // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
+  // these for now.
+  std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_;   }
+  std::vector<float>    const& Values()    const { return cut_values_; }
+  std::vector<float>    const& MinValues() const { return min_vals_;   }
+
+  size_t TotalBins() const { return cut_ptrs_.back(); }
+
+  BinIdx SearchBin(float value, uint32_t column_id) {
+    auto beg = cut_ptrs_.at(column_id);
+    auto end = cut_ptrs_.at(column_id + 1);
+    auto it = std::upper_bound(cut_values_.cbegin() + beg, cut_values_.cbegin() + end, value);
+    if (it == cut_values_.cend()) {
+      it = cut_values_.cend() - 1;
+    }
+    BinIdx idx = it - cut_values_.cbegin();
+    return idx;
+  }
+
+  BinIdx SearchBin(Entry const& e) {
+    return SearchBin(e.fvalue, e.index);
+  }
 };
 
+/* \brief An interface for building quantile cuts.
+ *
+ * `DenseCuts' always assumes there are `max_bins` for each feature, which makes it not
+ * suitable for sparse dataset.  On the other hand `SparseCuts' uses `GetColumnBatches',
+ * which doubles the memory usage, hence can not be applied to dense dataset.
+ */
+class CutsBuilder {
+ public:
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+
+ protected:
+  HistogramCuts* p_cuts_;
+  /* \brief return whether group for ranking is used. */
+  static bool UseGroup(DMatrix* dmat);
+
+ public:
+  explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
+  virtual ~CutsBuilder() = default;
+
+  static uint32_t SearchGroupIndFromRow(
+      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) {
+    using KIt = std::vector<bst_uint>::const_iterator;
+    KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+    // Cannot use CHECK_NE because it will try to print the iterator.
+    bool const found = res != group_ptr.cend() - 1;
+    if (!found) {
+      LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!";
+    }
+    uint32_t group_ind = std::distance(group_ptr.cbegin(), res);
+    return group_ind;
+  }
+
+  void AddCutPoint(WXQSketch::SummaryContainer const& summary) {
+    if (summary.size > 1 && summary.size <= 16) {
+      /* specialized code categorial / ordinal data -- use midpoints */
+      for (size_t i = 1; i < summary.size; ++i) {
+        bst_float cpt = (summary.data[i].value + summary.data[i - 1].value) / 2.0f;
+        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
+          p_cuts_->cut_values_.push_back(cpt);
+        }
+      }
+    } else {
+      for (size_t i = 2; i < summary.size; ++i) {
+        bst_float cpt = summary.data[i - 1].value;
+        if (i == 2 || cpt > p_cuts_->cut_values_.back()) {
+          p_cuts_->cut_values_.push_back(cpt);
+        }
+      }
+    }
+  }
+
+  /* \brief Build histogram indices. */
+  virtual void Build(DMatrix* dmat, uint32_t const max_num_bins) = 0;
+};
+
+/*! \brief Cut configuration for sparse dataset. */
+class SparseCuts : public CutsBuilder {
+  /* \brief Distrbute columns to each thread according to number of entries. */
+  static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
+  Monitor monitor_;
+
+ public:
+  explicit SparseCuts(HistogramCuts* container) :
+      CutsBuilder(container) {
+    monitor_.Init(__FUNCTION__);
+  }
+
+  /* \brief Concatonate the built cuts in each thread. */
+  void Concat(std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols);
+  /* \brief Build histogram indices in single thread. */
+  void SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
+                         uint32_t max_num_bins,
+                         bool const use_group_ind,
+                         uint32_t beg, uint32_t end, uint32_t thread_id);
+  void Build(DMatrix* dmat, uint32_t const max_num_bins) override;
+};
+
+/*! \brief Cut configuration for dense dataset. */
+class DenseCuts  : public CutsBuilder {
+ protected:
+  Monitor monitor_;
+
+ public:
+  explicit DenseCuts(HistogramCuts* container) :
+      CutsBuilder(container) {
+    monitor_.Init(__FUNCTION__);
+  }
+  void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
+  void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
+};
+
+// FIXME(trivialfis): Merge this into generic cut builder.
 /*! \brief Builds the cut matrix on the GPU.
  *
  *  \return The row stride across the entire dataset.
  */
 size_t DeviceSketch
   (const tree::TrainParam& param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
-   DMatrix* dmat, HistCutMatrix* hmat);
+   DMatrix* dmat, HistogramCuts* hmat);
 
-/*!
- * \brief A single row in global histogram index.
- *  Directly represent the global index in the histogram entry.
- */
-using GHistIndexRow = Span<uint32_t const>;
 
 /*!
  * \brief preprocessed global index matrix, in CSR format
@@ -178,7 +309,7 @@ struct GHistIndexMatrix {
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
-  HistCutMatrix cut;
+  HistogramCuts cut;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
   // get i-th row
@@ -188,10 +319,10 @@ struct GHistIndexMatrix {
                 row_ptr[i + 1] - row_ptr[i])};
   }
   inline void GetFeatureCounts(size_t* counts) const {
-    auto nfeature = cut.row_ptr.size() - 1;
+    auto nfeature = cut.Ptrs().size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
-      auto ibegin = cut.row_ptr[fid];
-      auto iend = cut.row_ptr[fid + 1];
+      auto ibegin = cut.Ptrs()[fid];
+      auto iend = cut.Ptrs()[fid + 1];
       for (auto i = ibegin; i < iend; ++i) {
         counts[fid] += hit_count[i];
       }
@@ -234,7 +365,7 @@ class GHistIndexBlockMatrix {
  private:
   std::vector<size_t> row_ptr_;
   std::vector<uint32_t> index_;
-  const HistCutMatrix* cut_;
+  const HistogramCuts* cut_;
   struct Block {
     const size_t* row_ptr_begin;
     const size_t* row_ptr_end;

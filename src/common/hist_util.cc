@@ -25,25 +25,206 @@
 namespace xgboost {
 namespace common {
 
-HistCutMatrix::HistCutMatrix() {
-  monitor_.Init("HistCutMatrix");
+HistogramCuts::HistogramCuts() {
+  monitor_.Init(__FUNCTION__);
+  cut_ptrs_.emplace_back(0);
 }
 
-size_t HistCutMatrix::SearchGroupIndFromBaseRow(
-    std::vector<bst_uint> const& group_ptr, size_t const base_rowid) const {
-  using KIt = std::vector<bst_uint>::const_iterator;
-  KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-  // Cannot use CHECK_NE because it will try to print the iterator.
-  bool const found = res != group_ptr.cend() - 1;
-  if (!found) {
-    LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!\n";
+// Dispatch to specific builder.
+void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
+  auto const& info = dmat->Info();
+  size_t const total = info.num_row_ * info.num_col_;
+  size_t const nnz = info.num_nonzero_;
+  float const sparsity = static_cast<float>(nnz) / static_cast<float>(total);
+  // Use a small number to avoid calling `dmat->GetColumnBatches'.
+  float constexpr kSparsityThreshold = 0.0005;
+  // FIXME(trivialfis): Distributed environment is not supported.
+  if (sparsity < kSparsityThreshold && (!rabit::IsDistributed())) {
+    LOG(INFO) << "Building quantile cut on a sparse dataset.";
+    SparseCuts cuts(this);
+    cuts.Build(dmat, max_num_bins);
+  } else {
+    LOG(INFO) << "Building quantile cut on a dense dataset or distributed environment.";
+    DenseCuts cuts(this);
+    cuts.Build(dmat, max_num_bins);
   }
-  size_t group_ind = std::distance(group_ptr.cbegin(), res);
-  return group_ind;
 }
 
-void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
-  monitor_.Start("Init");
+bool CutsBuilder::UseGroup(DMatrix* dmat) {
+  auto& info = dmat->Info();
+  size_t const num_groups = info.group_ptr_.size() == 0 ?
+                            0 : info.group_ptr_.size() - 1;
+  // Use group index for weights?
+  bool const use_group_ind = num_groups != 0 &&
+                             (info.weights_.Size() != info.num_row_);
+  return use_group_ind;
+}
+
+void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
+                                   uint32_t max_num_bins,
+                                   bool const use_group_ind,
+                                   uint32_t beg_col, uint32_t end_col,
+                                   uint32_t thread_id) {
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+  CHECK_GE(end_col, beg_col);
+  constexpr float kFactor = 8;
+
+  // Data groups, used in ranking.
+  std::vector<bst_uint> const& group_ptr = info.group_ptr_;
+  p_cuts_->min_vals_.resize(end_col - beg_col, 0);
+
+  for (uint32_t col_id = beg_col; col_id < page.Size() && col_id < end_col; ++col_id) {
+    // Using a local variable makes things easier, but at the cost of memory trashing.
+    WXQSketch sketch;
+    common::Span<xgboost::Entry const> const column = page[col_id];
+    uint32_t const n_bins = std::min(static_cast<uint32_t>(column.size()),
+                                     max_num_bins);
+    if (n_bins == 0) {
+      // cut_ptrs_ is initialized with a zero, so there's always an element at the back
+      p_cuts_->cut_ptrs_.emplace_back(p_cuts_->cut_ptrs_.back());
+      continue;
+    }
+
+    sketch.Init(info.num_row_, 1.0 / (n_bins * kFactor));
+    for (auto const& entry : column) {
+      uint32_t weight_ind = 0;
+      if (use_group_ind) {
+        auto row_idx = entry.index;
+        uint32_t group_ind =
+            this->SearchGroupIndFromRow(group_ptr, page.base_rowid + row_idx);
+        weight_ind = group_ind;
+      } else {
+        weight_ind = entry.index;
+      }
+      sketch.Push(entry.fvalue, info.GetWeight(weight_ind));
+    }
+
+    WXQSketch::SummaryContainer out_summary;
+    sketch.GetSummary(&out_summary);
+    WXQSketch::SummaryContainer summary;
+    summary.Reserve(n_bins);
+    summary.SetPrune(out_summary, n_bins);
+
+    // Can be use data[1] as the min values so that we don't need to
+    // store another array?
+    float mval = summary.data[0].value;
+    p_cuts_->min_vals_[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
+
+    this->AddCutPoint(summary);
+
+    bst_float cpt = (summary.size > 0) ?
+                    summary.data[summary.size - 1].value :
+                    p_cuts_->min_vals_[col_id - beg_col];
+    cpt += fabs(cpt) + 1e-5;
+    p_cuts_->cut_values_.emplace_back(cpt);
+
+    p_cuts_->cut_ptrs_.emplace_back(p_cuts_->cut_values_.size());
+  }
+}
+
+std::vector<size_t> SparseCuts::LoadBalance(SparsePage const& page,
+                                            size_t const nthreads) {
+  /* Some sparse datasets have their mass concentrating on small
+   * number of features.  To avoid wating for a few threads running
+   * forever, we here distirbute different number of columns to
+   * different threads according to number of entries. */
+  size_t const total_entries = page.data.Size();
+  size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
+
+  std::vector<size_t> cols_ptr(nthreads+1, 0);
+  size_t count {0};
+  size_t current_thread {1};
+
+  for (size_t col_id = 0; col_id < page.Size(); ++col_id) {
+    auto const column = page[col_id];
+    cols_ptr[current_thread]++;  // add one column to thread
+    count += column.size();
+    if (count > entries_per_thread + 1) {
+      current_thread++;
+      count = 0;
+      cols_ptr[current_thread] = cols_ptr[current_thread-1];
+    }
+  }
+  // Idle threads.
+  for (; current_thread < cols_ptr.size() - 1; ++current_thread) {
+    cols_ptr[current_thread+1] = cols_ptr[current_thread];
+  }
+
+  return cols_ptr;
+}
+
+void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
+  monitor_.Start(__FUNCTION__);
+  // Use group index for weights?
+  auto use_group = UseGroup(dmat);
+  uint32_t nthreads = omp_get_max_threads();
+  CHECK_GT(nthreads, 0);
+  std::vector<HistogramCuts> cuts_containers(nthreads);
+  std::vector<std::unique_ptr<SparseCuts>> sparse_cuts(nthreads);
+  for (size_t i = 0; i < nthreads; ++i) {
+    sparse_cuts[i].reset(new SparseCuts(&cuts_containers[i]));
+  }
+
+  for (auto const& page : dmat->GetColumnBatches()) {
+    CHECK_LE(page.Size(), dmat->Info().num_col_);
+    monitor_.Start("Load balance");
+    std::vector<size_t> col_ptr = LoadBalance(page, nthreads);
+    monitor_.Stop("Load balance");
+    // We here decouples the logic between build and parallelization
+    // to simplify things a bit.
+#pragma omp parallel for num_threads(nthreads) schedule(static)
+    for (omp_ulong i = 0; i < nthreads; ++i) {
+      common::Monitor t_monitor;
+      t_monitor.Init("SingleThreadBuild: " + std::to_string(i));
+      t_monitor.Start(std::to_string(i));
+      sparse_cuts[i]->SingleThreadBuild(page, dmat->Info(), max_num_bins, use_group,
+                                        col_ptr[i], col_ptr[i+1], i);
+      t_monitor.Stop(std::to_string(i));
+    }
+
+    this->Concat(sparse_cuts, dmat->Info().num_col_);
+  }
+
+  monitor_.Stop(__FUNCTION__);
+}
+
+void SparseCuts::Concat(
+    std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols) {
+  monitor_.Start(__FUNCTION__);
+  uint32_t nthreads = omp_get_max_threads();
+  p_cuts_->min_vals_.resize(n_cols, std::numeric_limits<float>::max());
+  size_t min_vals_tail = 0;
+
+  for (uint32_t t = 0; t < nthreads; ++t) {
+    // concat csc pointers.
+    size_t const old_ptr_size = p_cuts_->cut_ptrs_.size();
+    p_cuts_->cut_ptrs_.resize(
+        cuts[t]->p_cuts_->cut_ptrs_.size() + p_cuts_->cut_ptrs_.size() - 1);
+    size_t const new_icp_size = p_cuts_->cut_ptrs_.size();
+    auto tail = p_cuts_->cut_ptrs_[old_ptr_size-1];
+    for (size_t j = old_ptr_size; j < new_icp_size; ++j) {
+      p_cuts_->cut_ptrs_[j] = tail + cuts[t]->p_cuts_->cut_ptrs_[j-old_ptr_size+1];
+    }
+    // concat csc values
+    size_t const old_iv_size = p_cuts_->cut_values_.size();
+    p_cuts_->cut_values_.resize(
+        cuts[t]->p_cuts_->cut_values_.size() + p_cuts_->cut_values_.size());
+    size_t const new_iv_size = p_cuts_->cut_values_.size();
+    for (size_t j = old_iv_size; j < new_iv_size; ++j) {
+      p_cuts_->cut_values_[j] = cuts[t]->p_cuts_->cut_values_[j-old_iv_size];
+    }
+    // merge min values
+    for (size_t j = 0; j < cuts[t]->p_cuts_->min_vals_.size(); ++j) {
+      p_cuts_->min_vals_.at(min_vals_tail + j) =
+          std::min(p_cuts_->min_vals_.at(min_vals_tail + j), cuts.at(t)->p_cuts_->min_vals_.at(j));
+    }
+    min_vals_tail += cuts[t]->p_cuts_->min_vals_.size();
+  }
+  monitor_.Stop(__FUNCTION__);
+}
+
+void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
+  monitor_.Start(__FUNCTION__);
   const MetaInfo& info = p_fmat->Info();
 
   // safe factor for better accuracy
@@ -60,20 +241,18 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-  const auto& weights = info.weights_.HostVector();
-
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;
   size_t const num_groups = group_ptr.size() == 0 ? 0 : group_ptr.size() - 1;
   // Use group index for weights?
-  bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
+  bool const use_group = UseGroup(p_fmat);
 
   for (const auto &batch : p_fmat->GetRowBatches()) {
     size_t group_ind = 0;
-    if (use_group_ind) {
-      group_ind = this->SearchGroupIndFromBaseRow(group_ptr, batch.base_rowid);
+    if (use_group) {
+      group_ind = this->SearchGroupIndFromRow(group_ptr, batch.base_rowid);
     }
-#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
@@ -85,7 +264,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
           size_t const ridx = batch.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
-          if (use_group_ind &&
+          if (use_group &&
               group_ptr[group_ind] == ridx &&
               // maximum equals to weights.size() - 1
               group_ind < num_groups - 1) {
@@ -94,7 +273,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
           }
           for (auto const& entry : inst) {
             if (entry.index >= begin && entry.index < end) {
-              size_t w_idx = use_group_ind ? group_ind : ridx;
+              size_t w_idx = use_group ? group_ind : ridx;
               sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
@@ -104,10 +283,10 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   }
 
   Init(&sketchs, max_num_bins);
-  monitor_.Stop("Init");
+  monitor_.Stop(__FUNCTION__);
 }
 
-void HistCutMatrix::Init
+void DenseCuts::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
   std::vector<WXQSketch>& sketchs = *in_sketchs;
   constexpr int kFactor = 8;
@@ -124,62 +303,34 @@ void HistCutMatrix::Init
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-  this->min_val.resize(sketchs.size());
-  row_ptr.push_back(0);
+  p_cuts_->min_vals_.resize(sketchs.size());
+
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WXQSketch::SummaryContainer a;
     a.Reserve(max_num_bins);
     a.SetPrune(summary_array[fid], max_num_bins);
     const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - (fabs(mval) + 1e-5);
-    if (a.size > 1 && a.size <= 16) {
-      /* specialized code categorial / ordinal data -- use midpoints */
-      for (size_t i = 1; i < a.size; ++i) {
-        bst_float cpt = (a.data[i].value + a.data[i - 1].value) / 2.0f;
-        if (i == 1 || cpt > cut.back()) {
-          cut.push_back(cpt);
-        }
-      }
-    } else {
-      for (size_t i = 2; i < a.size; ++i) {
-        bst_float cpt = a.data[i - 1].value;
-        if (i == 2 || cpt > cut.back()) {
-          cut.push_back(cpt);
-        }
-      }
-    }
+    p_cuts_->min_vals_[fid] = mval - (fabs(mval) + 1e-5);
+    AddCutPoint(a);
     // push a value that is greater than anything
     const bst_float cpt
-      = (a.size > 0) ? a.data[a.size - 1].value : this->min_val[fid];
+      = (a.size > 0) ? a.data[a.size - 1].value : p_cuts_->min_vals_[fid];
     // this must be bigger than last value in a scale
     const bst_float last = cpt + (fabs(cpt) + 1e-5);
-    cut.push_back(last);
+    p_cuts_->cut_values_.push_back(last);
 
     // Ensure that every feature gets at least one quantile point
-    CHECK_LE(cut.size(), std::numeric_limits<uint32_t>::max());
-    auto cut_size = static_cast<uint32_t>(cut.size());
-    CHECK_GT(cut_size, row_ptr.back());
-    row_ptr.push_back(cut_size);
+    CHECK_LE(p_cuts_->cut_values_.size(), std::numeric_limits<uint32_t>::max());
+    auto cut_size = static_cast<uint32_t>(p_cuts_->cut_values_.size());
+    CHECK_GT(cut_size, p_cuts_->cut_ptrs_.back());
+    p_cuts_->cut_ptrs_.push_back(cut_size);
   }
-}
-
-uint32_t HistCutMatrix::GetBinIdx(const Entry& e) {
-  unsigned fid = e.index;
-  auto cbegin = cut.begin() + row_ptr[fid];
-  auto cend = cut.begin() + row_ptr[fid + 1];
-  CHECK(cbegin != cend);
-  auto it = std::upper_bound(cbegin, cend, e.fvalue);
-  if (it == cend) {
-    it = cend - 1;
-  }
-  uint32_t idx = static_cast<uint32_t>(it - cut.begin());
-  return idx;
 }
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
-  cut.Init(p_fmat, max_num_bins);
+  cut.Build(p_fmat, max_num_bins);
   const int32_t nthread = omp_get_max_threads();
-  const uint32_t nbins = cut.row_ptr.back();
+  const uint32_t nbins = cut.Ptrs().back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
@@ -208,7 +359,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
-      for (int32_t tid = 0; tid < batch_threads; ++tid) {
+      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -222,13 +373,13 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       #pragma omp single
       {
         p_part[0] = prev_sum;
-        for (int32_t i = 1; i < batch_threads; ++i) {
+        for (size_t i = 1; i < batch_threads; ++i) {
           p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
         }
       }
 
       #pragma omp for
-      for (int32_t tid = 0; tid < batch_threads; ++tid) {
+      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -240,7 +391,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
 
     index.resize(row_ptr[rbegin + batch.Size()]);
 
-    CHECK_GT(cut.cut.size(), 0U);
+    CHECK_GT(cut.Values().size(), 0U);
 
     #pragma omp parallel for num_threads(batch_threads) schedule(static)
     for (omp_ulong i = 0; i < batch.Size(); ++i) { // NOLINT(*)
@@ -251,7 +402,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
 
       CHECK_EQ(ibegin + inst.size(), iend);
       for (bst_uint j = 0; j < inst.size(); ++j) {
-        uint32_t idx = cut.GetBinIdx(inst[j]);
+        uint32_t idx = cut.SearchBin(inst[j]);
 
         index[ibegin + j] = idx;
         ++hit_count_tloc_[tid * nbins + idx];
@@ -382,7 +533,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
                     const tree::TrainParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
-  const size_t nfeature = gmat.cut.row_ptr.size() - 1;
+  const size_t nfeature = gmat.cut.Ptrs().size() - 1;
 
   std::vector<unsigned> feature_list(nfeature);
   std::iota(feature_list.begin(), feature_list.end(), 0);
@@ -438,7 +589,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   cut_ = &gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
-  const uint32_t nbins = gmat.cut.row_ptr.back();
+  const uint32_t nbins = gmat.cut.Ptrs().back();
 
   /* step 1: form feature groups */
   auto groups = FastFeatureGrouping(gmat, colmat, param);
@@ -448,8 +599,8 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
   for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
     for (auto& fid : groups[group_id]) {
-      const uint32_t bin_begin = gmat.cut.row_ptr[fid];
-      const uint32_t bin_end = gmat.cut.row_ptr[fid + 1];
+      const uint32_t bin_begin = gmat.cut.Ptrs()[fid];
+      const uint32_t bin_end = gmat.cut.Ptrs()[fid + 1];
       for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
         bin2block[bin_id] = group_id;
       }
@@ -627,8 +778,8 @@ void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   const size_t block_size = 1024;  // aproximatly 1024 values per block
   size_t n_blocks = size/block_size + !!(size%block_size);
 
-  #pragma omp parallel for
-  for (int iblock = 0; iblock < n_blocks; ++iblock) {
+#pragma omp parallel for
+  for (omp_ulong iblock = 0; iblock < n_blocks; ++iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
     for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {

@@ -170,7 +170,7 @@ void FeatureInteractionConstraint::ClearBuffers() {
   CHECK_LE(feature_buffer_.Size(), output_buffer_bits_.Size());
   int constexpr kBlockThreads = 256;
   const int n_grids = static_cast<int>(
-      dh::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
+      common::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
   ClearBuffersKernel<<<n_grids, kBlockThreads>>>(
       output_buffer_bits_, input_buffer_bits_);
 }
@@ -227,7 +227,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
 
   int constexpr kBlockThreads = 256;
   const int n_grids = static_cast<int>(
-      dh::DivRoundUp(output_buffer_bits_.Size(), kBlockThreads));
+      common::DivRoundUp(output_buffer_bits_.Size(), kBlockThreads));
   SetInputBufferKernel<<<n_grids, kBlockThreads>>>(feature_list, input_buffer_bits_);
 
   QueryFeatureListKernel<<<n_grids, kBlockThreads>>>(
@@ -328,8 +328,8 @@ void FeatureInteractionConstraint::Split(
   BitField right = s_node_constraints_[right_id];
 
   dim3 const block3(16, 64, 1);
-  dim3 const grid3(dh::DivRoundUp(n_sets_, 16),
-                   dh::DivRoundUp(s_fconstraints_.size(), 64));
+  dim3 const grid3(common::DivRoundUp(n_sets_, 16),
+                   common::DivRoundUp(s_fconstraints_.size(), 64));
   RestoreFeatureListFromSetsKernel<<<grid3, block3>>>
       (feature_buffer_,
        feature_id,
@@ -339,7 +339,7 @@ void FeatureInteractionConstraint::Split(
        s_sets_ptr_);
 
   int constexpr kBlockThreads = 256;
-  const int n_grids = static_cast<int>(dh::DivRoundUp(node.Size(), kBlockThreads));
+  const int n_grids = static_cast<int>(common::DivRoundUp(node.Size(), kBlockThreads));
   InteractionConstraintSplitKernel<<<n_grids, kBlockThreads>>>
       (feature_buffer_,
        feature_id,

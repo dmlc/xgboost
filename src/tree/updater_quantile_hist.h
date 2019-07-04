@@ -33,7 +33,6 @@ namespace common {
 }
 namespace tree {
 
-using xgboost::common::HistCutMatrix;
 using xgboost::common::GHistIndexMatrix;
 using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;

@@ -53,8 +53,24 @@ TEST(GpuHist, DeviceHistogram) {
       }
     }
   };
-
 }
+
+namespace {
+class HistogramCutsWrapper : public common::HistogramCuts {
+ public:
+  using SuperT = common::HistogramCuts;
+  void SetValues(std::vector<float> cuts) {
+    SuperT::cut_values_ = cuts;
+  }
+  void SetPtrs(std::vector<uint32_t> ptrs) {
+    SuperT::cut_ptrs_ = ptrs;
+  }
+  void SetMins(std::vector<float> mins) {
+    SuperT::min_vals_ = mins;
+  }
+};
+}  //  anonymous namespace
+
 
 template <typename GradientSumT>
 void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
@@ -62,18 +78,18 @@ void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
   const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
 
-  common::HistCutMatrix cmat;
-  cmat.row_ptr = {0, 3, 6, 9, 12, 15, 18, 21, 24};
-  cmat.min_val = {0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f};
+  HistogramCutsWrapper cmat;
+  cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
   // 24 cut fields, 3 cut fields for each feature (column).
-  cmat.cut = {0.30f, 0.67f, 1.64f,
-              0.32f, 0.77f, 1.95f,
-              0.29f, 0.70f, 1.80f,
-              0.32f, 0.75f, 1.85f,
-              0.18f, 0.59f, 1.69f,
-              0.25f, 0.74f, 2.00f,
-              0.26f, 0.74f, 1.98f,
-              0.26f, 0.71f, 1.83f};
+  cmat.SetValues({0.30f, 0.67f, 1.64f,
+          0.32f, 0.77f, 1.95f,
+          0.29f, 0.70f, 1.80f,
+          0.32f, 0.75f, 1.85f,
+          0.18f, 0.59f, 1.69f,
+          0.25f, 0.74f, 2.00f,
+          0.26f, 0.74f, 1.98f,
+          0.26f, 0.71f, 1.83f});
+  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
 
   auto is_dense = (*dmat)->Info().num_nonzero_ ==
                   (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
@@ -241,20 +257,20 @@ TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPair>(true);
 }
 
-common::HistCutMatrix GetHostCutMatrix () {
-  common::HistCutMatrix cmat;
-  cmat.row_ptr = {0, 3, 6, 9, 12, 15, 18, 21, 24};
-  cmat.min_val = {0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f};
+HistogramCutsWrapper GetHostCutMatrix () {
+  HistogramCutsWrapper cmat;
+  cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
+  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
   // 24 cut fields, 3 cut fields for each feature (column).
   // Each row of the cut represents the cuts for a data column.
-  cmat.cut = {0.30f, 0.67f, 1.64f,
+  cmat.SetValues({0.30f, 0.67f, 1.64f,
               0.32f, 0.77f, 1.95f,
               0.29f, 0.70f, 1.80f,
               0.32f, 0.75f, 1.85f,
               0.18f, 0.59f, 1.69f,
               0.25f, 0.74f, 2.00f,
               0.26f, 0.74f, 1.98f,
-              0.26f, 0.71f, 1.83f};
+              0.26f, 0.71f, 1.83f});
   return cmat;
 }
 
@@ -293,21 +309,21 @@ TEST(GpuHist, EvaluateSplits) {
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
   // Initialize DeviceShard::cut
-  common::HistCutMatrix cmat = GetHostCutMatrix();
+  auto cmat = GetHostCutMatrix();
 
   // Copy cut matrix to device.
   shard->ba.Allocate(0,
-                     &(shard->feature_segments), cmat.row_ptr.size(),
-                     &(shard->min_fvalue), cmat.min_val.size(),
+                     &(shard->feature_segments), cmat.Ptrs().size(),
+                     &(shard->min_fvalue), cmat.MinValues().size(),
                      &(shard->gidx_fvalue_map), 24,
                      &(shard->monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(shard->feature_segments, cmat.row_ptr);
-  dh::CopyVectorToDeviceSpan(shard->gidx_fvalue_map, cmat.cut);
+  dh::CopyVectorToDeviceSpan(shard->feature_segments, cmat.Ptrs());
+  dh::CopyVectorToDeviceSpan(shard->gidx_fvalue_map, cmat.Values());
   dh::CopyVectorToDeviceSpan(shard->monotone_constraints,
                              param.monotone_constraints);
   shard->ellpack_matrix.feature_segments = shard->feature_segments;
   shard->ellpack_matrix.gidx_fvalue_map = shard->gidx_fvalue_map;
-  dh::CopyVectorToDeviceSpan(shard->min_fvalue, cmat.min_val);
+  dh::CopyVectorToDeviceSpan(shard->min_fvalue, cmat.MinValues());
   shard->ellpack_matrix.min_fvalue = shard->min_fvalue;
 
   // Initialize DeviceShard::hist

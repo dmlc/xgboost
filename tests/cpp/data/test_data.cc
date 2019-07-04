@@ -50,7 +50,7 @@ TEST(SparsePage, PushCSC) {
   inst = page[1];
   ASSERT_EQ(inst.size(), 6);
   std::vector<size_t> indices_sol {1, 2, 3};
-  for (size_t i = 0; i < inst.size(); ++i) {
+  for (int64_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
   }
 }

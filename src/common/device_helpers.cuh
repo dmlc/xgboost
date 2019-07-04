@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -183,11 +183,6 @@ __device__ void BlockFill(IterT begin, size_t n, ValueT value) {
  * Kernel launcher
  */
 
-template <typename T1, typename T2>
-T1 DivRoundUp(const T1 a, const T2 b) {
-  return static_cast<T1>(ceil(static_cast<double>(a) / b));
-}
-
 template <typename L>
 __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
   for (auto i : GridStrideRange(begin, end)) {
@@ -211,7 +206,7 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   safe_cuda(cudaSetDevice(device_idx));
 
   const int GRID_SIZE =
-      static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
+      static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
                                                          n, lambda);
 }
@@ -619,7 +614,7 @@ struct CubMemory {
     if (this->IsAllocated()) {
       XGBDeviceAllocator<uint8_t> allocator;
       allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
-        temp_storage_bytes);
+                           temp_storage_bytes);
       d_temp_storage = nullptr;
       temp_storage_bytes = 0;
     }
@@ -738,7 +733,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
-  auto num_tiles = dh::DivRoundUp(count + num_segments, BLOCK_THREADS);
+  auto num_tiles = xgboost::common::DivRoundUp(count + num_segments, BLOCK_THREADS);
   CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(CoordinateT) * (num_tiles + 1));
@@ -1158,7 +1153,7 @@ class AllReducer {
   };
 
   /**
-   * \brief Synchronizes the device 
+   * \brief Synchronizes the device
    *
    * \param device_id Identifier for the device.
    */

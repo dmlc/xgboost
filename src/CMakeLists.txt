@@ -59,7 +59,7 @@ if (USE_CUDA)
 
   # OpenMP is mandatory for cuda version
   find_package(OpenMP REQUIRED)
-  target_compile_options(objxgboost PRIVATE  
+  target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
 

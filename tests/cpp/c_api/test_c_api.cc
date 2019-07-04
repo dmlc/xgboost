@@ -53,10 +53,10 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     ASSERT_EQ(info.num_nonzero_, num_cols * row - num_missing);
 
     for (const auto &batch : (*dmat)->GetRowBatches()) {
-      for (int i = 0; i < batch.Size(); i++) {
+      for (size_t i = 0; i < batch.Size(); i++) {
         auto inst = batch[i];
-        for (int j = 0; i < inst.size(); i++) {
-          ASSERT_EQ(inst[j].fvalue, 1.5);
+        for (auto e : inst) {
+          ASSERT_EQ(e.fvalue, 1.5);
         }
       }
     }
