@@ -77,6 +77,9 @@ TEST(SparseCuts, MultiThreadedBuild) {
   size_t constexpr kCols = 15;
   size_t constexpr kBins = 255;
 
+  omp_ulong ori_nthreads = omp_get_max_threads();
+  omp_set_num_threads(16);
+
   auto Compare =
 #if defined(_MSC_VER)  // msvc fails to capture
       [kBins](DMatrix* p_fmat) {
@@ -111,11 +114,13 @@ TEST(SparseCuts, MultiThreadedBuild) {
   }
 
   {
-    auto pp_mat = CreateDMatrix(kRows, kCols, 0.07);
+    auto pp_mat = CreateDMatrix(kRows, kCols, 0.0001);
     DMatrix* p_fmat = (*pp_mat).get();
     Compare(p_fmat);
     delete pp_mat;
   }
+
+  omp_set_num_threads(ori_nthreads);
 }
 
 }  // namespace common

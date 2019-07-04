@@ -66,6 +66,7 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
                                    uint32_t beg_col, uint32_t end_col,
                                    uint32_t thread_id) {
   using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+  CHECK_GE(end_col, beg_col);
   constexpr float kFactor = 8;
 
   // Data groups, used in ranking.
