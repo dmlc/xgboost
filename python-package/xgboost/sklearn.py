@@ -325,7 +325,7 @@ class XGBModel(XGBModelBase):
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
             If a list of str, should be the list of multiple built-in evaluation metrics
-            to use. 
+            to use.
             If callable, a custom evaluation metric. The call
             signature is ``func(y_predicted, y_true)`` where ``y_true`` will be a
             DMatrix object such that you may need to call the ``get_label``
