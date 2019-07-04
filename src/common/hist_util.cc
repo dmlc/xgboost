@@ -44,7 +44,7 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     SparseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   } else {
-    LOG(INFO) << "Building quantile cut on a dense dataset.";
+    LOG(INFO) << "Building quantile cut on a dense dataset or distributed environment.";
     DenseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   }
@@ -101,22 +101,15 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     WXQSketch::SummaryContainer out_summary;
     sketch.GetSummary(&out_summary);
     WXQSketch::SummaryContainer summary;
-    summary.Reserve(n_bins * kFactor);
-    summary.SetPrune(out_summary, n_bins * kFactor);
+    summary.Reserve(n_bins);
+    summary.SetPrune(out_summary, n_bins);
 
     // Can be use data[1] as the min values so that we don't need to
     // store another array?
     float mval = summary.data[0].value;
     p_cuts_->min_vals_[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
 
-    p_cuts_->cut_values_.emplace_back(summary.data[1].value);
-
-    for (size_t i = 3; i < summary.size; ++i) {
-      bst_float const cut_point = summary.data[i-1].value;
-      if (cut_point > p_cuts_->cut_values_.back()) {
-        p_cuts_->cut_values_.emplace_back(cut_point);
-      }
-    }
+    this->AddCutPoint(summary);
 
     bst_float cpt = (summary.size > 0) ?
                     summary.data[summary.size - 1].value :
@@ -166,9 +159,9 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
   uint32_t nthreads = omp_get_max_threads();
   CHECK_GT(nthreads, 0);
   std::vector<HistogramCuts> cuts_containers(nthreads);
-  std::vector<std::unique_ptr<SparseCuts>> matrics(nthreads);
+  std::vector<std::unique_ptr<SparseCuts>> sparse_cuts(nthreads);
   for (size_t i = 0; i < nthreads; ++i) {
-    matrics[i].reset(new SparseCuts(&cuts_containers[i]));
+    sparse_cuts[i].reset(new SparseCuts(&cuts_containers[i]));
   }
 
   for (auto const& page : dmat->GetColumnBatches()) {
@@ -183,12 +176,12 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
       common::Monitor t_monitor;
       t_monitor.Init("SingleThreadBuild: " + std::to_string(i));
       t_monitor.Start(std::to_string(i));
-      matrics[i]->SingleThreadBuild(page, dmat->Info(), max_num_bins, use_group,
-                                    col_ptr[i], col_ptr[i+1], i);
+      sparse_cuts[i]->SingleThreadBuild(page, dmat->Info(), max_num_bins, use_group,
+                                        col_ptr[i], col_ptr[i+1], i);
       t_monitor.Stop(std::to_string(i));
     }
 
-    this->Concat(matrics, dmat->Info().num_col_);
+    this->Concat(sparse_cuts, dmat->Info().num_col_);
   }
 
   monitor_.Stop(__FUNCTION__);
@@ -247,20 +240,18 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
   }
 
-  const auto& weights = info.weights_.HostVector();
-
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;
   size_t const num_groups = group_ptr.size() == 0 ? 0 : group_ptr.size() - 1;
   // Use group index for weights?
-  bool const use_group_ind = num_groups != 0 && weights.size() != info.num_row_;
+  bool const use_group = UseGroup(p_fmat);
 
   for (const auto &batch : p_fmat->GetRowBatches()) {
     size_t group_ind = 0;
-    if (use_group_ind) {
+    if (use_group) {
       group_ind = this->SearchGroupIndFromRow(group_ptr, batch.base_rowid);
     }
-#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group_ind)
+#pragma omp parallel num_threads(nthread) firstprivate(group_ind, use_group)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
       auto tid = static_cast<unsigned>(omp_get_thread_num());
@@ -272,7 +263,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
         for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
           size_t const ridx = batch.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
-          if (use_group_ind &&
+          if (use_group &&
               group_ptr[group_ind] == ridx &&
               // maximum equals to weights.size() - 1
               group_ind < num_groups - 1) {
@@ -281,7 +272,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
           }
           for (auto const& entry : inst) {
             if (entry.index >= begin && entry.index < end) {
-              size_t w_idx = use_group_ind ? group_ind : ridx;
+              size_t w_idx = use_group ? group_ind : ridx;
               sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
           }
@@ -319,22 +310,7 @@ void DenseCuts::Init
     a.SetPrune(summary_array[fid], max_num_bins);
     const bst_float mval = a.data[0].value;
     p_cuts_->min_vals_[fid] = mval - (fabs(mval) + 1e-5);
-    if (a.size > 1 && a.size <= 16) {
-      /* specialized code categorial / ordinal data -- use midpoints */
-      for (size_t i = 1; i < a.size; ++i) {
-        bst_float cpt = (a.data[i].value + a.data[i - 1].value) / 2.0f;
-        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
-      }
-    } else {
-      for (size_t i = 2; i < a.size; ++i) {
-        bst_float cpt = a.data[i - 1].value;
-        if (i == 2 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
-      }
-    }
+    AddCutPoint(a);
     // push a value that is greater than anything
     const bst_float cpt
       = (a.size > 0) ? a.data[a.size - 1].value : p_cuts_->min_vals_[fid];

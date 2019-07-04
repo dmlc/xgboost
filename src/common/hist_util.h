@@ -137,6 +137,7 @@ class HistogramCuts {
   // object in many places.
   friend class SparseCuts;
   friend class DenseCuts;
+  friend class CutsBuilder;
 
  protected:
   using BinIdx = uint32_t;
@@ -200,10 +201,11 @@ class HistogramCuts {
  * which doubles the memory usage, hence can not be applied to dense dataset.
  */
 class CutsBuilder {
- protected:
-  HistogramCuts* p_cuts_;
+ public:
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
  protected:
+  HistogramCuts* p_cuts_;
   /* \brief return whether group for ranking is used. */
   static bool UseGroup(DMatrix* dmat);
 
@@ -222,6 +224,25 @@ class CutsBuilder {
     }
     uint32_t group_ind = std::distance(group_ptr.cbegin(), res);
     return group_ind;
+  }
+
+  void AddCutPoint(WXQSketch::SummaryContainer const& summary) {
+    if (summary.size > 1 && summary.size <= 16) {
+      /* specialized code categorial / ordinal data -- use midpoints */
+      for (size_t i = 1; i < summary.size; ++i) {
+        bst_float cpt = (summary.data[i].value + summary.data[i - 1].value) / 2.0f;
+        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
+          p_cuts_->cut_values_.push_back(cpt);
+        }
+      }
+    } else {
+      for (size_t i = 2; i < summary.size; ++i) {
+        bst_float cpt = summary.data[i - 1].value;
+        if (i == 2 || cpt > p_cuts_->cut_values_.back()) {
+          p_cuts_->cut_values_.push_back(cpt);
+        }
+      }
+    }
   }
 
   /* \brief Build histogram indices. */
@@ -256,8 +277,6 @@ class DenseCuts  : public CutsBuilder {
   Monitor monitor_;
 
  public:
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
-
   explicit DenseCuts(HistogramCuts* container) :
       CutsBuilder(container) {
     monitor_.Init(__FUNCTION__);
