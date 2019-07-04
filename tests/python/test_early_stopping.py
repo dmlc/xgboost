@@ -80,3 +80,29 @@ class TestEarlyStopping(unittest.TestCase):
                     feval=self.evalerror, maximize=True,
                     early_stopping_rounds=1)
         self.assert_metrics_length(cv, 1)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
+        from sklearn.datasets import load_breast_cancer
+
+        X, y = load_breast_cancer(return_X_y=True)
+        dm = xgb.DMatrix(X, label=y)
+        params = {'objective':'binary:logistic'}
+
+        metrics = [['auc'], ['error'], ['logloss'],
+                   ['logloss', 'auc'], ['logloss', 'error'], ['error', 'logloss']]
+
+        num_iteration_history = []
+
+        # If more than one metrics is given, early stopping should use the last metric
+        for i, m in enumerate(metrics):
+            result = xgb.cv(params, dm, num_boost_round=1000, nfold=5, stratified=True,
+                            metrics=m, early_stopping_rounds=20, seed=42)
+            num_iteration_history.append(len(result))
+            df = result['test-{}-mean'.format(m[-1])]
+            # When early stopping is invoked, the last metric should be as best it can be.
+            if m[-1] == 'auc':
+                assert np.all(df <= df.iloc[-1])
+            else:
+                assert np.all(df >= df.iloc[-1])
+        assert num_iteration_history[:3] == num_iteration_history[3:]
