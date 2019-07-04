@@ -230,10 +230,12 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
-
+    
     //chenqin: sync_count should be exactly same to avoid inf rabit loop in failure recovery
-    rabit::Allreduce<rabit::op::Min>(&sync_count, 1);
-
+    //int max_count = sync_count;
+    //rabit::Allreduce<rabit::op::Max>(&max_count, 1);
+    //CHECK_EQ(max_count, sync_count) << "sync count in all nodes should be same";
+    
     SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
