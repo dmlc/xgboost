@@ -352,16 +352,16 @@ def aggcv(rlist):
     for line in rlist:
         arr = line.split()
         assert idx == arr[0]
-        for it in arr[1:]:
+        for metric_idx, it in enumerate(arr[1:]):
             if not isinstance(it, STRING_TYPES):
                 it = it.decode()
             k, v = it.split(':')
-            if k not in cvmap:
-                cvmap[k] = []
-            cvmap[k].append(float(v))
+            if (metric_idx, k) not in cvmap:
+                cvmap[(metric_idx, k)] = []
+            cvmap[(metric_idx, k)].append(float(v))
     msg = idx
     results = []
-    for k, v in sorted(cvmap.items(), key=lambda x: (x[0].startswith('test'), x[0])):
+    for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
         v = np.array(v)
         if not isinstance(msg, STRING_TYPES):
             msg = msg.decode()
