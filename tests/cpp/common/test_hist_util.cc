@@ -65,7 +65,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
   indices.SingleThreadBuild(page, p_fmat->Info(), kBins, false, 0, page.Size(), 0);
 
   ASSERT_EQ(hmat.cut.Ptrs().size(), cuts.Ptrs().size());
-  // ASSERT_EQ(hmat.cut.Ptrs(), cuts.Ptrs());
+  ASSERT_EQ(hmat.cut.Ptrs(), cuts.Ptrs());
   ASSERT_EQ(hmat.cut.Values(), cuts.Values());
   ASSERT_EQ(hmat.cut.MinValues(), cuts.MinValues());
 
