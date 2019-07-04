@@ -608,7 +608,8 @@ class DMatrix(object):
         try:
             if not data.flags.c_contiguous:
                 warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                              "because it will generate extra copies and increase memory consumption")
+                              "because it will generate extra copies and increase " +
+                              "memory consumption")
                 data = np.array(data, copy=True, dtype=np.float32)
             else:
                 data = np.array(data, copy=False, dtype=np.float32)
@@ -634,7 +635,8 @@ class DMatrix(object):
         try:
             if not data.flags.c_contiguous:
                 warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                              "because it will generate extra copies and increase memory consumption")
+                              "because it will generate extra copies and increase " +
+                              "memory consumption")
                 data = np.array(data, copy=True, dtype=ctypes.c_uint)
             else:
                 data = np.array(data, copy=False, dtype=ctypes.c_uint)
