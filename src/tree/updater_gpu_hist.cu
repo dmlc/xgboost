@@ -480,8 +480,8 @@ __global__ void CompressBinEllpackKernel(
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
     const size_t* __restrict__ row_ptrs,           // row offset of input data
     const Entry* __restrict__ entries,      // One batch of input data
-    const float* __restrict__ cuts,         // CudaHistogramCuts::cut
-    const uint32_t* __restrict__ cut_rows,  // CudaHistogramCuts::row_ptrs
+    const float* __restrict__ cuts,         // HistogramCuts::cut
+    const uint32_t* __restrict__ cut_rows,  // HistogramCuts::row_ptrs
     size_t base_row,                        // batch_row_begin
     size_t n_rows,
     size_t row_stride,
@@ -593,7 +593,7 @@ struct DeviceShard {
   std::unique_ptr<RowPartitioner> row_partitioner;
   DeviceHistogram<GradientSumT> hist;
 
-  /*! \brief row_ptr form CudaHistogramCuts. */
+  /*! \brief row_ptr form HistogramCuts. */
   common::Span<uint32_t> feature_segments;
   /*! \brief minimum value for each feature. */
   common::Span<bst_float> min_fvalue;
