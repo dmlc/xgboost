@@ -242,6 +242,8 @@ class XGBoostRegressionModel private[ml] (
 
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
+  def setMissing(value: Float): this.type = set(missing, value)
+
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
