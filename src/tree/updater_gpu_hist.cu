@@ -920,6 +920,7 @@ struct DeviceShard {
     dh::safe_cuda(cudaMemcpy(
         out_preds_d, prediction_cache.data(),
         prediction_cache.size() * sizeof(bst_float), cudaMemcpyDefault));
+    row_partitioner.reset();
   }
 
   void AllReduceHist(int nidx, dh::AllReducer* reducer) {

@@ -334,7 +334,7 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
    {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
-     static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(8, 3, 10);
+     static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
      return *allocator;
    }
    pointer allocate(size_t n) {
@@ -366,6 +366,8 @@ using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */
 template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
+template <typename T>
+using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;
 
 /**
  * \brief A double buffer, useful for algorithms like sort.

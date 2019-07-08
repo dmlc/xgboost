@@ -22,7 +22,6 @@
 #include "./common/common.h"
 #include "./common/config.h"
 
-
 namespace xgboost {
 
 enum CLITask {
@@ -240,6 +239,7 @@ void CLITrain(const CLIParam& param) {
     version += 1;
     CHECK_EQ(version, rabit::VersionNumber());
   }
+  LOG(INFO) << "Complete Training loop time: " << dmlc::GetTime() - start << " sec";
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
       param.model_out != "NONE" &&

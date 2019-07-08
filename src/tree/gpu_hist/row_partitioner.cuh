@@ -38,13 +38,13 @@ class RowPartitioner {
   int device_idx;
   /*! \brief Range of rows for each node. */
   std::vector<Segment> ridx_segments;
-  dh::device_vector<RowIndexT> ridx_a;
-  dh::device_vector<RowIndexT> ridx_b;
-  dh::device_vector<TreePositionT> position_a;
-  dh::device_vector<TreePositionT> position_b;
+  dh::caching_device_vector<RowIndexT> ridx_a;
+  dh::caching_device_vector<RowIndexT> ridx_b;
+  dh::caching_device_vector<TreePositionT> position_a;
+  dh::caching_device_vector<TreePositionT> position_b;
   dh::DoubleBuffer<RowIndexT> ridx;
   dh::DoubleBuffer<TreePositionT> position;
-  dh::device_vector<int64_t>
+  dh::caching_device_vector<int64_t>
       left_counts;  // Useful to keep a bunch of zeroed memory for sort position
   std::vector<cudaStream_t> streams;
 
@@ -133,31 +133,6 @@ class RowPartitioner {
   }
 
   /**
-   * \brief Clear the device memory that is no longer needed. This can be
-   * invoked after the tree construction is complete, but before the instance
-   * is destroyed to free up device memory that are used in double buffers which
-   * are no longer required. This can be useful if steps further down the training
-   * and prediction flow requires memory which are being held up needlessly here.
-   */
-  void ClearAuxillaryData() {
-    if (position.Current() == position_a.data().get()) {
-      position_b.clear();
-      position_b.shrink_to_fit();
-    } else {
-      position_a.clear();
-      position_a.shrink_to_fit();
-    }
-
-    if (ridx.Current() == ridx_a.data().get()) {
-      ridx_b.clear();
-      ridx_b.shrink_to_fit();
-    } else {
-      ridx_a.clear();
-      ridx_a.shrink_to_fit();
-    }
-  }
-
-  /**
    * \brief Finalise the position of all training instances after tree
    * construction is complete. Does not update any other meta information in
    * this data structure, so should only be used at the end of training.
@@ -175,7 +150,6 @@ class RowPartitioner {
       RowIndexT ridx = d_ridx[idx];
       d_position[idx] = op(ridx, position);
     });
-    this->ClearAuxillaryData();
   }
 
   /**
