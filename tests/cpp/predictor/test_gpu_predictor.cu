@@ -97,7 +97,9 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   gbm::GBTreeModel model = CreateTestModel();
   int n_col = 3;
   model.param.num_feature = n_col;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64);
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64, filename);
 
   // Test predict batch
   HostDeviceVector<float> out_predictions;
@@ -268,9 +270,13 @@ TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
   const int n_classes = 3;
   model.param.num_output_group = n_classes;
   std::vector<std::unique_ptr<DMatrix>> dmats;
-  dmats.push_back(CreateSparsePageDMatrix(9, 64UL));
-  dmats.push_back(CreateSparsePageDMatrix(128, 128UL));
-  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL));
+  dmlc::TemporaryDirectory tmpdir;
+  std::string file0 = tmpdir.path + "/big_0.libsvm";
+  std::string file1 = tmpdir.path + "/big_1.libsvm";
+  std::string file2 = tmpdir.path + "/big_2.libsvm";
+  dmats.push_back(CreateSparsePageDMatrix(9, 64UL, file0));
+  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
+  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
 
   for (const auto& dmat: dmats) {
     // Test predict batch

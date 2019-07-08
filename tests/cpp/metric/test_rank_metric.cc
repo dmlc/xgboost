@@ -113,7 +113,18 @@ TEST(Metric, NDCG) {
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@-", &tparam);
-  ASSERT_STREQ(metric->Name(), "ndcg@-");
+  ASSERT_STREQ(metric->Name(), "ndcg-");
+  EXPECT_NEAR(GetMetricEval(metric,
+                            xgboost::HostDeviceVector<xgboost::bst_float>{},
+                            {}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.1f, 0.9f, 0.1f, 0.9f},
+                            {  0,   0,   1,   1}),
+              0.6509f, 0.001f);
+  delete metric;
+  metric = xgboost::Metric::Create("ndcg-", &tparam);
+  ASSERT_STREQ(metric->Name(), "ndcg-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
                             {}), 0, 1e-10);
@@ -150,7 +161,14 @@ TEST(Metric, MAP) {
 
   delete metric;
   metric = xgboost::Metric::Create("map@-", &tparam);
-  ASSERT_STREQ(metric->Name(), "map@-");
+  ASSERT_STREQ(metric->Name(), "map-");
+  EXPECT_NEAR(GetMetricEval(metric,
+                            xgboost::HostDeviceVector<xgboost::bst_float>{},
+                            {}), 0, 1e-10);
+
+  delete metric;
+  metric = xgboost::Metric::Create("map-", &tparam);
+  ASSERT_STREQ(metric->Name(), "map-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
                             {}), 0, 1e-10);

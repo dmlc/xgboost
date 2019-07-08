@@ -549,7 +549,7 @@ class Span {
            detail::ExtentValue<Extent, Offset, Count>::value> {
     SPAN_CHECK(Offset >= 0 && (Offset < size() || size() == 0));
     SPAN_CHECK(Count == dynamic_extent ||
-               Count >= 0 && Offset + Count <= size());
+               (Count >= 0 && Offset + Count <= size()));
 
     return {data() + Offset, Count == dynamic_extent ? size() - Offset : Count};
   }

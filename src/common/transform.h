@@ -60,7 +60,7 @@ class Transform {
     Evaluator(Functor func, Range range, GPUSet devices, bool shard) :
         func_(func), range_{std::move(range)},
         shard_{shard},
-        distribution_{std::move(GPUDistribution::Block(devices))} {}
+        distribution_{GPUDistribution::Block(devices)} {}
     Evaluator(Functor func, Range range, GPUDistribution dist,
               bool shard) :
         func_(func), range_{std::move(range)}, shard_{shard},
@@ -142,7 +142,7 @@ class Transform {
         Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
         dh::safe_cuda(cudaSetDevice(device));
         const int GRID_SIZE =
-            static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
+            static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
         detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
             _func, shard_range, UnpackHDV(_vectors, device)...);
       }

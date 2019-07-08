@@ -20,7 +20,7 @@
 
 namespace xgboost {
 namespace data {
-
+// Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
   explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)

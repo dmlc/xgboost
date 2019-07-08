@@ -72,6 +72,11 @@ inline std::string ToString(const T& data) {
   return os.str();
 }
 
+template <typename T1, typename T2>
+XGBOOST_DEVICE T1 DivRoundUp(const T1 a, const T2 b) {
+  return static_cast<T1>(std::ceil(static_cast<double>(a) / b));
+}
+
 /*
  * Range iterator
  */

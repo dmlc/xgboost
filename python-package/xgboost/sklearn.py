@@ -278,6 +278,11 @@ class XGBModel(XGBModelBase):
         fname : string
             Output file name
         """
+        warnings.warn("save_model: Useful attributes in the Python " +
+                      "object {} will be lost. ".format(type(self).__name__) +
+                      "If you did not mean to export the model to " +
+                      "a non-Python binding of XGBoost, consider " +
+                      "using `pickle` or `joblib` to save your model.", Warning)
         self.get_booster().save_model(fname)
 
     def load_model(self, fname):
@@ -304,8 +309,7 @@ class XGBModel(XGBModelBase):
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
-        """
-        Fit the gradient boosting model
+        """Fit gradient boosting model
 
         Parameters
         ----------
@@ -316,34 +320,39 @@ class XGBModel(XGBModelBase):
         sample_weight : array_like
             instance weights
         eval_set : list, optional
-            A list of (X, y) tuple pairs to use as a validation set for
-            early-stopping
+            A list of (X, y) tuple pairs to use as validation sets, for which
+            metrics will be computed.
+            Validation metrics will help us track the performance of the model.
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             instance weights on the i-th validation set.
-        eval_metric : str, callable, optional
+        eval_metric : str, list of str, or callable, optional
             If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
+            doc/parameter.rst.
+            If a list of str, should be the list of multiple built-in evaluation metrics
+            to use.
+            If callable, a custom evaluation metric. The call
+            signature is ``func(y_predicted, y_true)`` where ``y_true`` will be a
+            DMatrix object such that you may need to call the ``get_label``
             method. It must return a str, value pair where the str is a name
             for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
+            function. The callable custom objective is always minimized.
         early_stopping_rounds : int
-            Activates early stopping. Validation error needs to decrease at
-            least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals.  If there's more than one,
-            will use the last. Returns the model from the last iteration
-            (not the best one). If early stopping occurs, the model will
-            have three additional fields: bst.best_score, bst.best_iteration
-            and bst.best_ntree_limit.
-            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-            and/or num_class appears in the parameters)
+            Activates early stopping. Validation metric needs to improve at least once in
+            every **early_stopping_rounds** round(s) to continue training.
+            Requires at least one item in **eval_set**.
+            The method returns the model from the last iteration (not the best one).
+            If there's more than one item in **eval_set**, the last entry will be used
+            for early stopping.
+            If there's more than one metric in **eval_metric**, the last metric will be
+            used for early stopping.
+            If early stopping occurs, the model will have three additional fields:
+            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         xgb_model : str
-            file name of stored xgb model or 'Booster' instance Xgb model to be
+            file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
@@ -624,56 +633,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
-        """
-        Fit gradient boosting classifier
 
-        Parameters
-        ----------
-        X : array_like
-            Feature matrix
-        y : array_like
-            Labels
-        sample_weight : array_like
-            Weight for each instance
-        eval_set : list, optional
-            A list of (X, y) pairs to use as a validation set for
-            early-stopping
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
-        eval_metric : str, callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
-        early_stopping_rounds : int, optional
-            Activates early stopping. Validation error needs to decrease at
-            least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals. If there's more than one,
-            will use the last. If early stopping occurs, the model will have
-            three additional fields: bst.best_score, bst.best_iteration and
-            bst.best_ntree_limit (bst.best_ntree_limit is the ntree_limit parameter
-            default value in predict method if not any other value is specified).
-            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-            and/or num_class appears in the parameters)
-        verbose : bool
-            If `verbose` and an evaluation set is used, writes the evaluation
-            metric measured on the validation set to stderr.
-        xgb_model : str
-            file name of stored xgb model or 'Booster' instance Xgb model to be
-            loaded before training (allows training continuation).
-        callbacks : list of callback functions
-            List of callback functions that are applied at end of each iteration.
-            It is possible to use predefined callbacks by using :ref:`callback_api`.
-            Example:
-
-            .. code-block:: python
-
-                [xgb.callback.reset_learning_rate(custom_rates)]
-        """
         evals_result = {}
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
@@ -745,6 +705,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
 
         return self
+
+    fit.__doc__ = XGBModel.fit.__doc__.replace('Fit gradient boosting model',
+                                               'Fit gradient boosting classifier', 1)
 
     def predict(self, data, output_margin=False, ntree_limit=None, validate_features=True):
         """
@@ -1022,14 +985,15 @@ class XGBRanker(XGBModel):
         Note
         ----
         A custom objective function is currently not supported by XGBRanker.
+        Likewise, a custom metric function is not supported either.
 
         Note
         ----
-        Group information is required for ranking tasks.
+        Query group information is required for ranking tasks.
 
-        Before fitting the model, your data need to be sorted by group. When
+        Before fitting the model, your data need to be sorted by query group. When
         fitting the model, you need to provide an additional array that
-        contains the size of each group.
+        contains the size of each query group.
 
         For example, if your original data look like:
 
@@ -1081,7 +1045,7 @@ class XGBRanker(XGBModel):
             verbose=False, xgb_model=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
-        Fit the gradient boosting model
+        Fit gradient boosting ranker
 
         Parameters
         ----------
@@ -1090,57 +1054,57 @@ class XGBRanker(XGBModel):
         y : array_like
             Labels
         group : array_like
-            group size of training data
+            Size of each query group of training data. Should have as many elements as
+            the query groups in the training data
         sample_weight : array_like
-            group weights
+            Query group weights
 
             .. note:: Weights are per-group for ranking tasks
 
-                In ranking task, one weight is assigned to each group (not each data
-                point). This is because we only care about the relative ordering of
+                In ranking task, one weight is assigned to each query group (not each
+                data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
 
         eval_set : list, optional
-            A list of (X, y) tuple pairs to use as a validation set for
-            early-stopping
+            A list of (X, y) tuple pairs to use as validation sets, for which
+            metrics will be computed.
+            Validation metrics will help us track the performance of the model.
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             group weights on the i-th validation set.
 
             .. note:: Weights are per-group for ranking tasks
 
-                In ranking task, one weight is assigned to each group (not each data
-                point). This is because we only care about the relative ordering of
+                In ranking task, one weight is assigned to each query group (not each
+                data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
 
         eval_group : list of arrays, optional
-            A list that contains the group size corresponds to each
-            (X, y) pair in eval_set
-        eval_metric : str, callable, optional
+            A list in which ``eval_group[i]`` is the list containing the sizes of all
+            query groups in the ``i``-th pair in **eval_set**.
+        eval_metric : str, list of str, optional
             If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
+            doc/parameter.rst.
+            If a list of str, should be the list of multiple built-in evaluation metrics
+            to use. The custom evaluation metric is not yet supported for the ranker.
         early_stopping_rounds : int
-            Activates early stopping. Validation error needs to decrease at
-            least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals.  If there's more than one,
-            will use the last. Returns the model from the last iteration
-            (not the best one). If early stopping occurs, the model will
-            have three additional fields: bst.best_score, bst.best_iteration
-            and bst.best_ntree_limit.
-            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-            and/or num_class appears in the parameters)
+            Activates early stopping. Validation metric needs to improve at least once in
+            every **early_stopping_rounds** round(s) to continue training.
+            Requires at least one item in **eval_set**.
+            The method returns the model from the last iteration (not the best one).
+            If there's more than one item in **eval_set**, the last entry will be used
+            for early stopping.
+            If there's more than one metric in **eval_metric**, the last metric will be
+            used for early stopping.
+            If early stopping occurs, the model will have three additional fields:
+            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         xgb_model : str
-            file name of stored xgb model or 'Booster' instance Xgb model to be
+            file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
@@ -1194,9 +1158,9 @@ class XGBRanker(XGBModel):
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
-                eval_metric = None
-            else:
-                params.update({'eval_metric': eval_metric})
+                raise ValueError('Custom evaluation metric is not yet supported' +
+                                 'for XGBRanker.')
+            params.update({'eval_metric': eval_metric})
 
         self._Booster = train(params, train_dmatrix,
                               self.n_estimators,

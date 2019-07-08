@@ -222,9 +222,9 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
     def callback(env):
         """internal function"""
-        score = env.evaluation_result_list[-1][1]
         if not state:
             init(env)
+        score = env.evaluation_result_list[-1][1]
         best_score = state['best_score']
         best_iteration = state['best_iteration']
         maximize_score = state['maximize_score']

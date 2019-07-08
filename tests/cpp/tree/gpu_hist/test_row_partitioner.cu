@@ -95,7 +95,7 @@ void TestUpdatePosition() {
 }
 
 TEST(RowPartitioner, Basic) { TestUpdatePosition(); }
-  
+
 void TestFinalise() {
   const int kNumRows = 10;
   RowPartitioner rp(0, kNumRows);
