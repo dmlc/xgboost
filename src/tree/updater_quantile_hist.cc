@@ -223,6 +223,9 @@ void QuantileHistMaker::Builder::ExpandWithDepthWidth(
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
     BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
+    //TODO (chen qin): remove me once root caused, force sync count in sync
+    rabit::Allreduce<rabit::op::Min>(&sync_count, sizeof(int));
+
     SyncHistograms(starting_index, sync_count, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
