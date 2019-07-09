@@ -65,7 +65,6 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
     CHECK(fi->Read(&labels_lower_bound_.HostVector())) << "MetaInfo: invalid format";
     CHECK(fi->Read(&labels_upper_bound_.HostVector())) << "MetaInfo: invalid format";
   } else {  // old format doesn't contain fields labels_lower_bound_, labels_upper_bound_
-    qids_.clear();
     labels_lower_bound_.HostVector().clear();
     labels_upper_bound_.HostVector().clear();
   }
