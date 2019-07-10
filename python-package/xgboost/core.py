@@ -182,6 +182,9 @@ def ctypes2numpy(cptr, length, dtype):
     NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
         np.uint32: ctypes.c_uint,
+        np.uint64: ctypes.c_uint64,
+        np.uint16: ctypes.c_uint16,
+        np.uint8: ctypes.c_uint8,
     }
     if dtype not in NUMPY_TO_CTYPES_MAPPING:
         raise RuntimeError('Supported types: {}'.format(NUMPY_TO_CTYPES_MAPPING.keys()))
