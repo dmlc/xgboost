@@ -1,40 +1,36 @@
-###############################
-Distributed XGBoost on Kubernetes cluster
-###############################
+###################################
+Distributed XGBoost with Kubernetes
+###################################
 
-Distributed XGBoost includes model training and batch prediction. In addition to XGBoost over Spark, now, XGBoost job can run in Kubernetes cluster natively. 
+Kubeflow community provides `XGBoost Operator <https://github.com/kubeflow/xgboost-operator>`_ to support distributed XGBoost training and batch prediction in a Kubernetes cluster. It provides an easy and efficient XGBoost model training and batch prediction in distributed fashion.
 
-Kubeflow community provides `XGBoost Operator <https://github.com/kubeflow/xgboost-operator>`_ to support distributed XGBoost training and batch prediction in a Kubernetes cluster. It provides an easy and efficient XGBoost model training and batch prediction in distributed way.  
+**********
+How to use
+**********
+In order to run a XGBoost job in a Kubernetes cluster, carry out the following steps:
 
-**************
-How it works ?
-**************
-In order to run the XGBoost job in a Kubernetes cluster, it requires following steps. 
+1. Install XGBoost Operator in Kubernetes.
 
-- Step1: Install XGBoost Controller in Kubernetes
-  
-  - XGBoost Operator is designed to manage the XGBoost Job like job scheduling, monitoring, pods and services recovering etc. Thus, you can follow the `installment <https://github.com/kubeflow/xgboost-operator#installing-xgboost-operator>`_ guide to make XGBoost Job controller work at first.  
+   a. XGBoost Operator is designed to manage XGBoost jobs, including job scheduling, monitoring, pods and services recovery etc. Follow the `installation guide <https://github.com/kubeflow/xgboost-operator#installing-xgboost-operator>`_ to install XGBoost Operator.
 
-- Step2: Write your application and submit to XGBoost job controller
+2. Write application code to interface with the XGBoost operator.
 
-  - you can follow the `example <https://github.com/kubeflow/xgboost-operator/tree/master/config/samples/xgboost-dist>`_ to develop your own XGBoost application. 
+   a. You'll need to furnish a few scripts to inteface with the XGBoost operator. Refer to the `Iris classification example <https://github.com/kubeflow/xgboost-operator/tree/master/config/samples/xgboost-dist>`_.
+   b. Data reader/writer: you need to have your data source reader and writer based on the requirement. For example, if your data is stored in a Hive Table, you have to write your own code to read/write Hive table based on the ID of worker.
+   c. Model persistence: in this example, model is stored in the OSS storage. If you want to store your model into Amazon S3, Google NFS or other storage, you'll need to specify the model reader and writer based on the requirement of storage system.
 
-  - Data reader/writer: you need to have your data source reader and writer based on the requirement. For example, if your data is stored in one Hive Table, you have to build your own code to read/write Hive table based on the ID of worker. 
+3. Configure the XGBoost job using a YAML file.
 
-  - Model persistence: in this example, model is stored in the OSS storage. If you want to store your model into Amazon S3, Google NFS or other storage. You also need to specify the model reader and writer based on the requirement of storage system.  
+   a. YAML file is used to configure the computation resource and environment for your XGBoost job to run, e.g. the number of workers and masters. The template `YAML template <https://github.com/kubeflow/xgboost-operator/blob/master/config/samples/xgboost-dist/xgboostjob_v1alpha1_iris_train.yaml>`_ is provided for reference.
 
-- Step3: Configure your Yaml file 
+4. Submit XGBoost job to Kubernetes cluster.
 
-  - Yaml file is used to configure the computation resource and environment for your XGBoost job to run. Therefore, you can configure the Yaml file to specify your job runtime like the number of workers and masters. The template `Yaml <https://github.com/kubeflow/xgboost-operator/blob/master/config/samples/xgboost-dist/xgboostjob_v1alpha1_iris_train.yaml>`_ is provided for you to reference.
+   a. `Kubectl command <https://github.com/kubeflow/xgboost-operator#creating-a-xgboost-trainingprediction-job>`_ is used to submit a XGBoost job, and then you can monitor the job status.
 
-- Step4: Submit job 
+****************
+Work in progress
+****************
 
-  - `Kubectl command <https://github.com/kubeflow/xgboost-operator#creating-a-xgboost-trainingprediction-job>`_ is used to submit a XGBoost job, and then you can monitor the job status. 
-
-**************
-Not Supported yet
-**************
-
-- XGBoost Model serving 
-- Distributed data reader/writer from/to HDFS, HBase, Hive etc.  
-- Model persistence on Amazon S3, Google NFS etc. 
+- XGBoost Model serving
+- Distributed data reader/writer from/to HDFS, HBase, Hive etc.
+- Model persistence on Amazon S3, Google NFS etc.
