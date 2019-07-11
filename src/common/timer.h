@@ -10,7 +10,7 @@
 
 #if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
 #include <nvToolsExt.h>
-#endif
+#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
 
 namespace xgboost {
 namespace common {
@@ -98,7 +98,7 @@ struct Monitor {
       stats.timer.Start();
 #if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
       stats.nvtx_id = nvtxRangeStartA(name.c_str());
-#endif
+#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
     }
   }
   void StopCuda(const std::string &name) {
@@ -108,7 +108,7 @@ struct Monitor {
       stats.count++;
 #if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
       nvtxRangeEnd(stats.nvtx_id);
-#endif
+#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
     }
   }
 };

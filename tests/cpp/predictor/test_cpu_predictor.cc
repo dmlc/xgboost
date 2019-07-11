@@ -21,13 +21,13 @@ TEST(cpu_predictor, Test) {
   HostDeviceVector<float> out_predictions;
   cpu_predictor->PredictBatch((*dmat).get(), &out_predictions, model, 0);
   std::vector<float>& out_predictions_h = out_predictions.HostVector();
-  for (int i = 0; i < out_predictions.Size(); i++) {
+  for (size_t i = 0; i < out_predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
   // Test predict instance
   auto &batch = *(*dmat)->GetRowBatches().begin();
-  for (int i = 0; i < batch.Size(); i++) {
+  for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
     ASSERT_EQ(instance_out_predictions[0], 1.5);
@@ -56,7 +56,9 @@ TEST(cpu_predictor, Test) {
 }
 
 TEST(cpu_predictor, ExternalMemoryTest) {
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64);
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(0, 0);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));

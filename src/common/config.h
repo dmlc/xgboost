@@ -30,12 +30,13 @@ class ConfigParser {
    * \param path path to configuration file
    */
   explicit ConfigParser(const std::string& path)
-    : line_comment_regex_("^#"),
+      : path_(path),
+      line_comment_regex_("^#"),
       key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
       value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
-      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx"),
-      path_(path) {}
+      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
+  {}
 
   std::string LoadConfigFile(const std::string& path) {
     std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
@@ -77,8 +78,6 @@ class ConfigParser {
     content = NormalizeConfigEOL(content);
     std::stringstream ss { content };
     std::vector<std::pair<std::string, std::string>> results;
-    char delimiter = '=';
-    char comment = '#';
     std::string line;
     std::string key, value;
     // Loop over every line of the configuration file

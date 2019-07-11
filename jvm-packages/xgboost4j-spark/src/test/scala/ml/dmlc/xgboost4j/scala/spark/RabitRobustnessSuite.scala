@@ -29,7 +29,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
 
-class RabitSuite extends FunSuite with PerTest {
+class RabitRobustnessSuite extends FunSuite with PerTest {
 
   test("training with Scala-implemented Rabit tracker") {
     val eval = new EvalError()

@@ -226,7 +226,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 def _maybe_pandas_data(data, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame for DMatrix data """
 
-    if not isinstance(data, DataFrame):
+    if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
         return data, feature_names, feature_types
 
     data_dtypes = data.dtypes
@@ -258,7 +258,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 def _maybe_pandas_label(label):
     """ Extract internal data from pd.DataFrame for DMatrix label """
 
-    if isinstance(label, DataFrame):
+    if PANDAS_INSTALLED and isinstance(label, DataFrame):
         if len(label.columns) > 1:
             raise ValueError('DataFrame for label cannot have multiple columns')
 
@@ -601,9 +601,7 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        if getattr(data, 'base', None) is not None and \
-           data.base is not None and isinstance(data, np.ndarray) \
-           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
+        if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
         c_data = c_array(ctypes.c_float, data)
@@ -624,13 +622,15 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        if getattr(data, 'base', None) is not None and \
-           data.base is not None and isinstance(data, np.ndarray) \
-           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
-            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                          "because it will generate extra copies and increase memory consumption")
-            data = np.array(data, copy=True, dtype=np.float32)
-        else:
+        try:
+            if not data.flags.c_contiguous:
+                warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
+                              "because it will generate extra copies and increase " +
+                              "memory consumption")
+                data = np.array(data, copy=True, dtype=np.float32)
+            else:
+                data = np.array(data, copy=False, dtype=np.float32)
+        except AttributeError:
             data = np.array(data, copy=False, dtype=np.float32)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
@@ -661,13 +661,15 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        if getattr(data, 'base', None) is not None and \
-           data.base is not None and isinstance(data, np.ndarray) \
-           and isinstance(data.base, np.ndarray) and (not data.flags.c_contiguous):
-            warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                          "because it will generate extra copies and increase memory consumption")
-            data = np.array(data, copy=True, dtype=ctypes.c_uint)
-        else:
+        try:
+            if not data.flags.c_contiguous:
+                warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
+                              "because it will generate extra copies and increase " +
+                              "memory consumption")
+                data = np.array(data, copy=True, dtype=ctypes.c_uint)
+            else:
+                data = np.array(data, copy=False, dtype=ctypes.c_uint)
+        except AttributeError:
             data = np.array(data, copy=False, dtype=ctypes.c_uint)
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
@@ -1448,7 +1450,7 @@ class Booster(object):
         with_stats : bool, optional
             Controls whether the split statistics are output.
         dump_format : string, optional
-            Format of model dump. Can be 'text' or 'json'.
+            Format of model dump. Can be 'text', 'json' or 'dot'.
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()

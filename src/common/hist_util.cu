@@ -3,6 +3,7 @@
  */
 
 #include "./hist_util.h"
+#include <xgboost/logging.h>
 
 #include <thrust/copy.h>
 #include <thrust/functional.h>
@@ -24,7 +25,7 @@
 namespace xgboost {
 namespace common {
 
-using WXQSketch = HistCutMatrix::WXQSketch;
+using WXQSketch = DenseCuts::WXQSketch;
 
 __global__ void FindCutsK
 (WXQSketch::Entry* __restrict__ cuts, const bst_float* __restrict__ data,
@@ -92,7 +93,7 @@ __global__ void UnpackFeaturesK
  *  across distinct rows.
  */
 struct SketchContainer {
-  std::vector<HistCutMatrix::WXQSketch> sketches_;  // NOLINT
+  std::vector<DenseCuts::WXQSketch> sketches_;  // NOLINT
   std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
@@ -300,7 +301,7 @@ struct GPUSketcher {
       } else if (n_cuts_cur_[icol] > 0) {
         // if more elements than cuts: use binary search on cumulative weights
         int block = 256;
-        FindCutsK<<<dh::DivRoundUp(n_cuts_cur_[icol], block), block>>>
+        FindCutsK<<<common::DivRoundUp(n_cuts_cur_[icol], block), block>>>
           (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
            weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
         dh::safe_cuda(cudaGetLastError());  // NOLINT
@@ -342,8 +343,8 @@ struct GPUSketcher {
 
       dim3 block3(16, 64, 1);
       // NOTE: This will typically support ~ 4M features - 64K*64
-      dim3 grid3(dh::DivRoundUp(batch_nrows, block3.x),
-                 dh::DivRoundUp(num_cols_, block3.y), 1);
+      dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
+                 common::DivRoundUp(num_cols_, block3.y), 1);
       UnpackFeaturesK<<<grid3, block3>>>
         (fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
          row_ptrs_.data().get() + batch_row_begin,
@@ -392,7 +393,7 @@ struct GPUSketcher {
       row_ptrs_.resize(n_rows_ + 1);
       thrust::copy(offset_vec.data() + row_begin_,
                    offset_vec.data() + row_end_ + 1, row_ptrs_.begin());
-      size_t gpu_nbatches = dh::DivRoundUp(n_rows_, gpu_batch_nrows_);
+      size_t gpu_nbatches = common::DivRoundUp(n_rows_, gpu_batch_nrows_);
       for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
         SketchBatch(row_batch, info, gpu_batch);
       }
@@ -434,7 +435,7 @@ struct GPUSketcher {
 
   /* Builds the sketches on the GPU for the dmatrix and returns the row stride
    * for the entire dataset */
-  size_t Sketch(DMatrix *dmat, HistCutMatrix *hmat) {
+  size_t Sketch(DMatrix *dmat, DenseCuts *hmat) {
     const MetaInfo &info = dmat->Info();
 
     row_stride_ = 0;
@@ -459,9 +460,13 @@ struct GPUSketcher {
 
 size_t DeviceSketch
   (const tree::TrainParam &param, const LearnerTrainParam &learner_param, int gpu_batch_nrows,
-   DMatrix *dmat, HistCutMatrix *hmat) {
+   DMatrix *dmat, HistogramCuts *hmat) {
   GPUSketcher sketcher(param, learner_param, gpu_batch_nrows);
-  return sketcher.Sketch(dmat, hmat);
+  // We only need to return the result in HistogramCuts container, so it is safe to
+  // use a pointer of local HistogramCutsDense
+  DenseCuts dense_cuts(hmat);
+  auto res = sketcher.Sketch(dmat, &dense_cuts);
+  return res;
 }
 
 }  // namespace common

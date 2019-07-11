@@ -561,7 +561,7 @@ public class Booster implements Serializable, KryoSerializable {
     }
     Map<String, Double> importanceMap = new HashMap<>();
     Map<String, Double> weightMap = new HashMap<>();
-    if (importanceType == FeatureImportanceType.WEIGHT) {
+    if (importanceType.equals(FeatureImportanceType.WEIGHT)) {
       Map<String, Integer> importanceWeights = getFeatureWeightsFromModel(modelInfos);
       for (String feature: importanceWeights.keySet()) {
         importanceMap.put(feature, new Double(importanceWeights.get(feature)));
@@ -572,8 +572,8 @@ public class Booster implements Serializable, KryoSerializable {
     "0:[f28<-9.53674316e-07] yes=1,no=2,missing=1,gain=4000.53101,cover=1628.25"
     So the line has to be split according to whether cover or gain is desired */
     String splitter = "gain=";
-    if (importanceType == FeatureImportanceType.COVER
-        || importanceType == FeatureImportanceType.TOTAL_COVER) {
+    if (importanceType.equals(FeatureImportanceType.COVER)
+        || importanceType.equals(FeatureImportanceType.TOTAL_COVER)) {
       splitter = "cover=";
     }
     for (String tree: modelInfos) {
@@ -599,8 +599,8 @@ public class Booster implements Serializable, KryoSerializable {
     }
     /* By default we calculate total gain and total cover.
     Divide by the number of nodes per feature to get gain / cover */
-    if (importanceType == FeatureImportanceType.COVER
-        || importanceType == FeatureImportanceType.GAIN) {
+    if (importanceType.equals(FeatureImportanceType.COVER)
+        || importanceType.equals(FeatureImportanceType.GAIN)) {
       for (String fid: importanceMap.keySet()) {
         importanceMap.put(fid, importanceMap.get(fid)/weightMap.get(fid));
       }

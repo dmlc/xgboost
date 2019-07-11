@@ -76,7 +76,7 @@ static const int kNoneKey = -100;
  */
 template <int BLKDIM_L1L3 = 256>
 int ScanTempBufferSize(int size) {
-  int num_blocks = dh::DivRoundUp(size, BLKDIM_L1L3);
+  int num_blocks = common::DivRoundUp(size, BLKDIM_L1L3);
   return num_blocks;
 }
 
@@ -144,7 +144,7 @@ __global__ void CubScanByKeyL1(
   int previousKey = __shfl_up_sync(0xFFFFFFFF, myKey, 1);
 #else
   int previousKey = __shfl_up(myKey, 1);
-#endif
+#endif  // (__CUDACC_VER_MAJOR__ >= 9)
   // Collectively compute the block-wide exclusive prefix sum
   BlockScan(temp_storage)
       .ExclusiveScan(threadData, threadData, rootPair, AddByKey());
@@ -250,7 +250,7 @@ void ReduceScanByKey(common::Span<GradientPair> sums,
                      common::Span<GradientPair> tmpScans,
                      common::Span<int> tmpKeys,
                      common::Span<const int> colIds, NodeIdT nodeStart) {
-  int nBlks = dh::DivRoundUp(size, BLKDIM_L1L3);
+  int nBlks = common::DivRoundUp(size, BLKDIM_L1L3);
   cudaMemset(sums.data(), 0, nUniqKeys * nCols * sizeof(GradientPair));
   CubScanByKeyL1<BLKDIM_L1L3>
       <<<nBlks, BLKDIM_L1L3>>>(scans, vals, instIds, tmpScans, tmpKeys, keys,
@@ -448,7 +448,7 @@ void ArgMaxByKey(common::Span<ExactSplitCandidate> nodeSplits,
   dh::FillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
       *(devices.begin()), nodeSplits.data(), nUniqKeys,
       ExactSplitCandidate());
-  int nBlks = dh::DivRoundUp(len, ITEMS_PER_THREAD * BLKDIM);
+  int nBlks = common::DivRoundUp(len, ITEMS_PER_THREAD * BLKDIM);
   switch (algo) {
     case kAbkGmem:
       AtomicArgMaxByKeyGmem<<<nBlks, BLKDIM>>>(
@@ -793,11 +793,11 @@ class GPUMaker : public TreeUpdater {
       const int BlkDim = 256;
       const int ItemsPerThread = 4;
       // assign default node ids first
-      int nBlks = dh::DivRoundUp(n_rows_, BlkDim);
+      int nBlks = common::DivRoundUp(n_rows_, BlkDim);
       FillDefaultNodeIds<<<nBlks, BlkDim>>>(node_assigns_per_inst_.data(),
                                             nodes_.data(), n_rows_);
       // evaluate the correct child indices of non-missing values next
-      nBlks = dh::DivRoundUp(n_vals_, BlkDim * ItemsPerThread);
+      nBlks = common::DivRoundUp(n_vals_, BlkDim * ItemsPerThread);
       AssignNodeIds<<<nBlks, BlkDim>>>(
           node_assigns_per_inst_.data(), nodeLocations_.Current(),
           nodeAssigns_.Current(), instIds_.Current(), nodes_.data(),
@@ -823,7 +823,7 @@ class GPUMaker : public TreeUpdater {
 
   void MarkLeaves() {
     const int BlkDim = 128;
-    int nBlks = dh::DivRoundUp(maxNodes_, BlkDim);
+    int nBlks = common::DivRoundUp(maxNodes_, BlkDim);
     MarkLeavesKernel<<<nBlks, BlkDim>>>(nodes_.data(), maxNodes_);
   }
 };

@@ -44,6 +44,11 @@ class TestEarlyStopping(unittest.TestCase):
         labels = dtrain.get_label()
         return 'rmse', mean_squared_error(labels, preds)
 
+    @staticmethod
+    def assert_metrics_length(cv, expected_length):
+        for key, value in cv.items():
+          assert len(value) == expected_length
+
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_cv_early_stopping(self):
         from sklearn.datasets import load_digits
@@ -57,21 +62,47 @@ class TestEarlyStopping(unittest.TestCase):
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=10)
-        assert cv.shape[0] == 10
+        self.assert_metrics_length(cv, 10)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=5)
-        assert cv.shape[0] == 3
+        self.assert_metrics_length(cv, 3)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=1)
-        assert cv.shape[0] == 1
+        self.assert_metrics_length(cv, 1)
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, early_stopping_rounds=10)
-        assert cv.shape[0] == 10
+        self.assert_metrics_length(cv, 10)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, early_stopping_rounds=1)
-        assert cv.shape[0] == 5
+        self.assert_metrics_length(cv, 5)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     feval=self.evalerror, maximize=True,
                     early_stopping_rounds=1)
-        assert cv.shape[0] == 1
+        self.assert_metrics_length(cv, 1)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
+        from sklearn.datasets import load_breast_cancer
+
+        X, y = load_breast_cancer(return_X_y=True)
+        dm = xgb.DMatrix(X, label=y)
+        params = {'objective':'binary:logistic'}
+
+        metrics = [['auc'], ['error'], ['logloss'],
+                   ['logloss', 'auc'], ['logloss', 'error'], ['error', 'logloss']]
+
+        num_iteration_history = []
+
+        # If more than one metrics is given, early stopping should use the last metric
+        for i, m in enumerate(metrics):
+            result = xgb.cv(params, dm, num_boost_round=1000, nfold=5, stratified=True,
+                            metrics=m, early_stopping_rounds=20, seed=42)
+            num_iteration_history.append(len(result))
+            df = result['test-{}-mean'.format(m[-1])]
+            # When early stopping is invoked, the last metric should be as best it can be.
+            if m[-1] == 'auc':
+                assert np.all(df <= df.iloc[-1])
+            else:
+                assert np.all(df >= df.iloc[-1])
+        assert num_iteration_history[:3] == num_iteration_history[3:]

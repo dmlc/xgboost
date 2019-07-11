@@ -310,7 +310,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(first.size(), 4);
     ASSERT_EQ(first.data(), arr);
 
-    for (size_t i = 0; i < first.size(); ++i) {
+    for (int64_t i = 0; i < first.size(); ++i) {
       ASSERT_EQ(first[i], arr[i]);
     }
 
@@ -329,7 +329,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(last.size(), 4);
     ASSERT_EQ(last.data(), arr + 12);
 
-    for (size_t i = 0; i < last.size(); ++i) {
+    for (int64_t i = 0; i < last.size(); ++i) {
       ASSERT_EQ(last[i], arr[i+12]);
     }
 
@@ -348,7 +348,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(first.size(), 4);
     ASSERT_EQ(first.data(), s.data());
 
-    for (size_t i = 0; i < first.size(); ++i) {
+    for (int64_t i = 0; i < first.size(); ++i) {
       ASSERT_EQ(first[i], s[i]);
     }
 
@@ -368,7 +368,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(last.size(), 4);
     ASSERT_EQ(last.data(), s.data() + 12);
 
-    for (size_t i = 0; i < last.size(); ++i) {
+    for (int64_t i = 0; i < last.size(); ++i) {
       ASSERT_EQ(s[12 + i], last[i]);
     }
 

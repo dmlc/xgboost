@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -183,22 +183,6 @@ __device__ void BlockFill(IterT begin, size_t n, ValueT value) {
  * Kernel launcher
  */
 
-template <typename T1, typename T2>
-T1 DivRoundUp(const T1 a, const T2 b) {
-  return static_cast<T1>(ceil(static_cast<double>(a) / b));
-}
-
-inline void RowSegments(size_t n_rows, size_t n_devices, std::vector<size_t>* segments) {
-  segments->push_back(0);
-  size_t row_begin = 0;
-  size_t shard_size = DivRoundUp(n_rows, n_devices);
-  for (size_t d_idx = 0; d_idx < n_devices; ++d_idx) {
-    size_t row_end = std::min(row_begin + shard_size, n_rows);
-    segments->push_back(row_end);
-    row_begin = row_end;
-  }
-}
-
 template <typename L>
 __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
   for (auto i : GridStrideRange(begin, end)) {
@@ -222,7 +206,7 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   safe_cuda(cudaSetDevice(device_idx));
 
   const int GRID_SIZE =
-      static_cast<int>(DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
+      static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
                                                          n, lambda);
 }
@@ -321,11 +305,11 @@ struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   };
   pointer allocate(size_t n) {
     pointer ptr = super_t::allocate(n);
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n);
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
     return super_t::deallocate(ptr, n);
   }
 };
@@ -345,19 +329,19 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
    {
     // Configure allocator with maximum cached bin size of ~1GB and no limit on
     // maximum cached bytes
-     static cub::CachingDeviceAllocator allocator(8,3,10);
-     return allocator;
+     static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
+     return *allocator;
    }
    pointer allocate(size_t n) {
      T *ptr;
      GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
                                                 n * sizeof(T));
-     pointer thrust_ptr = thrust::device_ptr<T>(ptr);
-     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n);
+     pointer thrust_ptr(ptr);
+     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
      return thrust_ptr;
    }
    void deallocate(pointer ptr, size_t n) {
-     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n);
+     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
      GetGlobalCachingAllocator().DeviceFree(ptr.get());
    }
   __host__ __device__
@@ -379,6 +363,7 @@ template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;
 template <typename T>
 using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;
+
 /**
  * \brief A double buffer, useful for algorithms like sort.
  */
@@ -392,9 +377,7 @@ class DoubleBuffer {
   DoubleBuffer(VectorT *v1, VectorT *v2) {
     a = xgboost::common::Span<T>(v1->data().get(), v1->size());
     b = xgboost::common::Span<T>(v2->data().get(), v2->size());
-    buff.d_buffers[0] = v1->data().get();
-    buff.d_buffers[1] = v2->data().get();
-    buff.selector = 0;
+    buff = cub::DoubleBuffer<T>(a.data(), b.data());
   }
 
   size_t Size() const {
@@ -630,7 +613,7 @@ struct CubMemory {
     if (this->IsAllocated()) {
       XGBDeviceAllocator<uint8_t> allocator;
       allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
-        temp_storage_bytes);
+                           temp_storage_bytes);
       d_temp_storage = nullptr;
       temp_storage_bytes = 0;
     }
@@ -749,7 +732,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
-  auto num_tiles = dh::DivRoundUp(count + num_segments, BLOCK_THREADS);
+  auto num_tiles = xgboost::common::DivRoundUp(count + num_segments, BLOCK_THREADS);
   CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(CoordinateT) * (num_tiles + 1));
@@ -1169,7 +1152,7 @@ class AllReducer {
   };
 
   /**
-   * \brief Synchronizes the device 
+   * \brief Synchronizes the device
    *
    * \param device_id Identifier for the device.
    */

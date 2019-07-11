@@ -108,6 +108,7 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
+@pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_weight():
     from sklearn.datasets import load_digits
 
@@ -140,6 +141,7 @@ def test_feature_importances_weight():
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
+@pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_gain():
     from sklearn.datasets import load_digits
 
@@ -352,7 +354,7 @@ def test_sklearn_plotting():
     matplotlib.use('Agg')
 
     from matplotlib.axes import Axes
-    from graphviz import Digraph
+    from graphviz import Source
 
     ax = xgb.plot_importance(classifier)
     assert isinstance(ax, Axes)
@@ -362,12 +364,13 @@ def test_sklearn_plotting():
     assert len(ax.patches) == 4
 
     g = xgb.to_graphviz(classifier, num_trees=0)
-    assert isinstance(g, Digraph)
+    assert isinstance(g, Source)
 
     ax = xgb.plot_tree(classifier, num_trees=0)
     assert isinstance(ax, Axes)
 
 
+@pytest.mark.skipif(**tm.no_pandas())
 def test_sklearn_nfolds_cv():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import StratifiedKFold
@@ -390,15 +393,16 @@ def test_sklearn_nfolds_cv():
     nfolds = 5
     skf = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=seed)
 
-    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed)
+    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed, as_pandas=True)
     cv2 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
-                 folds=skf, seed=seed)
+                 folds=skf, seed=seed, as_pandas=True)
     cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
-                 stratified=True, seed=seed)
+                 stratified=True, seed=seed, as_pandas=True)
     assert cv1.shape[0] == cv2.shape[0] and cv2.shape[0] == cv3.shape[0]
     assert cv2.iloc[-1, 0] == cv3.iloc[-1, 0]
 
 
+@pytest.mark.skipif(**tm.no_pandas())
 def test_split_value_histograms():
     from sklearn.datasets import load_digits
 
@@ -641,7 +645,8 @@ def test_XGBClassifier_resume():
 
         X, Y = load_breast_cancer(return_X_y=True)
 
-        model1 = xgb.XGBClassifier(learning_rate=0.3, seed=0, n_estimators=8)
+        model1 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=8)
         model1.fit(X, Y)
 
         pred1 = model1.predict(X)
@@ -649,7 +654,8 @@ def test_XGBClassifier_resume():
 
         # file name of stored xgb model
         model1.save_model(model1_path)
-        model2 = xgb.XGBClassifier(learning_rate=0.3, seed=0, n_estimators=8)
+        model2 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=8)
         model2.fit(X, Y, xgb_model=model1_path)
 
         pred2 = model2.predict(X)
@@ -660,7 +666,8 @@ def test_XGBClassifier_resume():
 
         # file name of 'Booster' instance Xgb model
         model1.get_booster().save_model(model1_booster_path)
-        model2 = xgb.XGBClassifier(learning_rate=0.3, seed=0, n_estimators=8)
+        model2 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=8)
         model2.fit(X, Y, xgb_model=model1_booster_path)
 
         pred2 = model2.predict(X)

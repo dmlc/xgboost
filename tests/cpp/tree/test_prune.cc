@@ -13,7 +13,7 @@ namespace xgboost {
 namespace tree {
 
 TEST(Updater, Prune) {
-  int constexpr kNRows = 32, kNCols = 16;
+  int constexpr kNCols = 16;
 
   std::vector<std::pair<std::string, std::string>> cfg;
   cfg.emplace_back(std::pair<std::string, std::string>(

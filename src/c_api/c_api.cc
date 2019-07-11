@@ -119,10 +119,9 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
   }
 
   bool Next() override {
-    if ((*next_callback_)(
-            data_handle_,
-            XGBoostNativeDataIterSetData,
-            this) != 0) {
+    if ((*next_callback_)(data_handle_,
+                          XGBoostNativeDataIterSetData,
+                          this) != 0) {
       at_first_ = false;
       return true;
     } else {
@@ -1059,19 +1058,21 @@ inline void XGBoostDumpModelImpl(
   *out_models = dmlc::BeginPtr(charp_vecs);
   *len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
 }
+
 XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
-                       const char* fmap,
-                       int with_stats,
-                       xgboost::bst_ulong* len,
-                       const char*** out_models) {
+                               const char* fmap,
+                               int with_stats,
+                               xgboost::bst_ulong* len,
+                               const char*** out_models) {
   return XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
 }
+
 XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
-                       const char* fmap,
-                       int with_stats,
-                       const char *format,
-                       xgboost::bst_ulong* len,
-                       const char*** out_models) {
+                                 const char* fmap,
+                                 int with_stats,
+                                 const char *format,
+                                 xgboost::bst_ulong* len,
+                                 const char*** out_models) {
   API_BEGIN();
   CHECK_HANDLE();
   FeatureMap featmap;
@@ -1086,23 +1087,24 @@ XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
 }
 
 XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
-                                   int fnum,
-                                   const char** fname,
-                                   const char** ftype,
-                                   int with_stats,
-                                   xgboost::bst_ulong* len,
-                                   const char*** out_models) {
+                                           int fnum,
+                                           const char** fname,
+                                           const char** ftype,
+                                           int with_stats,
+                                           xgboost::bst_ulong* len,
+                                           const char*** out_models) {
   return XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
-                                   "text", len, out_models);
+                                          "text", len, out_models);
 }
+
 XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
-                                   int fnum,
-                                   const char** fname,
-                                   const char** ftype,
-                                   int with_stats,
-                                   const char *format,
-                                   xgboost::bst_ulong* len,
-                                   const char*** out_models) {
+                                             int fnum,
+                                             const char** fname,
+                                             const char** ftype,
+                                             int with_stats,
+                                             const char *format,
+                                             xgboost::bst_ulong* len,
+                                             const char*** out_models) {
   API_BEGIN();
   CHECK_HANDLE();
   FeatureMap featmap;
