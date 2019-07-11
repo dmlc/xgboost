@@ -4,6 +4,7 @@
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/chenqin/rabit
+	branch = leveldb
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub
