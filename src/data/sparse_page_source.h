@@ -54,15 +54,10 @@ class SparsePageSource : public DataSource {
   static void CreateRowPage(dmlc::Parser<uint32_t>* src,
                             const std::string& cache_info,
                             size_t page_size = DMatrix::kPageSize);
-  /*!
-   * \brief Create source cache by copy content from DMatrix.
-   * \param cache_info The cache_info of cache file location.
-   */
-  static void CreateRowPage(DMatrix* src,
-                            const std::string& cache_info);
 
   /*!
-   * \brief Create source cache by copy content from DMatrix. Creates transposed column page, may be sorted or not.
+   * \brief Create source cache by copy content from DMatrix.
+   * Creates transposed column page, may be sorted or not.
    * \param cache_info The cache_info of cache file location.
    * \param sorted Whether columns should be pre-sorted
    */

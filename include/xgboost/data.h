@@ -406,6 +406,22 @@ class Transformer {
 };
 
 /*!
+ * \brief A no-op transformer.
+ */
+class NoOpTransformer: public Transformer {
+ public:
+  static NoOpTransformer& Instance() {
+    static NoOpTransformer instance;
+    return instance;
+  }
+  void Init(DMatrix*) override {}
+  SparsePage Transform(const SparsePage& batch) override { return batch; }
+
+ private:
+  NoOpTransformer() = default;
+};
+
+/*!
  * \brief Internal data structured used by XGBoost during training.
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
  *

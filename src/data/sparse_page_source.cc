@@ -287,17 +287,11 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
   LOG(INFO) << "SparsePageSource: Finished writing to " << name_info;
 }
 
-void SparsePageSource::CreateRowPage(DMatrix* src,
-                              const std::string& cache_info) {
-  const std::string page_type = ".row.page";
-  CreatePageFromDMatrix(src, nullptr, cache_info, page_type);
-}
-
 void SparsePageSource::CreateColumnPage(DMatrix* src,
                                         const std::string& cache_info,
                                         bool sorted) {
   const std::string page_type = sorted ? ".sorted.col.page" : ".col.page";
-  CreatePageFromDMatrix(src, nullptr, cache_info, page_type);
+  CreatePageFromDMatrix(src, &NoOpTransformer::Instance(), cache_info, page_type);
 }
 
 void SparsePageSource::CreateTransformedPage(DMatrix* src,
