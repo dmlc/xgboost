@@ -226,6 +226,7 @@ void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
 }
 
 void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
+                                             Transformer* transformer,
                                              const std::string& cache_info,
                                              const std::string& page_type,
                                              const size_t page_size) {
@@ -256,6 +257,8 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
         SparsePage tmp = batch.GetTranspose(src->Info().num_col_);
         page->PushCSC(tmp);
         page->SortRows();
+      } else if (page_type == ".transformed.page") {
+        page->PushTransformed(transformer->Transform(batch));
       } else {
         LOG(FATAL) << "Unknown page type: " << page_type;
       }
@@ -287,15 +290,23 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
 void SparsePageSource::CreateRowPage(DMatrix* src,
                               const std::string& cache_info) {
   const std::string page_type = ".row.page";
-  CreatePageFromDMatrix(src, cache_info, page_type);
+  CreatePageFromDMatrix(src, nullptr, cache_info, page_type);
 }
 
 void SparsePageSource::CreateColumnPage(DMatrix* src,
                                         const std::string& cache_info,
                                         bool sorted) {
   const std::string page_type = sorted ? ".sorted.col.page" : ".col.page";
-  CreatePageFromDMatrix(src, cache_info, page_type);
+  CreatePageFromDMatrix(src, nullptr, cache_info, page_type);
 }
+
+void SparsePageSource::CreateTransformedPage(DMatrix* src,
+                                             Transformer* transformer,
+                                             const std::string& cache_info) {
+  const std::string page_type = ".transformed.page";
+  CreatePageFromDMatrix(src, transformer, cache_info, page_type);
+}
+
 }  // namespace data
 }  // namespace xgboost
 #endif  // DMLC_ENABLE_STD_THREAD

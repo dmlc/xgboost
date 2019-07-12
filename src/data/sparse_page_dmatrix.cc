@@ -77,6 +77,20 @@ BatchSet SparsePageDMatrix::GetColumnBatches() {
   return BatchSet(begin_iter);
 }
 
+BatchSet SparsePageDMatrix::GetTransformedBatches(Transformer* transformer) {
+  // Lazily instantiate
+  if (!transformed_source_) {
+    transformer->Init(this);
+    SparsePageSource::CreateTransformedPage(this, transformer, cache_info_);
+    transformed_source_.reset(new SparsePageSource(cache_info_, ".transformed.page"));
+  }
+  transformed_source_->BeforeFirst();
+  transformed_source_->Next();
+  auto begin_iter =
+      BatchIterator(new SparseBatchIteratorImpl(transformed_source_.get()));
+  return BatchSet(begin_iter);
+}
+
 float SparsePageDMatrix::GetColDensity(size_t cidx) {
   // Finds densities if we don't already have them
   if (col_density_.empty()) {

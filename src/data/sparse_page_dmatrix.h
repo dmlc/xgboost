@@ -36,6 +36,8 @@ class SparsePageDMatrix : public DMatrix {
 
   BatchSet GetColumnBatches() override;
 
+  BatchSet GetTransformedBatches(Transformer* transformer) override;
+
   float GetColDensity(size_t cidx) override;
 
   bool SingleColBlock() const override;
@@ -45,6 +47,7 @@ class SparsePageDMatrix : public DMatrix {
   std::unique_ptr<DataSource> row_source_;
   std::unique_ptr<SparsePageSource> column_source_;
   std::unique_ptr<SparsePageSource> sorted_column_source_;
+  std::unique_ptr<SparsePageSource> transformed_source_;
   // the cache prefix
   std::string cache_info_;
   // Store column densities to avoid recalculating

@@ -40,12 +40,15 @@ class SimpleDMatrix : public DMatrix {
 
   BatchSet GetSortedColumnBatches() override;
 
+  BatchSet GetTransformedBatches(Transformer* transformer) override;
+
  private:
   // source data pointer.
   std::unique_ptr<DataSource> source_;
 
   std::unique_ptr<SparsePage> sorted_column_page_;
   std::unique_ptr<SparsePage> column_page_;
+  std::unique_ptr<SparsePage> transformed_page_;
 };
 }  // namespace data
 }  // namespace xgboost

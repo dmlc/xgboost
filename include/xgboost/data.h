@@ -25,6 +25,8 @@
 namespace xgboost {
 // forward declare learner.
 class LearnerImpl;
+// forward declare DMatrix.
+class DMatrix;
 
 /*! \brief data type accepted by xgboost interface */
 enum DataType {
@@ -262,6 +264,11 @@ class SparsePage {
    */
   void PushCSC(const SparsePage& batch);
   /*!
+   * \brief Push a transformed SparsePage
+   * \param batch The row batch to be pushed
+   */
+  void PushTransformed(const SparsePage& batch);
+  /*!
    * \brief Push one instance into page
    *  \param inst an instance row
    */
@@ -384,6 +391,21 @@ class RowSet {
 };
 
 /*!
+ * \brief Transform training data.
+ */
+class Transformer {
+ public:
+  /*! \brief default constructor */
+  Transformer() = default;
+  /*! \brief initialize */
+  virtual void Init(DMatrix* dmat) = 0;
+  /*! \brief transform a page */
+  virtual SparsePage Transform(const SparsePage& batch) = 0;
+  /*! \brief virtual destructor */
+  virtual ~Transformer() = default;
+};
+
+/*!
  * \brief Internal data structured used by XGBoost during training.
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
  *
@@ -407,6 +429,7 @@ class DMatrix {
   virtual BatchSet GetRowBatches() = 0;
   virtual BatchSet GetSortedColumnBatches() = 0;
   virtual BatchSet GetColumnBatches() = 0;
+  virtual BatchSet GetTransformedBatches(Transformer* transformer) = 0;
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;

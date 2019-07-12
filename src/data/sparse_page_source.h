@@ -53,7 +53,7 @@ class SparsePageSource : public DataSource {
    */
   static void CreateRowPage(dmlc::Parser<uint32_t>* src,
                             const std::string& cache_info,
-                            const size_t page_size = DMatrix::kPageSize);
+                            size_t page_size = DMatrix::kPageSize);
   /*!
    * \brief Create source cache by copy content from DMatrix.
    * \param cache_info The cache_info of cache file location.
@@ -68,6 +68,16 @@ class SparsePageSource : public DataSource {
    */
   static void CreateColumnPage(DMatrix* src,
                                const std::string& cache_info, bool sorted);
+
+  /*!
+   * \brief Create source cache by copy content from DMatrix. Creates transformed page.
+   * \param transformer The transformer used to transform each page.
+   * \param cache_info The cache_info of cache file location.
+   */
+  static void CreateTransformedPage(DMatrix* src,
+                                    Transformer* transformer,
+                                    const std::string& cache_info);
+
   /*!
    * \brief Check if the cache file already exists.
    * \param cache_info The cache prefix of files.
@@ -80,9 +90,11 @@ class SparsePageSource : public DataSource {
   static const int kMagic = 0xffffab02;
 
  private:
-  static void CreatePageFromDMatrix(DMatrix* src, const std::string& cache_info,
+  static void CreatePageFromDMatrix(DMatrix* src,
+                                    Transformer* transformer,
+                                    const std::string& cache_info,
                                     const std::string& page_type,
-                                    const size_t page_size = DMatrix::kPageSize);
+                                    size_t page_size = DMatrix::kPageSize);
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */

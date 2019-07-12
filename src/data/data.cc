@@ -424,6 +424,10 @@ void SparsePage::Push(const Inst &inst) {
   }
 }
 
+void SparsePage::PushTransformed(const SparsePage& batch) {
+    // TODO(rongou): implement this.
+}
+
 namespace data {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
