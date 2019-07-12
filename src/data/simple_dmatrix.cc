@@ -81,12 +81,12 @@ BatchSet SimpleDMatrix::GetSortedColumnBatches() {
   return BatchSet(begin_iter);
 }
 
-BatchSet SimpleDMatrix::GetTransformedBatches(Transformer* transformer){
+BatchSet SimpleDMatrix::GetTransformedBatches(Transformer* transformer) {
   // Transformed page doesn't exist, generate it
   if (!transformed_page_) {
     transformer->Init(this);
-    auto cast = dynamic_cast<SimpleCSRSource*>(source_.get());
-    auto page = transformer->Transform(cast->page_);
+    auto source = dynamic_cast<SimpleCSRSource*>(source_.get());
+    auto page = transformer->Transform(source->page_);
     transformed_page_.reset(&page);
   }
   auto begin_iter = BatchIterator(new SimpleBatchIteratorImpl(transformed_page_.get()));
