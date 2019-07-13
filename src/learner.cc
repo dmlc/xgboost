@@ -337,6 +337,8 @@ class LearnerImpl : public Learner {
         sizeof(tparam_.tree_method)) << "BoostLearner: wrong train tree method format";
     CHECK_EQ(fi->Read(&tparam_.dsplit, sizeof(tparam_.dsplit)), sizeof(tparam_.dsplit))
         << "BoostLearner: wrong train split modle format";
+    CHECK_EQ(fi->Read(&tparam_.disable_default_eval_metric, sizeof(int)), sizeof(tparam_.disable_default_eval_metric))
+        << "BoostLearner: wrong disable default eval metric flag";
     {
       // backward compatibility code for compatible with old model type
       // for new model, Read(&name_obj_) is suffice
@@ -449,6 +451,7 @@ class LearnerImpl : public Learner {
     fo->Write(&mparam, sizeof(LearnerModelParam));
     fo->Write(&tparam_.tree_method, sizeof(TreeMethod));
     fo->Write(&tparam_.dsplit, sizeof(DataSplitMode));
+    fo->Write(&tparam_.disable_default_eval_metric, sizeof(int));
     fo->Write(name_obj_);
     fo->Write(name_gbm_);
     gbm_->Save(fo);
@@ -532,6 +535,7 @@ class LearnerImpl : public Learner {
       DMatrix * dmat = data_sets[i];
       this->PredictRaw(data_sets[i], &preds_[dmat]);
       obj_->EvalTransform(&preds_[dmat]);
+      assert(metrics_.size() >0);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
            << ev->Eval(preds_[dmat], data_sets[i]->Info(),
