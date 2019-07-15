@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016-2018 XGBoost contributors
+ * Copyright 2016-2019 XGBoost contributors
  */
 #ifndef XGBOOST_TESTS_CPP_HELPERS_H_
 #define XGBOOST_TESTS_CPP_HELPERS_H_
