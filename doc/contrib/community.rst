@@ -1,7 +1,7 @@
 .. _community_guide:
 
 XGBoost Community Guideline
-=======================
+===========================
 
 XGBoost adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use, contribute to, and influence the direction of the project. See `CONTRIBUTORS.md <https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md>`_ for the current list of contributors.
 
