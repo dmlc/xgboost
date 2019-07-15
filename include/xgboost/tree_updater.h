@@ -22,6 +22,9 @@
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
+
+class Json;
+
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
@@ -66,6 +69,8 @@ class TreeUpdater {
   }
 
   virtual char const* Name() const = 0;
+
+  virtual void Save(Json* out) const {}
 
   /*!
    * \brief Create a tree updater given name

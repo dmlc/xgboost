@@ -10,6 +10,7 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
+#include <xgboost/json.h>
 #include <xgboost/data.h>
 #include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
@@ -47,10 +48,20 @@ class GradientBooster {
    */
   virtual void Load(dmlc::Stream* fi) = 0;
   /*!
+   * \brief load model from json
+   * \param in input json model.
+   */
+  virtual void Load(Json const& in) = 0;
+  /*!
    * \brief save model to stream.
    * \param fo output stream
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
+  /*!
+   * \brief Save model to Json
+   * \param out output json document.
+   */
+  virtual void Save(Json* out) const = 0;
   /*!
    * \brief whether the model allow lazy checkpoint
    * return true if model is only updated in DoBoost

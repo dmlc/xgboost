@@ -34,4 +34,18 @@ TEST(GPUSet, Basic) {
   EXPECT_EQ(GPUSet::AllVisible(), GPUSet::Empty());
 #endif
 }
+
+TEST(Stoui, Parse) {
+  std::string const unsigned_int = " 213124  ";
+  size_t pos{0};
+  uint32_t ures = common::stoui(unsigned_int, &pos);
+  ASSERT_EQ(ures, 213124);
+  ASSERT_EQ(pos, 7);
+
+  // Same as stoui
+  int32_t res = stoi(unsigned_int, &pos);
+  ASSERT_EQ(res, 213124);
+  ASSERT_EQ(pos, 7);
+}
+
 }  // namespace xgboost

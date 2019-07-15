@@ -14,6 +14,8 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+
+#include "xgboost/json.h"
 #include "../common/timer.h"
 
 namespace xgboost {
@@ -69,8 +71,23 @@ class GBLinear : public GradientBooster {
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }
+  void Load(Json const& in) override {
+    auto const& model = in["model"];
+    param_.InitAllowUnknown(fromJson(get<Object>(in["gblinear_train_param"])));
+    model_.Load(model);
+  }
+
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
+  }
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String{"gblinear"};
+    out["gblinear_train_param"] = toJson(param_);
+
+    out["model"] = Object();
+    auto& model = out["model"];
+    model_.Save(&model);
   }
 
   void DoBoost(DMatrix *p_fmat,
@@ -143,9 +160,9 @@ class GBLinear : public GradientBooster {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-         auto inst = batch[i];
+        auto inst = batch[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
@@ -203,7 +220,7 @@ class GBLinear : public GradientBooster {
       // k is number of group
       // parallel over local batch
       const auto nsize = static_cast<omp_ulong>(batch.Size());
-      #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
@@ -256,8 +273,8 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  inline void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
-                   bst_float base) {
+  void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
+            bst_float base) {
     bst_float psum = model_.bias()[gid] + base;
     for (const auto& ins : inst) {
       if (ins.index >= model_.param.num_feature) continue;

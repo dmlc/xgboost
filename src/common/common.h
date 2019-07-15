@@ -64,6 +64,20 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+inline uint32_t stoui(std::string const& str, size_t* pos) {
+  uint32_t res {0};
+  auto const size = str.size();
+  size_t i = 0;
+  auto constexpr u0 = static_cast<unsigned char>('0');
+  auto constexpr u10 = static_cast<unsigned char>(10);
+  while (i < size && std::isspace(str[i]) && str[i] != '\0') { ++i; }
+  for (;  i < size && std::isdigit(str[i]); ++i) {
+    res = res * u10 + static_cast<unsigned char>(str[i]) - u0;
+  }
+  *pos = i;
+  return res;
+}
+
 // simple routine to convert any data to string
 template<typename T>
 inline std::string ToString(const T& data) {

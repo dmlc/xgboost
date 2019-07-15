@@ -25,7 +25,9 @@
 // gbms
 #include "../src/gbm/gbm.cc"
 #include "../src/gbm/gbtree.cc"
+#include "../src/gbm/gbtree_model.cc"
 #include "../src/gbm/gblinear.cc"
+#include "../src/gbm/gblinear_model.cc"
 
 // data
 #include "../src/data/data.cc"

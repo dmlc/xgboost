@@ -21,6 +21,8 @@
 
 namespace xgboost {
 
+class Json;
+
 /*! \brief interface of objective function */
 class ObjFunction {
  protected:
@@ -72,6 +74,9 @@ class ObjFunction {
   virtual bst_float ProbToMargin(bst_float base_score) const {
     return base_score;
   }
+
+  virtual void Save(Json* out) const = 0;
+  virtual void Load(Json const& in) = 0;
   /*!
    * \brief Create an objective function according to name.
    * \param tparam Generic parameters.

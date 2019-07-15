@@ -8,12 +8,16 @@
 
 #include <xgboost/tree_model.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
+
 #include <sstream>
 #include <limits>
 #include <cmath>
 #include <iomanip>
 
 #include "param.h"
+#include "../common/common.h"
+#include "xgboost/json_io.h"
 
 namespace xgboost {
 // register tree parameter
@@ -618,6 +622,165 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
   return result;
 }
 
+class TreeReader : public JsonReader {
+  using Node = RegTree::Node;
+
+  void ForwardN(uint32_t n) {
+    for  (size_t i = 0 ; i < n; ++i) { cursor_.Forward(); }
+  }
+
+ public:
+  explicit TreeReader(StringView str) : JsonReader(str) {}
+
+  void ParseStat(int32_t n_nodes, std::vector<RTreeNodeStat>* p_stats) {
+    p_stats->resize(n_nodes);
+    auto& stats = *p_stats;
+    GetChar('[');
+    for (int32_t i = 0; i < n_nodes; ++i) {
+      GetChar('[');
+      auto& s = stats[i];
+      size_t pos {0};
+      s.loss_chg = std::stof(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+      s.sum_hess = std::stof(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+      s.base_weight = std::stof(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+      s.leaf_child_cnt = std::stoi(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(']');
+      if (i != n_nodes - 1) {
+        GetChar(',');
+      }
+    }
+    GetChar(']');
+  }
+
+  void ParseNode(int32_t n_nodes, std::vector<Node>* p_nodes) {
+    p_nodes->resize(n_nodes);
+    auto& nodes = *p_nodes;
+    GetChar('[');
+    for (int32_t i = 0; i < n_nodes; ++i) {
+      GetChar('[');
+      size_t pos {0};
+      auto left = std::stoi(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+      auto right = std::stoi(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+      auto par = std::stoi(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+
+      auto split = common::stoui(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+
+      auto cond = std::stof(raw_str_.substr(cursor_.Pos(), kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(',');
+
+      auto default_left = common::stoui(raw_str_.substr(cursor_.Pos(),
+                                                        kMaxNumLength), &pos);
+      ForwardN(pos);
+      GetChar(']');
+      nodes[i]= {left, right, par, split, cond, static_cast<bool>(default_left)};
+      if (i != n_nodes - 1) {
+        GetChar(',');
+      }
+    }
+    GetChar(']');
+  }
+};
+
+void RegTree::Load(Json const& in) {
+  param.InitAllowUnknown(fromJson(get<Object>(in["tree_param"])));
+  {
+    auto stats_in = get<Raw>(in["stats"]);
+    TreeReader reader(StringView{stats_in.c_str(), stats_in.size()});
+    reader.ParseStat(param.num_nodes, &stats_);
+    CHECK_EQ(param.num_nodes, stats_.size());
+  }
+
+  {
+    auto nodes_in = get<Raw>(in["nodes"]);
+    TreeReader reader(StringView{nodes_in.c_str(), nodes_in.size()});
+    reader.ParseNode(param.num_nodes, &nodes_);
+    CHECK_EQ(param.num_nodes, nodes_.size());
+  }
+}
+
+void RegTree::Save(Json* p_out) const {
+  auto& out = *p_out;
+  CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
+  CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
+  out["tree_param"] = toJson(param);
+  CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param.num_nodes));
+
+  std::string tree_raw;
+  tree_raw.reserve(
+      stats_.size() * std::numeric_limits<Number::Float>::max_digits10 * 2);
+
+  FixedPrecisionStream convertor;
+
+  auto AppendFloat = [&convertor, &tree_raw](Number::Float val, bool end = false) {
+                       convertor << val;
+                       auto const& str = convertor.str();
+                       tree_raw.append(str.c_str(), str.size());
+                       convertor.str("");
+                       if (!end) { tree_raw += ","; }
+                     };
+  auto AppendInt = [&convertor, &tree_raw](int32_t val, bool end = false) {
+                     convertor << val;
+                     auto const& str = convertor.str();
+                     tree_raw.append(str.c_str(), str.size());
+                     convertor.str("");
+                     if (!end) { tree_raw += ","; }
+                   };
+
+  tree_raw += '[';
+  for (size_t i = 0; i < stats_.size(); ++i) {
+    auto const& s = stats_[i];
+    tree_raw += '[';
+    AppendFloat(s.loss_chg, false);
+    AppendFloat(s.sum_hess, false);
+    AppendFloat(s.base_weight, false);
+    AppendInt(s.leaf_child_cnt, true);;
+    tree_raw += ']';
+    if (i != stats_.size() - 1) {
+      tree_raw += ',';
+    }
+  }
+  tree_raw += ']';
+  out["stats"] = JsonRaw(std::move(tree_raw));
+
+  tree_raw.clear();
+  tree_raw.reserve(nodes_.size() * 9 * 2);
+
+  tree_raw += '[';
+  for (size_t i = 0; i < nodes_.size(); ++i) {
+    auto const& n = nodes_[i];
+    tree_raw += "[";
+    AppendInt(n.LeftChild(), false);
+    AppendInt(n.RightChild(), false);
+    AppendInt(n.Parent(), false);
+    AppendInt(n.SplitIndex(), false);
+    AppendFloat(n.SplitCond(), false);
+    AppendInt(n.DefaultLeft(), true);
+    tree_raw += "]";
+    if (i != nodes_.size() - 1) {
+      tree_raw += ',';
+    }
+  }
+  tree_raw += "]";
+
+  out["nodes"] = JsonRaw(std::move(tree_raw));
+}
+
 void RegTree::FillNodeMeanValues() {
   size_t num_nodes = this->param.num_nodes;
   if (this->node_mean_values_.size() == num_nodes) {
@@ -851,10 +1014,9 @@ void RegTree::CalculateContributions(const RegTree::FVec &feat,
 
   // Preallocate space for the unique path data
   const int maxd = this->MaxDepth(root_id) + 2;
-  auto *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
+  std::vector<PathElement> unique_path((maxd * (maxd + 1)) / 2);
 
-  TreeShap(feat, out_contribs, root_id, 0, unique_path_data,
+  TreeShap(feat, out_contribs, root_id, 0, unique_path.data(),
            1, 1, -1, condition, condition_feature, 1);
-  delete[] unique_path_data;
 }
 }  // namespace xgboost

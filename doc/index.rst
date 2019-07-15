@@ -28,3 +28,4 @@ Contents
   Julia package <julia>
   CLI interface <cli>
   contrib/index
+  Json Schema <json-schema>

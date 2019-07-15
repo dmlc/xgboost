@@ -9,6 +9,7 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+
 #include <limits>
 #include <vector>
 #include <string>
@@ -23,6 +24,8 @@
 namespace xgboost {
 
 struct PathElement;  // forward declaration
+
+class Json;
 
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
@@ -57,6 +60,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     // other arguments are set by the algorithm.
     DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1)
         .describe("Number of start root of trees.");
+    DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
@@ -103,6 +107,12 @@ class RegTree {
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
     }
+    Node(int32_t cleft, int32_t cright, int32_t parent,
+         uint32_t split_ind, float split_cond, bool default_left) :
+        parent_{parent}, cleft_{cleft}, cright_{cright} {
+      this->SetSplit(split_ind, split_cond, default_left);
+    }
+
     /*! \brief index of left child */
     XGBOOST_DEVICE int LeftChild() const {
       return this->cleft_;
@@ -216,9 +226,9 @@ class RegTree {
     };
     // pointer to parent, highest bit is used to
     // indicate whether it's a left child or not
-    int parent_;
+    int parent_{-1};
     // pointer to left, right
-    int cleft_, cright_;
+    int cleft_{-1}, cright_{-1};
     // split feature index, left split or right split depends on the highest bit
     unsigned sindex_{0};
     // extra info
@@ -307,6 +317,8 @@ class RegTree {
     }
     CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
   }
+
+  void Load(Json const& in);
   /*!
    * \brief save model to stream
    * \param fo output stream
@@ -319,6 +331,8 @@ class RegTree {
     fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
     fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
   }
+
+  void Save(Json* out) const;
 
   bool operator==(const RegTree& b) const {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&

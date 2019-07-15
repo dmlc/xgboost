@@ -19,6 +19,8 @@
 #include <ios>
 #include <utility>
 #include <vector>
+
+#include "xgboost/json.h"
 #include "./common/common.h"
 #include "./common/host_device_vector.h"
 #include "./common/io.h"
@@ -300,6 +302,61 @@ class LearnerImpl : public Learner {
     this->configured_ = true;
   }
 
+  void Save(Json* p_out) const override {
+    // FIXME(trivialfis); num_boosting_round
+    Json& out = *p_out;
+    out["version"] = Json(Array{std::vector<Json>({Json{String{"1"}},
+                                                   Json{String{"0"}}})});
+
+    out["Learner"] = Object();
+    auto& learner = out["Learner"];
+
+    learner["learner_model_param"] = toJson(mparam_);
+    learner["learner_train_param"] = toJson(tparam_);
+
+    learner["gradient_booster"] = Object();
+    auto& gradient_booster = learner["gradient_booster"];
+    gbm_->Save(&gradient_booster);
+
+    learner["objective"] = Object();
+    auto& objective_fn = learner["objective"];
+    obj_->Save(&objective_fn);
+
+    std::vector<Json> metrics(metrics_.size());
+    for (size_t i = 0; i < metrics_.size(); ++i) {
+      metrics[i] = String(metrics_[i]->Name());
+    }
+    learner["metrics"] = Array(metrics);
+  }
+
+  void Load(Json const& in) override {
+    std::string major, minor;
+    std::tie(major, minor) = std::make_pair(get<String>(get<Array>(in["version"])[0]),
+                                            get<String>(get<Array>(in["version"])[1]));
+    LOG(INFO) << "Loading XGBoost " << major << ", " << minor << " model";
+    auto const& learner = get<Object>(in["Learner"]);
+    mparam_.InitAllowUnknown(fromJson(get<Object const>(learner.at("learner_model_param"))));
+    tparam_.InitAllowUnknown(fromJson(get<Object const>(learner.at("learner_train_param"))));
+
+    auto const& gradient_booster = learner.at("gradient_booster");
+    gbm_.reset(GradientBooster::Create(get<String>(gradient_booster["name"]), &generic_param_,
+                                       cache_, mparam_.base_score));
+    gbm_->Load(gradient_booster);
+
+    auto const& objective_fn = learner.at("objective");
+    obj_.reset(ObjFunction::Create(tparam_.objective, &generic_param_));
+    obj_->Load(objective_fn);
+
+    auto const& j_metrics = learner.at("metrics");
+    auto n_metrics = get<Array const>(j_metrics).size();
+    metric_names_.resize(n_metrics);
+    metrics_.resize(n_metrics);
+    for (size_t i = 0; i < n_metrics; ++i) {
+      metric_names_[i]= get<String>(j_metrics[i]);
+      metrics_[i] = std::unique_ptr<Metric>(Metric::Create(metric_names_.back(), &generic_param_));
+    }
+  }
+
   // rabit save model to rabit checkpoint
   void Save(dmlc::Stream* fo) const override {
     if (!this->configured_) {
@@ -347,7 +404,7 @@ class LearnerImpl : public Learner {
         attr[kv.first] = kv.second;
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
-                  attr.begin(), attr.end()));
+          attr.begin(), attr.end()));
     }
     if (tparam_.objective == "count:poisson") {
       auto it = cfg_.find("max_delta_step");

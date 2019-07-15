@@ -54,7 +54,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
    */
   int num_parallel_tree;
   /*! \brief tree updater sequence */
-  std::string updater_seq;
+  std::string updater;
   /*! \brief type of boosting process to run */
   TreeProcessType process_type;
   // predictor name
@@ -68,7 +68,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .set_lower_bound(1)
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest.");
-    DMLC_DECLARE_FIELD(updater_seq)
+    DMLC_DECLARE_FIELD(updater)
         .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
     DMLC_DECLARE_FIELD(process_type)
@@ -77,8 +77,6 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .add_enum("update", TreeProcessType::kUpdate)
         .describe("Whether to run the normal boosting process that creates new trees,"\
                   " or to update the trees in an existing model.");
-    // add alias
-    DMLC_DECLARE_ALIAS(updater_seq, updater);
     DMLC_DECLARE_FIELD(predictor)
       .set_default("cpu_predictor")
       .describe("Predictor algorithm type");
@@ -175,6 +173,10 @@ class GBTree : public GradientBooster {
         tparam_.tree_method == TreeMethod::kGPUExact;
   }
 
+  GBTreeTrainParam const& GetTrainParam() const {
+    return tparam_;
+  }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
 
@@ -183,17 +185,16 @@ class GBTree : public GradientBooster {
                             common::ToString(model_.param.num_feature));
   }
 
-  GBTreeTrainParam const& GetTrainParam() const {
-    return tparam_;
-  }
+  void Load(Json const& in) override;
 
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
   }
+  void Save(Json* p_out) const override;
 
   bool AllowLazyCheckPoint() const override {
     return model_.param.num_output_group == 1 ||
-        tparam_.updater_seq.find("distcol") != std::string::npos;
+        tparam_.updater.find("distcol") != std::string::npos;
   }
 
   void PredictBatch(DMatrix* p_fmat,

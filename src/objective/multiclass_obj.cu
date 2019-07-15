@@ -14,6 +14,7 @@
 #include <limits>
 #include <utility>
 
+#include "xgboost/json.h"
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
@@ -155,6 +156,20 @@ class SoftmaxMultiClassObj : public ObjFunction {
       io_preds->Resize(max_preds_.Size());
       io_preds->Copy(max_preds_);
     }
+  }
+
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("SoftmaxMultiClassObj");
+    out["SoftmaxMultiClassParam"] = Object();
+    auto& parameter = out["SoftmaxMultiClassParam"];
+    for (auto const& kv : param_.__DICT__()) {
+      parameter[kv.first] = kv.second;
+    }
+  }
+
+  void Load(Json const& in) override {
+    param_.InitAllowUnknown(fromJson(get<Object const>(in["SoftmaxMultiClassObj"])));
   }
 
  private:

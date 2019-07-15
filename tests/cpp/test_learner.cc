@@ -4,6 +4,7 @@
 #include "helpers.h"
 
 #include "xgboost/learner.h"
+#include "xgboost/json.h"
 #include "dmlc/filesystem.h"
 
 namespace xgboost {
@@ -151,6 +152,51 @@ TEST(Learner, IO) {
   delete pp_dmat;
 }
 
+TEST(Learner, Json_IO) {
+  size_t constexpr kRows = 10;
+  int32_t constexpr kIters = 4;
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto& p_dmat = *pp_dmat;
+  p_dmat->Info().labels_.HostVector() = labels;
+
+  Json dumped {Object()};
+
+  {
+    std::unique_ptr<Learner> learner {Learner::Create({p_dmat})};
+    learner->SetParams(Args{{"booster", "gblinear"},
+                            {"updater", "gpu_coord_descent"}});
+    learner->Configure();
+    for (int32_t iter = 0; iter < kIters; ++iter) {
+      learner->UpdateOneIter(iter, p_dmat.get());
+    }
+    learner->Save(&dumped);
+  }
+
+  {
+    std::unique_ptr<Learner> learner {Learner::Create({p_dmat})};
+    learner->Load(dumped);
+    Json new_model {Object()};
+    learner->Save(&new_model);
+
+    ASSERT_EQ(dumped, new_model);
+  }
+
+  {
+    ASSERT_TRUE(IsA<Array>(dumped["version"]));
+    auto j_learner = dumped["Learner"];
+    ASSERT_TRUE(IsA<Object>(j_learner["learner_model_param"]));
+    ASSERT_TRUE(IsA<Object>(j_learner["learner_train_param"]));
+    ASSERT_TRUE(IsA<Object>(j_learner["gradient_booster"]));
+    ASSERT_TRUE(IsA<Object>(j_learner["objective"]));
+  }
+
+  delete pp_dmat;
+}
+
 // Tests for automatic GPU configuration.
 TEST(Learner, GPUConfiguration) {
   using Arg = std::pair<std::string, std::string>;
@@ -218,5 +264,4 @@ TEST(Learner, GPUConfiguration) {
 }
 
 #endif  // XGBOOST_USE_CUDA
-
 }  // namespace xgboost

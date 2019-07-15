@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2018
+ * Copyright 2018-2019 by Contributors
  */
 #pragma once
 #include <dmlc/io.h>
@@ -9,6 +9,8 @@
 #include <vector>
 #include <string>
 #include <cstring>
+
+#include "xgboost/json.h"
 
 namespace xgboost {
 namespace gbm {
@@ -47,13 +49,17 @@ class GBLinearModel {
     weight.resize((param.num_feature + 1) * param.num_output_group);
     std::fill(weight.begin(), weight.end(), 0.0f);
   }
+
+  void Save(Json* p_out) const;
+  void Load(Json const& in);
+
   // save the model to file
-  inline void Save(dmlc::Stream* fo) const {
+  void Save(dmlc::Stream* fo) const {
     fo->Write(&param, sizeof(param));
     fo->Write(weight);
   }
   // load model from file
-  inline void Load(dmlc::Stream* fi) {
+  void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
     fi->Read(&weight);
   }
@@ -110,5 +116,6 @@ class GBLinearModel {
     return v;
   }
 };
+
 }  // namespace gbm
 }  // namespace xgboost

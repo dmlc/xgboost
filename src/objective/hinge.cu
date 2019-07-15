@@ -1,10 +1,12 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
 #include <xgboost/objective.h>
+
+#include "xgboost/json.h"
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
@@ -75,6 +77,12 @@ class HingeObj : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "error";
   }
+
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("binary:hinge");
+  }
+  void Load(Json const& in) override {}
 };
 
 // register the objective functions

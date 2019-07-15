@@ -25,7 +25,7 @@
 #include "gbtree.h"
 #include "gbtree_model.h"
 #include "../common/timer.h"
-
+#include "xgboost/json_io.h"
 
 namespace xgboost {
 namespace gbm {
@@ -65,13 +65,13 @@ void GBTree::Configure(const Args& cfg) {
 // dependency on DMatrix once `hist` tree method can handle external memory so that we can
 // make it default.
 void GBTree::ConfigureWithKnownData(std::map<std::string, std::string> const& cfg, DMatrix* fmat) {
-  std::string updater_seq = tparam_.updater_seq;
+  std::string const updater_seq = tparam_.updater;
   tparam_.InitAllowUnknown(cfg);
   this->PerformTreeMethodHeuristic({this->cfg_.begin(), this->cfg_.end()}, fmat);
   this->ConfigureUpdaters({this->cfg_.begin(), this->cfg_.end()});
-  LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
+  LOG(DEBUG) << "Using updaters: " << tparam_.updater;
   // initialize the updaters only when needed.
-  if (updater_seq != tparam_.updater_seq) {
+  if (updater_seq != tparam_.updater) {
     this->updaters_.clear();
   }
   this->InitUpdater();
@@ -93,7 +93,7 @@ void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const
     return;
   }
 
-  tparam_.updater_seq = "grow_histmaker,prune";
+  tparam_.updater = "grow_histmaker,prune";
   if (rabit::IsDistributed()) {
     LOG(WARNING) <<
       "Tree method is automatically selected to be 'approx' "
@@ -112,7 +112,7 @@ void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const
     tparam_.tree_method = TreeMethod::kApprox;
   } else {
     tparam_.tree_method = TreeMethod::kExact;
-    tparam_.updater_seq = "grow_colmaker,prune";
+    tparam_.updater = "grow_colmaker,prune";
   }
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
@@ -135,27 +135,27 @@ void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
       // This choice is deferred to PerformTreeMethodHeuristic().
       break;
     case TreeMethod::kApprox:
-      tparam_.updater_seq = "grow_histmaker,prune";
+      tparam_.updater = "grow_histmaker,prune";
       break;
     case TreeMethod::kExact:
-      tparam_.updater_seq = "grow_colmaker,prune";
+      tparam_.updater = "grow_colmaker,prune";
       break;
     case TreeMethod::kHist:
       LOG(INFO) <<
           "Tree method is selected to be 'hist', which uses a "
           "single updater grow_quantile_histmaker.";
-      tparam_.updater_seq = "grow_quantile_histmaker";
+      tparam_.updater = "grow_quantile_histmaker";
       break;
     case TreeMethod::kGPUExact:
       this->AssertGPUSupport();
-      tparam_.updater_seq = "grow_gpu,prune";
+      tparam_.updater = "grow_gpu,prune";
       if (cfg.find("predictor") == cfg.cend()) {
         tparam_.predictor = "gpu_predictor";
       }
       break;
     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
-      tparam_.updater_seq = "grow_gpu_hist";
+      tparam_.updater = "grow_gpu_hist";
       if (cfg.find("predictor") == cfg.cend()) {
         tparam_.predictor = "gpu_predictor";
       }
@@ -205,7 +205,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
 
 void GBTree::InitUpdater() {
   if (updaters_.size() != 0) return;
-  std::string tval = tparam_.updater_seq;
+  std::string tval = tparam_.updater;
   std::vector<std::string> ups = common::Split(tval, ',');
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
@@ -253,6 +253,22 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
   GetPredictor()->UpdatePredictionCache(model_, &updaters_, num_new_trees);
 }
 
+void GBTree::Load(Json const& in) {
+  tparam_.InitAllowUnknown(fromJson(get<Object>(in["gbtree_train_param"])));
+  model_.Load(in["model"]);
+}
+
+void GBTree::Save(Json* p_out) const {
+  auto& out = *p_out;
+  out["name"] = String("gbtree");
+  out["gbtree_train_param"] = toJson(tparam_);
+
+  // model
+  out["model"] = Object();
+  auto& model = out["model"];
+  model_.Save(&model);
+}
+
 
 // dart
 class Dart : public GBTree {
@@ -273,12 +289,35 @@ class Dart : public GBTree {
       fi->Read(&weight_drop_);
     }
   }
+  void Load(Json const& in) override {
+    auto const& gbtree = in["gbtree"];
+    GBTree::Load(gbtree);
+    auto j_weight_drop = get<Array>(in["weight_drop"]);
+    weight_drop_.resize(j_weight_drop.size());
+    dparam_.InitAllowUnknown(fromJson(get<Object>(in["dart_train_param"])));
+    for (size_t i = 0; i < weight_drop_.size(); ++i) {
+      weight_drop_[i] = get<Number>(j_weight_drop[i]);
+    }
+  }
 
   void Save(dmlc::Stream* fo) const override {
     GBTree::Save(fo);
     if (weight_drop_.size() != 0) {
       fo->Write(weight_drop_);
     }
+  }
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("dart");
+    out["dart_train_param"] = toJson(dparam_);
+    out["gbtree"] = Object();
+    auto& gbtree = out["gbtree"];
+    GBTree::Save(&gbtree);
+    std::vector<Json> j_weight_drop(weight_drop_.size());
+    for (size_t i = 0; i < weight_drop_.size(); ++i) {
+      j_weight_drop[i] = Number(weight_drop_[i]);
+    }
+    out["weight_drop"] = Array(j_weight_drop);
   }
 
   // predict the leaf scores with dropout if ntree_limit = 0
@@ -565,5 +604,51 @@ XGBOOST_REGISTER_GBM(Dart, "dart")
     GBTree* p = new Dart(base_margin);
     return p;
   });
+
+
+// FIXME: Better error handling.
+class TreeSelectRaw : public JsonReader {
+  size_t* pre_pos_ {nullptr};
+
+ public:
+  TreeSelectRaw(StringView str, size_t* pos) :
+      JsonReader{str, *pos}, pre_pos_{pos} {}
+
+  Json ParseRaw() {
+    SkipSpaces();
+    auto beg = cursor_.Pos();
+    while (true) {
+      char ch = GetNextChar();
+      while (ch != ']' && ch != -1) { ch = GetNextChar(); }
+      ch = GetNextNonSpaceChar();
+      if (ch == ']') {
+        break;
+      }
+    }
+    if (cursor_.Pos() == raw_str_.size()) {
+      Expect(']', EOF);
+    }
+    auto end = cursor_.Pos();
+    *pre_pos_ = cursor_.Pos();
+    return Json(JsonRaw(raw_str_.substr(beg, end - beg)));
+  }
+};
+
+static auto DMLC_ATTRIBUTE_UNUSED __stat_raw_parser_ = JsonReader::registry(
+    "stats",
+    [](StringView str, size_t* pos) {
+      TreeSelectRaw parser(str, pos);
+      auto ret = parser.ParseRaw();
+      return ret;
+    });
+
+static auto DMLC_ATTRIBUTE_UNUSED __node_raw_parser_ = JsonReader::registry(
+    "nodes",
+    [](StringView str, size_t* pos) {
+      TreeSelectRaw parser(str, pos);
+      auto ret = parser.ParseRaw();
+      return ret;
+    });
+
 }  // namespace gbm
 }  // namespace xgboost

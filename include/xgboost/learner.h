@@ -16,6 +16,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/json.h>
 
 #include <utility>
 #include <map>
@@ -49,11 +50,15 @@ class Learner : public rabit::Serializable {
    * \brief Configure Learner based on set parameters.
    */
   virtual void Configure() = 0;
+
+  virtual void Load(Json const& in) = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.
    */
   void Load(dmlc::Stream* fi) override = 0;
+
+  virtual void Save(Json* out) const = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream

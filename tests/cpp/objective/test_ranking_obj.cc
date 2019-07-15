@@ -2,6 +2,9 @@
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
 #include "../helpers.h"
+#include <xgboost/json.h>
+
+namespace xgboost {
 
 TEST(Objective, PairwiseRankingGPair) {
   xgboost::GenericParameter tparam;
@@ -32,3 +35,25 @@ TEST(Objective, PairwiseRankingGPair) {
 
   delete obj;
 }
+
+TEST(Objective, NDCG_Json_IO) {
+  xgboost::GenericParameter tparam;
+  tparam.InitAllowUnknown(Args{});
+
+  xgboost::ObjFunction * obj =
+      xgboost::ObjFunction::Create("rank:ndcg", &tparam);
+  obj->Configure(Args{});
+  Json j_obj {Object()};
+  obj->Save(&j_obj);
+
+  ASSERT_EQ(get<String>(j_obj["name"]), "rank:ndcg");;
+
+  auto const& j_param = j_obj["lambda_rank_param"];
+
+  ASSERT_EQ(get<String>(j_param["num_pairsample"]), "1");
+  ASSERT_EQ(get<String>(j_param["fix_list_weight"]), "0");
+
+  delete obj;
+}
+
+}  // namespace xgboost

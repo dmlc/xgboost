@@ -3,6 +3,7 @@
 #include <xgboost/tree_model.h>
 #include "../helpers.h"
 #include "dmlc/filesystem.h"
+#include "xgboost/json_io.h"
 
 namespace xgboost {
 // Manually construct tree in binary format
@@ -218,4 +219,54 @@ TEST(Tree, DumpDot) {
   str = tree.DumpModel(fmap, true, R"(dot:{"graph_attrs": {"bgcolor": "#FFFF00"}})");
   ASSERT_NE(str.find(R"(graph [ bgcolor="#FFFF00" ])"), std::string::npos);
 }
+
+TEST(Tree, Json_IO) {
+  {
+    std::string json_str = R"json(
+{
+  "Learner": {
+    "gradient_booster": {
+      "model": {
+        "trees": [{
+          "nodes": [[1,2,2147483647,5,0.316871],[-1,0,4,0,-0.075000],[-1,0,4,0,0.743182]],
+          "stats":   [ [42.949860,12.000000,5.076923,0],[0.000000,0.000000,0.000000,0] ]}] },
+        "name": "gbtree"}}}
+)json";
+
+    JsonReader reader({json_str.c_str(), json_str.size()});
+
+    auto loaded = Json::Load(&reader);
+
+    auto nodes = loaded["Learner"]["gradient_booster"]["model"]["trees"][0]["nodes"];
+    auto nodes_str = get<Raw>(nodes);
+    ASSERT_NE(nodes_str.find("[["), std::string::npos);
+    ASSERT_NE(nodes_str.find("]]"), std::string::npos);
+    ASSERT_EQ(nodes_str.front(), '[');
+    ASSERT_EQ(nodes_str.back(), ']');
+
+    auto stats = loaded["Learner"]["gradient_booster"]["model"]["trees"][0]["stats"];
+    auto stats_str = get<Raw>(stats);
+    ASSERT_NE(stats_str.find("[ ["), std::string::npos);
+    ASSERT_NE(stats_str.find("] ]"), std::string::npos);
+    ASSERT_EQ(stats_str.front(), '[');
+    ASSERT_EQ(stats_str.back(), ']');
+  }
+
+  {
+    RegTree tree;
+    tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    Json j_tree{Object()};
+    tree.Save(&j_tree);
+    std::stringstream ss;
+    Json::Dump(j_tree, &ss);
+    LOG(INFO) << ss.str();
+
+    auto tparam = j_tree["tree_param"];
+    ASSERT_EQ(get<String>(tparam["num_feature"]), "0");
+    ASSERT_EQ(get<String>(tparam["num_nodes"]), "3");
+    ASSERT_EQ(get<String>(tparam["num_roots"]), "1");
+    ASSERT_EQ(get<String>(tparam["size_leaf_vector"]), "0");
+  }
+}
+
 }  // namespace xgboost

@@ -1,7 +1,10 @@
 /*!
- * Copyright by Contributors 2017
+ * Copyright 2017-2019 by Contributors
+ * \file gbtree_model.h
  */
-#pragma once
+#ifndef XGBOOST_GBM_GBTREE_MODEL_H_
+#define XGBOOST_GBM_GBTREE_MODEL_H_
+
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
@@ -12,6 +15,9 @@
 #include <vector>
 
 namespace xgboost {
+
+class Json;
+
 namespace gbm {
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
@@ -43,6 +49,10 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   }
   // declare parameters, only declare those that need to be set.
   DMLC_DECLARE_PARAMETER(GBTreeModelParam) {
+    DMLC_DECLARE_FIELD(num_trees)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("");
     DMLC_DECLARE_FIELD(num_output_group)
         .set_lower_bound(1)
         .set_default(1)
@@ -98,6 +108,7 @@ struct GBTreeModel {
           sizeof(int) * param.num_trees);
     }
   }
+  void Load(Json const& in);
 
   void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
@@ -109,6 +120,8 @@ struct GBTreeModel {
       fo->Write(dmlc::BeginPtr(tree_info), sizeof(int) * tree_info.size());
     }
   }
+
+  void Save(Json* p_out) const;
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) const {
@@ -140,3 +153,5 @@ struct GBTreeModel {
 };
 }  // namespace gbm
 }  // namespace xgboost
+
+#endif  // XGBOOST_GBM_GBTREE_MODEL_H_

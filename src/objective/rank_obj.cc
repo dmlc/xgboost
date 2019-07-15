@@ -10,6 +10,9 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+
+#include "xgboost/json.h"
+
 #include "../common/math.h"
 #include "../common/random.h"
 
@@ -174,7 +177,16 @@ class LambdaRankObj : public ObjFunction {
   virtual void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                                std::vector<LambdaPair> *io_pairs) = 0;
 
- private:
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("LambdaRankObj");
+    out["LambdaRankParam"] = Object();
+    for (auto const& kv : param_.__DICT__()) {
+      out["LambdaRankParam"][kv.first] = kv.second;
+    }
+  }
+
+ protected:
   LambdaRankParam param_;
 };
 
@@ -182,6 +194,15 @@ class PairwiseRankObj: public LambdaRankObj{
  protected:
   void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                        std::vector<LambdaPair> *io_pairs) override {}
+
+  void Save(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:pairwise");
+    out["LambdaRankParam"] = toJson(LambdaRankObj::param_);
+  }
+  void Load(Json const& in) override {
+    LambdaRankObj::param_.InitAllowUnknown(fromJson(get<Object const>(in["LambdaRankParam"])));
+  }
 };
 
 // beta version: NDCG lambda rank
@@ -231,6 +252,14 @@ class LambdaRankObjNDCG : public LambdaRankObj {
       }
     }
     return static_cast<bst_float>(sumdcg);
+  }
+  void Save(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:ndcg");
+    out["lambda_rank_param"] = toJson(LambdaRankObj::param_);
+  }
+  void Load(Json const& in) override {
+    LambdaRankObj::param_.InitAllowUnknown(fromJson(get<Object const>(in["LambdaRankParam"])));
   }
 };
 
@@ -318,6 +347,15 @@ class LambdaRankObjMAP : public LambdaRankObj {
           GetLambdaMAP(sorted_list, pair.pos_index,
                        pair.neg_index, &map_stats);
     }
+  }
+
+  void Save(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:map");
+    out["LambdaRankParam"] = toJson(LambdaRankObj::param_);
+  }
+  void Load(Json const& in) override {
+    LambdaRankObj::param_.InitAllowUnknown(fromJson(get<Object const>(in["LambdaRankParam"])));
   }
 };
 

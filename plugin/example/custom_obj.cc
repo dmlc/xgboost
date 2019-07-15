@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file custom_metric.cc
  * \brief This is an example to define plugin of xgboost.
  *  This plugin defines the additional metric function.
@@ -7,6 +7,7 @@
 #include <xgboost/base.h>
 #include <dmlc/parameter.h>
 #include <xgboost/objective.h>
+#include <xgboost/json.h>
 
 namespace xgboost {
 namespace obj {
@@ -67,6 +68,16 @@ class MyLogistic : public ObjFunction {
   bst_float ProbToMargin(bst_float base_score) const override {
     // transform probability to margin value
     return -std::log(1.0f / base_score - 1.0f);
+  }
+
+  void Save(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("MyLogistic");
+    out["MyLogisticParam"] = toJson(param_);
+  }
+
+  void Load(Json const& in) override {
+    param_.InitAllowUnknown(fromJson(get<Object>(in["MyLogisticParam"])));
   }
 
  private:
