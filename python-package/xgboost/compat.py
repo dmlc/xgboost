@@ -1,6 +1,6 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
-"""For compatibility"""
+"""For compatibility and optional dependencies."""
 
 from __future__ import absolute_import
 
@@ -16,22 +16,22 @@ if PY3:
     # pylint: disable=invalid-name, redefined-builtin
     STRING_TYPES = (str,)
 
-
     def py_str(x):
         """convert c string back to python string"""
         return x.decode('utf-8')
 else:
     STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
 
-
     def py_str(x):
         """convert c string back to python string"""
         return x
 
-########################################################################################
+
+###############################################################################
 # START NUMPY PATHLIB ATTRIBUTION
-########################################################################################
-# os.PathLike compatibility used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
+###############################################################################
+# os.PathLike compatibility used in  Numpy:
+# https://github.com/numpy/numpy/tree/v1.17.0
 # Attribution:
 # https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
 # Backport os.fs_path, os.PathLike, and PurePath.__fspath__
@@ -55,7 +55,6 @@ else:
             if issubclass(subclass, PurePath):
                 return True
             return hasattr(subclass, '__fspath__')
-
 
     def os_fspath(path):
         """Return the path representation of a path-like object.
@@ -84,9 +83,9 @@ else:
         raise TypeError("expected {}.__fspath__() to return str or bytes, "
                         "not {}".format(path_type.__name__,
                                         type(path_repr).__name__))
-########################################################################################
+###############################################################################
 # END NUMPY PATHLIB ATTRIBUTION
-########################################################################################
+###############################################################################
 
 # pickle
 try:

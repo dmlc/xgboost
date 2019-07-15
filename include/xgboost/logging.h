@@ -9,9 +9,10 @@
 #define XGBOOST_LOGGING_H_
 
 #include <dmlc/logging.h>
-#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+
 #include <xgboost/base.h>
+#include <xgboost/parameter.h>
 
 #include <sstream>
 #include <map>
@@ -35,7 +36,7 @@ class BaseLogger {
 };
 
 // Parsing both silent and debug_verbose is to provide backward compatibility.
-struct ConsoleLoggerParam : public dmlc::Parameter<ConsoleLoggerParam> {
+struct ConsoleLoggerParam : public XGBoostParameter<ConsoleLoggerParam> {
   bool silent;  // deprecated.
   int verbosity;
 

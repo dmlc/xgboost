@@ -7,20 +7,20 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
-#include <dmlc/parameter.h>
-#include <xgboost/data.h>
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
 
+#include "xgboost/parameter.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
 namespace tree {
 
 /*! \brief training parameters for regression tree */
-struct TrainParam : public dmlc::Parameter<TrainParam> {
+struct TrainParam : public XGBoostParameter<TrainParam> {
   // learning step size for a time
   float learning_rate;
   // minimum loss change required for a split

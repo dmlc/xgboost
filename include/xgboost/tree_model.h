@@ -60,6 +60,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     // other arguments are set by the algorithm.
     DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1)
         .describe("Number of start root of trees.");
+    DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
@@ -83,7 +84,7 @@ struct RTreeNodeStat {
   /*! \brief weight of current node */
   bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
-  int leaf_child_cnt;
+  int leaf_child_cnt {0};
   bool operator==(const RTreeNodeStat& b) const {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
@@ -98,6 +99,7 @@ class RegTree : public Model {
  public:
   /*! \brief auxiliary statistics of node to help tree building */
   using SplitCondT = bst_float;
+  static constexpr int32_t kInvalidNodeId {-1};
   /*! \brief tree node */
   class Node {
    public:
@@ -106,6 +108,12 @@ class RegTree : public Model {
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
     }
+    Node(int32_t cleft, int32_t cright, int32_t parent,
+         uint32_t split_ind, float split_cond, bool default_left) :
+        parent_{parent}, cleft_{cleft}, cright_{cright} {
+      this->SetSplit(split_ind, split_cond, default_left);
+    }
+
     /*! \brief index of left child */
     XGBOOST_DEVICE int LeftChild() const {
       return this->cleft_;
@@ -219,11 +227,11 @@ class RegTree : public Model {
     };
     // pointer to parent, highest bit is used to
     // indicate whether it's a left child or not
-    int parent_;
+    int32_t parent_{kInvalidNodeId};
     // pointer to left, right
-    int cleft_, cright_;
+    int32_t cleft_{kInvalidNodeId}, cright_{kInvalidNodeId};
     // split feature index, left split or right split depends on the highest bit
-    unsigned sindex_{0};
+    uint32_t sindex_{0};
     // extra info
     Info info_;
   };

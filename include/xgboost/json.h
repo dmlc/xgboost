@@ -5,6 +5,7 @@
 #define XGBOOST_JSON_H_
 
 #include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 #include <string>
 
 #include <map>
@@ -533,7 +534,7 @@ using Null    = JsonNull;
 // Utils tailored for XGBoost.
 
 template <typename Type>
-Object toJson(dmlc::Parameter<Type> const& param) {
+Object toJson(XGBoostParameter<Type> const& param) {
   Object obj;
   for (auto const& kv : param.__DICT__()) {
     obj[kv.first] = kv.second;
@@ -542,13 +543,13 @@ Object toJson(dmlc::Parameter<Type> const& param) {
 }
 
 template <typename Type>
-void fromJson(Json const& obj, dmlc::Parameter<Type>* param) {
+void fromJson(Json const& obj, XGBoostParameter<Type>* param) {
   auto const& j_param = get<Object const>(obj);
   std::map<std::string, std::string> m;
   for (auto const& kv : j_param) {
     m[kv.first] = get<String const>(kv.second);
   }
-  param->InitAllowUnknown(m);
+  param->UpdateAllowUnknown(m);
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_

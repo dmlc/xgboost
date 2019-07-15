@@ -172,7 +172,6 @@ struct EvalMClassBase : public Metric {
     CHECK_GE(nclass, 1U)
         << "mlogloss and merror are only used for multi-class classification,"
         << " use logloss for binary classification";
-    const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
 
     int device = tparam_->gpu_id;
     auto result = reducer_.Reduce(*tparam_, device, nclass, info.weights_, info.labels_, preds);

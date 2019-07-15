@@ -5,14 +5,13 @@
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_
 
-#include <dmlc/parameter.h>
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
 #include <string>
 
 namespace xgboost {
-struct GenericParameter : public dmlc::Parameter<GenericParameter> {
+struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // stored random seed
   int seed;
   // whether seed the PRNG each iteration

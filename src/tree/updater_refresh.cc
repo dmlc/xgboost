@@ -22,7 +22,7 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 class TreeRefresher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
   char const* Name() const override {
     return "refresh";

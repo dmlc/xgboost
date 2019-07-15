@@ -38,7 +38,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
 
 TEST(Objective, DeclareUnifiedTest(NDCG_Json_IO)) {
   xgboost::GenericParameter tparam;
-  tparam.InitAllowUnknown(Args{});
+  tparam.UpdateAllowUnknown(Args{});
 
   std::unique_ptr<xgboost::ObjFunction> obj {
     xgboost::ObjFunction::Create("rank:ndcg", &tparam)

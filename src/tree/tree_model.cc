@@ -423,7 +423,7 @@ XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
             return new JsonGenerator(fmap, attrs, with_stats);
           });
 
-struct GraphvizParam : public dmlc::Parameter<GraphvizParam> {
+struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
   std::string yes_color;
   std::string no_color;
   std::string rankdir;
@@ -462,7 +462,7 @@ class GraphvizGenerator : public TreeGenerator {
  public:
   GraphvizGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
       TreeGenerator(fmap, with_stats) {
-    param_.InitAllowUnknown(std::map<std::string, std::string>{});
+    param_.UpdateAllowUnknown(std::map<std::string, std::string>{});
     using KwArg = std::map<std::string, std::map<std::string, std::string>>;
     KwArg kwargs;
     if (attrs.length() != 0) {

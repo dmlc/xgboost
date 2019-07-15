@@ -9,7 +9,7 @@ TEST(Objective, UnknownFunction) {
   xgboost::ObjFunction* obj = nullptr;
   xgboost::GenericParameter tparam;
   std::vector<std::pair<std::string, std::string>> args;
-  tparam.InitAllowUnknown(args);
+  tparam.UpdateAllowUnknown(args);
 
   EXPECT_ANY_THROW(obj = xgboost::ObjFunction::Create("unknown_name", &tparam));
   EXPECT_NO_THROW(obj = xgboost::ObjFunction::Create("reg:squarederror", &tparam));

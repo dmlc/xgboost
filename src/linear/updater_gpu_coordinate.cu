@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  * \author Rory Mitchell
  */
 
@@ -36,7 +36,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
   // set training parameter
   void Configure(Args const& args) override {
-    tparam_.InitAllowUnknown(args);
+    tparam_.UpdateAllowUnknown(args);
     selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("GPUCoordinateUpdater");
   }

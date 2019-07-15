@@ -26,17 +26,22 @@ def call(args):
 
 
 class ClangTidy(object):
-    '''
-    clang tidy wrapper.
+    ''' clang tidy wrapper.
     Args:
-      cpp_lint: Run linter on C++ source code.
-      cuda_lint: Run linter on CUDA source code.
+      args:  Command line arguments.
+          cpp_lint: Run linter on C++ source code.
+          cuda_lint: Run linter on CUDA source code.
+          use_dmlc_gtest: Whether to use gtest bundled in dmlc-core.
     '''
-    def __init__(self, cpp_lint, cuda_lint):
-        self.cpp_lint = cpp_lint
-        self.cuda_lint = cuda_lint
+    def __init__(self, args):
+        self.cpp_lint = args.cpp
+        self.cuda_lint = args.cuda
+        self.use_dmlc_gtest = args.use_dmlc_gtest
+
         print('Run linter on CUDA: ', self.cuda_lint)
         print('Run linter on C++:', self.cpp_lint)
+        print('Use dmlc gtest:', self.use_dmlc_gtest)
+
         if not self.cpp_lint and not self.cuda_lint:
             raise ValueError('Both --cpp and --cuda are set to 0.')
         self.root_path = os.path.abspath(os.path.curdir)
@@ -58,7 +63,12 @@ class ClangTidy(object):
         os.mkdir(self.cdb_path)
         os.chdir(self.cdb_path)
         cmake_args = ['cmake', '..', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
-                      '-DGOOGLE_TEST=ON', '-DUSE_DMLC_GTEST=ON']
+                      '-DGOOGLE_TEST=ON']
+        if self.use_dmlc_gtest:
+            cmake_args.append('-DUSE_DMLC_GTEST=ON')
+        else:
+            cmake_args.append('-DUSE_DMLC_GTEST=OFF')
+
         if self.cuda_lint:
             cmake_args.extend(['-DUSE_CUDA=ON', '-DUSE_NCCL=ON'])
         subprocess.run(cmake_args)
@@ -234,11 +244,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
     parser.add_argument('--cuda', type=int, default=1)
+    parser.add_argument('--use-dmlc-gtest', type=int, default=0,
+                        help='Whether to use gtest bundled in dmlc-core.')
     args = parser.parse_args()
 
     test_tidy()
 
-    with ClangTidy(args.cpp, args.cuda) as linter:
+    with ClangTidy(args) as linter:
         passed = linter.run()
     if not passed:
         sys.exit(1)
