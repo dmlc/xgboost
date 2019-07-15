@@ -15,6 +15,7 @@ Contents
   :maxdepth: 2
   :titlesonly:
 
+  community
   build
   get_started
   tutorials/index
