@@ -21,8 +21,8 @@
 
 #endif  // !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined()
 
-#define XGBOOST_VER_MAJOR 1
-#define XGBOOST_VER_MINOR 0
-#define XGBOOST_VER_PATCH 0
+#define XGBOOST_VER_MAJOR @xgboost_VERSION_MAJOR@
+#define XGBOOST_VER_MINOR @xgboost_VERSION_MINOR@
+#define XGBOOST_VER_PATCH @xgboost_VERSION_PATCH@
 
 #endif  // XGBOOST_BUILD_CONFIG_H_

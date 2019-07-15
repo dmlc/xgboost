@@ -217,6 +217,8 @@ const bst_float kRtEps = 1e-6f;
 using omp_ulong = dmlc::omp_ulong;  // NOLINT
 /*! \brief define unsigned int for openmp loop */
 using bst_omp_uint = dmlc::omp_uint;  // NOLINT
+/*! \brief Type used for representing version number in binary form.*/
+using XGBoostVersionT = int32_t;
 
 /*!
  * \brief define compatible keywords in g++

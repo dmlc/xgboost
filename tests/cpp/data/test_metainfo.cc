@@ -51,20 +51,24 @@ TEST(MetaInfo, SaveLoadBinary) {
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/metainfo.binary";
-  dmlc::Stream* fs = dmlc::Stream::Create(tmp_file.c_str(), "w");
-  info.SaveBinary(fs);
-  delete fs;
+  {
+    std::unique_ptr<dmlc::Stream> fs {
+      dmlc::Stream::Create(tmp_file.c_str(), "w")
+    };
+    info.SaveBinary(fs.get());
+  }
 
-  ASSERT_EQ(GetFileSize(tmp_file), 76)
+  ASSERT_EQ(GetFileSize(tmp_file), 84)
     << "Expected saved binary file size to be same as object size";
 
-  fs = dmlc::Stream::Create(tmp_file.c_str(), "r");
+  std::unique_ptr<dmlc::Stream> fs {
+    dmlc::Stream::Create(tmp_file.c_str(), "r")
+  };
   xgboost::MetaInfo inforead;
-  inforead.LoadBinary(fs);
+  inforead.LoadBinary(fs.get());
   EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
   EXPECT_EQ(inforead.num_col_, info.num_col_);
   EXPECT_EQ(inforead.num_row_, info.num_row_);
-  delete fs;
 }
 
 TEST(MetaInfo, LoadQid) {
