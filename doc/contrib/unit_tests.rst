@@ -75,52 +75,34 @@ As part of the building process, tests are run:
 Python package: pytest
 ======================
 
-.. note:: Having issue? Try Docker container
-
-  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
-
 To run Python unit tests, first install `pytest <https://docs.pytest.org/en/latest/contents.html>`_ package:
 
 .. code:: bash
 
-  pip3 install --user pytest
+  pip3 install pytest
 
-Then compile XGBoost:
-
-.. code:: bash
-
-  mkdir build
-  cd build
-  cmake ..
-  make
-  cd ..
-
-Now invoke pytest at the project root directory:
+Then compile XGBoost according to instructions in :ref:`build_shared_lib`. Finally, invoke pytest at the project root directory:
 
 .. code:: bash
 
+  # Tell Python where to find XGBoost module
   export PYTHONPATH=./python-package
   pytest -v -s --fulltrace tests/python
 
-In addition, to build and test CUDA code, run:
+In addition, to test CUDA code, run:
 
 .. code:: bash
 
-  cd build
-  cmake -DUSE_CUDA=ON -DUSE_NCCL=ON ..
-  make
-  cd ..
-
+  # Tell Python where to find XGBoost module
+  export PYTHONPATH=./python-package
   pytest -v -s --fulltrace tests/python-gpu
+
+(For this step, you should have compiled XGBoost with CUDA enabled.)
 
 .. _running_gtest:
 
 C++: Google Test
 ================
-
-.. note:: Having issue? Try Docker container
-
-  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`running_tests_inside_docker`.
 
 To build and run C++ unit tests, install `Google Test <https://github.com/google/googletest>`_ library with headers
 and then enable tests while running CMake:
@@ -148,40 +130,6 @@ One can also run all unit test using ctest tool which provides higher flexibilit
 .. code-block:: bash
 
   ctest --verbose
-
-.. _running_tests_inside_docker:
-
-Running tests inside a Docker container (Recommended)
-=====================================================
-If you have access to Docker on your machine, you can use Docker containers to automatically setup the right environment, so that you can be sure the right packages and dependencies will be available.
-
-Note that you need `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_ to run CUDA code inside a Docker container.
-
-The following commands will run unit tests inside the same Docker containers that `our testing server <https://xgboost-ci.net>`_ uses:
-
-.. code-block:: bash
-
-  # Python tests without CUDA
-  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/build_via_cmake.sh
-  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/test_python.sh cpu
-
-  # C++ tests without CUDA
-  tests/ci_build/ci_build.sh cpu docker -it tests/ci_build/build_via_cmake.sh
-  tests/ci_build/ci_build.sh cpu docker -it build/testxgboost
-
-  # Python tests with CUDA (NVIDIA GPU required)
-  tests/ci_build/ci_build.sh gpu_build docker -it --build-arg CUDA_VERSION=9.0 \
-    tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON
-  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
-    tests/ci_build/test_python.sh mgpu
-  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
-    tests/ci_build/test_python.sh gpu
-
-  # C++ tests with CUDA (NVIDIA GPU required)
-  tests/ci_build/ci_build.sh gpu_build docker -it --build-arg CUDA_VERSION=9.0 \
-    tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON
-  tests/ci_build/ci_build.sh gpu nvidia-docker -it --build-arg CUDA_VERSION=9.0 \
-    build/testxgboost
 
 ***********************************************
 Sanitizers: Detect memory errors and data races

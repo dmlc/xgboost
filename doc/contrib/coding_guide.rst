@@ -94,11 +94,6 @@ two automatic checks to enforce coding style conventions. To expedite the code r
 
 Linter
 ======
-
-.. note:: Having issue? Try Docker container
-
-  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
-
 We use `pylint <https://github.com/PyCQA/pylint>`_ and `cpplint <https://github.com/cpplint/cpplint>`_ to enforce style convention and find potential errors. Linting is especially useful for Python, as we can catch many errors that would have otherwise occured at run-time.
 
 To run this check locally, run the following command from the top level source tree:
@@ -112,11 +107,6 @@ This command requires the Python packages pylint and cpplint.
 
 Clang-tidy
 ==========
-
-.. note:: Having issue? Try Docker container
-
-  If you are having difficulty running the commands below (e.g. due to missing packages), consider using our Docker container. See :ref:`linting_inside_docker`.
-
 `Clang-tidy <https://clang.llvm.org/extra/clang-tidy/>`_ is an advance linter for C++ code, made by the LLVM team. We use it to conform our C++ codebase to modern C++ practices and conventions.
 
 To run this check locally, run the following command from the top level source tree:
@@ -141,18 +131,4 @@ Similarly, if you want to exclude C++ source from linting:
 
   cd /path/to/xgboost/
   python3 tests/ci_build/tidy.py --cpp=0 --gtest-path=/path/to/google-test
-
-.. _linting_inside_docker:
-
-Running checks inside a Docker container (Recommended)
-======================================================
-If you have access to Docker on your machine, you can use a Docker container to automatically setup the right environment, so that you can be sure the right packages and dependencies will be available.
-
-.. code-block:: bash
-
-  tests/ci_build/ci_build.sh clang_tidy docker -it --build-arg CUDA_VERSION=9.2 \
-    tests/ci_build/clang_tidy.sh
-  tests/ci_build/ci_build.sh cpu docker -it make lint
-
-This will run the formatting checks inside the same Docker container that `our testing server <https://xgboost-ci.net>`_ uses. Note that you don't need an NVIDIA GPU for this step.
 
