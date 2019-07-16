@@ -11,7 +11,11 @@ Coding Guideline
 ********************
 C++ Coding Guideline
 ********************
-- Follow `Google style for C++ <https://google.github.io/styleguide/cppguide.html>`_.
+- Follow `Google style for C++ <https://google.github.io/styleguide/cppguide.html>`_, with two exceptions:
+
+  * Each line of text may contain up to 100 characters.
+  * The use of C++ exceptions is allowed.
+
 - Use C++11 features such as smart pointers, braced initializers, lambda functions, and ``std::thread``.
 - Use Doxygen to document all the interface code.
 - We have a series of automatic checks to ensure that all of our codebase complies with the Google style. Before submitting your pull request, you are encouraged to run the style checks on your machine. See :ref:`running_checks_locally`.

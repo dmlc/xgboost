@@ -2,7 +2,7 @@
 Contribute to XGBoost
 #####################
 
-XGBoost has been developed by community members. Everyone is welcomed to contribute. We value all forms of contributions, including, but not limited to:
+XGBoost has been developed by community members. Everyone is welcome to contribute. We value all forms of contributions, including, but not limited to:
 
 * Code reviews for pull requests
 * Documentation and usage examples
