@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboost-jvm</artifactId>
+        <artifactId>xgboost-jvm_2.12</artifactId>
         <version>0.90</version>
     </parent>
-    <artifactId>xgboost4j-flink</artifactId>
+    <artifactId>xgboost4j-flink_2.12</artifactId>
     <version>0.90</version>
     <build>
         <plugins>
@@ -25,7 +25,7 @@
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j</artifactId>
+            <artifactId>xgboost4j_${scala.binary.version}</artifactId>
             <version>0.90</version>
         </dependency>
         <dependency>
