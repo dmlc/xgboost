@@ -57,14 +57,16 @@ bool Init(int argc, char *argv[]) {
 /*! \brief finalize syncrhonization module */
 bool Finalize() {
   ThreadLocalEntry* e = EngineThreadLocal::Get();
-  utils::Check(e->engine.get() != nullptr,
-               "rabit::Finalize engine is not initialized or already been finalized.");
-  if (e->engine->Shutdown()) {
-    e->engine.reset(nullptr);
-    e->initialized = false;
-    return true;
+  if (e->engine.get() != nullptr) {
+    if (e->engine->Shutdown()) {
+      e->engine.reset(nullptr);
+      e->initialized = false;
+      return true;
+    } else {
+      return false;
+    }
   } else {
-    return false;
+    return true;
   }
 }
 
