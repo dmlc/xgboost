@@ -98,3 +98,23 @@ spark.read.format("libsvm").load("trainingset_libsvm")
 ```
 
 Spark assumes that the dataset is 1-based indexed. However, when you do prediction with other bindings of XGBoost (e.g. Python API of XGBoost), XGBoost assumes that the dataset is 0-based indexed. It creates a pitfall for the users who train model with Spark but predict with the dataset in the same format in other bindings of XGBoost.
+
+## Development
+
+You can build/package xgboost4j locally with the following steps:
+
+**Linux:**
+1. Ensure [Docker for Linux](https://docs.docker.com/install/) is installed.
+2. Clone this repo: `git clone --recursive https://github.com/dmlc/xgboost.git`
+3. Run the following command:
+  - With Tests: `./xgboost/jvm-packages/dev/build-linux.sh`
+  - Skip Tests: `./xgboost/jvm-packages/dev/build-linux.sh --skip-tests` 
+
+**Windows:**
+1. Ensure [Docker for Windows](https://docs.docker.com/docker-for-windows/install/) is installed.
+2. Clone this repo: `git clone --recursive https://github.com/dmlc/xgboost.git`
+3. Run the following command:
+  - With Tests: `.\xgboost\jvm-packages\dev\build-linux.cmd`
+  - Skip Tests: `.\xgboost\jvm-packages\dev\build-linux.cmd --skip-tests`
+
+*Note: this will create jars for deployment on Linux machines.*

@@ -17,27 +17,20 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# (Yizhi) This is mainly inspired by the script in apache/spark.
-# I did some modifications to get it with our project.
-# (Nan) Modified from MxNet
-#
-set -e
+cd jvm-packages
 
-if [[ ($# -ne 2) || ( $1 == "--help") ||  $1 == "-h" ]]; then
-  echo "Usage: $(basename $0) [-h|--help] <from_version> <to_version>" 1>&2
+case "$1" in
+  --skip-tests) SKIP_TESTS=true ;;
+  "")           SKIP_TESTS=false ;;
+esac
+
+if [[ -n ${SKIP_TESTS} ]]; then
+  if [[ ${SKIP_TESTS} == "true" ]]; then
+    mvn --batch-mode clean package -DskipTests
+  elif [[ ${SKIP_TESTS} == "false" ]]; then
+    mvn --batch-mode clean package
+  fi
+else
+  echo "Usage: $0 [--skip-tests]"
   exit 1
 fi
-
-FROM_VERSION=$1
-TO_VERSION=$2
-
-sed_i() {
-  perl -p -000 -e "$1" "$2" > "$2.tmp" && mv "$2.tmp" "$2"
-}
-   
-export -f sed_i
- 
-BASEDIR=$(dirname $0)/..
-find "$BASEDIR" -name 'pom.xml' -not -path '*target*' -print \
-  -exec bash -c \
-  "sed_i 's/(<artifactId>(xgboost-jvm|xgboost4j.*)<\/artifactId>\s+<version)>'$FROM_VERSION'(<\/version>)/\1>'$TO_VERSION'\3/g' {}" \;

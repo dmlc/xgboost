@@ -17,27 +17,18 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# (Yizhi) This is mainly inspired by the script in apache/spark.
-# I did some modifications to get it with our project.
-# (Nan) Modified from MxNet
-#
-set -e
+BASEDIR="$( cd "$( dirname "$0" )" && pwd )" # the directory of this file
 
-if [[ ($# -ne 2) || ( $1 == "--help") ||  $1 == "-h" ]]; then
-  echo "Usage: $(basename $0) [-h|--help] <from_version> <to_version>" 1>&2
-  exit 1
-fi
+docker build -t dmlc/xgboost4j-build "${BASEDIR}" # build and tag the Dockerfile
 
-FROM_VERSION=$1
-TO_VERSION=$2
-
-sed_i() {
-  perl -p -000 -e "$1" "$2" > "$2.tmp" && mv "$2.tmp" "$2"
-}
-   
-export -f sed_i
- 
-BASEDIR=$(dirname $0)/..
-find "$BASEDIR" -name 'pom.xml' -not -path '*target*' -print \
-  -exec bash -c \
-  "sed_i 's/(<artifactId>(xgboost-jvm|xgboost4j.*)<\/artifactId>\s+<version)>'$FROM_VERSION'(<\/version>)/\1>'$TO_VERSION'\3/g' {}" \;
+docker run \
+  -it \
+  --rm  \
+  --memory 8g \
+  --env JAVA_OPTS="-Xmx6g" \
+  --env MAVEN_OPTS="-Xmx2g" \
+  --ulimit core=-1 \
+  --volume "${BASEDIR}/../..":/xgboost \
+  --volume "${BASEDIR}/.m2":/root/.m2 \
+  dmlc/xgboost4j-build \
+  /xgboost/jvm-packages/dev/package-linux.sh "$@"
