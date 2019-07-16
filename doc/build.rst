@@ -59,6 +59,8 @@ to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 * `Trouble Shooting`_
 * `Building the documentation`_
 
+.. _build_shared_lib:
+
 ***************************
 Building the Shared Library
 ***************************

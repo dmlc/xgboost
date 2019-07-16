@@ -15,7 +15,6 @@ Contents
   :maxdepth: 2
   :titlesonly:
 
-  community
   build
   get_started
   tutorials/index
@@ -28,4 +27,4 @@ Contents
   JVM package <jvm/index>
   Julia package <julia>
   CLI interface <cli>
-  contribute
+  contrib/index
