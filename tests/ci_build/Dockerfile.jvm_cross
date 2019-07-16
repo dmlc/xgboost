@@ -22,7 +22,7 @@ RUN \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
     # Spark
     # This should be: wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz
-    python -m awscli s3 cp s3:///xgboost-ci-jenkins-artifacts/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz . && \
+    python -m awscli s3 cp s3://xgboost-ci-jenkins-artifacts/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz . && \
     tar xvf spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz -C /opt && \
     ln -s /opt/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7 /opt/spark
 
