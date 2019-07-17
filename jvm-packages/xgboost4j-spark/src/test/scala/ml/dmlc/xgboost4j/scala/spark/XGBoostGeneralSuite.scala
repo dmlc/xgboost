@@ -404,7 +404,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val modelPath = getClass.getResource("/model/0.82/model").getPath
     val model = XGBoostClassificationModel.read.load(modelPath)
     val r = new Random(0)
-    val df = ss.createDataFrame(Seq.fill(1000000)(1).map(i => (i, i))).
+    val df = ss.createDataFrame(Seq.fill(100000)(1).map(i => (i, i))).
       toDF("feature", "label").repartition(5)
     val assembler = new VectorAssembler()
       .setInputCols(df.columns.filter(!_.contains("label")))
