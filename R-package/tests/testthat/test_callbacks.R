@@ -236,7 +236,7 @@ test_that("early stopping using a specific metric works", {
   expect_equal(length(pred), 1611)
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
   logloss_log <- bst$evaluation_log[bst$best_iteration, test_logloss]
-  expect_equal(logloss_log, logloss_pred, tolerance = 5e-6)
+  expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 
 test_that("early stopping xgb.cv works", {

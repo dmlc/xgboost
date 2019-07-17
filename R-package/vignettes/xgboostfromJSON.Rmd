@@ -70,7 +70,7 @@ First let's dump the model to JSON:
 
 ```{r}
 bst_json <- xgb.dump(bst, with_stats = FALSE, dump_format='json')
-bst_from_json <- jsonlite::fromJSON(bst_json, simplifyDataFrame = FALSE)
+bst_from_json <- fromJSON(bst_json, simplifyDataFrame = FALSE)
 node <- bst_from_json[[1]]
 cat(bst_json)
 ```
