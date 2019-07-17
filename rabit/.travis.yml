@@ -1,0 +1,82 @@
+sudo: true
+
+os:
+  - linux
+  - osx
+
+osx_image: xcode10.2
+
+dist: xenial
+
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    - TASK=lint LINT_LANG=cpp
+    - TASK=lint LINT_LANG=python
+    - TASK=doc
+    - TASK=build
+    - TASK=mpi-build
+    - TASK=cmake-build
+    - TASK=test CXX=g++
+
+# dependent apt packages
+addons:
+  apt:
+    sources:
+      - llvm-toolchain-trusty-5.0
+      - ubuntu-toolchain-r-test
+      - george-edison55-precise-backports
+    packages:
+      - doxygen
+      - wget
+      - git
+      - libcurl4-openssl-dev
+      - unzip
+      - python-numpy
+      - gcc-4.8
+      - g++-4.8
+      - openssh-client
+      - openssh-server
+      - python3
+      - python3-setuptools
+  homebrew:
+    packages:
+      - gcc49
+      - openssl
+      - libgit2
+      - python3
+    update: true
+      
+before_install:
+  - git clone https://github.com/dmlc/dmlc-core
+  - export TRAVIS=dmlc-core/scripts/travis/
+  - source ${TRAVIS}/travis_setup_env.sh
+  - ${TRAVIS}/travis_osx_install.sh
+
+install:
+  - if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then sudo apt-get install python3-pip; fi
+  - if [[ ${TRAVIS_OS_NAME} == "osx" ]]; then brew install python3; fi
+  - pip3 install cpplint pylint urllib3 numpy
+  - pip3 install websocket-client kubernetes
+
+script: scripts/travis_script.sh
+
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+    - ${HOME}/.cache/pip
+    - mpich
+
+before_cache:
+  - ${TRAVIS}/travis_before_cache.sh
+
+after_success:
+  - tree build
+  - bash <(curl -s https://codecov.io/bash) -a '-o src/ src/*.c'
+
+notifications:
+# Emails are sent to the committer's git-configured email address by default,
+  email:
+    on_success: change
+    on_failure: always
+
