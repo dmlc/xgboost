@@ -309,12 +309,6 @@ XGBOOST_REGISTER_LINEAR_UPDATER(GPUCoordinateUpdater, "gpu_coord_descent")
     .describe(
         "Update linear model according to coordinate descent algorithm. GPU "
         "accelerated.")
-    .set_body([]() {
-#if defined(XGBOOST_USE_CUDA)
-        return new GPUCoordinateUpdater();
-#else
-        LOG(FATAL) << "XGBoost is not compiled with CUDA support.";
-#endif  // defined(XGBOOST_USE_CUDA)
-      });
+    .set_body([]() { return new GPUCoordinateUpdater(); });
 }  // namespace linear
 }  // namespace xgboost
