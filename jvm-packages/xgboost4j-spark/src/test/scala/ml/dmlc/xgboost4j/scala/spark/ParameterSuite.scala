@@ -17,8 +17,8 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
+import ml.dmlc.xgboost4j.scala.MultiClassification
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
-
 import org.apache.spark.ml.param.ParamMap
 
 class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {

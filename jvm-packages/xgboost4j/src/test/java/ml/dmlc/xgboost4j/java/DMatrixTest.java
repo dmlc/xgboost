@@ -60,8 +60,7 @@ public class DMatrixTest {
   @Test
   public void testCreateFromFile() throws XGBoostError {
     //create DMatrix from file
-    String filePath = writeResourceIntoTempFile("/agaricus.txt.test");
-    DMatrix dmat = new DMatrix(filePath);
+    DMatrix dmat = new DMatrix(Classification.testFile.toString());
     //get label
     float[] labels = dmat.getLabel();
     //check length

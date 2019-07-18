@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import ml.dmlc.xgboost4j.scala.{Classification, Booster, DMatrix, XGBoost => SXGBoost}
 import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
