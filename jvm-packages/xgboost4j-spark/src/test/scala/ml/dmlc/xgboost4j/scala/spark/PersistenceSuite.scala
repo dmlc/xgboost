@@ -20,10 +20,9 @@ import java.io.{File, FileNotFoundException}
 import java.util.Arrays
 
 import scala.io.Source
+import ml.dmlc.xgboost4j.scala.{Classification, DMatrix, Regression}
 
-import ml.dmlc.xgboost4j.scala.DMatrix
 import scala.util.Random
-
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.network.util.JavaUtils

@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import junit.framework.TestCase;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -84,11 +85,17 @@ public class BoosterImplTest {
     return XGBoost.train(trainMat, paramMap, round, watches, null, null);
   }
 
+  private DMatrix trainMat;
+  private DMatrix testMat;
+
+  @Before
+  public void setUp() throws XGBoostError {
+    trainMat = new DMatrix(Classification.trainFile.toString());
+    testMat = new DMatrix(Classification.testFile.toString());
+  }
+
   @Test
   public void testBoosterBasic() throws XGBoostError, IOException {
-
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
 
     Booster booster = trainBooster(trainMat, testMat);
 
@@ -103,8 +110,6 @@ public class BoosterImplTest {
 
   @Test
   public void saveLoadModelWithPath() throws XGBoostError, IOException {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     IEvaluation eval = new EvalError();
 
     Booster booster = trainBooster(trainMat, testMat);
@@ -121,8 +126,6 @@ public class BoosterImplTest {
 
   @Test
   public void saveLoadModelWithStream() throws XGBoostError, IOException {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
 
     Booster booster = trainBooster(trainMat, testMat);
 
@@ -311,8 +314,6 @@ public class BoosterImplTest {
 
   @Test
   public void testBoosterEarlyStop() throws XGBoostError, IOException {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -364,8 +365,6 @@ public class BoosterImplTest {
 
   @Test
   public void testQuantileHistoDepthWise() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -384,8 +383,6 @@ public class BoosterImplTest {
 
   @Test
   public void testQuantileHistoLossGuide() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 0);
@@ -405,8 +402,6 @@ public class BoosterImplTest {
 
   @Test
   public void testQuantileHistoLossGuideMaxBin() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 0);
@@ -426,8 +421,6 @@ public class BoosterImplTest {
 
   @Test
   public void testDumpModelJson() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
 
     Booster booster = trainBooster(trainMat, testMat);
     String[] dump = booster.getModelDump("", false, "json");
@@ -442,9 +435,6 @@ public class BoosterImplTest {
 
   @Test
   public void testGetFeatureScore() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
@@ -454,9 +444,6 @@ public class BoosterImplTest {
 
   @Test
   public void testGetFeatureImportanceGain() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
@@ -466,9 +453,6 @@ public class BoosterImplTest {
 
   @Test
   public void testGetFeatureImportanceTotalGain() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
@@ -478,9 +462,6 @@ public class BoosterImplTest {
 
   @Test
   public void testGetFeatureImportanceCover() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
@@ -490,9 +471,6 @@ public class BoosterImplTest {
 
   @Test
   public void testGetFeatureImportanceTotalCover() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     String[] featureNames = new String[126];
     for(int i = 0; i < 126; i++) featureNames[i] = "test_feature_name_" + i;
@@ -502,7 +480,6 @@ public class BoosterImplTest {
 
   @Test
   public void testQuantileHistoDepthwiseMaxDepth() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -520,8 +497,6 @@ public class BoosterImplTest {
 
   @Test
   public void testQuantileHistoDepthwiseMaxDepthMaxBin() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
         put("max_depth", 3);
@@ -545,9 +520,6 @@ public class BoosterImplTest {
    */
   @Test
   public void testCV() throws XGBoostError {
-    //load train mat
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-
     //set params
     Map<String, Object> param = new HashMap<String, Object>() {
       {
@@ -574,8 +546,6 @@ public class BoosterImplTest {
    */
   @Test
   public void testTrainFromExistingModel() throws XGBoostError, IOException {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     IEvaluation eval = new EvalError();
 
     Map<String, Object> paramMap = new HashMap<String, Object>() {
@@ -625,9 +595,6 @@ public class BoosterImplTest {
    */
   @Test
   public void testSetAndGetAttrs() throws XGBoostError {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
     Booster booster = trainBooster(trainMat, testMat);
     booster.setAttr("testKey1", "testValue1");
     TestCase.assertEquals(booster.getAttr("testKey1"), "testValue1");

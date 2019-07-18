@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
+import ml.dmlc.xgboost4j.scala.Classification
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
