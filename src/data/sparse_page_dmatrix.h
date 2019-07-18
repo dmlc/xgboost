@@ -19,26 +19,26 @@
 namespace xgboost {
 namespace data {
 // Used for external memory.
-class SparsePageDMatrix : public DMatrix {
+class SparsePageDMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
                              std::string cache_info)
       : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
   virtual ~SparsePageDMatrix() = default;
 
-  MetaInfo& Info() override;
+  MetaInfo& Info();
 
-  const MetaInfo& Info() const override;
+  const MetaInfo& Info() const;
 
-  BatchSet GetRowBatches() override;
+  BatchSet GetRowBatches();
 
-  BatchSet GetSortedColumnBatches() override;
+  BatchSet GetSortedColumnBatches(DMatrix* dmat);
 
-  BatchSet GetColumnBatches() override;
+  BatchSet GetColumnBatches(DMatrix* dmat);
 
-  float GetColDensity(size_t cidx) override;
+  float GetColDensity(DMatrix* dmat, size_t cidx);
 
-  bool SingleColBlock() const override;
+  bool SingleColBlock() const;
 
  private:
   // source data pointers.

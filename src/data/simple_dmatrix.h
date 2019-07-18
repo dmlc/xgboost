@@ -21,24 +21,24 @@
 namespace xgboost {
 namespace data {
 // Used for single batch data.
-class SimpleDMatrix : public DMatrix {
+class SimpleDMatrix {
  public:
   explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
       : source_(std::move(source)) {}
 
-  MetaInfo& Info() override;
+  MetaInfo& Info();
 
-  const MetaInfo& Info() const override;
+  const MetaInfo& Info() const;
 
-  float GetColDensity(size_t cidx) override;
+  float GetColDensity(size_t cidx);
 
-  bool SingleColBlock() const override;
+  bool SingleColBlock() const;
 
-  BatchSet GetRowBatches() override;
+  BatchSet GetRowBatches();
 
-  BatchSet GetColumnBatches() override;
+  BatchSet GetColumnBatches();
 
-  BatchSet GetSortedColumnBatches() override;
+  BatchSet GetSortedColumnBatches();
 
  private:
   // source data pointer.

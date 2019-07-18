@@ -26,6 +26,16 @@ namespace xgboost {
 // forward declare learner.
 class LearnerImpl;
 
+namespace data {
+// forward declare simple dmatrix.
+class SimpleDMatrix;
+
+#if DMLC_ENABLE_STD_THREAD
+// forward declare sparse page dmatrix.
+class SparsePageDMatrix;
+#endif  // DMLC_ENABLE_STD_THREAD
+}  // namespace data
+
 /*! \brief data type accepted by xgboost interface */
 enum DataType {
   kFloat32 = 1,
@@ -396,22 +406,26 @@ class RowSet {
 class DMatrix {
  public:
   /*! \brief default constructor */
-  DMatrix()  = default;
+  DMatrix() = delete;
+  /*! \brief copy constructor */
+  DMatrix(const DMatrix&) = delete;
+  /*! \brief assignment operator */
+  DMatrix& operator=(const DMatrix&) = delete;
   /*! \brief meta information of the dataset */
-  virtual MetaInfo& Info() = 0;
+  MetaInfo& Info();
   /*! \brief meta information of the dataset */
-  virtual const MetaInfo& Info() const = 0;
+  const MetaInfo& Info() const;
   /**
    * \brief Gets row batches. Use range based for loop over BatchSet to access individual batches.
    */
-  virtual BatchSet GetRowBatches() = 0;
-  virtual BatchSet GetSortedColumnBatches() = 0;
-  virtual BatchSet GetColumnBatches() = 0;
+  BatchSet GetRowBatches();
+  BatchSet GetSortedColumnBatches();
+  BatchSet GetColumnBatches();
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
-  virtual bool SingleColBlock() const = 0;
+  bool SingleColBlock() const;
   /*! \brief get column density */
-  virtual float GetColDensity(size_t cidx) = 0;
+  float GetColDensity(size_t cidx);
   /*! \brief virtual destructor */
   virtual ~DMatrix() = default;
   /*!
@@ -421,7 +435,7 @@ class DMatrix {
    * \param fname The file name to be saved.
    * \return The created DMatrix.
    */
-  virtual void SaveToLocalFile(const std::string& fname);
+  void SaveToLocalFile(const std::string& fname);
   /*!
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
@@ -466,6 +480,20 @@ class DMatrix {
 
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
+
+ private:
+  explicit DMatrix(data::SimpleDMatrix* simple_dmat);
+#if DMLC_ENABLE_STD_THREAD
+  explicit DMatrix(data::SparsePageDMatrix* sparse_page_dmat);
+#endif  // DMLC_ENABLE_STD_THREAD
+
+  union {
+    data::SimpleDMatrix* simple_dmat_;
+#if DMLC_ENABLE_STD_THREAD
+    data::SparsePageDMatrix* sparse_page_dmat_;
+#endif  // DMLC_ENABLE_STD_THREAD
+  };
+  bool in_memory_;
 };
 
 // implementation of inline functions

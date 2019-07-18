@@ -146,6 +146,103 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+DMatrix::DMatrix(data::SimpleDMatrix* simple_dmat)
+    : simple_dmat_(simple_dmat), in_memory_(true) {}
+
+#if DMLC_ENABLE_STD_THREAD
+DMatrix::DMatrix(data::SparsePageDMatrix* sparse_page_dmat)
+    : sparse_page_dmat_(sparse_page_dmat), in_memory_(false) {}
+#endif  // DMLC_ENABLE_STD_THREAD
+
+MetaInfo& DMatrix::Info() {
+  if (in_memory_) {
+    return simple_dmat_->Info();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->Info();
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+
+const MetaInfo& DMatrix::Info() const {
+  if (in_memory_) {
+    return simple_dmat_->Info();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->Info();
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+
+BatchSet DMatrix::GetRowBatches() {
+  if (in_memory_) {
+    return simple_dmat_->GetRowBatches();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->GetRowBatches();
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+
+BatchSet DMatrix::GetSortedColumnBatches() {
+  if (in_memory_) {
+    return simple_dmat_->GetSortedColumnBatches();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->GetSortedColumnBatches(this);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+BatchSet DMatrix::GetColumnBatches() {
+  if (in_memory_) {
+    return simple_dmat_->GetColumnBatches();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->GetColumnBatches(this);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+
+bool DMatrix::SingleColBlock() const {
+  if (in_memory_) {
+    return simple_dmat_->SingleColBlock();
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->SingleColBlock();
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
+
+float DMatrix::GetColDensity(size_t cidx) {
+  if (in_memory_) {
+    return simple_dmat_->GetColDensity(cidx);
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return sparse_page_dmat_->GetColDensity(this, cidx);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
@@ -280,10 +377,10 @@ void DMatrix::SaveToLocalFile(const std::string& fname) {
 DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
                          const std::string& cache_prefix) {
   if (cache_prefix.length() == 0) {
-    return new data::SimpleDMatrix(std::move(source));
+    return new DMatrix(new data::SimpleDMatrix(std::move(source)));
   } else {
 #if DMLC_ENABLE_STD_THREAD
-    return new data::SparsePageDMatrix(std::move(source), cache_prefix);
+    return new DMatrix(new data::SparsePageDMatrix(std::move(source), cache_prefix));
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
     return nullptr;

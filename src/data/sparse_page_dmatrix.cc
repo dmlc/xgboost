@@ -50,10 +50,10 @@ BatchSet SparsePageDMatrix::GetRowBatches() {
   return BatchSet(begin_iter);
 }
 
-BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
+BatchSet SparsePageDMatrix::GetSortedColumnBatches(DMatrix* dmat) {
   // Lazily instantiate
   if (!sorted_column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, true);
+    SparsePageSource::CreateColumnPage(dmat, cache_info_, true);
     sorted_column_source_.reset(
         new SparsePageSource(cache_info_, ".sorted.col.page"));
   }
@@ -64,10 +64,10 @@ BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
   return BatchSet(begin_iter);
 }
 
-BatchSet SparsePageDMatrix::GetColumnBatches() {
+BatchSet SparsePageDMatrix::GetColumnBatches(DMatrix* dmat) {
   // Lazily instantiate
   if (!column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, false);
+    SparsePageSource::CreateColumnPage(dmat, cache_info_, false);
     column_source_.reset(new SparsePageSource(cache_info_, ".col.page"));
   }
   column_source_->BeforeFirst();
@@ -77,11 +77,11 @@ BatchSet SparsePageDMatrix::GetColumnBatches() {
   return BatchSet(begin_iter);
 }
 
-float SparsePageDMatrix::GetColDensity(size_t cidx) {
+float SparsePageDMatrix::GetColDensity(DMatrix* dmat, size_t cidx) {
   // Finds densities if we don't already have them
   if (col_density_.empty()) {
     std::vector<size_t> column_size(this->Info().num_col_);
-    for (const auto &batch : this->GetColumnBatches()) {
+    for (const auto &batch : this->GetColumnBatches(dmat)) {
       for (auto i = 0u; i < batch.Size(); i++) {
         column_size[i] += batch[i].size();
       }
