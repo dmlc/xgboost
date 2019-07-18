@@ -52,7 +52,9 @@ Suggests:
     vcd (>= 1.3),
     testthat,
     lintr,
-    igraph (>= 1.0.1)
+    igraph (>= 1.0.1),
+    jsonlite,
+    float
 Depends:
     R (>= 3.3.0)
 Imports:

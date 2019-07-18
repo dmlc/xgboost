@@ -106,6 +106,7 @@ test_script:
     # mingw R package: run the R check (which includes unit tests), and also keep the built binary package
     - if /i "%target%" == "rmingw" (
         set _R_CHECK_CRAN_INCOMING_=FALSE&&
+        set _R_CHECK_FORCE_SUGGESTS_=FALSE&&
         R.exe CMD check xgboost*.tar.gz --no-manual --no-build-vignettes --as-cran --install-args=--build
       )
     # MSVC R package: run only the unit tests
