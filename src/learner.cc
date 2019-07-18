@@ -191,7 +191,6 @@ class LearnerImpl : public Learner {
   }
 
   void Load(dmlc::Stream* fi) override {
-    generic_param_ = GenericParameter();
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
@@ -265,10 +264,11 @@ class LearnerImpl : public Learner {
             kv.second = "cpu_predictor";
           }
 #endif  // XGBOOST_USE_CUDA
-          // NO visiable GPU in current environment
+          // NO visible GPU in current environment
           if (is_gpu_predictor && GPUSet::AllVisible().Size() == 0) {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
+            LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
           }
         }
       }
@@ -476,11 +476,8 @@ class LearnerImpl : public Learner {
 
   std::vector<std::string> GetAttrNames() const override {
     std::vector<std::string> out;
-    out.resize(attributes_.size());
-    uint32_t cnt {0};
     for (auto const& kv : attributes_) {
-      out[cnt] = kv.first;
-      cnt++;
+      out.emplace_back(kv.first);
     }
     return out;
   }

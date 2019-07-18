@@ -32,7 +32,7 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
-void GBTree::Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
+void GBTree::Configure(const Args& cfg) {
   this->cfg_ = cfg;
   tparam_.InitAllowUnknown(cfg);
 
@@ -259,7 +259,7 @@ class Dart : public GBTree {
  public:
   explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
 
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
     if (model_.trees.size() == 0) {
       dparam_.InitAllowUnknown(cfg);

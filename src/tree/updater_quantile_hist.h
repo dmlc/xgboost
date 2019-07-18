@@ -46,7 +46,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override;
+  void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
               DMatrix* dmat,

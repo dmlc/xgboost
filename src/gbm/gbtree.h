@@ -154,7 +154,7 @@ class GBTree : public GradientBooster {
 #endif  // XGBOOST_USE_CUDA
   }
 
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override;
+  void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
   // data matrix
   void PerformTreeMethodHeuristic(std::map<std::string, std::string> const& cfg,
@@ -281,7 +281,7 @@ class GBTree : public GradientBooster {
   // ----training fields----
   bool configured_ {false};
   // configurations for tree
-  std::vector<std::pair<std::string, std::string> > cfg_;
+  Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   // Cached matrices

@@ -32,7 +32,7 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
 
-void QuantileHistMaker::Configure(const std::vector<std::pair<std::string, std::string> >& args) {
+void QuantileHistMaker::Configure(const Args& args) {
   // initialize pruner
   if (!pruner_) {
     pruner_.reset(TreeUpdater::Create("prune", tparam_));

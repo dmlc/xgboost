@@ -57,7 +57,7 @@ class GBLinear : public GradientBooster {
       cache_[d.get()] = std::move(e);
     }
   }
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.param.InitAllowUnknown(cfg);
     }

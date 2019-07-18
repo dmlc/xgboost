@@ -21,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 /*! \brief pruner that prunes a tree after growing finishs */
 class TreeRefresher: public TreeUpdater {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
   }
   char const* Name() const override {

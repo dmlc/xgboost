@@ -191,7 +191,6 @@ void CLITrain(const CLIParam& param) {
       learner->SetParams(param.cfg);
     } else {
       learner->SetParams(param.cfg);
-      // learner->InitModel();
     }
   }
   LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";

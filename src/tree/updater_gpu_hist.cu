@@ -1290,8 +1290,7 @@ template <typename GradientSumT>
 class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
-  void Configure(const std::vector<std::pair<std::string, std::string>>& args,
-                 GenericParameter const* generic_param) {
+  void Configure(const Args& args, GenericParameter const* generic_param) {
     param_.InitAllowUnknown(args);
     generic_param_ = generic_param;
     hist_maker_param_.InitAllowUnknown(args);
@@ -1502,8 +1501,7 @@ class GPUHistMakerSpecialised {
 
 class GPUHistMaker : public TreeUpdater {
  public:
-  void Configure(
-      const std::vector<std::pair<std::string, std::string>>& args) override {
+  void Configure(const Args& args) override {
     hist_maker_param_.InitAllowUnknown(args);
     float_maker_.reset();
     double_maker_.reset();

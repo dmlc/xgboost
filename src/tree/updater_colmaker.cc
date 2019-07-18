@@ -25,7 +25,7 @@ DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
@@ -772,7 +772,7 @@ class ColMaker: public TreeUpdater {
 // distributed column maker
 class DistColMaker : public ColMaker {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
     pruner_->Configure(args);

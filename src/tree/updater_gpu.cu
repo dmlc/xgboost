@@ -585,7 +585,7 @@ class GPUMaker : public TreeUpdater {
     return "gpu_exact";
   }
 
-  void Configure(const std::vector<std::pair<std::string, std::string>> &args) override {
+  void Configure(const Args &args) override {
      param_.InitAllowUnknown(args);
      maxNodes_ = (1 << (param_.max_depth + 1)) - 1;
      maxLeaves_ = 1 << param_.max_depth;

@@ -29,7 +29,7 @@ class TreePruner: public TreeUpdater {
   }
 
   // set training parameter
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
     syncher_->Configure(args);
   }

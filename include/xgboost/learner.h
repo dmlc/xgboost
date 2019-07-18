@@ -111,7 +111,7 @@ class Learner : public rabit::Serializable {
    *
    * \param args parameters.
    */
-  virtual void SetParams(std::vector<std::pair<std::string, std::string>> const& args) = 0;
+  virtual void SetParams(Args const& args) = 0;
   /*!
    * \brief Set parameter for booster
    *

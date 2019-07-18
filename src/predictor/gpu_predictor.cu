@@ -467,13 +467,14 @@ class GPUPredictor : public xgboost::Predictor {
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {
-    LOG(FATAL) << "Internal error: " << __FUNCTION__
+    LOG(FATAL) << "Internal error: " << __func__
                << " is not implemented in GPU Predictor.";
   }
+
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model,
                    unsigned ntree_limit) override {
-    LOG(FATAL) << "Internal error: " << __FUNCTION__
+    LOG(FATAL) << "Internal error: " << __func__
                << " is not implemented in GPU Predictor.";
   }
 
@@ -482,7 +483,7 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
                            bool approximate, int condition,
                            unsigned condition_feature) override {
-    LOG(FATAL) << "Internal error: " << __FUNCTION__
+    LOG(FATAL) << "Internal error: " << __func__
                << " is not implemented in GPU Predictor.";
   }
 
@@ -491,7 +492,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        const gbm::GBTreeModel& model,
                                        unsigned ntree_limit,
                                        bool approximate) override {
-    LOG(FATAL) << "Internal error: " << __FUNCTION__
+    LOG(FATAL) << "Internal error: " << __func__
                << " is not implemented in GPU Predictor.";
   }
 
