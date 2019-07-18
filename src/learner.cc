@@ -191,6 +191,7 @@ class LearnerImpl : public Learner {
   }
 
   void Load(dmlc::Stream* fi) override {
+    generic_param_.InitAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
