@@ -265,16 +265,17 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
-#ifdef XGBOOST_USE_CUDF
-int XGDMatrixCreateFromCUDF
-(gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
+int XGBDMatrixCreateFromForeignColumns(ForeignColumn ** cols,
+                                       foreign_size_type n_cols,
+                                       DMatrixHandle * out) {
+#if defined(XGBOOST_USE_CUDA)
   API_BEGIN();
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-  source->InitFromCUDF(cols, n_cols);
+  source->CopyFrom(cols, n_cols);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
+#endif  // XGBOOST_USE_CUDA
 }
-#endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
@@ -775,21 +776,6 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
       ->get()->Info().SetInfo(field, info, kFloat32, len);
   API_END();
 }
-
-#ifdef XGBOOST_USE_CUDF
-
-XGB_DLL int XGDMatrixSetCUDFInfo(DMatrixHandle handle,
-                                const char *field,
-                                gdf_column **cols,
-                                size_t n_cols) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-    ->get()->Info().SetCUDFInfo(field, cols, n_cols);
-  API_END();
-}
-
-#endif
 
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const char* field,

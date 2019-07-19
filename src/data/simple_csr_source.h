@@ -8,10 +8,6 @@
 #ifndef XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 #define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
-#ifdef XGBOOST_USE_CUDF
-#include <cudf/types.h>
-#endif
-
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <vector>
@@ -39,17 +35,7 @@ class SimpleCSRSource : public DataSource {
   /*! \brief destructor */
   ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */
-  void Clear();
-
-#ifdef XGBOOST_USE_CUDF
-  /*!
-    \brief initialize the data source from CUDA data frame (CUDF)
-    \param cols CUDA columns
-    \param n_cols number of CUDA columns
-   */
-  void InitFromCUDF(gdf_column** cols, size_t n_cols);
-#endif
-  
+  void Clear();  
   /*!
    * \brief copy content of data from src
    * \param src source data iter.
@@ -61,6 +47,12 @@ class SimpleCSRSource : public DataSource {
    * \param info The additional information reflected in the parser.
    */
   void CopyFrom(dmlc::Parser<uint32_t>* src);
+    /*!
+   * \brief copy content of data from foreign columns buffer.
+   * \param cols foreign columns data buffer.
+   * \param n_cols the number of foreign columns.
+   */
+  void CopyFrom(ForeignColumn ** cols, foreign_size_type n_cols);
   /*!
    * \brief Load data from binary stream.
    * \param fi the pointer to load data from.

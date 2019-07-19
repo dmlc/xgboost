@@ -6,6 +6,9 @@
 #include <xgboost/logging.h>
 #include <limits>
 #include "./simple_csr_source.h"
+#if defined(XGBOOST_USE_CUDA)
+#include "./simple_csr_source.cuh"
+#endif
 
 namespace xgboost {
 namespace data {
@@ -83,6 +86,32 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.Size());
   // Either every row has query ID or none at all
   CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
+}
+
+void SimpleCSRSource::CopyFrom(ForeignColumn ** cols, foreign_size_type n_cols) {
+#if defined(XGBOOST_USE_CUDA)
+  CHECKGT(n_cols, 0);
+  foreign_size_type n_valid = 0;
+  for (foreign_size_type i = 0; i < n_cols; ++i) {
+    CHECK_EQ(cols[0]->size, cols[i]->size);
+    n_valid += cols[i]->size - cols[i]->null_count;
+  }
+  
+  info.num_col_ = n_cols;
+  info.num_row_ = cols[0]->size;
+  info.num_nonzero_ = n_valid;
+  
+  GPUSet devices = GPUSet::Range(0, 1);
+  page_.offset.Reshard(GPUDistribution::Overlap(devices, 1));
+  page_.offset.Resize(n_rows + 1);
+  
+  std::vector<size_t> device_offsets{0, n_valid};
+  page_.data.Reshard(GPUDistribution::Explicit(devices, device_offsets));
+  page_.data.Reshard(GPUDistribution::Overlap(devices, 1));
+  page_.data.Resize(n_valid);
+
+  ForeignColsToCSR(cols, n_cols, csr);
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 
 void SimpleCSRSource::LoadBinary(dmlc::Stream* fi) {

@@ -16,9 +16,6 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#ifdef XGBOOST_USE_CUDF
-#include <cudf/types.h>
-#endif
 
 #include "./base.h"
 
@@ -36,6 +33,17 @@ enum DataType {
   kDouble = 2,
   kUInt32 = 3,
   kUInt64 = 4
+};
+
+typedef unsigned char foreign_valid_type;
+typedef int foreign_size_type;
+
+struct ForeignColumn {
+  void * data;
+  foreign_valid_type * valid;
+  foreign_size_type size;
+  foreign_size_type num_nonzero;
+  foreign_size_type null_count;
 };
 
 /*!
@@ -126,16 +134,13 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
-  
-#ifdef XGBOOST_USE_CUDF
   /*!
-   * \brief Set information in the meta info from CUDF columns.
+   * \brief Set information in the meta info for foreign columns buffer.
    * \param key The key of the information.
-   * \param cols The CUDF columns used to set the info.
-   * \param n_cols The number of CUDF columns.
+   * \param cols The foreign columns buffer used to set the info.
+   * \param n_cols The number of foreign columns.
    */
-  void SetCUDFInfo(const char* key, gdf_column** cols, size_t n_cols);
-#endif
+  void SetInfo(const char * key, ForeignColumn ** cols, foreign_size_type n_cols);
 
  private:
   /*! \brief argsort of labels */
@@ -163,6 +168,14 @@ struct Entry {
   inline bool operator==(const Entry& other) const {
     return (this->index == other.index && this->fvalue == other.fvalue);
   }
+};
+
+struct ForeignCSR {
+  Entry * data;
+  size_t * offsets;
+  size_t n_nonzero;
+  size_t n_cols;
+  size_t n_rows;
 };
 
 /*!

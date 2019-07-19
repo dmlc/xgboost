@@ -17,6 +17,10 @@
 #include "./sparse_page_dmatrix.h"
 #endif  // DMLC_ENABLE_STD_THREAD
 
+#if defined(XGBOOST_USE_CUDA)
+#include "./data.cuh"
+#endif  // XGBOOST_USE_CUDA
+
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
 }  // namespace dmlc
@@ -146,6 +150,11 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+void MetaInfo::SetInfo(const char * key, ForeignColumn ** cols, foreign_size_type n_cols) {
+#if defined(XGBOOST_USE_CUDA)
+  SetInfoFromForeignColumns(this, key, cols, n_cols);
+#endif  // XGBOOST_USE_CUDA
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
