@@ -15,8 +15,8 @@
 namespace xgboost {
 
 __global__ void ReadColumn(ForeignColumn * col,
-                             foreign_size_type n_cols,
-                             void * data) {
+                           foreign_size_type n_cols,
+                           void * data) {
   int tid = threadIdx.x + blockDim.x * blockIdx.x;
   foreign_size_type n_rows = col->size;
   if (n_rows <= tid) {
