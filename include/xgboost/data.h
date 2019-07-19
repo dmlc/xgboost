@@ -29,11 +29,8 @@ class LearnerImpl;
 namespace data {
 // forward declare simple dmatrix.
 class SimpleDMatrix;
-
-#if DMLC_ENABLE_STD_THREAD
 // forward declare sparse page dmatrix.
 class SparsePageDMatrix;
-#endif  // DMLC_ENABLE_STD_THREAD
 }  // namespace data
 
 /*! \brief data type accepted by xgboost interface */
@@ -403,7 +400,7 @@ class RowSet {
  *  - Provide a DataSource, that can be passed to DMatrix::Create
  *      This can be used to re-use inmemory data structure into DMatrix.
  */
-class DMatrix {
+class DMatrix final {
  public:
   /*! \brief default constructor */
   DMatrix() = delete;
@@ -426,8 +423,8 @@ class DMatrix {
   bool SingleColBlock() const;
   /*! \brief get column density */
   float GetColDensity(size_t cidx);
-  /*! \brief virtual destructor */
-  virtual ~DMatrix() = default;
+  /*! \brief destructor */
+  ~DMatrix();
   /*!
    * \brief Save DMatrix to local file.
    *  The saved file only works for non-sharded dataset(single machine training).
@@ -483,15 +480,11 @@ class DMatrix {
 
  private:
   explicit DMatrix(data::SimpleDMatrix* simple_dmat);
-#if DMLC_ENABLE_STD_THREAD
   explicit DMatrix(data::SparsePageDMatrix* sparse_page_dmat);
-#endif  // DMLC_ENABLE_STD_THREAD
 
   union {
     data::SimpleDMatrix* simple_dmat_;
-#if DMLC_ENABLE_STD_THREAD
     data::SparsePageDMatrix* sparse_page_dmat_;
-#endif  // DMLC_ENABLE_STD_THREAD
   };
   bool in_memory_;
 };
