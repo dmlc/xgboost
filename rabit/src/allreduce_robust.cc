@@ -11,6 +11,7 @@
 #include <limits>
 #include <utility>
 #include "../include/rabit/internal/io.h"
+#include "../include/rabit/internal/timer.h"
 #include "../include/rabit/internal/utils.h"
 #include "../include/rabit/internal/engine.h"
 #include "../include/rabit/internal/rabit-inl.h"
@@ -162,7 +163,15 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
     return;
   }
+  double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
+
+  if (resbuf.LastSeqNo() != -1 &&
+    (result_buffer_round == -1 ||
+      resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
+    resbuf.DropLast();
+  }
+
   if (!recovered && prepare_fun != NULL) prepare_fun(prepare_arg);
   void *temp = resbuf.AllocTemp(type_nbytes, count);
   while (true) {
@@ -177,6 +186,11 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
       }
     }
   }
+  double delta = utils::GetTime() - start;
+  // log allreduce latency
+  utils::HandleLogInfo("[%d] allreduce finished version %d, seq %d, take %f seconds\n",
+    rank, version_number, seq_counter, delta);
+
   resbuf.PushTemp(seq_counter, type_nbytes, count);
   seq_counter += 1;
 }
@@ -190,6 +204,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
   // skip action in single node
   if (world_size == 1 || world_size == -1) return;
 
+  double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
@@ -209,6 +224,11 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
       }
     }
   }
+
+  double delta = utils::GetTime() - start;
+  // log broadcast latency
+  utils::HandleLogInfo("[%d] broadcast root %d finished version %d, seq %d, take %f seconds\n",
+                       rank, root, version_number, seq_counter, delta);
   resbuf.PushTemp(seq_counter, 1, total_size);
   seq_counter += 1;
 }
@@ -243,7 +263,7 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
-
+  double start = utils::GetTime();
   // check if we succeed
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp, cur_cache_seq)) {
     int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
@@ -273,12 +293,16 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     // run another phase of check ack, if recovered from data
     utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
       ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
-    utils::Printf("[%d] load checkpoint global %ld version %d\n", rank,
-      global_checkpoint.length(), version_number);
 
     if (!RecoverExec(NULL, 0, ActionSummary::kLoadCache, seq_counter, cur_cache_seq)) {
       utils::Printf("no need to load cache\n");
     }
+    double delta = utils::GetTime() - start;
+    // log broadcast latency
+    utils::HandleLogInfo("[%d] loadcheckpoint size %ld finished version %d, "
+                         "seq %d, take %f seconds\n",
+                         rank, global_checkpoint.length(),
+                         version_number, seq_counter, delta);
     return version_number;
   } else {
     // reset result buffer
@@ -331,6 +355,7 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   if (world_size == 1) {
     version_number += 1; return;
   }
+  double start = utils::GetTime();
   this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
@@ -375,11 +400,22 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
     global_model->Save(&fs);
     global_lazycheck = NULL;
   }
+  double delta = utils::GetTime() - start;
+  // log checkpoint latency
+  utils::HandleLogInfo("[%d] checkpoint size %ld finished version %d, seq %d, take %f seconds\n",
+                       rank, global_checkpoint.length(), version_number, seq_counter, delta);
+
+  start = utils::GetTime();
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
     ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
+
+  delta = utils::GetTime() - start;
+  // log checkpoint ack latency
+  utils::HandleLogInfo("[%d] checkpoint ack finished version %d, take %f seconds\n",
+                       rank, version_number, delta);
 }
 /*!
  * \brief reset the all the existing links by sending Out-of-Band message marker
@@ -928,8 +964,6 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
                   "TryGetResult::Checkpoint");
     return TryRecoverLocalState(&local_rptr[new_version], &local_chkpt[new_version]);
   }
-
-  utils::Assert(seqno >= 0, "likely minimal seqno overflow");
 
   // handles normal data recovery
   RecoverType role;

@@ -184,11 +184,11 @@ class AllreduceRobust : public AllreduceBase {
    */
   struct ActionSummary {
     // maximumly allowed sequence id
-    static const int kSpecialOp = (1 << 20);
+    static const u_int32_t kSpecialOp = (1 << 26);
     // special sequence number for local state checkpoint
-    static const int kLocalCheckPoint = (1 << 20) - 2;
+    static const u_int32_t kLocalCheckPoint = (1 << 26) - 2;
     // special sequnce number for local state checkpoint ack signal
-    static const int kLocalCheckAck = (1 << 20) - 1;
+    static const u_int32_t kLocalCheckAck = (1 << 26) - 1;
     //---------------------------------------------
     // The following are bit mask of flag used in
     //----------------------------------------------
@@ -199,23 +199,23 @@ class AllreduceRobust : public AllreduceBase {
     // check point Ack, we use a two phase message in check point,
     // this is the second phase of check pointing
     static const int kCheckAck = 4;
-    // some node want to load cache
-    static const int kLoadCache = 8;
     // there are difference sequence number the nodes proposed
     // this means we want to do recover execution of the lower sequence
     // action instead of normal execution
-    static const int kDiffSeq = 16;
+    static const int kDiffSeq = 8;
+    // there are nodes request load cache
+    static const int kLoadCache = 16;
     // constructor
     ActionSummary(void) {}
     // constructor of action
     explicit ActionSummary(int action_flag, int role_diff_flag = 0,
-      int minseqno = kSpecialOp, int maxseqno = kSpecialOp) {
+      u_int32_t minseqno = kSpecialOp, u_int32_t maxseqno = kSpecialOp) {
       seqcode = (minseqno << 5) | action_flag;
       maxseqcode = (maxseqno << 5) | role_diff_flag;
     }
     // minimum number of all operations by default
     // maximum number of all cache operations otherwise
-    inline int seqno(SeqType t = SeqType::kOR) const {
+    inline u_int32_t seqno(SeqType t = SeqType::kOR) const {
       int code = t == SeqType::kOR ? seqcode : maxseqcode;
       return code >> 5;
     }
@@ -263,8 +263,8 @@ class AllreduceRobust : public AllreduceBase {
       const ActionSummary *src = (const ActionSummary*)src_;
       ActionSummary *dst = reinterpret_cast<ActionSummary*>(dst_);
       for (int i = 0; i < len; ++i) {
-        int min_seqno = std::min(src[i].seqno(), dst[i].seqno());
-        int max_seqno = std::max(src[i].seqno(SeqType::KAND), dst[i].seqno(SeqType::KAND));
+        u_int32_t min_seqno = std::min(src[i].seqno(), dst[i].seqno());
+        u_int32_t max_seqno = std::max(src[i].seqno(SeqType::KAND), dst[i].seqno(SeqType::KAND));
         int action_flag = src[i].flag() | dst[i].flag();
         // if any node is not requester set to 0 otherwise 1
         int role_flag = src[i].flag(SeqType::KAND) & dst[i].flag(SeqType::KAND);
@@ -278,13 +278,11 @@ class AllreduceRobust : public AllreduceBase {
 
    private:
     // internel sequence code min of seqno
-    int seqcode;
+    u_int32_t seqcode;
     // internal sequence code max of seqno
-    int maxseqcode;
+    u_int32_t maxseqcode;
   };
-  /*! \brief data structure to remember result of Bcast and Allreduce calls
-   * chenqin: 
-  */
+  /*! \brief data structure to remember result of Bcast and Allreduce calls*/
   class ResultBuffer{
    public:
     // constructor
@@ -313,7 +311,6 @@ class AllreduceRobust : public AllreduceBase {
       if (seqno_.size() != 0) {
         utils::Assert(seqno_.back() < seqid, "PushTemp seqid inconsistent");
       }
-      size_t cur_ptr = rptr_.back();
       seqno_.push_back(seqid);
       rptr_.push_back(rptr_.back() + nhop);
       size_.push_back(size);
@@ -414,8 +411,13 @@ class AllreduceRobust : public AllreduceBase {
    *           result by recovering procedure, the action is complete, no further action is needed
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
    */
+#ifdef __linux__
   bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kSpecialOp,
     int cacheseqno = ActionSummary::kSpecialOp, const char* caller = __builtin_FUNCTION());
+#else
+  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kSpecialOp,
+    int cacheseqno = ActionSummary::kSpecialOp, const char* caller = "not supported in non linux");
+#endif
   /*!
    * \brief try to load check point
    *

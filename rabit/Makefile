@@ -9,7 +9,7 @@ else
 endif
 
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++11
-export CFLAGS = -O3 -g $(WARNFLAGS) -I $(DMLC)/include -I include/
+export CFLAGS = -O3 $(WARNFLAGS) -I $(DMLC)/include -I include/
 export LDFLAGS =-Llib
 
 #download mpi

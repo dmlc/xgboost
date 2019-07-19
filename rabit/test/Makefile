@@ -8,7 +8,7 @@ endif
 
 MPICXX=../mpich/bin/mpicxx
 export LDFLAGS=  -L../lib -pthread -lm
-export CFLAGS = -Wall -O3 -g -msse3 -Wno-unknown-pragmas -fPIC -I../include -I $(DMLC)/include -std=c++11
+export CFLAGS = -Wall -O3 -msse3 -Wno-unknown-pragmas -fPIC -I../include -I $(DMLC)/include -std=c++11
 
 OS := $(shell uname)
 
