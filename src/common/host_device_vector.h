@@ -245,14 +245,6 @@ class HostDeviceVector {
   void Copy(const std::vector<T>& other);
   void Copy(std::initializer_list<T> other);
 
-  /*!
-   * \brief Conditional GPU memory copy.
-   *
-   *   If host data is not available on the target GPU, copy it; otherwise,
-   *     the host will sync with the target GPU
-   */
-  void CopyTo(int device, size_t offset, T* dst, size_t n) const;
-
   std::vector<T>& HostVector();
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
