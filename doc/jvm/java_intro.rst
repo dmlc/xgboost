@@ -88,7 +88,6 @@ To set parameters, parameters are specified as a Map:
     {
       put("eta", 1.0);
       put("max_depth", 2);
-      put("silent", 1);
       put("objective", "binary:logistic");
       put("eval_metric", "logloss");
     }

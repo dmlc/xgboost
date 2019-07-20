@@ -113,7 +113,7 @@ XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters <
 
   .. code-block:: python
 
-    param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+    param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
     param['nthread'] = 4
     param['eval_metric'] = 'auc'
 
