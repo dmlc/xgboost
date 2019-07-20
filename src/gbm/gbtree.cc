@@ -32,12 +32,9 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
-void GBTree::Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
+void GBTree::Configure(const Args& cfg) {
   this->cfg_ = cfg;
   tparam_.InitAllowUnknown(cfg);
-  std::string updater_seq = tparam_.updater_seq;
-
-  ConfigureUpdaters({cfg.begin(), cfg.cend()});
 
   model_.Configure(cfg);
 
@@ -46,15 +43,46 @@ void GBTree::Configure(const std::vector<std::pair<std::string, std::string> >& 
     model_.InitTreesToUpdate();
   }
 
-  // configure predictor
-  predictor_ = std::unique_ptr<Predictor>(
-      Predictor::Create(tparam_.predictor, this->learner_param_));
-  predictor_->Init(cfg, cache_);
+  // configure predictors
+  if (!cpu_predictor_) {
+    cpu_predictor_ = std::unique_ptr<Predictor>(
+        Predictor::Create("cpu_predictor", this->learner_param_));
+  }
+#if defined(XGBOOST_USE_CUDA)
+  if (!gpu_predictor_) {
+    gpu_predictor_ = std::unique_ptr<Predictor>(
+        Predictor::Create("gpu_predictor", this->learner_param_));
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
+
   monitor_.Init("GBTree");
+
+  configured_ = true;
 }
 
-void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
-                                        std::map<std::string, std::string> cfg) {
+// FIXME(trivialfis): This handles updaters and predictor.  Because the choice of updaters
+// depends on whether external memory is used and how large is dataset.  We can remove the
+// dependency on DMatrix once `hist` tree method can handle external memory so that we can
+// make it default.
+void GBTree::ConfigureWithKnownData(std::map<std::string, std::string> const& cfg, DMatrix* fmat) {
+  std::string updater_seq = tparam_.updater_seq;
+  tparam_.InitAllowUnknown(cfg);
+  this->PerformTreeMethodHeuristic({this->cfg_.begin(), this->cfg_.end()}, fmat);
+  this->ConfigureUpdaters({this->cfg_.begin(), this->cfg_.end()});
+  LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
+  // initialize the updaters only when needed.
+  if (updater_seq != tparam_.updater_seq) {
+    this->updaters_.clear();
+  }
+  this->InitUpdater();
+  cpu_predictor_->Configure({cfg.cbegin(), cfg.cend()}, cache_);
+#if defined(XGBOOST_USE_CUDA)
+  gpu_predictor_->Configure({cfg.cbegin(), cfg.cend()}, cache_);
+#endif  // defined(XGBOOST_USE_CUDA)
+}
+
+void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const& cfg,
+                                        DMatrix* fmat) {
   if (cfg.find("updater") != cfg.cend()) {
     // This method is disabled when `updater` parameter is explicitly
     // set, since only experts are expected to do so.
@@ -71,11 +99,11 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
       "Tree method is automatically selected to be 'approx' "
       "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
-  } else if (!p_train->SingleColBlock()) {
+  } else if (!fmat->SingleColBlock()) {
     LOG(WARNING) << "Tree method is automatically set to 'approx' "
                     "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;
-  } else if (p_train->Info().num_row_ >= (4UL << 20UL)) {
+  } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
     /* Choose tree_method='approx' automatically for large data matrix */
     LOG(WARNING) << "Tree method is automatically selected to be "
         "'approx' for faster speed. To use old behavior "
@@ -91,7 +119,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* p_train,
 
 void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
   // `updater` parameter was manually specified
-  if (cfg.find("updater")  != cfg.cend()) {
+  if (cfg.find("updater") != cfg.cend()) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
         "parameter. The `tree_method` parameter will be ignored. "
         "Incorrect sequence of updaters will produce undefined "
@@ -141,17 +169,9 @@ void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
 void GBTree::DoBoost(DMatrix* p_fmat,
                      HostDeviceVector<GradientPair>* in_gpair,
                      ObjFunction* obj) {
-  std::string updater_seq = tparam_.updater_seq;
-  this->PerformTreeMethodHeuristic(p_fmat, {this->cfg_.begin(), this->cfg_.end()});
-  this->ConfigureUpdaters({this->cfg_.begin(), this->cfg_.end()});
-  LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
-  // initialize the updaters only when needed.
-  if (updater_seq != tparam_.updater_seq) {
-    this->updaters_.clear();
-  }
-
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
   const int ngroup = model_.param.num_output_group;
+  ConfigureWithKnownData({this->cfg_.cbegin(), this->cfg_.cend()}, p_fmat);
   monitor_.Start("BoostNewTrees");
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree> > ret;
@@ -189,7 +209,7 @@ void GBTree::InitUpdater() {
   std::vector<std::string> ups = common::Split(tval, ',');
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
-    up->Init(this->cfg_);
+    up->Configure(this->cfg_);
     updaters_.push_back(std::move(up));
   }
 }
@@ -198,7 +218,6 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
                            DMatrix *p_fmat,
                            int bst_group,
                            std::vector<std::unique_ptr<RegTree> >* ret) {
-  this->InitUpdater();
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -230,7 +249,8 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
     num_new_trees += new_trees[gid].size();
     model_.CommitModel(std::move(new_trees[gid]), gid);
   }
-  predictor_->UpdatePredictionCache(model_, &updaters_, num_new_trees);
+  CHECK(configured_);
+  GetPredictor()->UpdatePredictionCache(model_, &updaters_, num_new_trees);
 }
 
 
@@ -239,7 +259,7 @@ class Dart : public GBTree {
  public:
   explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
 
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
     if (model_.trees.size() == 0) {
       dparam_.InitAllowUnknown(cfg);

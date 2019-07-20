@@ -46,14 +46,14 @@ TEST(GPUSet, Verbose) {
     args["verbosity"] = "3";  // LOG INFO
 
     testing::internal::CaptureStderr();
-    ConsoleLogger::Configure(args.cbegin(), args.cend());
+    ConsoleLogger::Configure({args.cbegin(), args.cend()});
     GPUSet::All(0, 1);
     std::string output = testing::internal::GetCapturedStderr();
     ASSERT_NE(output.find("GPU ID: 0"), std::string::npos);
     ASSERT_NE(output.find("GPUs: 1"), std::string::npos);
 
     args["verbosity"] = "1";  // restore
-    ConsoleLogger::Configure(args.cbegin(), args.cend());
+    ConsoleLogger::Configure({args.cbegin(), args.cend()});
   }
 }
 

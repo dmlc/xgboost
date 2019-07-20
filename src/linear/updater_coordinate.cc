@@ -24,8 +24,7 @@ DMLC_REGISTRY_FILE_TAG(updater_coordinate);
 class CoordinateUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Init(
-      const std::vector<std::pair<std::string, std::string> > &args) override {
+  void Configure(Args const& args) override {
     const std::vector<std::pair<std::string, std::string> > rest {
       tparam_.InitAllowUnknown(args)
     };

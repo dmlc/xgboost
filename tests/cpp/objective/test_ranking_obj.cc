@@ -4,7 +4,7 @@
 #include "../helpers.h"
 
 TEST(Objective, PairwiseRankingGPair) {
-  xgboost::LearnerTrainParam tparam;
+  xgboost::GenericParameter tparam;
   std::vector<std::pair<std::string, std::string>> args;
   tparam.InitAllowUnknown(args);
 

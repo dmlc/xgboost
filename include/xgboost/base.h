@@ -10,6 +10,9 @@
 #include <dmlc/omp.h>
 #include <cmath>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <utility>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
@@ -198,6 +201,8 @@ using GradientPairPrecise = detail::GradientPairInternal<double>;
  * storage. Operators are associative where floating point versions are not
  * associative. */
 using GradientPairInteger = detail::GradientPairInternal<int64_t>;
+
+using Args = std::vector<std::pair<std::string, std::string> >;
 
 /*! \brief small eps gap for minimum split decision. */
 const bst_float kRtEps = 1e-6f;

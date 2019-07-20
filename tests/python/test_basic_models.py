@@ -154,7 +154,7 @@ class TestModels(unittest.TestCase):
 
     def test_multi_eval_metric(self):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        param = {'max_depth': 2, 'eta': 0.2, 'verbosity': 0,
+        param = {'max_depth': 2, 'eta': 0.2, 'verbosity': 1,
                  'objective': 'binary:logistic'}
         param['eval_metric'] = ["auc", "logloss", 'error']
         evals_result = {}

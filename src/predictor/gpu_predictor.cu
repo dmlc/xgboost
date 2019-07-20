@@ -377,8 +377,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  GPUPredictor()  // NOLINT
-      : cpu_predictor_(Predictor::Create("cpu_predictor", learner_param_)) {}
+  GPUPredictor() = default;
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
@@ -468,12 +467,15 @@ class GPUPredictor : public xgboost::Predictor {
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                        unsigned root_index) override {
-    cpu_predictor_->PredictInstance(inst, out_preds, model, root_index);
+    LOG(FATAL) << "Internal error: " << __func__
+               << " is not implemented in GPU Predictor.";
   }
+
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model,
                    unsigned ntree_limit) override {
-    cpu_predictor_->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
+    LOG(FATAL) << "Internal error: " << __func__
+               << " is not implemented in GPU Predictor.";
   }
 
   void PredictContribution(DMatrix* p_fmat,
@@ -481,9 +483,8 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
                            bool approximate, int condition,
                            unsigned condition_feature) override {
-    cpu_predictor_->PredictContribution(p_fmat, out_contribs, model, ntree_limit,
-                                       approximate, condition,
-                                       condition_feature);
+    LOG(FATAL) << "Internal error: " << __func__
+               << " is not implemented in GPU Predictor.";
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
@@ -491,14 +492,13 @@ class GPUPredictor : public xgboost::Predictor {
                                        const gbm::GBTreeModel& model,
                                        unsigned ntree_limit,
                                        bool approximate) override {
-    cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model,
-                                                   ntree_limit, approximate);
+    LOG(FATAL) << "Internal error: " << __func__
+               << " is not implemented in GPU Predictor.";
   }
 
-  void Init(const std::vector<std::pair<std::string, std::string>>& cfg,
-            const std::vector<std::shared_ptr<DMatrix>>& cache) override {
-    Predictor::Init(cfg, cache);
-    cpu_predictor_->Init(cfg, cache);
+  void Configure(const std::vector<std::pair<std::string, std::string>>& cfg,
+                 const std::vector<std::shared_ptr<DMatrix>>& cache) override {
+    Predictor::Configure(cfg, cache);
 
     GPUSet devices = GPUSet::All(learner_param_->gpu_id, learner_param_->n_gpus);
     ConfigureShards(devices);
@@ -517,7 +517,6 @@ class GPUPredictor : public xgboost::Predictor {
       });
   }
 
-  std::unique_ptr<Predictor> cpu_predictor_;
   std::vector<DeviceShard> shards_;
   GPUSet devices_;
   common::Monitor monitor_;

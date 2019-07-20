@@ -22,6 +22,9 @@ DMLC_REGISTRY_FILE_TAG(updater_skmaker);
 
 class SketchMaker: public BaseMaker {
  public:
+  char const* Name() const override {
+    return "grow_skmaker";
+  }
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {

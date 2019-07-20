@@ -14,7 +14,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
 
 namespace xgboost {
 
-TreeUpdater* TreeUpdater::Create(const std::string& name, LearnerTrainParam const* tparam) {
+TreeUpdater* TreeUpdater::Create(const std::string& name, GenericParameter const* tparam) {
   auto *e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;

@@ -46,7 +46,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override;
+  void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
               DMatrix* dmat,
@@ -55,6 +55,9 @@ class QuantileHistMaker: public TreeUpdater {
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
 
+  char const* Name() const override {
+    return "grow_quantile_histmaker";
+  }
 
  protected:
   // training parameter

@@ -33,6 +33,9 @@ class HistMaker: public BaseMaker {
     }
     param_.learning_rate = lr;
   }
+  char const* Name() const override {
+    return "grow_histmaker";
+  }
 
  protected:
     /*! \brief a single histogram */
@@ -83,7 +86,7 @@ class HistMaker: public BaseMaker {
     // per thread histset
     std::vector<HistSet> hset;
     // initialize the hist set
-    inline void Init(const TrainParam &param, int nthread) {
+    inline void Configure(const TrainParam &param, int nthread) {
       hset.resize(nthread);
       // cleanup statistics
       for (int tid = 0; tid < nthread; ++tid) {
@@ -274,6 +277,9 @@ class HistMaker: public BaseMaker {
 class CQHistMaker: public HistMaker {
  public:
   CQHistMaker()  = default;
+  char const* Name() const override {
+    return "grow_local_histmaker";
+  }
 
  protected:
   struct HistEntry {
@@ -339,7 +345,7 @@ class CQHistMaker: public HistMaker {
       feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Init(this->param_, 1);
+    this->wspace_.Configure(this->param_, 1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_hist = [&]() {
@@ -637,6 +643,11 @@ class CQHistMaker: public HistMaker {
 
 // global proposal
 class GlobalProposalHistMaker: public CQHistMaker {
+ public:
+  char const* Name() const override {
+    return "grow_global_histmaker";
+  }
+
  protected:
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
@@ -682,7 +693,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Init(this->param_, 1);
+    this->wspace_.Configure(this->param_, 1);
     // to gain speedup in recovery
     {
       this->thread_hist_.resize(omp_get_max_threads());

@@ -157,8 +157,7 @@ class DeviceShard {
 class GPUCoordinateUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Init(
-      const std::vector<std::pair<std::string, std::string>> &args) override {
+  void Configure(Args const& args) override {
     tparam_.InitAllowUnknown(args);
     selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("GPUCoordinateUpdater");

@@ -50,7 +50,7 @@ bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
   return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
 }
 
-void ConsoleLogger::Configure(const std::map<std::string, std::string>& args) {
+void ConsoleLogger::Configure(Args const& args) {
   param_.InitAllowUnknown(args);
   // Deprecated, but when trying to display deprecation message some R
   // tests trying to catch stdout will fail.

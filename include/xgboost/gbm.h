@@ -29,19 +29,11 @@ namespace xgboost {
  */
 class GradientBooster {
  protected:
-  LearnerTrainParam const* learner_param_;
+  GenericParameter const* learner_param_;
 
  public:
   /*! \brief virtual destructor */
   virtual ~GradientBooster() = default;
-  /*!
-   * \brief set configuration from pair iterators.
-   * \param begin The beginning iterator.
-   * \param end The end iterator.
-   * \tparam PairIter iterator<std::pair<std::string, std::string> >
-   */
-  template<typename PairIter>
-  inline void Configure(PairIter begin, PairIter end);
   /*!
    * \brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
@@ -159,17 +151,10 @@ class GradientBooster {
    */
   static GradientBooster* Create(
       const std::string& name,
-      LearnerTrainParam const* gparam,
+      GenericParameter const* gparam,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
 };
-
-// implementing configure.
-template<typename PairIter>
-inline void GradientBooster::Configure(PairIter begin, PairIter end) {
-  std::vector<std::pair<std::string, std::string> > vec(begin, end);
-  this->Configure(vec);
-}
 
 /*!
  * \brief Registry entry for tree updater.

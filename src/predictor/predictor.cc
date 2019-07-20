@@ -8,14 +8,14 @@ namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
 namespace xgboost {
-void Predictor::Init(
+void Predictor::Configure(
     const std::vector<std::pair<std::string, std::string>>& cfg,
     const std::vector<std::shared_ptr<DMatrix>>& cache) {
   for (const std::shared_ptr<DMatrix>& d : cache) {
     cache_[d.get()].data = d;
   }
 }
-Predictor* Predictor::Create(std::string const& name, LearnerTrainParam const* learner_param) {
+Predictor* Predictor::Create(std::string const& name, GenericParameter const* learner_param) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown predictor type " << name;

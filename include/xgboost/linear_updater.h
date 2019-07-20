@@ -20,7 +20,7 @@ namespace xgboost {
  */
 class LinearUpdater {
  protected:
-  LearnerTrainParam const* learner_param_;
+  GenericParameter const* learner_param_;
 
  public:
   /*! \brief virtual destructor */
@@ -29,7 +29,7 @@ class LinearUpdater {
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
    */
-  virtual void Init(
+  virtual void Configure(
       const std::vector<std::pair<std::string, std::string> >& args) = 0;
 
   /**
@@ -40,7 +40,6 @@ class LinearUpdater {
    * \param model               Model to be updated.
    * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
    */
-
   virtual void Update(HostDeviceVector<GradientPair>* in_gpair, DMatrix* data,
                       gbm::GBLinearModel* model,
                       double sum_instance_weight) = 0;
@@ -49,7 +48,7 @@ class LinearUpdater {
    * \brief Create a linear updater given name
    * \param name Name of the linear updater.
    */
-  static LinearUpdater* Create(const std::string& name, LearnerTrainParam const*);
+  static LinearUpdater* Create(const std::string& name, GenericParameter const*);
 };
 
 /*!

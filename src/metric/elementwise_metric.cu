@@ -104,7 +104,7 @@ class ElementWiseMetricsReduction {
 #endif  // XGBOOST_USE_CUDA
 
   PackedReduceResult Reduce(
-      const LearnerTrainParam &tparam,
+      const GenericParameter &tparam,
       GPUSet devices,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,

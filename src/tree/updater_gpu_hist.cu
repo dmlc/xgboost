@@ -1290,13 +1290,12 @@ template <typename GradientSumT>
 class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
-  void Init(const std::vector<std::pair<std::string, std::string>>& args,
-            LearnerTrainParam const* lparam) {
+  void Configure(const Args& args, GenericParameter const* generic_param) {
     param_.InitAllowUnknown(args);
-    learner_param_ = lparam;
+    generic_param_ = generic_param;
     hist_maker_param_.InitAllowUnknown(args);
-    auto devices = GPUSet::All(learner_param_->gpu_id,
-                               learner_param_->n_gpus);
+    auto devices = GPUSet::All(generic_param_->gpu_id,
+                               generic_param_->n_gpus);
     n_devices_ = devices.Size();
     CHECK(n_devices_ != 0) << "Must have at least one device";
     dist_ = GPUDistribution::Block(devices);
@@ -1362,7 +1361,7 @@ class GPUHistMakerSpecialised {
 
     monitor_.StartCuda("Quantiles");
     // Create the quantile sketches for the dmatrix and initialize HistogramCuts
-    size_t row_stride = common::DeviceSketch(param_, *learner_param_,
+    size_t row_stride = common::DeviceSketch(param_, *generic_param_,
                                              hist_maker_param_.gpu_batch_nrows,
                                              dmat, &hmat_);
     monitor_.StopCuda("Quantiles");
@@ -1488,7 +1487,7 @@ class GPUHistMakerSpecialised {
   int n_bins_;
 
   GPUHistMakerTrainParam hist_maker_param_;
-  LearnerTrainParam const* learner_param_;
+  GenericParameter const* generic_param_;
 
   dh::AllReducer reducer_;
 
@@ -1502,17 +1501,16 @@ class GPUHistMakerSpecialised {
 
 class GPUHistMaker : public TreeUpdater {
  public:
-  void Init(
-      const std::vector<std::pair<std::string, std::string>>& args) override {
+  void Configure(const Args& args) override {
     hist_maker_param_.InitAllowUnknown(args);
     float_maker_.reset();
     double_maker_.reset();
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
-      float_maker_->Init(args, tparam_);
+      float_maker_->Configure(args, tparam_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
-      double_maker_->Init(args, tparam_);
+      double_maker_->Configure(args, tparam_);
     }
   }
 
@@ -1532,6 +1530,10 @@ class GPUHistMaker : public TreeUpdater {
     } else {
       return double_maker_->UpdatePredictionCache(data, p_out_preds);
     }
+  }
+
+  char const* Name() const override {
+    return "gpu_hist";
   }
 
  private:

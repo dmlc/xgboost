@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file cli_main.cc
  * \brief The command line interface program of xgboost.
  *  This file is not included in dynamic library.
@@ -188,10 +188,9 @@ void CLITrain(const CLIParam& param) {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
-      learner->Configure(param.cfg);
+      learner->SetParams(param.cfg);
     } else {
-      learner->Configure(param.cfg);
-      learner->InitModel();
+      learner->SetParams(param.cfg);
     }
   }
   LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
@@ -275,7 +274,7 @@ void CLIDumpModel(const CLIParam& param) {
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
-  learner->Configure(param.cfg);
+  learner->SetParams(param.cfg);
   learner->Load(fi.get());
   // dump data
   std::vector<std::string> dump = learner->DumpModel(
@@ -316,7 +315,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
   learner->Load(fi.get());
-  learner->Configure(param.cfg);
+  learner->SetParams(param.cfg);
 
   LOG(INFO) << "start prediction...";
   HostDeviceVector<bst_float> preds;

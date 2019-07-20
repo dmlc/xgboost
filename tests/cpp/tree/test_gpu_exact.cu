@@ -16,7 +16,7 @@ TEST(GPUExact, Update) {
   std::vector<Arg> args{{"max_depth", "1"}};
 
   auto* p_gpuexact_maker = TreeUpdater::Create("grow_gpu", &lparam);
-  p_gpuexact_maker->Init(args);
+  p_gpuexact_maker->Configure(args);
 
   size_t constexpr kNRows = 4;
   size_t constexpr kNCols = 8;

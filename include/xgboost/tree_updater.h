@@ -27,7 +27,7 @@ namespace xgboost {
  */
 class TreeUpdater {
  protected:
-  LearnerTrainParam const* tparam_;
+  GenericParameter const* tparam_;
 
  public:
   /*! \brief virtual destructor */
@@ -36,7 +36,7 @@ class TreeUpdater {
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
    */
-  virtual void Init(const std::vector<std::pair<std::string, std::string> >& args) = 0;
+  virtual void Configure(const Args& args) = 0;
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
@@ -65,11 +65,13 @@ class TreeUpdater {
     return false;
   }
 
+  virtual char const* Name() const = 0;
+
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
    */
-  static TreeUpdater* Create(const std::string& name, LearnerTrainParam const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
 };
 
 /*!

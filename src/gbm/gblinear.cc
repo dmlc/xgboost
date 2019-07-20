@@ -57,13 +57,13 @@ class GBLinear : public GradientBooster {
       cache_[d.get()] = std::move(e);
     }
   }
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.param.InitAllowUnknown(cfg);
     }
     param_.InitAllowUnknown(cfg);
     updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
-    updater_->Init(cfg);
+    updater_->Configure(cfg);
     monitor_.Init("GBLinear");
   }
   void Load(dmlc::Stream* fi) override {
