@@ -23,7 +23,6 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int gpu_id;
   // number of devices to use, -1 implies using all available devices.
   int n_gpus;
-  bool external_memory;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(

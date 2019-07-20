@@ -32,7 +32,7 @@ TEST(SplitEvaluator, Interaction) {
     }
     std::vector<int32_t> solutions{4, 5};
     ASSERT_EQ(accepted_features.size(), solutions.size());
-    for (int32_t f = 0; f < accepted_features.size(); ++f) {
+    for (size_t f = 0; f < accepted_features.size(); ++f) {
       ASSERT_EQ(accepted_features[f], solutions[f]);
     }
   }
