@@ -147,31 +147,6 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
 .set_body([]() {
     LOG(WARNING) << "reg:linear is now deprecated in favor of reg:squarederror.";
     return new RegLossObj<LinearSquareLoss>(); });
-
-XGBOOST_REGISTER_OBJECTIVE(GPULinearRegression, "gpu:reg:linear")
-.describe("Deprecated. Linear regression (computed on GPU).")
-.set_body([]() {
-    LOG(WARNING) << "gpu:reg:linear is now deprecated, use reg:linear instead.";
-    return new RegLossObj<LinearSquareLoss>(); });
-
-XGBOOST_REGISTER_OBJECTIVE(GPULogisticRegression, "gpu:reg:logistic")
-.describe("Deprecated. Logistic regression for probability regression task (computed on GPU).")
-.set_body([]() {
-    LOG(WARNING) << "gpu:reg:logistic is now deprecated, use reg:logistic instead.";
-    return new RegLossObj<LogisticRegression>(); });
-
-XGBOOST_REGISTER_OBJECTIVE(GPULogisticClassification, "gpu:binary:logistic")
-.describe("Deprecated. Logistic regression for binary classification task (computed on GPU).")
-.set_body([]() {
-    LOG(WARNING) << "gpu:binary:logistic is now deprecated, use binary:logistic instead.";
-    return new RegLossObj<LogisticClassification>(); });
-
-XGBOOST_REGISTER_OBJECTIVE(GPULogisticRaw, "gpu:binary:logitraw")
-.describe("Deprecated. Logistic regression for classification, output score "
-          "before logistic transformation (computed on GPU)")
-.set_body([]() {
-    LOG(WARNING) << "gpu:binary:logitraw is now deprecated, use binary:logitraw instead.";
-    return new RegLossObj<LogisticRaw>(); });
 // End deprecated
 
 // declare parameter
