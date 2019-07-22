@@ -580,6 +580,10 @@ class LearnerImpl : public Learner {
     gbm_->Configure(args);
 
     if (this->gbm_->UseGPU() && cfg_.find("n_gpus") == cfg_.cend()) {
+      if (cfg_.find("gpu_id") == cfg_.cend()) {
+        generic_param_.gpu_id = AllVisibleImpl::AllocateGPUDeviceId();
+        LOG(INFO) << "Allocated GPU device id: " << generic_param_.gpu_id;
+      }
       generic_param_.n_gpus = 1;
     }
   }

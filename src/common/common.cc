@@ -28,6 +28,10 @@ GlobalRandomEngine& GlobalRandom() {
 int AllVisibleImpl::AllVisible() {
   return 0;
 }
+
+int AllVisibleImpl::AllocateGPUDeviceId() {
+  return -1;
+}
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 constexpr GPUSet::GpuIdType GPUSet::kAll;
