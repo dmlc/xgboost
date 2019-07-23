@@ -1330,8 +1330,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
       offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
       row_ptrs.begin());
     if (this->ellpack_matrix->data_layout == ELLPackMatrix::kCSR) {
-      using namespace thrust::placeholders;
-      thrust::for_each(row_ptrs.begin(), row_ptrs.end(), _1 -= base_offset);
+      thrust::for_each(row_ptrs.begin(), row_ptrs.end(), thrust::placeholders::_1 -= base_offset);
     }
 
     // number of entries in this batch.
