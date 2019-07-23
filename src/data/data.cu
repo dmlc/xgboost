@@ -16,14 +16,15 @@ namespace xgboost {
 
 __global__ void ReadColumn(ForeignColumn * col,
                            foreign_size_type n_cols,
-                           void * data) {
+                           float * data) {
   int tid = threadIdx.x + blockDim.x * blockIdx.x;
   foreign_size_type n_rows = col->size;
   if (n_rows <= tid) {
     return;
   } else {
-    data[n_cols * tid] = float(col->data[tid]);
-  }
+    float * d = (float *) (col->data);
+    data[n_cols * tid] = float(d[tid]);
+ }
 }
 
 void SetInfoFromForeignColumns(MetaInfo * info,
@@ -46,7 +47,7 @@ void SetInfoFromForeignColumns(MetaInfo * info,
     LOG(WARNING) << key << ": invalid key value for MetaInfo field";
   }
 
-  GPUSet devices = GPUSet::Range(0, 1);
+   GPUSet devices = GPUSet::Range(0, 1);
   field->Reshard(GPUDistribution::Granular(devices, n_cols));
   field->Resize(n_cols * n_rows);
   bst_float * data = field->DevicePointer(0);
@@ -58,5 +59,9 @@ void SetInfoFromForeignColumns(MetaInfo * info,
     ReadColumn <<<threads, blocks>>> (cols[i], n_cols, data + i);
     dh::safe_cuda(cudaGetLastError());
   }
+}
+
+void MetaInfo::SetInfo(const char * key, ForeignColumn ** cols, foreign_size_type n_cols) {
+  SetInfoFromForeignColumns(this, key, cols, n_cols);
 }
 }  // namespace xgboost
