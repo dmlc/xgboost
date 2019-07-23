@@ -38,6 +38,8 @@ class HingeObj : public ObjFunction {
     const bool is_null_weight = info.weights_.Size() == 0;
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
+    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<GradientPair> _out_gpair,
@@ -57,19 +59,18 @@ class HingeObj : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair(g, h);
         },
-        common::Range{0, static_cast<int64_t>(ndata)},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata)).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
             out_gpair, &preds, &info.labels_, &info.weights_);
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+    GPUSet devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
-        .Eval(io_preds);
+        common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, devices).Eval(io_preds);
   }
 
   const char* DefaultEvalMetric() const override {

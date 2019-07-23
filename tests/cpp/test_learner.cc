@@ -77,6 +77,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
   learner->UpdateOneIter(0, dmat.get());
+  ASSERT_EQ(learner->GetGenericParameter().external_memory, true);
 }
 
 TEST(Learner, Configuration) {
@@ -125,6 +126,7 @@ TEST(Learner, IO) {
   learner->UpdateOneIter(0, p_dmat.get());
   ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   ASSERT_EQ(learner->GetGenericParameter().n_gpus, -1);
+  ASSERT_EQ(learner->GetGenericParameter().external_memory, false);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model.bst";

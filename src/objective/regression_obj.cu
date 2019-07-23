@@ -57,7 +57,8 @@ class RegLossObj : public ObjFunction {
         << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
+    auto devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
     label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
@@ -101,12 +102,12 @@ class RegLossObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {
+    auto devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
-        }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
-        .Eval(io_preds);
+        }, common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices).Eval(io_preds);
   }
 
   float ProbToMargin(float base_score) const override {
@@ -175,7 +176,8 @@ class PoissonRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
+    auto devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
     label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
@@ -208,13 +210,13 @@ class PoissonRegression : public ObjFunction {
     }
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+    auto devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
-        .Eval(io_preds);
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices).Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
     PredTransform(io_preds);
@@ -340,7 +342,8 @@ class GammaRegression : public ObjFunction {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     const size_t ndata = preds.Size();
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
+    auto devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
     out_gpair->Resize(ndata);
     label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
@@ -373,13 +376,13 @@ class GammaRegression : public ObjFunction {
     }
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+    auto devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
-        .Eval(io_preds);
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices).Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
     PredTransform(io_preds);
@@ -430,7 +433,8 @@ class TweedieRegression : public ObjFunction {
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
+    auto devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
     label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
     label_correct_.Fill(1);
 
@@ -467,13 +471,13 @@ class TweedieRegression : public ObjFunction {
     }
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+    auto devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                     ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
-        common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
-        .Eval(io_preds);
+        common::Range{0, static_cast<int64_t>(io_preds->Size())}, devices).Eval(io_preds);
   }
 
   bst_float ProbToMargin(bst_float base_score) const override {

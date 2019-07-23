@@ -26,6 +26,8 @@ class SimpleDMatrix : public DMatrix {
   explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
       : source_(std::move(source)) {}
 
+  bool UsesExternalMemory() override { return false; }
+
   MetaInfo& Info() override;
 
   const MetaInfo& Info() const override;

@@ -26,6 +26,8 @@ class SparsePageDMatrix : public DMatrix {
       : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
   virtual ~SparsePageDMatrix() = default;
 
+  bool UsesExternalMemory() override { return true; }
+
   MetaInfo& Info() override;
 
   const MetaInfo& Info() const override;

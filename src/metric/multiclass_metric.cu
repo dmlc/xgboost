@@ -190,7 +190,8 @@ struct EvalMClassBase : public Metric {
         << " use logloss for binary classification";
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
 
-    GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
+    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
     auto result = reducer_.Reduce(*tparam_, devices, nclass, info.weights_, info.labels_, preds);
     double dat[2] { result.Residue(), result.Weights() };
 

@@ -52,10 +52,9 @@ static size_t SymbolBits(size_t num_symbols) {
 class CompressedBufferWriter {
  private:
   size_t symbol_bits_;
-  size_t offset_;
 
  public:
-  explicit CompressedBufferWriter(size_t num_symbols) : offset_(0) {
+  explicit CompressedBufferWriter(size_t num_symbols) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
 

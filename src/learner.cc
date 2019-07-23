@@ -173,6 +173,7 @@ class LearnerImpl : public Learner {
     this->ConfigureObjective(old_tparam, &args);
     this->ConfigureGBM(old_tparam, args);
     this->ConfigureMetrics(args);
+    this->ConfigureExternalMemory();
 
     this->configured_ = true;
     monitor_.Stop("Configure");
@@ -607,6 +608,13 @@ class LearnerImpl : public Learner {
     // setup
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     cfg_["num_class"] = common::ToString(mparam_.num_class);
+  }
+
+  void ConfigureExternalMemory() {
+    std::for_each(cache_.begin(), cache_.end(),
+                  [&](const std::shared_ptr<DMatrix> &dmat) {
+                    if (dmat->UsesExternalMemory()) generic_param_.external_memory = true;
+                  });
   }
 
   void ValidateDMatrix(DMatrix* p_fmat) const {

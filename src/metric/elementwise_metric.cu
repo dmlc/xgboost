@@ -346,7 +346,10 @@ struct EvalEWiseBase : public Metric {
         << "hint: use merror or mlogloss for multi-class classification";
     const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
     // Dealing with ndata < n_gpus.
-    GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
+    // Perform the metrics computation on CPU if device list isn't present in prediction vector
+    // or if external memory is enabled.
+    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
 
     auto result =
         reducer_.Reduce(*tparam_, devices, info.weights_, info.labels_, preds);

@@ -397,6 +397,8 @@ class DMatrix {
  public:
   /*! \brief default constructor */
   DMatrix()  = default;
+  /*! \brief If the dmatrix uses external memory to store its data */
+  virtual bool UsesExternalMemory() = 0;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
   /*! \brief meta information of the dataset */

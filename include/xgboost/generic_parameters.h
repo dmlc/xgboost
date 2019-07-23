@@ -23,6 +23,8 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int gpu_id;
   // number of devices to use, -1 implies using all available devices.
   int n_gpus;
+  // If external memory is enabled for training/prediction
+  bool external_memory;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -44,6 +46,9 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
         .describe("Deprecated, please use distributed training with one "
                   "process per GPU. "
                   "Number of GPUs to use for multi-gpu algorithms.");
+    DMLC_DECLARE_FIELD(external_memory)
+        .set_default(false)
+        .describe("If external memory is used for training and/or prediction");
   }
 };
 }  // namespace xgboost

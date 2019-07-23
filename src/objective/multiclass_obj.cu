@@ -59,14 +59,17 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
-    out_gpair->Shard(GPUDistribution::Granular(devices, nclass));
-    info.labels_.Shard(GPUDistribution::Block(devices));
-    info.weights_.Shard(GPUDistribution::Block(devices));
-    preds.Shard(GPUDistribution::Granular(devices, nclass));
+    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
+    if (!devices.IsEmpty()) {
+      out_gpair->Shard(GPUDistribution::Granular(devices, nclass));
+      info.labels_.Shard(GPUDistribution::Block(devices));
+      info.weights_.Shard(GPUDistribution::Block(devices));
+      preds.Shard(GPUDistribution::Granular(devices, nclass));
+      label_correct_.Shard(GPUDistribution::Block(devices));
+    }
 
     label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
-    label_correct_.Shard(GPUDistribution::Block(devices));
 
     out_gpair->Resize(preds.Size());
     label_correct_.Fill(1);
@@ -125,7 +128,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
+    GPUSet devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+                       ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
@@ -136,8 +140,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
           common::Range{0, ndata}, GPUDistribution::Granular(devices, nclass))
         .Eval(io_preds);
     } else {
-      io_preds->Shard(GPUDistribution::Granular(devices, nclass));
-      max_preds_.Shard(GPUDistribution::Block(devices));
+      if (!devices.IsEmpty()) {
+        io_preds->Shard(GPUDistribution::Granular(devices, nclass));
+        max_preds_.Shard(GPUDistribution::Block(devices));
+      }
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx,
                              common::Span<const bst_float> _preds,
