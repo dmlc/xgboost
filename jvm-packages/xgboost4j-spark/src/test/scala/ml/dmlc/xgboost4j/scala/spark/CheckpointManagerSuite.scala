@@ -17,12 +17,11 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
-import java.nio.file.Files
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAll {
+class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   private lazy val (model4, model8) = {
     val training = buildDataFrame(Classification.train)
@@ -33,7 +32,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test update/load models") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model4._booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
@@ -49,7 +48,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test cleanUpHigherVersions") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model8._booster)
     manager.cleanUpHigherVersions(round = 8)
@@ -60,7 +59,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test checkpoint rounds") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, round = 7))
     assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, round = 7))
