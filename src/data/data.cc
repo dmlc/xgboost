@@ -130,6 +130,16 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+  } else if (!std::strcmp(key, "label_lower_bound")) {
+    auto& labels = labels_lower_bound_.HostVector();
+    labels.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+  } else if (!std::strcmp(key, "label_upper_bound")) {
+    auto& labels = labels_upper_bound_.HostVector();
+    labels.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
   } else if (!std::strcmp(key, "weight")) {
     auto& weights = weights_.HostVector();
     weights.resize(num);

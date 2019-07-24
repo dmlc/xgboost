@@ -745,6 +745,10 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
     vec = &info.weights_.HostVector();
   } else if (!std::strcmp(field, "base_margin")) {
     vec = &info.base_margin_.HostVector();
+  } else if (!std::strcmp(field, "label_lower_bound")) {
+    vec = &info.labels_lower_bound_.HostVector();
+  } else if (!std::strcmp(field, "label_upper_bound")) {
+    vec = &info.labels_upper_bound_.HostVector();
   } else {
     LOG(FATAL) << "Unknown float field name " << field;
   }
