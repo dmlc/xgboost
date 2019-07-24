@@ -39,6 +39,7 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
 saveRDS(bst, "xgb.model.rds")
 
 bst1 <- readRDS("xgb.model.rds")
+if (file.exists("xgb.model.rds")) file.remove("xgb.model.rds")
 # the handle is invalid:
 print(bst1$handle)
 

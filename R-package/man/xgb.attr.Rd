@@ -73,6 +73,7 @@ xgb.attributes(bst) <- list(a = 123, b = "abc")
 
 xgb.save(bst, 'xgb.model')
 bst1 <- xgb.load('xgb.model')
+if (file.exists('xgb.model')) file.remove('xgb.model')
 print(xgb.attr(bst1, "my_attribute"))
 print(xgb.attributes(bst1))
 
