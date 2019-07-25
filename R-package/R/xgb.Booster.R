@@ -95,6 +95,7 @@ xgb.get.handle <- function(object) {
 #' saveRDS(bst, "xgb.model.rds")
 #'
 #' bst1 <- readRDS("xgb.model.rds")
+#' if (file.exists("xgb.model.rds")) file.remove("xgb.model.rds")
 #' # the handle is invalid:
 #' print(bst1$handle)
 #'
@@ -418,6 +419,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #'
 #' xgb.save(bst, 'xgb.model')
 #' bst1 <- xgb.load('xgb.model')
+#' if (file.exists('xgb.model')) file.remove('xgb.model')
 #' print(xgb.attr(bst1, "my_attribute"))
 #' print(xgb.attributes(bst1))
 #'
