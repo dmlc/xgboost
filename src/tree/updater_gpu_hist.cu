@@ -529,6 +529,7 @@ __global__ void CompressBinEllpackKernel(
     const Entry* __restrict__ entries,      // One batch of input data
     size_t base_row,                        // batch_row_begin
     size_t batch_nrows,                     // number of rows in the batch
+    size_t base_item_offset,                // item offset from the beginning of the batch
     size_t total_items_processed            // Number of row items processed in the previous batch
     ) {
   size_t irow = threadIdx.x + blockIdx.x * blockDim.x;
@@ -561,13 +562,15 @@ __global__ void CompressBinEllpackKernel(
       matrix.gidx_buffer.data(), bin, (irow + base_row) * matrix.row_stride + ifeature);
   } else if (matrix.data_layout == ELLPackMatrix::kCSR && bin != matrix.null_gidx_value) {
     matrix.gidx_buffer_writer.AtomicWriteSymbol(
-      matrix.gidx_buffer.data(), bin, row_ptrs[irow] + total_items_processed + ifeature);
+      matrix.gidx_buffer.data(), bin,
+      row_ptrs[irow] - base_item_offset + total_items_processed + ifeature);
 
     // TODO(sriramch): There may be multiple writes to the row_buffer at irow + base_row
     // It should be harmless, as the writes are atomic. Explore if there is a way to avoid it,
     // as the atomic ops are needless after the first write
     matrix.gidx_row_writer.AtomicWriteSymbol(
-      matrix.gidx_row_buffer.data(), row_ptrs[irow] + total_items_processed, (irow + base_row));
+      matrix.gidx_row_buffer.data(),
+      row_ptrs[irow] - base_item_offset + total_items_processed, (irow + base_row));
 
     // Write to the last element of the row index containing total number of items
     if (irow + base_row + 1 == matrix.n_rows) {
@@ -1329,9 +1332,6 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
       offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
       offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
       row_ptrs.begin());
-    if (this->ellpack_matrix->data_layout == ELLPackMatrix::kCSR) {
-      thrust::for_each(row_ptrs.begin(), row_ptrs.end(), thrust::placeholders::_1 -= base_offset);
-    }
 
     // number of entries in this batch.
     size_t n_entries = ent_cnt_end - ent_cnt_begin;
@@ -1350,6 +1350,7 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
          entries_d.data().get(),
          device_row_state.total_rows_processed + batch_row_begin,
          batch_nrows,
+         base_offset,
          device_row_state.total_items_processed);
   }
 }
