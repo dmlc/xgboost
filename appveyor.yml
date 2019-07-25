@@ -3,10 +3,6 @@ environment:
     USE_RTOOLS: true
     matrix:
         - target: msvc
-          ver: 2013
-          generator: "Visual Studio 12 2013 Win64"
-          configuration: Release
-        - target: msvc
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Debug
