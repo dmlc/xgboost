@@ -51,6 +51,7 @@ if (USE_CUDA)
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
     list(APPEND SRC_LIBS ${NCCL_LIBRARY})
   endif (USE_NCCL)
+  
 
   if (USE_NVTX)
     target_include_directories(objxgboost PRIVATE "${NVTX_HEADER_DIR}")
@@ -81,6 +82,9 @@ target_compile_options(objxgboost
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
+
+# static linking as glibs can be outdated
+list(APPEND SRC_LIBS -static-libgcc -static-libstdc++)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
