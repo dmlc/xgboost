@@ -25,7 +25,7 @@ namespace data {
  * DMatrix* dmat = DMatrix::Create(std::move(source));
  * \encode
  */
-class SimpleCSRSource : public DataSource {
+class SimpleCSRSource : public DataSource<SparsePage> {
  public:
   // public data members
   // MetaInfo info;  // inheritated from DataSource

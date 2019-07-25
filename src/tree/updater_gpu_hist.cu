@@ -1382,7 +1382,7 @@ class GPUHistMakerSpecialised {
 
     monitor_.StartCuda("BinningCompression");
     DeviceHistogramBuilderState hist_builder_row_state(shards_);
-    for (const auto &batch : dmat->GetRowBatches()) {
+    for (const auto &batch : dmat->GetBatches(kCSR).Of<SparsePage>()) {
       hist_builder_row_state.BeginBatch(batch);
 
       dh::ExecuteIndexShards(

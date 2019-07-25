@@ -186,7 +186,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     }
 
     CHECK(p_fmat->SingleColBlock());
-    SparsePage const& batch = *(p_fmat->GetColumnBatches().begin());
+    SparsePage const& batch = *(p_fmat->GetBatches(kCSC).Of<SparsePage>().begin());
 
     shards_.resize(n_devices);
     // Create device shards

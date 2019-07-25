@@ -21,7 +21,7 @@ namespace data {
 // Used for external memory.
 class SparsePageDMatrix : public DMatrix {
  public:
-  explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
+  explicit SparsePageDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source,
                              std::string cache_info)
       : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
   virtual ~SparsePageDMatrix() = default;
@@ -30,19 +30,19 @@ class SparsePageDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
-  BatchSet GetRowBatches() override;
-
-  BatchSet GetSortedColumnBatches() override;
-
-  BatchSet GetColumnBatches() override;
+  BatchSet GetBatches(PageType page_type) override;
 
   float GetColDensity(size_t cidx) override;
 
   bool SingleColBlock() const override;
 
  private:
+  BatchSet GetRowBatches();
+  BatchSet GetColumnBatches();
+  BatchSet GetSortedColumnBatches();
+
   // source data pointers.
-  std::unique_ptr<DataSource> row_source_;
+  std::unique_ptr<DataSource<SparsePage>> row_source_;
   std::unique_ptr<SparsePageSource> column_source_;
   std::unique_ptr<SparsePageSource> sorted_column_source_;
   // the cache prefix

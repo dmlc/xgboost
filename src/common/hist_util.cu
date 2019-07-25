@@ -440,7 +440,7 @@ struct GPUSketcher {
 
     row_stride_ = 0;
     sketch_container_.reset(new SketchContainer(param_, dmat));
-    for (const auto &batch : dmat->GetRowBatches()) {
+    for (const auto &batch : dmat->GetBatches(kCSR).Of<SparsePage>()) {
       this->SketchBatch(batch, info);
     }
 

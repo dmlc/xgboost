@@ -247,7 +247,7 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
     MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    for (auto& batch : src->GetRowBatches()) {
+    for (auto& batch : src->GetBatches(kCSR).Of<SparsePage>()) {
       if (page_type == ".row.page") {
         page->Push(batch);
       } else if (page_type == ".col.page") {

@@ -28,12 +28,12 @@ TEST(SimpleDMatrix, RowAccess) {
 
   // Loop over the batches and count the records
   int64_t row_count = 0;
-  for (auto &batch : dmat->GetRowBatches()) {
+  for (auto &batch : dmat->GetBatches(xgboost::kCSR).Of<xgboost::SparsePage>()) {
     row_count += batch.Size();
   }
   EXPECT_EQ(row_count, dmat->Info().num_row_);
   // Test the data read into the first row
-  auto &batch = *dmat->GetRowBatches().begin();
+  auto &batch = *dmat->GetBatches(xgboost::kCSR).Of<xgboost::SparsePage>().begin();
   auto first_row = batch[0];
   ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
@@ -55,7 +55,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
 
   // Loop over the batches and assert the data is as expected
   int64_t num_col_batch = 0;
-  for (const auto &batch : dmat->GetSortedColumnBatches()) {
+  for (const auto &batch : dmat->GetBatches(xgboost::kSortedCSC).Of<xgboost::SparsePage>()) {
     num_col_batch += 1;
     EXPECT_EQ(batch.Size(), dmat->Info().num_col_)
         << "Expected batch size = number of cells as #batches is 1.";

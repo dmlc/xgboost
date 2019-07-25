@@ -26,7 +26,7 @@ TEST(cpu_predictor, Test) {
   }
 
   // Test predict instance
-  auto &batch = *(*dmat)->GetRowBatches().begin();
+  auto &batch = *(*dmat)->GetBatches(xgboost::kCSR).Of<xgboost::SparsePage>().begin();
   for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);

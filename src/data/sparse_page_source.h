@@ -28,7 +28,7 @@ namespace data {
  * DMatrix* dmat = DMatrix::Create(std::move(source));
  * \encode
  */
-class SparsePageSource : public DataSource {
+class SparsePageSource : public DataSource<SparsePage> {
  public:
   /*!
    * \brief Create source from cache files the cache_prefix.

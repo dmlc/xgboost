@@ -6,12 +6,9 @@
  */
 #include <dmlc/base.h>
 #include <dmlc/timer.h>
-#include <xgboost/logging.h>
-#include <memory>
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_dmatrix.h"
-#include "../common/random.h"
 
 namespace xgboost {
 namespace data {
@@ -24,12 +21,13 @@ const MetaInfo& SparsePageDMatrix::Info() const {
   return row_source_->info;
 }
 
-class SparseBatchIteratorImpl : public BatchIteratorImpl {
+template<typename T>
+class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
   explicit SparseBatchIteratorImpl(SparsePageSource* source) : source_(source) {
     CHECK(source_ != nullptr);
   }
-  SparsePage& operator*() override { return source_->Value(); }
+  T& operator*() override { return source_->Value(); }
   const SparsePage& operator*() const override { return source_->Value(); }
   void operator++() override { at_end_ = !source_->Next(); }
   bool AtEnd() const override { return at_end_; }
@@ -42,12 +40,27 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl {
   bool at_end_{ false };
 };
 
+BatchSet SparsePageDMatrix::GetBatches(PageType page_type) {
+  switch(page_type) {
+    case kCSR:
+      return GetRowBatches();
+    case kCSC:
+      return GetColumnBatches();
+    case kSortedCSC:
+      return GetSortedColumnBatches();
+    default:
+      LOG(FATAL) << "Unknown page type";
+      return BatchSet(nullptr);
+  }
+}
+
 BatchSet SparsePageDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SparsePageSource*>(row_source_.get());
   cast->BeforeFirst();
   cast->Next();
-  auto begin_iter = BatchIterator(new SparseBatchIteratorImpl(cast));
-  return BatchSet(begin_iter);
+  auto begin_iter = BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(cast));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
@@ -59,9 +72,10 @@ BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
   }
   sorted_column_source_->BeforeFirst();
   sorted_column_source_->Next();
-  auto begin_iter =
-      BatchIterator(new SparseBatchIteratorImpl(sorted_column_source_.get()));
-  return BatchSet(begin_iter);
+  auto begin_iter = BatchIterator<SparsePage>(
+      new SparseBatchIteratorImpl<SparsePage>(sorted_column_source_.get()));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 BatchSet SparsePageDMatrix::GetColumnBatches() {
@@ -73,15 +87,16 @@ BatchSet SparsePageDMatrix::GetColumnBatches() {
   column_source_->BeforeFirst();
   column_source_->Next();
   auto begin_iter =
-      BatchIterator(new SparseBatchIteratorImpl(column_source_.get()));
-  return BatchSet(begin_iter);
+      BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(column_source_.get()));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 float SparsePageDMatrix::GetColDensity(size_t cidx) {
   // Finds densities if we don't already have them
   if (col_density_.empty()) {
     std::vector<size_t> column_size(this->Info().num_col_);
-    for (const auto &batch : this->GetColumnBatches()) {
+    for (const auto &batch : this->GetBatches(kCSC).Of<SparsePage>()) {
       for (auto i = 0u; i < batch.Size(); i++) {
         column_size[i] += batch[i].size();
       }

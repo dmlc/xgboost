@@ -23,7 +23,7 @@ namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
-  explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
+  explicit SimpleDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source)
       : source_(std::move(source)) {}
 
   MetaInfo& Info() override;
@@ -34,15 +34,15 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
-  BatchSet GetRowBatches() override;
-
-  BatchSet GetColumnBatches() override;
-
-  BatchSet GetSortedColumnBatches() override;
+  BatchSet GetBatches(PageType page_type) override;
 
  private:
+  BatchSet GetRowBatches();
+  BatchSet GetColumnBatches();
+  BatchSet GetSortedColumnBatches();
+
   // source data pointer.
-  std::unique_ptr<DataSource> source_;
+  std::unique_ptr<DataSource<SparsePage>> source_;
 
   std::unique_ptr<SparsePage> sorted_column_page_;
   std::unique_ptr<SparsePage> column_page_;

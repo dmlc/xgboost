@@ -9,7 +9,6 @@
 #include "./sparse_page_writer.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
-#include "../common/common.h"
 #include "../common/io.h"
 
 #if DMLC_ENABLE_STD_THREAD
@@ -277,7 +276,7 @@ void DMatrix::SaveToLocalFile(const std::string& fname) {
   source.SaveBinary(fo.get());
 }
 
-DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
+DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix) {
   if (cache_prefix.length() == 0) {
     return new data::SimpleDMatrix(std::move(source));

@@ -165,7 +165,7 @@ void SparseCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     sparse_cuts[i].reset(new SparseCuts(&cuts_containers[i]));
   }
 
-  for (auto const& page : dmat->GetColumnBatches()) {
+  for (auto const& page : dmat->GetBatches(kCSC).Of<SparsePage>()) {
     CHECK_LE(page.Size(), dmat->Info().num_col_);
     monitor_.Start("Load balance");
     std::vector<size_t> col_ptr = LoadBalance(page, nthreads);
@@ -247,7 +247,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
   // Use group index for weights?
   bool const use_group = UseGroup(p_fmat);
 
-  for (const auto &batch : p_fmat->GetRowBatches()) {
+  for (const auto &batch : p_fmat->GetBatches(kCSR).Of<SparsePage>()) {
     size_t group_ind = 0;
     if (use_group) {
       group_ind = this->SearchGroupIndFromRow(group_ptr, batch.base_rowid);
@@ -336,7 +336,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
 
 
   size_t new_size = 1;
-  for (const auto &batch : p_fmat->GetRowBatches()) {
+  for (const auto &batch : p_fmat->GetBatches(kCSR).Of<SparsePage>()) {
     new_size += batch.Size();
   }
 
@@ -346,7 +346,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   size_t rbegin = 0;
   size_t prev_sum = 0;
 
-  for (const auto &batch : p_fmat->GetRowBatches()) {
+  for (const auto &batch : p_fmat->GetBatches(kCSR).Of<SparsePage>()) {
     // The number of threads is pegged to the batch size. If the OMP
     // block is parallelized on anything other than the batch/block size,
     // it should be reassigned

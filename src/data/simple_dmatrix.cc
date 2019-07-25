@@ -18,10 +18,10 @@ float SimpleDMatrix::GetColDensity(size_t cidx) {
   size_t column_size = 0;
   // Use whatever version of column batches already exists
   if (sorted_column_page_) {
-    auto batch = this->GetSortedColumnBatches();
+    auto batch = this->GetBatches(kSortedCSC).Of<SparsePage>();
     column_size = (*batch.begin())[cidx].size();
   } else {
-    auto batch = this->GetColumnBatches();
+    auto batch = this->GetBatches(kCSC).Of<SparsePage>();
     column_size = (*batch.begin())[cidx].size();
   }
 
@@ -29,14 +29,15 @@ float SimpleDMatrix::GetColDensity(size_t cidx) {
   return 1.0f - (static_cast<float>(nmiss)) / this->Info().num_row_;
 }
 
-class SimpleBatchIteratorImpl : public BatchIteratorImpl {
+template<typename T>
+class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
-  explicit SimpleBatchIteratorImpl(SparsePage* page) : page_(page) {}
-  SparsePage& operator*() override {
+  explicit SimpleBatchIteratorImpl(T* page) : page_(page) {}
+  T& operator*() override {
     CHECK(page_ != nullptr);
     return *page_;
   }
-  const SparsePage& operator*() const override {
+  const T& operator*() const override {
     CHECK(page_ != nullptr);
     return *page_;
   }
@@ -47,13 +48,29 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl {
   }
 
  private:
-  SparsePage* page_{nullptr};
+  T* page_{nullptr};
 };
+
+BatchSet SimpleDMatrix::GetBatches(PageType page_type) {
+  switch(page_type) {
+    case kCSR:
+      return GetRowBatches();
+    case kCSC:
+      return GetColumnBatches();
+    case kSortedCSC:
+      return GetSortedColumnBatches();
+    default:
+      LOG(FATAL) << "Unknown page type";
+      return BatchSet(nullptr);
+  }
+}
 
 BatchSet SimpleDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SimpleCSRSource*>(source_.get());
-  auto begin_iter = BatchIterator(new SimpleBatchIteratorImpl(&(cast->page_)));
-  return BatchSet(begin_iter);
+  auto begin_iter = BatchIterator<SparsePage>(
+      new SimpleBatchIteratorImpl<SparsePage>(&(cast->page_)));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 BatchSet SimpleDMatrix::GetColumnBatches() {
@@ -64,8 +81,9 @@ BatchSet SimpleDMatrix::GetColumnBatches() {
         new SparsePage(page.GetTranspose(source_->info.num_col_)));
   }
   auto begin_iter =
-      BatchIterator(new SimpleBatchIteratorImpl(column_page_.get()));
-  return BatchSet(begin_iter);
+      BatchIterator<SparsePage>(new SimpleBatchIteratorImpl<SparsePage>(column_page_.get()));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 BatchSet SimpleDMatrix::GetSortedColumnBatches() {
@@ -77,8 +95,9 @@ BatchSet SimpleDMatrix::GetSortedColumnBatches() {
     sorted_column_page_->SortRows();
   }
   auto begin_iter =
-      BatchIterator(new SimpleBatchIteratorImpl(sorted_column_page_.get()));
-  return BatchSet(begin_iter);
+      BatchIterator<SparsePage>(new SimpleBatchIteratorImpl<SparsePage>(sorted_column_page_.get()));
+  auto page_set = new PageSet<SparsePage>(begin_iter);
+  return BatchSet(page_set);
 }
 
 bool SimpleDMatrix::SingleColBlock() const { return true; }

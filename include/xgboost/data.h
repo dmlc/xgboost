@@ -151,6 +151,13 @@ struct Entry {
   }
 };
 
+/*! \brief page type supported by xgboost */
+enum PageType {
+  kCSR = 0,
+  kCSC = 1,
+  kSortedCSC = 2
+};
+
 /*!
  * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
@@ -270,20 +277,22 @@ class SparsePage {
   size_t Size() { return offset.Size() - 1; }
 };
 
+template<typename T>
 class BatchIteratorImpl {
  public:
   virtual ~BatchIteratorImpl() {}
   virtual BatchIteratorImpl* Clone() = 0;
-  virtual SparsePage& operator*() = 0;
-  virtual const SparsePage& operator*() const = 0;
+  virtual T& operator*() = 0;
+  virtual const T& operator*() const = 0;
   virtual void operator++() = 0;
   virtual bool AtEnd() const = 0;
 };
 
+template<typename T>
 class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;
-  explicit BatchIterator(BatchIteratorImpl* impl) { impl_.reset(impl); }
+  explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
 
   BatchIterator(const BatchIterator& other) {
     if (other.impl_) {
@@ -298,12 +307,12 @@ class BatchIterator {
     ++(*impl_);
   }
 
-  SparsePage& operator*() {
+  T& operator*() {
     CHECK(impl_ != nullptr);
     return *(*impl_);
   }
 
-  const SparsePage& operator*() const {
+  const T& operator*() const {
     CHECK(impl_ != nullptr);
     return *(*impl_);
   }
@@ -319,17 +328,39 @@ class BatchIterator {
   }
 
  private:
-  std::unique_ptr<BatchIteratorImpl> impl_;
+  std::unique_ptr<BatchIteratorImpl<T>> impl_;
+};
+
+struct PageSetBase {
+  virtual ~PageSetBase() = default;
+};
+
+template<typename T>
+class PageSet : public PageSetBase {
+ public:
+  explicit PageSet(BatchIterator<T> begin_iter) : begin_iter_(begin_iter) {}
+  BatchIterator<T> begin() { return begin_iter_; }
+  BatchIterator<T> end() { return BatchIterator<T>(nullptr); }
+
+ private:
+  BatchIterator<T> begin_iter_;
 };
 
 class BatchSet {
  public:
-  explicit BatchSet(BatchIterator begin_iter) : begin_iter_(begin_iter) {}
-  BatchIterator begin() { return begin_iter_; }
-  BatchIterator end() { return BatchIterator(nullptr); }
+  explicit BatchSet(PageSetBase* page_set) { page_set_.reset(page_set); }
+
+  /*! \brief Return a batch of the specified type.
+   * @tparam T The type of the pages in the batch.
+   * @return A batch of pages.
+   */
+  template<typename T>
+  PageSet<T> Of() {
+    return *dynamic_cast<PageSet<T>*>(page_set_.get());
+  }
 
  private:
-  BatchIterator begin_iter_;
+  std::unique_ptr<PageSetBase> page_set_;
 };
 
 /*!
@@ -339,7 +370,8 @@ class BatchSet {
  *
  *  On distributed setting, usually an customized dmlc::Parser is needed instead.
  */
-class DataSource : public dmlc::DataIter<SparsePage> {
+template<typename T>
+class DataSource : public dmlc::DataIter<T> {
  public:
   /*!
    * \brief Meta information about the dataset
@@ -367,11 +399,9 @@ class DMatrix {
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
   /**
-   * \brief Gets row batches. Use range based for loop over BatchSet to access individual batches.
+   * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
-  virtual BatchSet GetRowBatches() = 0;
-  virtual BatchSet GetSortedColumnBatches() = 0;
-  virtual BatchSet GetColumnBatches() = 0;
+  virtual BatchSet GetBatches(PageType page_type) = 0;
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
@@ -410,7 +440,7 @@ class DMatrix {
    *     This can be nullptr for common cases, and in-memory mode will be used.
    * \return a Created DMatrix.
    */
-  static DMatrix* Create(std::unique_ptr<DataSource>&& source,
+  static DMatrix* Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix = "");
   /*!
    * \brief Create a DMatrix by loading data from parser.

@@ -20,7 +20,7 @@ TEST(c_api, XGDMatrixCreateFromMatDT) {
   ASSERT_EQ(info.num_row_, 3);
   ASSERT_EQ(info.num_nonzero_, 6);
 
-  for (const auto &batch : (*dmat)->GetRowBatches()) {
+  for (const auto &batch : (*dmat)->GetBatches(xgboost::kCSR).Of<xgboost::SparsePage>()) {
     ASSERT_EQ(batch[0][0].fvalue, 0.0f);
     ASSERT_EQ(batch[0][1].fvalue, -4.0f);
     ASSERT_EQ(batch[2][0].fvalue, 3.0f);
@@ -52,7 +52,7 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     ASSERT_EQ(info.num_row_, row);
     ASSERT_EQ(info.num_nonzero_, num_cols * row - num_missing);
 
-    for (const auto &batch : (*dmat)->GetRowBatches()) {
+    for (const auto &batch : (*dmat)->GetBatches(xgboost::kCSR).Of<xgboost::SparsePage>()) {
       for (size_t i = 0; i < batch.Size(); i++) {
         auto inst = batch[i];
         for (auto e : inst) {
