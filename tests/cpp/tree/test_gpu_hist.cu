@@ -118,10 +118,7 @@ TEST(GpuHist, BuildGidxDense) {
   };
   param.Init(args);
 
-  GenericParameter gparam;
-  gparam.InitAllowUnknown(Args{});
-
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, &gparam, kNCols, kNCols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -158,51 +155,11 @@ TEST(GpuHist, BuildGidxSparse) {
   TrainParam param;
   std::vector<std::pair<std::string, std::string>> args {
     {"max_depth", "1"},
-    {"max_leaves", "0"},
-  };
-  param.Init(args);
-
-  GenericParameter gparam;
-  gparam.InitAllowUnknown(Args{});
-
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, &gparam, kNCols,
-                                         kNCols);
-  BuildGidx(&shard, kNRows, kNCols, 0.9f);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, shard.gidx_buffer);
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
-
-  ASSERT_LE(shard.ellpack_matrix->row_stride, 3);
-
-  // row_stride = 3, 16 rows, 48 entries for ELLPack
-  std::vector<uint32_t> solution = {
-    15, 24, 24,  0, 24, 24, 24, 24, 24, 24, 24, 24, 20, 24, 24, 24,
-    24, 24, 24, 24, 24,  5, 24, 24,  0, 16, 24, 15, 24, 24, 24, 24,
-    24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
-  };
-  for (size_t i = 0; i < kNRows * shard.ellpack_matrix->row_stride; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
-  }
-}
-
-TEST(GpuHist, BuildGidxSparseCSR) {
-  int constexpr kNRows = 16, kNCols = 8;
-  TrainParam param;
-  std::vector<std::pair<std::string, std::string>> args {
-    {"max_depth", "1"},
     {"max_leaves", "0"}
   };
   param.Init(args);
 
-  GenericParameter gparam;
-  std::vector<std::pair<std::string, std::string>> gargs {
-    {"external_memory", "true"}
-  };
-  gparam.Init(gargs);
-
-  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, &gparam, kNCols,
-                                         kNCols);
+  DeviceShard<GradientPairPrecise> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols, 0.9f);
 
   std::vector<common::CompressedByteT> h_gidx_buffer(shard.gidx_buffer.size());
@@ -211,10 +168,10 @@ TEST(GpuHist, BuildGidxSparseCSR) {
 
   ASSERT_EQ(shard.gidx_buffer.size(), shard.n_items);
   ASSERT_LE(shard.ellpack_matrix->row_stride, 3);
-  ASSERT_EQ(shard.ellpack_matrix->data_layout, ELLPackMatrix::kCSR);
+  ASSERT_EQ(shard.ellpack_matrix->is_dense, false);
 
-  // Sparse matrices that use external memory have dense gidx representations with
-  // row_ptrs delineating the different row elements
+  // Sparse matrices have dense gidx representations with row_ptrs delineating
+  // the different row elements
   std::vector<uint32_t> solution = {15, 0, 20, 5, 0, 16, 15, 7, 14, 16, 4, 9, 1};
 
   ASSERT_EQ(shard.gidx_buffer.size(), solution.size());
@@ -249,11 +206,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   };
   param.Init(args);
 
-  GenericParameter gparam;
-  gparam.InitAllowUnknown(Args{});
-
-  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, &gparam, kNCols,
-                                  kNCols);
+  DeviceShard<GradientSumT> shard(0, 0, 0, kNRows, param, kNCols, kNCols);
   BuildGidx(&shard, kNRows, kNCols);
 
   xgboost::SimpleLCG gen;
@@ -353,15 +306,11 @@ TEST(GpuHist, EvaluateSplits) {
     param.monotone_constraints.emplace_back(0);
   }
 
-  GenericParameter gparam;
-  gparam.InitAllowUnknown(Args{});
-
   int max_bins = 4;
 
   // Initialize DeviceShard
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, &gparam, kNCols,
-                                         kNCols)};
+    new DeviceShard<GradientPairPrecise>(0, 0, 0, kNRows, param, kNCols, kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -387,7 +336,7 @@ TEST(GpuHist, EvaluateSplits) {
                       common::CompressedBufferWriter(0),
                       common::CompressedIterator<uint32_t>(shard->gidx_row_buffer.data(), 0),
                       shard->gidx_row_buffer,
-                      0, true, 0, kNRows, 0, ELLPackMatrix::kRowStride));
+                      0, true, 0, kNRows, 0));
 
   // Initialize DeviceShard::hist
   shard->hist.Init(0, (max_bins - 1) * kNCols);
@@ -469,23 +418,13 @@ void TestHistogramIndexImpl(int n_gpus) {
     std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
     dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
 
-    ASSERT_EQ(dev_shard->ellpack_matrix->data_layout, ELLPackMatrix::kRowStride);
-    ASSERT_EQ(dev_shard_ext->ellpack_matrix->data_layout, ELLPackMatrix::kCSR);
+    ASSERT_EQ(dev_shard->ellpack_matrix->is_dense, dev_shard_ext->ellpack_matrix->is_dense);
+    ASSERT_EQ(dev_shard_ext->ellpack_matrix->is_dense, false);
     ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
     ASSERT_EQ(dev_shard->n_items, dev_shard_ext->n_items);
     ASSERT_EQ(dev_shard->n_rows, dev_shard_ext->n_rows);
-    ASSERT_GT(h_gidx_buffer.size(), h_gidx_buffer_ext.size());
-
-    common::CompressedIterator<uint32_t> h_gidx(h_gidx_buffer.data(), dev_shard->n_bins + 1);
-    common::CompressedIterator<uint32_t> h_gidx_ext(h_gidx_buffer_ext.data(),
-                                                    dev_shard->n_bins + 1);
-    size_t k = 0;
-    for (size_t j = 0; j < dev_shard->n_rows * dev_shard->ellpack_matrix->row_stride; ++j) {
-      if (h_gidx[j] != dev_shard->n_bins) {
-         ASSERT_EQ(h_gidx[j], h_gidx_ext[k++]);
-      }
-    }
-    ASSERT_EQ(k, dev_shard_ext->n_items);
+    ASSERT_EQ(h_gidx_buffer.size(), h_gidx_buffer_ext.size());
+    ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
   }
 }
 

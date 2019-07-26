@@ -139,12 +139,6 @@ __forceinline__ __device__ int BinarySearchRow(
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
 struct ELLPackMatrix {
-  /*! \brief How is the compressed data laid out? */
-  enum CompressedDataLayout {
-    kRowStride,  // Every row is evenly sized with row stride number of items
-    kCSR  // Every row is sized based on the actual number of items in that row
-  };
-
   common::Span<uint32_t> feature_segments;
   /*! \brief minimum value for each feature. */
   common::Span<bst_float> min_fvalue;
@@ -161,11 +155,11 @@ struct ELLPackMatrix {
 
   /*! \brief row length for ELLPack. */
   size_t row_stride{0};
-  bool is_dense;  // Is the matrix dense?
+  bool is_dense;  // Are we using a dense represenation where every row contains row_stride
+                  // number of elements?
   int null_gidx_value;
   size_t n_rows;  // Number of rows in this matrix
   size_t n_items;  // Number of items in this matrix
-  CompressedDataLayout data_layout;
 
   XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
 
@@ -177,15 +171,8 @@ struct ELLPackMatrix {
       auto row_begin = row_stride * ridx;
       gidx = gidx_buffer_iter[row_begin + fidx];
     } else {
-      auto row_begin = 0;
-      auto row_end = 0;
-      if (data_layout == kRowStride) {
-        row_begin = row_stride * ridx;
-        row_end = row_begin + row_stride;
-      } else if (data_layout == kCSR) {
-        row_begin = gidx_row_iter[ridx];
-        row_end = gidx_row_iter[ridx + 1];
-      }
+      auto row_begin = gidx_row_iter[ridx];
+      auto row_end = gidx_row_iter[ridx + 1];
       gidx =
           BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
                           feature_segments[fidx + 1]);
@@ -210,8 +197,7 @@ struct ELLPackMatrix {
     bool is_dense,
     int null_gidx_value,
     size_t n_rows,
-    size_t n_items,
-    CompressedDataLayout data_layout)
+    size_t n_items)
       : gidx_buffer_writer(buf_wr),
         gidx_row_writer(row_wr) {
       this->feature_segments = feature_segments;
@@ -229,7 +215,6 @@ struct ELLPackMatrix {
       this->null_gidx_value = null_gidx_value;
       this->n_rows = n_rows;
       this->n_items = n_items;
-      this->data_layout = data_layout;
   }
 };
 
@@ -557,10 +542,10 @@ __global__ void CompressBinEllpackKernel(
   }
 
   // Write to gidx buffer.
-  if (matrix.data_layout == ELLPackMatrix::kRowStride) {
+  if (matrix.is_dense) {
     matrix.gidx_buffer_writer.AtomicWriteSymbol(
       matrix.gidx_buffer.data(), bin, (irow + base_row) * matrix.row_stride + ifeature);
-  } else if (matrix.data_layout == ELLPackMatrix::kCSR && bin != matrix.null_gidx_value) {
+  } else if (bin != matrix.null_gidx_value) {
     matrix.gidx_buffer_writer.AtomicWriteSymbol(
       matrix.gidx_buffer.data(), bin,
       row_ptrs[irow] - base_item_offset + total_items_processed + ifeature);
@@ -595,9 +580,9 @@ __global__ void SharedMemHistKernel(ELLPackMatrix matrix,
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
     int ridx = d_ridx[idx / matrix.row_stride ];
     int gidx = matrix.null_gidx_value;
-    if (matrix.data_layout == ELLPackMatrix::kRowStride) {
+    if (matrix.is_dense) {
       gidx = matrix.gidx_buffer_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
-    } else if (matrix.data_layout == ELLPackMatrix::kCSR) {
+    } else {
       uint32_t n_elems = matrix.gidx_row_iter[ridx + 1] - matrix.gidx_row_iter[ridx];
       if (idx % matrix.row_stride < n_elems) {
         gidx = matrix.gidx_buffer_iter[matrix.gidx_row_iter[ridx] + idx % matrix.row_stride];
@@ -704,7 +689,6 @@ struct DeviceShard {
   bst_uint n_items;  // Number of items assigned to this shard
 
   TrainParam param;
-  const GenericParameter *generic_param;
   bool prediction_cache_initialised;
   bool use_shared_memory_histograms {false};
 
@@ -724,7 +708,7 @@ struct DeviceShard {
   std::unique_ptr<ExpandQueue> qexpand;
 
   DeviceShard(int _device_id, int shard_idx, bst_uint row_begin,
-              bst_uint row_end, TrainParam _param, const GenericParameter *gparam,
+              bst_uint row_end, TrainParam _param,
               uint32_t column_sampler_seed,
               uint32_t n_features)
       : device_id(_device_id),
@@ -735,7 +719,6 @@ struct DeviceShard {
         n_items(0),
         n_bins(0),
         param(std::move(_param)),
-        generic_param(gparam),
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features) {
@@ -1238,11 +1221,10 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   int num_row_symbols = n_items + 1;
 
   // Required buffer size for storing data matrix in ELLPack format.
-  ELLPackMatrix::CompressedDataLayout data_layout = ELLPackMatrix::kRowStride;
   size_t compressed_size_bytes =
     common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
                                                         num_symbols);
-  if (!is_dense && generic_param->external_memory) {
+  if (!is_dense) {
     size_t item_compressed_size_bytes =
       common::CompressedBufferWriter::CalculateBufferSize(n_items, num_symbols);
 
@@ -1251,13 +1233,14 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
       common::CompressedBufferWriter::CalculateBufferSize(n_rows + 1, num_row_symbols);
 
     if (item_compressed_size_bytes + row_compressed_size_bytes < compressed_size_bytes) {
-      data_layout = ELLPackMatrix::kCSR;
       compressed_size_bytes = item_compressed_size_bytes;
 
       ba.Allocate(device_id, &gidx_row_buffer, row_compressed_size_bytes);
-      thrust::fill(
-        thrust::device_pointer_cast(gidx_row_buffer.data()),
-        thrust::device_pointer_cast(gidx_row_buffer.data() + gidx_row_buffer.size()), 0);
+        thrust::fill(
+          thrust::device_pointer_cast(gidx_row_buffer.data()),
+          thrust::device_pointer_cast(gidx_row_buffer.data() + gidx_row_buffer.size()), 0);
+    } else {
+      is_dense = true;
     }
   }
 
@@ -1274,7 +1257,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
       common::CompressedBufferWriter(num_row_symbols),
       common::CompressedIterator<uint32_t>(gidx_row_buffer.data(), num_row_symbols),
       gidx_row_buffer,
-      row_stride, is_dense, null_gidx_value, n_rows, n_items, data_layout));
+      row_stride, is_dense, null_gidx_value, n_rows, n_items));
 
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
@@ -1477,7 +1460,7 @@ class GPUHistMakerSpecialised {
           size_t size = dist_.ShardSize(info_->num_row_, idx);
           shard = std::unique_ptr<DeviceShard<GradientSumT>>(
             new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
-                                          start, start + size, param_, generic_param_,
+                                          start, start + size, param_,
                                           column_sampling_seed,
                                           info_->num_col_));
         });
