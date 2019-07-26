@@ -41,7 +41,7 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
 };
 
 BatchSet SparsePageDMatrix::GetBatches(PageType page_type) {
-  switch(page_type) {
+  switch (page_type) {
     case kCSR:
       return GetRowBatches();
     case kCSC:

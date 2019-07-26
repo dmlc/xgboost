@@ -52,7 +52,7 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
 };
 
 BatchSet SimpleDMatrix::GetBatches(PageType page_type) {
-  switch(page_type) {
+  switch (page_type) {
     case kCSR:
       return GetRowBatches();
     case kCSC:
