@@ -19,7 +19,7 @@ void JsonWriter::Visit(JsonArray const* arr) {
   auto const& vec = arr->getArray();
   size_t size = vec.size();
   for (size_t i = 0; i < size; ++i) {
-    auto& value = vec[i];
+    auto const& value = vec[i];
     this->Save(value);
     if (i != size-1) { Write(", "); }
   }
@@ -61,7 +61,9 @@ void JsonWriter::Visit(JsonRaw const* raw) {
   this->Write(str);
 }
 
-void JsonWriter::Visit(JsonNull const* null) {}
+void JsonWriter::Visit(JsonNull const* null) {
+  this->Write("null");
+}
 
 void JsonWriter::Visit(JsonString const* str) {
   std::string buffer;
@@ -353,6 +355,8 @@ Json JsonReader::Parse() {
       return ParseString();
     } else if ( c == 't' || c == 'f' ) {
       return ParseBoolean();
+    } else if (c == 'n') {
+      return ParseNull();
     } else {
       Error("Unknown construct");
     }
@@ -445,6 +449,18 @@ Json JsonReader::ParseString() {
     }
   }
   return Json(std::move(str));
+}
+
+Json JsonReader::ParseNull() {
+  char ch = GetNextNonSpaceChar();
+  std::string buffer{ch};
+  for (size_t i = 0; i < 3; ++i) {
+    buffer.push_back(GetNextChar());
+  }
+  if (buffer != "null") {
+    Error("Expecting null value \"null\"");
+  }
+  return Json{JsonNull()};
 }
 
 Json JsonReader::ParseArray() {

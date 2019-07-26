@@ -145,7 +145,7 @@ TEST(Json, TestParseObject) {
 TEST(Json, ParseNumber) {
   std::string str = "31.8892";
   auto json = Json::Load(StringView{str.c_str(), str.size()});
-  ASSERT_NEAR(get<JsonNumber>(json), 31.8892, kRtEps);
+  ASSERT_NEAR(get<JsonNumber>(json), 31.8892f, kRtEps);
 }
 
 TEST(Json, ParseArray) {
@@ -182,6 +182,18 @@ TEST(Json, ParseArray) {
   ASSERT_EQ(arr.size(), 3);
   Json v0 = arr[0];
   ASSERT_EQ(get<JsonNumber>(v0["depth"]), 3);
+}
+
+TEST(Json, Null) {
+  Json json {JsonNull()};
+  std::stringstream ss;
+  Json::Dump(json, &ss);
+  ASSERT_EQ(ss.str(), "null");
+
+  std::string null_input {R"null({"key":  null })null"};
+
+  json = Json::Load({null_input.c_str(), null_input.size()});
+  ASSERT_TRUE(IsA<Null>(json["key"]));
 }
 
 TEST(Json, EmptyArray) {
@@ -233,7 +245,7 @@ TEST(Json, AssigningObjects) {
     std::vector<Json> arr_0 (1, Json(3.3));
     json_objects["tree_parameters"] = JsonArray(arr_0);
     std::vector<Json> json_arr = get<JsonArray>(json_objects["tree_parameters"]);
-    ASSERT_NEAR(get<JsonNumber>(json_arr[0]), 3.3, kRtEps);
+    ASSERT_NEAR(get<JsonNumber>(json_arr[0]), 3.3f, kRtEps);
   }
 
   {
@@ -356,5 +368,4 @@ TEST(Json, WrongCasts) {
     ASSERT_ANY_THROW(get<Number>(json));
   }
 }
-
 }  // namespace xgboost

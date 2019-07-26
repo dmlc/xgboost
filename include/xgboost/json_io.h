@@ -136,6 +136,7 @@ class JsonReader {
   virtual Json ParseArray();
   virtual Json ParseNumber();
   virtual Json ParseBoolean();
+  virtual Json ParseNull();
 
   Json Parse();
 
