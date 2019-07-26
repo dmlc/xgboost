@@ -349,41 +349,6 @@ class DataSource : public dmlc::DataIter<SparsePage> {
 };
 
 /*!
- * \brief A vector-like structure to represent set of rows.
- * But saves the memory when all rows are in the set (common case in xgb)
- */
-class RowSet {
- public:
-  /*! \return i-th row index */
-  inline bst_uint operator[](size_t i) const;
-  /*! \return the size of the set. */
-  inline size_t Size() const;
-  /*! \brief push the index back to the set */
-  inline void PushBack(bst_uint i);
-  /*! \brief clear the set */
-  inline void Clear();
-  /*!
-   * \brief save rowset to file.
-   * \param fo The file to be saved.
-   */
-  inline void Save(dmlc::Stream* fo) const;
-  /*!
-   * \brief Load rowset from file.
-   * \param fi The file to be loaded.
-   * \return if read is successful.
-   */
-  inline bool Load(dmlc::Stream* fi);
-  /*! \brief constructor */
-  RowSet()  = default;
-
- private:
-  /*! \brief The internal data structure of size */
-  uint64_t size_{0};
-  /*! \brief The internal data structure of row set if not all*/
-  std::vector<bst_uint> rows_;
-};
-
-/*!
  * \brief Internal data structured used by XGBoost during training.
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
  *
@@ -467,49 +432,9 @@ class DMatrix {
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 };
-
-// implementation of inline functions
-inline bst_uint RowSet::operator[](size_t i) const {
-  return rows_.size() == 0 ? static_cast<bst_uint>(i) : rows_[i];
-}
-
-inline size_t RowSet::Size() const {
-  return size_;
-}
-
-inline void RowSet::Clear() {
-  rows_.clear(); size_ = 0;
-}
-
-inline void RowSet::PushBack(bst_uint i) {
-  if (rows_.size() == 0) {
-    if (i == size_) {
-      ++size_; return;
-    } else {
-      rows_.resize(size_);
-      for (size_t i = 0; i < size_; ++i) {
-        rows_[i] = static_cast<bst_uint>(i);
-      }
-    }
-  }
-  rows_.push_back(i);
-  ++size_;
-}
-
-inline void RowSet::Save(dmlc::Stream* fo) const {
-  fo->Write(rows_);
-  fo->Write(&size_, sizeof(size_));
-}
-
-inline bool RowSet::Load(dmlc::Stream* fi) {
-  if (!fi->Read(&rows_)) return false;
-  if (rows_.size() != 0) return true;
-  return fi->Read(&size_, sizeof(size_)) == sizeof(size_);
-}
 }  // namespace xgboost
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);
-DMLC_DECLARE_TRAITS(has_saveload, xgboost::RowSet, true);
 }
 #endif  // XGBOOST_DATA_H_
