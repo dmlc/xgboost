@@ -34,12 +34,13 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
-  BatchSet GetBatches(PageType page_type) override;
+  template<typename T>
+  BatchSet<T> GetSimpleBatches(PageType page_type);
 
  private:
-  BatchSet GetRowBatches();
-  BatchSet GetColumnBatches();
-  BatchSet GetSortedColumnBatches();
+  BatchSet<SparsePage> GetRowBatches();
+  BatchSet<SparsePage> GetColumnBatches();
+  BatchSet<SparsePage> GetSortedColumnBatches();
 
   // source data pointer.
   std::unique_ptr<DataSource<SparsePage>> source_;

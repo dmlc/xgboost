@@ -157,7 +157,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
   // Loop over the batches and count the records
   int64_t batch_count = 0;
   int64_t row_count = 0;
-  for (const auto &batch : dmat->GetBatches(xgboost::kCSR).Of<SparsePage>()) {
+  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>(xgboost::kCSR)) {
     batch_count++;
     row_count += batch.Size();
   }

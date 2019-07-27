@@ -18,7 +18,7 @@ void SimpleCSRSource::Clear() {
 void SimpleCSRSource::CopyFrom(DMatrix* src) {
   this->Clear();
   this->info = src->Info();
-  for (const auto &batch : src->GetBatches(kCSR).Of<SparsePage>()) {
+  for (const auto &batch : src->GetBatches<SparsePage>(kCSR)) {
     page_.Push(batch);
   }
 }

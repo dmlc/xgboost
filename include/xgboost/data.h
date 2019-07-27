@@ -331,36 +331,15 @@ class BatchIterator {
   std::unique_ptr<BatchIteratorImpl<T>> impl_;
 };
 
-struct PageSetBase {
-  virtual ~PageSetBase() = default;
-};
-
 template<typename T>
-class PageSet : public PageSetBase {
+class BatchSet {
  public:
-  explicit PageSet(BatchIterator<T> begin_iter) : begin_iter_(begin_iter) {}
+  explicit BatchSet(BatchIterator<T> begin_iter) : begin_iter_(begin_iter) {}
   BatchIterator<T> begin() { return begin_iter_; }
   BatchIterator<T> end() { return BatchIterator<T>(nullptr); }
 
  private:
   BatchIterator<T> begin_iter_;
-};
-
-class BatchSet {
- public:
-  explicit BatchSet(PageSetBase* page_set) { page_set_.reset(page_set); }
-
-  /*! \brief Return a batch of the specified type.
-   * @tparam T The type of the pages in the batch.
-   * @return A batch of pages.
-   */
-  template<typename T>
-  PageSet<T> Of() {
-    return *dynamic_cast<PageSet<T>*>(page_set_.get());
-  }
-
- private:
-  std::unique_ptr<PageSetBase> page_set_;
 };
 
 /*!
@@ -401,7 +380,8 @@ class DMatrix {
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
-  virtual BatchSet GetBatches(PageType page_type) = 0;
+  template<typename T>
+  BatchSet<T> GetBatches(PageType page_type);
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;

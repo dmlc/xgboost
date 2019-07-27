@@ -8,11 +8,9 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <locale>
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
-#include "../common/common.h"
 
 namespace {
 
@@ -247,7 +245,7 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
     MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    for (auto& batch : src->GetBatches(kCSR).Of<SparsePage>()) {
+    for (auto& batch : src->GetBatches<SparsePage>(kCSR)) {
       if (page_type == ".row.page") {
         page->Push(batch);
       } else if (page_type == ".col.page") {

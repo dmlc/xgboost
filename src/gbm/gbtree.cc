@@ -371,7 +371,7 @@ class Dart : public GBTree {
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
     auto* self = static_cast<Derived*>(this);
-    for (const auto &batch : p_fmat->GetBatches(kCSR).Of<SparsePage>()) {
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>(kCSR)) {
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;

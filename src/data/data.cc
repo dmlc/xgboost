@@ -145,6 +145,21 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+// Explicit template instantiation.
+template BatchSet<SparsePage> DMatrix::GetBatches<SparsePage>(PageType);
+
+template<typename T>
+BatchSet<T> DMatrix::GetBatches(PageType page_type) {
+  // How the sausage gets made.
+  if (auto* simple = dynamic_cast<data::SimpleDMatrix*>(this)) {
+    return simple->GetSimpleBatches<T>(page_type);
+  } else if (auto* paged = dynamic_cast<data::SparsePageDMatrix*>(this)) {
+    return paged->GetPagedBatches<T>(page_type);
+  } else {
+    LOG(FATAL) << "Unknown DMatrix subclass: " << typeid(*this).name();
+    return BatchSet<T>(BatchIterator<T>(nullptr));
+  }
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,

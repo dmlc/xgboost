@@ -56,7 +56,7 @@ class TreeRefresher: public TreeUpdater {
     auto lazy_get_stats = [&]() {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches(kCSR).Of<SparsePage>()) {
+      for (const auto &batch : p_fmat->GetBatches<SparsePage>(kCSR)) {
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(static)

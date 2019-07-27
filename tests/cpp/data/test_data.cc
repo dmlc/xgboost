@@ -63,7 +63,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
       CreateSparsePageDMatrix(n_entries, 64UL, filename);
   const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
-  for (const auto &batch : dmat->GetBatches(xgboost::kCSR).Of<SparsePage>()) {
+  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>(xgboost::kCSR)) {
     // Transpose each batch and push
     SparsePage tmp = batch.GetTranspose(ncols);
     page.PushCSC(tmp);
