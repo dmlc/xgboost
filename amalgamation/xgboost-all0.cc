@@ -21,6 +21,7 @@
 #include "../src/objective/multiclass_obj.cc"
 #include "../src/objective/rank_obj.cc"
 #include "../src/objective/hinge.cc"
+#include "../src/objective/aft_obj.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
