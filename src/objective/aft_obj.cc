@@ -12,83 +12,24 @@
 #include <math.h>
 #include "../common/math.h"
 #include "../common/random.h"
+#include "../common/survival_util.h"
 
-namespace xgboost {
-namespace obj {
-
-// Choice of distribution for the noise term in AFT
-enum class AFTNoiseDistribution : int {
-  kNormal = 0, kLogistic = 1, kWeibull = 2
-};
-
-// Type of Censorship
-enum class AFTEventType : int {
-  kUncensored = 0, kLeftCensored = 1, kRightCensored = 2, kIntervalCensored = 3
-};
-
-// Constant PI
-const double kPI = 3.14159265358979323846;
-
-}  // namespace obj
-}  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::obj::AFTNoiseDistribution);
+using AFTNoiseDistribution = xgboost::common::AFTNoiseDistribution;
+using AFTParam = xgboost::common::AFTParam;
+using AFTEventType = xgboost::common::AFTEventType;
 
 namespace xgboost {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(aft_obj);
 
-struct AFTParam : public dmlc::Parameter<AFTParam> {
-  AFTNoiseDistribution aft_noise_distribution;
-  float aft_sigma;
-  DMLC_DECLARE_PARAMETER(AFTParam) {
-    DMLC_DECLARE_FIELD(aft_noise_distribution)
-        .set_default(AFTNoiseDistribution::kNormal)
-        .add_enum("normal", AFTNoiseDistribution::kNormal)
-        .add_enum("logistic", AFTNoiseDistribution::kLogistic)
-        .add_enum("weibull", AFTNoiseDistribution::kWeibull)
-        .describe("Choice of distribution for the noise term in "
-                  "Accelerated Failure Time model");
-    DMLC_DECLARE_FIELD(aft_sigma)
-        .set_default(1.0f)
-        .describe("Scaling factor used to scale the distribution in "
-                  "Accelerated Failure Time model");
-  }
-};
-
 class AFTObj : public ObjFunction {
  public:
-  double dlogis(double x, double mu , double sd){
-    double pdf;
-    pdf = std::exp((x-mu)/sd)/(sd*std::pow((1+std::exp((x-mu)/sd)),2));
-    return pdf;
-  }
-
-  double dnorm(double x, double mu , double sd){
-    double pdf;
-    pdf = (std::exp(-std::pow((x-mu)/(std::sqrt(2)*sd),2)))/std::sqrt(2*kPI*std::pow(sd,2));
-    return pdf;
-  }
-
-
-  double plogis(double x, double mu , double sd){
-    double cdf;
-    cdf = std::exp((x-mu)/sd)/(1+std::exp((x-mu)/sd));
-    return cdf;
-  }
-
-  double pnorm(double x, double mu , double sd){
-    double cdf;
-    cdf = 0.5*(1+std::erf((x-mu)/(sd*std::sqrt(2))));
-    return cdf;
-  }
-
   double grad_logis(double x, double mu, double sd){
     double pdf;
     double z;
     double grad;
-    pdf  = dlogis(x,mu,sd);
+    pdf  = common::aft::dlogis(x,mu,sd);
     z    = (x-mu)/sd;
     grad = pdf*(1-std::pow(std::exp(1),z))/(1+std::pow(std::exp(1),z));
     return grad;
@@ -98,7 +39,7 @@ class AFTObj : public ObjFunction {
     double pdf;
     double z;
     double grad;
-    pdf  = dnorm(x,mu,sd);
+    pdf  = common::aft::dnorm(x,mu,sd);
     z = (x-mu)/sd;
     grad = -1*z*pdf;
     return grad;
@@ -109,7 +50,7 @@ class AFTObj : public ObjFunction {
     double z;
     double hess;
     double w;
-    pdf     = dlogis(x,mu,sd);
+    pdf     = common::aft::dlogis(x,mu,sd);
     z       = (x-mu)/sd;
     w       = std::pow(std::exp(1),z);
     hess    = pdf*(std::pow(w,2)-4*w+1)/std::pow((1+w),2);
@@ -120,106 +61,10 @@ class AFTObj : public ObjFunction {
     double pdf;
     double z;
     double hess;
-    pdf     = dnorm(x,mu,sd);
+    pdf     = common::aft::dnorm(x,mu,sd);
     z       = (x-mu)/sd;
     hess = (std::pow(z,2)-1)*pdf;
     return hess;
- }
-
-  double loss_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z_u;
-    double z_l;
-    double cdf_u;
-    double cdf_l;
-    double cost;
-
-    z_u   = (std::log(y_higher) - y_pred)/sigma;
-    z_l   = (std::log(y_lower) - y_pred)/sigma;
-
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf_u = pnorm(z_u,0,1);
-      cdf_l = pnorm(z_l,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf_u = plogis(z_u,0,1);
-      cdf_l = plogis(z_l,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(cdf_u - cdf_l);
-    return cost;
-  }
-
-  double loss_left(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double cdf;
-    double cost;
-
-    z    = (std::log(y_higher)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf = pnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf = plogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(cdf);
-    return cost;
-  }
-
-  double loss_right(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double cdf;
-    double cost;
-    z    = (std::log(y_lower)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf = pnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf = plogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(1-cdf);
-    return cost;
-  }
-
-  double loss_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double pdf;
-    double cost;
-    z       = (std::log(y_lower)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      pdf = dnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      pdf = dlogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(pdf/(sigma*y_lower));
-    return cost;
   }
 
   double neg_grad_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
@@ -234,16 +79,16 @@ class AFTObj : public ObjFunction {
     z_l    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf_u  = dnorm(z_u,0,1);
-      pdf_l  = dnorm(z_l,0,1);
-      cdf_u  = pnorm(z_u,0,1);
-      cdf_l  = pnorm(z_l,0,1);
+      pdf_u  = common::aft::dnorm(z_u,0,1);
+      pdf_l  = common::aft::dnorm(z_l,0,1);
+      cdf_u  = common::aft::pnorm(z_u,0,1);
+      cdf_l  = common::aft::pnorm(z_l,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf_u  = dlogis(z_u,0,1);
-      pdf_l  = dlogis(z_l,0,1);
-      cdf_u  = plogis(z_u,0,1);
-      cdf_l  = plogis(z_l,0,1);
+      pdf_u  = common::aft::dlogis(z_u,0,1);
+      pdf_l  = common::aft::dlogis(z_l,0,1);
+      cdf_u  = common::aft::plogis(z_u,0,1);
+      cdf_l  = common::aft::plogis(z_l,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
       LOG(FATAL) << "Not implemented";
@@ -263,12 +108,12 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_higher)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf  = dnorm(z,0,1);
-      cdf  = pnorm(z,0,1);
+      pdf  = common::aft::dnorm(z,0,1);
+      cdf  = common::aft::pnorm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
-      cdf  = plogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
+      cdf  = common::aft::plogis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
       LOG(FATAL) << "Not implemented";
@@ -289,12 +134,12 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf  = dnorm(z,0,1);
-      cdf  = pnorm(z,0,1);
+      pdf  = common::aft::dnorm(z,0,1);
+      cdf  = common::aft::pnorm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
-      cdf  = plogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
+      cdf  = common::aft::plogis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
       LOG(FATAL) << "Not implemented";
@@ -315,11 +160,11 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf  = dnorm(z,0,1);
+      pdf  = common::aft::dnorm(z,0,1);
       grad = grad_norm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
       grad = grad_logis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
@@ -346,18 +191,18 @@ class AFTObj : public ObjFunction {
     z_l   = (std::log(y_lower) - y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf_u   = dnorm(z_u,0,1);
-      pdf_l   = dnorm(z_l,0,1);
-      cdf_u   = pnorm(z_u,0,1);
-      cdf_l   = pnorm(z_l,0,1);
+      pdf_u   = common::aft::dnorm(z_u,0,1);
+      pdf_l   = common::aft::dnorm(z_l,0,1);
+      cdf_u   = common::aft::pnorm(z_u,0,1);
+      cdf_l   = common::aft::pnorm(z_l,0,1);
       grad_u  = grad_norm(z_u,0,1);
       grad_l  = grad_norm(z_l,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf_u = dlogis(z_u,0,1);
-      pdf_l = dlogis(z_l,0,1);
-      cdf_u = plogis(z_u,0,1);
-      cdf_l = plogis(z_l,0,1);
+      pdf_u = common::aft::dlogis(z_u,0,1);
+      pdf_l = common::aft::dlogis(z_l,0,1);
+      cdf_u = common::aft::plogis(z_u,0,1);
+      cdf_l = common::aft::plogis(z_l,0,1);
       grad_u  = grad_logis(z_u,0,1);
       grad_l  = grad_logis(z_l,0,1);
       break;
@@ -380,13 +225,13 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_higher)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf       = dnorm(z,0,1);
-      cdf       = pnorm(z,0,1);
+      pdf       = common::aft::dnorm(z,0,1);
+      cdf       = common::aft::pnorm(z,0,1);
       grad      = grad_norm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
-      cdf  = plogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
+      cdf  = common::aft::plogis(z,0,1);
       grad = grad_logis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
@@ -408,13 +253,13 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf       = dnorm(z,0,1);
-      cdf       = pnorm(z,0,1);
+      pdf       = common::aft::dnorm(z,0,1);
+      cdf       = common::aft::pnorm(z,0,1);
       grad      = grad_norm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
-      cdf  = plogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
+      cdf  = common::aft::plogis(z,0,1);
       grad = grad_logis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
@@ -436,12 +281,12 @@ class AFTObj : public ObjFunction {
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      pdf       = dnorm(z,0,1);
+      pdf       = common::aft::dnorm(z,0,1);
       grad      = grad_norm(z,0,1);
       hess_dist = hess_norm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
-      pdf  = dlogis(z,0,1);
+      pdf  = common::aft::dlogis(z,0,1);
       grad = grad_logis(z,0,1);
       hess_dist = hess_logis(z,0,1);
       break;
@@ -534,8 +379,6 @@ class AFTObj : public ObjFunction {
 };
 
 // register the objective functions
-DMLC_REGISTER_PARAMETER(AFTParam);
-
 XGBOOST_REGISTER_OBJECTIVE(AFTObj, "aft:survival")
 .describe("AFT loss function")
 .set_body([]() { return new AFTObj(); });
