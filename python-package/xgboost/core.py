@@ -15,12 +15,13 @@ import os
 import re
 import sys
 import warnings
+import json
 
 import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
-                     PANDAS_INSTALLED, DataTable)
+                     PANDAS_INSTALLED, DataTable, CUDF_DataFrame)
 from .libpath import find_lib_path
 
 
@@ -255,6 +256,11 @@ def _maybe_pandas_data(data, feature_names, feature_types):
     return data, feature_names, feature_types
 
 
+def _maybe_cudf_data(data, feature_names, feature_types):
+    '''Extract internal data from cudf.DataFrame for DMatrix data.'''
+    pass
+
+
 def _maybe_pandas_label(label):
     """ Extract internal data from pd.DataFrame for DMatrix label """
 
@@ -404,6 +410,8 @@ class DMatrix(object):
             self._init_from_npy2d(data, missing, nthread)
         elif isinstance(data, DataTable):
             self._init_from_dt(data, nthread)
+        elif isinstance(data, CUDF_DataFrame):
+            self._init_from_columnar(data)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -526,8 +534,39 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
+    def _init_from_columnar(self, df):
+        '''Initialize DMatrix from columnar memory format.  For now assuming
+        it's cudf.DataFrame.
+
+        '''
+        print('_init_from_columnar', 'df.shape:', df.shape)
+        interfaces = []
+        for col in df.columns:
+            interfaces.append(
+                df[col]._column._data.mem.__cuda_array_interface__)
+        validity_masks = []
+        for col in df.columns:
+            if df[col].has_null_mask:
+                mask_interface = df[col].nullmask.mem.__cuda_array_interface__
+                mask_interface['null_count'] = df[col].null_count
+                validity_masks.append(mask_interface)
+            else:
+                validity_masks.append(False)
+
+        for i in range(len(df.columns)):
+            col_interface = interfaces[i]
+            mask_interface = validity_masks[i]
+            if mask_interface is not False:
+                col_interface['mask'] = mask_interface
+
+        handle = ctypes.c_void_p()
+        interfaces = bytes(json.dumps(interfaces, indent=2), 'utf-8')
+        print(interfaces)
+        _check_call(_LIB.XGDMatrixCreateFromArrayInterfaces(interfaces, handle))
+        self.handle = handle
+
     def __del__(self):
-        if hasattr(self, "handle") and self.handle is not None:
+        if hasattr(self, "handle") and self.handle:
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 

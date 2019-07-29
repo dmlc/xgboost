@@ -4,8 +4,11 @@
  */
 #include <dmlc/base.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
+
 #include <limits>
-#include "./simple_csr_source.h"
+#include "simple_csr_source.h"
+#include "columnar.h"
 
 namespace xgboost {
 namespace data {
@@ -114,6 +117,107 @@ bool SimpleCSRSource::Next() {
 
 const SparsePage& SimpleCSRSource::Value() const {
   return page_;
+}
+
+/*
+[
+  {
+    "shape": [
+      10
+    ],
+    "strides": [
+      4
+    ],
+    "data": [
+      30074864128,
+      false
+    ],
+    "typestr": "<f4",
+    "version": 1,
+    "mask": {
+      "shape": [
+        64
+      ],
+      "strides": [
+        1
+      ],
+      "data": [
+        30074864640,
+        false
+      ],
+      "typestr": "|i1",
+      "version": 1,
+      "null_count": 1
+    }
+  }
+]
+ */
+void SimpleCSRSource::CopyFrom(std::vector<Json> columns) {
+  size_t n_columns = columns.size();
+  std::vector<ForeignColumn> foreign_cols(n_columns);
+  for (size_t i = 0; i < columns.size(); ++i) {
+    CHECK(IsA<Object>(columns[i]));
+
+    auto const& column = get<Object const>(columns[i]);
+
+    // Find null mask (validity mask) field
+    common::Span<BitField::value_type> s_mask;
+    long null_count {0};
+    if (column.find("mask") != column.cend()) {
+      auto const& j_mask = get<Object const>(column.at("mask"));
+      auto p_mask =
+          reinterpret_cast<BitField::value_type*>(static_cast<size_t>(
+              get<Integer const>(
+                  get<Array const>(
+                      j_mask.at("data"))
+                  .at(0))));
+
+      auto j_shape = get<Array const>(j_mask.at("shape"));
+      CHECK_EQ(j_shape.size(), 1) << "Mask should be an 1 dimension array.";
+      CHECK_EQ(get<Integer>(j_shape.front()) % 8, 0) <<
+          "Length of validity map must be a multiple of 8 bytes.";
+      int64_t size = get<Integer>(j_shape.at(0)) * sizeof(unsigned char) / sizeof(BitField::value_type);
+      s_mask = {p_mask, size};
+
+      CHECK(j_mask.find("null_count") != j_mask.cend()) <<
+          "Column with null mask must include null_count as "
+          "part of mask object for XGBoost.";
+      null_count = get<Integer const>(j_mask.at("null_count"));
+      LOG(CONSOLE) << "mask: " << __LINE__ << (size_t)p_mask;
+    }
+
+    // Find data field
+    float* p_data = reinterpret_cast<float*>(static_cast<size_t>(
+        get<Integer const>(
+            get<Array const>(
+                column.at("data")).at(0))));
+
+    auto version = get<Integer const>(column.at("version"));
+    CHECK_EQ(version, 1) << "Only version 1 of __cuda_array_interface__ is being supported";
+
+    auto typestr = get<String const>(column.at("typestr"));
+    CHECK_EQ(typestr.size(),    3) << "`typestr` should be of format <endian><type><size>.";
+    CHECK_NE(typestr.front(), '>') << "Big endian is not supported yet.";
+    CHECK_EQ(typestr.at(1),   'f') << "Data should be of floating point type.";
+    CHECK_EQ(typestr.at(2),   '4') << "Please convert the input into float32 first.";
+
+    auto strides = get<Array const>(column.at("strides"));
+    CHECK_EQ(strides.size(), 1)              << "Only 1 dimensional array is valid.";
+    CHECK_EQ(get<Integer>(strides.at(0)), 4) << "Memory should be contigious.";
+
+    auto j_shape = get<Array const>(column.at("shape"));
+    CHECK_EQ(j_shape.size(), 1) << "Only 1 dimension column is valid.";
+    auto length = get<Integer const>(j_shape.at(0));
+
+    common::Span<float> s_data {p_data, length};
+
+    foreign_cols[i].data  = s_data;
+    foreign_cols[i].valid = BitField(s_mask);
+    foreign_cols[i].size  = s_data.size();
+    foreign_cols[i].null_count = null_count;
+  }
+
+  this->CopyFrom(foreign_cols);
 }
 
 }  // namespace data

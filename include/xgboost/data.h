@@ -17,15 +17,18 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "./base.h"
+
+#include "base.h"
+
 #include "../../src/common/span.h"
 #include "../../src/common/group_data.h"
-
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 // forward declare learner.
 class LearnerImpl;
+
+class ForeignColumn;
 
 /*! \brief data type accepted by xgboost interface */
 enum DataType {
@@ -123,6 +126,12 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+  /*!
+   * \brief Set information in the meta info for foreign columns buffer.
+   * \param key The key of the information.
+   * \param interface_str string holding array interface
+   */
+  void SetInfo(const char* key, std::string const& interface_str);
 
  private:
   /*! \brief argsort of labels */
@@ -150,6 +159,14 @@ struct Entry {
   inline bool operator==(const Entry& other) const {
     return (this->index == other.index && this->fvalue == other.fvalue);
   }
+};
+
+struct ForeignCSR {
+  common::Span<Entry> data;
+  common::Span<size_t> offsets;
+  size_t n_nonzero;
+  size_t n_cols;
+  size_t n_rows;
 };
 
 /*!

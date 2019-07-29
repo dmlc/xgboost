@@ -4,8 +4,6 @@
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
 
-#include <dmlc/io.h>
-
 #include <xgboost/logging.h>
 #include <string>
 

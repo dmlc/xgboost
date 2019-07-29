@@ -1,9 +1,10 @@
-// Copyright (c) 2014 by Contributors
+// Copyright (c) 2014-2019 by Contributors
 
 #include <xgboost/data.h>
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
 
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
@@ -16,11 +17,12 @@
 #include <string>
 #include <memory>
 
-#include "./c_api_error.h"
+#include "c_api_error.h"
 #include "../data/simple_csr_source.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
+#include "../data/columnar.h"
 
 
 namespace xgboost {
@@ -186,6 +188,17 @@ int XGDMatrixCreateFromDataIter(
   }
   NativeDataIter parser(data_handle, callback);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrayInterfaces(char* c_json_strs, DMatrixHandle* out) {
+  API_BEGIN();
+  std::string json_str {c_json_strs};
+  LOG(CONSOLE) << "json_str: " << json_str << std::endl;
+  Json interface = Json::Load({json_str.c_str(), json_str.size()});
+  std::vector<Json> const& columns = get<Array>(interface);
+  std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+  source->CopyFrom(columns);
   API_END();
 }
 
@@ -679,9 +692,9 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
 }
 
 XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
-                          const char* field,
-                          const bst_float* info,
-                          xgboost::bst_ulong len) {
+                                  const char* field,
+                                  const bst_float* info,
+                                  xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
@@ -689,10 +702,20 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
+                                          const char* field,
+                                          char const* interface_c_str) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  static_cast<std::shared_ptr<DMatrix>*>(handle)
+      ->get()->Info().SetInfo(field, interface_c_str);
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
-                         const char* field,
-                         const unsigned* info,
-                         xgboost::bst_ulong len) {
+                                 const char* field,
+                                 const unsigned* info,
+                                 xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)

@@ -10,6 +10,7 @@
 
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/json.h>
 #include <vector>
 #include <algorithm>
 
@@ -35,7 +36,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
   /*! \brief destructor */
   ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */
-  void Clear();
+  void Clear();  
   /*!
    * \brief copy content of data from src
    * \param src source data iter.
@@ -47,6 +48,14 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param info The additional information reflected in the parser.
    */
   void CopyFrom(dmlc::Parser<uint32_t>* src);
+    /*!
+   * \brief copy content of data from foreign columns buffer.
+   * \param cols foreign columns data buffer.
+   * \param n_cols the number of foreign columns.
+   */
+  void CopyFrom(std::vector<ForeignColumn> cols);
+
+  void CopyFrom(std::vector<Json> interfaces);
   /*!
    * \brief Load data from binary stream.
    * \param fi the pointer to load data from.

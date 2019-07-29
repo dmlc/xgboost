@@ -271,7 +271,6 @@ __device__ void EvaluateFeature(
   for (int scan_begin = gidx_begin; scan_begin < gidx_end;
        scan_begin += BLOCK_THREADS) {
     bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
-
     // Gradient value for current bin.
     GradientSumT bin =
         thread_active ? node_histogram[scan_begin + threadIdx.x] : GradientSumT();

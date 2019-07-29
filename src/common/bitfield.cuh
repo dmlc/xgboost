@@ -11,6 +11,7 @@
 
 namespace xgboost {
 
+#if defined(__CUDACC__)
 __forceinline__ __device__ unsigned long long AtomicOr(unsigned long long* address,
                                                        unsigned long long val) {
   unsigned long long int old = *address, assumed;  // NOLINT
@@ -32,12 +33,14 @@ __forceinline__ __device__ unsigned long long AtomicAnd(unsigned long long* addr
 
   return old;
 }
+#endif  // defined(__CUDACC__)
 
 /*!
  * \brief A non-owning type with auxiliary methods defined for manipulating bits.
  */
 struct BitField {
   using value_type = uint64_t;
+  using pointer = value_type*;
 
   static value_type constexpr kValueSize = sizeof(value_type) * 8;
   static value_type constexpr kOne = 1UL;  // force uint64_t
@@ -76,7 +79,7 @@ struct BitField {
     pos_v.bit_pos =  pos % kValueSize;
     return pos_v;
   }
-
+#if defined(__CUDACC__)
   __device__ BitField& operator|=(BitField const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
     size_t min_size = min(bits_.size(), rhs.bits_.size());
@@ -93,8 +96,6 @@ struct BitField {
     }
     return *this;
   }
-
-  XGBOOST_DEVICE size_t Size() const { return kValueSize * bits_.size(); }
 
   __device__ void Set(value_type pos) {
     Pos pos_v = ToBitPos(pos);
@@ -121,16 +122,23 @@ struct BitField {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
+#endif  // defined(__CUDACC__)
+
+  XGBOOST_DEVICE size_t Size() const { return kValueSize * bits_.size(); }
+
+  XGBOOST_DEVICE pointer Data() const { return bits_.data(); }
 
   friend std::ostream& operator<<(std::ostream& os, BitField field) {
     os << "Bits " << "storage size: " << field.bits_.size() << "\n";
-    for (size_t i = 0; i < field.bits_.size(); ++i) {
+    for (common::Span<value_type>::index_type i = 0; i < field.bits_.size(); ++i) {
       std::bitset<BitField::kValueSize> set(field.bits_[i]);
       os << set << "\n";
     }
     return os;
   }
 };
+
+#if defined(__CUDACC__)
 
 inline void PrintDeviceBits(std::string name, BitField field) {
   std::cout << "Bits: " << name << std::endl;
@@ -155,6 +163,7 @@ inline void PrintDeviceStorage(std::string name, common::Span<int32_t> list) {
   std::cout << std::endl;
 }
 
+#endif  // defined(__CUDACC__)
 }
 
 #endif  // XGBOOST_COMMON_BITFIELD_CUH_

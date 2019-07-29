@@ -56,7 +56,7 @@ inline void CudaCheckPointerDevice(void* ptr) {
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
   int ptr_device = attr.device;
   int cur_device = -1;
-  cudaGetDevice(&cur_device);
+  dh::safe_cuda(cudaGetDevice(&cur_device));
   CHECK_EQ(ptr_device, cur_device) << "pointer device: " << ptr_device
                                    << "current device: " << cur_device;
 }

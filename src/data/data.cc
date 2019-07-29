@@ -113,7 +113,6 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
     default: LOG(FATAL) << "Unknown data type" << dtype;                \
   }                                                                     \
 
-
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
   if (!std::strcmp(key, "root_index")) {
     root_index_.resize(num);
@@ -142,6 +141,8 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     for (size_t i = 1; i < group_ptr_.size(); ++i) {
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
+  } else {
+    LOG(FATAL) << "Unknown metainfo: " << key;
   }
 }
 

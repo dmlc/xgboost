@@ -59,8 +59,18 @@ except ImportError:
     class DataTable(object):
         """ dummy for datatable.DataTable """
 
-
     DT_INSTALLED = False
+
+
+try:
+    import cudf
+    CUDF_INSTALLED = True
+    CUDF_DataFrame = cudf.DataFrame
+except ImportError:
+    class CUDF_DataFrame(object):
+        '''Dummy for cudf.DataFrame'''
+
+    CUDF_INSTALLED = False
 
 # sklearn
 try:
