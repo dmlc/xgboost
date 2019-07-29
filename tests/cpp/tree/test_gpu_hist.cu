@@ -169,6 +169,7 @@ TEST(GpuHist, BuildGidxSparse) {
   ASSERT_EQ(shard.gidx_buffer.size(), shard.n_items);
   ASSERT_LE(shard.ellpack_matrix->row_stride, 3);
   ASSERT_EQ(shard.ellpack_matrix->is_dense, false);
+  ASSERT_EQ(shard.ellpack_matrix->data_layout, ELLPackMatrix::kCSR);
 
   // Sparse matrices have dense gidx representations with row_ptrs delineating
   // the different row elements
@@ -336,7 +337,7 @@ TEST(GpuHist, EvaluateSplits) {
                       common::CompressedBufferWriter(0),
                       common::CompressedIterator<uint32_t>(shard->gidx_row_buffer.data(), 0),
                       shard->gidx_row_buffer,
-                      0, true, 0, kNRows, 0));
+                      0, true, 0, kNRows, 0, ELLPackMatrix::kRowStride));
 
   // Initialize DeviceShard::hist
   shard->hist.Init(0, (max_bins - 1) * kNCols);
@@ -418,8 +419,8 @@ void TestHistogramIndexImpl(int n_gpus) {
     std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->gidx_buffer.size());
     dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->gidx_buffer);
 
+    ASSERT_EQ(dev_shard->ellpack_matrix->data_layout, dev_shard->ellpack_matrix->data_layout);
     ASSERT_EQ(dev_shard->ellpack_matrix->is_dense, dev_shard_ext->ellpack_matrix->is_dense);
-    ASSERT_EQ(dev_shard_ext->ellpack_matrix->is_dense, false);
     ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
     ASSERT_EQ(dev_shard->n_items, dev_shard_ext->n_items);
     ASSERT_EQ(dev_shard->n_rows, dev_shard_ext->n_rows);

@@ -139,6 +139,11 @@ __forceinline__ __device__ int BinarySearchRow(
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
 struct ELLPackMatrix {
+  /*! \brief How is the compressed data laid out? */
+  enum CompressedDataLayout {
+    kRowStride,  // Every row is evenly sized with row stride number of items
+    kCSR  // Every row is sized based on the actual number of items in that row
+  };
   common::Span<uint32_t> feature_segments;
   /*! \brief minimum value for each feature. */
   common::Span<bst_float> min_fvalue;
@@ -155,11 +160,11 @@ struct ELLPackMatrix {
 
   /*! \brief row length for ELLPack. */
   size_t row_stride{0};
-  bool is_dense;  // Are we using a dense represenation where every row contains row_stride
-                  // number of elements?
+  bool is_dense;  // Is the matrix dense?
   int null_gidx_value;
   size_t n_rows;  // Number of rows in this matrix
   size_t n_items;  // Number of items in this matrix
+  CompressedDataLayout data_layout;
 
   XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
 
@@ -171,11 +176,17 @@ struct ELLPackMatrix {
       auto row_begin = row_stride * ridx;
       gidx = gidx_buffer_iter[row_begin + fidx];
     } else {
-      auto row_begin = gidx_row_iter[ridx];
-      auto row_end = gidx_row_iter[ridx + 1];
-      gidx =
-          BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
-                          feature_segments[fidx + 1]);
+      auto row_begin = 0;
+      auto row_end = 0;
+      if (data_layout == kRowStride) {
+        row_begin = row_stride * ridx;
+        row_end = row_begin + row_stride;
+      } else if (data_layout == kCSR) {
+        row_begin = gidx_row_iter[ridx];
+        row_end = gidx_row_iter[ridx + 1];
+      }
+      gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
+                             feature_segments[fidx + 1]);
     }
     if (gidx == -1) {
       return nan("");
@@ -197,7 +208,8 @@ struct ELLPackMatrix {
     bool is_dense,
     int null_gidx_value,
     size_t n_rows,
-    size_t n_items)
+    size_t n_items,
+    CompressedDataLayout data_layout)
       : gidx_buffer_writer(buf_wr),
         gidx_row_writer(row_wr) {
       this->feature_segments = feature_segments;
@@ -215,6 +227,7 @@ struct ELLPackMatrix {
       this->null_gidx_value = null_gidx_value;
       this->n_rows = n_rows;
       this->n_items = n_items;
+      this->data_layout = data_layout;
   }
 };
 
@@ -542,10 +555,10 @@ __global__ void CompressBinEllpackKernel(
   }
 
   // Write to gidx buffer.
-  if (matrix.is_dense) {
+  if (matrix.data_layout == ELLPackMatrix::kRowStride) {
     matrix.gidx_buffer_writer.AtomicWriteSymbol(
       matrix.gidx_buffer.data(), bin, (irow + base_row) * matrix.row_stride + ifeature);
-  } else if (bin != matrix.null_gidx_value) {
+  } else if (matrix.data_layout == ELLPackMatrix::kCSR && bin != matrix.null_gidx_value) {
     matrix.gidx_buffer_writer.AtomicWriteSymbol(
       matrix.gidx_buffer.data(), bin,
       row_ptrs[irow] - base_item_offset + total_items_processed + ifeature);
@@ -580,9 +593,9 @@ __global__ void SharedMemHistKernel(ELLPackMatrix matrix,
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
     int ridx = d_ridx[idx / matrix.row_stride ];
     int gidx = matrix.null_gidx_value;
-    if (matrix.is_dense) {
+    if (matrix.data_layout == ELLPackMatrix::kRowStride) {
       gidx = matrix.gidx_buffer_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
-    } else {
+    } else if (matrix.data_layout == ELLPackMatrix::kCSR) {
       uint32_t n_elems = matrix.gidx_row_iter[ridx + 1] - matrix.gidx_row_iter[ridx];
       if (idx % matrix.row_stride < n_elems) {
         gidx = matrix.gidx_buffer_iter[matrix.gidx_row_iter[ridx] + idx % matrix.row_stride];
@@ -1220,6 +1233,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
   int num_symbols = n_bins + 1;
   int num_row_symbols = n_items + 1;
 
+  ELLPackMatrix::CompressedDataLayout data_layout = ELLPackMatrix::kRowStride;
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes =
     common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
@@ -1239,8 +1253,8 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
         thrust::fill(
           thrust::device_pointer_cast(gidx_row_buffer.data()),
           thrust::device_pointer_cast(gidx_row_buffer.data() + gidx_row_buffer.size()), 0);
-    } else {
-      is_dense = true;
+
+      data_layout = ELLPackMatrix::kCSR;
     }
   }
 
@@ -1257,7 +1271,7 @@ inline void DeviceShard<GradientSumT>::InitCompressedData(
       common::CompressedBufferWriter(num_row_symbols),
       common::CompressedIterator<uint32_t>(gidx_row_buffer.data(), num_row_symbols),
       gidx_row_buffer,
-      row_stride, is_dense, null_gidx_value, n_rows, n_items));
+      row_stride, is_dense, null_gidx_value, n_rows, n_items, data_layout));
 
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
@@ -1566,6 +1580,7 @@ class GPUHistMakerSpecialised {
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
+          dh::safe_cuda(cudaSetDevice(shard->device_id));
           shard->UpdateTree(gpair, p_fmat, &trees.at(idx), &reducer_);
         });
 
