@@ -1,6 +1,7 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-branches, too-many-lines, too-many-locals
+# pylint: disable=too-many-public-methods
 """Core XGBoost Library."""
 from __future__ import absolute_import
 import collections
@@ -15,12 +16,15 @@ import os
 import re
 import sys
 import warnings
+import json
 
 import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
-                     PANDAS_INSTALLED, DataTable, os_fspath, os_PathLike)
+                     PANDAS_INSTALLED, DataTable,
+                     CUDF_INSTALLED, CUDF_DataFrame,
+                     os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
 
@@ -131,8 +135,10 @@ def _load_lib():
     os_error_list = []
     for lib_path in lib_paths:
         try:
-            # needed when the lib is linked with non-system-available dependencies
-            os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
+            # needed when the lib is linked with non-system-available
+            # dependencies
+            os.environ['PATH'] = os.pathsep.join(
+                pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
         except OSError as e:
@@ -217,6 +223,52 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
+def _use_columnar_initializer(data):
+    '''Whether should we use columnar format initializer (pass data in as
+json string).  Currently cudf is the only valid option.'''
+    if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
+        return True
+    return False
+
+
+def _extract_interface_from_cudf(df, is_info):
+    '''This function should be upstreamed to cudf.'''
+    if not _use_columnar_initializer(df):
+        raise ValueError('Only cudf is supported for initializing as json ' +
+                         'columnar format.  For other libraries please ' +
+                         'refer to specific API.')
+
+    def get_interface(obj):
+        return obj.mem.__cuda_array_interface__
+
+    array_interfaces = []
+    for col in df.columns:
+        data = df[col].data
+        # data = df[col]._column._data  # pylint: disable=W0212
+        array_interfaces.append(get_interface(data))
+
+    validity_masks = []
+    for col in df.columns:
+        if df[col].has_null_mask:
+            mask_interface = get_interface(df[col].nullmask)
+            mask_interface['null_count'] = df[col].null_count
+            validity_masks.append(mask_interface)
+        else:
+            validity_masks.append(False)
+
+    for i in range(len(df.columns)):
+        col_interface = array_interfaces[i]
+        mask_interface = validity_masks[i]
+        if mask_interface is not False:
+            col_interface['mask'] = mask_interface
+
+    if is_info:
+        array_interfaces = array_interfaces[0]
+
+    interfaces = bytes(json.dumps(array_interfaces, indent=2), 'utf-8')
+    return interfaces
+
+
 PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
                        'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
                        'float16': 'float', 'float32': 'float', 'float64': 'float',
@@ -256,15 +308,18 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
 
 def _maybe_pandas_label(label):
-    """ Extract internal data from pd.DataFrame for DMatrix label """
+    """Extract internal data from pd.DataFrame for DMatrix label."""
 
     if PANDAS_INSTALLED and isinstance(label, DataFrame):
         if len(label.columns) > 1:
-            raise ValueError('DataFrame for label cannot have multiple columns')
+            raise ValueError(
+                'DataFrame for label cannot have multiple columns')
 
         label_dtypes = label.dtypes
-        if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in label_dtypes):
-            raise ValueError('DataFrame.dtypes for label must be int, float or bool')
+        if not all(dtype.name in PANDAS_DTYPE_MAPPER
+                   for dtype in label_dtypes):
+            raise ValueError(
+                'DataFrame.dtypes for label must be int, float or bool')
         label = label.values.astype('float')
     # pd.Series can be passed to xgb as it is
 
@@ -336,7 +391,8 @@ class DMatrix(object):
         """
         Parameters
         ----------
-        data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame
+        data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
+               dt.Frame/cudf.DataFrame
             Data source of DMatrix.
             When data is string or os.PathLike type, it represents the path libsvm format
             txt file, or binary file that xgboost can read from.
@@ -382,6 +438,7 @@ class DMatrix(object):
         data, feature_names, feature_types = _maybe_dt_data(data,
                                                             feature_names,
                                                             feature_types)
+
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)
@@ -404,6 +461,8 @@ class DMatrix(object):
             self._init_from_npy2d(data, missing, nthread)
         elif isinstance(data, DataTable):
             self._init_from_dt(data, nthread)
+        elif _use_columnar_initializer(data):
+            self._init_from_columnar(data)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -415,11 +474,15 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
+            elif _use_columnar_initializer(label):
+                self.set_interface_info('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
+            elif _use_columnar_initializer(label):
+                self.set_interface_info('weight', weight)
             else:
                 self.set_weight(weight)
 
@@ -526,8 +589,19 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
+    def _init_from_columnar(self, df):
+        '''Initialize DMatrix from columnar memory format.
+
+        '''
+        interfaces = _extract_interface_from_cudf(df, False)
+        handle = ctypes.c_void_p()
+        _check_call(
+            _LIB.XGDMatrixCreateFromArrayInterfaces(interfaces,
+                                                    ctypes.byref(handle)))
+        self.handle = handle
+
     def __del__(self):
-        if hasattr(self, "handle") and self.handle is not None:
+        if hasattr(self, "handle") and self.handle:
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 
@@ -592,6 +666,13 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
+
+    def set_interface_info(self, field, data):
+        '''Set info type peoperty into DMatrix.'''
+        interfaces = _extract_interface_from_cudf(data, True)
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
+                                                       c_str(field),
+                                                       interfaces))
 
     def set_float_info_npy2d(self, field, data):
         """Set float type property into the DMatrix
@@ -732,7 +813,10 @@ class DMatrix(object):
         margin: array like
             Prediction margin of each datapoint
         """
-        self.set_float_info('base_margin', margin)
+        if _use_columnar_initializer(margin):
+            self.set_interface_info('base_margin', margin)
+        else:
+            self.set_float_info('base_margin', margin)
 
     def set_group(self, group):
         """Set group size of DMatrix (used for ranking).
@@ -742,9 +826,12 @@ class DMatrix(object):
         group : array like
             Group size of each group
         """
-        _check_call(_LIB.XGDMatrixSetGroup(self.handle,
-                                           c_array(ctypes.c_uint, group),
-                                           c_bst_ulong(len(group))))
+        if _use_columnar_initializer(group):
+            self.set_interface_info('group', group)
+        else:
+            _check_call(_LIB.XGDMatrixSetGroup(self.handle,
+                                               c_array(ctypes.c_uint, group),
+                                               c_bst_ulong(len(group))))
 
     def get_label(self):
         """Get the label of the DMatrix.
@@ -831,7 +918,8 @@ class DMatrix(object):
         feature_names : list or None
         """
         if self._feature_names is None:
-            self._feature_names = ['f{0}'.format(i) for i in range(self.num_col())]
+            self._feature_names = ['f{0}'.format(i)
+                                   for i in range(self.num_col())]
         return self._feature_names
 
     @property

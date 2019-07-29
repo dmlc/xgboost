@@ -365,8 +365,9 @@ struct HostDeviceVectorImpl {
   void Shard(const GPUDistribution& distribution) {
     if (distribution_ == distribution) { return; }
     CHECK(distribution_.IsEmpty())
-        << "This: " << distribution_.Devices().Size() << ", "
-        << "Others: " << distribution.Devices().Size();
+        << "Data resides on different GPUs: " << "ID: "
+        << *(distribution_.Devices().begin()) << " and ID: "
+        << *(distribution.Devices().begin());
     distribution_ = distribution;
     InitShards();
   }
@@ -412,6 +413,7 @@ struct HostDeviceVectorImpl {
       perm_h_.Grant(access);
       return;
     }
+    std::lock_guard<std::mutex> lock(mutex_);
     if (data_h_.size() != size_d_) { data_h_.resize(size_d_); }
     dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.LazySyncHost(access);

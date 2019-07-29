@@ -10,17 +10,17 @@
 #include <dmlc/base.h>
 #include <dmlc/data.h>
 #include <rabit/rabit.h>
-#include <cstring>
+#include <xgboost/base.h>
+
 #include <memory>
 #include <numeric>
 #include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
-#include "./base.h"
+
 #include "../../src/common/span.h"
 #include "../../src/common/group_data.h"
-
 #include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
@@ -121,6 +121,12 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+  /*!
+   * \brief Set information in the meta info with array interface.
+   * \param key The key of the information.
+   * \param interface_str String representation of json format array interface.
+   */
+  void SetInfo(const char* key, std::string const& interface_str);
 
  private:
   /*! \brief argsort of labels */

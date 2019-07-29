@@ -124,8 +124,16 @@ except ImportError:
     class DataTable(object):
         """ dummy for datatable.DataTable """
 
-
     DT_INSTALLED = False
+
+
+try:
+    import cudf
+    CUDF_INSTALLED = True
+    CUDF_DataFrame = cudf.DataFrame
+except ImportError:
+    CUDF_DataFrame = object
+    CUDF_INSTALLED = False
 
 # sklearn
 try:
