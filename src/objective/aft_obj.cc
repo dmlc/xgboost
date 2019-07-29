@@ -3,6 +3,7 @@
  * \file rank.cc
  * \brief Definition of aft loss.
  */
+
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
@@ -67,14 +68,14 @@ class AFTObj : public ObjFunction {
     return hess;
   }
 
-  double neg_grad_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double grad_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
     double pdf_l;
     double pdf_u;
     double z_u;
     double z_l;
     double cdf_u;
     double cdf_l;
-    double neg_grad;
+    double grad;
     z_u    = (std::log(y_higher)-y_pred)/sigma;
     z_l    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
@@ -96,15 +97,15 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    neg_grad  = -(pdf_u-pdf_l)/(sigma*(cdf_u-cdf_l));
-    return neg_grad;
+    grad  = (pdf_u-pdf_l)/(sigma*(cdf_u-cdf_l));
+    return grad;
   }
 
-  double neg_grad_left(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double grad_left(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
     double pdf;
     double z;
     double cdf;
-    double neg_grad;
+    double grad;
     z    = (std::log(y_higher)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
@@ -121,15 +122,15 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    neg_grad = -pdf/(sigma*cdf);
-    return neg_grad;
+    grad = pdf/(sigma*cdf);
+    return grad;
   }
 
-  double neg_grad_right(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double grad_right(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
     double pdf;
     double z;
     double cdf;
-    double neg_grad;
+    double grad;
 
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
@@ -148,24 +149,24 @@ class AFTObj : public ObjFunction {
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
 
-    neg_grad = pdf/(sigma*(1-cdf));
-    return neg_grad;
+    grad = -pdf/(sigma*(1-cdf));
+    return grad;
   }
 
-  double neg_grad_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double grad_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
     double pdf;
     double z;
+    double _grad;
     double grad;
-    double neg_grad;
     z    = (std::log(y_lower)-y_pred)/sigma;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
       pdf  = common::aft::dnorm(z,0,1);
-      grad = grad_norm(z,0,1);
+      _grad = grad_norm(z,0,1);
       break;
      case AFTNoiseDistribution::kLogistic:
       pdf  = common::aft::dlogis(z,0,1);
-      grad = grad_logis(z,0,1);
+      _grad = grad_logis(z,0,1);
       break;
      case AFTNoiseDistribution::kWeibull:
       LOG(FATAL) << "Not implemented";
@@ -173,8 +174,8 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    neg_grad = -grad/(sigma*pdf);
-    return neg_grad;
+    grad = _grad/(sigma*pdf);
+    return grad;
   }
 
   double hessian_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){

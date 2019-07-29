@@ -2,7 +2,7 @@
  * Copyright 2015 by Contributors
  * \file survival_metric.cc
  * \brief Metrics for Survival Analysis
- * \author Avinash Barnwal, Hyunsu Cho
+ * \author Avinash Barnwal, Hyunsu Cho and Prof. Toby Hocking
  */
 
 #include <rabit/rabit.h>
