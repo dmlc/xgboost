@@ -1,7 +1,6 @@
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */
-
 /**
  * @file host_device_vector.h
  * @brief A device-and-host vector abstraction layer.

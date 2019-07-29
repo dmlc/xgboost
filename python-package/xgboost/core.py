@@ -526,6 +526,33 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
+    def _init_from_columnar(df):
+        '''Initialize DMatrix from columnar memory format.  For now assuming
+        it's cudf.DataFrame.
+
+        '''
+        print('_init_from_columnar')
+        col_ptrs = [ctypes.c_void_p(df[col]._column._pointer) for col in
+                    df.columns]
+        validity_masks = []
+        for col in df.columns:
+            if df[col].has_null_mask:
+                validity_masks.append(df[col].nullmask)
+            else:
+                validity_masks.append(False)
+        col_pairs = list(zip(col_ptrs, validity_masks))
+        interfaces = []
+        for pointers in col_pairs:
+            col = {'data': (pointers[0], False)}
+            if pointers[1] is not False:
+                col['mask'] = pointers[1].mem.__cuda_array_interface__
+            else:
+                col['mask'] = ''
+            interfaces.append(str(col))
+            print(col)
+        interfaces = from_pystr_to_cstr(interfaces)
+        return interfaces
+
     def __del__(self):
         if hasattr(self, "handle") and self.handle is not None:
             _check_call(_LIB.XGDMatrixFree(self.handle))

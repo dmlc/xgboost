@@ -4,6 +4,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
 
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
@@ -186,6 +187,29 @@ int XGDMatrixCreateFromDataIter(
   }
   NativeDataIter parser(data_handle, callback);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
+  API_END();
+}
+
+int XGDMatrixCreateFromForeignColumns(ForeignColumn ** cols,
+                                      foreign_size_type n_cols,
+                                      DMatrixHandle * out) {
+  API_BEGIN();
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  source->CopyFrom(cols, n_cols);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromArrayInterface(char** c_json_strs, size_t n_columns, DMatrixHandle* out) {
+  API_BEGIN();
+  std::vector<std::string> json_strs;
+  for (size_t i = 0; i < n_columns; ++i) {
+    json_strs.emplace_back(c_json_strs[i]);
+  }
+  std::vector<Json> interfaces(n_columns);
+  for (size_t i = 0; i < n_columns; ++i) {
+    interfaces[i] = Json::Load({json_strs[i].c_str(), json_strs[i].size()});
+  }
   API_END();
 }
 
@@ -686,6 +710,17 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
       ->get()->Info().SetInfo(field, info, kFloat32, len);
+  API_END();
+}
+
+XGB_DLL int XGDMatrixSetForeignInfo(DMatrixHandle handle,
+                          const char * field,
+                          ForeignColumn ** cols,
+                          foreign_size_type n_cols) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  static_cast<std::shared_ptr<DMatrix>*>(handle)
+      ->get()->Info().SetInfo(field, cols, n_cols);
   API_END();
 }
 
