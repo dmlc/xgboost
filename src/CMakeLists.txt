@@ -84,7 +84,7 @@ if (WIN32 AND MINGW)
 endif (WIN32 AND MINGW)
 
 # static linking as glibs can be outdated
-list(APPEND SRC_LIBS libstdc++.a static-libstdc++)
+list(APPEND SRC_LIBS libstdc++.a -static-libstdc++)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
