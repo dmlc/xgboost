@@ -59,7 +59,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+    GPUSet devices = (tparam_->transform_on_cpu)
                        ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
     if (!devices.IsEmpty()) {
       out_gpair->Shard(GPUDistribution::Granular(devices, nclass));
@@ -128,7 +128,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
-    GPUSet devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+    GPUSet devices = (tparam_->transform_on_cpu)
                        ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     if (prob) {
       common::Transform<>::Init(
