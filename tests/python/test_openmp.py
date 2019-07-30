@@ -31,6 +31,7 @@ class TestOMP(unittest.TestCase):
             auc = [res['train']['auc'][-1], res['eval']['auc'][-1]]
             assert auc[0] > 0.99 and auc[1] > 0.99
             preds = bst.predict(dtest)
+            labels = dtest.get_label()
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             # error must be smaller than 10%
