@@ -51,9 +51,9 @@ class TestOMP(unittest.TestCase):
         assert auc1 == auc3
         assert err1 == err3
 
-        # use depth-guide grow policy to train a tree
+        # use depth-wise grow policy to train a tree
         param.update({
-            'grow_policy': 'depthguide',
+            'grow_policy': 'depthwise',
             'max_depth': 5,
             'max_leaves': 0,
             'nthread': 1
