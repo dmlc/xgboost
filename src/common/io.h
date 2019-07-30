@@ -70,6 +70,10 @@ class PeekableInStream : public dmlc::Stream {
   /*! \brief internal buffer */
   std::string buffer_;
 };
+
+// Optimized for consecutive file loading in unix like systime.
+std::string LoadSequentialFile(std::string fname);
+
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_
