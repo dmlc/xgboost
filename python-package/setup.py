@@ -37,9 +37,7 @@ shutil.copy('../dmlc-core/tracker/dmlc_tracker/tracker.py', 'xgboost/')
 # detailed instruction in setup_pip.py
 
 package_data={'xgboost':'*'}
-#package_data={'':LIB_PATH}
 
-os.system("cp ../lib/libxgboost.so xgboost/")
 
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
