@@ -2,6 +2,7 @@
 from scipy.sparse import csr_matrix
 import xgboost as xgb
 import unittest
+import numpy as np
 
 
 class TestOMP(unittest.TestCase):
@@ -30,26 +31,24 @@ class TestOMP(unittest.TestCase):
             auc = [res['train']['auc'][-1], res['eval']['auc'][-1]]
             assert auc[0] > 0.99 and auc[1] > 0.99
             preds = bst.predict(dtest)
-            labels = dtest.get_label()
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             # error must be smaller than 10%
             assert err < 0.1
+            return auc, preds
 
-            return auc, err
-
-        auc1, err1 = run_trial()
+        auc1, pred1 = run_trial()
 
         # vary number of threads and test whether you get the same result
         param['nthread'] = 1
-        auc2, err2 = run_trial()
+        auc2, pred2 = run_trial()
         assert auc1 == auc2
-        assert err1 == err2
+        assert np.array_equal(pred1, pred2)
 
         param['nthread'] = 2
-        auc3, err3 = run_trial()
+        auc3, pred3 = run_trial()
         assert auc1 == auc3
-        assert err1 == err3
+        assert np.array_equal(pred1, pred3)
 
         # use depth-wise grow policy to train a tree
         param.update({
@@ -58,10 +57,10 @@ class TestOMP(unittest.TestCase):
             'max_leaves': 0,
             'nthread': 3
         })
-        auc1, err1 = run_trial()
+        auc1, pred1 = run_trial()
 
         # vary number of threads and test whether you get the same result
         param['nthread'] = 1
-        auc2, err2 = run_trial()
+        auc2, pred2 = run_trial()
         assert auc1 == auc2
-        assert err1 == err2
+        assert np.array_equal(pred1, pred2)

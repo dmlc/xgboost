@@ -48,6 +48,7 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     DenseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   }
+  LOG(INFO) << "Total number of hist bins: " << cut_ptrs_.back();
 }
 
 bool CutsBuilder::UseGroup(DMatrix* dmat) {
