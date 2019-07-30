@@ -20,7 +20,7 @@ class TestOMP(unittest.TestCase):
                  'max_depth': 0,
                  'max_leaves': 1024,
                  'min_child_weight': 0,
-                 'nthread': 3}
+                 'nthread': 1}
 
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 5
