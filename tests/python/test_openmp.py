@@ -6,15 +6,11 @@ import unittest
 
 class TestOMP(unittest.TestCase):
     def test_omp(self):
-        # a contrived example where one node has an instance set of size 2.
-        data = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        indices = [2, 1, 1, 2, 0, 0, 2, 0, 1, 3]
-        indptr = [0, 1, 2, 4, 5, 7, 9, 10]
-        A = csr_matrix((data, indices, indptr), shape=(7, 4))
-        y = [1, 1, 0, 0, 0, 1, 1]
-        dtrain = xgb.DMatrix(A, label=y)
+        dpath = 'demo/data/'
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
-        # 1. use 3 threads to train a tree with an instance set of size 2
+    # 1. use 3 threads to train a tree with an instance set of size 2
         param = {'booster': 'gbtree',
                  'objective': 'binary:logistic',
                  'grow_policy': 'lossguide',
@@ -26,18 +22,31 @@ class TestOMP(unittest.TestCase):
                  'nthread': 3}
 
         watchlist = [(dtrain, 'train')]
-        num_round = 1
-        res = {}
-        xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
-        assert res['train']['auc'][-1] > 0.99
+        num_round = 2
+
+        def run_trial():
+            res = {}
+            bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
+            auc = res['train']['auc'][-1]
+            # assert auc > 0.99
+            preds = bst.predict(dtest)
+            labels = dtest.get_label()
+            err = sum(1 for i in range(len(preds))
+                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            # error must be smaller than 10%
+            assert err < 0.1
+
+            return auc, err
+
+        auc1, err1 = run_trial()
 
         # 2. vary number of threads and test whether you get the same result
         param['nthread'] = 1
-        res2 = {}
-        xgb.train(param, dtrain, num_round, watchlist, evals_result=res2)
-        assert res['train']['auc'][-1] == res2['train']['auc'][-1]
+        auc2, err2 = run_trial()
+        assert auc1 == auc2
+        assert err1 == err2
 
         param['nthread'] = 2
-        res3 = {}
-        xgb.train(param, dtrain, num_round, watchlist, evals_result=res3)
-        assert res['train']['auc'][-1] == res3['train']['auc'][-1]
+        auc3, err3 = run_trial()
+        assert auc1 == auc3
+        assert err1 == err3
