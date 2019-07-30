@@ -22,13 +22,13 @@ class TestOMP(unittest.TestCase):
                  'nthread': 3}
 
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        num_round = 5
+        num_round = 10
 
         def run_trial():
             res = {}
             bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
-            auc = res['eval']['auc'][-1]
-            # assert auc > 0.99
+            auc = [res['train']['auc'][-1], res['eval']['auc'][-1]]
+            assert auc[0] > 0.99 and auc[1] > 0.99
             preds = bst.predict(dtest)
             labels = dtest.get_label()
             err = sum(1 for i in range(len(preds))
