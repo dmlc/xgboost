@@ -40,14 +40,7 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
   bool at_end_{ false };
 };
 
-template<typename T>
-BatchSet<T> SparsePageDMatrix::GetPagedBatches() {
-  LOG(FATAL) << "Not implemented.";
-  return BatchSet<T>(BatchIterator<T>(nullptr));
-}
-
-template<>
-BatchSet<SparsePage> SparsePageDMatrix::GetPagedBatches() {
+BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
   cast->BeforeFirst();
   cast->Next();
@@ -55,8 +48,7 @@ BatchSet<SparsePage> SparsePageDMatrix::GetPagedBatches() {
   return BatchSet<SparsePage>(begin_iter);
 }
 
-template<>
-BatchSet<CSCPage> SparsePageDMatrix::GetPagedBatches() {
+BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   // Lazily instantiate
   if (!column_source_) {
     SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, false);
@@ -69,8 +61,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetPagedBatches() {
   return BatchSet<CSCPage>(begin_iter);
 }
 
-template<>
-BatchSet<SortedCSCPage> SparsePageDMatrix::GetPagedBatches() {
+BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   // Lazily instantiate
   if (!sorted_column_source_) {
     SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, true);

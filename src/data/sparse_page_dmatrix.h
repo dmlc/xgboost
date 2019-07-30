@@ -30,14 +30,15 @@ class SparsePageDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
-  template<typename T>
-  BatchSet<T> GetPagedBatches();
-
   float GetColDensity(size_t cidx) override;
 
   bool SingleColBlock() const override;
 
  private:
+  BatchSet<SparsePage> GetRowBatches() override;
+  BatchSet<CSCPage> GetColumnBatches() override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
+
   // source data pointers.
   std::unique_ptr<DataSource<SparsePage>> row_source_;
   std::unique_ptr<SparsePageSource<CSCPage>> column_source_;

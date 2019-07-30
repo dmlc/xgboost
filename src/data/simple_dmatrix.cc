@@ -51,22 +51,14 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
   T* page_{nullptr};
 };
 
-template<typename T>
-BatchSet<T> SimpleDMatrix::GetSimpleBatches() {
-  LOG(FATAL) << "Not implemented";
-  return BatchSet<T>(BatchIterator<T>(nullptr));
-}
-
-template<>
-BatchSet<SparsePage> SimpleDMatrix::GetSimpleBatches() {
+BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SimpleCSRSource*>(source_.get());
   auto begin_iter = BatchIterator<SparsePage>(
       new SimpleBatchIteratorImpl<SparsePage>(&(cast->page_)));
   return BatchSet<SparsePage>(begin_iter);
 }
 
-template<>
-BatchSet<CSCPage> SimpleDMatrix::GetSimpleBatches() {
+BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
     auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
@@ -77,8 +69,7 @@ BatchSet<CSCPage> SimpleDMatrix::GetSimpleBatches() {
   return BatchSet<CSCPage>(begin_iter);
 }
 
-template<>
-BatchSet<SortedCSCPage> SimpleDMatrix::GetSimpleBatches() {
+BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
     auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;

@@ -447,6 +447,11 @@ class DMatrix {
 
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
+
+ protected:
+  virtual BatchSet<SparsePage> GetRowBatches() = 0;
+  virtual BatchSet<CSCPage> GetColumnBatches() = 0;
+  virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
 };
 }  // namespace xgboost
 
