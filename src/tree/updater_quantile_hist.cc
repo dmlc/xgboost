@@ -1079,7 +1079,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   // partial results
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
   // parallel enumeration
-  const auto nthread = omp_get_num_threads();
+  const auto nthread = omp_get_num_threads();  // NOLINT(*)
   #pragma omp parallel for schedule(dynamic) num_threads(nthread)
   for (omp_ulong i = 0; i < tasks.size(); ++i) {
     // node_idx : offset within `nodes` list
