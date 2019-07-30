@@ -225,6 +225,14 @@ class QuantileHistMock : public QuantileHistMaker {
 
       delete dmat;
     }
+
+    void TestEvaluateSplitParallel(const GHistIndexBlockMatrix &quantile_index_block,
+                                   const RegTree &tree) {
+      omp_set_num_threads(2);
+      TestEvaluateSplit(quantile_index_block, tree);
+      omp_set_num_threads(1);
+    }
+
   };
 
   int static constexpr kNRows = 8, kNCols = 16;
