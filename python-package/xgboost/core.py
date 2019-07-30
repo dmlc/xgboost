@@ -136,7 +136,7 @@ def _load_lib():
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
-            os.environ['LD_LIBRARY_PATH'] = os.pathsep.join(libraryPathBackup + [os.path.dirname(lib_path)])
+            os.environ['LD_LIBRARY_PATH'] = os.pathsep.join([os.path.dirname(lib_path)] + libraryPathBackup)
             os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
