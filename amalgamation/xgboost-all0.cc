@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors.
+ * Copyright 2015-2019 by Contributors.
  * \brief XGBoost Amalgamation.
  *  This offers an alternative way to compile the entire library from this single file.
  *
@@ -66,6 +66,8 @@
 #include "../src/common/common.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
+#include "../src/common/json.cc"
+#include "../src/common/io.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"
