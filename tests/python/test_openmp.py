@@ -16,7 +16,7 @@ class TestOMP(unittest.TestCase):
                  'objective': 'binary:logistic',
                  'grow_policy': 'lossguide',
                  'tree_method': 'hist',
-                 'eval_metric': 'auc',
+                 'eval_metric': 'error',
                  'max_depth': 0,
                  'max_leaves': 1024,
                  'min_child_weight': 0,
@@ -28,15 +28,14 @@ class TestOMP(unittest.TestCase):
         def run_trial():
             res = {}
             bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
-            auc = [res['train']['auc'][-1], res['eval']['auc'][-1]]
-            assert auc[0] > 0.99 and auc[1] > 0.99
+            metrics = [res['train']['error'][-1], res['eval']['error'][-1]]
             preds = bst.predict(dtest)
             labels = dtest.get_label()
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             # error must be smaller than 10%
             assert err < 0.1
-            return auc, preds
+            return metrics, preds
 
         auc1, pred1 = run_trial()
 
