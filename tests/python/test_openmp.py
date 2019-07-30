@@ -22,7 +22,7 @@ class TestOMP(unittest.TestCase):
                  'nthread': 3}
 
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        num_round = 10
+        num_round = 5
 
         def run_trial():
             res = {}
@@ -56,12 +56,12 @@ class TestOMP(unittest.TestCase):
             'grow_policy': 'depthwise',
             'max_depth': 5,
             'max_leaves': 0,
-            'nthread': 1
+            'nthread': 3
         })
         auc1, err1 = run_trial()
 
         # vary number of threads and test whether you get the same result
-        param['nthread'] = 2
+        param['nthread'] = 1
         auc2, err2 = run_trial()
         assert auc1 == auc2
         assert err1 == err2
