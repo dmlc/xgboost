@@ -36,8 +36,14 @@ GetCacheShards(const std::string& cache_info) {
 namespace xgboost {
 namespace data {
 
-SparsePageSource::SparsePageSource(const std::string& cache_info,
-                                   const std::string& page_type)
+// Explicit template instantiation.
+template class SparsePageSource<SparsePage>;
+template class SparsePageSource<CSCPage>;
+template class SparsePageSource<SortedCSCPage>;
+
+template<typename T>
+SparsePageSource<T>::SparsePageSource(const std::string& cache_info,
+                                      const std::string& page_type)
     : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
   // read in the info files
   std::vector<std::string> cache_shards = GetCacheShards(cache_info);
@@ -63,21 +69,23 @@ SparsePageSource::SparsePageSource(const std::string& cache_info,
     formats_[i].reset(SparsePageFormat::Create(format));
     std::unique_ptr<SparsePageFormat>& fmt = formats_[i];
     size_t fbegin = fi->Tell();
-    prefetchers_[i].reset(new dmlc::ThreadedIter<SparsePage>(4));
-    prefetchers_[i]->Init([&fi, &fmt] (SparsePage** dptr) {
+    prefetchers_[i].reset(new dmlc::ThreadedIter<T>(4));
+    prefetchers_[i]->Init([&fi, &fmt] (T** dptr) {
         if (*dptr == nullptr) {
-          *dptr = new SparsePage();
+          *dptr = new T();
         }
         return fmt->Read(*dptr, fi.get());
       }, [&fi, fbegin] () { fi->Seek(fbegin); });
   }
 }
 
-SparsePageSource::~SparsePageSource() {
+template<typename T>
+SparsePageSource<T>::~SparsePageSource() {
   delete page_;
 }
 
-bool SparsePageSource::Next() {
+template<typename T>
+bool SparsePageSource<T>::Next() {
   // doing clock rotation over shards.
   if (page_ != nullptr) {
     size_t n = prefetchers_.size();
@@ -94,7 +102,8 @@ bool SparsePageSource::Next() {
   }
 }
 
-void SparsePageSource::BeforeFirst() {
+template<typename T>
+void SparsePageSource<T>::BeforeFirst() {
   base_rowid_ = 0;
   clock_ptr_ = 0;
   for (auto& p : prefetchers_) {
@@ -102,16 +111,19 @@ void SparsePageSource::BeforeFirst() {
   }
 }
 
-SparsePage& SparsePageSource::Value() {
+template<typename T>
+T& SparsePageSource<T>::Value() {
   return *page_;
 }
 
-const SparsePage& SparsePageSource::Value() const {
+template<typename T>
+const T& SparsePageSource<T>::Value() const {
   return *page_;
 }
 
-bool SparsePageSource::CacheExist(const std::string& cache_info,
-                                  const std::string& page_type) {
+template<typename T>
+bool SparsePageSource<T>::CacheExist(const std::string& cache_info,
+                                     const std::string& page_type) {
   std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   {
@@ -127,9 +139,10 @@ bool SparsePageSource::CacheExist(const std::string& cache_info,
   return true;
 }
 
-void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
-                                     const std::string& cache_info,
-                                     const size_t page_size) {
+template<typename T>
+void SparsePageSource<T>::CreateRowPage(dmlc::Parser<uint32_t>* src,
+                                        const std::string& cache_info,
+                                        const size_t page_size) {
   const std::string page_type = ".row.page";
   std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
@@ -223,10 +236,11 @@ void SparsePageSource::CreateRowPage(dmlc::Parser<uint32_t>* src,
             << name_info;
 }
 
-void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
-                                             const std::string& cache_info,
-                                             const std::string& page_type,
-                                             const size_t page_size) {
+template<typename T>
+void SparsePageSource<T>::CreatePageFromDMatrix(DMatrix* src,
+                                                const std::string& cache_info,
+                                                const std::string& page_type,
+                                                const size_t page_size) {
   std::vector<std::string> cache_shards = GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
@@ -245,7 +259,7 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
     MetaInfo info = src->Info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
-    for (auto& batch : src->GetBatches<SparsePage>(kCSR)) {
+    for (auto& batch : src->GetBatches<SparsePage>()) {
       if (page_type == ".row.page") {
         page->Push(batch);
       } else if (page_type == ".col.page") {
@@ -282,15 +296,17 @@ void SparsePageSource::CreatePageFromDMatrix(DMatrix* src,
   LOG(INFO) << "SparsePageSource: Finished writing to " << name_info;
 }
 
-void SparsePageSource::CreateRowPage(DMatrix* src,
-                              const std::string& cache_info) {
+template<typename T>
+void SparsePageSource<T>::CreateRowPage(DMatrix* src,
+                                        const std::string& cache_info) {
   const std::string page_type = ".row.page";
   CreatePageFromDMatrix(src, cache_info, page_type);
 }
 
-void SparsePageSource::CreateColumnPage(DMatrix* src,
-                                        const std::string& cache_info,
-                                        bool sorted) {
+template<typename T>
+void SparsePageSource<T>::CreateColumnPage(DMatrix* src,
+                                           const std::string& cache_info,
+                                           bool sorted) {
   const std::string page_type = sorted ? ".sorted.col.page" : ".col.page";
   CreatePageFromDMatrix(src, cache_info, page_type);
 }

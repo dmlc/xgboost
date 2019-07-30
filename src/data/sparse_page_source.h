@@ -28,7 +28,8 @@ namespace data {
  * DMatrix* dmat = DMatrix::Create(std::move(source));
  * \encode
  */
-class SparsePageSource : public DataSource<SparsePage> {
+template<typename T>
+class SparsePageSource : public DataSource<T> {
  public:
   /*!
    * \brief Create source from cache files the cache_prefix.
@@ -43,8 +44,8 @@ class SparsePageSource : public DataSource<SparsePage> {
   // implement BeforeFirst
   void BeforeFirst() override;
   // implement Value
-  SparsePage& Value();
-  const SparsePage& Value() const override;
+  T& Value();
+  const T& Value() const override;
   /*!
    * \brief Create source by taking data from parser.
    * \param src source parser.
@@ -86,7 +87,7 @@ class SparsePageSource : public DataSource<SparsePage> {
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */
-  SparsePage *page_;
+  T *page_;
   /*! \brief internal clock ptr */
   size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */
@@ -94,7 +95,7 @@ class SparsePageSource : public DataSource<SparsePage> {
   /*! \brief Sparse page format file. */
   std::vector<std::unique_ptr<SparsePageFormat> > formats_;
   /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<T> > > prefetchers_;
 };
 }  // namespace data
 }  // namespace xgboost

@@ -145,21 +145,23 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
-// Explicit template instantiation.
-template BatchSet<SparsePage> DMatrix::GetBatches<SparsePage>(PageType);
-
 template<typename T>
-BatchSet<T> DMatrix::GetBatches(PageType page_type) {
+BatchSet<T> DMatrix::GetBatches() {
   // How the sausage gets made.
   if (auto* simple = dynamic_cast<data::SimpleDMatrix*>(this)) {
-    return simple->GetSimpleBatches<T>(page_type);
+    return simple->GetSimpleBatches<T>();
   } else if (auto* paged = dynamic_cast<data::SparsePageDMatrix*>(this)) {
-    return paged->GetPagedBatches<T>(page_type);
+    return paged->GetPagedBatches<T>();
   } else {
     LOG(FATAL) << "Unknown DMatrix subclass: " << typeid(*this).name();
     return BatchSet<T>(BatchIterator<T>(nullptr));
   }
 }
+
+// Explicit template instantiation.
+template BatchSet<SparsePage> DMatrix::GetBatches<SparsePage>();
+template BatchSet<CSCPage> DMatrix::GetBatches<CSCPage>();
+template BatchSet<SortedCSCPage> DMatrix::GetBatches<SortedCSCPage>();
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
@@ -271,11 +273,11 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
     return DMatrix::Create(std::move(source), cache_prefix);
   } else {
 #if DMLC_ENABLE_STD_THREAD
-    if (!data::SparsePageSource::CacheExist(cache_prefix, ".row.page")) {
-      data::SparsePageSource::CreateRowPage(parser, cache_prefix, page_size);
+    if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {
+      data::SparsePageSource<SparsePage>::CreateRowPage(parser, cache_prefix, page_size);
     }
-    std::unique_ptr<data::SparsePageSource> source(
-        new data::SparsePageSource(cache_prefix, ".row.page"));
+    std::unique_ptr<data::SparsePageSource<SparsePage>> source(
+        new data::SparsePageSource<SparsePage>(cache_prefix, ".row.page"));
     return DMatrix::Create(std::move(source), cache_prefix);
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";

@@ -35,18 +35,14 @@ class SimpleDMatrix : public DMatrix {
   bool SingleColBlock() const override;
 
   template<typename T>
-  BatchSet<T> GetSimpleBatches(PageType page_type);
+  BatchSet<T> GetSimpleBatches();
 
  private:
-  BatchSet<SparsePage> GetRowBatches();
-  BatchSet<SparsePage> GetColumnBatches();
-  BatchSet<SparsePage> GetSortedColumnBatches();
-
   // source data pointer.
   std::unique_ptr<DataSource<SparsePage>> source_;
 
-  std::unique_ptr<SparsePage> sorted_column_page_;
-  std::unique_ptr<SparsePage> column_page_;
+  std::unique_ptr<CSCPage> column_page_;
+  std::unique_ptr<SortedCSCPage> sorted_column_page_;
 };
 }  // namespace data
 }  // namespace xgboost

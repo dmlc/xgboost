@@ -33,7 +33,7 @@ TEST(SparsePageDMatrix, RowAccess) {
       xgboost::CreateSparsePageDMatrix(12, 64, filename);
 
   // Test the data read into the first row
-  auto &batch = *dmat->GetBatches<xgboost::SparsePage>(xgboost::kCSR).begin();
+  auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
   auto first_row = batch[0];
   ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
@@ -51,14 +51,14 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_EQ(dmat->GetColDensity(1), 0.5);
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetBatches<xgboost::SparsePage>(xgboost::kSortedCSC)) {
+  for (auto col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
   }
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetBatches<xgboost::SparsePage>(xgboost::kCSC)) {
+  for (auto col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
@@ -82,7 +82,7 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
   };
   auto n_threads = omp_get_max_threads();
   omp_set_num_threads(16);
-  for (auto const& page : dmat->GetBatches<xgboost::SparsePage>(xgboost::kCSC)) {
+  for (auto const& page : dmat->GetBatches<xgboost::CSCPage>()) {
     ASSERT_EQ(dmat->Info().num_col_, page.Size());
   }
   omp_set_num_threads(n_threads);

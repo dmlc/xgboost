@@ -45,7 +45,7 @@ class BaseMaker: public TreeUpdater {
       std::fill(fminmax_.begin(), fminmax_.end(),
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
           auto c = batch[fid];
           if (c.size() != 0) {
@@ -302,7 +302,7 @@ class BaseMaker: public TreeUpdater {
                                         const RegTree &tree) {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+    for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
       for (auto fid : fsplits) {
         auto col = batch[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.size());

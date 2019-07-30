@@ -15,6 +15,7 @@
 #include <numeric>
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 #include "./base.h"
 #include "../../src/common/span.h"
@@ -151,13 +152,6 @@ struct Entry {
   }
 };
 
-/*! \brief page type supported by xgboost */
-enum PageType {
-  kCSR = 0,
-  kCSC = 1,
-  kSortedCSC = 2
-};
-
 /*!
  * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
@@ -277,6 +271,18 @@ class SparsePage {
   size_t Size() { return offset.Size() - 1; }
 };
 
+class CSCPage: public SparsePage {
+ public:
+  CSCPage() : SparsePage() {}
+  explicit CSCPage(SparsePage page) : SparsePage(std::move(page)) {}
+};
+
+class SortedCSCPage : public SparsePage {
+ public:
+  SortedCSCPage() : SparsePage() {}
+  explicit SortedCSCPage(SparsePage page) : SparsePage(std::move(page)) {}
+};
+
 template<typename T>
 class BatchIteratorImpl {
  public:
@@ -381,7 +387,7 @@ class DMatrix {
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
   template<typename T>
-  BatchSet<T> GetBatches(PageType page_type);
+  BatchSet<T> GetBatches();
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;

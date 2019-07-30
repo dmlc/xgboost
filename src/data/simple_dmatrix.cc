@@ -18,10 +18,10 @@ float SimpleDMatrix::GetColDensity(size_t cidx) {
   size_t column_size = 0;
   // Use whatever version of column batches already exists
   if (sorted_column_page_) {
-    auto batch = this->GetSimpleBatches<SparsePage>(kSortedCSC);
+    auto batch = this->GetBatches<SortedCSCPage>();
     column_size = (*batch.begin())[cidx].size();
   } else {
-    auto batch = this->GetSimpleBatches<SparsePage>(kCSC);
+    auto batch = this->GetBatches<CSCPage>();
     column_size = (*batch.begin())[cidx].size();
   }
 
@@ -52,50 +52,43 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
 };
 
 template<typename T>
-BatchSet<T> SimpleDMatrix::GetSimpleBatches(PageType page_type) {
-  switch (page_type) {
-    case kCSR:
-      return GetRowBatches();
-    case kCSC:
-      return GetColumnBatches();
-    case kSortedCSC:
-      return GetSortedColumnBatches();
-    default:
-      LOG(FATAL) << "Unknown page type: " << page_type;
-      return BatchSet<T>(BatchIterator<T>(nullptr));
-  }
+BatchSet<T> SimpleDMatrix::GetSimpleBatches() {
+  LOG(FATAL) << "Not implemented";
+  return BatchSet<T>(BatchIterator<T>(nullptr));
 }
 
-BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
+template<>
+BatchSet<SparsePage> SimpleDMatrix::GetSimpleBatches() {
   auto cast = dynamic_cast<SimpleCSRSource*>(source_.get());
   auto begin_iter = BatchIterator<SparsePage>(
       new SimpleBatchIteratorImpl<SparsePage>(&(cast->page_)));
   return BatchSet<SparsePage>(begin_iter);
 }
 
-BatchSet<SparsePage> SimpleDMatrix::GetColumnBatches() {
+template<>
+BatchSet<CSCPage> SimpleDMatrix::GetSimpleBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
     auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
-    column_page_.reset(
-        new SparsePage(page.GetTranspose(source_->info.num_col_)));
+    column_page_.reset(new CSCPage(page.GetTranspose(source_->info.num_col_)));
   }
   auto begin_iter =
-      BatchIterator<SparsePage>(new SimpleBatchIteratorImpl<SparsePage>(column_page_.get()));
-  return BatchSet<SparsePage>(begin_iter);
+      BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_.get()));
+  return BatchSet<CSCPage>(begin_iter);
 }
 
-BatchSet<SparsePage> SimpleDMatrix::GetSortedColumnBatches() {
+template<>
+BatchSet<SortedCSCPage> SimpleDMatrix::GetSimpleBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
     auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
     sorted_column_page_.reset(
-        new SparsePage(page.GetTranspose(source_->info.num_col_)));
+        new SortedCSCPage(page.GetTranspose(source_->info.num_col_)));
     sorted_column_page_->SortRows();
   }
-  auto begin_iter =
-      BatchIterator<SparsePage>(new SimpleBatchIteratorImpl<SparsePage>(sorted_column_page_.get()));
-  return BatchSet<SparsePage>(begin_iter);
+  auto begin_iter = BatchIterator<SortedCSCPage>(
+      new SimpleBatchIteratorImpl<SortedCSCPage>(sorted_column_page_.get()));
+  return BatchSet<SortedCSCPage>(begin_iter);
 }
 
 bool SimpleDMatrix::SingleColBlock() const { return true; }

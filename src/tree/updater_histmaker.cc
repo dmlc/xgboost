@@ -351,7 +351,7 @@ class CQHistMaker: public HistMaker {
     auto lazy_get_hist = [&]() {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
 #pragma omp parallel for schedule(dynamic, 1)
@@ -425,7 +425,7 @@ class CQHistMaker: public HistMaker {
       work_set_.resize(std::unique(work_set_.begin(), work_set_.end()) - work_set_.begin());
 
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
@@ -707,7 +707,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 

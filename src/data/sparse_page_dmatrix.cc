@@ -24,11 +24,11 @@ const MetaInfo& SparsePageDMatrix::Info() const {
 template<typename T>
 class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
-  explicit SparseBatchIteratorImpl(SparsePageSource* source) : source_(source) {
+  explicit SparseBatchIteratorImpl(SparsePageSource<T>* source) : source_(source) {
     CHECK(source_ != nullptr);
   }
   T& operator*() override { return source_->Value(); }
-  const SparsePage& operator*() const override { return source_->Value(); }
+  const T& operator*() const override { return source_->Value(); }
   void operator++() override { at_end_ = !source_->Next(); }
   bool AtEnd() const override { return at_end_; }
   SparseBatchIteratorImpl* Clone() override {
@@ -36,65 +36,59 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
   }
 
  private:
-  SparsePageSource* source_{nullptr};
+  SparsePageSource<T>* source_{nullptr};
   bool at_end_{ false };
 };
 
 template<typename T>
-BatchSet<T> SparsePageDMatrix::GetPagedBatches(PageType page_type) {
-  switch (page_type) {
-    case kCSR:
-      return GetRowBatches();
-    case kCSC:
-      return GetColumnBatches();
-    case kSortedCSC:
-      return GetSortedColumnBatches();
-    default:
-      LOG(FATAL) << "Unknown page type: " << page_type;
-      return BatchSet<T>(BatchIterator<T>(nullptr));
-  }
+BatchSet<T> SparsePageDMatrix::GetPagedBatches() {
+  LOG(FATAL) << "Not implemented.";
+  return BatchSet<T>(BatchIterator<T>(nullptr));
 }
 
-BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
-  auto cast = dynamic_cast<SparsePageSource*>(row_source_.get());
+template<>
+BatchSet<SparsePage> SparsePageDMatrix::GetPagedBatches() {
+  auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
   cast->BeforeFirst();
   cast->Next();
   auto begin_iter = BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(cast));
   return BatchSet<SparsePage>(begin_iter);
 }
 
-BatchSet<SparsePage> SparsePageDMatrix::GetSortedColumnBatches() {
-  // Lazily instantiate
-  if (!sorted_column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, true);
-    sorted_column_source_.reset(
-        new SparsePageSource(cache_info_, ".sorted.col.page"));
-  }
-  sorted_column_source_->BeforeFirst();
-  sorted_column_source_->Next();
-  auto begin_iter = BatchIterator<SparsePage>(
-      new SparseBatchIteratorImpl<SparsePage>(sorted_column_source_.get()));
-  return BatchSet<SparsePage>(begin_iter);
-}
-
-BatchSet<SparsePage> SparsePageDMatrix::GetColumnBatches() {
+template<>
+BatchSet<CSCPage> SparsePageDMatrix::GetPagedBatches() {
   // Lazily instantiate
   if (!column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, false);
-    column_source_.reset(new SparsePageSource(cache_info_, ".col.page"));
+    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, false);
+    column_source_.reset(new SparsePageSource<CSCPage>(cache_info_, ".col.page"));
   }
   column_source_->BeforeFirst();
   column_source_->Next();
   auto begin_iter =
-      BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(column_source_.get()));
-  return BatchSet<SparsePage>(begin_iter);
+      BatchIterator<CSCPage>(new SparseBatchIteratorImpl<CSCPage>(column_source_.get()));
+  return BatchSet<CSCPage>(begin_iter);
+}
+
+template<>
+BatchSet<SortedCSCPage> SparsePageDMatrix::GetPagedBatches() {
+  // Lazily instantiate
+  if (!sorted_column_source_) {
+    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, true);
+    sorted_column_source_.reset(
+        new SparsePageSource<SortedCSCPage>(cache_info_, ".sorted.col.page"));
+  }
+  sorted_column_source_->BeforeFirst();
+  sorted_column_source_->Next();
+  auto begin_iter = BatchIterator<SortedCSCPage>(
+      new SparseBatchIteratorImpl<SortedCSCPage>(sorted_column_source_.get()));
+  return BatchSet<SortedCSCPage>(begin_iter);
 }
 
 float SparsePageDMatrix::GetColDensity(size_t cidx) {
   // Finds densities if we don't already have them
   if (col_density_.empty()) {
     std::vector<size_t> column_size(this->Info().num_col_);
-    for (const auto &batch : this->GetPagedBatches<SparsePage>(kCSC)) {
+    for (const auto &batch : this->GetBatches<CSCPage>()) {
       for (auto i = 0u; i < batch.Size(); i++) {
         column_size[i] += batch[i].size();
       }

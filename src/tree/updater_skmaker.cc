@@ -135,7 +135,7 @@ class SketchMaker: public BaseMaker {
     // number of rows in
     const size_t nrows = p_fmat->Info().num_row_;
     // start accumulating statistics
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>(kSortedCSC)) {
+    for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
       // start enumeration
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(dynamic, 1)
