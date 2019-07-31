@@ -335,17 +335,14 @@ def TestR(args) {
       """
     } catch (e) {
       // Save error log, if any
-      if (fileExists("xgboost.Rcheck/00install.out") {
+      if (fileExists("xgboost.Rcheck/00install.out")) {
         echo "===== xgboost.Rcheck/00install.out ===="
         sh "cat xgboost.Rcheck/00install.out"
       }
-      if (fileExists("xgboost.Rcheck/00install.log") {
+      if (fileExists("xgboost.Rcheck/00install.log")) {
         echo "\n\n===== xgboost.Rcheck/00install.log ===="
         sh "cat xgboost.Rcheck/00install.log"
       }
-      sh """
-
-      """
       throw e
     }
     deleteDir()
