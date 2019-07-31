@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <locale>
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
