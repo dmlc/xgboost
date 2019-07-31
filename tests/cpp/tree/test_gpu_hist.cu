@@ -125,7 +125,7 @@ TEST(GpuHist, BuildGidxDense) {
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, shard.gidx_buffer);
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
-  ASSERT_EQ(shard.ellpack_matrix->row_stride, kNCols);
+  ASSERT_EQ(shard.row_stride, kNCols);
 
   std::vector<uint32_t> solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
@@ -167,9 +167,9 @@ TEST(GpuHist, BuildGidxSparse) {
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
   ASSERT_EQ(shard.gidx_buffer.size(), shard.n_items);
-  ASSERT_LE(shard.ellpack_matrix->row_stride, 3);
+  ASSERT_LE(shard.row_stride, 3);
   ASSERT_EQ(shard.ellpack_matrix->is_dense, false);
-  ASSERT_EQ(shard.ellpack_matrix->data_layout, ELLPackMatrix::kCSR);
+  ASSERT_EQ(shard.ellpack_matrix->data_layout, CompressedDataLayout::kCSR);
 
   // Sparse matrices have dense gidx representations with row_ptrs delineating
   // the different row elements
@@ -337,7 +337,7 @@ TEST(GpuHist, EvaluateSplits) {
                       common::CompressedBufferWriter(0),
                       common::CompressedIterator<uint32_t>(shard->gidx_row_buffer.data(), 0),
                       shard->gidx_row_buffer,
-                      0, true, 0, kNRows, 0, ELLPackMatrix::kRowStride));
+                      0, true, 0, kNRows, 0, CompressedDataLayout::kRowStride));
 
   // Initialize DeviceShard::hist
   shard->hist.Init(0, (max_bins - 1) * kNCols);
