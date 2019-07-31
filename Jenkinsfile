@@ -329,14 +329,25 @@ def TestR(args) {
     def docker_binary = "docker"
     def use_r35_flag = (args.use_r35) ? "1" : "0"
     def docker_args = "--build-arg USE_R35=${use_r35_flag}"
-    catchError {
+    try {
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
       """
+    } catch (e) {
+      // Save error log, if any
+      if (fileExists("xgboost.Rcheck/00install.out") {
+        echo "===== xgboost.Rcheck/00install.out ===="
+        sh "cat xgboost.Rcheck/00install.out"
+      }
+      if (fileExists("xgboost.Rcheck/00install.log") {
+        echo "\n\n===== xgboost.Rcheck/00install.log ===="
+        sh "cat xgboost.Rcheck/00install.log"
+      }
+      sh """
+
+      """
+      throw e
     }
-    // Save error log, if any
-    archiveArtifacts artifacts: "xgboost.Rcheck/00install.out", allowEmptyArchive: true
-    archiveArtifacts artifacts: "xgboost.Rcheck/00install.log", allowEmptyArchive: true
     deleteDir()
   }
 }
