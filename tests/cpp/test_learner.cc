@@ -127,6 +127,7 @@ TEST(Learner, IO) {
   ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   ASSERT_EQ(learner->GetGenericParameter().n_gpus, -1);
   ASSERT_EQ(learner->GetGenericParameter().external_memory, false);
+  ASSERT_EQ(learner->GetGenericParameter().transform_on_cpu, false);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model.bst";

@@ -25,6 +25,8 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int n_gpus;
   // If external memory is enabled for training/prediction
   bool external_memory;
+  // Compute metrics and the base prediction on CPU
+  bool transform_on_cpu;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -49,6 +51,10 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
     DMLC_DECLARE_FIELD(external_memory)
         .set_default(false)
         .describe("If external memory is used for training and/or prediction");
+    DMLC_DECLARE_FIELD(transform_on_cpu)
+        .set_default(false)
+        .describe("Compute metrics and base prediction on CPU. "
+                  "This may be useful to save GPU memory at the expense of training time");
   }
 };
 }  // namespace xgboost

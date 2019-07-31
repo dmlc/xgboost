@@ -38,7 +38,7 @@ class HingeObj : public ObjFunction {
     const bool is_null_weight = info.weights_.Size() == 0;
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
-    GPUSet devices = (preds.Devices().IsEmpty() && tparam_->external_memory)
+    GPUSet devices = (tparam_->transform_on_cpu)
                        ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -64,7 +64,7 @@ class HingeObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
-    GPUSet devices = (io_preds->Devices().IsEmpty() && tparam_->external_memory)
+    GPUSet devices = (tparam_->transform_on_cpu)
                        ? GPUSet() : GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
     common::Transform<>::Init(
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
