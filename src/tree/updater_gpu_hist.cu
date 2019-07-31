@@ -197,9 +197,15 @@ struct MatrixBase {
       (com_ctx.irow_ + com_ctx.base_row_) * row_stride + com_ctx.ifeature_);
   }
 
-  __forceinline__ __device__ uint32_t GetFeatureBin(int fidx) const { return feature_segments[fidx]; }
-  __forceinline__ __device__ bst_float GetMinFeatureValue(int fidx) const { return min_fvalue[fidx]; }
-  __forceinline__ __device__ const bst_float *GetFeatureValue(int fbin) const { return &gidx_fvalue_map[fbin]; }
+  __forceinline__ __device__ uint32_t GetFeatureBin(int fidx) const {
+    return feature_segments[fidx];
+  }
+  __forceinline__ __device__ bst_float GetMinFeatureValue(int fidx) const {
+    return min_fvalue[fidx];
+  }
+  __forceinline__ __device__ const bst_float *GetFeatureValue(int fbin) const {
+    return &gidx_fvalue_map[fbin];
+  }
   __forceinline__ __device__ size_t BinCount() const { return gidx_fvalue_map.size(); }
   __forceinline__ __device__ size_t RowStride() const { return row_stride; }
   __forceinline__ __device__ int NullGidxValue() const { return null_gidx_value; }
@@ -318,9 +324,15 @@ __global__ void DeviceMatrixTypeDestroyerKernel(MatrixBase **ptr) {
 struct ELLPackMatrix {
   __forceinline__ __device__ size_t BinCount() const { return (*matrix)->BinCount(); }
   __forceinline__ __device__ size_t RowStride() const { return (*matrix)->RowStride(); }
-  __forceinline__ __device__ uint32_t GetFeatureBin(int fidx) const { return (*matrix)->GetFeatureBin(fidx); }
-  __forceinline__ __device__ uint32_t GetMinFeatureValue(int fidx) const { return (*matrix)->GetMinFeatureValue(fidx); }
-  __forceinline__ __device__ const bst_float *GetFeatureValue(int fbin) const { return (*matrix)->GetFeatureValue(fbin); }
+  __forceinline__ __device__ uint32_t GetFeatureBin(int fidx) const {
+    return (*matrix)->GetFeatureBin(fidx);
+  }
+  __forceinline__ __device__ uint32_t GetMinFeatureValue(int fidx) const {
+    return (*matrix)->GetMinFeatureValue(fidx);
+  }
+  __forceinline__ __device__ const bst_float *GetFeatureValue(int fbin) const {
+    return (*matrix)->GetFeatureValue(fbin);
+  }
   __forceinline__ __device__ int NullGidxValue() const { return (*matrix)->NullGidxValue(); }
 
   bool is_dense;  // Is the matrix dense? Kept here for tests
