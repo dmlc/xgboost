@@ -453,6 +453,21 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
 };
+
+template<>
+inline BatchSet<SparsePage> DMatrix::GetBatches() {
+  return GetRowBatches();
+}
+
+template<>
+inline BatchSet<CSCPage> DMatrix::GetBatches() {
+  return GetColumnBatches();
+}
+
+template<>
+inline BatchSet<SortedCSCPage> DMatrix::GetBatches() {
+  return GetSortedColumnBatches();
+}
 }  // namespace xgboost
 
 namespace dmlc {

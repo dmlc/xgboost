@@ -145,21 +145,6 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
-template<>
-BatchSet<SparsePage> DMatrix::GetBatches() {
-  return GetRowBatches();
-}
-
-template<>
-BatchSet<CSCPage> DMatrix::GetBatches() {
-  return GetColumnBatches();
-}
-
-template<>
-BatchSet<SortedCSCPage> DMatrix::GetBatches() {
-  return GetSortedColumnBatches();
-}
-
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
                        bool load_row_split,
