@@ -138,13 +138,13 @@ __forceinline__ __device__ int BinarySearchRow(
 // A context that is created for every row that is processed during binning. This is then
 // handed off to the different matrices to write to the underlying stream it manages
 struct CompressRowContext {
-  int bin_;  // Feature bin
-  size_t irow_;  // Row to process
-  size_t base_row_;  // Total number of rows processed thus far
-  size_t row_offset_in_batch_;  // Offset to current row in the batch
-  int ifeature_;  // Feature to process
-  size_t base_item_offset_;  // Offset to the item in the current batch
-  size_t total_items_processed_;  // Total number of items processed thus far
+  int bin_;  // NOLINT: Feature bin
+  size_t irow_;  // NOLINT: Row to process
+  size_t base_row_;  // NOLINT: Total number of rows processed thus far
+  size_t row_offset_in_batch_;  // NOLINT: Offset to current row in the batch
+  int ifeature_;  // NOLINT: Feature to process
+  size_t base_item_offset_;  // NOLINT: Offset to the item in the current batch
+  size_t total_items_processed_;  // NOLINT: Total number of items processed thus far
 
   __device__ explicit CompressRowContext(
     int bin, size_t irow, size_t base_row, size_t row_offset_in_batch,
@@ -185,7 +185,7 @@ struct MatrixBase {
       : feature_segments(fsegs), min_fvalue(min_fvals), gidx_fvalue_map(fval_map),
         null_gidx_value(ngidx), gidx_buffer_writer(buf_wr), gidx_buffer_iter(buf_itr),
         gidx_buffer(buf), row_stride(rstride) {}
-  __device__  virtual ~MatrixBase() {}
+  __device__  virtual ~MatrixBase() {}  // NOLINT
 
   __forceinline__ __device__ virtual bst_float GetElement(size_t ridx, size_t fidx) const = 0;
   __forceinline__ __device__ virtual int GetGidx(size_t ridx, size_t gidx_pos) const {
@@ -207,8 +207,7 @@ struct MatrixBase {
 
 // A dense matrix representation, where every row contains every feature
 struct DenseMatrix : MatrixBase {
-  __forceinline__ __device__ virtual bst_float GetElement(
-    size_t ridx, size_t fidx) const override {
+  __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
       auto row_begin = row_stride * ridx;
       auto gidx = gidx_buffer_iter[row_begin + fidx];
       return gidx_fvalue_map[gidx];
@@ -224,8 +223,7 @@ struct DenseMatrix : MatrixBase {
 
 // A sparse matrix representation, where each row contains a constant number of features
 struct RowStrideMatrix : MatrixBase {
-  __forceinline__ __device__ virtual bst_float GetElement(
-    size_t ridx, size_t fidx) const override {
+  __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
       auto row_begin = row_stride * ridx;
       auto row_end = row_begin + row_stride;
       auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
@@ -252,8 +250,7 @@ struct CSRMatrix : MatrixBase {
   size_t n_rows;  // Number of rows in this matrix
   size_t n_items;  // Number of items in this matrix
 
-  __forceinline__ __device__ virtual bst_float GetElement(
-    size_t ridx, size_t fidx) const override {
+  __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
       auto row_begin = gidx_row_iter[ridx];
       auto row_end = gidx_row_iter[ridx + 1];
       auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
@@ -261,7 +258,7 @@ struct CSRMatrix : MatrixBase {
       return (gidx == -1) ? nan("") : gidx_fvalue_map[gidx];
   }
 
-  __forceinline__ __device__ virtual int GetGidx(size_t ridx, size_t gidx_pos) const override {
+  __forceinline__ __device__ int GetGidx(size_t ridx, size_t gidx_pos) const override {
     uint32_t n_elems = gidx_row_iter[ridx + 1] - gidx_row_iter[ridx];
     if (gidx_pos % row_stride < n_elems) {
       return gidx_buffer_iter[gidx_row_iter[ridx] + gidx_pos % row_stride];
@@ -269,7 +266,7 @@ struct CSRMatrix : MatrixBase {
     return null_gidx_value;
   }
 
-  __forceinline__ __device__ virtual void Write(const CompressRowContext &com_ctx) override {
+  __forceinline__ __device__ void Write(const CompressRowContext &com_ctx) override {
     if (com_ctx.bin_ != null_gidx_value) {
       gidx_buffer_writer.AtomicWriteSymbol(gidx_buffer.data(), com_ctx.bin_,
         com_ctx.row_offset_in_batch_ - com_ctx.base_item_offset_ +
