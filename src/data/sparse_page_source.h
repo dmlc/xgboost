@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <locale>
 #include <memory>
 #include <string>
 #include <utility>
