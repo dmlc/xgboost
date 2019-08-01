@@ -38,7 +38,6 @@
 #include "../src/predictor/cpu_predictor.cc"
 
 #if DMLC_ENABLE_STD_THREAD
-#include "../src/data/sparse_page_source.cc"
 #include "../src/data/sparse_page_dmatrix.cc"
 #include "../src/data/sparse_page_writer.cc"
 #endif
