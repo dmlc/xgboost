@@ -310,7 +310,10 @@ class AFTObj : public ObjFunction {
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     /* Boilerplate */
-    CHECK_EQ(preds.Size(), info.labels_.Size());
+    //CHECK_EQ(preds.Size(), info.labels_.Size());
+    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
+    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
+
     const auto& yhat     = preds.HostVector();
     const auto& y_lower  = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
@@ -325,28 +328,32 @@ class AFTObj : public ObjFunction {
     for (int i = 0; i < nsize; ++i) {
       if (y_lower[i] == y_higher[i]) {
         event = AFTEventType::kUncensored;
-        first_order_grad  = neg_grad_uncensored(y_lower[i], y_higher[i], yhat[i],
+        first_order_grad  = grad_uncensored(y_lower[i], y_higher[i], yhat[i],
                                                 param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_uncensored(y_lower[i], y_higher[i], yhat[i],
                                                param_.aft_sigma, param_.aft_noise_distribution);
+        std::cout<<first_order_grad<<second_order_grad<<std::endl;
       } else if (!std::isinf(y_lower[i]) && !std::isinf(y_higher[i])) {
         event = AFTEventType::kIntervalCensored;
-        first_order_grad  = neg_grad_interval(y_lower[i], y_higher[i], yhat[i],
+        first_order_grad  = grad_interval(y_lower[i], y_higher[i], yhat[i],
                                               param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_interval(y_lower[i], y_higher[i], yhat[i],
                                              param_.aft_sigma, param_.aft_noise_distribution);
+        std::cout<<first_order_grad<<second_order_grad<<std::endl;
       } else if (std::isinf(y_lower[i])){
         event = AFTEventType::kLeftCensored;
-        first_order_grad  = neg_grad_left(y_lower[i], y_higher[i], yhat[i],
+        first_order_grad  = grad_left(y_lower[i], y_higher[i], yhat[i],
                                           param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_left(y_lower[i], y_higher[i], yhat[i],
                                          param_.aft_sigma, param_.aft_noise_distribution);
+        std::cout<<first_order_grad<<second_order_grad<<std::endl;
       } else if (std::isinf(y_higher[i])) {
         event = AFTEventType::kRightCensored;
-        first_order_grad  = neg_grad_right(y_lower[i], y_higher[i], yhat[i],
+        first_order_grad  = grad_right(y_lower[i], y_higher[i], yhat[i],
                                            param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_right(y_lower[i], y_higher[i], yhat[i],
                                           param_.aft_sigma, param_.aft_noise_distribution);
+        std::cout<<first_order_grad<<second_order_grad<<std::endl;
       } else {
         LOG(FATAL) << "AFTObj: Could not determine event type: y_lower = " << y_lower[i]
                    << ", y_higher = " << y_higher[i];

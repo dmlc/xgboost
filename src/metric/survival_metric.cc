@@ -48,8 +48,9 @@ struct EvalAFT : public Metric {
                  bool distributed) override {
 		CHECK_NE(info.labels_lower_bound_.Size(), 0U) << "y_lower cannot be empty";
 		CHECK_NE(info.labels_upper_bound_.Size(), 0U) << "y_higher cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-      << "label size predict size not match";
+    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
+    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
+    
     double nloglik = 0.0;
 
     const auto& yhat     = preds.HostVector();
