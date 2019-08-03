@@ -80,8 +80,12 @@ class JsonReader {
     explicit SourceLocation(size_t pos) : pos_{pos} {}
     size_t  Pos()  const { return pos_; }
 
-    SourceLocation& Forward(char c = 0) {
+    SourceLocation& Forward() {
       pos_++;
+      return *this;
+    }
+    SourceLocation& Forward(uint32_t n) {
+      pos_ += n;
       return *this;
     }
   } cursor_;
@@ -207,6 +211,7 @@ class JsonWriter {
   virtual void Visit(JsonArray  const* arr);
   virtual void Visit(JsonObject const* obj);
   virtual void Visit(JsonNumber const* num);
+  virtual void Visit(JsonInteger const* num);
   virtual void Visit(JsonRaw    const* raw);
   virtual void Visit(JsonNull   const* null);
   virtual void Visit(JsonString const* str);

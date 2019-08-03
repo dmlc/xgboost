@@ -5,12 +5,7 @@
  * \author Tianqi Chen
  */
 #include <dmlc/io.h>
-#include <dmlc/timer.h>
-#include <dmlc/any.h>
-#include <xgboost/feature_map.h>
-#include <xgboost/learner.h>
-#include <xgboost/logging.h>
-#include <xgboost/generic_parameters.h>
+
 #include <algorithm>
 #include <iomanip>
 #include <limits>
@@ -20,12 +15,17 @@
 #include <utility>
 #include <vector>
 
+#include "xgboost/feature_map.h"
+#include "xgboost/learner.h"
+#include "xgboost/logging.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/json.h"
-#include "./common/common.h"
-#include "./common/host_device_vector.h"
-#include "./common/io.h"
-#include "./common/random.h"
-#include "./common/timer.h"
+
+#include "common/common.h"
+#include "common/host_device_vector.h"
+#include "common/io.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace {
 
@@ -305,8 +305,11 @@ class LearnerImpl : public Learner {
   void Save(Json* p_out) const override {
     // FIXME(trivialfis); num_boosting_round
     Json& out = *p_out;
-    out["version"] = Json(Array{std::vector<Json>({Json{String{"1"}},
-                                                   Json{String{"0"}}})});
+    Integer::Int major{XGBOOST_VER_MAJOR}, minor{XGBOOST_VER_MINOR}, patch{XGBOOST_VER_PATCH};
+    out["version"] = Json(Array{std::vector<Json>{
+          Json(Integer(major)),
+          Json(Integer(minor)),
+          Json(Integer(patch))}});
 
     out["Learner"] = Object();
     auto& learner = out["Learner"];
@@ -330,9 +333,10 @@ class LearnerImpl : public Learner {
   }
 
   void Load(Json const& in) override {
-    std::string major, minor;
-    std::tie(major, minor) = std::make_pair(get<String>(get<Array>(in["version"])[0]),
-                                            get<String>(get<Array>(in["version"])[1]));
+    Integer::Int major, minor, patch;
+    std::tie(major, minor, patch) = std::make_tuple(get<Integer>(get<Array>(in["version"])[0]),
+                                                    get<Integer>(get<Array>(in["version"])[1]),
+                                                    get<Integer>(get<Array>(in["version"])[2]));
     LOG(INFO) << "Loading XGBoost " << major << ", " << minor << " model";
     auto const& learner = get<Object>(in["Learner"]);
     mparam_.InitAllowUnknown(fromJson(get<Object const>(learner.at("learner_model_param"))));

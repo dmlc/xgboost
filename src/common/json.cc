@@ -2,7 +2,10 @@
  * Copyright (c) by Contributors 2019
  */
 #include <sstream>
+#include <limits>
+#include <cmath>
 
+#include "xgboost/base.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
 #include "xgboost/json_io.h"
@@ -51,6 +54,13 @@ void JsonWriter::Visit(JsonObject const* obj) {
 
 void JsonWriter::Visit(JsonNumber const* num) {
   convertor_ << num->getNumber();
+  auto const& str = convertor_.str();
+  this->Write(StringView{str.c_str(), str.size()});
+  convertor_.str("");
+}
+
+void JsonWriter::Visit(JsonInteger const* num) {
+  convertor_ << num->getInteger();
   auto const& str = convertor_.str();
   this->Write(StringView{str.c_str(), str.size()});
   convertor_.str("");
@@ -282,6 +292,34 @@ void JsonNumber::Save(JsonWriter* writer) {
   writer->Visit(this);
 }
 
+// Json Integer
+Json& JsonInteger::operator[](std::string const& key) {
+  LOG(FATAL) << "Object of type "
+             << Value::TypeStr() << " can not be indexed by string.";
+  return DummyJsonObject();
+}
+
+Json& JsonInteger::operator[](int ind) {
+  LOG(FATAL) << "Object of type "
+             << Value::TypeStr() << " can not be indexed by Integer.";
+  return DummyJsonObject();
+}
+
+bool JsonInteger::operator==(Value const& rhs) const {
+  if (!IsA<JsonInteger>(&rhs)) { return false; }
+  return integer_ == Cast<JsonInteger const>(&rhs)->getInteger();
+}
+
+Value & JsonInteger::operator=(Value const &rhs) {
+  JsonInteger const* casted = Cast<JsonInteger const>(&rhs);
+  integer_ = casted->getInteger();
+  return *this;
+}
+
+void JsonInteger::Save(JsonWriter* writer) {
+  writer->Visit(this);
+}
+
 // Json Null
 Json& JsonNull::operator[](std::string const & key) {
   LOG(FATAL) << "Object of type "
@@ -401,7 +439,7 @@ void JsonReader::SkipSpaces() {
   while (cursor_.Pos() < raw_str_.size()) {
     char c = raw_str_[cursor_.Pos()];
     if (std::isspace(c)) {
-      cursor_.Forward(c);
+      cursor_.Forward();
     } else {
       break;
     }
@@ -527,15 +565,114 @@ Json JsonReader::ParseObject() {
 }
 
 Json JsonReader::ParseNumber() {
-  std::string substr = raw_str_.substr(cursor_.Pos(), kMaxNumLength);
-  size_t pos = 0;
+  char const* p = raw_str_.c_str() + cursor_.Pos();
+  char const* const beg = p;  // keep track of current pointer
 
-  Number::Float number{0};
-  number = std::stof(substr, &pos);
-  for (size_t i = 0; i < pos; ++i) {
-    GetNextChar();
+  // TODO(trivialfis): Add back all the checks for number
+  bool negative = false;
+  if ('-' == *p) {
+    ++p;
+    negative = true;
   }
-  return Json(number);
+
+  bool is_float = false;
+
+  using ExpInt = std::remove_const<
+    decltype(std::numeric_limits<Number::Float>::max_exponent)>::type;
+  constexpr auto kExpMax = std::numeric_limits<ExpInt>::max();
+  constexpr auto kExpMin = std::numeric_limits<ExpInt>::min();
+
+  JsonInteger::Int i = 0;
+  double f = 0.0;  // Use double to maintain accuracy
+
+  if (*p == '0') {
+    ++p;
+  } else {
+    char c = *p;
+    do {
+      ++p;
+      char digit = c - '0';
+      i = 10 * i + digit;
+      c = *p;
+    } while (std::isdigit(c));
+  }
+
+  ExpInt exponent = 0;
+  const char *const dot_position = p;
+  if ('.' == *p) {
+    is_float = true;
+    f = i;
+    ++p;
+    char c = *p;
+
+    do {
+      ++p;
+      f = f * 10 + (c - '0');
+      c = *p;
+    } while (std::isdigit(c));
+  }
+  if (is_float) {
+    exponent = dot_position - p + 1;
+  }
+
+  char e = *p;
+  if ('e' == e || 'E' == e) {
+    if (!is_float) {
+      is_float = true;
+      f = i;
+    }
+    ++p;
+
+    bool negative_exponent = false;
+    if ('-' == *p) {
+      negative_exponent = true;
+      ++p;
+    } else if ('+' == *p) {
+      ++p;
+    }
+
+    ExpInt exp = 0;
+
+    char c = *p;
+    while (std::isdigit(c)) {
+      unsigned char digit = c - '0';
+      if (XGBOOST_EXPECT(exp > (kExpMax - digit) / 10, false)) {
+        CHECK_GT(exp, (kExpMax - digit) / 10) << "Overflow";
+      }
+      exp = 10 * exp + digit;
+
+      ++p;
+
+      c = *p;
+    }
+    static_assert(-kExpMax >= kExpMin, "exp can be negated without loss or UB");
+    exponent += (negative_exponent ? -exp : exp);
+  }
+
+  if (exponent) {
+    CHECK(is_float);
+    // If d is zero but the exponent is huge, don't
+    // multiply zero by inf which gives nan.
+    if (f != 0.0) {
+      f *= exp10(exponent);
+    }
+  }
+
+  if (negative) {
+      f = -f;
+      i = -i;
+  }
+
+  auto moved = std::distance(beg, p);
+  this->cursor_.Forward(moved);
+
+  if (is_float) {
+    // LOG(WARNING) << "Number";
+    return Json(JsonNumber(f));
+  } else {
+    // LOG(WARNING) << "Integer";
+    return Json(JsonInteger(i));
+  }
 }
 
 Json JsonReader::ParseBoolean() {
@@ -587,8 +724,6 @@ class GlobalCLocale {
 
 Json Json::Load(StringView str, bool ignore_specialization) {
   GlobalCLocale guard;
-  LOG(WARNING) << "Json serialization is still experimental."
-      "  Output schema is subject to change in the future.";
   JsonReader reader(str, ignore_specialization);
   common::Timer t;
   t.Start();
@@ -610,8 +745,6 @@ Json Json::Load(JsonReader* reader) {
 
 void Json::Dump(Json json, std::ostream *stream, bool pretty) {
   GlobalCLocale guard;
-  LOG(WARNING) << "Json serialization is still experimental."
-      "  Output schema is subject to change in the future.";
   JsonWriter writer(stream, true);
   common::Timer t;
   t.Start();

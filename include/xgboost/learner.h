@@ -8,8 +8,6 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <rabit/rabit.h>
-
 #include <xgboost/base.h>
 #include <xgboost/gbm.h>
 #include <xgboost/metric.h>
@@ -42,7 +40,7 @@ namespace xgboost {
  *
  *  \endcode
  */
-class Learner : public rabit::Serializable {
+class Learner : public Serializable {
  public:
   /*! \brief virtual destructor */
   ~Learner() override = default;
@@ -51,14 +49,14 @@ class Learner : public rabit::Serializable {
    */
   virtual void Configure() = 0;
 
-  virtual void Load(Json const& in) = 0;
+  virtual void Load(Json const& in) override = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.
    */
   void Load(dmlc::Stream* fi) override = 0;
 
-  virtual void Save(Json* out) const = 0;
+  virtual void Save(Json* out) const override = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream

@@ -69,6 +69,12 @@
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #endif  // GLIBC VERSION
 
+#if defined(__GNUC__)
+#define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
+#else
+#define XGBOOST_EXPECT(cond, ret) (cond)
+#endif  // defined(__GNUC__)
+
 /*!
  * \brief Tag function as usable by device
  */

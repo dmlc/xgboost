@@ -4,8 +4,8 @@
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
 
+#include <dmlc/io.h>  // deprecated
 #include <xgboost/logging.h>
-
 #include <string>
 
 #include <map>
@@ -185,7 +185,7 @@ class JsonNumber : public Value {
 
  public:
   JsonNumber() : Value(ValueKind::Number) {}
-  JsonNumber(double value) : Value(ValueKind::Number) {  // NOLINT
+  JsonNumber(Float value) : Value(ValueKind::Number) {  // NOLINT
     number_ = value;
   }
 
@@ -198,11 +198,40 @@ class JsonNumber : public Value {
   Float const& getNumber() const & { return number_; }
   Float&       getNumber()       & { return number_; }
 
+
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override;
 
   static bool isClassOf(Value const* value) {
     return value->Type() == ValueKind::Number;
+  }
+};
+
+class JsonInteger : public Value {
+ public:
+  using Int = int64_t;
+
+ private:
+  Int integer_;
+
+ public:
+  JsonInteger() : Value(ValueKind::Integer), integer_{0} {}
+  template <typename IntT, typename std::enable_if<std::is_same<IntT, Int>::value>::type* = nullptr>
+  JsonInteger(IntT value) : Value(ValueKind::Integer), integer_{value} {}
+
+  Json& operator[](std::string const & key) override;
+  Json& operator[](int ind) override;
+
+  bool operator==(Value const& rhs) const override;
+  Value& operator=(Value const& rhs) override;
+
+  Int const& getInteger() &&      { return integer_; }
+  Int const& getInteger() const & { return integer_; }
+  Int& getInteger() &             { return integer_; }
+  void Save(JsonWriter* writer) override;
+
+  static bool isClassOf(Value const* value) {
+    return value->Type() == ValueKind::Integer;
   }
 };
 
@@ -256,15 +285,16 @@ class JsonBoolean : public Value {
 };
 
 struct StringView {
-  char const* str_;
+  using CharT = char;  // unsigned char
+  CharT const* str_;
   size_t size_;
 
  public:
   StringView() = default;
-  StringView(char const* str, size_t size) : str_{str}, size_{size} {}
+  StringView(CharT const* str, size_t size) : str_{str}, size_{size} {}
 
-  char const& operator[](size_t p) const { return str_[p]; }
-  char const& at(size_t p) const {  // NOLINT
+  CharT const& operator[](size_t p) const { return str_[p]; }
+  CharT const& at(size_t p) const {  // NOLINT
     CHECK_LT(p, size_);
     return str_[p];
   }
@@ -316,6 +346,13 @@ class Json {
   explicit Json(JsonNumber number) : ptr_{new JsonNumber(number)} {}
   Json& operator=(JsonNumber number) {
     ptr_.reset(new JsonNumber(std::move(number)));
+    return *this;
+  }
+
+  // integer
+  explicit Json(JsonInteger integer) : ptr_{new JsonInteger(integer)} {}
+  Json& operator=(JsonInteger integer) {
+    ptr_.reset(new JsonInteger(std::move(integer)));
     return *this;
   }
 
@@ -410,8 +447,22 @@ JsonNumber::Float& GetImpl(T& val) {  // NOLINT
 template <typename T,
           typename std::enable_if<
             std::is_same<T, JsonNumber const>::value>::type* = nullptr>
-double const& GetImpl(T& val) {  // NOLINT
+JsonNumber::Float const& GetImpl(T& val) {  // NOLINT
   return val.getNumber();
+}
+
+// Integer
+template <typename T,
+          typename std::enable_if<
+            std::is_same<T, JsonInteger>::value>::type* = nullptr>
+JsonInteger::Int& GetImpl(T& val) {  // NOLINT
+  return val.getInteger();
+}
+template <typename T,
+          typename std::enable_if<
+            std::is_same<T, JsonInteger const>::value>::type* = nullptr>
+JsonInteger::Int const& GetImpl(T& val) {  // NOLINT
+  return val.getInteger();
 }
 
 // String
@@ -502,6 +553,7 @@ auto get(U& json) -> decltype(detail::GetImpl(*Cast<T>(&json.GetValue())))& { //
 using Object  = JsonObject;
 using Array   = JsonArray;
 using Number  = JsonNumber;
+using Integer = JsonInteger;
 using Boolean = JsonBoolean;
 using String  = JsonString;
 using Null    = JsonNull;
@@ -525,6 +577,36 @@ inline std::map<std::string, std::string> fromJson(std::map<std::string, Json> c
   }
   return res;
 }
-
 }  // namespace xgboost
+
+#include <rabit/rabit.h>
+
+namespace xgboost {
+
+struct Serializable : public rabit::Serializable {
+  virtual ~Serializable() = default;
+  /*!
+  * \brief load the model from a stream
+  * \param fi stream where to load the model from
+  */
+  virtual void Load(dmlc::Stream *fi) override = 0;
+  /*!
+  * \brief saves the model to a stream
+  * \param fo stream where to save the model to
+  */
+  virtual void Save(dmlc::Stream *fo) const override = 0;
+
+  /*!
+   * \brief load the model from a json object
+   * \param in json object where to load the model from
+   */
+  virtual void Load(Json const& in) = 0;
+  /*!
+   * \breif saves the model to a json object
+   * \param out json container where to save the model to
+   */
+  virtual void Save(Json* out) const = 0;
+};
+}      // namespace xgboost
+
 #endif  // XGBOOST_JSON_H_
