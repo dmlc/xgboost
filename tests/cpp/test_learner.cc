@@ -17,6 +17,14 @@ TEST(Learner, Basic) {
   learner->SetParams(args);
 
   delete mat_ptr;
+
+  auto major = XGBOOST_VER_MAJOR;
+  auto minor = XGBOOST_VER_MINOR;
+  auto patch = XGBOOST_VER_PATCH;
+
+  static_assert(std::is_integral<decltype(major)>::value, "Wrong major version type");
+  static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
+  static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
 }
 
 TEST(Learner, CheckGroup) {
