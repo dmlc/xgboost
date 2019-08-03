@@ -97,7 +97,8 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    grad  = (pdf_u-pdf_l)/(sigma*(cdf_u-cdf_l));
+    const double eps = 1e-16f;
+    grad  = (pdf_u-pdf_l)/(sigma*std::max(cdf_u-cdf_l,eps));
     return grad;
   }
 
@@ -148,8 +149,8 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-
-    grad = -pdf/(sigma*(1-cdf));
+    const double eps = 1e-16f;
+    grad = -pdf/(sigma*std::max(1-cdf,eps));
     return grad;
   }
 
@@ -190,6 +191,7 @@ class AFTObj : public ObjFunction {
     double hess;
     z_u   = (std::log(y_higher) - y_pred)/sigma;
     z_l   = (std::log(y_lower) - y_pred)/sigma;
+    const double eps = 1e-16f;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
       pdf_u   = common::aft::dnorm(z_u,0,1);
@@ -213,7 +215,7 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    hess = -((cdf_u-cdf_l)*(grad_u-grad_l)-std::pow((pdf_u-pdf_l),2))/(std::pow(sigma,2)*std::pow((cdf_u-cdf_l),2));
+    hess = -((cdf_u-cdf_l)*(grad_u-grad_l)-std::pow((pdf_u-pdf_l),2))/(std::pow(sigma,2)*std::pow(std::max(cdf_u-cdf_l,eps),2));
     return hess;
   }
 
@@ -252,6 +254,7 @@ class AFTObj : public ObjFunction {
     double grad;
     double hess;
     z    = (std::log(y_lower)-y_pred)/sigma;
+    const double eps = 1e-16f;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
       pdf       = common::aft::dnorm(z,0,1);
@@ -269,7 +272,7 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    hess = ((1-cdf)*grad + std::pow(pdf,2))/(std::pow(sigma,2)*std::pow(1-cdf,2));
+    hess = ((1-cdf)*grad + std::pow(pdf,2))/(std::pow(sigma,2)*std::pow(std::max(1-cdf,eps),2));
     return hess;
   }
 
@@ -332,28 +335,42 @@ class AFTObj : public ObjFunction {
                                                 param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_uncensored(y_lower[i], y_higher[i], yhat[i],
                                                param_.aft_sigma, param_.aft_noise_distribution);
-        std::cout<<first_order_grad<<second_order_grad<<std::endl;
+        std::cout<<first_order_grad<<" "<<second_order_grad<<std::endl;
+        std::cout<<"first_order_grad second_order_grad"<<std::endl;
+
+
       } else if (!std::isinf(y_lower[i]) && !std::isinf(y_higher[i])) {
         event = AFTEventType::kIntervalCensored;
         first_order_grad  = grad_interval(y_lower[i], y_higher[i], yhat[i],
                                               param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_interval(y_lower[i], y_higher[i], yhat[i],
                                              param_.aft_sigma, param_.aft_noise_distribution);
-        std::cout<<first_order_grad<<second_order_grad<<std::endl;
+        std::cout<<first_order_grad<<" "<<second_order_grad<<std::endl;
+        std::cout<<"first_order_grad second_order_grad"<<std::endl;
+
+
+
       } else if (std::isinf(y_lower[i])){
         event = AFTEventType::kLeftCensored;
         first_order_grad  = grad_left(y_lower[i], y_higher[i], yhat[i],
                                           param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_left(y_lower[i], y_higher[i], yhat[i],
                                          param_.aft_sigma, param_.aft_noise_distribution);
-        std::cout<<first_order_grad<<second_order_grad<<std::endl;
+        std::cout<<first_order_grad<<" "<<second_order_grad<<std::endl;
+        std::cout<<"first_order_grad second_order_grad"<<std::endl;
+        
+
+
       } else if (std::isinf(y_higher[i])) {
         event = AFTEventType::kRightCensored;
         first_order_grad  = grad_right(y_lower[i], y_higher[i], yhat[i],
                                            param_.aft_sigma, param_.aft_noise_distribution);
         second_order_grad = hessian_right(y_lower[i], y_higher[i], yhat[i],
                                           param_.aft_sigma, param_.aft_noise_distribution);
-        std::cout<<first_order_grad<<second_order_grad<<std::endl;
+        std::cout<<first_order_grad<<" "<<second_order_grad<<std::endl;
+        std::cout<<"first_order_grad second_order_grad"<<std::endl;
+
+
       } else {
         LOG(FATAL) << "AFTObj: Could not determine event type: y_lower = " << y_lower[i]
                    << ", y_higher = " << y_higher[i];
