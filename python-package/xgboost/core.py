@@ -145,7 +145,6 @@ def _load_lib():
             continue
         finally:
             os.environ['PATH'] = os.pathsep.join(pathBackup)
-            os.environ['LD_LIBRARY_PATH'] = os.pathsep.join(libraryPathBackup)
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
