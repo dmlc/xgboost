@@ -65,7 +65,7 @@ class QuantileHistMock : public QuantileHistMaker {
       ASSERT_EQ(gmat.row_ptr.size(), num_row + 1);
       ASSERT_LT(*std::max_element(gmat.index.begin(), gmat.index.end()),
                 gmat.cut.Ptrs().back());
-      for (const auto& batch : p_fmat->GetRowBatches()) {
+      for (const auto& batch : p_fmat->GetBatches<xgboost::SparsePage>()) {
         for (size_t i = 0; i < batch.Size(); ++i) {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);

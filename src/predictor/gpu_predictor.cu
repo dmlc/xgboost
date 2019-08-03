@@ -352,7 +352,7 @@ class GPUPredictor : public xgboost::Predictor {
     InitModel(model, tree_begin, tree_end);
 
     size_t batch_offset = 0;
-    for (auto &batch : dmat->GetRowBatches()) {
+    for (auto &batch : dmat->GetBatches<SparsePage>()) {
       bool is_external_memory = batch.Size() < dmat->Info().num_row_;
       if (is_external_memory) {
         std::vector<size_t> out_preds_offsets;
