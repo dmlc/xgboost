@@ -14,11 +14,11 @@ if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
 endif()
 
 message(STATUS "xgboost VERSION: ${xgboost_VERSION}")
-add_compile_definitions(
-  XGBOOST_VER_MAJOR=${xgboost_VERSION_MAJOR}
-  XGBOOST_VER_MINOR=${xgboost_VERSION_MINOR}
-  XGBOOST_VER_PATCH=${xgboost_VERSION_PATCH})
-
+set(XGBOOST_DEFINITIONS
+  ${XGBOOST_DEFINITIONS}
+  -DXGBOOST_VER_MAJOR=${xgboost_VERSION_MAJOR}
+  -DXGBOOST_VER_MINOR=${xgboost_VERSION_MINOR}
+  -DXGBOOST_VER_PATCH=${xgboost_VERSION_PATCH})
 set_default_configuration_release()
 
 #-- Options
