@@ -12,8 +12,8 @@ from .core import DMatrix, Booster
 from .training import train, cv
 from . import rabit                   # noqa
 from . import dask  # noqa
-from . import tracker
-from .tracker import RabitTracker
+from . import tracker  # noqa
+from .tracker import RabitTracker  # noqa
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor

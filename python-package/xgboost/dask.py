@@ -1,7 +1,6 @@
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 """Dask extensions for distributed training. See xgboost/demo/dask for examples."""
 import os
-import sys
 import math
 import platform
 import logging

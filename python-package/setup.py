@@ -3,7 +3,6 @@
 from __future__ import absolute_import
 import io
 import sys
-import shutil
 import os
 from setuptools import setup, find_packages
 
