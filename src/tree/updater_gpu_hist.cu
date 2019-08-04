@@ -161,7 +161,7 @@ enum class CompressedDataLayout {
 };
 
 // Base type of all matrices containing the histograms for all the features that are needed
-// for binning. It also abstracts some of the common matrix properties
+// for binning. It also abstracts some of the feature quantile properties
 struct MatrixBase {
   common::Span<uint32_t> feature_segments;
   /*! \brief minimum value for each feature. */
@@ -214,9 +214,9 @@ struct MatrixBase {
 // A dense matrix representation, where every row contains every feature
 struct DenseMatrix : MatrixBase {
   __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
-      auto row_begin = row_stride * ridx;
-      auto gidx = gidx_buffer_iter[row_begin + fidx];
-      return gidx_fvalue_map[gidx];
+    auto row_begin = row_stride * ridx;
+    auto gidx = gidx_buffer_iter[row_begin + fidx];
+    return gidx_fvalue_map[gidx];
   }
 
   __device__  explicit DenseMatrix(
@@ -230,11 +230,11 @@ struct DenseMatrix : MatrixBase {
 // A sparse matrix representation, where each row contains a constant number of features
 struct RowStrideMatrix : MatrixBase {
   __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
-      auto row_begin = row_stride * ridx;
-      auto row_end = row_begin + row_stride;
-      auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
-                                  feature_segments[fidx + 1]);
-      return (gidx == -1) ? nan("") : gidx_fvalue_map[gidx];
+    auto row_begin = row_stride * ridx;
+    auto row_end = row_begin + row_stride;
+    auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
+                                feature_segments[fidx + 1]);
+    return (gidx == -1) ? nan("") : gidx_fvalue_map[gidx];
   }
 
   __device__  explicit RowStrideMatrix(
@@ -257,11 +257,11 @@ struct CSRMatrix : MatrixBase {
   size_t n_items;  // Number of items in this matrix
 
   __forceinline__ __device__ bst_float GetElement(size_t ridx, size_t fidx) const override {
-      auto row_begin = gidx_row_iter[ridx];
-      auto row_end = gidx_row_iter[ridx + 1];
-      auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
-                                  feature_segments[fidx + 1]);
-      return (gidx == -1) ? nan("") : gidx_fvalue_map[gidx];
+    auto row_begin = gidx_row_iter[ridx];
+    auto row_end = gidx_row_iter[ridx + 1];
+    auto gidx = BinarySearchRow(row_begin, row_end, gidx_buffer_iter, feature_segments[fidx],
+                                feature_segments[fidx + 1]);
+    return (gidx == -1) ? nan("") : gidx_fvalue_map[gidx];
   }
 
   __forceinline__ __device__ int GetGidx(size_t ridx, size_t gidx_pos) const override {
@@ -319,15 +319,17 @@ __global__ void DeviceMatrixTypeDestroyerKernel(MatrixBase **ptr) {
 }
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
- * device. Does not own underlying memory and may be trivially copied into
- * kernels.*/
+ * device. The underlying matrix is created on the device and shared by multiple
+ * instances. That has to be deleted before the instance itself is destructed
+ * to avoid leaks.
+ */
 struct ELLPackMatrix {
   __forceinline__ __device__ size_t BinCount() const { return (*matrix)->BinCount(); }
   __forceinline__ __device__ size_t RowStride() const { return (*matrix)->RowStride(); }
   __forceinline__ __device__ uint32_t GetFeatureBin(int fidx) const {
     return (*matrix)->GetFeatureBin(fidx);
   }
-  __forceinline__ __device__ uint32_t GetMinFeatureValue(int fidx) const {
+  __forceinline__ __device__ bst_float GetMinFeatureValue(int fidx) const {
     return (*matrix)->GetMinFeatureValue(fidx);
   }
   __forceinline__ __device__ const bst_float *GetFeatureValue(int fbin) const {
@@ -396,7 +398,7 @@ struct ELLPackMatrix {
 struct DeviceMatrixTypeDestroyer {
   void operator()(ELLPackMatrix *ellpack) {
     DeviceMatrixTypeDestroyerKernel<<<1, 1>>>(ellpack->matrix);
-    cudaFree(ellpack->matrix);
+    dh::safe_cuda(cudaFree(ellpack->matrix));
     delete ellpack;
   }
 };
@@ -742,7 +744,7 @@ __global__ void SharedMemHistKernel(ELLPackMatrix matrix,
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.RowStride() ];
+    int ridx = d_ridx[idx / matrix.RowStride()];
     int gidx = matrix.GetGidx(ridx, idx);
     if (gidx != matrix.NullGidxValue()) {
       // If we are not using shared memory, accumulate the values directly into
@@ -1248,14 +1250,13 @@ struct DeviceShard {
   void InitRoot(RegTree* p_tree, dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
-    dh::SumReduction(temp_memory, gpair, node_sum_gradients_d,
-                     gpair.size());
     reducer->AllReduceSum(
         shard_idx, reinterpret_cast<float*>(node_sum_gradients_d.data()),
         reinterpret_cast<float*>(node_sum_gradients_d.data()), 2);
     reducer->Synchronize(device_id);
     dh::safe_cuda(cudaMemcpy(node_sum_gradients.data(),
-                             node_sum_gradients_d.data(), sizeof(GradientPair),
+                             node_sum_gradients_d.data(),
+                             sizeof(GradientPair) * node_sum_gradients_d.size(),
                              cudaMemcpyDeviceToHost));
 
     this->BuildHist(kRootNIdx);
@@ -1279,6 +1280,9 @@ struct DeviceShard {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
+
+    const auto &gpair_input = gpair_all->DeviceSpan(device_id);
+    dh::SumReduction(temp_memory, gpair_input, node_sum_gradients_d, gpair_input.size());
 
     monitor.StartCuda("Reset");
     this->Reset(gpair_all, p_fmat->Info().num_col_);
