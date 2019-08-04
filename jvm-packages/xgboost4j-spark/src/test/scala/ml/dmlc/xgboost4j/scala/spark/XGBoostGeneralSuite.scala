@@ -30,7 +30,7 @@ import org.scalatest.FunSuite
 
 import org.apache.spark.ml.feature.VectorAssembler
 
-class XGBoostGeneralSuite extends FunSuite with PerTest {
+class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   test("distributed training with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
@@ -184,7 +184,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
 
-    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
     val paramMap = Map("eta" -> "1", "max_depth" -> 2,
       "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
       "checkpoint_interval" -> 2, "num_workers" -> numWorkers)
@@ -211,7 +211,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator)
 
-    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
     val paramMap = Map("eta" -> "1", "max_depth" -> 2,
       "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
       "checkpoint_interval" -> 2, "num_workers" -> numWorkers, "cacheTrainingSet" -> true)

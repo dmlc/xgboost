@@ -126,11 +126,10 @@ public class BoosterImplTest {
 
     Booster booster = trainBooster(trainMat, testMat);
 
-    Path tempDir = Files.createTempDirectory("boosterTest-");
-    File tempFile = Files.createTempFile("", "").toFile();
-    booster.saveModel(new FileOutputStream(tempFile));
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    booster.saveModel(output);
     IEvaluation eval = new EvalError();
-    Booster loadedBooster = XGBoost.loadModel(new FileInputStream(tempFile));
+    Booster loadedBooster = XGBoost.loadModel(new ByteArrayInputStream(output.toByteArray()));
     float originalPredictError = eval.eval(booster.predict(testMat, true), testMat);
     TestCase.assertTrue("originalPredictErr:" + originalPredictError,
             originalPredictError < 0.1f);
