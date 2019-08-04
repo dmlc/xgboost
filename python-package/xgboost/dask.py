@@ -11,15 +11,7 @@ from .core import DMatrix
 from .compat import (DaskDataFrame, DaskSeries, DaskArray,
                      distributed_get_worker)
 
-# Try to find the dmlc tracker script
-# For developers it will be the following
-TRACKER_PATH = os.path.dirname(__file__) + "/../../dmlc-core/tracker/dmlc_tracker"
-sys.path.append(TRACKER_PATH)
-try:
-    from tracker import RabitTracker  # noqa
-except ImportError:
-    # If packaged it will be local
-    from .tracker import RabitTracker  # noqa
+from .tracker import RabitTracker
 
 
 def _start_tracker(n_workers):
