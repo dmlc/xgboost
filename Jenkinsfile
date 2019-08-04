@@ -330,10 +330,8 @@ def TestR(args) {
     def use_r35_flag = (args.use_r35) ? "1" : "0"
     def docker_args = "--build-arg USE_R35=${use_r35_flag}"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh || tests/ci_build/print_r_stacktrace.sh
     """
-    // Save error log, if any
-    archiveArtifacts artifacts: "xgboost.Rcheck/00install.out", allowEmptyArchive: true
     deleteDir()
   }
 }

@@ -20,10 +20,10 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
 
   // Test we have non-empty batch
-  EXPECT_EQ(dmat->GetRowBatches().begin().AtEnd(), false);
+  EXPECT_EQ(dmat->GetBatches<xgboost::SparsePage>().begin().AtEnd(), false);
 
-  auto row_iter = dmat->GetRowBatches().begin();
-  auto row_iter_read = dmat_read->GetRowBatches().begin();
+  auto row_iter = dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto row_iter_read = dmat_read->GetBatches<xgboost::SparsePage>().begin();
   // Test the data read into the first row
   auto first_row = (*row_iter)[0];
   auto first_row_read = (*row_iter_read)[0];

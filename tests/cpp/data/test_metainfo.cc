@@ -122,7 +122,7 @@ TEST(MetaInfo, LoadQid) {
       xgboost::Entry(2, 0),   xgboost::Entry(3, 0),   xgboost::Entry(4, 0.4),
       xgboost::Entry(5, 1),   xgboost::Entry(1, 0),   xgboost::Entry(2, 1),
       xgboost::Entry(3, 1),   xgboost::Entry(4, 0.5), {5, 0}};
-  for (const auto &batch : dmat->GetRowBatches()) {
+  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
     CHECK_EQ(batch.base_rowid, 0);
     CHECK(batch.offset.HostVector() == expected_offset);
     CHECK(batch.data.HostVector() == expected_data);

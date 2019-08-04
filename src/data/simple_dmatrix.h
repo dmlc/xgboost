@@ -23,7 +23,7 @@ namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
-  explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
+  explicit SimpleDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source)
       : source_(std::move(source)) {}
 
   bool UsesExternalMemory() override { return false; }
@@ -36,18 +36,16 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
-  BatchSet GetRowBatches() override;
-
-  BatchSet GetColumnBatches() override;
-
-  BatchSet GetSortedColumnBatches() override;
-
  private:
-  // source data pointer.
-  std::unique_ptr<DataSource> source_;
+  BatchSet<SparsePage> GetRowBatches() override;
+  BatchSet<CSCPage> GetColumnBatches() override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
 
-  std::unique_ptr<SparsePage> sorted_column_page_;
-  std::unique_ptr<SparsePage> column_page_;
+  // source data pointer.
+  std::unique_ptr<DataSource<SparsePage>> source_;
+
+  std::unique_ptr<CSCPage> column_page_;
+  std::unique_ptr<SortedCSCPage> sorted_column_page_;
 };
 }  // namespace data
 }  // namespace xgboost

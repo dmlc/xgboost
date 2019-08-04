@@ -76,7 +76,7 @@ template <typename GradientSumT>
 void BuildGidx(DeviceShard<GradientSumT>* shard, int n_rows, int n_cols,
                bst_float sparsity=0) {
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
-  const SparsePage& batch = *(*dmat)->GetRowBatches().begin();
+  const SparsePage& batch = *(*dmat)->GetBatches<xgboost::SparsePage>().begin();
   ASSERT_EQ((*dmat)->Info().num_nonzero_, batch.data.Size());
 
   HistogramCutsWrapper cmat;

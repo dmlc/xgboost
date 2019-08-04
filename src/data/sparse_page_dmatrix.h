@@ -21,7 +21,7 @@ namespace data {
 // Used for external memory.
 class SparsePageDMatrix : public DMatrix {
  public:
-  explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
+  explicit SparsePageDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source,
                              std::string cache_info)
       : row_source_(std::move(source)), cache_info_(std::move(cache_info)) {}
   virtual ~SparsePageDMatrix() = default;
@@ -32,21 +32,19 @@ class SparsePageDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
-  BatchSet GetRowBatches() override;
-
-  BatchSet GetSortedColumnBatches() override;
-
-  BatchSet GetColumnBatches() override;
-
   float GetColDensity(size_t cidx) override;
 
   bool SingleColBlock() const override;
 
  private:
+  BatchSet<SparsePage> GetRowBatches() override;
+  BatchSet<CSCPage> GetColumnBatches() override;
+  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
+
   // source data pointers.
-  std::unique_ptr<DataSource> row_source_;
-  std::unique_ptr<SparsePageSource> column_source_;
-  std::unique_ptr<SparsePageSource> sorted_column_source_;
+  std::unique_ptr<DataSource<SparsePage>> row_source_;
+  std::unique_ptr<SparsePageSource<CSCPage>> column_source_;
+  std::unique_ptr<SparsePageSource<SortedCSCPage>> sorted_column_source_;
   // the cache prefix
   std::string cache_info_;
   // Store column densities to avoid recalculating

@@ -61,7 +61,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
 
   HistogramCuts cuts;
   SparseCuts indices(&cuts);
-  auto const& page = *(p_fmat->GetColumnBatches().begin());
+  auto const& page = *(p_fmat->GetBatches<xgboost::CSCPage>().begin());
   indices.SingleThreadBuild(page, p_fmat->Info(), kBins, false, 0, page.Size(), 0);
 
   ASSERT_EQ(hmat.cut.Ptrs().size(), cuts.Ptrs().size());
@@ -92,7 +92,7 @@ TEST(SparseCuts, MultiThreadedBuild) {
 
         HistogramCuts container;
         SparseCuts indices(&container);
-        auto const& page = *(p_fmat->GetColumnBatches().begin());
+        auto const& page = *(p_fmat->GetBatches<xgboost::CSCPage>().begin());
         indices.SingleThreadBuild(page, p_fmat->Info(), kBins, false, 0, page.Size(), 0);
 
         ASSERT_EQ(container.Ptrs().size(), threaded_container.Ptrs().size());

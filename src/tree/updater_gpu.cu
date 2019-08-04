@@ -734,7 +734,7 @@ class GPUMaker : public TreeUpdater {
     fId->reserve(n_cols_ * n_rows_);
     // in case you end up with a DMatrix having no column access
     // then make sure to enable that before copying the data!
-    for (const auto& batch : dmat->GetSortedColumnBatches()) {
+    for (const auto& batch : dmat->GetBatches<SortedCSCPage>()) {
       for (int i = 0; i < batch.Size(); i++) {
         auto col = batch[i];
         for (const Entry& e : col) {
