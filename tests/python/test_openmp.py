@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from scipy.sparse import csr_matrix
 import xgboost as xgb
 import unittest
 import numpy as np
@@ -11,16 +10,13 @@ class TestOMP(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
-        # use loss-guide grow policy to train a tree
         param = {'booster': 'gbtree',
                  'objective': 'binary:logistic',
-                 'grow_policy': 'lossguide',
+                 'grow_policy': 'depthwise',
                  'tree_method': 'hist',
                  'eval_metric': 'error',
-                 'max_depth': 0,
-                 'max_leaves': 1024,
-                 'min_child_weight': 0,
-                 'nthread': 1}
+                 'max_depth': 5,
+                 'min_child_weight': 0}
 
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 5
@@ -30,37 +26,49 @@ class TestOMP(unittest.TestCase):
             bst = xgb.train(param, dtrain, num_round, watchlist, evals_result=res)
             metrics = [res['train']['error'][-1], res['eval']['error'][-1]]
             preds = bst.predict(dtest)
-            labels = dtest.get_label()
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-            # error must be smaller than 10%
-            assert err < 0.1
             return metrics, preds
 
-        auc1, pred1 = run_trial()
+        def consist_test(title, n):
+            auc, pred = run_trial()
+            for i in range(n-1):
+                auc2, pred2 = run_trial()
+                try:
+                    assert auc == auc2
+                    assert np.array_equal(pred, pred2)
+                except Exception as e:
+                    print('-------test %s failed, num_trial: %d-------' % (title, i))
+                    raise e
+                auc, pred = auc2, pred2
+            return auc, pred
 
-        # vary number of threads and test whether you get the same result
+        print('test approx ...')
+        param['tree_method'] = 'approx'
+
         param['nthread'] = 1
-        auc2, pred2 = run_trial()
-        assert auc1 == auc2
-        assert np.array_equal(pred1, pred2)
+        auc_1, pred_1 = consist_test('approx_thread_1', 100)
 
         param['nthread'] = 2
-        auc3, pred3 = run_trial()
-        assert auc1 == auc3
-        assert np.array_equal(pred1, pred3)
+        auc_2, pred_2 = consist_test('approx_thread_2', 100)
 
-        # use depth-wise grow policy to train a tree
-        param.update({
-            'grow_policy': 'depthwise',
-            'max_depth': 5,
-            'max_leaves': 0,
-            'nthread': 3
-        })
-        auc1, pred1 = run_trial()
+        param['nthread'] = 3
+        auc_3, pred_3 = consist_test('approx_thread_3', 100)
 
-        # vary number of threads and test whether you get the same result
+        assert auc_1 == auc_2 == auc_3
+        assert np.array_equal(auc_1, auc_2)
+        assert np.array_equal(auc_1, auc_3)
+
+        print('test hist ...')
+        param['tree_method'] = 'hist'
+
         param['nthread'] = 1
-        auc2, pred2 = run_trial()
-        assert auc1 == auc2
-        assert np.array_equal(pred1, pred2)
+        auc_1, pred_1 = consist_test('hist_thread_1', 100)
+
+        param['nthread'] = 2
+        auc_2, pred_2 = consist_test('hist_thread_2', 100)
+
+        param['nthread'] = 3
+        auc_3, pred_3 = consist_test('hist_thread_3', 100)
+
+        assert auc_1 == auc_2 == auc_3
+        assert np.array_equal(auc_1, auc_2)
+        assert np.array_equal(auc_1, auc_3)
