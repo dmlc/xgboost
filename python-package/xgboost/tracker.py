@@ -4,7 +4,7 @@ which is a specialized version for xgboost tasks.
 """
 
 # pylint: disable=invalid-name, missing-docstring, too-many-arguments, too-many-locals
-# pylint: disable=too-many-branches, too-many-statements
+# pylint: disable=too-many-branches, too-many-statements, too-many-instance-attributes
 from __future__ import absolute_import
 
 import socket
@@ -61,7 +61,7 @@ def get_family(addr):
 class SlaveEntry(object):
     def __init__(self, sock, s_addr):
         slave = ExSocket(sock)
-        self._sock = slave
+        self.sock = slave
         self.host = get_some_ip(s_addr[0])
         magic = slave.recvint()
         assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, self.host)
@@ -70,7 +70,7 @@ class SlaveEntry(object):
         self.world_size = slave.recvint()
         self.jobid = slave.recvstr()
         self.cmd = slave.recvstr()
-        self._wait_accept = 0
+        self.wait_accept = 0
         self.port = None
 
     def decide_rank(self, job_map):
@@ -84,48 +84,48 @@ class SlaveEntry(object):
         self.rank = rank
         nnset = set(tree_map[rank])
         rprev, rnext = ring_map[rank]
-        self._sock.sendint(rank)
+        self.sock.sendint(rank)
         # send parent rank
-        self._sock.sendint(parent_map[rank])
+        self.sock.sendint(parent_map[rank])
         # send world size
-        self._sock.sendint(len(tree_map))
-        self._sock.sendint(len(nnset))
+        self.sock.sendint(len(tree_map))
+        self.sock.sendint(len(nnset))
         # send the rprev and next link
         for r in nnset:
-            self._sock.sendint(r)
+            self.sock.sendint(r)
         # send prev link
         if rprev not in (-1, rank):
             nnset.add(rprev)
-            self._sock.sendint(rprev)
+            self.sock.sendint(rprev)
         else:
-            self._sock.sendint(-1)
+            self.sock.sendint(-1)
         # send next link
         if rnext not in (-1, rank):
             nnset.add(rnext)
-            self._sock.sendint(rnext)
+            self.sock.sendint(rnext)
         else:
-            self._sock.sendint(-1)
+            self.sock.sendint(-1)
         while True:
-            ngood = self._sock.recvint()
+            ngood = self.sock.recvint()
             goodset = set([])
             for _ in range(ngood):
-                goodset.add(self._sock.recvint())
+                goodset.add(self.sock.recvint())
             assert goodset.issubset(nnset)
             badset = nnset - goodset
             conset = []
             for r in badset:
                 if r in wait_conn:
                     conset.append(r)
-            self._sock.sendint(len(conset))
-            self._sock.sendint(len(badset) - len(conset))
+            self.sock.sendint(len(conset))
+            self.sock.sendint(len(badset) - len(conset))
             for r in conset:
-                self._sock.sendstr(wait_conn[r].host)
-                self._sock.sendint(wait_conn[r].port)
-                self._sock.sendint(r)
-            nerr = self._sock.recvint()
+                self.sock.sendstr(wait_conn[r].host)
+                self.sock.sendint(wait_conn[r].port)
+                self.sock.sendint(r)
+            nerr = self.sock.recvint()
             if nerr != 0:
                 continue
-            self.port = self._sock.recvint()
+            self.port = self.sock.recvint()
             rmset = []
             # all connection was successuly setup
             for r in conset:
@@ -134,7 +134,7 @@ class SlaveEntry(object):
                     rmset.append(r)
             for r in rmset:
                 wait_conn.pop(r, None)
-            self._wait_accept = len(badset) - len(conset)
+            self.wait_accept = len(badset) - len(conset)
             return rmset
 
 
@@ -272,7 +272,7 @@ class RabitTracker(object):
             fd, s_addr = self.sock.accept()
             s = SlaveEntry(fd, s_addr)
             if s.cmd == 'print':
-                msg = s._sock.recvstr()
+                msg = s.sock.recvstr()
                 logging.info(msg.strip())
                 continue
             if s.cmd == 'shutdown':
@@ -307,7 +307,7 @@ class RabitTracker(object):
                         if s.jobid != 'NULL':
                             job_map[s.jobid] = rank
                         s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
-                        if s._wait_accept > 0:
+                        if s.wait_accept > 0:
                             wait_conn[rank] = s
                         logging.debug('Recieve %s signal from %s; assign rank %d',
                                       s.cmd, s.host, s.rank)
@@ -317,7 +317,7 @@ class RabitTracker(object):
             else:
                 s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
                 logging.debug('Recieve %s signal from %d', s.cmd, s.rank)
-                if s._wait_accept > 0:
+                if s.wait_accept > 0:
                     wait_conn[rank] = s
         logging.info('@tracker All nodes finishes job')
         self.end_time = time.time()
