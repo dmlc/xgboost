@@ -15,5 +15,3 @@ def test_rabit_tracker():
     ret = xgb.rabit.broadcast('test1234', 0)
     assert str(ret) == 'test1234'
     xgb.rabit.finalize()
-    time.sleep(1)
-    assert not tracker.alive()
