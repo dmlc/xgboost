@@ -202,7 +202,7 @@ class RabitTracker(object):
         """
         nset = set(tree_map[r])
         cset = nset - set([parent_map[r]])
-        if cset:
+        if not cset:
             return [r]
         rlst = [r]
         cnt = 0
@@ -311,7 +311,7 @@ class RabitTracker(object):
                             wait_conn[rank] = s
                         logging.debug('Recieve %s signal from %s; assign rank %d',
                                       s.cmd, s.host, s.rank)
-                if todo_nodes:
+                if not todo_nodes:
                     logging.info('@tracker All of %d nodes getting started', nslave)
                     self.start_time = time.time()
             else:
