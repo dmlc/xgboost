@@ -12,6 +12,7 @@
 #include <bitset>
 #include <string>
 #include <sstream>
+#include <set>
 
 #include "constraints.cuh"
 #include "param.h"
