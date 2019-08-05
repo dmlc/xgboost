@@ -1329,7 +1329,7 @@ class GPUHistMakerSpecialised {
 
     monitor_.StartCuda("Quantiles");
     // Create the quantile sketches for the dmatrix and initialize HistogramCuts
-    size_t row_stride = common::DeviceSketch(param_, *generic_param_,
+    size_t row_stride = common::DeviceSketch(generic_param_->gpu_id, param_.max_bin,
                                              hist_maker_param_.gpu_batch_nrows,
                                              dmat, &hmat_);
     monitor_.StopCuda("Quantiles");
@@ -1359,7 +1359,7 @@ class GPUHistMakerSpecialised {
     initialised_ = true;
   }
 
-  void InitData(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat) {
+  void InitData(DMatrix* dmat) {
     if (!initialised_) {
       monitor_.StartCuda("InitDataOnce");
       this->InitDataOnce(dmat);
@@ -1387,7 +1387,7 @@ class GPUHistMakerSpecialised {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     monitor_.StartCuda("InitData");
-    this->InitData(gpair, p_fmat);
+    this->InitData(p_fmat);
     monitor_.StopCuda("InitData");
 
     gpair->SetDevice(device_);

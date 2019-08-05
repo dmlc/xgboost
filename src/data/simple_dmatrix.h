@@ -38,12 +38,14 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
+  BatchSet<EllpackPage> GetEllpackBatches() override;
 
   // source data pointer.
   std::unique_ptr<DataSource<SparsePage>> source_;
 
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;
+  std::unique_ptr<EllpackPage> ellpack_page_;
 };
 }  // namespace data
 }  // namespace xgboost
