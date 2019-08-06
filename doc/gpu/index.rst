@@ -26,8 +26,6 @@ Algorithms
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | tree_method           | Description                                                                                                                                                           |
 +=======================+=======================================================================================================================================================================+
-| gpu_exact (deprecated)| The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than ``gpu_hist``.                       |
-+-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture. |
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
@@ -37,31 +35,31 @@ Supported parameters
 .. |tick| unicode:: U+2714
 .. |cross| unicode:: U+2718
 
-+--------------------------------+----------------------------+--------------+
-| parameter                      | ``gpu_exact`` (deprecated) | ``gpu_hist`` |
-+================================+============================+==============+
-| ``subsample``                  | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``colsample_bytree``           | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``colsample_bylevel``          | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``max_bin``                    | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``gpu_id``                     | |tick|                     | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``n_gpus`` (deprecated)        | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``predictor``                  | |tick|                     | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``grow_policy``                | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``monotone_constraints``       | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``interaction_constraints``    | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
-| ``single_precision_histogram`` | |cross|                    | |tick|       |
-+--------------------------------+----------------------------+--------------+
++--------------------------------+--------------+
+| parameter                      | ``gpu_hist`` |
++================================+==============+
+| ``subsample``                  | |tick|       |
++--------------------------------+--------------+
+| ``colsample_bytree``           | |tick|       |
++--------------------------------+--------------+
+| ``colsample_bylevel``          | |tick|       |
++--------------------------------+--------------+
+| ``max_bin``                    | |tick|       |
++--------------------------------+--------------+
+| ``gpu_id``                     | |tick|       |
++--------------------------------+--------------+
+| ``n_gpus`` (deprecated)        | |tick|       |
++--------------------------------+--------------+
+| ``predictor``                  | |tick|       |
++--------------------------------+--------------+
+| ``grow_policy``                | |tick|       |
++--------------------------------+--------------+
+| ``monotone_constraints``       | |tick|       |
++--------------------------------+--------------+
+| ``interaction_constraints``    | |tick|       |
++--------------------------------+--------------+
+| ``single_precision_histogram`` | |tick|       |
++--------------------------------+--------------+
 
 GPU accelerated prediction is enabled by default for the above mentioned ``tree_method`` parameters but can be switched to CPU prediction by setting ``predictor`` to ``cpu_predictor``. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting ``predictor`` to ``gpu_predictor``.
 
@@ -194,12 +192,10 @@ Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations a
 +--------------+----------+
 | hist         | 63.55    |
 +--------------+----------+
-| gpu_exact    | 161.08   |
-+--------------+----------+
 | exact        | 1082.20  |
 +--------------+----------+
 
-See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_exact`` and ``gpu_hist`` tree methods.
+See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_hist`` tree method.
 
 Developer notes
 ===============

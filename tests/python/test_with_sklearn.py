@@ -444,9 +444,9 @@ def test_sklearn_n_jobs():
 
 
 def test_kwargs():
-    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
+    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
-    assert clf.get_params()['updater'] == 'grow_gpu'
+    assert clf.get_params()['updater'] == 'grow_gpu_hist'
     assert clf.get_params()['subsample'] == .5
     assert clf.get_params()['n_estimators'] == 1000
 
@@ -472,7 +472,7 @@ def test_kwargs_grid_search():
 
 
 def test_kwargs_error():
-    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
+    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     with pytest.raises(TypeError):
         clf = xgb.XGBClassifier(n_jobs=1000, **params)
         assert isinstance(clf, xgb.XGBClassifier)

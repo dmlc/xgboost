@@ -146,13 +146,6 @@ void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
           "single updater grow_quantile_histmaker.";
       tparam_.updater_seq = "grow_quantile_histmaker";
       break;
-    case TreeMethod::kGPUExact:
-      this->AssertGPUSupport();
-      tparam_.updater_seq = "grow_gpu,prune";
-      if (cfg.find("predictor") == cfg.cend()) {
-        tparam_.predictor = "gpu_predictor";
-      }
-      break;
     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";

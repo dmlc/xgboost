@@ -15,7 +15,7 @@ path to a cache file that XGBoost will use for external memory cache.
 
 .. note:: External memory is not available with GPU algorithms
 
-  External memory is not available when ``tree_method`` is set to ``gpu_exact`` or ``gpu_hist``.
+  External memory is not available when ``tree_method`` is set to ``gpu_hist``.
 
 The following code was extracted from `demo/guide-python/external_memory.py <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/external_memory.py>`_:
 

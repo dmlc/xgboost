@@ -36,10 +36,6 @@ TEST(GBTree, SelectTreeMethod) {
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
 #ifdef XGBOOST_USE_CUDA
   generic_param.InitAllowUnknown(std::vector<Arg>{Arg{"n_gpus", "1"}});
-  gbtree.ConfigureWithKnownData({Arg("tree_method", "gpu_exact"),
-                                 Arg("num_feature", n_feat)}, p_dmat);
-  ASSERT_EQ(tparam.updater_seq, "grow_gpu,prune");
-  ASSERT_EQ(tparam.predictor, "gpu_predictor");
   gbtree.ConfigureWithKnownData({Arg("tree_method", "gpu_hist"), Arg("num_feature", n_feat)},
                                 p_dmat);
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
