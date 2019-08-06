@@ -97,7 +97,7 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    const double eps = 1e-16f;
+    const double eps = 1e-12f;
     grad  = (pdf_u-pdf_l)/(sigma*std::max(cdf_u-cdf_l,eps));
     return grad;
   }
@@ -149,7 +149,7 @@ class AFTObj : public ObjFunction {
      default:
       LOG(FATAL) << "Unrecognized AFT noise distribution type";
     }
-    const double eps = 1e-16f;
+    const double eps = 1e-12f;
     grad = -pdf/(sigma*std::max(1-cdf,eps));
     return grad;
   }
@@ -191,7 +191,7 @@ class AFTObj : public ObjFunction {
     double hess;
     z_u   = (std::log(y_higher) - y_pred)/sigma;
     z_l   = (std::log(y_lower) - y_pred)/sigma;
-    const double eps = 1e-16f;
+    const double eps = 1e-12f;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
       pdf_u   = common::aft::dnorm(z_u,0,1);
@@ -254,7 +254,7 @@ class AFTObj : public ObjFunction {
     double grad;
     double hess;
     z    = (std::log(y_lower)-y_pred)/sigma;
-    const double eps = 1e-16f;
+    const double eps = 1e-12f;
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
       pdf       = common::aft::dnorm(z,0,1);
