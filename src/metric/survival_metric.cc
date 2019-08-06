@@ -18,7 +18,7 @@
 
 using AFTNoiseDistribution = xgboost::common::AFTNoiseDistribution;
 using AFTParam = xgboost::common::AFTParam;
-using AFTEventType = xgboost::common::AFTEventType;
+using AFTLoss = xgboost::common::aft::AFTLoss;
 
 namespace xgboost {
 namespace metric {
@@ -41,6 +41,8 @@ struct EvalAFT : public Metric {
     std::vector<std::pair<std::string, std::string>> kwargs
       = { {"aft_noise_distribution", dist}, {"aft_sigma", sigma} };
     param_.Init(kwargs);
+
+    loss_ = new AFTLoss(param_.aft_noise_distribution);
   }
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
@@ -57,29 +59,9 @@ struct EvalAFT : public Metric {
     const auto& y_lower  = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
     const size_t nsize = yhat.size();
-    AFTEventType event;
 
     for (size_t i = 0; i < nsize; ++i) {
-      if (y_lower[i] == y_higher[i]) {
-        event = AFTEventType::kUncensored;
-        nloglik += loss_uncensored(y_lower[i], y_higher[i], yhat[i],
-                                   param_.aft_sigma, param_.aft_noise_distribution);
-      } else if (!std::isinf(y_lower[i]) && !std::isinf(y_higher[i])) {
-        event = AFTEventType::kIntervalCensored;
-        nloglik += loss_interval(y_lower[i], y_higher[i], yhat[i],
-                                 param_.aft_sigma, param_.aft_noise_distribution);
-      } else if (std::isinf(y_lower[i])){
-        event = AFTEventType::kLeftCensored;
-        nloglik += loss_left(y_lower[i], y_higher[i], yhat[i],
-                             param_.aft_sigma, param_.aft_noise_distribution);
-      } else if (std::isinf(y_higher[i])) {
-        event = AFTEventType::kRightCensored;
-        nloglik += loss_right(y_lower[i], y_higher[i], yhat[i],
-                              param_.aft_sigma, param_.aft_noise_distribution);
-      } else {
-        LOG(FATAL) << "AFTObj: Could not determine event type: y_lower = " << y_lower[i]
-                   << ", y_higher = " << y_higher[i];
-      }
+      nloglik += loss_->loss(y_lower[i], y_higher[i], yhat[i], param_.aft_sigma);
     }
 
 		if (distributed) {
@@ -103,103 +85,7 @@ struct EvalAFT : public Metric {
     "where [noise-distribution] is one of 'normal', 'logistic', or 'weibull'; "
     "and [sigma] is a positive number";
   AFTParam param_;
-
-  double loss_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z_u;
-    double z_l;
-    double cdf_u;
-    double cdf_l;
-    double cost;
-
-    z_u   = (std::log(y_higher) - y_pred)/sigma;
-    z_l   = (std::log(y_lower) - y_pred)/sigma;
-
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf_u = common::aft::pnorm(z_u,0,1);
-      cdf_l = common::aft::pnorm(z_l,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf_u = common::aft::plogis(z_u,0,1);
-      cdf_l = common::aft::plogis(z_l,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(cdf_u - cdf_l);
-    return cost;
-  }
-
-  double loss_left(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double cdf;
-    double cost;
-
-    z    = (std::log(y_higher)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf = common::aft::pnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf = common::aft::plogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(cdf);
-    return cost;
-  }
-
-  double loss_right(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double cdf;
-    double cost;
-    z    = (std::log(y_lower)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      cdf = common::aft::pnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      cdf = common::aft::plogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(1-cdf);
-    return cost;
-  }
-
-  double loss_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
-    double z;
-    double pdf;
-    double cost;
-    z       = (std::log(y_lower)-y_pred)/sigma;
-    switch (dist) {
-     case AFTNoiseDistribution::kNormal:
-      pdf = common::aft::dnorm(z,0,1);
-      break;
-     case AFTNoiseDistribution::kLogistic:
-      pdf = common::aft::dlogis(z,0,1);
-      break;
-     case AFTNoiseDistribution::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unrecognized AFT noise distribution type";
-    }
-    cost = -std::log(pdf/(sigma*y_lower));
-    return cost;
-  }
-
+  AFTLoss* loss_;
 };
 
 XGBOOST_REGISTER_METRIC(AFT, "aft-nloglik")
