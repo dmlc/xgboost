@@ -5,7 +5,7 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <vector>
-#include "../../../src/tree/constraints.cuh"
+#include "../../../src/common/bitfield.cuh"
 #include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
