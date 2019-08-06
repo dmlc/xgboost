@@ -75,9 +75,3 @@ CUB_PATH ?= cub
 # you can also add your own plugin like this
 #
 # XGB_PLUGINS += plugin/example/plugin.mk
-
-# plugin to build tree on GPUs using CUDA
-PLUGIN_UPDATER_GPU ?= OFF
-ifeq ($(PLUGIN_UPDATER_GPU),ON)
-  XGB_PLUGINS += plugin/updater_gpu/plugin.mk
-endif

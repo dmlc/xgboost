@@ -184,7 +184,7 @@ Parameters for Tree Booster
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
 
     - ``cpu_predictor``: Multicore CPU prediction algorithm.
-    - ``gpu_predictor``: Prediction using GPU. Default when ``tree_method`` is ``gpu_exact`` or ``gpu_hist``.
+    - ``gpu_predictor``: Prediction using GPU. Default when ``tree_method`` is ``gpu_hist``.
 
 * ``num_parallel_tree``, [default=1]
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.

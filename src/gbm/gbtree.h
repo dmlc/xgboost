@@ -30,7 +30,7 @@
 namespace xgboost {
 enum class TreeMethod : int {
   kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
-  kGPUExact = 4, kGPUHist = 5
+  kGPUHist = 5
 };
 
 // boosting process types
@@ -88,7 +88,6 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .add_enum("approx",    TreeMethod::kApprox)
         .add_enum("exact",     TreeMethod::kExact)
         .add_enum("hist",      TreeMethod::kHist)
-        .add_enum("gpu_exact", TreeMethod::kGPUExact)
         .add_enum("gpu_hist",  TreeMethod::kGPUHist)
         .describe("Choice of tree construction method.");
   }
@@ -171,8 +170,7 @@ class GBTree : public GradientBooster {
   bool UseGPU() const override {
     return
         tparam_.predictor == "gpu_predictor" ||
-        tparam_.tree_method == TreeMethod::kGPUHist ||
-        tparam_.tree_method == TreeMethod::kGPUExact;
+        tparam_.tree_method == TreeMethod::kGPUHist;
   }
 
   void Load(dmlc::Stream* fi) override {
