@@ -125,7 +125,7 @@ class AFTloss {
   }
 
 
-  double hessian_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double hessian_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTEventType event){
     
     double z_u;
     double z_l;
@@ -171,7 +171,7 @@ class AFTloss {
     return hess;
   }
 
-  double hessian_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double hessian_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTEventType event){
     double pdf;
     double z;
     double grad;
@@ -249,7 +249,7 @@ class AFTLogistic: public AFTloss{
   }
 
 
-  double hessian_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double hessian_interval(double y_lower,double y_higher,double y_pred,double sigma,AFTEventType event){
     
     double z_u;
     double z_l;
@@ -295,7 +295,7 @@ class AFTLogistic: public AFTloss{
     return hess;
   }
 
-  double hessian_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTNoiseDistribution dist){
+  double hessian_uncensored(double y_lower,double y_higher,double y_pred,double sigma,AFTEventType event){
     double pdf;
     double z;
     double grad;
