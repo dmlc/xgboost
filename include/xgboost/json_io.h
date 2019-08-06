@@ -22,50 +22,15 @@ class FixedPrecisionStreamContainer : public std::basic_stringstream<
  public:
   FixedPrecisionStreamContainer() {
     this->precision(std::numeric_limits<Number::Float>::max_digits10);
+    this->imbue(std::locale("C"));
+    this->setf(std::ios::scientific);
   }
 };
 
 using FixedPrecisionStream = FixedPrecisionStreamContainer<std::allocator<char>>;
 
 /*
- * \brief An reader that can be specialised.
- *
- * Why specialization?
- *
- *   First of all, we don't like specialization.  This is purely for performance concern.
- *   Distributed environment freqently serializes model so at some point this could be a
- *   bottle neck for training performance.  There are many other techniques for obtaining
- *   better performance, but all of them requires implementing thier own allocaltor(s),
- *   using simd instructions.  And few of them can provide a easy to modify structure
- *   since they assumes a fixed memory layout.
- *
- *   In XGBoost we provide specialized logic for parsing/writing tree models and linear
- *   models, where dense numeric values is presented, including weights, node ids etc.
- *
- * Plan for removing the specialization:
- *
- *   We plan to upstream this implementaion into DMLC as it matures.  For XGBoost, most of
- *   the time spent in load/dump is actually `sprintf`.
- *
- * To enable specialization, register a keyword that corresponds to
- * key in Json object.  For example in:
- *
- * \code
- * { "key": {...} }
- * \endcode
- *
- * To add special logic for parsing {...}, one can call:
- *
- * \code
- * JsonReader::registry("key", [](StringView str, size_t* pos){ ... return JsonRaw(...); });
- * \endcode
- *
- * Where str is a view of entire input string, while pos is a pointer to current position.
- * The function must return a raw object.  Later after obtaining a parsed object, say
- * `Json obj`, you can obtain * the raw object by calling `obj["key"]' then perform the
- * specialized parsing on it.
- *
- * See `LinearSelectRaw` and `LinearReader` in combination as an example.
+ * \brief A json reader, currently error checking and utf-8 is not fully supported.
  */
 class JsonReader {
  protected:
@@ -77,17 +42,19 @@ class JsonReader {
 
    public:
     SourceLocation() : pos_(0) {}
-    explicit SourceLocation(size_t pos) : pos_{pos} {}
     size_t  Pos()  const { return pos_; }
 
-    SourceLocation& Forward(char c = 0) {
+    SourceLocation& Forward() {
       pos_++;
+      return *this;
+    }
+    SourceLocation& Forward(uint32_t n) {
+      pos_ += n;
       return *this;
     }
   } cursor_;
 
   StringView raw_str_;
-  bool ignore_specialization_;
 
  protected:
   void SkipSpaces();
@@ -140,32 +107,13 @@ class JsonReader {
 
   Json Parse();
 
- private:
-  using Fn = std::function<Json (StringView, size_t*)>;
-
  public:
-  explicit JsonReader(StringView str, bool ignore = false) :
-      raw_str_{str},
-      ignore_specialization_{ignore} {}
-  explicit JsonReader(StringView str, size_t pos, bool ignore = false) :
-      cursor_{pos},
-      raw_str_{str},
-      ignore_specialization_{ignore} {}
+  explicit JsonReader(StringView str) :
+      raw_str_{str} {}
 
   virtual ~JsonReader() = default;
 
   Json Load();
-
-  static std::map<std::string, Fn>& getRegistry() {
-    static std::map<std::string, Fn> set;
-    return set;
-  }
-
-  static std::map<std::string, Fn> const& registry(
-      std::string const& key, Fn fn) {
-    getRegistry()[key] = fn;
-    return getRegistry();
-  }
 };
 
 class JsonWriter {
@@ -207,7 +155,7 @@ class JsonWriter {
   virtual void Visit(JsonArray  const* arr);
   virtual void Visit(JsonObject const* obj);
   virtual void Visit(JsonNumber const* num);
-  virtual void Visit(JsonRaw    const* raw);
+  virtual void Visit(JsonInteger const* num);
   virtual void Visit(JsonNull   const* null);
   virtual void Visit(JsonString const* str);
   virtual void Visit(JsonBoolean const* boolean);
