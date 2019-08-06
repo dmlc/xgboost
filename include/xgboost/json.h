@@ -4,8 +4,9 @@
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
 
-#include <xgboost/logging.h>
+#include <dmlc/io.h>
 
+#include <xgboost/logging.h>
 #include <string>
 
 #include <map>
@@ -29,7 +30,6 @@ class Value {
     Integer,
     Object,  // std::map
     Array,   // std::vector
-    Raw,
     Boolean,
     Null
   };
@@ -63,9 +63,9 @@ T* Cast(U* value) {
   if (IsA<T>(value)) {
     return dynamic_cast<T*>(value);
   } else {
-    throw std::runtime_error(
-        "Invalid cast, from " + value->TypeStr() + " to " + T().TypeStr());
+    LOG(FATAL) << "Invalid cast, from " + value->TypeStr() + " to " + T().TypeStr();
   }
+  return dynamic_cast<T*>(value);  // supress compiler warning.
 }
 
 class JsonString : public Value {
@@ -123,32 +123,6 @@ class JsonArray : public Value {
   }
 };
 
-class JsonRaw : public Value {
-  std::string str_;
-
- public:
-  explicit JsonRaw(std::string&& str) :
-      Value(ValueKind::Raw),
-      str_{std::move(str)}{}  // NOLINT
-  JsonRaw() : Value(ValueKind::Raw) {}
-
-  std::string const& getRaw() &&      { return str_; }
-  std::string const& getRaw() const & { return str_; }
-  std::string&       getRaw()       & { return str_; }
-
-  void Save(JsonWriter* writer) override;
-
-  Json& operator[](std::string const & key) override;
-  Json& operator[](int ind) override;
-
-  bool operator==(Value const& rhs) const override;
-  Value& operator=(Value const& rhs) override;
-
-  static bool isClassOf(Value const* value) {
-    return value->Type() == ValueKind::Raw;
-  }
-};
-
 class JsonObject : public Value {
   std::map<std::string, Json> object_;
 
@@ -185,7 +159,9 @@ class JsonNumber : public Value {
 
  public:
   JsonNumber() : Value(ValueKind::Number) {}
-  JsonNumber(double value) : Value(ValueKind::Number) {  // NOLINT
+  template <typename FloatT,
+            typename std::enable_if<std::is_same<FloatT, Float>::value>::type* = nullptr>
+  JsonNumber(FloatT value) : Value(ValueKind::Number) {  // NOLINT
     number_ = value;
   }
 
@@ -198,11 +174,41 @@ class JsonNumber : public Value {
   Float const& getNumber() const & { return number_; }
   Float&       getNumber()       & { return number_; }
 
+
   bool operator==(Value const& rhs) const override;
   Value& operator=(Value const& rhs) override;
 
   static bool isClassOf(Value const* value) {
     return value->Type() == ValueKind::Number;
+  }
+};
+
+class JsonInteger : public Value {
+ public:
+  using Int = int64_t;
+
+ private:
+  Int integer_;
+
+ public:
+  JsonInteger() : Value(ValueKind::Integer), integer_{0} {}  // NOLINT
+  template <typename IntT,
+            typename std::enable_if<std::is_same<IntT, Int>::value>::type* = nullptr>
+  JsonInteger(IntT value) : Value(ValueKind::Integer), integer_{value} {} // NOLINT
+
+  Json& operator[](std::string const & key) override;
+  Json& operator[](int ind) override;
+
+  bool operator==(Value const& rhs) const override;
+  Value& operator=(Value const& rhs) override;
+
+  Int const& getInteger() &&      { return integer_; }
+  Int const& getInteger() const & { return integer_; }
+  Int& getInteger() &             { return integer_; }
+  void Save(JsonWriter* writer) override;
+
+  static bool isClassOf(Value const* value) {
+    return value->Type() == ValueKind::Integer;
   }
 };
 
@@ -256,15 +262,16 @@ class JsonBoolean : public Value {
 };
 
 struct StringView {
-  char const* str_;
+  using CharT = char;  // unsigned char
+  CharT const* str_;
   size_t size_;
 
  public:
   StringView() = default;
-  StringView(char const* str, size_t size) : str_{str}, size_{size} {}
+  StringView(CharT const* str, size_t size) : str_{str}, size_{size} {}
 
-  char const& operator[](size_t p) const { return str_[p]; }
-  char const& at(size_t p) const {  // NOLINT
+  CharT const& operator[](size_t p) const { return str_[p]; }
+  CharT const& at(size_t p) const {  // NOLINT
     CHECK_LT(p, size_);
     return str_[p];
   }
@@ -302,7 +309,7 @@ class Json {
 
  public:
   /*! \brief Load a Json object from string. */
-  static Json Load(StringView str, bool ignore_specialization = false);
+  static Json Load(StringView str);
   /*! \brief Pass your own JsonReader. */
   static Json Load(JsonReader* reader);
   /*! \brief Dump json into stream. */
@@ -319,19 +326,18 @@ class Json {
     return *this;
   }
 
+  // integer
+  explicit Json(JsonInteger integer) : ptr_{new JsonInteger(integer)} {}
+  Json& operator=(JsonInteger integer) {
+    ptr_.reset(new JsonInteger(std::move(integer)));
+    return *this;
+  }
+
   // array
   explicit Json(JsonArray list) :
       ptr_ {new JsonArray(std::move(list))} {}
   Json& operator=(JsonArray array) {
     ptr_.reset(new JsonArray(std::move(array)));
-    return *this;
-  }
-
-  // raw
-  explicit Json(JsonRaw str) :
-      ptr_{new JsonRaw(std::move(str))} {}
-  Json& operator=(JsonRaw str) {
-    ptr_.reset(new JsonRaw(std::move(str)));
     return *this;
   }
 
@@ -410,8 +416,22 @@ JsonNumber::Float& GetImpl(T& val) {  // NOLINT
 template <typename T,
           typename std::enable_if<
             std::is_same<T, JsonNumber const>::value>::type* = nullptr>
-double const& GetImpl(T& val) {  // NOLINT
+JsonNumber::Float const& GetImpl(T& val) {  // NOLINT
   return val.getNumber();
+}
+
+// Integer
+template <typename T,
+          typename std::enable_if<
+            std::is_same<T, JsonInteger>::value>::type* = nullptr>
+JsonInteger::Int& GetImpl(T& val) {  // NOLINT
+  return val.getInteger();
+}
+template <typename T,
+          typename std::enable_if<
+            std::is_same<T, JsonInteger const>::value>::type* = nullptr>
+JsonInteger::Int const& GetImpl(T& val) {  // NOLINT
+  return val.getInteger();
 }
 
 // String
@@ -440,19 +460,6 @@ template <typename T,
             std::is_same<T, JsonBoolean const>::value>::type* = nullptr>
 bool const& GetImpl(T& val) {  // NOLINT
   return val.getBoolean();
-}
-
-template <typename T,
-          typename std::enable_if<
-            std::is_same<T, JsonRaw>::value>::type* = nullptr>
-std::string& GetImpl(T& val) {  // NOLINT
-  return val.getRaw();
-}
-template <typename T,
-          typename std::enable_if<
-            std::is_same<T, JsonRaw const>::value>::type* = nullptr>
-std::string const& GetImpl(T& val) {  // NOLINT
-  return val.getRaw();
 }
 
 // Array
@@ -502,10 +509,10 @@ auto get(U& json) -> decltype(detail::GetImpl(*Cast<T>(&json.GetValue())))& { //
 using Object  = JsonObject;
 using Array   = JsonArray;
 using Number  = JsonNumber;
+using Integer = JsonInteger;
 using Boolean = JsonBoolean;
 using String  = JsonString;
 using Null    = JsonNull;
-using Raw     = JsonRaw;
 
 // Utils tailored for XGBoost.
 
@@ -518,13 +525,14 @@ Object toJson(dmlc::Parameter<Type> const& param) {
   return obj;
 }
 
-inline std::map<std::string, std::string> fromJson(std::map<std::string, Json> const& param) {
-  std::map<std::string, std::string> res;
-  for (auto const& kv : param) {
-    res[kv.first] = get<String const>(kv.second);
+template <typename Type>
+void fromJson(Json const& obj, dmlc::Parameter<Type>* param) {
+  auto const& j_param = get<Object const>(obj);
+  std::map<std::string, std::string> m;
+  for (auto const& kv : j_param) {
+    m[kv.first] = get<String const>(kv.second);
   }
-  return res;
+  param->InitAllowUnknown(m);
 }
-
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_
