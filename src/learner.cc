@@ -289,6 +289,7 @@ class LearnerImpl : public Learner {
     }
     cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+    cfg_["objective"] = common::ToString(tparam_.objective);
 
     gbm_->Configure({cfg_.cbegin(), cfg_.cend()});
     obj_->Configure({cfg_.begin(), cfg_.end()});
