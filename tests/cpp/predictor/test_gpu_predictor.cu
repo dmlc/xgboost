@@ -12,7 +12,6 @@
 #include "gtest/gtest.h"
 #include "../helpers.h"
 
-#if defined(XGBOOST_USE_NCCL)
 namespace {
 
 inline void CheckCAPICall(int ret) {
@@ -20,7 +19,6 @@ inline void CheckCAPICall(int ret) {
 }
 
 }  // namespace anonymous
-#endif
 
 const std::map<std::string, std::string>&
 QueryBoosterConfigurationArguments(BoosterHandle handle) {
