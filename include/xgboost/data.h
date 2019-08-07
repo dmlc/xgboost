@@ -287,7 +287,6 @@ template<typename T>
 class BatchIteratorImpl {
  public:
   virtual ~BatchIteratorImpl() {}
-  virtual BatchIteratorImpl* Clone() = 0;
   virtual T& operator*() = 0;
   virtual const T& operator*() const = 0;
   virtual void operator++() = 0;
@@ -299,14 +298,6 @@ class BatchIterator {
  public:
   using iterator_category = std::forward_iterator_tag;
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
-
-  BatchIterator(const BatchIterator& other) {
-    if (other.impl_) {
-      impl_.reset(other.impl_->Clone());
-    } else {
-      impl_.reset();
-    }
-  }
 
   void operator++() {
     CHECK(impl_ != nullptr);
@@ -334,7 +325,7 @@ class BatchIterator {
   }
 
  private:
-  std::unique_ptr<BatchIteratorImpl<T>> impl_;
+  std::shared_ptr<BatchIteratorImpl<T>> impl_;
 };
 
 template<typename T>
