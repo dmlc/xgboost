@@ -146,6 +146,8 @@ TEST(Learner, ObjectiveParameter) {
   learner1->Load(fi.get());
   auto attr_names1 = learner1->GetConfigurationArguments();
   ASSERT_EQ(attr_names1.at("objective"), "multi:softprob");
+
+  delete pp_dmat;
 }
 
 #if defined(XGBOOST_USE_CUDA)
