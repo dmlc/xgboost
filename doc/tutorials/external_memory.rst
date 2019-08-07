@@ -13,9 +13,7 @@ The external memory version takes in the following filename format:
 The ``filename`` is the normal path to libsvm file you want to load in, and ``cacheprefix`` is a
 path to a cache file that XGBoost will use for external memory cache.
 
-.. note:: External memory is not available with GPU algorithms
-
-  External memory is not available when ``tree_method`` is set to ``gpu_hist``.
+.. note:: External memory is also available with GPU algorithms (i.e. when ``tree_method`` is set to ``gpu_hist``)
 
 The following code was extracted from `demo/guide-python/external_memory.py <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/external_memory.py>`_:
 
@@ -49,7 +47,6 @@ so that you can directly use ``dtrain.cache`` to cache to current folder.
 **********
 Usage Note
 **********
-* This is a experimental version
 * Currently only importing from libsvm format is supported
 
   - Contribution of ingestion from other common external memory data source is welcomed
