@@ -47,68 +47,18 @@ class AFTDistribution {
 
 class AFTNormal : public AFTDistribution {
  public:
-  virtual double pdf(double x, double mu, double sd) override {
-    double pdf;
-    pdf = (std::exp(-std::pow((x-mu)/(std::sqrt(2)*sd),2)))/std::sqrt(2*kPI*std::pow(sd,2));
-    return pdf;
-  }
-  virtual double cdf(double x, double mu, double sd) override {
-    double cdf;
-    cdf = 0.5*(1+std::erf((x-mu)/(sd*std::sqrt(2))));
-    return cdf;
-  }
-  virtual double grad_pdf(double x, double mu, double sd) override {
-    double pdf;
-    double z;
-    double grad;
-    pdf  = this->pdf(x,mu,sd);
-    z = (x-mu)/sd;
-    grad = -1*z*pdf;
-    return grad;
-  }
-  virtual double hess_pdf(double x, double mu, double sd) override {
-		double pdf;
-		double z;
-		double hess;
-		pdf     = this->pdf(x,mu,sd);
-		z       = (x-mu)/sd;
-		hess = (std::pow(z,2)-1)*pdf;
-		return hess;
-  }
+  double pdf(double x, double mu, double sd) override;
+  double cdf(double x, double mu, double sd) override;
+  double grad_pdf(double x, double mu, double sd) override;
+  double hess_pdf(double x, double mu, double sd) override;
 };
 
 class AFTLogistic : public AFTDistribution {
  public:
-  virtual double pdf(double x, double mu, double sd) override {
-    double pdf;
-    pdf = std::exp((x-mu)/sd)/(sd*std::pow((1+std::exp((x-mu)/sd)),2));
-    return pdf;
-  }
-  virtual double cdf(double x, double mu, double sd) override {
-    double cdf;
-    cdf = std::exp((x-mu)/sd)/(1+std::exp((x-mu)/sd));
-    return cdf;
-  }
-  virtual double grad_pdf(double x, double mu, double sd) override {
-    double pdf;
-    double z;
-    double grad;
-    pdf  = this->pdf(x, mu, sd);
-    z    = (x-mu)/sd;
-    grad = pdf*(1-std::pow(std::exp(1),z))/(1+std::pow(std::exp(1),z));
-    return grad;
-  }
-  virtual double hess_pdf(double x, double mu, double sd) override {
-    double pdf;
-    double z;
-    double hess;
-    double w;
-    pdf     = this->pdf(x,mu,sd);
-    z       = (x-mu)/sd;
-    w       = std::pow(std::exp(1),z);
-    hess    = pdf*(std::pow(w,2)-4*w+1)/std::pow((1+w),2);
-    return hess;
-  }
+  double pdf(double x, double mu, double sd) override;
+  double cdf(double x, double mu, double sd) override;
+  double grad_pdf(double x, double mu, double sd) override;
+  double hess_pdf(double x, double mu, double sd) override;
 };
 
 class AFTLoss {
