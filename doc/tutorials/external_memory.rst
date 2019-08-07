@@ -47,6 +47,7 @@ so that you can directly use ``dtrain.cache`` to cache to current folder.
 **********
 Usage Note
 **********
+* This is a experimental version
 * Currently only importing from libsvm format is supported
 
   - Contribution of ingestion from other common external memory data source is welcomed
