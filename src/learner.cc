@@ -288,8 +288,8 @@ class LearnerImpl : public Learner {
       }
     }
 
-    auto m = mparam_.__DICT__();
-    cfg_.insert(m.cbegin(), m.cend());
+    cfg_["num_class"] = common::ToString(mparam_.num_class);
+    cfg_["num_feature"] = common::ToString(mparam_.num_feature);
 
     auto n = tparam_.__DICT__();
     cfg_.insert(n.cbegin(), n.cend());
