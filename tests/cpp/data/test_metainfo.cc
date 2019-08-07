@@ -55,7 +55,7 @@ TEST(MetaInfo, SaveLoadBinary) {
   info.SaveBinary(fs);
   delete fs;
 
-  ASSERT_EQ(GetFileSize(tmp_file), 84)
+  ASSERT_EQ(GetFileSize(tmp_file), 76)
     << "Expected saved binary file size to be same as object size";
 
   fs = dmlc::Stream::Create(tmp_file.c_str(), "r");
@@ -92,11 +92,8 @@ TEST(MetaInfo, LoadQid) {
     xgboost::DMatrix::Load(tmp_file, true, false, "libsvm"));
 
   const xgboost::MetaInfo& info = dmat->Info();
-  const std::vector<uint64_t> expected_qids{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};
-  CHECK(info.qids_ == expected_qids);
   CHECK(info.group_ptr_ == expected_group_ptr);
-  CHECK_GE(info.kVersion, info.kVersionQidAdded);
 
   const std::vector<size_t> expected_offset{
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60
