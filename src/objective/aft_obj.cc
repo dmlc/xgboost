@@ -9,13 +9,13 @@
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
+#include <memory>
 #include <utility>
 #include <math.h>
 #include "../common/math.h"
 #include "../common/random.h"
 #include "../common/survival_util.h"
 
-using AFTNoiseDistribution = xgboost::common::AFTNoiseDistribution;
 using AFTParam = xgboost::common::AFTParam;
 using AFTLoss = xgboost::common::AFTLoss;
 
@@ -30,7 +30,7 @@ class AFTObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
-    loss_ = new AFTLoss(param_.aft_noise_distribution);
+    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -81,7 +81,7 @@ class AFTObj : public ObjFunction {
 
  private:
   AFTParam param_;
-  AFTLoss* loss_;
+  std::unique_ptr<AFTLoss> loss_;
 };
 
 // register the objective functions

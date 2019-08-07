@@ -5,14 +5,14 @@ namespace xgboost {
 namespace common {
 
 // Choice of distribution for the noise term in AFT
-enum class AFTNoiseDistribution : int {
+enum class AFTDistributionType : int {
   kNormal = 0, kLogistic = 1, kWeibull = 2
 };
 
 }  // namespace common
 }  // namespace xgboost
 
-DECLARE_FIELD_ENUM_CLASS(xgboost::common::AFTNoiseDistribution);
+DECLARE_FIELD_ENUM_CLASS(xgboost::common::AFTDistributionType);
 
 namespace xgboost {
 namespace common {
@@ -21,14 +21,14 @@ namespace common {
 const double kPI = 3.14159265358979323846;
 
 struct AFTParam : public dmlc::Parameter<AFTParam> {
-  AFTNoiseDistribution aft_noise_distribution;
+  AFTDistributionType aft_noise_distribution;
   float aft_sigma;
   DMLC_DECLARE_PARAMETER(AFTParam) {
     DMLC_DECLARE_FIELD(aft_noise_distribution)
-        .set_default(AFTNoiseDistribution::kNormal)
-        .add_enum("normal", AFTNoiseDistribution::kNormal)
-        .add_enum("logistic", AFTNoiseDistribution::kLogistic)
-        .add_enum("weibull", AFTNoiseDistribution::kWeibull)
+        .set_default(AFTDistributionType::kNormal)
+        .add_enum("normal", AFTDistributionType::kNormal)
+        .add_enum("logistic", AFTDistributionType::kLogistic)
+        .add_enum("weibull", AFTDistributionType::kWeibull)
         .describe("Choice of distribution for the noise term in "
                   "Accelerated Failure Time model");
     DMLC_DECLARE_FIELD(aft_sigma)
@@ -67,15 +67,15 @@ class AFTLoss {
    std::unique_ptr<AFTDistribution> dist_;
 
  public:
-  AFTLoss(AFTNoiseDistribution dist) {
+  AFTLoss(AFTDistributionType dist) {
     switch (dist) {
-     case AFTNoiseDistribution::kNormal:
+     case AFTDistributionType::kNormal:
       dist_.reset(new AFTNormal);
       break;
-     case AFTNoiseDistribution::kLogistic:
+     case AFTDistributionType::kLogistic:
       dist_.reset(new AFTLogistic);
       break;
-     case AFTNoiseDistribution::kWeibull:
+     case AFTDistributionType::kWeibull:
       LOG(FATAL) << "Not implemented";
       break;
      default:

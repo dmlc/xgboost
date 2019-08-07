@@ -9,14 +9,13 @@
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
-
+#include <memory>
 #include <vector>
 
 #include "../common/host_device_vector.h"
 #include "../common/math.h"
 #include "../common/survival_util.h"
 
-using AFTNoiseDistribution = xgboost::common::AFTNoiseDistribution;
 using AFTParam = xgboost::common::AFTParam;
 using AFTLoss = xgboost::common::AFTLoss;
 
@@ -42,7 +41,7 @@ struct EvalAFT : public Metric {
       = { {"aft_noise_distribution", dist}, {"aft_sigma", sigma} };
     param_.Init(kwargs);
 
-    loss_ = new AFTLoss(param_.aft_noise_distribution);
+    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
   }
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
@@ -85,7 +84,7 @@ struct EvalAFT : public Metric {
     "where [noise-distribution] is one of 'normal', 'logistic', or 'weibull'; "
     "and [sigma] is a positive number";
   AFTParam param_;
-  AFTLoss* loss_;
+  std::unique_ptr<AFTLoss> loss_;
 };
 
 XGBOOST_REGISTER_METRIC(AFT, "aft-nloglik")
