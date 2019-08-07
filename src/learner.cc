@@ -287,8 +287,12 @@ class LearnerImpl : public Learner {
         metrics_.emplace_back(Metric::Create(name, &generic_param_));
       }
     }
+
     cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+
+    auto n = tparam_.__DICT__();
+    cfg_.insert(n.cbegin(), n.cend());
 
     gbm_->Configure({cfg_.cbegin(), cfg_.cend()});
     obj_->Configure({cfg_.begin(), cfg_.end()});
