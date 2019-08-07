@@ -817,9 +817,6 @@ class DistColMaker : public ColMaker {
         this->position_[ridx] = nid;
       }
     }
-    inline const int* GetLeafPosition() const {
-      return dmlc::BeginPtr(this->position_);
-    }
 
    protected:
     void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,

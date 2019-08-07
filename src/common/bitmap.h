@@ -47,7 +47,7 @@ struct BitMap {
     for (bst_omp_uint i = 0; i < nsize; ++i) {
       uint32_t res = 0;
       for (int k = 0; k < 32; ++k) {
-        int bit = vec[(i << 5) | k];
+        uint32_t bit = vec[(i << 5) | k];
         res |= (bit << k);
       }
       data[i] = res;

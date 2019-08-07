@@ -96,16 +96,6 @@ class HistMaker: public BaseMaker {
         hset[tid].data.resize(cut.size(), GradStats());
       }
     }
-    // aggregate all statistics to hset[0]
-    inline void Aggregate() {
-      bst_omp_uint nsize = static_cast<bst_omp_uint>(cut.size());
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        for (size_t tid = 1; tid < hset.size(); ++tid) {
-          hset[0].data[i].Add(hset[tid].data[i]);
-        }
-      }
-    }
     /*! \brief clear the workspace */
     inline void Clear() {
       cut.clear(); rptr.resize(1); rptr[0] = 0;

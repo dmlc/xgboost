@@ -146,10 +146,6 @@ class LambdaRankObj : public ObjFunction {
     inline static bool CmpPred(const ListEntry &a, const ListEntry &b) {
       return a.pred > b.pred;
     }
-    // comparator by label
-    inline static bool CmpLabel(const ListEntry &a, const ListEntry &b) {
-      return a.label > b.label;
-    }
   };
   /*! \brief a pair in the lambda rank */
   struct LambdaPair {

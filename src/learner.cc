@@ -31,13 +31,13 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 
 inline bool IsFloat(const std::string& str) {
   std::stringstream ss(str);
-  float f;
+  float f{};
   return !((ss >> std::noskipws >> f).rdstate() ^ std::ios_base::eofbit);
 }
 
 inline bool IsInt(const std::string& str) {
   std::stringstream ss(str);
-  int i;
+  int i{};
   return !((ss >> std::noskipws >> i).rdstate() ^ std::ios_base::eofbit);
 }
 
@@ -534,9 +534,6 @@ class LearnerImpl : public Learner {
     this->ValidateDMatrix(data);
     gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
-
-  // return whether model is already initialized.
-  bool ModelInitialized() const { return configured_; }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0") {
