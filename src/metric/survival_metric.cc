@@ -18,7 +18,7 @@
 
 using AFTNoiseDistribution = xgboost::common::AFTNoiseDistribution;
 using AFTParam = xgboost::common::AFTParam;
-using AFTLoss = xgboost::common::aft::AFTLoss;
+using AFTLoss = xgboost::common::AFTLoss;
 
 namespace xgboost {
 namespace metric {

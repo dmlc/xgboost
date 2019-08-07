@@ -37,8 +37,6 @@ struct AFTParam : public dmlc::Parameter<AFTParam> {
   }
 };
 
-namespace aft {
-
 class AFTDistribution {
  public:
   virtual double pdf(double x, double mu, double sd) = 0;
@@ -274,6 +272,5 @@ class AFTLoss {
   }
 };
 
-}  // namespace aft
 }  // namespace common
 }  // namespace xgboost
