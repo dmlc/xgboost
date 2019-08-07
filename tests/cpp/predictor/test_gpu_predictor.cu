@@ -68,6 +68,41 @@ TEST(gpu_predictor, Test) {
   delete dmat;
 }
 
+TEST(gpu_predictor, MoreTest) {
+  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
+  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
+
+  cpu_predictor->Configure({}, {});
+
+  for (size_t i = 1; i < 33; i *= 2) {
+    int n_row = i, n_col = i;
+    auto dmat = CreateDMatrix(n_row, n_col, 0);
+
+    gbm::GBTreeModel model = CreateTestModel();
+    model.param.num_feature = n_col;
+
+    // Test predict batch
+    HostDeviceVector<float> gpu_out_predictions;
+    HostDeviceVector<float> cpu_out_predictions;
+
+    gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
+    cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
+
+    std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
+    std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
+    float abs_tolerance = 0.001;
+    for (int j = 0; j < gpu_out_predictions.Size(); j++) {
+      ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
+    }
+    delete dmat;
+  }
+}
+
 TEST(gpu_predictor, ExternalMemoryTest) {
   auto lparam = CreateEmptyGenericParam(0, 1);
   std::unique_ptr<Predictor> gpu_predictor =
@@ -89,10 +124,43 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   }
 }
 
-#if defined(XGBOOST_USE_NCCL)
+TEST(gpu_predictor, MoreExternalMemoryTest) {
+  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+  gpu_predictor->Configure({}, {});
+
+  gbm::GBTreeModel model = CreateTestModel();
+  model.param.num_feature = 3;
+  const int n_classes = 3;
+  model.param.num_output_group = n_classes;
+  std::vector<std::unique_ptr<DMatrix>> dmats;
+  dmlc::TemporaryDirectory tmpdir;
+  std::string file0 = tmpdir.path + "/big_0.libsvm";
+  std::string file1 = tmpdir.path + "/big_1.libsvm";
+  std::string file2 = tmpdir.path + "/big_2.libsvm";
+  dmats.push_back(CreateSparsePageDMatrix(9, 64UL, file0));
+  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
+  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
+
+  for (const auto& dmat: dmats) {
+    // Test predict batch
+    HostDeviceVector<float> out_predictions;
+    gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
+    const std::vector<float> &host_vector = out_predictions.ConstHostVector();
+    for (int i = 0; i < host_vector.size() / n_classes; i++) {
+      ASSERT_EQ(host_vector[i * n_classes], 1.5);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
+    }
+  }
+}
+
 // Test whether pickling preserves predictor parameters
-TEST(gpu_predictor, MGPU_PicklingTest) {
-  int const ngpu = GPUSet::AllVisible().Size();
+TEST(gpu_predictor, PicklingTest) {
+  int const ngpu = 1;
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -153,12 +221,6 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
     ASSERT_EQ(kwargs.at("n_gpus"), std::to_string(ngpu).c_str());
   }
 
-  {  // Change n_gpus and query again
-    CheckCAPICall(XGBoosterSetParam(bst2, "n_gpus", "1"));
-    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
-    ASSERT_EQ(kwargs.at("n_gpus"), "1");
-  }
-
   {  // Change predictor and query again
     CheckCAPICall(XGBoosterSetParam(bst2, "predictor", "cpu_predictor"));
     const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
@@ -167,77 +229,5 @@ TEST(gpu_predictor, MGPU_PicklingTest) {
 
   CheckCAPICall(XGBoosterFree(bst2));
 }
-
-// multi-GPU predictor test
-TEST(gpu_predictor, MGPU_Test) {
-  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
-  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
-
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
-
-  cpu_predictor->Configure({}, {});
-
-  for (size_t i = 1; i < 33; i *= 2) {
-    int n_row = i, n_col = i;
-    auto dmat = CreateDMatrix(n_row, n_col, 0);
-
-    gbm::GBTreeModel model = CreateTestModel();
-    model.param.num_feature = n_col;
-
-    // Test predict batch
-    HostDeviceVector<float> gpu_out_predictions;
-    HostDeviceVector<float> cpu_out_predictions;
-
-    gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
-    cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
-
-    std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
-    std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
-    float abs_tolerance = 0.001;
-    for (int j = 0; j < gpu_out_predictions.Size(); j++) {
-      ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
-    }
-    delete dmat;
-  }
-}
-
-// multi-GPU predictor external memory test
-TEST(gpu_predictor, MGPU_ExternalMemoryTest) {
-  auto gpu_lparam = CreateEmptyGenericParam(0, -1);
-
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  gpu_predictor->Configure({}, {});
-
-  gbm::GBTreeModel model = CreateTestModel();
-  model.param.num_feature = 3;
-  const int n_classes = 3;
-  model.param.num_output_group = n_classes;
-  std::vector<std::unique_ptr<DMatrix>> dmats;
-  dmlc::TemporaryDirectory tmpdir;
-  std::string file0 = tmpdir.path + "/big_0.libsvm";
-  std::string file1 = tmpdir.path + "/big_1.libsvm";
-  std::string file2 = tmpdir.path + "/big_2.libsvm";
-  dmats.push_back(CreateSparsePageDMatrix(9, 64UL, file0));
-  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
-  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
-
-  for (const auto& dmat: dmats) {
-    // Test predict batch
-    HostDeviceVector<float> out_predictions;
-    gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-    EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
-    const std::vector<float> &host_vector = out_predictions.ConstHostVector();
-    for (int i = 0; i < host_vector.size() / n_classes; i++) {
-      ASSERT_EQ(host_vector[i * n_classes], 1.5);
-      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
-      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
-    }
-  }
-}
-#endif  // defined(XGBOOST_USE_NCCL)
 }  // namespace predictor
 }  // namespace xgboost

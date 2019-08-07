@@ -35,8 +35,6 @@ class TestPickling(unittest.TestCase):
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
         param = {'tree_method': 'gpu_hist',
-                 'gpu_id': 0,
-                 'n_gpus': -1,
                  'verbosity': 1}
         bst = xgb.train(param, train_x)
 
