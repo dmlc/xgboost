@@ -1,4 +1,5 @@
 #include <xgboost/enum_class_param.h>
+#include <memory>
 
 namespace xgboost {
 namespace common {
@@ -63,16 +64,16 @@ class AFTLogistic : public AFTDistribution {
 
 class AFTLoss {
  private:
-  AFTDistribution* dist_;
+   std::unique_ptr<AFTDistribution> dist_;
 
  public:
   AFTLoss(AFTNoiseDistribution dist) {
     switch (dist) {
      case AFTNoiseDistribution::kNormal:
-      dist_ = new AFTNormal;
+      dist_.reset(new AFTNormal);
       break;
      case AFTNoiseDistribution::kLogistic:
-      dist_ = new AFTLogistic;
+      dist_.reset(new AFTLogistic);
       break;
      case AFTNoiseDistribution::kWeibull:
       LOG(FATAL) << "Not implemented";
