@@ -44,6 +44,8 @@ class AFTDistribution {
   virtual double cdf(double x, double mu, double sd) = 0;
   virtual double grad_pdf(double x, double mu, double sd) = 0;
   virtual double hess_pdf(double x, double mu, double sd) = 0;
+
+  static AFTDistribution* Create(AFTDistributionType dist);
 };
 
 class AFTNormal : public AFTDistribution {
@@ -68,19 +70,7 @@ class AFTLoss {
 
  public:
   AFTLoss(AFTDistributionType dist) {
-    switch (dist) {
-     case AFTDistributionType::kNormal:
-      dist_.reset(new AFTNormal);
-      break;
-     case AFTDistributionType::kLogistic:
-      dist_.reset(new AFTLogistic);
-      break;
-     case AFTDistributionType::kWeibull:
-      LOG(FATAL) << "Not implemented";
-      break;
-     default:
-      LOG(FATAL) << "Unknown distribution";
-    }
+    dist_.reset(AFTDistribution::Create(dist));
   }
 
  public:

@@ -7,6 +7,20 @@ namespace common {
 
 DMLC_REGISTER_PARAMETER(AFTParam);
 
+AFTDistribution* AFTDistribution::Create(AFTDistributionType dist) {
+  switch (dist) {
+   case AFTDistributionType::kNormal:
+    return new AFTNormal;
+   case AFTDistributionType::kLogistic:
+    return new AFTLogistic;
+   case AFTDistributionType::kWeibull:
+    LOG(FATAL) << "Not implemented";
+   default:
+    LOG(FATAL) << "Unknown distribution";
+  }
+  return nullptr;
+}
+
 double AFTNormal::pdf(double x, double mu, double sd) {
   double pdf;
   pdf = (std::exp(-std::pow((x-mu)/(std::sqrt(2)*sd),2)))/std::sqrt(2*kPI*std::pow(sd,2));
