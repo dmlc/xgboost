@@ -87,7 +87,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
     def error(model: Booster): Float = eval.eval(
       model.predict(testDM, outPutMargin = true), testDM)
 
-    if(skipCleanCheckpoint) {
+    if (skipCleanCheckpoint) {
       // Check only one model is kept after training
       val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
       assert(files.length == 1)
