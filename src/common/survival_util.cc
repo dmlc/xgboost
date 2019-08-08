@@ -114,7 +114,7 @@ double AFTExtreme::grad_pdf(double x, double mu, double sd) {
   double grad;
 
   pdf  = this->pdf(x,mu,sd);
-  w    = std::pow(std::exp(1),z);
+  w    = std::exp(z);
   z    = (x-mu)/sd;
   grad = (1-w)*pdf;
   return grad;
