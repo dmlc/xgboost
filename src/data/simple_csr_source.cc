@@ -28,6 +28,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   const uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
   bst_uint group_size = 0;
+  std::vector<uint64_t> qids;
   this->Clear();
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
@@ -40,7 +41,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       weights.insert(weights.end(), batch.weight, batch.weight + batch.size);
     }
     if (batch.qid != nullptr) {
-      info.qids_.insert(info.qids_.end(), batch.qid, batch.qid + batch.size);
+      qids.insert(qids.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
         const uint64_t cur_group_id = batch.qid[i];
@@ -82,7 +83,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.Size());
   // Either every row has query ID or none at all
-  CHECK(info.qids_.empty() || info.qids_.size() == info.num_row_);
+  CHECK(qids.empty() || qids.size() == info.num_row_);
 }
 
 void SimpleCSRSource::LoadBinary(dmlc::Stream* fi) {

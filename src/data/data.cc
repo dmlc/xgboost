@@ -27,7 +27,6 @@ void MetaInfo::Clear() {
   labels_.HostVector().clear();
   root_index_.clear();
   group_ptr_.clear();
-  qids_.clear();
   weights_.HostVector().clear();
   base_margin_.HostVector().clear();
 }
@@ -40,7 +39,6 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(&num_nonzero_, sizeof(num_nonzero_));
   fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
-  fo->Write(qids_);
   fo->Write(weights_.HostVector());
   fo->Write(root_index_);
   fo->Write(base_margin_.HostVector());
@@ -56,10 +54,9 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << "MetaInfo: invalid format";
   CHECK(fi->Read(&labels_.HostVector())) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
-  if (version >= kVersionQidAdded) {
-    CHECK(fi->Read(&qids_)) << "MetaInfo: invalid format";
-  } else {  // old format doesn't contain qid field
-    qids_.clear();
+  if (version == kVersionWithQid) {
+    std::vector<uint64_t> qids;
+    CHECK(fi->Read(&qids)) << "MetaInfo: invalid format";
   }
   CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
   CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";

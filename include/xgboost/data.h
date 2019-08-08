@@ -60,8 +60,6 @@ class MetaInfo {
   std::vector<bst_uint> group_ptr_;
   /*! \brief weights of each instance, optional */
   HostDeviceVector<bst_float> weights_;
-  /*! \brief session-id of each instance, optional */
-  std::vector<uint64_t> qids_;
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
@@ -69,9 +67,9 @@ class MetaInfo {
    */
   HostDeviceVector<bst_float> base_margin_;
   /*! \brief version flag, used to check version of this info */
-  static const int kVersion = 2;
-  /*! \brief version that introduced qid field */
-  static const int kVersionQidAdded = 2;
+  static const int kVersion = 3;
+  /*! \brief version that contains qid field */
+  static const int kVersionWithQid = 2;
   /*! \brief default constructor */
   MetaInfo()  = default;
   /*!
