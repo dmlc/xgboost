@@ -133,7 +133,12 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
 
 object CheckpointManager {
 
-  private[spark] def extractParams(params: Map[String, Any]): (String, Int, Boolean) = {
+  case class CheckpointParam(
+      checkpointPath: String,
+      checkpointInterval: Int,
+      skipCleanCheckpoint: Boolean)
+
+  private[spark] def extractParams(params: Map[String, Any]): CheckpointParam = {
     val checkpointPath: String = params.get("checkpoint_path") match {
       case None => ""
       case Some(path: String) => path
@@ -154,6 +159,6 @@ object CheckpointManager {
       case _ => throw new IllegalArgumentException("parameter \"skip_clean_checkpoint\" must be" +
         " an instance of Boolean")
     }
-    (checkpointPath, checkpointInterval, skipCheckpointFile)
+    CheckpointParam(checkpointPath, checkpointInterval, skipCheckpointFile)
   }
 }

@@ -331,10 +331,11 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
     }
-    val (checkpointPath, checkpointInterval, skipCleanCheckpoint) =
+    val checkpointParam =
       CheckpointManager.extractParams(params)
     (nWorkers, round, useExternalMemory, obj, eval, missing, trackerConf, timeoutRequestWorkers,
-      checkpointPath, checkpointInterval, skipCleanCheckpoint)
+      checkpointParam.checkpointPath, checkpointParam.checkpointInterval,
+      checkpointParam.skipCleanCheckpoint)
   }
 
   private def trainForNonRanking(

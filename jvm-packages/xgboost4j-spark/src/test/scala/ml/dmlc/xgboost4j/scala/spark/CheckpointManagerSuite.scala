@@ -87,7 +87,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
     def error(model: Booster): Float = eval.eval(
       model.predict(testDM, outPutMargin = true), testDM)
 
-    if(skipCleanCheckpoint) {
+    if (skipCleanCheckpoint) {
       // Check only one model is kept after training
       val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
       assert(files.length == 1)
@@ -98,8 +98,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
       assert(error(tmpModel) > error(prevModel._booster))
       assert(error(prevModel._booster) > error(nextModel._booster))
       assert(error(nextModel._booster) < 0.1)
-    }
-    if (!skipCleanCheckpoint) {
+    } else {
       assert(!FileSystem.get(sc.hadoopConfiguration).exists(new Path(tmpPath)))
     }
   }
@@ -109,7 +108,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
   }
 
   test("training with checkpoint boosters with cached training dataset") {
-    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true)
+    trainingWithCheckpoint(cacheData = true, skipCleanCheckpoint = true)
   }
 
   test("the checkpoint file should be cleaned after a successful training") {
