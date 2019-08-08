@@ -13,7 +13,7 @@ AFTDistribution* AFTDistribution::Create(AFTDistributionType dist) {
     return new AFTNormal;
    case AFTDistributionType::kLogistic:
     return new AFTLogistic;
-   case AFTDistributionType::kWeibull:
+   case AFTDistributionType::kExtreme:
     return new AFTExtreme;
    default:
     LOG(FATAL) << "Unknown distribution";
@@ -71,7 +71,7 @@ double AFTLogistic::grad_pdf(double x, double mu, double sd) {
   double grad;
   pdf  = this->pdf(x, mu, sd);
   z    = (x-mu)/sd;
-  grad = pdf*(1-std::pow(std::exp(1),z))/(1+std::pow(std::exp(1),z));
+  grad = pdf*(1-std::exp(z))/(1+std::exp(z));
   return grad;
 }
 
@@ -93,7 +93,7 @@ double AFTExtreme::pdf(double x, double mu, double sd) {
   double z;
   z       = (x-mu)/sd;
   w       = std::pow(std::exp(1),z);
-  pdf = w*std::pow(std::exp(1),-w);
+  pdf     = w*std::exp(-w);
   return pdf;
 }
 
@@ -102,8 +102,8 @@ double AFTExtreme::cdf(double x, double mu, double sd) {
   double w;
   double z;
   z       = (x-mu)/sd;
-  w       = std::pow(std::exp(1),z);
-  cdf     = 1-std::pow(std::exp(1),-w);
+  w       = std::exp(z);
+  cdf     = 1-std::exp(-w);
   return cdf;
 }
 

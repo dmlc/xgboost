@@ -6,7 +6,7 @@ namespace common {
 
 // Choice of distribution for the noise term in AFT
 enum class AFTDistributionType : int {
-  kNormal = 0, kLogistic = 1, kWeibull = 2
+  kNormal = 0, kLogistic = 1, kExtreme = 2
 };
 
 }  // namespace common
@@ -28,7 +28,7 @@ struct AFTParam : public dmlc::Parameter<AFTParam> {
         .set_default(AFTDistributionType::kNormal)
         .add_enum("normal", AFTDistributionType::kNormal)
         .add_enum("logistic", AFTDistributionType::kLogistic)
-        .add_enum("weibull", AFTDistributionType::kWeibull)
+        .add_enum("extreme", AFTDistributionType::kExtreme)
         .describe("Choice of distribution for the noise term in "
                   "Accelerated Failure Time model");
     DMLC_DECLARE_FIELD(aft_sigma)
