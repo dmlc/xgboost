@@ -53,6 +53,12 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
     }
   }
 
+  def cleanPath(): Unit = {
+    if (checkpointPath != "") {
+      FileSystem.get(sc.hadoopConfiguration).delete(new Path(checkpointPath), true)
+    }
+  }
+
   /**
     * Load existing checkpoint with the highest version as a Booster object
     *
@@ -127,7 +133,7 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
 
 object CheckpointManager {
 
-  private[spark] def extractParams(params: Map[String, Any]): (String, Int) = {
+  private[spark] def extractParams(params: Map[String, Any]): (String, Int, Boolean) = {
     val checkpointPath: String = params.get("checkpoint_path") match {
       case None => ""
       case Some(path: String) => path
@@ -141,6 +147,13 @@ object CheckpointManager {
       case _ => throw new IllegalArgumentException("parameter \"checkpoint_interval\" must be" +
         " an instance of Int.")
     }
-    (checkpointPath, checkpointInterval)
+
+    val skipCheckpointFile: Boolean = params.get("skip_clean_checkpoint") match {
+      case None => false
+      case Some(skipCleanCheckpoint: Boolean) => skipCleanCheckpoint
+      case _ => throw new IllegalArgumentException("parameter \"skip_clean_checkpoint\" must be" +
+        " an instance of Boolean")
+    }
+    (checkpointPath, checkpointInterval, skipCheckpointFile)
   }
 }
