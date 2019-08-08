@@ -82,7 +82,7 @@ double AFTLogistic::hess_pdf(double x, double mu, double sd) {
   double w;
   pdf     = this->pdf(x,mu,sd);
   z       = (x-mu)/sd;
-  w       = std::pow(std::exp(1),z);
+  w       = std::exp(z);
   hess    = pdf*(std::pow(w,2)-4*w+1)/std::pow((1+w),2);
   return hess;
 }
@@ -92,7 +92,7 @@ double AFTExtreme::pdf(double x, double mu, double sd) {
   double w;
   double z;
   z       = (x-mu)/sd;
-  w       = std::pow(std::exp(1),z);
+  w       = std::exp(z);
   pdf     = w*std::exp(-w);
   return pdf;
 }
@@ -127,7 +127,7 @@ double AFTExtreme::hess_pdf(double x, double mu, double sd) {
   double hess;
   pdf     = this->pdf(x,mu,sd);
   z       = (x-mu)/sd;
-  w       = std::pow(std::exp(1),z);
+  w       = std::exp(z);
   hess    = (std::pow(w,2)-3*w+1)*pdf;
   return hess;
 }
