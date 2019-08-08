@@ -44,39 +44,6 @@ TEST(gpu_predictor, Test) {
   gpu_predictor->Configure({}, {});
   cpu_predictor->Configure({}, {});
 
-  int n_row = 5;
-  int n_col = 5;
-
-  gbm::GBTreeModel model = CreateTestModel();
-  model.param.num_feature = n_col;
-  auto dmat = CreateDMatrix(n_row, n_col, 0);
-
-  // Test predict batch
-  HostDeviceVector<float> gpu_out_predictions;
-  HostDeviceVector<float> cpu_out_predictions;
-  gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
-  cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
-  std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.HostVector();
-  std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.HostVector();
-  float abs_tolerance = 0.001;
-  for (int i = 0; i < gpu_out_predictions.Size(); i++) {
-    ASSERT_NEAR(gpu_out_predictions_h[i], cpu_out_predictions_h[i], abs_tolerance);
-  }
-
-  delete dmat;
-}
-
-TEST(gpu_predictor, MoreTest) {
-  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
-  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
-
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
-
-  cpu_predictor->Configure({}, {});
-
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
@@ -106,29 +73,6 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({}, {});
-  gbm::GBTreeModel model = CreateTestModel();
-  int n_col = 3;
-  model.param.num_feature = n_col;
-  dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(32, 64, filename);
-
-  // Test predict batch
-  HostDeviceVector<float> out_predictions;
-  gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_);
-  for (const auto& v : out_predictions.HostVector()) {
-    ASSERT_EQ(v, 1.5);
-  }
-}
-
-TEST(gpu_predictor, MoreExternalMemoryTest) {
-  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
-
-  std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
-  gpu_predictor->Configure({}, {});
-
   gbm::GBTreeModel model = CreateTestModel();
   model.param.num_feature = 3;
   const int n_classes = 3;
