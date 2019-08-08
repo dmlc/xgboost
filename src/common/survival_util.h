@@ -64,6 +64,14 @@ class AFTLogistic : public AFTDistribution {
   double hess_pdf(double x, double mu, double sd) override;
 };
 
+class AFTExtreme : public AFTDistribution {
+ public:
+  double pdf(double x, double mu, double sd) override;
+  double cdf(double x, double mu, double sd) override;
+  double grad_pdf(double x, double mu, double sd) override;
+  double hess_pdf(double x, double mu, double sd) override;
+};
+
 class AFTLoss {
  private:
    std::unique_ptr<AFTDistribution> dist_;

@@ -14,7 +14,7 @@ AFTDistribution* AFTDistribution::Create(AFTDistributionType dist) {
    case AFTDistributionType::kLogistic:
     return new AFTLogistic;
    case AFTDistributionType::kWeibull:
-    LOG(FATAL) << "Not implemented";
+    return new AFTExtreme;
    default:
     LOG(FATAL) << "Unknown distribution";
   }
@@ -86,6 +86,52 @@ double AFTLogistic::hess_pdf(double x, double mu, double sd) {
   hess    = pdf*(std::pow(w,2)-4*w+1)/std::pow((1+w),2);
   return hess;
 }
+
+double AFTExtreme::pdf(double x, double mu, double sd) {
+  double pdf;
+  double w;
+  double z;
+  z       = (x-mu)/sd;
+  w       = std::pow(std::exp(1),z);
+  pdf = w*std::pow(std::exp(1),-w);
+  return pdf;
+}
+
+double AFTExtreme::cdf(double x, double mu, double sd) {
+  double cdf;
+  double w;
+  double z;
+  z       = (x-mu)/sd;
+  w       = std::pow(std::exp(1),z);
+  cdf     = 1-std::pow(std::exp(1),-w);
+  return cdf;
+}
+
+double AFTExtreme::grad_pdf(double x, double mu, double sd) {
+  double pdf;
+  double z;
+  double w;
+  double grad;
+
+  pdf  = this->pdf(x,mu,sd);
+  w    = std::pow(std::exp(1),z);
+  z    = (x-mu)/sd;
+  grad = (1-w)*pdf;
+  return grad;
+}
+
+double AFTExtreme::hess_pdf(double x, double mu, double sd) {
+  double pdf;
+  double z;
+  double w;
+  double hess;
+  pdf     = this->pdf(x,mu,sd);
+  z       = (x-mu)/sd;
+  w       = std::pow(std::exp(1),z);
+  hess    = (std::pow(w,2)-3*w+1)*pdf;
+  return hess;
+}
+
 
 double AFTLoss::loss(double y_lower, double y_higher, double y_pred, double sigma) {
   double pdf;
@@ -185,7 +231,7 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
 
   const double eps = 1e-12f;
   if (y_lower == y_higher) {  // uncensored
-    z    = (std::log(y_lower)-y_pred)/sigma;
+    z           = (std::log(y_lower)-y_pred)/sigma;
     pdf       = dist_->pdf(z,0,1);
     gradVar   = dist_->cdf(z,0,1);
     hess_dist = dist_->hess_pdf(z,0,1);
