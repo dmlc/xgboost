@@ -88,19 +88,5 @@ TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
   TestDeviceSketch(GPUSet::Range(0, 1), true);
 }
 
-#if defined(XGBOOST_USE_NCCL)
-TEST(gpu_hist_util, MGPU_DeviceSketch) {
-  auto devices = GPUSet::AllVisible();
-  CHECK_GT(devices.Size(), 1);
-  TestDeviceSketch(devices, false);
-}
-
-TEST(gpu_hist_util, MGPU_DeviceSketch_ExternalMemory) {
-  auto devices = GPUSet::AllVisible();
-  CHECK_GT(devices.Size(), 1);
-  TestDeviceSketch(devices, true);
-}
-#endif
-
 }  // namespace common
 }  // namespace xgboost
