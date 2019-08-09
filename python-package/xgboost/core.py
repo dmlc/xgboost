@@ -127,16 +127,11 @@ def _load_lib():
         pathBackup = os.environ['PATH'].split(os.pathsep)
     except KeyError:
         pathBackup = []
-    try:
-        libraryPathBackup = os.environ['LD_LIBRARY_PATH'].split(os.pathsep)
-    except KeyError:
-        libraryPathBackup = []
     lib_success = False
     os_error_list = []
     for lib_path in lib_paths:
         try:
             # needed when the lib is linked with non-system-available dependencies
-            os.environ['LD_LIBRARY_PATH'] = os.pathsep.join([os.path.dirname(lib_path)] + libraryPathBackup)
             os.environ['PATH'] = os.pathsep.join(pathBackup + [os.path.dirname(lib_path)])
             lib = ctypes.cdll.LoadLibrary(lib_path)
             lib_success = True
