@@ -1,4 +1,5 @@
 #include <dmlc/registry.h>
+#include <cstdlib>
 #include <xgboost/enum_class_param.h>
 #include "survival_util.h"
 
@@ -83,7 +84,7 @@ double AFTLogistic::hess_pdf(double x, double mu, double sd) {
   pdf     = this->pdf(x,mu,sd);
   z       = (x-mu)/sd;
   w       = std::exp(z);
-  hess    = pdf*(std::pow(w,2)-4*w+1)/std::pow((1+w),2);
+  hess    = pdf*(w*w-4*w+1)/std::pow((1+w),2);
   return hess;
 }
 
@@ -128,29 +129,30 @@ double AFTExtreme::hess_pdf(double x, double mu, double sd) {
   pdf     = this->pdf(x,mu,sd);
   z       = (x-mu)/sd;
   w       = std::exp(z);
-  hess    = (std::pow(w,2)-3*w+1)*pdf;
+  hess    = (w*w-3*w+1)*pdf;
   return hess;
 }
 
 
 double AFTLoss::loss(double y_lower, double y_higher, double y_pred, double sigma) {
   double pdf;
-  double cdf_u, cdf_l, z, z_u, z_l;
+  double cdf_u, cdf_l, z_u, z_l;
   double cost;
+  const double eps = 1e-12f;
   if (y_lower == y_higher) {  // uncensored
-    z    = (std::log(y_lower)-y_pred)/sigma;
-    pdf  = dist_->pdf(z, 0, 1);
+    z_l    = (std::log(y_lower)-y_pred)/sigma;
+    pdf  = dist_->pdf(z_l, 0, 1);
     cost = -std::log(pdf/(sigma*y_lower));
   } else {  // censored; now check what type of censorship we have
     if (std::isinf(y_higher)) {  // right-censored
-      z    = (std::log(y_lower)-y_pred)/sigma;
-      cdf_u = 1;
-      cdf_l  = dist_->cdf(z, 0, 1);
-    } else if (std::isinf(y_lower)) {  // left-censored
-      z    = (std::log(y_higher)-y_pred)/sigma;
-      cdf_u  = dist_->cdf(z, 0, 1);
+      z_l    = (std::log(y_lower)-y_pred)/sigma;
+      cdf_u  = 1;
+      cdf_l  = dist_->cdf(z_l, 0, 1);
+    } else if (std::abs(y_lower)<=eps) {  // left-censored
+      z_u    = (std::log(y_higher)-y_pred)/sigma;
+      cdf_u  = dist_->cdf(z_u, 0, 1);
       cdf_l = 0;
-    } else if (!std::isinf(y_lower) && !std::isinf(y_higher)) {  // interval-censored
+    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
       z_u   = (std::log(y_higher) - y_pred)/sigma;
       z_l   = (std::log(y_lower) - y_pred)/sigma;
       cdf_u = dist_->cdf(z_u,0,1);
@@ -190,13 +192,13 @@ double AFTLoss::gradient(double y_lower, double y_higher, double y_pred, double 
       pdf_l  = dist_->pdf(z_l,0,1);
       cdf_u  = 1;
       cdf_l  = dist_->cdf(z_l,0,1);
-    } else if (std::isinf(y_lower)) {  // left-censored
+    } else if (std::abs(y_lower)<=eps) {  // left-censored
       z_u    = (std::log(y_higher)-y_pred)/sigma;
       pdf_u  = dist_->pdf(z_u,0,1);
       pdf_l  = 0;
       cdf_u  = dist_->cdf(z_u,0,1);
       cdf_l  = 0;
-    } else if (!std::isinf(y_lower) && !std::isinf(y_higher)) {  // interval-censored
+    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
       z_u    = (std::log(y_higher)-y_pred)/sigma;
       z_l    = (std::log(y_lower)-y_pred)/sigma;
       pdf_u  = dist_->pdf(z_u,0,1);
@@ -245,7 +247,7 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
       cdf_l   = dist_->cdf(z_l,0,1);
       grad_u  = 0;
       grad_l  = dist_->grad_pdf(z_l,0,1);
-    } else if (std::isinf(y_lower)) {  // left-censored
+    } else if (std::abs(y_lower)<=eps) {  // left-censored
       z_u    = (std::log(y_higher)-y_pred)/sigma;
       pdf_u  = dist_->pdf(z_u,0,1);
       pdf_l  = 0;
@@ -253,7 +255,7 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
       cdf_l  = 0;
       grad_u  = dist_->grad_pdf(z_u,0,1);
       grad_l  = 0;
-    } else if (!std::isinf(y_lower) && !std::isinf(y_higher)) {  // interval-censored
+    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
       z_u    = (std::log(y_higher)-y_pred)/sigma;
       z_l    = (std::log(y_lower)-y_pred)/sigma;
       pdf_u  = dist_->pdf(z_u,0,1);
