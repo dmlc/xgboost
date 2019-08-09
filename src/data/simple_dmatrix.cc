@@ -43,9 +43,6 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
   }
   void operator++() override { page_ = nullptr; }
   bool AtEnd() const override { return page_ == nullptr; }
-  SimpleBatchIteratorImpl* Clone() override {
-    return new SimpleBatchIteratorImpl(*this);
-  }
 
  private:
   T* page_{nullptr};

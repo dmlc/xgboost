@@ -31,9 +31,6 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
   const T& operator*() const override { return source_->Value(); }
   void operator++() override { at_end_ = !source_->Next(); }
   bool AtEnd() const override { return at_end_; }
-  SparseBatchIteratorImpl* Clone() override {
-    return new SparseBatchIteratorImpl(*this);
-  }
 
  private:
   SparsePageSource<T>* source_{nullptr};
