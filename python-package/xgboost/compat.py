@@ -4,6 +4,7 @@
 
 from __future__ import absolute_import
 
+import os
 import sys
 
 PY3 = (sys.version_info[0] == 3)
@@ -24,6 +25,85 @@ else:
         """convert c string back to python string"""
         return x
 
+########################################################################################
+# START NUMPY PATHLIB ATTRIBUTION
+########################################################################################
+# Pathlib compatability used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
+# Attribution:
+# https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L15
+# pathlib
+try:
+    from pathlib import Path, PurePath
+except ImportError:
+    Path = PurePath = None
+
+# Attribution:
+#https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
+# backport abc.ABC
+import abc
+if sys.version_info[:2] >= (3, 4):
+    abc_ABC = abc.ABC
+else:
+    abc_ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
+
+
+# Backport os.fs_path, os.PathLike, and PurePath.__fspath__
+if sys.version_info[:2] >= (3, 6):
+    os_fspath = os.fspath
+    os_PathLike = os.PathLike
+else:
+    def _PurePath__fspath__(self):
+        return str(self)
+
+    class os_PathLike(abc_ABC):
+        """Abstract base class for implementing the file system path protocol."""
+
+        @abc.abstractmethod
+        def __fspath__(self):
+            """Return the file system path representation of the object."""
+            raise NotImplementedError
+
+        @classmethod
+        def __subclasshook__(cls, subclass):
+            if PurePath is not None and issubclass(subclass, PurePath):
+                return True
+            return hasattr(subclass, '__fspath__')
+
+
+    def os_fspath(path):
+        """Return the path representation of a path-like object.
+        If str or bytes is passed in, it is returned unchanged. Otherwise the
+        os.PathLike interface is used to get the path representation. If the
+        path representation is not str or bytes, TypeError is raised. If the
+        provided path is not str, bytes, or os.PathLike, TypeError is raised.
+        """
+        if isinstance(path, (str, bytes)):
+            return path
+
+        # Work from the object's type to match method resolution of other magic
+        # methods.
+        path_type = type(path)
+        try:
+            path_repr = path_type.__fspath__(path)
+        except AttributeError:
+            if hasattr(path_type, '__fspath__'):
+                raise
+            elif PurePath is not None and issubclass(path_type, PurePath):
+                return _PurePath__fspath__(path)
+            else:
+                raise TypeError("expected str, bytes or os.PathLike object, "
+                                "not " + path_type.__name__)
+        if isinstance(path_repr, (str, bytes)):
+            return path_repr
+        else:
+            raise TypeError("expected {}.__fspath__() to return str or bytes, "
+                            "not {}".format(path_type.__name__,
+                                            type(path_repr).__name__))
+########################################################################################
+# END NUMPY PATHLIB ATTRIBUTION
+########################################################################################
+
+# pickle
 try:
     import cPickle as pickle  # noqa
 except ImportError:
