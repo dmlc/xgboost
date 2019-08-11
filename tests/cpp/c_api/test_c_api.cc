@@ -85,11 +85,9 @@ TEST(c_api, XGDMatrixCopyDataCSR) {
   XGDMatrixCopyDataCSR(handle, &row_ptr_, &indices_, &data_);
 
   for (int i = 0; i < row_ptr.size(); ++i) {
-    std::cout << i << std::endl;
     ASSERT_EQ(row_ptr[i], row_ptr_[i]);
   }
   for (size_t i = 0; i < row_ptr.back(); ++i) {
-    std::cout << i << std::endl;
     ASSERT_EQ(indices[i], indices_[i]);
     ASSERT_EQ(data[i], data_[i]);
   }
