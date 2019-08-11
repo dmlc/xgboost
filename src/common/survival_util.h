@@ -40,36 +40,36 @@ struct AFTParam : public dmlc::Parameter<AFTParam> {
 
 class AFTDistribution {
  public:
-  virtual double pdf(double x, double mu, double sd) = 0;
-  virtual double cdf(double x, double mu, double sd) = 0;
-  virtual double grad_pdf(double x, double mu, double sd) = 0;
-  virtual double hess_pdf(double x, double mu, double sd) = 0;
+  virtual double pdf(double z) = 0;
+  virtual double cdf(double z) = 0;
+  virtual double grad_pdf(double z) = 0;
+  virtual double hess_pdf(double z) = 0;
 
   static AFTDistribution* Create(AFTDistributionType dist);
 };
 
 class AFTNormal : public AFTDistribution {
  public:
-  double pdf(double x, double mu, double sd) override;
-  double cdf(double x, double mu, double sd) override;
-  double grad_pdf(double x, double mu, double sd) override;
-  double hess_pdf(double x, double mu, double sd) override;
+  double pdf(double z) override;
+  double cdf(double z) override;
+  double grad_pdf(double z) override;
+  double hess_pdf(double z) override;
 };
 
 class AFTLogistic : public AFTDistribution {
  public:
-  double pdf(double x, double mu, double sd) override;
-  double cdf(double x, double mu, double sd) override;
-  double grad_pdf(double x, double mu, double sd) override;
-  double hess_pdf(double x, double mu, double sd) override;
+  double pdf(double z) override;
+  double cdf(double z) override;
+  double grad_pdf(double z) override;
+  double hess_pdf(double z) override;
 };
 
 class AFTExtreme : public AFTDistribution {
  public:
-  double pdf(double x, double mu, double sd) override;
-  double cdf(double x, double mu, double sd) override;
-  double grad_pdf(double x, double mu, double sd) override;
-  double hess_pdf(double x, double mu, double sd) override;
+  double pdf(double z) override;
+  double cdf(double z) override;
+  double grad_pdf(double z) override;
+  double hess_pdf(double z) override;
 };
 
 class AFTLoss {

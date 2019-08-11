@@ -22,112 +22,96 @@ AFTDistribution* AFTDistribution::Create(AFTDistributionType dist) {
   return nullptr;
 }
 
-double AFTNormal::pdf(double x, double mu, double sd) {
+double AFTNormal::pdf(double z) {
   double pdf;
-  pdf = (std::exp(-std::pow((x-mu)/(std::sqrt(2)*sd),2)))/std::sqrt(2*kPI*std::pow(sd,2));
+  pdf = (std::exp(-std::pow(z/std::sqrt(2),2)))/std::sqrt(2*kPI);
   return pdf;
 }
 
-double AFTNormal::cdf(double x, double mu, double sd) {
+double AFTNormal::cdf(double z) {
   double cdf;
-  cdf = 0.5*(1+std::erf((x-mu)/(sd*std::sqrt(2))));
+  cdf = 0.5*(1+std::erf(z/std::sqrt(2)));
   return cdf;
 }
 
-double AFTNormal::grad_pdf(double x, double mu, double sd) {
+double AFTNormal::grad_pdf(double z) {
   double pdf;
-  double z;
   double grad;
-  pdf  = this->pdf(x,mu,sd);
-  z = (x-mu)/sd;
+  pdf  = this->pdf(z);
   grad = -1*z*pdf;
   return grad;
 }
 
-double AFTNormal::hess_pdf(double x, double mu, double sd) {
+double AFTNormal::hess_pdf(double z) {
   double pdf;
-  double z;
   double hess;
-  pdf     = this->pdf(x,mu,sd);
-  z       = (x-mu)/sd;
+  pdf     = this->pdf(z);
   hess = (std::pow(z,2)-1)*pdf;
   return hess;
 }
 
-double AFTLogistic::pdf(double x, double mu, double sd) {
+double AFTLogistic::pdf(double z) {
   double pdf;
-  pdf = std::exp((x-mu)/sd)/(sd*std::pow((1+std::exp((x-mu)/sd)),2));
+  pdf = std::exp(z)/(std::pow((1+std::exp(z)),2));
   return pdf;
 }
 
-double AFTLogistic::cdf(double x, double mu, double sd) {
+double AFTLogistic::cdf(double z) {
   double cdf;
-  cdf = std::exp((x-mu)/sd)/(1+std::exp((x-mu)/sd));
+  cdf = std::exp(z)/(1+std::exp(z));
   return cdf;
 }
 
-double AFTLogistic::grad_pdf(double x, double mu, double sd) {
+double AFTLogistic::grad_pdf(double z) {
   double pdf;
-  double z;
   double grad;
-  pdf  = this->pdf(x, mu, sd);
-  z    = (x-mu)/sd;
+  pdf  = this->pdf(z);
   grad = pdf*(1-std::exp(z))/(1+std::exp(z));
   return grad;
 }
 
-double AFTLogistic::hess_pdf(double x, double mu, double sd) {
+double AFTLogistic::hess_pdf(double z) {
   double pdf;
-  double z;
   double hess;
   double w;
-  pdf     = this->pdf(x,mu,sd);
-  z       = (x-mu)/sd;
+  pdf     = this->pdf(z);
   w       = std::exp(z);
   hess    = pdf*(w*w-4*w+1)/std::pow((1+w),2);
   return hess;
 }
 
-double AFTExtreme::pdf(double x, double mu, double sd) {
+double AFTExtreme::pdf(double z) {
   double pdf;
   double w;
-  double z;
-  z       = (x-mu)/sd;
   w       = std::exp(z);
   pdf     = w*std::exp(-w);
   return pdf;
 }
 
-double AFTExtreme::cdf(double x, double mu, double sd) {
+double AFTExtreme::cdf(double z) {
   double cdf;
   double w;
-  double z;
-  z       = (x-mu)/sd;
   w       = std::exp(z);
   cdf     = 1-std::exp(-w);
   return cdf;
 }
 
-double AFTExtreme::grad_pdf(double x, double mu, double sd) {
+double AFTExtreme::grad_pdf(double z) {
   double pdf;
-  double z;
   double w;
   double grad;
 
-  pdf  = this->pdf(x,mu,sd);
+  pdf  = this->pdf(z);
   w    = std::exp(z);
-  z    = (x-mu)/sd;
   grad = (1-w)*pdf;
   return grad;
 }
 
-double AFTExtreme::hess_pdf(double x, double mu, double sd) {
+double AFTExtreme::hess_pdf(double z) {
   double pdf;
-  double z;
   double w;
   double hess;
-  pdf     = this->pdf(x,mu,sd);
-  z       = (x-mu)/sd;
+  pdf     = this->pdf(z);
   w       = std::exp(z);
   hess    = (w*w-3*w+1)*pdf;
   return hess;
@@ -138,35 +122,35 @@ double AFTLoss::loss(double y_lower, double y_higher, double y_pred, double sigm
   double pdf;
   double cdf_u, cdf_l, z_u, z_l;
   double cost;
-  const double eps = 1e-12f;
   if (y_lower == y_higher) {  // uncensored
-    z_l    = (std::log(y_lower)-y_pred)/sigma;
-    pdf  = dist_->pdf(z_l, 0, 1);
+    z_l    = (y_lower-y_pred)/sigma;
+    pdf  = dist_->pdf(z_l);
     cost = -std::log(pdf/(sigma*y_lower));
   } else {  // censored; now check what type of censorship we have
     if (std::isinf(y_higher)) {  // right-censored
-      z_l    = (std::log(y_lower)-y_pred)/sigma;
       cdf_u  = 1;
-      cdf_l  = dist_->cdf(z_l, 0, 1);
-    } else if (std::abs(y_lower)<=eps) {  // left-censored
-      z_u    = (std::log(y_higher)-y_pred)/sigma;
-      cdf_u  = dist_->cdf(z_u, 0, 1);
-      cdf_l = 0;
-    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
-      z_u   = (std::log(y_higher) - y_pred)/sigma;
-      z_l   = (std::log(y_lower) - y_pred)/sigma;
-      cdf_u = dist_->cdf(z_u,0,1);
-      cdf_l = dist_->cdf(z_l,0,1);
-    } else {
-      LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
-                 << ", y_higher = " << y_higher;
+    } 
+    else{
+      z_u   = (y_higher-y_pred)/sigma;
+      cdf_u = dist_->cdf(z_u);
     }
+    if (std::isinf(y_lower)) {  // left-censored
+      cdf_l = 0;
+    } else {  // interval-censored
+      z_l   = (y_lower - y_pred)/sigma;
+      cdf_l = dist_->cdf(z_l);
+    } 
+    //else {
+    //  LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
+    //             << ", y_higher = " << y_higher;
+    //}
     cost = -std::log(cdf_u - cdf_l);
   }
   return cost;
 }
 
 double AFTLoss::gradient(double y_lower, double y_higher, double y_pred, double sigma) {
+  
   double pdf_l;
   double pdf_u;
   double pdf;
@@ -177,38 +161,35 @@ double AFTLoss::gradient(double y_lower, double y_higher, double y_pred, double 
   double cdf_u;
   double cdf_l;
   double gradVar;
-
   const double eps = 1e-12f;
 
   if (y_lower == y_higher) {  // uncensored
-    z    = (std::log(y_lower)-y_pred)/sigma;
-    pdf  = dist_->pdf(z,0,1);
-    _grad = dist_->grad_pdf(z,0,1);
+    z    = (y_lower-y_pred)/sigma;
+    pdf  = dist_->pdf(z);
+    _grad = dist_->grad_pdf(z);
     gradVar = _grad/(sigma*pdf);
   } else {  // censored; now check what type of censorship we have
     if (std::isinf(y_higher)) {  // right-censored
-      z_l    = (std::log(y_lower)-y_pred)/sigma;
       pdf_u  = 0;
-      pdf_l  = dist_->pdf(z_l,0,1);
       cdf_u  = 1;
-      cdf_l  = dist_->cdf(z_l,0,1);
-    } else if (std::abs(y_lower)<=eps) {  // left-censored
-      z_u    = (std::log(y_higher)-y_pred)/sigma;
-      pdf_u  = dist_->pdf(z_u,0,1);
-      pdf_l  = 0;
-      cdf_u  = dist_->cdf(z_u,0,1);
-      cdf_l  = 0;
-    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
-      z_u    = (std::log(y_higher)-y_pred)/sigma;
-      z_l    = (std::log(y_lower)-y_pred)/sigma;
-      pdf_u  = dist_->pdf(z_u,0,1);
-      pdf_l  = dist_->pdf(z_l,0,1);
-      cdf_u  = dist_->cdf(z_u,0,1);
-      cdf_l  = dist_->cdf(z_l,0,1);
-    } else {
-      LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
-                 << ", y_higher = " << y_higher;
+    } 
+    else{
+      z_l    = (y_lower-y_pred)/sigma;
+      pdf_l  = dist_->pdf(z_l);
+      cdf_l  = dist_->cdf(z_l);
     }
+    if (std::isinf(y_lower)) {  // left-censored
+      pdf_l  = 0;
+      cdf_l  = 0;
+    } else {  // interval-censored
+      z_u    = (y_higher-y_pred)/sigma;
+      pdf_u  = dist_->pdf(z_u);
+      cdf_u  = dist_->cdf(z_u);
+    } 
+    //else {
+    //  LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
+     //            << ", y_higher = " << y_higher;
+    //}
     gradVar  = (pdf_u-pdf_l)/(sigma*std::max(cdf_u-cdf_l,eps));
   }
   
@@ -230,44 +211,39 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
   double gradVar;
   double hessVar;
   double hess_dist;
-
   const double eps = 1e-12f;
+
   if (y_lower == y_higher) {  // uncensored
-    z           = (std::log(y_lower)-y_pred)/sigma;
-    pdf       = dist_->pdf(z,0,1);
-    gradVar   = dist_->cdf(z,0,1);
-    hess_dist = dist_->hess_pdf(z,0,1);
+    z           = (y_lower-y_pred)/sigma;
+    pdf       = dist_->pdf(z);
+    gradVar   = dist_->cdf(z);
+    hess_dist = dist_->hess_pdf(z);
     hessVar = -(pdf*hess_dist - std::pow(gradVar,2))/(std::pow(sigma,2)*std::pow(pdf,2));
   } else {  // censored; now check what type of censorship we have
     if (std::isinf(y_higher)) {  // right-censored
-      z_l     = (std::log(y_lower)-y_pred)/sigma;
       pdf_u   = 0;
-      pdf_l   = dist_->pdf(z_l,0,1);
       cdf_u   = 1;
-      cdf_l   = dist_->cdf(z_l,0,1);
       grad_u  = 0;
-      grad_l  = dist_->grad_pdf(z_l,0,1);
-    } else if (std::abs(y_lower)<=eps) {  // left-censored
-      z_u    = (std::log(y_higher)-y_pred)/sigma;
-      pdf_u  = dist_->pdf(z_u,0,1);
-      pdf_l  = 0;
-      cdf_u  = dist_->cdf(z_u,0,1);
-      cdf_l  = 0;
-      grad_u  = dist_->grad_pdf(z_u,0,1);
-      grad_l  = 0;
-    } else if ((std::abs(y_lower)>eps) && !std::isinf(y_higher)) {  // interval-censored
-      z_u    = (std::log(y_higher)-y_pred)/sigma;
-      z_l    = (std::log(y_lower)-y_pred)/sigma;
-      pdf_u  = dist_->pdf(z_u,0,1);
-      pdf_l  = dist_->pdf(z_l,0,1);
-      cdf_u  = dist_->cdf(z_u,0,1);
-      cdf_l  = dist_->cdf(z_l,0,1);
-      grad_u  = dist_->grad_pdf(z_u,0,1);
-      grad_l  = dist_->grad_pdf(z_l,0,1);
-    } else {
-      LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
-                 << ", y_higher = " << y_higher;
     }
+    else{
+      z_u    = (y_higher-y_pred)/sigma;
+      pdf_u  = dist_->pdf(z_u);
+      cdf_u  = dist_->cdf(z_u);
+      grad_u  = dist_->grad_pdf(z_u);
+    } if (std::isinf(y_lower)){  // left-censored
+      pdf_l  = 0;
+      cdf_l  = 0;
+      grad_l  = 0;
+    } else{  // interval-censored
+      z_l    = (y_lower-y_pred)/sigma;
+      pdf_l  = dist_->pdf(z_l);
+      cdf_l  = dist_->cdf(z_l);
+      grad_l  = dist_->grad_pdf(z_l);
+    } 
+    //else {
+    //  LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
+    //             << ", y_higher = " << y_higher;
+    //}
     hessVar = -((cdf_u-cdf_l)*(grad_u-grad_l)-std::pow((pdf_u-pdf_l),2))/(std::pow(sigma,2)*std::pow(std::max(cdf_u-cdf_l,eps),2));
   }
   return hessVar;

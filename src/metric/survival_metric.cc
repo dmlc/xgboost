@@ -60,7 +60,7 @@ struct EvalAFT : public Metric {
     const size_t nsize = yhat.size();
 
     for (size_t i = 0; i < nsize; ++i) {
-      nloglik += loss_->loss(y_lower[i], y_higher[i], yhat[i], param_.aft_sigma);
+      nloglik += loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
     }
 
 		if (distributed) {
