@@ -4,6 +4,7 @@
 
 from __future__ import absolute_import
 
+import abc
 import os
 import sys
 
@@ -33,14 +34,13 @@ else:
 # https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L15
 # pathlib
 try:
-    from pathlib import Path, PurePath
+    from pathlib import Path, PurePath  # noqa
 except ImportError:
     Path = PurePath = None
 
 # Attribution:
 #https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
 # backport abc.ABC
-import abc
 if sys.version_info[:2] >= (3, 4):
     abc_ABC = abc.ABC
 else:
@@ -86,14 +86,14 @@ else:
         try:
             path_repr = path_type.__fspath__(path)
         except AttributeError:
-            if hasattr(path_type, '__fspath__'):
+            if hasattr(path_type, '__fspath__'):  # pylint: disable=no-else-raise
                 raise
             elif PurePath is not None and issubclass(path_type, PurePath):
                 return _PurePath__fspath__(path)
             else:
                 raise TypeError("expected str, bytes or os.PathLike object, "
                                 "not " + path_type.__name__)
-        if isinstance(path_repr, (str, bytes)):
+        if isinstance(path_repr, (str, bytes)):  # pylint: disable=no-else-return
             return path_repr
         else:
             raise TypeError("expected {}.__fspath__() to return str or bytes, "

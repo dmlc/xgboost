@@ -75,7 +75,7 @@ class TestBasicPathLike(unittest.TestCase):
         assert result['train']['error'][0] < 0.1
         assert res2 == result
 
-    def test_multiclass(self):
+    def test_multiclass_PathLike(self):
         dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath / 'agaricus.txt.test')
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'num_class': 2}
