@@ -97,6 +97,7 @@ double AFTExtreme::cdf(double z) {
 }
 
 double AFTExtreme::grad_pdf(double z) {
+
   double pdf;
   double w;
   double grad;
@@ -108,6 +109,7 @@ double AFTExtreme::grad_pdf(double z) {
 }
 
 double AFTExtreme::hess_pdf(double z) {
+  
   double pdf;
   double w;
   double hess;
