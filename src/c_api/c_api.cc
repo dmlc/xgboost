@@ -782,9 +782,12 @@ XGB_DLL int XGDMatrixCopyDataCSR(const DMatrixHandle handle,
   CHECK_HANDLE();
   const auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
 
-  *out_row_ptr = reinterpret_cast<size_t *>(std::malloc(dmat->Info().num_row_ * sizeof(size_t)));
-  *out_indices = reinterpret_cast<unsigned *>(std::malloc(dmat->Info().num_nonzero_ * sizeof(unsigned)));
-  *out_data = reinterpret_cast<float *>(std::malloc(dmat->Info().num_nonzero_ * sizeof(float)));
+  *out_row_ptr = reinterpret_cast<size_t *>(
+      std::malloc(dmat->Info().num_row_ * sizeof(size_t)));
+  *out_indices = reinterpret_cast<unsigned *>(
+      std::malloc(dmat->Info().num_nonzero_ * sizeof(unsigned)));
+  *out_data = reinterpret_cast<float *>(
+      std::malloc(dmat->Info().num_nonzero_ * sizeof(float)));
 
   size_t row_offset = 0;
   for (const auto &batch : dmat->GetBatches<SparsePage>()) {
