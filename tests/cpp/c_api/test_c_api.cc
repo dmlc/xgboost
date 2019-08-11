@@ -71,7 +71,7 @@ TEST(c_api, XGDMatrixCopyDataCSR) {
   std::vector<unsigned> indices = {0, 2, 1, 3, 4, 0, 1, 2, 2, 4, 4, 1, 2, 3, 4};
   std::vector<float> data;
   for (int i = 0; i < row_ptr.back(); ++i) {
-    data.push_back((float) i);
+    data.push_back(static_cast<float>(i));
   }
   DMatrixHandle handle;
   XGDMatrixCreateFromCSREx(row_ptr.data(), indices.data(), data.data(),
