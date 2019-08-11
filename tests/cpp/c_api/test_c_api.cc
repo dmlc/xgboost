@@ -63,3 +63,41 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     delete dmat;
   }
 }
+
+TEST(c_api, XGDMatrixCopyDataCSR) {
+  omp_set_num_threads(2);
+
+  std::vector<size_t> row_ptr = {0, 2, 5, 8, 10, 11, 15};
+  std::vector<unsigned> indices = {0, 2, 1, 3, 4, 0, 1, 2, 2, 4, 4, 1, 2, 3, 4};
+  std::vector<float> data;
+  for (int i = 0; i < row_ptr.back(); ++i) {
+    data.push_back((float) i);
+  }
+  DMatrixHandle handle;
+  XGDMatrixCreateFromCSREx(row_ptr.data(), indices.data(), data.data(),
+                           7, 15, 5, &handle);
+  std::shared_ptr<xgboost::DMatrix> *dmat =
+      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+
+  size_t* row_ptr_;
+  unsigned* indices_;
+  float* data_;
+  XGDMatrixCopyDataCSR(handle, &row_ptr_, &indices_, &data_);
+
+  for (int i = 0; i < row_ptr.size(); ++i) {
+    std::cout << i << std::endl;
+    ASSERT_EQ(row_ptr[i], row_ptr_[i]);
+  }
+  for (size_t i = 0; i < row_ptr.back(); ++i) {
+    std::cout << i << std::endl;
+    ASSERT_EQ(indices[i], indices_[i]);
+    ASSERT_EQ(data[i], data_[i]);
+  }
+
+  delete dmat;
+  free(row_ptr_);
+  free(indices_);
+  free(data_);
+
+  omp_set_num_threads(1);
+}

@@ -309,6 +309,19 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
                                  const char *field,
                                  bst_ulong* out_len,
                                  const unsigned **out_dptr);
+
+/*!
+ * \brief copy data of matrix in CSR format
+ * \param handle a instance of data matrix
+ * \param out_row_ptr pointer to row offsets
+ * \param out_indices pointer to findex
+ * \param out_data pointer to fvalues
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCopyDataCSR(const DMatrixHandle handle,
+                                 size_t **out_row_ptr,
+                                 unsigned **out_indices,
+                                 float **out_data);
 /*!
  * \brief get number of rows.
  * \param handle the handle to the DMatrix

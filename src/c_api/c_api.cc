@@ -774,6 +774,36 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCopyDataCSR(const DMatrixHandle handle,
+                                 size_t **out_row_ptr,
+                                 unsigned **out_indices,
+                                 float **out_data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  const auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
+
+  *out_row_ptr = (size_t *) std::malloc(dmat->Info().num_row_ * sizeof(size_t));
+  *out_indices = (unsigned *) std::malloc(dmat->Info().num_nonzero_ * sizeof(unsigned));
+  *out_data = (float *) std::malloc(dmat->Info().num_nonzero_ * sizeof(float));
+
+  size_t row_offset = 0;
+  for (const SparsePage &batch: dmat->GetBatches<SparsePage>()) {
+    const auto &batch_offset = batch.offset.HostVector();
+    std::memcpy(*out_row_ptr + row_offset,
+                dmlc::BeginPtr(batch_offset),
+                batch_offset.size() * sizeof(size_t));
+    row_offset += batch_offset.size() * sizeof(size_t);
+
+    const auto &batch_data = batch.data.HostVector();
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i = batch_offset[0]; i < batch_offset.back(); ++i) {
+      (*out_indices)[i] = batch_data[i].index;
+      (*out_data)[i] = batch_data[i].fvalue;
+    }
+  }
+  API_END();
+}
+
 XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
