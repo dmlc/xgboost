@@ -31,14 +31,3 @@ def no_matplotlib():
     except ImportError:
         return {'condition': True,
                 'reason': reason}
-
-def no_pathlike():
-    reason = 'Pathlib is not in the standard library (Python 3.6).'
-    try:
-        from pathlib import Path
-        return {'condition': False,
-                'reason': reason}
-    except ImportError:
-        return {'condition': True,
-                'reason': reason}
-

@@ -8,6 +8,8 @@ import abc
 import os
 import sys
 
+from pathlib import PurePath
+
 PY3 = (sys.version_info[0] == 3)
 
 if PY3:
@@ -31,22 +33,7 @@ else:
 ########################################################################################
 # Pathlib compatability used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
 # Attribution:
-# https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L15
-# pathlib
-try:
-    from pathlib import Path, PurePath  # noqa
-except ImportError:
-    Path = PurePath = None
-
-# Attribution:
 #https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
-# backport abc.ABC
-if sys.version_info[:2] >= (3, 4):
-    abc_ABC = abc.ABC
-else:
-    abc_ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
-
-
 # Backport os.fs_path, os.PathLike, and PurePath.__fspath__
 if sys.version_info[:2] >= (3, 6):
     os_fspath = os.fspath
@@ -55,7 +42,7 @@ else:
     def _PurePath__fspath__(self):
         return str(self)
 
-    class os_PathLike(abc_ABC):
+    class os_PathLike(abc.ABC):
         """Abstract base class for implementing the file system path protocol."""
 
         @abc.abstractmethod
@@ -65,7 +52,7 @@ else:
 
         @classmethod
         def __subclasshook__(cls, subclass):
-            if PurePath is not None and issubclass(subclass, PurePath):
+            if issubclass(subclass, PurePath):
                 return True
             return hasattr(subclass, '__fspath__')
 
@@ -86,19 +73,17 @@ else:
         try:
             path_repr = path_type.__fspath__(path)
         except AttributeError:
-            if hasattr(path_type, '__fspath__'):  # pylint: disable=no-else-raise
+            if hasattr(path_type, '__fspath__'):
                 raise
-            elif PurePath is not None and issubclass(path_type, PurePath):
+            if issubclass(path_type, PurePath):
                 return _PurePath__fspath__(path)
-            else:
-                raise TypeError("expected str, bytes or os.PathLike object, "
-                                "not " + path_type.__name__)
-        if isinstance(path_repr, (str, bytes)):  # pylint: disable=no-else-return
+            raise TypeError("expected str, bytes or os.PathLike object, "
+                            "not " + path_type.__name__)
+        if isinstance(path_repr, (str, bytes)):
             return path_repr
-        else:
-            raise TypeError("expected {}.__fspath__() to return str or bytes, "
-                            "not {}".format(path_type.__name__,
-                                            type(path_repr).__name__))
+        raise TypeError("expected {}.__fspath__() to return str or bytes, "
+                        "not {}".format(path_type.__name__,
+                                        type(path_repr).__name__))
 ########################################################################################
 # END NUMPY PATHLIB ATTRIBUTION
 ########################################################################################
