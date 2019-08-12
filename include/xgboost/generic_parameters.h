@@ -41,9 +41,9 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)
-        .describe("Deprecated, please use distributed training with one "
-                  "process per GPU. "
-                  "Number of GPUs to use for multi-gpu algorithms.");
+        .describe("Deprecated. Single process multi-GPU training is no longer supported. "
+                  "Please switch to distributed training with one process per GPU. "
+                  "This can be done using Dask or Spark.");
   }
 };
 }  // namespace xgboost

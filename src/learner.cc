@@ -585,8 +585,9 @@ class LearnerImpl : public Learner {
         generic_param_.n_gpus = 1;
       }
       if (generic_param_.n_gpus != 1) {
-        LOG(FATAL) << "Multi-GPU training is no longer supported. "
-                      "Please use distributed GPU training with one process per GPU.";
+        LOG(FATAL) << "Single process multi-GPU training is no longer supported. "
+                      "Please switch to distributed GPU training with one process per GPU. "
+                      "This can be done using Dask or Spark.";
       }
     }
   }
