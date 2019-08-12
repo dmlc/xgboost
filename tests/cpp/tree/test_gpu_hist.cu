@@ -415,13 +415,5 @@ TEST(GpuHist, TestHistogramIndex) {
   TestHistogramIndexImpl(1);
 }
 
-#if defined(XGBOOST_USE_NCCL)
-TEST(GpuHist, MGPU_TestHistogramIndex) {
-  auto devices = GPUSet::AllVisible();
-  CHECK_GT(devices.Size(), 1);
-  TestHistogramIndexImpl(-1);
-}
-#endif
-
 }  // namespace tree
 }  // namespace xgboost

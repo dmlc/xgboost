@@ -101,32 +101,3 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
               1.1280f, 0.001f);
   delete metric;
 }
-
-#if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
-TEST(Metric, MGPU_RMSE) {
-  {
-    auto lparam = xgboost::CreateEmptyGenericParam(0, -1);
-    xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
-    metric->Configure({});
-    ASSERT_STREQ(metric->Name(), "rmse");
-    EXPECT_NEAR(GetMetricEval(metric, {0}, {0}), 0, 1e-10);
-    EXPECT_NEAR(GetMetricEval(metric,
-                              {0.1f, 0.9f, 0.1f, 0.9f},
-                              {  0,   0,   1,   1}),
-                0.6403f, 0.001f);
-    delete metric;
-  }
-
-  {
-    auto lparam = xgboost::CreateEmptyGenericParam(1, -1);
-    xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
-    ASSERT_STREQ(metric->Name(), "rmse");
-    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-    EXPECT_NEAR(GetMetricEval(metric,
-                              {0.1f, 0.9f, 0.1f, 0.9f},
-                              {  0,   0,   1,   1}),
-                0.6403f, 0.001f);
-    delete metric;
-  }
-}
-#endif

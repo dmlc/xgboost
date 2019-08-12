@@ -37,17 +37,6 @@ class TestGPU(unittest.TestCase):
             assert_gpu_results(cpu_results, gpu_results)
 
     @pytest.mark.mgpu
-    def test_gpu_hist_mgpu(self):
-        variable_param = {'n_gpus': [-1], 'max_depth': [2, 10],
-                          'max_leaves': [255, 4],
-                          'max_bin': [2, 256],
-                          'grow_policy': ['lossguide'], 'debug_synchronize': [True]}
-        for param in parameter_combinations(variable_param):
-            param['tree_method'] = 'gpu_hist'
-            gpu_results = run_suite(param, select_datasets=datasets)
-            assert_results_non_increasing(gpu_results, 1e-2)
-
-    @pytest.mark.mgpu
     def test_specified_gpu_id_gpu_update(self):
         variable_param = {'n_gpus': [1],
                           'gpu_id': [1],

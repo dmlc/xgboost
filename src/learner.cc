@@ -580,8 +580,15 @@ class LearnerImpl : public Learner {
     }
     gbm_->Configure(args);
 
-    if (this->gbm_->UseGPU() && cfg_.find("n_gpus") == cfg_.cend()) {
-      generic_param_.n_gpus = 1;
+    if (this->gbm_->UseGPU()) {
+      if (cfg_.find("n_gpus") == cfg_.cend()) {
+        generic_param_.n_gpus = 1;
+      }
+      if (generic_param_.n_gpus != 1) {
+        LOG(FATAL) << "Single process multi-GPU training is no longer supported. "
+                      "Please switch to distributed GPU training with one process per GPU. "
+                      "This can be done using Dask or Spark.";
+      }
     }
   }
 

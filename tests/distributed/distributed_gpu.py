@@ -66,27 +66,6 @@ def params_basic_1x4(rank):
     }), 20
 
 
-def params_basic_2x2(rank):
-    return dict(base_params, **{
-        'n_gpus': 2,
-        'gpu_id': 2*rank,
-    }), 20
-
-
-def params_basic_4x1(rank):
-    return dict(base_params, **{
-        'n_gpus': 4,
-        'gpu_id': rank,
-    }), 20
-
-
-def params_basic_asym(rank):
-    return dict(base_params, **{
-        'n_gpus': 1 if rank == 0 else 3,
-        'gpu_id': rank,
-    }), 20
-
-
 rf_update_params = {
     'subsample': 0.5,
     'colsample_bynode': 0.5
@@ -103,11 +82,6 @@ def wrap_rf(params_fun):
 
 params_rf_1x4 = wrap_rf(params_basic_1x4)
 
-params_rf_2x2 = wrap_rf(params_basic_2x2)
-
-params_rf_4x1 = wrap_rf(params_basic_4x1)
-
-params_rf_asym = wrap_rf(params_basic_asym)
 
 
 test_name = sys.argv[1]
