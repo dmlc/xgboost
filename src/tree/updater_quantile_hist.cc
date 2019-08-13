@@ -556,7 +556,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
 
   // 2. Build partial histograms for each node
-  #pragma omp parallel for schedule(guided)
+  #pragma omp parallel for schedule(static)
   for (int32_t itask = 0; itask < n_hist_buidling_tasks; ++itask) {
     const size_t tid = omp_get_thread_num();
     const int32_t nid = task_nid[itask];
