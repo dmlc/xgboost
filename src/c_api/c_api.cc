@@ -782,18 +782,20 @@ XGB_DLL int XGDMatrixCopyDataToCSR(const DMatrixHandle handle,
   CHECK_HANDLE();
   const auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
 
+  size_t row_offset = 0;
   for (const auto &batch : dmat->GetBatches<SparsePage>()) {
     const auto &batch_offset = batch.offset.HostVector();
     const auto &batch_data = batch.data.HostVector();
-    (*out_row_ptr)[0] = batch_offset[0];
+    (*out_row_ptr)[row_offset] = batch_offset[0];
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 1; i < batch_offset.size(); ++i) {
-      (*out_row_ptr)[i] = batch_offset[i];
+      (*out_row_ptr)[row_offset + i] = batch_offset[i];
       for (bst_ulong j = batch_offset[i - 1]; j < batch_offset[i]; ++j) {
         (*out_indices)[j] = batch_data[j].index;
         (*out_data)[j] = batch_data[j].fvalue;
       }
     }
+    row_offset += batch_offset.size();
   }
   API_END();
 }
