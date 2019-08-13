@@ -65,6 +65,9 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
 }
 
 TEST(c_api, XGDMatrixCopyDataToCSR) {
+  auto origin_thread_num = omp_get_num_threads();
+  omp_set_num_threads(2);
+
   std::vector<size_t> row_ptr = {0, 2, 5, 8, 10, 11, 15};
   std::vector<unsigned> indices = {0, 2, 1, 3, 4, 0, 1, 2, 2, 4, 4, 1, 2, 3, 4};
   std::vector<float> data;
@@ -78,7 +81,7 @@ TEST(c_api, XGDMatrixCopyDataToCSR) {
       static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 
   std::vector<size_t> row_ptr_;
-  row_ptr_.resize((*dmat)->Info().num_row_);
+  row_ptr_.resize((*dmat)->Info().num_row_ + 1);
   std::vector<unsigned> indices_;
   indices_.resize((*dmat)->Info().num_nonzero_);
   std::vector<float> data_;
@@ -97,4 +100,5 @@ TEST(c_api, XGDMatrixCopyDataToCSR) {
   }
 
   delete dmat;
+  omp_set_num_threads(origin_thread_num);
 }

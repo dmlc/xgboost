@@ -787,7 +787,8 @@ XGB_DLL int XGDMatrixCopyDataToCSR(const DMatrixHandle handle,
     const auto &batch_offset = batch.offset.HostVector();
     const auto &batch_data = batch.data.HostVector();
     (*out_row_ptr)[row_offset] = batch_offset[0];
-    for (omp_ulong i = 1; i < batch_offset.size(); ++i) {
+    #pragma omp parallel for schedule(static)
+    for (omp_ulong i = 1; i < static_cast<omp_ulong>(batch_offset.size()); ++i) {
       (*out_row_ptr)[row_offset + i] = batch_offset[i];
       for (bst_ulong j = batch_offset[i - 1]; j < batch_offset[i]; ++j) {
         (*out_indices)[j] = batch_data[j].index;
