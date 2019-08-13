@@ -31,9 +31,9 @@ else:
 ########################################################################################
 # START NUMPY PATHLIB ATTRIBUTION
 ########################################################################################
-# Pathlib compatability used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
+# os.PathLike compatibility used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
 # Attribution:
-#https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
+# https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
 # Backport os.fs_path, os.PathLike, and PurePath.__fspath__
 if sys.version_info[:2] >= (3, 6):
     os_fspath = os.fspath
