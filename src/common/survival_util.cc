@@ -210,17 +210,24 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
   double cdf_l;
   double grad_u;
   double grad_l;
-  double gradVar;
+  double grad;
+  double cdf_diff;
+  double pdf_diff;
+  double grad_diff;
+  double cdf_diff_thresh;
+  double numerator;
+  double sqrt_denominator;
+  double denominator;
   double hessVar;
   double hess_dist;
   const double eps = 1e-12f;
 
   if (y_lower == y_higher) {  // uncensored
     z           = (y_lower-y_pred)/sigma;
-    pdf       = dist_->pdf(z);
-    gradVar   = dist_->cdf(z);
-    hess_dist = dist_->hess_pdf(z);
-    hessVar = -(pdf*hess_dist - std::pow(gradVar,2))/(std::pow(sigma,2)*std::pow(pdf,2));
+    pdf         = dist_->pdf(z);
+    grad        = dist_->grad_pdf(z);
+    hess_dist   = dist_->hess_pdf(z);
+    hessVar = -(pdf*hess_dist - std::pow(grad,2))/(std::pow(sigma,2)*std::pow(pdf,2));
   } else {  // censored; now check what type of censorship we have
     if (std::isinf(y_higher)) {  // right-censored
       pdf_u   = 0;
@@ -246,7 +253,16 @@ double AFTLoss::hessian(double y_lower,double y_higher,double y_pred,double sigm
     //  LOG(FATAL) << "AFTLoss: Could not determine event type: y_lower = " << y_lower
     //             << ", y_higher = " << y_higher;
     //}
-    hessVar = -((cdf_u-cdf_l)*(grad_u-grad_l)-std::pow((pdf_u-pdf_l),2))/(std::pow(sigma,2)*std::pow(std::max(cdf_u-cdf_l,eps),2));
+    cdf_diff = cdf_u-cdf_l;
+    pdf_diff = pdf_u-pdf_l;
+    grad_diff = grad_u-grad_l;
+    cdf_diff_thresh = std::max(cdf_diff, eps);
+    numerator = -(cdf_diff*grad_diff -pdf_diff*pdf_diff);
+    sqrt_denominator = sigma*cdf_diff_thresh;
+    denominator = sqrt_denominator * sqrt_denominator;
+    hessVar = numerator/denominator;
+
+    //hessVar = -((cdf_u-cdf_l)*(grad_u-grad_l)-std::pow((pdf_u-pdf_l),2))/(std::pow(sigma,2)*std::pow(std::max(cdf_u-cdf_l,eps),2));
   }
   return hessVar;
 }
