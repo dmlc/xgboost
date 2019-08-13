@@ -70,15 +70,18 @@ namespace common {
 // Usual logging facility is not available inside device code.
 // TODO(trivialfis): Make dmlc check more generic.
 // assert is not supported in mac as of CUDA 10.0
-#define KERNEL_CHECK(cond)                                                     \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      printf("\nKernel error:\n"                                               \
-             "In: %s, \tline: %d\n"                                            \
-             "\t%s\n\tExpecting: %s\n",                                        \
-             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond);                  \
-      asm("trap;");                                                            \
-    }                                                                          \
+#define KERNEL_CHECK(cond)                                      \
+  do {                                                          \
+    if (!(cond)) {                                              \
+      printf("\nKernel error:\n"                                \
+             "In: %s: %d\n"                                     \
+             "\t%s\n\tExpecting: %s\n"                          \
+             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n", \
+             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond,    \
+             blockIdx.x, blockIdx.y, blockIdx.z,                \
+             threadIdx.x, threadIdx.y, threadIdx.z);            \
+      asm("trap;");                                             \
+    }                                                           \
   } while (0);
 
 #ifdef __CUDA_ARCH__
