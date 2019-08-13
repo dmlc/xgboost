@@ -59,21 +59,29 @@ double AFTNormal::hess_pdf(double z) {
 
 double AFTLogistic::pdf(double z) {
   double pdf;
-  pdf = std::exp(z)/((1+std::exp(z))*(1+std::exp(z)));
+  double e_z;
+  double sqrt_denominator;
+  e_z = std::exp(z);
+  sqrt_denominator = 1+e_z;
+  pdf = e_z/(sqrt_denominator*sqrt_denominator);
   return pdf;
 }
 
 double AFTLogistic::cdf(double z) {
   double cdf;
-  cdf = std::exp(z)/(1+std::exp(z));
+  double e_z;
+  e_z = std::exp(z);
+  cdf = e_z/(1+e_z);
   return cdf;
 }
 
 double AFTLogistic::grad_pdf(double z) {
   double pdf;
   double grad;
+  double e_z;
   pdf  = this->pdf(z);
-  grad = pdf*(1-std::exp(z))/(1+std::exp(z));
+  e_z  = std::exp(z);
+  grad = pdf*(1-e_z)/(1+e_z);
   return grad;
 }
 
