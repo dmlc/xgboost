@@ -398,8 +398,8 @@ class TestBasicPathLike(unittest.TestCase):
 
         def dump_assertions(dump):
             """Assertions for the expected dump from Booster"""
-            assert len(dump) == 1, "Exepcted only 1 tree to be dumped."
-            assert len(dump[0].splitlines()) == 3, "Expected 1 root and 2 leaves - 3 lines."
+            assert len(dump) == 1, 'Exepcted only 1 tree to be dumped.'
+            assert len(dump[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines.'
 
         # load the model again using Path
         bst2 = xgb.Booster(model_file=save_path)
@@ -418,13 +418,15 @@ class TestBasicPathLike(unittest.TestCase):
     def test_os_fspath(self):
         """Core properties of the os_fspath function."""
         # strings are returned unmodified
-        assert "/this/path" == xgb.compat.os_fspath("/this/path")
+        assert '' == xgb.compat.os_fspath('')
+        assert '/this/path' == xgb.compat.os_fspath('/this/path')
 
         # bytes are returned unmodified
-        assert b"/this/path" == xgb.compat.os_fspath(b"/this/path")
+        assert b'/this/path' == xgb.compat.os_fspath(b'/this/path')
 
-        # path objects are returned as strings
-        assert "/this/path" == xgb.compat.os_fspath(Path("/this/path"))
+        # path objects are returned as string representation
+        path_test = Path('this') / 'path'
+        assert str(path_test) == xgb.compat.os_fspath(path_test)
 
         # invalid values raise Type error
         self.assertRaises(TypeError, xgb.compat.os_fspath, 123)
