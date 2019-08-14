@@ -81,6 +81,13 @@ private[spark] trait LearningTaskParams extends Params {
     "whether caching training data")
 
   /**
+   * whether cleaning checkpoint, always cleaning by default, having this parameter majorly for
+   * testing
+   */
+  final val skipCleanCheckpoint = new BooleanParam(this, "skipCleanCheckpoint",
+    "whether cleaning checkpoint data")
+
+  /**
    * If non-zero, the training will be stopped after a specified number
    * of consecutive increases in any evaluation metric.
    */

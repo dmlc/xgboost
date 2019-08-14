@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
@@ -67,4 +68,50 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
     assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7))
   }
 
+
+  private def trainingWithCheckpoint(cacheData: Boolean, skipCleanCheckpoint: Boolean): Unit = {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+
+    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
+    val cacheDataMap = if (cacheData) Map("cacheTrainingSet" -> true) else Map()
+    val skipCleanCheckpointMap =
+      if (skipCleanCheckpoint) Map("skip_clean_checkpoint" -> true) else Map()
+    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "checkpoint_interval" -> 2, "num_workers" -> numWorkers) ++ cacheDataMap ++
+      skipCleanCheckpointMap
+
+    val prevModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 5)).fit(training)
+    def error(model: Booster): Float = eval.eval(
+      model.predict(testDM, outPutMargin = true), testDM)
+
+    if (skipCleanCheckpoint) {
+      // Check only one model is kept after training
+      val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+      assert(files.length == 1)
+      assert(files.head.getPath.getName == "8.model")
+      val tmpModel = SXGBoost.loadModel(s"$tmpPath/8.model")
+      // Train next model based on prev model
+      val nextModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 8)).fit(training)
+      assert(error(tmpModel) > error(prevModel._booster))
+      assert(error(prevModel._booster) > error(nextModel._booster))
+      assert(error(nextModel._booster) < 0.1)
+    } else {
+      assert(!FileSystem.get(sc.hadoopConfiguration).exists(new Path(tmpPath)))
+    }
+  }
+
+  test("training with checkpoint boosters") {
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true)
+  }
+
+  test("training with checkpoint boosters with cached training dataset") {
+    trainingWithCheckpoint(cacheData = true, skipCleanCheckpoint = true)
+  }
+
+  test("the checkpoint file should be cleaned after a successful training") {
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = false)
+  }
 }
