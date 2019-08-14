@@ -115,12 +115,10 @@ struct HostDeviceVectorImpl {
     void LazyResize(size_t new_size) {
       if (new_size == cached_size_) { return; }
       // resize is required
-      int ndevices = vec_->distribution_.devices_.Size();
-      int device_index = vec_->distribution_.devices_.Index(device_);
-      start_ = vec_->distribution_.ShardStart(new_size, device_index);
-      proper_size_ = vec_->distribution_.ShardProperSize(new_size, device_index);
+      start_ = 0;
+      proper_size_ = new_size;
       // The size on this device.
-      size_t size_d = vec_->distribution_.ShardSize(new_size, device_index);
+      size_t size_d = new_size;
       SetDevice();
       data_.resize(size_d);
       cached_size_ = new_size;
@@ -416,7 +414,7 @@ struct HostDeviceVectorImpl {
 
   bool DeviceCanAccess(int device, GPUAccess access) {
     if (device_ != device) { return false; }
-    return shards_.at(devices.Index(device)).Perm().CanAccess(access);
+    return shards_.at(0).Perm().CanAccess(access);
   }
 
  private:

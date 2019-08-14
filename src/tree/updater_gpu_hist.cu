@@ -745,7 +745,7 @@ struct DeviceShard {
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      p_feature_set->Shard(GPUSet(device_id, 1));
+      p_feature_set->Shard(device_id);
       auto d_sampled_features = p_feature_set->DeviceSpan(device_id);
       common::Span<int32_t> d_feature_set =
           interaction_constraints.Query(d_sampled_features, nidx);
@@ -1294,11 +1294,8 @@ class GPUHistMakerSpecialised {
     param_.InitAllowUnknown(args);
     generic_param_ = generic_param;
     hist_maker_param_.InitAllowUnknown(args);
-    auto devices = GPUSet::All(generic_param_->gpu_id,
-                               generic_param_->n_gpus);
-    n_devices_ = devices.Size();
-    CHECK(n_devices_ != 0) << "Must have at least one device";
-    dist_ = GPUDistribution::Block(devices);
+    auto device = generic_param_->gpu_id;
+    CHECK_GE(device, 0) << "Must have at least one device";
 
     dh::CheckComputeCapability();
 
@@ -1330,30 +1327,20 @@ class GPUHistMakerSpecialised {
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
 
-    int n_devices = dist_.Devices().Size();
-
-    device_list_.resize(n_devices);
-    for (int index = 0; index < n_devices; ++index) {
-      int device_id = dist_.Devices().DeviceId(index);
-      device_list_[index] = device_id;
-    }
-
-    reducer_.Init(device_list_);
-
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
     // Create device shards
-    shards_.resize(n_devices);
+    shards_.resize(1);
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-          dh::safe_cuda(cudaSetDevice(dist_.Devices().DeviceId(idx)));
-          size_t start = dist_.ShardStart(info_->num_row_, idx);
-          size_t size = dist_.ShardSize(info_->num_row_, idx);
+          dh::safe_cuda(cudaSetDevice(device_));
+          size_t start = 0;
+          size_t size = info_->num_row_;
           shard = std::unique_ptr<DeviceShard<GradientSumT>>(
-            new DeviceShard<GradientSumT>(dist_.Devices().DeviceId(idx), idx,
+            new DeviceShard<GradientSumT>(device_, idx,
                                           start, start + size, param_,
                                           column_sampling_seed,
                                           info_->num_col_));
@@ -1436,7 +1423,7 @@ class GPUHistMakerSpecialised {
     for (auto& tree : trees) {
       tree = *p_tree;
     }
-    gpair->Reshard(dist_);
+    gpair->Reshard(device_);
 
     // Launch one thread for each device "shard" containing a subset of rows.
     // Threads will cooperatively build the tree, synchronising over histograms.
@@ -1462,7 +1449,7 @@ class GPUHistMakerSpecialised {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
-    p_out_preds->Shard(dist_.Devices());
+    p_out_preds->Shard(device_);
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
@@ -1483,7 +1470,6 @@ class GPUHistMakerSpecialised {
  private:
   bool initialised_;
 
-  int n_devices_;
   int n_bins_;
 
   GPUHistMakerTrainParam hist_maker_param_;
@@ -1492,11 +1478,9 @@ class GPUHistMakerSpecialised {
   dh::AllReducer reducer_;
 
   DMatrix* p_last_fmat_;
-  GPUDistribution dist_;
+  int device_;
 
   common::Monitor monitor_;
-  /*! List storing device id. */
-  std::vector<int> device_list_;
 };
 
 class GPUHistMaker : public TreeUpdater {
