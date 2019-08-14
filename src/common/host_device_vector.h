@@ -199,18 +199,14 @@ inline GPUAccess operator-(GPUAccess a, GPUAccess b) {
 template <typename T>
 class HostDeviceVector {
  public:
-  explicit HostDeviceVector(size_t size = 0, T v = T(),
-                            const GPUDistribution &distribution = GPUDistribution());
-  HostDeviceVector(std::initializer_list<T> init,
-                   const GPUDistribution &distribution = GPUDistribution());
-  explicit HostDeviceVector(const std::vector<T>& init,
-                            const GPUDistribution &distribution = GPUDistribution());
+  explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
+  HostDeviceVector(std::initializer_list<T> init, int device = -1);
+  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&);
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);
   size_t Size() const;
-  GPUSet Devices() const;
-  const GPUDistribution& Distribution() const;
+  int DeviceIdx() const;
   common::Span<T> DeviceSpan(int device);
   common::Span<const T> ConstDeviceSpan(int device) const;
   common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
@@ -256,13 +252,12 @@ class HostDeviceVector {
   /*!
    * \brief Specify memory distribution.
    */
-  void Shard(const GPUDistribution &distribution) const;
-  void Shard(GPUSet devices) const;
+  void Shard(int device) const;
 
   /*!
    * \brief Change memory distribution.
    */
-  void Reshard(const GPUDistribution &distribution);
+  void Reshard(int device);
 
   void Resize(size_t new_size, T v = T());
 

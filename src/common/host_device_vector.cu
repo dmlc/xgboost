@@ -175,9 +175,9 @@ struct HostDeviceVectorImpl {
     HostDeviceVectorImpl<T>* vec_;
   };
 
-  HostDeviceVectorImpl(size_t size, T v, const GPUDistribution &distribution)
-    : distribution_(distribution), perm_h_(distribution.IsEmpty()), size_d_(0) {
-    if (!distribution_.IsEmpty()) {
+  HostDeviceVectorImpl(size_t size, T v, int device)
+    : device_(device), perm_h_(device < 0), size_d_(0) {
+    if (device >= 0) {
       size_d_ = size;
       InitShards();
       Fill(v);
@@ -189,7 +189,7 @@ struct HostDeviceVectorImpl {
   // required, as a new std::mutex has to be created
   HostDeviceVectorImpl(const HostDeviceVectorImpl<T>& other)
     : data_h_(other.data_h_), perm_h_(other.perm_h_), size_d_(other.size_d_),
-      distribution_(other.distribution_), mutex_() {
+      device_(other.device_), mutex_() {
     shards_.resize(other.shards_.size());
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
         shard.Init(this, other.shards_.at(i));
@@ -198,9 +198,9 @@ struct HostDeviceVectorImpl {
 
   // Initializer can be std::vector<T> or std::initializer_list<T>
   template <class Initializer>
-  HostDeviceVectorImpl(const Initializer& init, const GPUDistribution &distribution)
-    : distribution_(distribution), perm_h_(distribution.IsEmpty()), size_d_(0) {
-    if (!distribution_.IsEmpty()) {
+  HostDeviceVectorImpl(const Initializer& init, int device)
+    : device_(device), perm_h_(device < 0), size_d_(0) {
+    if (device >= 0) {
       size_d_ = init.size();
       InitShards();
       Copy(init);
@@ -210,58 +210,54 @@ struct HostDeviceVectorImpl {
   }
 
   void InitShards() {
-    int ndevices = distribution_.devices_.Size();
+    int ndevices = 1;
     shards_.resize(ndevices);
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
-        shard.Init(this, distribution_.devices_.DeviceId(i));
+        shard.Init(this, device_);
       });
   }
 
   size_t Size() const { return perm_h_.CanRead() ? data_h_.size() : size_d_; }
 
-  GPUSet Devices() const { return distribution_.devices_; }
-
-  const GPUDistribution& Distribution() const { return distribution_; }
+  int DeviceIdx() const { return device_; }
 
   T* DevicePointer(int device) {
-    CHECK(distribution_.devices_.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kWrite);
-    return shards_.at(distribution_.devices_.Index(device)).Raw();
+    return shards_.at(0).Raw();
   }
 
   const T* ConstDevicePointer(int device) {
-    CHECK(distribution_.devices_.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).Raw();
+    return shards_.at(0).Raw();
   }
 
   common::Span<T> DeviceSpan(int device) {
-    GPUSet devices = distribution_.devices_;
-    CHECK(devices.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kWrite);
-    return {shards_.at(devices.Index(device)).Raw(),
+    return {shards_.at(0).Raw(),
           static_cast<typename common::Span<T>::index_type>(DeviceSize(device))};
   }
 
   common::Span<const T> ConstDeviceSpan(int device) {
-    GPUSet devices = distribution_.devices_;
-    CHECK(devices.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kRead);
     using SpanInd = typename common::Span<const T>::index_type;
-    return {shards_.at(devices.Index(device)).Raw(),
+    return {shards_.at(0).Raw(),
           static_cast<SpanInd>(DeviceSize(device))};
   }
 
   size_t DeviceSize(int device) {
-    CHECK(distribution_.devices_.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).DataSize();
+    return shards_.at(0).DataSize();
   }
 
   size_t DeviceStart(int device) {
-    CHECK(distribution_.devices_.Contains(device));
+    CHECK_EQ(device, device_);
     LazySyncDevice(device, GPUAccess::kRead);
-    return shards_.at(distribution_.devices_.Index(device)).Start();
+    return shards_.at(0).Start();
   }
 
   thrust::device_ptr<T> tbegin(int device) {  // NOLINT
@@ -320,9 +316,9 @@ struct HostDeviceVectorImpl {
       return;
     }
     // Data is on device;
-    if (distribution_ != other->distribution_) {
-      distribution_ = GPUDistribution();
-      Shard(other->Distribution());
+    if (device_ != other->device_) {
+      device_ = -1;
+      Shard(other->device_);
       size_d_ = other->size_d_;
     }
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
@@ -362,34 +358,26 @@ struct HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void Shard(const GPUDistribution& distribution) {
-    if (distribution_ == distribution) { return; }
-    CHECK(distribution_.IsEmpty())
-        << "This: " << distribution_.Devices().Size() << ", "
-        << "Others: " << distribution.Devices().Size();
-    distribution_ = distribution;
+  void Shard(int device) {
+    if (device_ == device) { return; }
+    CHECK_LT(device_, 0)
+        << "This: " << device_ << ", "
+        << "Others: " << device;
+    device_ = device;
     InitShards();
   }
 
-  void Shard(GPUSet new_devices) {
-    if (distribution_.Devices() == new_devices) { return; }
-    Shard(GPUDistribution::Block(new_devices));
-  }
-
-  void Reshard(const GPUDistribution &distribution) {
-    if (distribution_ == distribution) { return; }
+  void Reshard(int device) {
+    if (device_ == device) { return; }
     LazySyncHost(GPUAccess::kWrite);
-    distribution_ = distribution;
+    device_ = device;
     shards_.clear();
     InitShards();
   }
 
   void Resize(size_t new_size, T v) {
     if (new_size == Size()) { return; }
-    if (distribution_.IsFixedSize()) {
-      CHECK_EQ(new_size, distribution_.offsets_.back());
-    }
-    if (Size() == 0 && !distribution_.IsEmpty()) {
+    if (Size() == 0 && device_ >= 0) {
       // fast on-device resize
       perm_h_ = Permissions(false);
       size_d_ = new_size;
@@ -420,16 +408,14 @@ struct HostDeviceVectorImpl {
   }
 
   void LazySyncDevice(int device, GPUAccess access) {
-    GPUSet devices = distribution_.Devices();
-    CHECK(devices.Contains(device));
-    shards_.at(devices.Index(device)).LazySyncDevice(access);
+    CHECK_EQ(device, device_);
+    shards_.at(0).LazySyncDevice(access);
   }
 
   bool HostCanAccess(GPUAccess access) { return perm_h_.CanAccess(access); }
 
   bool DeviceCanAccess(int device, GPUAccess access) {
-    GPUSet devices = distribution_.Devices();
-    if (!devices.Contains(device)) { return false; }
+    if (device_ != device) { return false; }
     return shards_.at(devices.Index(device)).Perm().CanAccess(access);
   }
 
@@ -438,7 +424,7 @@ struct HostDeviceVectorImpl {
   Permissions perm_h_;
   // the total size of the data stored on the devices
   size_t size_d_;
-  GPUDistribution distribution_;
+  int device_;
   // protects size_d_ and perm_h_ when updated from multiple threads
   std::mutex mutex_;
   std::vector<DeviceShard> shards_;
@@ -446,20 +432,20 @@ struct HostDeviceVectorImpl {
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(size_t size, T v, const GPUDistribution &distribution) : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(size, v, distribution);
+(size_t size, T v, int device) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(size, v, device);
 }
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(std::initializer_list<T> init, const GPUDistribution &distribution) : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(init, distribution);
+(std::initializer_list<T> init, int device) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector
-(const std::vector<T>& init, const GPUDistribution &distribution) : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(init, distribution);
+(const std::vector<T>& init, int device) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
 
 template <typename T>
@@ -489,12 +475,7 @@ template <typename T>
 size_t HostDeviceVector<T>::Size() const { return impl_->Size(); }
 
 template <typename T>
-GPUSet HostDeviceVector<T>::Devices() const { return impl_->Devices(); }
-
-template <typename T>
-const GPUDistribution& HostDeviceVector<T>::Distribution() const {
-  return impl_->Distribution();
-}
+int HostDeviceVector<T>::DeviceIdx() const { return impl_->DeviceIdx(); }
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer(int device) {
@@ -597,18 +578,13 @@ bool HostDeviceVector<T>::DeviceCanAccess(int device, GPUAccess access) const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Shard(GPUSet new_devices) const {
-  impl_->Shard(new_devices);
+void HostDeviceVector<T>::Shard(int device) const {
+  impl_->Shard(device);
 }
 
 template <typename T>
-void HostDeviceVector<T>::Shard(const GPUDistribution &distribution) const {
-  impl_->Shard(distribution);
-}
-
-template <typename T>
-void HostDeviceVector<T>::Reshard(const GPUDistribution &distribution) {
-  impl_->Reshard(distribution);
+void HostDeviceVector<T>::Reshard(int device) {
+  impl_->Reshard(device);
 }
 
 template <typename T>
