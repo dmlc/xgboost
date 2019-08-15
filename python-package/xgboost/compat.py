@@ -128,9 +128,8 @@ except ImportError:
 
 
 try:
-    import cudf
+    from cudf import DataFrame as CUDF_DataFrame
     CUDF_INSTALLED = True
-    CUDF_DataFrame = cudf.DataFrame
 except ImportError:
     CUDF_DataFrame = object
     CUDF_INSTALLED = False
