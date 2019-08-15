@@ -20,7 +20,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
-                     PANDAS_INSTALLED, DataTable)
+                     PANDAS_INSTALLED, DataTable, os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
 
@@ -336,10 +336,10 @@ class DMatrix(object):
         """
         Parameters
         ----------
-        data : string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame
+        data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame
             Data source of DMatrix.
-            When data is string type, it represents the path libsvm format txt file,
-            or binary file that xgboost can read from.
+            When data is string or os.PathLike type, it represents the path libsvm format
+            txt file, or binary file that xgboost can read from.
         label : list or numpy 1-D array, optional
             Label of the training data.
         missing : float, optional
@@ -390,9 +390,9 @@ class DMatrix(object):
             warnings.warn('Initializing DMatrix from List is deprecated.',
                           DeprecationWarning)
 
-        if isinstance(data, STRING_TYPES):
+        if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(handle)))
             self.handle = handle
@@ -653,13 +653,13 @@ class DMatrix(object):
 
         Parameters
         ----------
-        fname : string
+        fname : string or os.PathLike
             Name of the output buffer file.
         silent : bool (optional; default: True)
             If set, the output is suppressed.
         """
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
-                                             c_str(fname),
+                                             c_str(os_fspath(fname)),
                                              ctypes.c_int(silent)))
 
     def set_label(self, label):
@@ -937,7 +937,7 @@ class Booster(object):
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string
+        model_file : string or os.PathLike
             Path to the model file.
         """
         for d in cache:
@@ -1329,11 +1329,11 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string
+        fname : string or os.PathLike
             Output file name
         """
-        if isinstance(fname, STRING_TYPES):  # assume file name
-            _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(fname)))
+        if isinstance(fname, (STRING_TYPES, os_PathLike)):  # assume file name
+            _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(os_fspath(fname))))
         else:
             raise TypeError("fname must be a string")
 
@@ -1363,12 +1363,12 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string or a memory buffer
+        fname : string, os.PathLike, or a memory buffer
             Input file name or memory buffer(see also save_raw)
         """
-        if isinstance(fname, STRING_TYPES):
+        if isinstance(fname, (STRING_TYPES, os_PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be from URL.
-            _check_call(_LIB.XGBoosterLoadModel(self.handle, c_str(fname)))
+            _check_call(_LIB.XGBoosterLoadModel(self.handle, c_str(os_fspath(fname))))
         else:
             buf = fname
             length = c_bst_ulong(len(buf))
@@ -1381,17 +1381,17 @@ class Booster(object):
 
         Parameters
         ----------
-        fout : string
+        fout : string or os.PathLike
             Output file name.
-        fmap : string, optional
+        fmap : string or os.PathLike, optional
             Name of the file containing feature map names.
         with_stats : bool, optional
             Controls whether the split statistics are output.
         dump_format : string, optional
             Format of model dump file. Can be 'text' or 'json'.
         """
-        if isinstance(fout, STRING_TYPES):
-            fout = open(fout, 'w')
+        if isinstance(fout, (STRING_TYPES, os_PathLike)):
+            fout = open(os_fspath(fout), 'w')
             need_close = True
         else:
             need_close = False
@@ -1416,13 +1416,14 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap : string, optional
+        fmap : string or os.PathLike, optional
             Name of the file containing feature map names.
         with_stats : bool, optional
             Controls whether the split statistics are output.
         dump_format : string, optional
             Format of model dump. Can be 'text', 'json' or 'dot'.
         """
+        fmap = os_fspath(fmap)
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
@@ -1473,7 +1474,7 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap: str (optional)
+        fmap: str or os.PathLike (optional)
            The name of feature map file
         """
 
@@ -1497,11 +1498,12 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap: str (optional)
+        fmap: str or os.PathLike (optional)
            The name of feature map file.
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
+        fmap = os_fspath(fmap)
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
@@ -1591,10 +1593,11 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap: str (optional)
+        fmap: str or os.PathLike (optional)
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
+        fmap = os_fspath(fmap)
         if not PANDAS_INSTALLED:
             raise Exception(('pandas must be available to use this method.'
                              'Install pandas before calling again.'))
@@ -1701,7 +1704,7 @@ class Booster(object):
         ----------
         feature: str
             The name of the feature.
-        fmap: str (optional)
+        fmap: str or os.PathLike (optional)
             The name of feature map file.
         bin: int, default None
             The maximum number of bins.
