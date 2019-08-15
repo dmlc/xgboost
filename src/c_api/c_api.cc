@@ -189,7 +189,8 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArrayInterfaces(char* c_json_strs, DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromArrayInterfaces(
+    char const* c_json_strs, DMatrixHandle* out) {
   API_BEGIN();
   std::string json_str {c_json_strs};
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
@@ -699,7 +700,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
 }
 
 XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
-                                          const char* field,
+                                          char const* field,
                                           char const* interface_c_str) {
   API_BEGIN();
   CHECK_HANDLE();

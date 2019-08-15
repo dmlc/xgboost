@@ -244,7 +244,6 @@ def _extract_interface_from_cudf(df, is_info):
     array_interfaces = []
     for col in df.columns:
         data = df[col].data
-        # data = df[col]._column._data  # pylint: disable=W0212
         array_interfaces.append(get_interface(data))
 
     validity_masks = []
