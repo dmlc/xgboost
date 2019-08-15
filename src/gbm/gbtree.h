@@ -167,12 +167,6 @@ class GBTree : public GradientBooster {
                HostDeviceVector<GradientPair>* in_gpair,
                ObjFunction* obj) override;
 
-  bool UseGPU() const override {
-    return
-        tparam_.predictor == "gpu_predictor" ||
-        tparam_.tree_method == TreeMethod::kGPUHist;
-  }
-
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
 

@@ -180,14 +180,6 @@ class GBLinear : public GradientBooster {
     return model_.DumpModel(fmap, with_stats, format);
   }
 
-  bool UseGPU() const override {
-    if (param_.updater == "gpu_coord_descent") {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds) {

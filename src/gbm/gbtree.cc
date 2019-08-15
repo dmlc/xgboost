@@ -304,10 +304,6 @@ class Dart : public GBTree {
     }
   }
 
-  bool UseGPU() const override {
-    return false;
-  }
-
  protected:
   friend class GBTree;
   // internal prediction loop
