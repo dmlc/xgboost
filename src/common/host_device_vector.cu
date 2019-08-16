@@ -208,7 +208,7 @@ struct HostDeviceVectorImpl {
   }
 
   void InitShards() {
-    int ndevices = 1;
+    int ndevices = device_ >= 0 ? 1 : 0;
     shards_.resize(ndevices);
     dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
         shard.Init(this, device_);

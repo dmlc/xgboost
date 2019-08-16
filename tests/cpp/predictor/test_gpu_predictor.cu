@@ -102,7 +102,7 @@ TEST(gpu_predictor, ExternalMemoryTest) {
 
 // Test whether pickling preserves predictor parameters
 TEST(gpu_predictor, PicklingTest) {
-  int const ngpu = 1;
+  int const gpuid = 0;
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -134,7 +134,7 @@ TEST(gpu_predictor, PicklingTest) {
   ASSERT_EQ(XGBoosterSetParam(
       bst, "tree_method", "gpu_hist"), 0) << XGBGetLastError();
   ASSERT_EQ(XGBoosterSetParam(
-      bst, "n_gpus", std::to_string(ngpu).c_str()), 0) << XGBGetLastError();
+      bst, "gpu_id", std::to_string(gpuid).c_str()), 0) << XGBGetLastError();
   ASSERT_EQ(XGBoosterSetParam(bst, "predictor", "gpu_predictor"), 0) << XGBGetLastError();
 
   // Run boosting iterations
@@ -160,7 +160,7 @@ TEST(gpu_predictor, PicklingTest) {
   {  // Query predictor
     const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
     ASSERT_EQ(kwargs.at("predictor"), "gpu_predictor");
-    ASSERT_EQ(kwargs.at("n_gpus"), std::to_string(ngpu).c_str());
+    ASSERT_EQ(kwargs.at("gpu_id"), std::to_string(gpuid).c_str());
   }
 
   {  // Change predictor and query again

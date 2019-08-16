@@ -167,33 +167,28 @@ class GPUCoordinateUpdater : public LinearUpdater {
                       const gbm::GBLinearModelParam &model_param) {
     if (!shards_.empty()) return;
 
-    dist_ = GPUDistribution::Block(GPUSet::All(learner_param_->gpu_id, learner_param_->n_gpus,
-                                               p_fmat->Info().num_row_));
-    auto devices = dist_.Devices();
+    device_ = learner_param_->gpu_id;
 
-    size_t n_devices = static_cast<size_t>(devices.Size());
     size_t row_begin = 0;
     size_t num_row = static_cast<size_t>(p_fmat->Info().num_row_);
 
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
     row_segments.push_back(0);
-    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      size_t shard_size = dist_.ShardSize(num_row, d_idx);
-      size_t row_end = row_begin + shard_size;
-      row_segments.push_back(row_end);
-      row_begin = row_end;
-    }
+    size_t shard_size = num_row;
+    size_t row_end = row_begin + shard_size;
+    row_segments.push_back(row_end);
+    row_begin = row_end;
 
     CHECK(p_fmat->SingleColBlock());
     SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
 
-    shards_.resize(n_devices);
+    shards_.resize(1);
     // Create device shards
     dh::ExecuteIndexShards(&shards_,
                            [&](int i, std::unique_ptr<DeviceShard>& shard) {
         shard = std::unique_ptr<DeviceShard>(
-            new DeviceShard(devices.DeviceId(i), batch, row_segments[i],
+            new DeviceShard(device_, batch, row_segments[i],
                             row_segments[i + 1], tparam_, model_param));
       });
   }
@@ -298,7 +293,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
   // training parameter
   LinearTrainParam tparam_;
   CoordinateParam coord_param_;
-  GPUDistribution dist_;
+  int device_;
   std::unique_ptr<FeatureSelector> selector_;
   common::Monitor monitor_;
 

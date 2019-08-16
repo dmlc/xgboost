@@ -163,9 +163,6 @@ class GPUSet {
   static GPUSet Range(GpuIdType start, GpuIdType n_gpus) {
     return n_gpus <= 0 ? Empty() : GPUSet{start, n_gpus};
   }
-  /*! \brief n_gpus and num_rows both are upper bounds. */
-  static GPUSet All(GpuIdType gpu_id, GpuIdType n_gpus,
-                    GpuIdType num_rows = std::numeric_limits<GpuIdType>::max());
 
   static GPUSet AllVisible() {
     GpuIdType n =  AllVisibleImpl::AllVisible();

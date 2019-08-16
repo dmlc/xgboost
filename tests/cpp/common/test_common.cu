@@ -39,45 +39,4 @@ TEST(GPUSet, GPUBasic) {
     LOG(WARNING) << "Empty devices.";
   }
 }
-
-TEST(GPUSet, Verbose) {
-  {
-    std::map<std::string, std::string> args {};
-    args["verbosity"] = "3";  // LOG INFO
-
-    testing::internal::CaptureStderr();
-    ConsoleLogger::Configure({args.cbegin(), args.cend()});
-    GPUSet::All(0, 1);
-    std::string output = testing::internal::GetCapturedStderr();
-    ASSERT_NE(output.find("GPU ID: 0"), std::string::npos);
-    ASSERT_NE(output.find("GPUs: 1"), std::string::npos);
-
-    args["verbosity"] = "1";  // restore
-    ConsoleLogger::Configure({args.cbegin(), args.cend()});
-  }
-}
-
-#if defined(XGBOOST_USE_NCCL)
-TEST(GPUSet, MGPU_GPUBasic) {
-  {
-    GPUSet devices = GPUSet::All(1, 1);
-    ASSERT_EQ(*(devices.begin()), 1);
-    ASSERT_EQ(*(devices.end()), 2);
-    ASSERT_EQ(devices.Size(), 1);
-    ASSERT_TRUE(devices.Contains(1));
-  }
-
-  {
-    GPUSet devices = GPUSet::All(0, -1);
-    ASSERT_GE(devices.Size(), 2);
-  }
-
-  // Specify number of rows.
-  {
-    GPUSet devices = GPUSet::All(0, -1, 1);
-    ASSERT_EQ(devices.Size(), 1);
-  }
-}
-#endif
-
 }  // namespace xgboost

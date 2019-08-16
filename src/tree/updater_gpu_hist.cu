@@ -1294,8 +1294,8 @@ class GPUHistMakerSpecialised {
     param_.InitAllowUnknown(args);
     generic_param_ = generic_param;
     hist_maker_param_.InitAllowUnknown(args);
-    auto device = generic_param_->gpu_id;
-    CHECK_GE(device, 0) << "Must have at least one device";
+    device_ = generic_param_->gpu_id;
+    CHECK_GE(device_, 0) << "Must have at least one device";
 
     dh::CheckComputeCapability();
 
@@ -1326,6 +1326,8 @@ class GPUHistMakerSpecialised {
 
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
+
+    reducer_.Init({device_});
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();

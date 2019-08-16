@@ -401,17 +401,15 @@ struct GPUSketcher {
   };
 
   void SketchBatch(const SparsePage &batch, const MetaInfo &info) {
-    GPUDistribution dist =
-      GPUDistribution::Block(GPUSet::All(generic_param_.gpu_id, generic_param_.n_gpus,
-                                         batch.Size()));
+    auto device = generic_param_.gpu_id;
 
     // create device shards
-    shards_.resize(dist.Devices().Size());
+    shards_.resize(1);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {
-        size_t start = dist.ShardStart(batch.Size(), i);
-        size_t size = dist.ShardSize(batch.Size(), i);
+        size_t start = 0;
+        size_t size = batch.Size();
         shard = std::unique_ptr<DeviceShard>(
-            new DeviceShard(dist.Devices().DeviceId(i), start,
+            new DeviceShard(device, start,
                             start + size, param_, sketch_container_.get()));
       });
 

@@ -237,14 +237,13 @@ class LearnerImpl : public Learner {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
       for (auto& kv : attr) {
-        // Load `predictor`, `n_gpus`, `gpu_id` parameters from extra attributes
+        // Load `predictor`, `gpu_id` parameters from extra attributes
         const std::string prefix = "SAVED_PARAM_";
         if (kv.first.find(prefix) == 0) {
           const std::string saved_param = kv.first.substr(prefix.length());
           bool is_gpu_predictor = saved_param == "predictor" && kv.second == "gpu_predictor";
 #ifdef XGBOOST_USE_CUDA
-          if (saved_param == "predictor" || saved_param == "n_gpus"
-              || saved_param == "gpu_id") {
+          if (saved_param == "predictor" || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
             LOG(INFO)
               << "Parameter '" << saved_param << "' has been recovered from "
@@ -294,7 +293,9 @@ class LearnerImpl : public Learner {
     auto n = tparam_.__DICT__();
     cfg_.insert(n.cbegin(), n.cend());
 
-    gbm_->Configure({cfg_.cbegin(), cfg_.cend()});
+    Args args = {cfg_.cbegin(), cfg_.cend()};
+    generic_param_.InitAllowUnknown(args);
+    gbm_->Configure(args);
     obj_->Configure({cfg_.begin(), cfg_.end()});
 
     for (auto& p_metric : metrics_) {
@@ -331,9 +332,8 @@ class LearnerImpl : public Learner {
       }
     }
     {
-      // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
-      for (const auto& key : std::vector<std::string>{
-          "predictor", "n_gpus", "gpu_id"}) {
+      // Write `predictor`, `gpu_id` parameters as extra attributes
+      for (const auto& key : std::vector<std::string>{"predictor", "gpu_id"}) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
           mparam.contain_extra_attrs = 1;
