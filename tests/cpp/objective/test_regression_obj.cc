@@ -267,12 +267,12 @@ TEST(Objective, CPU_vs_CUDA) {
 
   {
     // CPU
-    lparam.n_gpus = 0;
+    lparam.gpu_id = -1;
     obj->GetGradient(preds, info, 0, &cpu_out_preds);
   }
   {
     // CUDA
-    lparam.n_gpus = 1;
+    lparam.gpu_id = 0;
     obj->GetGradient(preds, info, 0, &cuda_out_preds);
   }
 

@@ -21,8 +21,6 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int nthread;
   // primary device.
   int gpu_id;
-  // number of devices to use, -1 implies using all available devices.
-  int n_gpus;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -46,6 +44,9 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
                   "Please switch to distributed training with one process per GPU. "
                   "This can be done using Dask or Spark.");
   }
+ private:
+  // number of devices to use, -1 implies using all available devices.
+  int n_gpus;
 };
 }  // namespace xgboost
 
