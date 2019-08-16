@@ -31,7 +31,7 @@ template <typename EvalRow>
 class ElementWiseMetricsReduction {
  public:
   explicit ElementWiseMetricsReduction(EvalRow policy) :
-    policy_(std::move(policy)) {}
+    device_(-1), policy_(std::move(policy)) {}
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -59,8 +59,10 @@ class ElementWiseMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
 
   ~ElementWiseMetricsReduction() {
-    dh::safe_cuda(cudaSetDevice(device_));
-    allocator_.Free();
+    if (device_ >= 0) {
+      dh::safe_cuda(cudaSetDevice(device_));
+      allocator_.Free();
+    }
   }
 
   PackedReduceResult DeviceReduceMetrics(
@@ -114,12 +116,14 @@ class ElementWiseMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
       device_ = device;
-      preds.Shard(device_);
-      labels.Shard(device_);
-      weights.Shard(device_);
+      if (device_ >= 0) {
+        preds.Shard(device_);
+        labels.Shard(device_);
+        weights.Shard(device_);
 
-      dh::safe_cuda(cudaSetDevice(device));
-      result = DeviceReduceMetrics(device_, 0, weights, labels, preds);
+        dh::safe_cuda(cudaSetDevice(device_));
+        result = DeviceReduceMetrics(device_, 0, weights, labels, preds);
+      }
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;

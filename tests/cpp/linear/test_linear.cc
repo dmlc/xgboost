@@ -7,7 +7,7 @@
 
 TEST(Linear, shotgun) {
   auto mat = xgboost::CreateDMatrix(10, 10, 0);
-  auto lparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   {
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
         xgboost::LinearUpdater::Create("shotgun", &lparam));
@@ -33,7 +33,7 @@ TEST(Linear, shotgun) {
 
 TEST(Linear, coordinate) {
   auto mat = xgboost::CreateDMatrix(10, 10, 0);
-  auto lparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent", &lparam));
   updater->Configure({{"eta", "1."}});

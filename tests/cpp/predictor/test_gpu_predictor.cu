@@ -33,8 +33,8 @@ namespace xgboost {
 namespace predictor {
 
 TEST(gpu_predictor, Test) {
-  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
-  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+  auto cpu_lparam = CreateEmptyGenericParam(-1);
+  auto gpu_lparam = CreateEmptyGenericParam(0);
 
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
@@ -69,7 +69,7 @@ TEST(gpu_predictor, Test) {
 }
 
 TEST(gpu_predictor, ExternalMemoryTest) {
-  auto lparam = CreateEmptyGenericParam(0, 1);
+  auto lparam = CreateEmptyGenericParam(0);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({}, {});

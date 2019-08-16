@@ -53,7 +53,7 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 
   // find the cuts on the GPU
   HistogramCuts hmat_gpu;
-  size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0, devices.Size()), gpu_batch_nrows,
+  size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0), gpu_batch_nrows,
                                    dmat->get(), &hmat_gpu);
 
   // compare the row stride with the one obtained from the dmatrix

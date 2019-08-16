@@ -208,22 +208,19 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"updater", "gpu_coord_descent"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 0);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
   }
   {
     // with CPU algorithm, but `n_gpus` takes priority
@@ -232,7 +229,6 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"n_gpus", "1"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
@@ -243,7 +239,6 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"predictor", "gpu_predictor"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
 
   delete pp_dmat;

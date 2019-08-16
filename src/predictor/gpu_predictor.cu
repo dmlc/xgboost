@@ -495,7 +495,9 @@ class GPUPredictor : public xgboost::Predictor {
     Predictor::Configure(cfg, cache);
 
     int device = learner_param_->gpu_id;
-    ConfigureShards(device);
+    if (device >= 0) {
+      ConfigureShards(device);
+    }
   }
 
  private:

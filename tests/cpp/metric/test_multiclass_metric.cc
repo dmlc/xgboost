@@ -4,10 +4,9 @@
 
 #include "../helpers.h"
 
-inline void TestMultiClassError(xgboost::GPUSet const& devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
-  lparam.gpu_id = *devices.begin();
-  lparam.n_gpus = devices.Size();
+inline void TestMultiClassError(int device) {
+  auto lparam = xgboost::CreateEmptyGenericParam(device);
+  lparam.gpu_id = device;
   xgboost::Metric * metric = xgboost::Metric::Create("merror", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "merror");
@@ -23,14 +22,12 @@ inline void TestMultiClassError(xgboost::GPUSet const& devices) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassError)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS);
-  TestMultiClassError(devices);
+  TestMultiClassError(GPUIDX);
 }
 
-inline void TestMultiClassLogLoss(xgboost::GPUSet const& devices) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
-  lparam.gpu_id = *devices.begin();
-  lparam.n_gpus = devices.Size();
+inline void TestMultiClassLogLoss(int device) {
+  auto lparam = xgboost::CreateEmptyGenericParam(device);
+  lparam.gpu_id = device;
   xgboost::Metric * metric = xgboost::Metric::Create("mlogloss", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mlogloss");
@@ -46,27 +43,22 @@ inline void TestMultiClassLogLoss(xgboost::GPUSet const& devices) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
-  auto devices = xgboost::GPUSet::Range(0, NGPUS);
-  TestMultiClassLogLoss(devices);
+  TestMultiClassLogLoss(GPUIDX);
 }
 
 #if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
 TEST(Metric, MGPU_MultiClassError) {
   {
-    auto devices = xgboost::GPUSet::All(0, -1);
-    TestMultiClassError(devices);
+    TestMultiClassError(0);
   }
   {
-    auto devices = xgboost::GPUSet::All(1, -1);
-    TestMultiClassError(devices);
+    TestMultiClassError(1);
   }
   {
-    auto devices = xgboost::GPUSet::All(0, -1);
-    TestMultiClassLogLoss(devices);
+    TestMultiClassLogLoss(0);
   }
   {
-    auto devices = xgboost::GPUSet::All(1, -1);
-    TestMultiClassLogLoss(devices);
+    TestMultiClassLogLoss(1);
   }
 }
 #endif  // defined(XGBOOST_USE_NCCL)

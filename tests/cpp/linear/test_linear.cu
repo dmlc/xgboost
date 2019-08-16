@@ -7,7 +7,7 @@ namespace xgboost {
 
 TEST(Linear, GPUCoordinate) {
   auto mat = xgboost::CreateDMatrix(10, 10, 0);
-  auto lparam = CreateEmptyGenericParam(0, 1);
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   lparam.n_gpus = 1;
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("gpu_coord_descent", &lparam));

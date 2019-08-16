@@ -36,7 +36,8 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
     DMLC_DECLARE_FIELD(gpu_id)
-        .set_default(0)
+        .set_default(-1)
+        .set_lower_bound(-1)
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
