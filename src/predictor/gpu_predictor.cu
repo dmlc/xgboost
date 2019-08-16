@@ -372,7 +372,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  GPUPredictor() = default;
+  GPUPredictor() : device_{-1} {};
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
