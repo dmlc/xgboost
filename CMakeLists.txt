@@ -116,11 +116,12 @@ if (R_LIB)
 endif (R_LIB)
 
 # core xgboost
-add_subdirectory(${PROJECT_SOURCE_DIR}/src)
+add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
+add_subdirectory(${xgboost_SOURCE_DIR}/src)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- Shared library
-add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES} ${PLUGINS_SOURCES})
+add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>

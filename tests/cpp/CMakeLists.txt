@@ -12,7 +12,8 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
-add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES})
+add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES}
+  ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
 if (USE_CUDA)
   # OpenMP is mandatory for CUDA
