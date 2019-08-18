@@ -135,7 +135,7 @@ Parameters for Tree Booster
 
 * ``updater`` [default= ``grow_colmaker,prune``]
 
-  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updater plugins exist:
+  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updaters exist:
 
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``distcol``: distributed tree construction with column-based data splitting mode.
@@ -150,7 +150,7 @@ Parameters for Tree Booster
 
 * ``refresh_leaf`` [default=1]
 
-  - This is a parameter of the ``refresh`` updater plugin. When this flag is 1, tree leafs as well as tree nodes' stats are updated. When it is 0, only node stats are updated.
+  - This is a parameter of the ``refresh`` updater. When this flag is 1, tree leafs as well as tree nodes' stats are updated. When it is 0, only node stats are updated.
 
 * ``process_type`` [default= ``default``]
 
@@ -158,7 +158,7 @@ Parameters for Tree Booster
   - Choices: ``default``, ``update``
 
     - ``default``: The normal boosting process which creates new trees.
-    - ``update``: Starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: ``refresh``, ``prune``. With ``process_type=update``, one cannot use updater plugins that create new trees.
+    - ``update``: Starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updaters is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updaters could be meaningfully used with this process type: ``refresh``, ``prune``. With ``process_type=update``, one cannot use updaters that create new trees.
 
 * ``grow_policy`` [default= ``depthwise``]
 
