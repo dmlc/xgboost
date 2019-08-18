@@ -51,7 +51,7 @@ struct EvalAFT : public Metric {
 		CHECK_NE(info.labels_upper_bound_.Size(), 0U) << "y_higher cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
-    
+
     double nloglik = 0.0;
 
     const auto& yhat     = preds.HostVector();
@@ -60,7 +60,12 @@ struct EvalAFT : public Metric {
     const size_t nsize = yhat.size();
 
     for (size_t i = 0; i < nsize; ++i) {
-      nloglik += loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
+      double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
+      CHECK(!std::isinf(loss)) << "inf in log likelihood at element " << i
+                               << ", log(y_lower[i]) = " << std::log(y_lower[i])
+                               << ", log(y_higher[i]) = " << std::log(y_higher[i])
+                               << ", yhat[i] = " << yhat[i];
+      nloglik += loss;
     }
 
 		if (distributed) {

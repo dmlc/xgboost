@@ -243,6 +243,18 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
     return(TRUE)
   }
+  if (name == "label_lower_bound") {
+    if (length(info) != nrow(object))
+      stop("The length of lower-bound labels must equal to the number of rows in the input data")
+    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    return(TRUE)
+  }
+  if (name == "label_upper_bound") {
+    if (length(info) != nrow(object))
+      stop("The length of upper-bound labels must equal to the number of rows in the input data")
+    .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
+    return(TRUE)
+  }
   if (name == "weight") {
     if (length(info) != nrow(object))
       stop("The length of weights must equal to the number of rows in the input data")
