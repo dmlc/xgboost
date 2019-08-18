@@ -372,6 +372,21 @@ def _maybe_dt_array(array):
     return array
 
 
+def _check_data(data, missing):
+    '''The missing value applies only to np.ndarray.'''
+    is_invalid = (not isinstance(data, np.ndarray)) and (missing is not None)
+    is_invalid = is_invalid and missing != np.nan
+    if is_invalid:
+        raise ValueError(
+            'missing value only applies to dense input, ' +
+            'e.g. `numpy.ndarray`.' +
+            ' For a possibly sparse data type: ' + str(type(data)) +
+            ' please remove missing values or set it to np.nan.')
+    if isinstance(data, list):
+        warnings.warn('Initializing DMatrix from List is deprecated.',
+                      DeprecationWarning)
+
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -398,8 +413,8 @@ class DMatrix(object):
         label : list or numpy 1-D array, optional
             Label of the training data.
         missing : float, optional
-            Value in the data which needs to be present as a missing value. If
-            None, defaults to np.nan.
+            Value in the dense input data (e.g. `numpy.ndarray`) which needs
+            to be present as a missing value. If None, defaults to np.nan.
         weight : list or numpy 1-D array , optional
             Weight for each instance.
 
@@ -430,6 +445,8 @@ class DMatrix(object):
                 self._feature_types = feature_types
             return
 
+        _check_data(data, missing)
+
         data, feature_names, feature_types = _maybe_pandas_data(data,
                                                                 feature_names,
                                                                 feature_types)
@@ -441,10 +458,6 @@ class DMatrix(object):
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)
-
-        if isinstance(data, list):
-            warnings.warn('Initializing DMatrix from List is deprecated.',
-                          DeprecationWarning)
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
