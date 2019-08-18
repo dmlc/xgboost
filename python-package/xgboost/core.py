@@ -3,14 +3,11 @@
 # pylint: disable=too-many-branches, too-many-lines, too-many-locals
 # pylint: disable=too-many-public-methods
 """Core XGBoost Library."""
-from __future__ import absolute_import
 import collections
 # pylint: disable=no-name-in-module,import-error
-try:
-    from collections.abc import Mapping  # Python 3
-except ImportError:
-    from collections import Mapping  # Python 2
+from collections.abc import Mapping  # Python 3
 # pylint: enable=no-name-in-module,import-error
+import math
 import ctypes
 import os
 import re
@@ -375,13 +372,14 @@ def _maybe_dt_array(array):
 def _check_data(data, missing):
     '''The missing value applies only to np.ndarray.'''
     is_invalid = (not isinstance(data, np.ndarray)) and (missing is not None)
-    is_invalid = is_invalid and missing != np.nan
+    is_invalid = is_invalid and not math.isnan(missing)
     if is_invalid:
         raise ValueError(
             'missing value only applies to dense input, ' +
             'e.g. `numpy.ndarray`.' +
             ' For a possibly sparse data type: ' + str(type(data)) +
-            ' please remove missing values or set it to np.nan.')
+            ' please remove missing values or set it to nan.' +
+            ' Current missing value is set to: ' + str(missing))
     if isinstance(data, list):
         warnings.warn('Initializing DMatrix from List is deprecated.',
                       DeprecationWarning)
