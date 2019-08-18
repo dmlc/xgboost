@@ -457,12 +457,11 @@ DMLC_REGISTER_PARAMETER(GraphvizParam);
 
 class GraphvizGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
-  std::stringstream& ss_;
   GraphvizParam param_;
 
  public:
   GraphvizGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
-      TreeGenerator(fmap, with_stats), ss_{SuperT::ss_} {
+      TreeGenerator(fmap, with_stats) {
     param_.InitAllowUnknown(std::map<std::string, std::string>{});
     using KwArg = std::map<std::string, std::map<std::string, std::string>>;
     KwArg kwargs;
