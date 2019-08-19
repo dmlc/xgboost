@@ -1,9 +1,14 @@
 // Copyright by Contributors
-#include <xgboost/data.h>
+#include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
+
+#include <xgboost/data.h>
+#include <xgboost/json.h>
 #include "../../../src/data/simple_csr_source.h"
 
 #include "../helpers.h"
+
+namespace xgboost {
 
 TEST(SimpleCSRSource, SaveLoadBinary) {
   dmlc::TemporaryDirectory tempdir;
@@ -33,3 +38,4 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   delete dmat;
   delete dmat_read;
 }
+}  // namespace xgboost
