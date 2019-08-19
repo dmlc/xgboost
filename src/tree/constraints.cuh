@@ -13,7 +13,7 @@
 
 #include "param.h"
 #include "../common/span.h"
-#include "../common/bitfield.cuh"
+#include "../common/bitfield.h"
 #include "../common/device_helpers.cuh"
 
 namespace xgboost {
@@ -115,25 +115,25 @@ struct FeatureInteractionConstraint {
 
   // Allowed features attached to each node, have n_nodes bitfields,
   // each of size n_features.
-  std::vector<dh::device_vector<BitField::value_type>> node_constraints_storage_;
-  std::vector<BitField> node_constraints_;
-  common::Span<BitField> s_node_constraints_;
+  std::vector<dh::device_vector<LBitField64::value_type>> node_constraints_storage_;
+  std::vector<LBitField64> node_constraints_;
+  common::Span<LBitField64> s_node_constraints_;
 
   // buffer storing return feature list from Query, of size n_features.
   dh::device_vector<int32_t> result_buffer_;
   common::Span<int32_t> s_result_buffer_;
 
   // Temp buffers, one bit for each possible feature.
-  dh::device_vector<BitField::value_type> output_buffer_bits_storage_;
-  BitField output_buffer_bits_;
-  dh::device_vector<BitField::value_type> input_buffer_bits_storage_;
-  BitField input_buffer_bits_;
+  dh::device_vector<LBitField64::value_type> output_buffer_bits_storage_;
+  LBitField64 output_buffer_bits_;
+  dh::device_vector<LBitField64::value_type> input_buffer_bits_storage_;
+  LBitField64 input_buffer_bits_;
   /*
    * Combined features from all interaction sets that one feature belongs to.
    * For an input with [[0, 1], [1, 2]], the feature 1 belongs to sets {0, 1}
    */
-  dh::device_vector<BitField::value_type> d_feature_buffer_storage_;
-  BitField feature_buffer_;  // of Size n features.
+  dh::device_vector<LBitField64::value_type> d_feature_buffer_storage_;
+  LBitField64 feature_buffer_;  // of Size n features.
 
   // Clear out all temp buffers except for `feature_buffer_', which is
   // handled in `Split'.

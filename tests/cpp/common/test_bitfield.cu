@@ -5,56 +5,55 @@
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <vector>
-#include "../../../src/common/bitfield.cuh"
+#include "../../../src/common/bitfield.h"
 #include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
 
-__global__ void TestSetKernel(BitField bits) {
+__global__ void TestSetKernel(LBitField64 bits) {
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < bits.Size()) {
     bits.Set(tid);
   }
 }
 
-TEST(BitField, Set) {
-  dh::device_vector<BitField::value_type> storage;
+TEST(BitField, GPU_Set) {
+  dh::device_vector<LBitField64::value_type> storage;
   uint32_t constexpr kBits = 128;
   storage.resize(128);
-  auto bits = BitField(dh::ToSpan(storage));
+  auto bits = LBitField64(dh::ToSpan(storage));
   TestSetKernel<<<1, kBits>>>(bits);
 
-  std::vector<BitField::value_type> h_storage(storage.size());
+  std::vector<LBitField64::value_type> h_storage(storage.size());
   thrust::copy(storage.begin(), storage.end(), h_storage.begin());
 
-  BitField outputs {
-    common::Span<BitField::value_type>{h_storage.data(),
+  LBitField64 outputs {
+    common::Span<LBitField64::value_type>{h_storage.data(),
                                        h_storage.data() + h_storage.size()}};
   for (size_t i = 0; i < kBits; ++i) {
     ASSERT_TRUE(outputs.Check(i));
   }
 }
 
-__global__ void TestOrKernel(BitField lhs, BitField rhs) {
+__global__ void TestOrKernel(LBitField64 lhs, LBitField64 rhs) {
   lhs |= rhs;
 }
 
-TEST(BitField, And) {
+TEST(BitField, GPU_And) {
   uint32_t constexpr kBits = 128;
-  dh::device_vector<BitField::value_type> lhs_storage(kBits);
-  dh::device_vector<BitField::value_type> rhs_storage(kBits);
-  auto lhs = BitField(dh::ToSpan(lhs_storage));
-  auto rhs = BitField(dh::ToSpan(rhs_storage));
+  dh::device_vector<LBitField64::value_type> lhs_storage(kBits);
+  dh::device_vector<LBitField64::value_type> rhs_storage(kBits);
+  auto lhs = LBitField64(dh::ToSpan(lhs_storage));
+  auto rhs = LBitField64(dh::ToSpan(rhs_storage));
   thrust::fill(lhs_storage.begin(), lhs_storage.end(), 0UL);
-  thrust::fill(rhs_storage.begin(), rhs_storage.end(), ~static_cast<BitField::value_type>(0UL));
+  thrust::fill(rhs_storage.begin(), rhs_storage.end(), ~static_cast<LBitField64::value_type>(0UL));
   TestOrKernel<<<1, kBits>>>(lhs, rhs);
 
-  std::vector<BitField::value_type> h_storage(lhs_storage.size());
+  std::vector<LBitField64::value_type> h_storage(lhs_storage.size());
   thrust::copy(lhs_storage.begin(), lhs_storage.end(), h_storage.begin());
-  BitField outputs {{h_storage.data(), h_storage.data() + h_storage.size()}};
+  LBitField64 outputs {{h_storage.data(), h_storage.data() + h_storage.size()}};
   for (size_t i = 0; i < kBits; ++i) {
     ASSERT_TRUE(outputs.Check(i));
   }
 }
-
 }  // namespace xgboost

@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015-2019 by Contributors
  * \file logging.h
  * \brief defines console logging options for xgboost.
  *  Use to enforce unified print behavior.
@@ -11,12 +11,13 @@
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+#include <xgboost/base.h>
+
 #include <sstream>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
-#include "./base.h"
 
 namespace xgboost {
 
@@ -154,5 +155,14 @@ using LogCallbackRegistryStore = dmlc::ThreadLocalStore<LogCallbackRegistry>;
     ::xgboost::ConsoleLogger::LogVerbosity::kIgnore)
 // Enable LOG(TRACKER) for print messages to tracker
 #define LOG_TRACKER ::xgboost::TrackerLogger()
+
+#if defined(CHECK)
+#undef CHECK
+#define CHECK(cond)                                     \
+  if (XGBOOST_EXPECT(!(cond), false))                   \
+    dmlc::LogMessageFatal(__FILE__, __LINE__).stream()  \
+        << "Check failed: " #cond << ": "
+#endif  // defined(CHECK)
+
 }  // namespace xgboost.
 #endif  // XGBOOST_LOGGING_H_

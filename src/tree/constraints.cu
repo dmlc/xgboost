@@ -22,9 +22,6 @@
 
 namespace xgboost {
 
-BitField::value_type constexpr BitField::kValueSize;
-BitField::value_type constexpr BitField::kOne;
-
 size_t FeatureInteractionConstraint::Features() const {
   return d_sets_ptr_.size() - 1;
 }
@@ -51,7 +48,7 @@ void FeatureInteractionConstraint::Configure(
   }
   n_sets_ = h_feature_constraints.size();
 
-  size_t const n_feat_storage = BitField::ComputeStorageSize(n_features);
+  size_t const n_feat_storage = LBitField64::ComputeStorageSize(n_features);
   if (n_feat_storage == 0 && n_features != 0) {
     LOG(FATAL) << "Wrong storage size, n_features: " << n_features;
   }
@@ -70,13 +67,13 @@ void FeatureInteractionConstraint::Configure(
   node_constraints_.resize(n_nodes);
   node_constraints_storage_.resize(n_nodes);
   for (auto& n : node_constraints_storage_) {
-    n.resize(BitField::ComputeStorageSize(n_features));
+    n.resize(LBitField64::ComputeStorageSize(n_features));
   }
   for (size_t i = 0; i < node_constraints_storage_.size(); ++i) {
     auto span = dh::ToSpan(node_constraints_storage_[i]);
-    node_constraints_[i] = BitField(span);
+    node_constraints_[i] = LBitField64(span);
   }
-  s_node_constraints_ = common::Span<BitField>(node_constraints_.data(),
+  s_node_constraints_ = common::Span<LBitField64>(node_constraints_.data(),
                                                node_constraints_.size());
 
   // Represent constraints as CSR format, flatten is the value vector,
@@ -131,14 +128,14 @@ void FeatureInteractionConstraint::Configure(
   s_sets_ = dh::ToSpan(d_sets_);
   s_sets_ptr_ = dh::ToSpan(d_sets_ptr_);
 
-  d_feature_buffer_storage_.resize(BitField::ComputeStorageSize(n_features));
+  d_feature_buffer_storage_.resize(LBitField64::ComputeStorageSize(n_features));
   feature_buffer_ = dh::ToSpan(d_feature_buffer_storage_);
 
   // --- Initialize result buffers.
-  output_buffer_bits_storage_.resize(BitField::ComputeStorageSize(n_features));
-  output_buffer_bits_ = BitField(dh::ToSpan(output_buffer_bits_storage_));
-  input_buffer_bits_storage_.resize(BitField::ComputeStorageSize(n_features));
-  input_buffer_bits_ = BitField(dh::ToSpan(input_buffer_bits_storage_));
+  output_buffer_bits_storage_.resize(LBitField64::ComputeStorageSize(n_features));
+  output_buffer_bits_ = LBitField64(dh::ToSpan(output_buffer_bits_storage_));
+  input_buffer_bits_storage_.resize(LBitField64::ComputeStorageSize(n_features));
+  input_buffer_bits_ = LBitField64(dh::ToSpan(input_buffer_bits_storage_));
   result_buffer_.resize(n_features);
   s_result_buffer_ = dh::ToSpan(result_buffer_);
 }
@@ -156,7 +153,7 @@ void FeatureInteractionConstraint::Reset() {
 }
 
 __global__ void ClearBuffersKernel(
-    BitField result_buffer_output, BitField result_buffer_input) {
+    LBitField64 result_buffer_output, LBitField64 result_buffer_input) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < result_buffer_output.Size()) {
     result_buffer_output.Clear(tid);
@@ -185,7 +182,7 @@ common::Span<int32_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
   thrust::counting_iterator<int32_t> begin(0);
   thrust::counting_iterator<int32_t> end(result_buffer_.size());
   auto p_result_buffer = result_buffer_.data();
-  BitField node_constraints = s_node_constraints_[node_id];
+  LBitField64 node_constraints = s_node_constraints_[node_id];
 
   thrust::device_ptr<int32_t> const out_end = thrust::copy_if(
       thrust::device,
@@ -201,16 +198,16 @@ common::Span<int32_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
 }
 
 __global__ void SetInputBufferKernel(common::Span<int32_t> feature_list_input,
-                                     BitField result_buffer_input) {
+                                     LBitField64 result_buffer_input) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < feature_list_input.size()) {
     result_buffer_input.Set(feature_list_input[tid]);
   }
 }
 
-__global__ void QueryFeatureListKernel(BitField node_constraints,
-                                       BitField result_buffer_input,
-                                       BitField result_buffer_output) {
+__global__ void QueryFeatureListKernel(LBitField64 node_constraints,
+                                       LBitField64 result_buffer_input,
+                                       LBitField64 result_buffer_output) {
   result_buffer_output |= node_constraints;
   result_buffer_output &= result_buffer_input;
 }
@@ -223,7 +220,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
 
   ClearBuffers();
 
-  BitField node_constraints = s_node_constraints_[nid];
+  LBitField64 node_constraints = s_node_constraints_[nid];
   CHECK_EQ(input_buffer_bits_.Size(), output_buffer_bits_.Size());
 
   int constexpr kBlockThreads = 256;
@@ -237,7 +234,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
   thrust::counting_iterator<int32_t> begin(0);
   thrust::counting_iterator<int32_t> end(result_buffer_.size());
 
-  BitField local_result_buffer = output_buffer_bits_;
+  LBitField64 local_result_buffer = output_buffer_bits_;
 
   thrust::device_ptr<int32_t> const out_end = thrust::copy_if(
       thrust::device,
@@ -257,7 +254,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
 // Find interaction sets for each feature, then store all features in
 // those sets in a buffer.
 __global__ void RestoreFeatureListFromSetsKernel(
-    BitField feature_buffer,
+    LBitField64 feature_buffer,
 
     int32_t fid,
     common::Span<int32_t> feature_interactions,
@@ -283,11 +280,11 @@ __global__ void RestoreFeatureListFromSetsKernel(
   }
 }
 
-__global__ void InteractionConstraintSplitKernel(BitField feature,
+__global__ void InteractionConstraintSplitKernel(LBitField64 feature,
                                                  int32_t feature_id,
-                                                 BitField node,
-                                                 BitField left,
-                                                 BitField right) {
+                                                 LBitField64 node,
+                                                 LBitField64 left,
+                                                 LBitField64 right) {
   auto tid = threadIdx.x + blockDim.x * blockIdx.x;
   if (tid > node.Size()) {
     return;
@@ -324,9 +321,9 @@ void FeatureInteractionConstraint::Split(
   CHECK_LT(right_id, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
 
-  BitField node = s_node_constraints_[node_id];
-  BitField left = s_node_constraints_[left_id];
-  BitField right = s_node_constraints_[right_id];
+  LBitField64 node = s_node_constraints_[node_id];
+  LBitField64 left = s_node_constraints_[left_id];
+  LBitField64 right = s_node_constraints_[right_id];
 
   dim3 const block3(16, 64, 1);
   dim3 const grid3(common::DivRoundUp(n_sets_, 16),

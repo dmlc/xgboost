@@ -1,11 +1,14 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file simple_csr_source.cc
  */
 #include <dmlc/base.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
+
 #include <limits>
-#include "./simple_csr_source.h"
+#include "simple_csr_source.h"
+#include "columnar.h"
 
 namespace xgboost {
 namespace data {
@@ -116,6 +119,144 @@ bool SimpleCSRSource::Next() {
 const SparsePage& SimpleCSRSource::Value() const {
   return page_;
 }
+
+/*!
+ * Please be careful that, in official specification, the only three required fields are
+ * `shape', `version' and `typestr'.  Any other is optional, including `data'.  But here
+ * we have two additional requirements for input data:
+ *
+ * - `data' field is required, passing in an empty dataset is not accepted, as most (if
+ *   not all) of our algorithms don't have test for empty dataset.  An error is better
+ *   than a crash.
+ *
+ * - `null_count' is required when `mask' is presented.  We can compute `null_count'
+ *   ourselves and copy the result back to host for memory allocation.  But it's in the
+ *   specification of Apache Arrow hence it should be readily available,
+ *
+ * Sample input:
+ * [
+ *   {
+ *     "shape": [
+ *       10
+ *     ],
+ *     "strides": [
+ *       4
+ *     ],
+ *     "data": [
+ *       30074864128,
+ *       false
+ *     ],
+ *     "typestr": "<f4",
+ *     "version": 1,
+ *     "mask": {
+ *       "shape": [
+ *         64
+ *       ],
+ *       "strides": [
+ *         1
+ *       ],
+ *       "data": [
+ *         30074864640,
+ *         false
+ *       ],
+ *       "typestr": "|i1",
+ *       "version": 1,
+ *       "null_count": 1
+ *     }
+ *   }
+ * ]
+ */
+void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str) {
+  Json interfaces = Json::Load({cuda_interfaces_str.c_str(),
+                                cuda_interfaces_str.size()});
+  std::vector<Json> const& columns = get<Array>(interfaces);
+  size_t n_columns = columns.size();
+  CHECK_GT(n_columns, 0);
+
+  std::vector<Columnar> foreign_cols(n_columns);
+  for (size_t i = 0; i < columns.size(); ++i) {
+    CHECK(IsA<Object>(columns[i]));
+    auto const& column = get<Object const>(columns[i]);
+
+    auto version = get<Integer const>(column.at("version"));
+    CHECK_EQ(version, 1) << ColumnarErrors::Version();
+
+    // Find null mask (validity mask) field
+    // Mask object is also an array interface, but with different requirements.
+
+    // TODO(trivialfis): Abstract this into a class that accept a json
+    // object and turn it into an array (for cupy and numba).
+    common::Span<RBitField8::value_type> s_mask;
+    int32_t null_count {0};
+    if (column.find("mask") != column.cend()) {
+      auto const& j_mask = get<Object const>(column.at("mask"));
+      auto p_mask = GetPtrFromArrayData<RBitField8::value_type*>(j_mask);
+
+      auto j_shape = get<Array const>(j_mask.at("shape"));
+      CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
+      CHECK_EQ(get<Integer>(j_shape.front()) % 8, 0) <<
+          "Length of validity map must be a multiple of 8 bytes.";
+      int64_t size = get<Integer>(j_shape.at(0)) *
+                     sizeof(unsigned char) / sizeof(RBitField8::value_type);
+      s_mask = {p_mask, size};
+      auto typestr = get<String const>(j_mask.at("typestr"));
+      CHECK_EQ(typestr.size(),    3) << ColumnarErrors::TypestrFormat();
+      CHECK_NE(typestr.front(), '>') << ColumnarErrors::BigEndian();
+      CHECK_EQ(typestr.at(1),   'i') << "mask" << ColumnarErrors::ofType("unsigned char");
+      CHECK_EQ(typestr.at(2),   '1') << "mask" << ColumnarErrors::toUInt();
+
+      CHECK(j_mask.find("null_count") != j_mask.cend()) <<
+          "Column with null mask must include null_count as "
+          "part of mask object for XGBoost.";
+      null_count = get<Integer const>(j_mask.at("null_count"));
+    }
+
+    // Find data field
+    if (column.find("data") == column.cend()) {
+      LOG(FATAL) << "Empty dataset passed in.";
+    }
+
+    auto typestr = get<String const>(column.at("typestr"));
+    CHECK_EQ(typestr.size(),    3) << ColumnarErrors::TypestrFormat();
+    CHECK_NE(typestr.front(), '>') << ColumnarErrors::BigEndian();
+    CHECK_EQ(typestr.at(1),   'f') << "data" << ColumnarErrors::ofType("floating point");
+    CHECK_EQ(typestr.at(2),   '4') << ColumnarErrors::toFloat();
+
+    auto j_shape = get<Array const>(column.at("shape"));
+    CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
+
+    if (column.find("strides") != column.cend()) {
+      auto strides = get<Array const>(column.at("strides"));
+      CHECK_EQ(strides.size(), 1)              << ColumnarErrors::Dimension(1);
+      CHECK_EQ(get<Integer>(strides.at(0)), 4) << ColumnarErrors::Contigious();
+    }
+
+    auto length = get<Integer const>(j_shape.at(0));
+
+    float* p_data = GetPtrFromArrayData<float*>(column);
+    common::Span<float> s_data {p_data, length};
+
+    foreign_cols[i].data  = s_data;
+    foreign_cols[i].valid = RBitField8(s_mask);
+    foreign_cols[i].size  = s_data.size();
+    foreign_cols[i].null_count = null_count;
+  }
+
+  info.num_col_ = n_columns;
+  info.num_row_ = foreign_cols[0].size;
+  for (size_t i = 0; i < n_columns; ++i) {
+    CHECK_EQ(foreign_cols[0].size, foreign_cols[i].size);
+    info.num_nonzero_ += foreign_cols[i].data.size() - foreign_cols[i].null_count;
+  }
+
+  this->FromDeviceColumnar(foreign_cols);
+}
+
+#if !defined(XGBOOST_USE_CUDA)
+void SimpleCSRSource::FromDeviceColumnar(std::vector<Columnar> cols) {
+  LOG(FATAL) << "XGBoost version is not compiled with GPU support";
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 }  // namespace data
 }  // namespace xgboost

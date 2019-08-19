@@ -51,12 +51,18 @@ inline ncclResult_t ThrowOnNcclError(ncclResult_t code, const char *file,
 }
 #endif
 
-inline void CudaCheckPointerDevice(void* ptr) {
+inline int32_t CudaGetPointerDevice(void* ptr) {
+  int32_t device = -1;
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
-  int ptr_device = attr.device;
+  device = attr.device;
+  return device;
+}
+
+inline void CudaCheckPointerDevice(void* ptr) {
+  auto ptr_device = CudaGetPointerDevice(ptr);
   int cur_device = -1;
-  cudaGetDevice(&cur_device);
+  dh::safe_cuda(cudaGetDevice(&cur_device));
   CHECK_EQ(ptr_device, cur_device) << "pointer device: " << ptr_device
                                    << "current device: " << cur_device;
 }
