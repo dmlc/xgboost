@@ -44,8 +44,9 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
                   "Please switch to distributed training with one process per GPU. "
                   "This can be done using Dask or Spark.");
   }
+
  private:
-  // number of devices to use, -1 implies using all available devices.
+  // number of devices to use (deprecated).
   int n_gpus;
 };
 }  // namespace xgboost

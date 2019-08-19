@@ -207,43 +207,6 @@ class GPUPredictor : public xgboost::Predictor {
   };
 
  private:
-  void DeviceOffsets(const HostDeviceVector<size_t>& data,
-                     size_t total_size,
-                     std::vector<size_t>* out_offsets) {
-    auto& offsets = *out_offsets;
-    offsets.resize(2);
-    offsets[0] = 0;
-    int shard = 0;
-    int device = device_;
-    auto data_span = data.DeviceSpan(device);
-    dh::safe_cuda(cudaSetDevice(device));
-    if (data_span.size() == 0) {
-      offsets[shard + 1] = total_size;
-    } else {
-      // copy the last element from every shard
-      dh::safe_cuda(cudaMemcpy(&offsets.at(shard + 1),
-                               &data_span[data_span.size()-1],
-                               sizeof(size_t), cudaMemcpyDeviceToHost));
-    }
-  }
-
-  // This function populates the explicit offsets that can be used to create a window into the
-  // underlying host vector. The window starts from the `batch_offset` and has a size of
-  // `batch_size`, and is sharded across all the devices. Each shard is granular depending on
-  // the number of output classes `n_classes`.
-  void PredictionDeviceOffsets(size_t total_size, size_t batch_offset, size_t batch_size,
-                               int n_classes, std::vector<size_t>* out_offsets) {
-    auto& offsets = *out_offsets;
-    size_t n_shards = 1;
-    offsets.resize(n_shards + 2);
-    size_t rows_per_shard = common::DivRoundUp(batch_size, n_shards);
-    size_t shard = 0;
-    size_t n_rows = std::min(batch_size, shard * rows_per_shard);
-    offsets[shard] = batch_offset + n_rows * n_classes;
-    offsets[n_shards] = batch_offset + batch_size * n_classes;
-    offsets[n_shards + 1] = total_size;
-  }
-
   struct DeviceShard {
     DeviceShard() : device_{-1} {}
 
@@ -347,26 +310,29 @@ class GPUPredictor : public xgboost::Predictor {
     InitModel(model, tree_begin, tree_end);
 
     size_t batch_offset = 0;
+    auto* preds = out_preds;
+    std::unique_ptr<HostDeviceVector<bst_float>> batch_preds{nullptr};
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
       bool is_external_memory = batch.Size() < dmat->Info().num_row_;
       if (is_external_memory) {
-        std::vector<size_t> out_preds_offsets;
-        PredictionDeviceOffsets(out_preds->Size(), batch_offset, batch.Size(),
-                                model.param.num_output_group, &out_preds_offsets);
-        out_preds->Reshard(device_);
+        batch_preds.reset(new HostDeviceVector<bst_float>);
+        batch_preds->Resize(batch.Size() * model.param.num_output_group);
+        batch_preds->Shard(device_);
+        preds = batch_preds.get();
       }
 
       batch.offset.Shard(device_);
-      std::vector<size_t> device_offsets;
-      DeviceOffsets(batch.offset, batch.data.Size(), &device_offsets);
-      batch.data.Reshard(device_);
-
+      batch.data.Shard(device_);
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, model.param.num_feature, out_preds);
+        shard.PredictInternal(batch, model.param.num_feature, preds);
       });
+
+      if (is_external_memory) {
+        auto h_preds = preds->ConstHostVector();
+        std::copy(h_preds.begin(), h_preds.end(), out_preds->HostVector().begin() + batch_offset);
+      }
       batch_offset += batch.Size() * model.param.num_output_group;
     }
-    out_preds->Reshard(device_);
 
     monitor_.StopCuda("DevicePredictInternal");
   }

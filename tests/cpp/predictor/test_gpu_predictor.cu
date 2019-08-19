@@ -83,8 +83,8 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   std::string file1 = tmpdir.path + "/big_1.libsvm";
   std::string file2 = tmpdir.path + "/big_2.libsvm";
   dmats.push_back(CreateSparsePageDMatrix(9, 64UL, file0));
-  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
-  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
+//  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
+//  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
 
   for (const auto& dmat: dmats) {
     // Test predict batch
