@@ -52,30 +52,34 @@ struct EvalAFT : public Metric {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
-    double nloglik = 0.0;
+    /* Compute negative log likelihood for each data point and compute weighted average */
+    double nloglik_sum = 0.0;
+    double weight_sum = 0.0;
 
     const auto& yhat     = preds.HostVector();
     const auto& y_lower  = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
+    const auto& weights  = info.weights_.HostVector();
+    const bool is_null_weight = weights.empty();
     const size_t nsize = yhat.size();
 
     for (size_t i = 0; i < nsize; ++i) {
+      // If weights are empty, data is unweighted so we use 1.0 everywhere
+      double w = is_null_weight ? 1.0 : weights[i];
       double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
       CHECK(!std::isinf(loss)) << "inf in log likelihood at element " << i
                                << ", log(y_lower[i]) = " << std::log(y_lower[i])
                                << ", log(y_higher[i]) = " << std::log(y_higher[i])
                                << ", yhat[i] = " << yhat[i];
-      nloglik += loss;
+      nloglik_sum += loss;
+      weight_sum += w;
     }
 
+    double dat[2] { nloglik_sum, weight_sum };
 		if (distributed) {
-			bst_float dat[1];
-			dat[0] = static_cast<bst_float>(nloglik);
-			rabit::Allreduce<rabit::op::Sum>(dat, 1);
-			return dat[0];
-		} else {
-			return static_cast<bst_float>(nloglik);
+			rabit::Allreduce<rabit::op::Sum>(dat, 2);
 		}
+    return static_cast<bst_float>(dat[0] / dat[1]);
   }
 
   const char* Name() const override {
