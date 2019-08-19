@@ -31,7 +31,10 @@ template <typename EvalRow>
 class ElementWiseMetricsReduction {
  public:
   explicit ElementWiseMetricsReduction(EvalRow policy) :
-    device_(-1), policy_(std::move(policy)) {}
+#if defined(XGBOOST_USE_CUDA)
+    device_(-1),
+#endif  // XGBOOST_USE_CUDA
+    policy_(std::move(policy)) {}
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
