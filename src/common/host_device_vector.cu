@@ -358,7 +358,7 @@ struct HostDeviceVectorImpl {
 
   void Shard(int device) {
     if (device_ == device) { return; }
-    CHECK_GE(device_, 0)
+    CHECK_LT(device_, 0)
         << "This: " << device_ << ", "
         << "Others: " << device;
     device_ = device;

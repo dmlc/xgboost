@@ -77,12 +77,10 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Columnar> cols) {
 
   dh::safe_cuda(cudaSetDevice(device));
 
-  GPUSet devices = GPUSet::Range(device, 1);
-
-  page_.offset.Reshard(GPUDistribution(devices));
+  page_.offset.Reshard(device);
   page_.offset.Resize(info.num_row_ + 1);
 
-  page_.data.Reshard(GPUDistribution(devices));
+  page_.data.Reshard(device);
   page_.data.Resize(info.num_nonzero_);
 
   auto s_data = page_.data.DeviceSpan(device);

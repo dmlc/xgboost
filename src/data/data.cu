@@ -78,7 +78,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   } else {
     LOG(FATAL) << "Unknown metainfo: " << key;
   }
-  dst->Reshard(GPUDistribution(GPUSet::Range(ptr_device, 1)));
+  dst->Reshard(ptr_device);
   dst->Resize(length);
   auto p_dst = thrust::device_pointer_cast(dst->DevicePointer(0));
   thrust::copy(p_src, p_src + length, p_dst);
