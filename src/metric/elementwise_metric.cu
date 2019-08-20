@@ -30,11 +30,7 @@ DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 template <typename EvalRow>
 class ElementWiseMetricsReduction {
  public:
-  explicit ElementWiseMetricsReduction(EvalRow policy) :
-#if defined(XGBOOST_USE_CUDA)
-    device_(-1),
-#endif  // XGBOOST_USE_CUDA
-    policy_(std::move(policy)) {}
+  explicit ElementWiseMetricsReduction(EvalRow policy) : policy_(std::move(policy)) {}
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -135,7 +131,7 @@ class ElementWiseMetricsReduction {
  private:
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
-  int device_;
+  int device_{-1};
   dh::CubMemory allocator_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };

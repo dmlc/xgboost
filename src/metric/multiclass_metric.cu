@@ -35,11 +35,7 @@ class MultiClassMetricsReduction {
   }
 
  public:
-  MultiClassMetricsReduction()
-#if defined(XGBOOST_USE_CUDA)
-    : device_(-1)
-#endif  // XGBOOST_USE_CUDA
-  {}
+  MultiClassMetricsReduction() = default;
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -157,7 +153,7 @@ class MultiClassMetricsReduction {
  private:
 #if defined(XGBOOST_USE_CUDA)
   dh::PinnedMemory label_error_;
-  int device_;
+  int device_{-1};
   dh::CubMemory allocator_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
