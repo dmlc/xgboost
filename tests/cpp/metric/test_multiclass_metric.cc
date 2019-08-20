@@ -47,7 +47,15 @@ TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
 }
 
 #if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
+namespace xgboost {
+namespace common {
 TEST(Metric, MGPU_MultiClassError) {
+  auto devices = GPUSet::AllVisible();
+  if (devices.Size() < 2) {
+    LOG(WARNING) << "Not testing in multi-gpu environment.";
+    return;
+  }
+
   {
     TestMultiClassError(0);
   }
@@ -61,4 +69,6 @@ TEST(Metric, MGPU_MultiClassError) {
     TestMultiClassLogLoss(1);
   }
 }
+}  // namespace common
+}  // namespace xgboost
 #endif  // defined(XGBOOST_USE_NCCL)
