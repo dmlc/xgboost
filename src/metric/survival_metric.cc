@@ -67,10 +67,10 @@ struct EvalAFT : public Metric {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
       double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
-      CHECK(!std::isinf(loss)) << "inf in log likelihood at element " << i
-                               << ", log(y_lower[i]) = " << std::log(y_lower[i])
-                               << ", log(y_higher[i]) = " << std::log(y_higher[i])
-                               << ", yhat[i] = " << yhat[i];
+      // CHECK(!std::isinf(loss)) << "inf in log likelihood at element " << i
+      //                          << ", log(y_lower[i]) = " << std::log(y_lower[i])
+      //                          << ", log(y_higher[i]) = " << std::log(y_higher[i])
+      //                          << ", yhat[i] = " << yhat[i];
       nloglik_sum += loss;
       weight_sum += w;
     }
