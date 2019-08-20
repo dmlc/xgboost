@@ -5,15 +5,13 @@ import pytest
 sys.path.append("tests/python")
 import testing as tm
 
-pytestmark = pytest.mark.skipif(**tm.no_cudf())
-
 
 class TestFromColumnar:
     '''Tests for constructing DMatrix from data structure conforming Apache
 Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
-    def test_from_cudf():
+    def test_from_cudf(self):
         '''Test constructing DMatrix from cudf'''
         import cudf
         import pandas as pd
