@@ -35,7 +35,11 @@ class MultiClassMetricsReduction {
   }
 
  public:
-  MultiClassMetricsReduction() = default;
+  MultiClassMetricsReduction()
+#if defined(XGBOOST_USE_CUDA)
+    : device_(-1)
+#endif  // XGBOOST_USE_CUDA
+  {}
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
