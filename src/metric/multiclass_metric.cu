@@ -74,8 +74,10 @@ class MultiClassMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
 
   ~MultiClassMetricsReduction() {
-    dh::safe_cuda(cudaSetDevice(device_));
-    allocator_.Free();
+    if (device_ >= 0) {
+      dh::safe_cuda(cudaSetDevice(device_));
+      allocator_.Free();
+    }
   }
 
   PackedReduceResult DeviceReduceMetrics(
