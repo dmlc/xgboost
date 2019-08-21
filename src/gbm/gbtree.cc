@@ -57,6 +57,14 @@ void GBTree::Configure(const Args& cfg) {
 
   monitor_.Init("GBTree");
 
+  if (tparam_.tree_method == TreeMethod::kGPUHist &&
+      std::none_of(cfg.cbegin(), cfg.cend(),
+                   [](std::pair<std::string, std::string> const& arg) {
+                     return arg.first == "predictor";
+                   })) {
+    tparam_.predictor = "gpu_predictor";
+  }
+
   configured_ = true;
 }
 
@@ -88,7 +96,7 @@ void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const
     // set, since only experts are expected to do so.
     return;
   }
-
+  // tparam_ is set before calling this function.
   if (tparam_.tree_method != TreeMethod::kAuto) {
     return;
   }
@@ -112,7 +120,6 @@ void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const
     tparam_.tree_method = TreeMethod::kApprox;
   } else {
     tparam_.tree_method = TreeMethod::kExact;
-    tparam_.updater_seq = "grow_colmaker,prune";
   }
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
@@ -131,8 +138,9 @@ void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
   /* Choose updaters according to tree_method parameters */
   switch (tparam_.tree_method) {
     case TreeMethod::kAuto:
-      // Use heuristic to choose between 'exact' and 'approx'
-      // This choice is deferred to PerformTreeMethodHeuristic().
+      // Use heuristic to choose between 'exact' and 'approx' This
+      // choice is carried out in PerformTreeMethodHeuristic() before
+      // calling this function.
       break;
     case TreeMethod::kApprox:
       tparam_.updater_seq = "grow_histmaker,prune";

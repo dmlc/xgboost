@@ -2,7 +2,8 @@
 import numpy as np
 import xgboost
 import unittest
-from sklearn.metrics import accuracy_score
+import testing as tm
+import pytest
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
@@ -49,7 +50,9 @@ class TestInteractionConstraints(unittest.TestCase):
         diff2 = preds[2] - preds[1]
         assert np.all(np.abs(diff2 - diff2[0]) < 1e-4)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_accuracy(self, tree_method='hist'):
+        from sklearn.metrics import accuracy_score
         dtrain = xgboost.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
         dtest = xgboost.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
         params = {
