@@ -87,15 +87,15 @@ TEST(gpu_predictor, ExternalMemoryTest) {
 //  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
 
   for (const auto& dmat: dmats) {
-    // Test predict batch
+    dmat->Info().base_margin_.Resize(dmat->Info().num_row_ * n_classes, 0.5);
     HostDeviceVector<float> out_predictions;
     gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
     EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
     const std::vector<float> &host_vector = out_predictions.ConstHostVector();
     for (int i = 0; i < host_vector.size() / n_classes; i++) {
-      ASSERT_EQ(host_vector[i * n_classes], 1.5);
-      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
-      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
+      ASSERT_EQ(host_vector[i * n_classes], 2.0);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.5);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);
     }
   }
 }

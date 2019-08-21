@@ -317,6 +317,9 @@ class GPUPredictor : public xgboost::Predictor {
       if (is_external_memory) {
         batch_preds.reset(new HostDeviceVector<bst_float>);
         batch_preds->Resize(batch.Size() * model.param.num_output_group);
+        std::copy(out_preds->ConstHostVector().begin() + batch_offset,
+                  out_preds->ConstHostVector().begin() + batch_offset + batch_preds->Size(),
+                  batch_preds->HostVector().begin());
         batch_preds->Shard(device_);
         preds = batch_preds.get();
       }
@@ -368,14 +371,14 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
-    out_preds->Shard(device_);
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
-      CHECK_EQ(out_preds->Size(), n);
+      CHECK_EQ(base_margin.Size(), n);
       out_preds->Copy(base_margin);
     } else {
       out_preds->Fill(model.base_margin);
     }
+    out_preds->Shard(device_);
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
