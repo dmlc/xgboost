@@ -147,20 +147,13 @@ class GBTree : public GradientBooster {
     cache_ = cache;
   }
 
-  static void AssertGPUSupport() {
-#ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif  // XGBOOST_USE_CUDA
-  }
-
   void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
-  // data matrix
-  void PerformTreeMethodHeuristic(std::map<std::string, std::string> const& cfg,
-                                  DMatrix* fmat);
+  // data matrix, only useful when tree_method is auto.
+  void PerformTreeMethodHeuristic(DMatrix* fmat);
   /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters(const std::map<std::string, std::string>& cfg);
-  void ConfigureWithKnownData(std::map<std::string, std::string> const& cfg, DMatrix* fmat);
+  void ConfigureUpdaters();
+  void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat,
@@ -241,7 +234,7 @@ class GBTree : public GradientBooster {
 
  protected:
   // initialize updater before using them
-  void InitUpdater();
+  void InitUpdater(Args const& cfg);
 
   // do group specific group
   void BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
@@ -277,6 +270,8 @@ class GBTree : public GradientBooster {
   // training parameter
   GBTreeTrainParam tparam_;
   // ----training fields----
+  bool specified_updater_   {false};
+  bool specified_predictor_ {false};
   bool configured_ {false};
   // configurations for tree
   Args cfg_;

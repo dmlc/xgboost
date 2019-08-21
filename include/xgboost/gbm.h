@@ -154,6 +154,12 @@ class GradientBooster {
       GenericParameter const* gparam,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
+
+  static void AssertGPUSupport() {
+#ifndef XGBOOST_USE_CUDA
+    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#endif  // XGBOOST_USE_CUDA
+  }
 };
 
 /*!

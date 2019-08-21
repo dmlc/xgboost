@@ -47,22 +47,39 @@ void GBTree::Configure(const Args& cfg) {
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->learner_param_));
+    cpu_predictor_->Configure(cfg, cache_);
   }
 #if defined(XGBOOST_USE_CUDA)
   if (!gpu_predictor_) {
     gpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("gpu_predictor", this->learner_param_));
+    gpu_predictor_->Configure(cfg, cache_);
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 
   monitor_.Init("GBTree");
 
-  if (tparam_.tree_method == TreeMethod::kGPUHist &&
-      std::none_of(cfg.cbegin(), cfg.cend(),
+  specified_predictor_ = std::any_of(cfg.cbegin(), cfg.cend(),
                    [](std::pair<std::string, std::string> const& arg) {
                      return arg.first == "predictor";
-                   })) {
+                   });
+  if (!specified_predictor_ && tparam_.tree_method == TreeMethod::kGPUHist) {
     tparam_.predictor = "gpu_predictor";
+  }
+
+  specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
+                   [](std::pair<std::string, std::string> const& arg) {
+                     return arg.first == "updater";
+                   });
+  if (specified_updater_) {
+    LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
+        "parameter. The `tree_method` parameter will be ignored. "
+        "Incorrect sequence of updaters will produce undefined "
+        "behavior. For common uses, we recommend using "
+        "`tree_method` parameter instead.";
+  } else {
+    this->ConfigureUpdaters();
+    LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
   }
 
   configured_ = true;
@@ -72,26 +89,23 @@ void GBTree::Configure(const Args& cfg) {
 // depends on whether external memory is used and how large is dataset.  We can remove the
 // dependency on DMatrix once `hist` tree method can handle external memory so that we can
 // make it default.
-void GBTree::ConfigureWithKnownData(std::map<std::string, std::string> const& cfg, DMatrix* fmat) {
+void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
   std::string updater_seq = tparam_.updater_seq;
-  tparam_.InitAllowUnknown(cfg);
-  this->PerformTreeMethodHeuristic({this->cfg_.begin(), this->cfg_.end()}, fmat);
-  this->ConfigureUpdaters({this->cfg_.begin(), this->cfg_.end()});
-  LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
+  auto tree_method = tparam_.tree_method;
+  this->PerformTreeMethodHeuristic(fmat);
+
   // initialize the updaters only when needed.
-  if (updater_seq != tparam_.updater_seq) {
+  if (tree_method != tparam_.tree_method) {
+    this->ConfigureUpdaters();
+    LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
     this->updaters_.clear();
   }
-  this->InitUpdater();
-  cpu_predictor_->Configure({cfg.cbegin(), cfg.cend()}, cache_);
-#if defined(XGBOOST_USE_CUDA)
-  gpu_predictor_->Configure({cfg.cbegin(), cfg.cend()}, cache_);
-#endif  // defined(XGBOOST_USE_CUDA)
+
+  this->InitUpdater(cfg);
 }
 
-void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const& cfg,
-                                        DMatrix* fmat) {
-  if (cfg.find("updater") != cfg.cend()) {
+void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
+  if (specified_updater_) {
     // This method is disabled when `updater` parameter is explicitly
     // set, since only experts are expected to do so.
     return;
@@ -124,17 +138,8 @@ void GBTree::PerformTreeMethodHeuristic(std::map<std::string, std::string> const
   LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
 
-void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
+void GBTree::ConfigureUpdaters() {
   // `updater` parameter was manually specified
-  if (cfg.find("updater") != cfg.cend()) {
-    LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
-        "parameter. The `tree_method` parameter will be ignored. "
-        "Incorrect sequence of updaters will produce undefined "
-        "behavior. For common uses, we recommend using "
-        "`tree_method` parameter instead.";
-    return;
-  }
-
   /* Choose updaters according to tree_method parameters */
   switch (tparam_.tree_method) {
     case TreeMethod::kAuto:
@@ -157,7 +162,7 @@ void GBTree::ConfigureUpdaters(const std::map<std::string, std::string>& cfg) {
     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
-      if (cfg.find("predictor") == cfg.cend()) {
+      if (!specified_predictor_) {
         tparam_.predictor = "gpu_predictor";
       }
       break;
@@ -172,7 +177,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      ObjFunction* obj) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
   const int ngroup = model_.param.num_output_group;
-  ConfigureWithKnownData({this->cfg_.cbegin(), this->cfg_.cend()}, p_fmat);
+  ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree> > ret;
@@ -199,18 +204,16 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     }
   }
   monitor_.Stop("BoostNewTrees");
-  monitor_.Start("CommitModel");
   this->CommitModel(std::move(new_trees));
-  monitor_.Stop("CommitModel");
 }
 
-void GBTree::InitUpdater() {
+void GBTree::InitUpdater(Args const& cfg) {
   if (updaters_.size() != 0) return;
   std::string tval = tparam_.updater_seq;
   std::vector<std::string> ups = common::Split(tval, ',');
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
-    up->Configure(this->cfg_);
+    up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
 }
@@ -245,6 +248,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
 }
 
 void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees) {
+  monitor_.Start("CommitModel");
   int num_new_trees = 0;
   for (int gid = 0; gid < model_.param.num_output_group; ++gid) {
     num_new_trees += new_trees[gid].size();
@@ -252,6 +256,7 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
   }
   CHECK(configured_);
   GetPredictor()->UpdatePredictionCache(model_, &updaters_, num_new_trees);
+  monitor_.Stop("CommitModel");
 }
 
 
