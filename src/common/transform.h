@@ -125,7 +125,6 @@ class Transform {
       size_t range_size = *range_.end() - *range_.begin();
 
       // Extract index to deal with possible old OpenMP.
-      // Ignore other attributes of GPUDistribution for spliting index.
       // This deals with situation like multi-class setting where
       // granularity is used in data vector.
       size_t shard_size = range_size;
