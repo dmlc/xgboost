@@ -22,11 +22,12 @@ using RandomThreadLocalStore = dmlc::ThreadLocalStore<RandomThreadLocalEntry>;
 GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;
 }
-}  // namespace common
 
 #if !defined(XGBOOST_USE_CUDA)
-int AllVisibleImpl::AllVisible() {
+int AllVisibleGPUs() {
   return 0;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+}  // namespace common
 }  // namespace xgboost
