@@ -36,13 +36,12 @@ int main(int argc, char** argv) {
   //   https://xgboost.readthedocs.io/en/latest/parameter.html
   safe_xgboost(XGBoosterSetParam(booster, "tree_method", use_gpu ? "gpu_hist" : "hist"));
   if (use_gpu) {
-    // set the number of GPUs and the first GPU to use;
+    // set the GPU to use;
     // this is not necessary, but provided here as an illustration
-    safe_xgboost(XGBoosterSetParam(booster, "n_gpus", "1"));
     safe_xgboost(XGBoosterSetParam(booster, "gpu_id", "0"));
   } else {
     // avoid evaluating objective and metric on a GPU
-    safe_xgboost(XGBoosterSetParam(booster, "n_gpus", "0"));
+    safe_xgboost(XGBoosterSetParam(booster, "gpu_id", "-1"));
   }
 
   safe_xgboost(XGBoosterSetParam(booster, "objective", "binary:logistic"));

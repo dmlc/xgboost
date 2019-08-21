@@ -19,7 +19,7 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
-  // primary device.
+  // primary device, -1 means no gpu.
   int gpu_id;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
@@ -39,7 +39,7 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
-        .set_range(0, 1)
+        .set_range(0, 0)
         .describe("Deprecated. Single process multi-GPU training is no longer supported. "
                   "Please switch to distributed training with one process per GPU. "
                   "This can be done using Dask or Spark.");

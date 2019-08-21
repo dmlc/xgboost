@@ -332,7 +332,6 @@ struct EvalEWiseBase : public Metric {
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
     const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
-    // Dealing with ndata < n_gpus.
     int device = tparam_->gpu_id;
 
     auto result =
