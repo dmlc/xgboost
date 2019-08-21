@@ -1,9 +1,11 @@
 import numpy as np
 import xgboost as xgb
 import unittest
-from sklearn.metrics import accuracy_score
+import testing as tm
+import pytest
 
 dpath = 'demo/data/'
+
 
 def is_increasing(y):
     return np.count_nonzero(np.diff(y) < 0.0) == 0
@@ -100,7 +102,9 @@ class TestMonotoneConstraints(unittest.TestCase):
 
         assert is_correctly_constrained(constrained_hist_method)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_accuracy(self):
+        from sklearn.metrics import accuracy_score
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
         params = {'eta': 1, 'max_depth': 6, 'objective': 'binary:logistic',
