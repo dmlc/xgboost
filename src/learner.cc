@@ -265,7 +265,7 @@ class LearnerImpl : public Learner {
           }
 #endif  // XGBOOST_USE_CUDA
           // NO visible GPU in current environment
-          if (is_gpu_predictor && GPUSet::AllVisible().Size() == 0) {
+          if (is_gpu_predictor && common::AllVisibleGPUs() == 0) {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
             LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";

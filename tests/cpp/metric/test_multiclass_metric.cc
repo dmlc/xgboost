@@ -50,8 +50,7 @@ TEST(Metric, DeclareUnifiedTest(MultiClassLogLoss)) {
 namespace xgboost {
 namespace common {
 TEST(Metric, MGPU_MultiClassError) {
-  auto devices = GPUSet::AllVisible();
-  if (devices.Size() < 2) {
+  if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;
   }

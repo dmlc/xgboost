@@ -81,7 +81,7 @@ class MultiClassMetricsReduction {
   }
 
   PackedReduceResult DeviceReduceMetrics(
-      GPUSet::GpuIdType device_id,
+      int device_id,
       size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,

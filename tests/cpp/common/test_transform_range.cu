@@ -6,8 +6,7 @@ namespace xgboost {
 namespace common {
 
 TEST(Transform, MGPU_SpecifiedGpuId) {
-  auto devices = GPUSet::AllVisible();
-  if (devices.Size() < 2) {
+  if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;
   }
