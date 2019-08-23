@@ -71,7 +71,7 @@ class DeviceShard {
     }
   }
 
-  ~DeviceShard() {
+  ~DeviceShard() {  // NOLINT
     dh::safe_cuda(cudaSetDevice(device_id_));
   }
 
@@ -144,7 +144,7 @@ class DeviceShard {
  * \brief Coordinate descent algorithm that updates one feature per iteration
  */
 
-class GPUCoordinateUpdater : public LinearUpdater {
+class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
  public:
   // set training parameter
   void Configure(Args const& args) override {
@@ -251,8 +251,8 @@ class GPUCoordinateUpdater : public LinearUpdater {
 
  private:
   // training parameter
-  LinearTrainParam tparam_{};
-  CoordinateParam coord_param_{};
+  LinearTrainParam tparam_;
+  CoordinateParam coord_param_;
   int device_{};
   std::unique_ptr<FeatureSelector> selector_;
   common::Monitor monitor_;

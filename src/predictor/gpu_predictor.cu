@@ -20,12 +20,6 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
-template <typename IterT>
-void IncrementOffset(IterT begin_itr, IterT end_itr, size_t amount) {
-  thrust::transform(begin_itr, end_itr, begin_itr,
-                    [=] __device__(size_t elem) { return elem + amount; });
-}
-
 /**
  * \struct  DevicePredictionNode
  *
@@ -44,7 +38,7 @@ struct DevicePredictionNode {
   int fidx;
   int left_child_idx;
   int right_child_idx;
-  NodeValue val;
+  NodeValue val{};
 
   DevicePredictionNode(const RegTree::Node& n) {  // NOLINT
     static_assert(sizeof(DevicePredictionNode) == 16, "Size is not 16 bytes");
@@ -200,18 +194,14 @@ __global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
 }
 
 class GPUPredictor : public xgboost::Predictor {
- protected:
-  struct DevicePredictionCacheEntry {
-    std::shared_ptr<DMatrix> data;
-    HostDeviceVector<bst_float> predictions;
-  };
-
  private:
   struct DeviceShard {
     DeviceShard() : device_{-1} {}
 
     ~DeviceShard() {
-      dh::safe_cuda(cudaSetDevice(device_));
+      if (device_ >= 0) {
+        dh::safe_cuda(cudaSetDevice(device_));
+      }
     }
 
     void Init(int device) {
@@ -280,7 +270,7 @@ class GPUPredictor : public xgboost::Predictor {
   void InitModel(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
-    thrust::host_vector<size_t> h_tree_segments;
+    thrust::host_vector<size_t> h_tree_segments{};
     h_tree_segments.reserve((tree_end - tree_begin) + 1);
     size_t sum = 0;
     h_tree_segments.push_back(sum);
@@ -295,9 +285,7 @@ class GPUPredictor : public xgboost::Predictor {
       std::copy(src_nodes.begin(), src_nodes.end(),
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
-    dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard &shard) {
-      shard.InitModel(model, h_tree_segments, h_nodes, tree_begin, tree_end);
-    });
+    shard_.InitModel(model, h_tree_segments, h_nodes, tree_begin, tree_end);
   }
 
   void DevicePredictInternal(DMatrix* dmat,
@@ -326,9 +314,7 @@ class GPUPredictor : public xgboost::Predictor {
 
       batch.offset.SetDevice(device_);
       batch.data.SetDevice(device_);
-      dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
-        shard.PredictInternal(batch, model.param.num_feature, preds);
-      });
+      shard_.PredictInternal(batch, model.param.num_feature, preds);
 
       if (is_external_memory) {
         auto h_preds = preds->ConstHostVector();
@@ -348,7 +334,7 @@ class GPUPredictor : public xgboost::Predictor {
                     unsigned ntree_limit = 0) override {
     int device = learner_param_->gpu_id;
     CHECK_GE(device, 0);
-    ConfigureShards(device);
+    ConfigureShard(device);
 
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
       return;
@@ -378,7 +364,6 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       out_preds->Fill(model.base_margin);
     }
-    out_preds->SetDevice(device_);
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
@@ -465,24 +450,20 @@ class GPUPredictor : public xgboost::Predictor {
 
     int device = learner_param_->gpu_id;
     if (device >= 0) {
-      ConfigureShards(device);
+      ConfigureShard(device);
     }
   }
 
  private:
   /*! \brief Re configure shards when GPUSet is changed. */
-  void ConfigureShards(int device) {
+  void ConfigureShard(int device) {
     if (device_ == device) return;
 
     device_ = device;
-    shards_.clear();
-    shards_.resize(1);
-    dh::ExecuteIndexShards(&shards_, [=](size_t i, DeviceShard& shard){
-        shard.Init(device_);
-      });
+    shard_.Init(device_);
   }
 
-  std::vector<DeviceShard> shards_;
+  DeviceShard shard_;
   int device_;
   common::Monitor monitor_;
 };
