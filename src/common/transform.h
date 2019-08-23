@@ -82,13 +82,13 @@ class Transform {
    private:
     // CUDA UnpackHDV
     template <typename T>
-    Span<T> UnpackHDV(HostDeviceVector<T>* _vec, int _device) const {
-      auto span = _vec->DeviceSpan(_device);
+    Span<T> UnpackHDVOnDevice(HostDeviceVector<T>* _vec) const {
+      auto span = _vec->DeviceSpan();
       return span;
     }
     template <typename T>
-    Span<T const> UnpackHDV(const HostDeviceVector<T>* _vec, int _device) const {
-      auto span = _vec->ConstDeviceSpan(_device);
+    Span<T const> UnpackHDVOnDevice(const HostDeviceVector<T>* _vec) const {
+      auto span = _vec->ConstDeviceSpan();
       return span;
     }
     // CPU UnpackHDV
@@ -105,13 +105,13 @@ class Transform {
     // Recursive unpack for Shard.
     template <typename T>
     void UnpackShard(int device, const HostDeviceVector<T> *vector) const {
-      vector->Shard(device);
+      vector->SetDevice(device);
     }
     template <typename Head, typename... Rest>
     void UnpackShard(int device,
                      const HostDeviceVector<Head> *_vector,
                      const HostDeviceVector<Rest> *... _vectors) const {
-      _vector->Shard(device);
+      _vector->SetDevice(device);
       UnpackShard(device, _vectors...);
     }
 
@@ -133,7 +133,7 @@ class Transform {
       const int GRID_SIZE =
           static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
       detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
-          _func, shard_range, UnpackHDV(_vectors, device_)...);
+          _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
     /*! \brief Dummy funtion defined when compiling for CPU.  */

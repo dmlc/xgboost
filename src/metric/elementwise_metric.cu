@@ -65,19 +65,17 @@ class ElementWiseMetricsReduction {
   }
 
   PackedReduceResult DeviceReduceMetrics(
-      int device_id,
-      size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
-    size_t n_data = preds.DeviceSize(device_id);
+    size_t n_data = preds.DeviceSize();
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
-    auto s_label = labels.DeviceSpan(device_id);
-    auto s_preds = preds.DeviceSpan(device_id);
-    auto s_weights = weights.DeviceSpan(device_id);
+    auto s_label = labels.DeviceSpan();
+    auto s_preds = preds.DeviceSpan();
+    auto s_weights = weights.DeviceSpan();
 
     bool const is_null_weight = weights.Size() == 0;
 
@@ -116,12 +114,12 @@ class ElementWiseMetricsReduction {
     else {  // NOLINT
       device_ = device;
       if (device_ >= 0) {
-        preds.Shard(device_);
-        labels.Shard(device_);
-        weights.Shard(device_);
+        preds.SetDevice(device_);
+        labels.SetDevice(device_);
+        weights.SetDevice(device_);
 
         dh::safe_cuda(cudaSetDevice(device_));
-        result = DeviceReduceMetrics(device_, 0, weights, labels, preds);
+        result = DeviceReduceMetrics(weights, labels, preds);
       }
     }
 #endif  // defined(XGBOOST_USE_CUDA)

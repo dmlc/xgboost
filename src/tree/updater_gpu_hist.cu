@@ -702,7 +702,7 @@ struct DeviceShard {
     row_partitioner.reset(new RowPartitioner(device_id, n_rows));
 
     dh::safe_cuda(cudaMemcpyAsync(
-        gpair.data(), dh_gpair->ConstDevicePointer(device_id),
+        gpair.data(), dh_gpair->ConstDevicePointer(),
         gpair.size() * sizeof(GradientPair), cudaMemcpyHostToHost));
     SubsampleGradientPair(device_id, gpair, param.subsample, row_begin_idx);
     hist.Reset();
@@ -745,8 +745,8 @@ struct DeviceShard {
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
-      p_feature_set->Shard(device_id);
-      auto d_sampled_features = p_feature_set->DeviceSpan(device_id);
+      p_feature_set->SetDevice(device_id);
+      auto d_sampled_features = p_feature_set->DeviceSpan();
       common::Span<int32_t> d_feature_set =
           interaction_constraints.Query(d_sampled_features, nidx);
       auto d_split_candidates =
@@ -1016,7 +1016,7 @@ struct DeviceShard {
                 dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
-    const auto &gpair = gpair_all->DeviceSpan(device_id);
+    const auto &gpair = gpair_all->DeviceSpan();
 
     dh::SumReduction(temp_memory, gpair, node_sum_gradients_d,
                      gpair.size());
@@ -1425,7 +1425,7 @@ class GPUHistMakerSpecialised {
     for (auto& tree : trees) {
       tree = *p_tree;
     }
-    gpair->Reshard(device_);
+    gpair->SetDevice(device_);
 
     // Launch one thread for each device "shard" containing a subset of rows.
     // Threads will cooperatively build the tree, synchronising over histograms.
@@ -1451,13 +1451,13 @@ class GPUHistMakerSpecialised {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
-    p_out_preds->Shard(device_);
+    p_out_preds->SetDevice(device_);
     dh::ExecuteIndexShards(
         &shards_,
         [&](int idx, std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
           dh::safe_cuda(cudaSetDevice(shard->device_id));
           shard->UpdatePredictionCache(
-              p_out_preds->DevicePointer(shard->device_id));
+              p_out_preds->DevicePointer());
         });
     monitor_.StopCuda("UpdatePredictionCache");
     return true;

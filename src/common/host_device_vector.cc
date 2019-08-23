@@ -78,20 +78,20 @@ template <typename T>
 int HostDeviceVector<T>::DeviceIdx() const { return -1; }
 
 template <typename T>
-T* HostDeviceVector<T>::DevicePointer(int device) { return nullptr; }
+T* HostDeviceVector<T>::DevicePointer() { return nullptr; }
 
 template <typename T>
-const T* HostDeviceVector<T>::ConstDevicePointer(int device) const {
+const T* HostDeviceVector<T>::ConstDevicePointer() const {
   return nullptr;
 }
 
 template <typename T>
-common::Span<T> HostDeviceVector<T>::DeviceSpan(int device) {
+common::Span<T> HostDeviceVector<T>::DeviceSpan() {
   return common::Span<T>();
 }
 
 template <typename T>
-common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan(int device) const {
+common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
   return common::Span<const T>();
 }
 
@@ -109,10 +109,7 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::DeviceStart(int device) const { return 0; }
-
-template <typename T>
-size_t HostDeviceVector<T>::DeviceSize(int device) const { return 0; }
+size_t HostDeviceVector<T>::DeviceSize() const { return 0; }
 
 template <typename T>
 void HostDeviceVector<T>::Fill(T v) {
@@ -143,15 +140,12 @@ bool HostDeviceVector<T>::HostCanAccess(GPUAccess access) const {
 }
 
 template <typename T>
-bool HostDeviceVector<T>::DeviceCanAccess(int device, GPUAccess access) const {
+bool HostDeviceVector<T>::DeviceCanAccess(GPUAccess access) const {
   return false;
 }
 
 template <typename T>
-void HostDeviceVector<T>::Shard(int device) const { }
-
-template <typename T>
-void Reshard(int device) { }
+void HostDeviceVector<T>::SetDevice(int device) const {}
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;

@@ -244,10 +244,10 @@ class GPUPredictor : public xgboost::Predictor {
     void PredictInternal
     (const SparsePage& batch, size_t num_features,
      HostDeviceVector<bst_float>* predictions) {
-      if (predictions->DeviceSize(device_) == 0) { return; }
+      if (predictions->DeviceSize() == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.DeviceSize(device_) - 1;
+      size_t num_rows = batch.offset.DeviceSize() - 1;
       const int GRID_SIZE = static_cast<int>(common::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
@@ -260,9 +260,9 @@ class GPUPredictor : public xgboost::Predictor {
       size_t entry_start = 0;
 
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan(device_), dh::ToSpan(tree_segments_),
-         dh::ToSpan(tree_group_), batch.offset.DeviceSpan(device_),
-         batch.data.DeviceSpan(device_), this->tree_begin_, this->tree_end_, num_features,
+        (dh::ToSpan(nodes_), predictions->DeviceSpan(), dh::ToSpan(tree_segments_),
+         dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
+         batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features,
          num_rows, entry_start, use_shared, this->num_group_);
     }
 
@@ -320,12 +320,12 @@ class GPUPredictor : public xgboost::Predictor {
         std::copy(out_preds->ConstHostVector().begin() + batch_offset,
                   out_preds->ConstHostVector().begin() + batch_offset + batch_preds->Size(),
                   batch_preds->HostVector().begin());
-        batch_preds->Shard(device_);
+        batch_preds->SetDevice(device_);
         preds = batch_preds.get();
       }
 
-      batch.offset.Shard(device_);
-      batch.data.Shard(device_);
+      batch.offset.SetDevice(device_);
+      batch.data.SetDevice(device_);
       dh::ExecuteIndexShards(&shards_, [&](int idx, DeviceShard& shard) {
         shard.PredictInternal(batch, model.param.num_feature, preds);
       });
@@ -378,7 +378,7 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       out_preds->Fill(model.base_margin);
     }
-    out_preds->Shard(device_);
+    out_preds->SetDevice(device_);
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
@@ -390,7 +390,7 @@ class GPUPredictor : public xgboost::Predictor {
         const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           monitor_.StartCuda("PredictFromCache");
-          out_preds->Shard(y.DeviceIdx());
+          out_preds->SetDevice(y.DeviceIdx());
           out_preds->Resize(y.Size());
           out_preds->Copy(y);
           monitor_.StopCuda("PredictFromCache");

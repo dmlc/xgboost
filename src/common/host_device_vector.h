@@ -100,34 +100,30 @@ class HostDeviceVector {
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);
   size_t Size() const;
   int DeviceIdx() const;
-  common::Span<T> DeviceSpan(int device);
-  common::Span<const T> ConstDeviceSpan(int device) const;
-  common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
-  T* DevicePointer(int device);
-  const T* ConstDevicePointer(int device) const;
-  const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
+  common::Span<T> DeviceSpan();
+  common::Span<const T> ConstDeviceSpan() const;
+  common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }
+  T* DevicePointer();
+  const T* ConstDevicePointer() const;
+  const T* DevicePointer() const { return ConstDevicePointer(); }
 
   T* HostPointer() { return HostVector().data(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
-  size_t DeviceStart(int device) const;
-  size_t DeviceSize(int device) const;
+  size_t DeviceSize() const;
 
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
-  thrust::device_ptr<T> tbegin(int device);  // NOLINT
-  thrust::device_ptr<T> tend(int device);  // NOLINT
-  thrust::device_ptr<const T> tcbegin(int device) const;  // NOLINT
-  thrust::device_ptr<const T> tcend(int device) const;  // NOLINT
-  thrust::device_ptr<const T> tbegin(int device) const {  // NOLINT
-    return tcbegin(device);
+  thrust::device_ptr<T> tbegin();  // NOLINT
+  thrust::device_ptr<T> tend();  // NOLINT
+  thrust::device_ptr<const T> tcbegin() const;  // NOLINT
+  thrust::device_ptr<const T> tcend() const;  // NOLINT
+  thrust::device_ptr<const T> tbegin() const {  // NOLINT
+    return tcbegin();
   }
-  thrust::device_ptr<const T> tend(int device) const { return tcend(device); }  // NOLINT
-
-  void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end);
-  void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) const;
+  thrust::device_ptr<const T> tend() const { return tcend(); }  // NOLINT
 #endif  // __CUDACC__
 
   void Fill(T v);
@@ -140,17 +136,9 @@ class HostDeviceVector {
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
   bool HostCanAccess(GPUAccess access) const;
-  bool DeviceCanAccess(int device, GPUAccess access) const;
+  bool DeviceCanAccess(GPUAccess access) const;
 
-  /*!
-   * \brief Specify memory distribution.
-   */
-  void Shard(int device) const;
-
-  /*!
-   * \brief Change memory distribution.
-   */
-  void Reshard(int device);
+  void SetDevice(int device) const;
 
   void Resize(size_t new_size, T v = T());
 

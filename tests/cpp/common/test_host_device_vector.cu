@@ -32,14 +32,14 @@ struct HostDeviceVectorSetDeviceHandler {
 
 void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
   // create the vector
-  v->Shard(device);
+  v->SetDevice(device);
   v->Resize(n);
 
   ASSERT_EQ(v->Size(), n);
   ASSERT_EQ(v->DeviceIdx(), device);
   // ensure that the device have read-write access
-  ASSERT_TRUE(v->DeviceCanAccess(device, GPUAccess::kRead));
-  ASSERT_TRUE(v->DeviceCanAccess(device, GPUAccess::kWrite));
+  ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
+  ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kWrite));
   // ensure that the host has no access
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kRead));
@@ -49,8 +49,8 @@ void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
   // ensure that the host has full access, while the device have none
   ASSERT_TRUE(v->HostCanAccess(GPUAccess::kRead));
   ASSERT_TRUE(v->HostCanAccess(GPUAccess::kWrite));
-  ASSERT_FALSE(v->DeviceCanAccess(device, GPUAccess::kRead));
-  ASSERT_FALSE(v->DeviceCanAccess(device, GPUAccess::kWrite));
+  ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kRead));
+  ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kWrite));
   ASSERT_EQ(data_h.size(), n);
   std::copy_n(thrust::make_counting_iterator(0), n, data_h.begin());
 }
@@ -58,7 +58,7 @@ void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
 void PlusOne(HostDeviceVector<int> *v) {
   int device = v->DeviceIdx();
   SetDevice(device);
-  thrust::transform(v->tbegin(0), v->tend(0), v->tbegin(0),
+  thrust::transform(v->tbegin(), v->tend(), v->tbegin(),
                     [=]__device__(unsigned int a){ return a + 1; });
 }
 
@@ -69,22 +69,22 @@ void CheckDevice(HostDeviceVector<int> *v,
   int n_devices = sizes.size();
   ASSERT_EQ(n_devices, 1);
   for (int i = 0; i < n_devices; ++i) {
-    ASSERT_EQ(v->DeviceSize(i), sizes.at(i));
+    ASSERT_EQ(v->DeviceSize(), sizes.at(i));
     SetDevice(i);
-    ASSERT_TRUE(thrust::equal(v->tcbegin(i), v->tcend(i),
+    ASSERT_TRUE(thrust::equal(v->tcbegin(), v->tcend(),
                               thrust::make_counting_iterator(first + starts[i])));
-    ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));
+    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
     // ensure that the device has at most the access specified by access
-    ASSERT_EQ(v->DeviceCanAccess(i, GPUAccess::kWrite), access == GPUAccess::kWrite);
+    ASSERT_EQ(v->DeviceCanAccess(GPUAccess::kWrite), access == GPUAccess::kWrite);
   }
   ASSERT_EQ(v->HostCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
   for (int i = 0; i < n_devices; ++i) {
     SetDevice(i);
-    ASSERT_TRUE(thrust::equal(v->tbegin(i), v->tend(i),
+    ASSERT_TRUE(thrust::equal(v->tbegin(), v->tend(),
                               thrust::make_counting_iterator(first + starts[i])));
-    ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kRead));
-    ASSERT_TRUE(v->DeviceCanAccess(i, GPUAccess::kWrite));
+    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
+    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kWrite));
   }
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kRead));
   ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
@@ -100,9 +100,9 @@ void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
   ASSERT_EQ(v->HostCanAccess(GPUAccess::kWrite), access == GPUAccess::kWrite);
   size_t n_devices = 1;
   for (int i = 0; i < n_devices; ++i) {
-    ASSERT_EQ(v->DeviceCanAccess(i, GPUAccess::kRead), access == GPUAccess::kRead);
+    ASSERT_EQ(v->DeviceCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
     // the devices should have no write access
-    ASSERT_FALSE(v->DeviceCanAccess(i, GPUAccess::kWrite));
+    ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kWrite));
   }
 }
 
@@ -156,12 +156,12 @@ TEST(HostDeviceVector, Shard) {
   HostDeviceVector<int> vec (h_vec);
   auto device = 0;
 
-  vec.Shard(device);
-  ASSERT_EQ(vec.DeviceSize(0), h_vec.size());
+  vec.SetDevice(device);
+  ASSERT_EQ(vec.DeviceSize(), h_vec.size());
   ASSERT_EQ(vec.Size(), h_vec.size());
-  auto span = vec.DeviceSpan(0);  // sync to device
+  auto span = vec.DeviceSpan();  // sync to device
 
-  vec.Reshard(-1);  // pull back to cpu.
+  vec.SetDevice(-1);  // pull back to cpu.
   ASSERT_EQ(vec.Size(), h_vec.size());
   ASSERT_EQ(vec.DeviceIdx(), -1);
 
@@ -177,12 +177,12 @@ TEST(HostDeviceVector, Reshard) {
   HostDeviceVector<int> vec (h_vec);
   auto device = 0;
 
-  vec.Shard(device);
-  ASSERT_EQ(vec.DeviceSize(0), h_vec.size());
+  vec.SetDevice(device);
+  ASSERT_EQ(vec.DeviceSize(), h_vec.size());
   ASSERT_EQ(vec.Size(), h_vec.size());
   PlusOne(&vec);
 
-  vec.Reshard(-1);
+  vec.SetDevice(-1);
   ASSERT_EQ(vec.Size(), h_vec.size());
   ASSERT_EQ(vec.DeviceIdx(), -1);
 
@@ -194,13 +194,13 @@ TEST(HostDeviceVector, Reshard) {
 
 TEST(HostDeviceVector, Span) {
   HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  vec.Shard(0);
-  auto span = vec.DeviceSpan(0);
-  ASSERT_EQ(vec.DeviceSize(0), span.size());
-  ASSERT_EQ(vec.DevicePointer(0), span.data());
-  auto const_span = vec.ConstDeviceSpan(0);
-  ASSERT_EQ(vec.DeviceSize(0), span.size());
-  ASSERT_EQ(vec.ConstDevicePointer(0), span.data());
+  vec.SetDevice(0);
+  auto span = vec.DeviceSpan();
+  ASSERT_EQ(vec.DeviceSize(), span.size());
+  ASSERT_EQ(vec.DevicePointer(), span.data());
+  auto const_span = vec.ConstDeviceSpan();
+  ASSERT_EQ(vec.DeviceSize(), span.size());
+  ASSERT_EQ(vec.ConstDevicePointer(), span.data());
 }
 
 }  // namespace common

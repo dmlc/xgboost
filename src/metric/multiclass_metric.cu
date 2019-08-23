@@ -81,20 +81,18 @@ class MultiClassMetricsReduction {
   }
 
   PackedReduceResult DeviceReduceMetrics(
-      int device_id,
-      size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds,
       const size_t n_class) {
-    size_t n_data = labels.DeviceSize(device_id);
+    size_t n_data = labels.DeviceSize();
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
-    auto s_labels = labels.DeviceSpan(device_id);
-    auto s_preds = preds.DeviceSpan(device_id);
-    auto s_weights = weights.DeviceSpan(device_id);
+    auto s_labels = labels.DeviceSpan();
+    auto s_preds = preds.DeviceSpan();
+    auto s_weights = weights.DeviceSpan();
 
     bool const is_null_weight = weights.Size() == 0;
     auto s_label_error = label_error_.GetSpan<int32_t>(1);
@@ -139,12 +137,12 @@ class MultiClassMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
       device_ = tparam.gpu_id;
-      preds.Shard(device_);
-      labels.Shard(device_);
-      weights.Shard(device_);
+      preds.SetDevice(device_);
+      labels.SetDevice(device_);
+      weights.SetDevice(device_);
 
       dh::safe_cuda(cudaSetDevice(device_));
-      result = DeviceReduceMetrics(device_, 0, weights, labels, preds, n_class);
+      result = DeviceReduceMetrics(weights, labels, preds, n_class);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
