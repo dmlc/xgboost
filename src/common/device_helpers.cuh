@@ -72,6 +72,14 @@ const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
+inline size_t AvailableMemory(int device_idx) {
+  size_t device_free = 0;
+  size_t device_total = 0;
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_free;
+}
+
 inline size_t TotalMemory(int device_idx) {
   size_t device_free = 0;
   size_t device_total = 0;

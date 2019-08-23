@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <mutex>
 #include "./device_helpers.cuh"
-#include "../../../dmlc-core/include/dmlc/logging.h"
+
 
 namespace xgboost {
 
