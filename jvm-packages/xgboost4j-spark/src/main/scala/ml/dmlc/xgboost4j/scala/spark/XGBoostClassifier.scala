@@ -245,6 +245,11 @@ class XGBoostClassificationModel private[ml](
 
   def setMissing(value: Float): this.type = set(missing, value)
 
+  def setAllowZeroForMissingValue(value: Boolean): this.type = set(
+    allowNonZeroForMissingValue,
+    value
+  )
+
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
@@ -253,7 +258,11 @@ class XGBoostClassificationModel private[ml](
    */
   override def predict(features: Vector): Double = {
     import DataUtils._
-    val dm = new DMatrix(XGBoost.processMissingValues(Iterator(features.asXGB), $(missing)))
+    val dm = new DMatrix(XGBoost.processMissingValues(
+      Iterator(features.asXGB),
+      $(missing),
+      $(allowNonZeroForMissingValue)
+    ))
     val probability = _booster.predict(data = dm)(0).map(_.toDouble)
     if (numClasses == 2) {
       math.round(probability(0))
@@ -309,7 +318,11 @@ class XGBoostClassificationModel private[ml](
           }
 
           val dm = new DMatrix(
-            XGBoost.processMissingValues(features.map(_.asXGB), $(missing)),
+            XGBoost.processMissingValues(
+              features.map(_.asXGB),
+              $(missing),
+              $(allowNonZeroForMissingValue)
+            ),
             cacheInfo)
           try {
             val Array(rawPredictionItr, probabilityItr, predLeafItr, predContribItr) =
