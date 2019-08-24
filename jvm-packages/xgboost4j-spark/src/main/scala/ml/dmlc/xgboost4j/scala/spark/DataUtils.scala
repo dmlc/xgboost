@@ -79,6 +79,7 @@ object DataUtils extends Serializable {
       weight: Column,
       baseMargin: Column,
       group: Option[Column],
+      worker: Int,
       dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
     val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
       featuresCol,
@@ -102,7 +103,7 @@ object DataUtils extends Serializable {
             case v: DenseVector => (null, v.values.map(_.toFloat))
           }
           XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
-      }
+      }.repartition(worker)
     }
   }
 

@@ -182,11 +182,11 @@ class XGBoostClassifier (
 
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
       col($(labelCol)), col($(featuresCol)), weight, baseMargin,
-      None, dataset.asInstanceOf[DataFrame]).head
+      None, $(numWorkers), dataset.asInstanceOf[DataFrame]).head
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, None, dataFrame).head)
+          weight, baseMargin, None, $(numWorkers), dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams

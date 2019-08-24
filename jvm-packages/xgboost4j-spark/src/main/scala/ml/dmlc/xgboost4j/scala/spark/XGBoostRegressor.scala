@@ -178,11 +178,11 @@ class XGBoostRegressor (
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
       col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      dataset.asInstanceOf[DataFrame]).head
+      $(numWorkers), dataset.asInstanceOf[DataFrame]).head
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), dataFrame).head)
+          weight, baseMargin, Some(group), $(numWorkers), dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
