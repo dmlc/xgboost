@@ -234,7 +234,6 @@ class GPUPredictor : public xgboost::Predictor {
     void PredictInternal
     (const SparsePage& batch, size_t num_features,
      HostDeviceVector<bst_float>* predictions) {
-      if (predictions->DeviceSize() == 0) { return; }
       dh::safe_cuda(cudaSetDevice(device_));
       const int BLOCK_THREADS = 128;
       size_t num_rows = batch.offset.DeviceSize() - 1;
@@ -308,12 +307,12 @@ class GPUPredictor : public xgboost::Predictor {
         std::copy(out_preds->ConstHostVector().begin() + batch_offset,
                   out_preds->ConstHostVector().begin() + batch_offset + batch_preds->Size(),
                   batch_preds->HostVector().begin());
-        batch_preds->SetDevice(device_);
         preds = batch_preds.get();
       }
 
       batch.offset.SetDevice(device_);
       batch.data.SetDevice(device_);
+      preds->SetDevice(device_);
       shard_.PredictInternal(batch, model.param.num_feature, preds);
 
       if (is_external_memory) {

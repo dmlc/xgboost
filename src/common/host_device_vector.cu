@@ -10,7 +10,6 @@
 #include <mutex>
 #include "./device_helpers.cuh"
 
-
 namespace xgboost {
 
 // the handler to call instead of cudaSetDevice; only used for testing
@@ -57,8 +56,10 @@ class HostDeviceVectorImpl {
   // required, as a new std::mutex has to be created
   HostDeviceVectorImpl(const HostDeviceVectorImpl<T>& other)
       : device_(other.device_), data_h_(other.data_h_), perm_h_(other.perm_h_), mutex_() {
-    SetDevice();
-    data_d_ = other.data_d_;
+    if (device_ >= 0) {
+      SetDevice();
+      data_d_ = other.data_d_;
+    }
   }
 
   // Initializer can be std::vector<T> or std::initializer_list<T>
@@ -73,7 +74,9 @@ class HostDeviceVectorImpl {
   }
 
   ~HostDeviceVectorImpl() {
-    SetDevice();
+    if (device_ >= 0) {
+      SetDevice();
+    }
   }
 
   size_t Size() const { return perm_h_.CanRead() ? data_h_.size() : data_d_.size(); }
@@ -178,7 +181,9 @@ class HostDeviceVectorImpl {
       LazySyncHost(GPUAccess::kWrite);
     }
     device_ = device;
-    LazyResizeDevice(data_h_.size());
+    if (device_ >= 0) {
+      LazyResizeDevice(data_h_.size());
+    }
   }
 
   void Resize(size_t new_size, T v) {
@@ -273,7 +278,7 @@ class HostDeviceVectorImpl {
   }
 
   void SetDevice() {
-    if (device_ < 0) return;
+    CHECK_GE(device_, 0);
     if (cudaSetDeviceHandler == nullptr) {
       dh::safe_cuda(cudaSetDevice(device_));
     } else {

@@ -113,14 +113,12 @@ class ElementWiseMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
       device_ = device;
-      if (device_ >= 0) {
-        preds.SetDevice(device_);
-        labels.SetDevice(device_);
-        weights.SetDevice(device_);
+      preds.SetDevice(device_);
+      labels.SetDevice(device_);
+      weights.SetDevice(device_);
 
-        dh::safe_cuda(cudaSetDevice(device_));
-        result = DeviceReduceMetrics(weights, labels, preds);
-      }
+      dh::safe_cuda(cudaSetDevice(device_));
+      result = DeviceReduceMetrics(weights, labels, preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
