@@ -122,6 +122,25 @@ object DataUtils extends Serializable {
     }
   }
 
+  private def repartitionRDDs(
+      deterministicPartition: Boolean,
+      numWorkers: Int,
+      arrayOfRDDs: Array[RDD[(Int, XGBLabeledPoint)]]): Array[RDD[XGBLabeledPoint]] = {
+    if (deterministicPartition) {
+      arrayOfRDDs.map {rdd => rdd.partitionBy(new HashPartitioner(numWorkers))}.map {
+        rdd => rdd.map(_._2)
+      }
+    } else {
+      arrayOfRDDs.map(rdd => {
+        if (rdd.getNumPartitions != numWorkers) {
+          rdd.map(_._2).repartition(numWorkers)
+        } else {
+          rdd.map(_._2)
+        }
+      })
+    }
+  }
+
   private[spark] def convertDataFrameToXGBLabeledPointRDDs(
       labelCol: Column,
       featuresCol: Column,
@@ -158,13 +177,7 @@ object DataUtils extends Serializable {
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
       }
     }
-    if (deterministicPartition) {
-      arrayOfRDDs.map {rdd => rdd.partitionBy(new HashPartitioner(numWorkers))}.map {
-        rdd => rdd.map(_._2)
-      }
-    } else {
-      arrayOfRDDs.map(rdd => rdd.map(_._2).repartition(numWorkers))
-    }
+    repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
   }
 
 }
