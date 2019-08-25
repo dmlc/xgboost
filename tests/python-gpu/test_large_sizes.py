@@ -63,7 +63,7 @@ class TestGPU(unittest.TestCase):
                          'nthread': 0,
                          'eta': 1,
                          'verbosity': 3,
-                         'n_gpus': 1,
+                         'gpu_id': 0,
                          'objective': 'binary:logistic',
                          'max_bin': max_bin,
                          'eval_metric': 'auc'}

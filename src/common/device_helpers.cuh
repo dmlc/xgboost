@@ -72,22 +72,6 @@ const T *Raw(const thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
-// if n_devices=-1, then use all visible devices
-inline void SynchronizeNDevices(xgboost::GPUSet devices) {
-  devices = devices.IsEmpty() ? xgboost::GPUSet::AllVisible() : devices;
-  for (auto const d : devices) {
-    safe_cuda(cudaSetDevice(d));
-    safe_cuda(cudaDeviceSynchronize());
-  }
-}
-
-inline void SynchronizeAll() {
-  for (int device_idx : xgboost::GPUSet::AllVisible()) {
-    safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaDeviceSynchronize());
-  }
-}
-
 inline size_t AvailableMemory(int device_idx) {
   size_t device_free = 0;
   size_t device_total = 0;
@@ -119,7 +103,7 @@ inline size_t MaxSharedMemory(int device_idx) {
 }
 
 inline void CheckComputeCapability() {
-  for (int d_idx : xgboost::GPUSet::AllVisible()) {
+  for (int d_idx = 0; d_idx < xgboost::common::AllVisibleGPUs(); ++d_idx) {
     cudaDeviceProp prop;
     safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
     std::ostringstream oss;

@@ -12,7 +12,7 @@ TEST(GBTree, SelectTreeMethod) {
   auto p_dmat {(*p_shared_ptr_dmat).get()};
 
   GenericParameter generic_param;
-  generic_param.InitAllowUnknown(std::vector<Arg>{Arg("n_gpus", "0")});
+  generic_param.InitAllowUnknown(std::vector<Arg>{});
   std::unique_ptr<GradientBooster> p_gbm{
     GradientBooster::Create("gbtree", &generic_param, {}, 0)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
@@ -35,7 +35,7 @@ TEST(GBTree, SelectTreeMethod) {
                                  Arg{"num_feature", n_feat}}, p_dmat);
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
 #ifdef XGBOOST_USE_CUDA
-  generic_param.InitAllowUnknown(std::vector<Arg>{Arg{"n_gpus", "1"}});
+  generic_param.InitAllowUnknown(std::vector<Arg>{Arg{"gpu_id", "0"}});
   gbtree.ConfigureWithKnownData({Arg("tree_method", "gpu_hist"), Arg("num_feature", n_feat)},
                                 p_dmat);
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");

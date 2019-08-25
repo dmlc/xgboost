@@ -18,7 +18,7 @@
 namespace xgboost {
 namespace common {
 
-void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
+void TestDeviceSketch(bool use_external_memory) {
   // create the data
   int nrows = 10001;
   std::shared_ptr<xgboost::DMatrix> *dmat = nullptr;
@@ -53,7 +53,7 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 
   // find the cuts on the GPU
   HistogramCuts hmat_gpu;
-  size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0, devices.Size()), gpu_batch_nrows,
+  size_t row_stride = DeviceSketch(p, CreateEmptyGenericParam(0), gpu_batch_nrows,
                                    dmat->get(), &hmat_gpu);
 
   // compare the row stride with the one obtained from the dmatrix
@@ -81,11 +81,11 @@ void TestDeviceSketch(const GPUSet& devices, bool use_external_memory) {
 }
 
 TEST(gpu_hist_util, DeviceSketch) {
-  TestDeviceSketch(GPUSet::Range(0, 1), false);
+  TestDeviceSketch(false);
 }
 
 TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
-  TestDeviceSketch(GPUSet::Range(0, 1), true);
+  TestDeviceSketch(true);
 }
 
 }  // namespace common

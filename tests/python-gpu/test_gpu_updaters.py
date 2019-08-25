@@ -21,7 +21,7 @@ datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
 
 class TestGPU(unittest.TestCase):
     def test_gpu_hist(self):
-        test_param = parameter_combinations({'n_gpus': [1], 'max_depth': [2, 8],
+        test_param = parameter_combinations({'gpu_id': [0], 'max_depth': [2, 8],
                                              'max_leaves': [255, 4],
                                              'max_bin': [2, 256],
                                              'grow_policy': ['lossguide']})
@@ -38,8 +38,7 @@ class TestGPU(unittest.TestCase):
 
     @pytest.mark.mgpu
     def test_specified_gpu_id_gpu_update(self):
-        variable_param = {'n_gpus': [1],
-                          'gpu_id': [1],
+        variable_param = {'gpu_id': [1],
                           'max_depth': [8],
                           'max_leaves': [255, 4],
                           'max_bin': [2, 64],

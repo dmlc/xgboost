@@ -79,113 +79,6 @@ void SetCudaSetDeviceHandler(void (*handler)(int));
 
 template <typename T> struct HostDeviceVectorImpl;
 
-// Distribution for the HostDeviceVector; it specifies such aspects as the
-// devices it is distributed on, whether there are copies of elements from
-// other GPUs as well as the granularity of splitting. It may also specify
-// explicit boundaries for devices, in which case the size of the array cannot
-// be changed.
-class GPUDistribution {
-  template<typename T> friend struct HostDeviceVectorImpl;
-
- public:
-  explicit GPUDistribution(GPUSet devices = GPUSet::Empty())
-    : devices_(devices), granularity_(1), overlap_(0) {}
-
- private:
-  GPUDistribution(GPUSet devices, int granularity, int overlap,
-                  std::vector<size_t> &&offsets)
-    : devices_(devices), granularity_(granularity), overlap_(overlap),
-    offsets_(std::move(offsets)) {}
-
- public:
-  static GPUDistribution Empty() { return GPUDistribution(); }
-
-  static GPUDistribution Block(GPUSet devices) { return GPUDistribution(devices); }
-
-  static GPUDistribution Overlap(GPUSet devices, int overlap) {
-    return GPUDistribution(devices, 1, overlap, std::vector<size_t>());
-  }
-
-  static GPUDistribution Granular(GPUSet devices, int granularity) {
-    return GPUDistribution(devices, granularity, 0, std::vector<size_t>());
-  }
-
-  // NOTE(rongou): Explicit offsets don't necessarily cover the whole vector. Sections before the
-  // first shard or after the last shard may be on host only. This windowing is done in the GPU
-  // predictor for external memory support.
-  static GPUDistribution Explicit(GPUSet devices, std::vector<size_t> offsets) {
-    return GPUDistribution(devices, 1, 0, std::move(offsets));
-  }
-
-  friend bool operator==(const GPUDistribution& a, const GPUDistribution& b) {
-    bool const res = a.devices_ == b.devices_ &&
-                     a.granularity_ == b.granularity_ &&
-                     a.overlap_ == b.overlap_ &&
-                     a.offsets_ == b.offsets_;
-    return res;
-  }
-
-  friend bool operator!=(const GPUDistribution& a, const GPUDistribution& b) {
-    return !(a == b);
-  }
-
-  GPUSet Devices() const { return devices_; }
-
-  bool IsEmpty() const { return devices_.IsEmpty(); }
-
-  size_t ShardStart(size_t size, int index) const {
-    if (size == 0) { return 0; }
-    if (offsets_.size() > 0) {
-      // explicit offsets are provided
-      CHECK_EQ(offsets_.back(), size);
-      return offsets_.at(index);
-    }
-    // no explicit offsets
-    size_t begin = std::min(index * Portion(size), size);
-    begin = begin > size ? size : begin;
-    return begin;
-  }
-
-  size_t ShardSize(size_t size, size_t index) const {
-    if (size == 0) { return 0; }
-    if (offsets_.size() > 0) {
-      // explicit offsets are provided
-      CHECK_EQ(offsets_.back(), size);
-      return offsets_.at(index + 1)  - offsets_.at(index) +
-        (index == devices_.Size() - 1 ? overlap_ : 0);
-    }
-    size_t portion = Portion(size);
-    size_t begin = std::min(index * portion, size);
-    size_t end = std::min((index + 1) * portion + overlap_ * granularity_, size);
-    return end - begin;
-  }
-
-  size_t ShardProperSize(size_t size, size_t index) const {
-    if (size == 0) { return 0; }
-    return ShardSize(size, index) - (devices_.Size() - 1 > index ? overlap_ : 0);
-  }
-
-  bool IsFixedSize() const { return !offsets_.empty(); }
-
- private:
-  static size_t DivRoundUp(size_t a, size_t b) { return (a + b - 1) / b; }
-  static size_t RoundUp(size_t a, size_t b) { return DivRoundUp(a, b) * b; }
-
-  size_t Portion(size_t size) const {
-    return RoundUp
-      (DivRoundUp
-       (std::max(static_cast<int64_t>(size - overlap_ * granularity_),
-                 static_cast<int64_t>(1)),
-        devices_.Size()), granularity_);
-  }
-
-  GPUSet devices_;
-  int granularity_;
-  int overlap_;
-  // explicit offsets for the GPU parts, if any
-  std::vector<size_t> offsets_;
-};
-
 enum GPUAccess {
   kNone, kRead,
   // write implies read
@@ -199,46 +92,38 @@ inline GPUAccess operator-(GPUAccess a, GPUAccess b) {
 template <typename T>
 class HostDeviceVector {
  public:
-  explicit HostDeviceVector(size_t size = 0, T v = T(),
-                            const GPUDistribution &distribution = GPUDistribution());
-  HostDeviceVector(std::initializer_list<T> init,
-                   const GPUDistribution &distribution = GPUDistribution());
-  explicit HostDeviceVector(const std::vector<T>& init,
-                            const GPUDistribution &distribution = GPUDistribution());
+  explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
+  HostDeviceVector(std::initializer_list<T> init, int device = -1);
+  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&);
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&);
   size_t Size() const;
-  GPUSet Devices() const;
-  const GPUDistribution& Distribution() const;
-  common::Span<T> DeviceSpan(int device);
-  common::Span<const T> ConstDeviceSpan(int device) const;
-  common::Span<const T> DeviceSpan(int device) const { return ConstDeviceSpan(device); }
-  T* DevicePointer(int device);
-  const T* ConstDevicePointer(int device) const;
-  const T* DevicePointer(int device) const { return ConstDevicePointer(device); }
+  int DeviceIdx() const;
+  common::Span<T> DeviceSpan();
+  common::Span<const T> ConstDeviceSpan() const;
+  common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }
+  T* DevicePointer();
+  const T* ConstDevicePointer() const;
+  const T* DevicePointer() const { return ConstDevicePointer(); }
 
   T* HostPointer() { return HostVector().data(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
-  size_t DeviceStart(int device) const;
-  size_t DeviceSize(int device) const;
+  size_t DeviceSize() const;
 
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
-  thrust::device_ptr<T> tbegin(int device);  // NOLINT
-  thrust::device_ptr<T> tend(int device);  // NOLINT
-  thrust::device_ptr<const T> tcbegin(int device) const;  // NOLINT
-  thrust::device_ptr<const T> tcend(int device) const;  // NOLINT
-  thrust::device_ptr<const T> tbegin(int device) const {  // NOLINT
-    return tcbegin(device);
+  thrust::device_ptr<T> tbegin();  // NOLINT
+  thrust::device_ptr<T> tend();  // NOLINT
+  thrust::device_ptr<const T> tcbegin() const;  // NOLINT
+  thrust::device_ptr<const T> tcend() const;  // NOLINT
+  thrust::device_ptr<const T> tbegin() const {  // NOLINT
+    return tcbegin();
   }
-  thrust::device_ptr<const T> tend(int device) const { return tcend(device); }  // NOLINT
-
-  void ScatterFrom(thrust::device_ptr<const T> begin, thrust::device_ptr<const T> end);
-  void GatherTo(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) const;
+  thrust::device_ptr<const T> tend() const { return tcend(); }  // NOLINT
 #endif  // __CUDACC__
 
   void Fill(T v);
@@ -251,18 +136,9 @@ class HostDeviceVector {
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
   bool HostCanAccess(GPUAccess access) const;
-  bool DeviceCanAccess(int device, GPUAccess access) const;
+  bool DeviceCanAccess(GPUAccess access) const;
 
-  /*!
-   * \brief Specify memory distribution.
-   */
-  void Shard(const GPUDistribution &distribution) const;
-  void Shard(GPUSet devices) const;
-
-  /*!
-   * \brief Change memory distribution.
-   */
-  void Reshard(const GPUDistribution &distribution);
+  void SetDevice(int device) const;
 
   void Resize(size_t new_size, T v = T());
 

@@ -29,7 +29,7 @@ TEST(Updater, Prune) {
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
   auto dmat = CreateDMatrix(32, 16, 0.4, 3);
 
-  auto lparam = CreateEmptyGenericParam(0, 0);
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
 
   // prepare tree
   RegTree tree = RegTree();
