@@ -87,11 +87,13 @@ double AFTLogistic::grad_pdf(double z) {
 
 double AFTLogistic::hess_pdf(double z) {
   double pdf;
+  double grad;
   double hess;
   double w;
   pdf     = this->pdf(z);
+  grad    = this->grad_pdf(z);
   w       = std::exp(z);
-  hess    = pdf*(w*w-4*w+1)/((1+w)*(1+w));
+  hess    = grad*(1-w)/(1+w) - pdf/(1+w);
   return hess;
 }
 

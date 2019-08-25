@@ -59,6 +59,9 @@ class AFTObj : public ObjFunction {
       double w = is_null_weight ? 1.0 : weights[i];
       first_order_grad  = loss_->gradient(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
       second_order_grad = loss_->hessian(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
+      // std::cout<<"("<< first_order_grad<<","<<second_order_grad<<")"<<std::endl;
+      // std::cin.get();
+      LOG(CONSOLE)<<"("<< first_order_grad<<","<<second_order_grad<<")";
       gpair[i] = GradientPair(first_order_grad * w, second_order_grad * w);
     }
   }
