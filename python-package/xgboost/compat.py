@@ -169,16 +169,36 @@ except ImportError:
 
 # dask
 try:
-    from dask.dataframe import DataFrame as DaskDataFrame
-    from dask.dataframe import Series as DaskSeries
-    from dask.array import Array as DaskArray
+    import dask
+    from dask import delayed
+    from dask import dataframe as dd
+    from dask import array as da
+    from dask.distributed import Client, get_client
+    from dask.distributed import comm as distributed_comm
+    from dask.distributed import wait as distributed_wait
     from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
-except ImportError:
-    DaskDataFrame = object
-    DaskSeries = object
-    DaskArray = object
+except ImportError as e:
+    print(e)
+    dd = None
+    da = None
+    Client = None
+    delayed = None
+    get_client = None
+    distributed_comm = None
+    distributed_wait = None
     distributed_get_worker = None
+    dask = None
 
     DASK_INSTALLED = False
+
+
+try:
+    import sparse
+    import scipy.sparse as scipy_sparse
+    SCIPY_INSTALLED = True
+except ImportError:
+    sparse = False
+    scipy_sparse = False
+    SCIPY_INSTALLED = False

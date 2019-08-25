@@ -1,8 +1,6 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
 """Scikit-Learn Wrapper interface for XGBoost."""
-from __future__ import absolute_import
-
 import warnings
 import json
 import numpy as np
@@ -282,7 +280,8 @@ class XGBModel(XGBModelBase):
                       "object {} will be lost. ".format(type(self).__name__) +
                       "If you did not mean to export the model to " +
                       "a non-Python binding of XGBoost, consider " +
-                      "using `pickle` or `joblib` to save your model.", Warning)
+                      "using `pickle` or `joblib` to save your model.",
+                      Warning)
         self.get_booster().save_model(fname)
 
     def load_model(self, fname):
