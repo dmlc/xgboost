@@ -189,6 +189,7 @@ class HostDeviceVectorImpl {
     if (Size() == 0 && device_ >= 0) {
       // fast on-device resize
       perm_h_ = Permissions(false);
+      SetDevice();
       data_d_.resize(new_size, v);
     } else {
       // resize on host
