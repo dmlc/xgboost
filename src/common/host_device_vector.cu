@@ -141,9 +141,7 @@ class HostDeviceVectorImpl {
       return;
     }
     // Data is on device;
-    if (device_ != other->device_) {
-      SetDevice(other->device_);
-    }
+    other->SetDevice(device_);
     DeviceCopy(other);
   }
 

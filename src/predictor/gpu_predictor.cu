@@ -339,6 +339,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
+    out_preds->SetDevice(device_);
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(base_margin.Size(), n);
@@ -346,7 +347,6 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       out_preds->Fill(model.base_margin);
     }
-    out_preds->SetDevice(device_);
   }
 
   bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
