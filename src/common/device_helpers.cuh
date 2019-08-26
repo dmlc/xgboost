@@ -1219,58 +1219,6 @@ class AllReducer {
   }
 };
 
-/**
- * \brief Executes some operation on each element of the input vector, using a
- * single controlling thread for each element. In addition, passes the shard index
- * into the function.
- *
- * \tparam  T       Generic type parameter.
- * \tparam  FunctionT  Type of the function t.
- * \param shards  The shards.
- * \param f       The func_t to process.
- */
-
-template <typename T, typename FunctionT>
-void ExecuteIndexShards(std::vector<T> *shards, FunctionT f) {
-  SaveCudaContext{[&]() {
-    // Temporarily turn off dynamic so we have a guaranteed number of threads
-    bool dynamic = omp_get_dynamic();
-    omp_set_dynamic(false);
-    const long shards_size = static_cast<long>(shards->size());
-#pragma omp parallel for schedule(static, 1) if (shards_size > 1) num_threads(shards_size)
-    for (long shard = 0; shard < shards_size; ++shard) {
-      f(shard, shards->at(shard));
-    }
-    omp_set_dynamic(dynamic);
-  }};
-}
-
-/**
- * \brief Executes some operation on each element of the input vector, using a single controlling
- *        thread for each element, returns the sum of the results.
- *
- * \tparam  ReduceT  Type of the reduce t.
- * \tparam  T         Generic type parameter.
- * \tparam  FunctionT    Type of the function t.
- * \param shards  The shards.
- * \param f       The func_t to process.
- *
- * \return  A reduce_t.
- */
-
-template <typename ReduceT, typename ShardT, typename FunctionT>
-ReduceT ReduceShards(std::vector<ShardT> *shards, FunctionT f) {
-  std::vector<ReduceT> sums(shards->size());
-  SaveCudaContext {
-    [&](){
-#pragma omp parallel for schedule(static, 1) if (shards->size() > 1)
-      for (int shard = 0; shard < shards->size(); ++shard) {
-        sums[shard] = f(shards->at(shard));
-      }}
-  };
-  return std::accumulate(sums.begin(), sums.end(), ReduceT());
-}
-
 template <typename T,
   typename IndexT = typename xgboost::common::Span<T>::index_type>
 xgboost::common::Span<T> ToSpan(
