@@ -1466,7 +1466,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
  private:
-  GPUHistMakerTrainParam hist_maker_param_{};
+  GPUHistMakerTrainParam hist_maker_param_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPair>> float_maker_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };
