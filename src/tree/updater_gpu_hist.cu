@@ -93,14 +93,14 @@ struct ExpandEntry {
   }
 };
 
-inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
+inline static bool DepthWise(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   if (lhs.depth == rhs.depth) {
     return lhs.timestamp > rhs.timestamp;  // favor small timestamp
   } else {
     return lhs.depth > rhs.depth;  // favor small depth
   }
 }
-inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
+inline static bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   if (lhs.split.loss_chg == rhs.split.loss_chg) {
     return lhs.timestamp > rhs.timestamp;  // favor small timestamp
   } else {
@@ -590,7 +590,7 @@ struct DeviceShard {
   ELLPackMatrix ellpack_matrix;
 
   std::unique_ptr<RowPartitioner> row_partitioner;
-  DeviceHistogram<GradientSumT> hist;
+  DeviceHistogram<GradientSumT> hist{};
 
   /*! \brief row_ptr form HistogramCuts. */
   common::Span<uint32_t> feature_segments;
@@ -619,7 +619,7 @@ struct DeviceShard {
   dh::CubMemory temp_memory;
   dh::PinnedMemory pinned_memory;
 
-  std::vector<cudaStream_t> streams;
+  std::vector<cudaStream_t> streams{};
 
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
@@ -650,7 +650,7 @@ struct DeviceShard {
       const SparsePage &row_batch, const common::HistogramCuts &hmat,
       const RowStateOnDevice &device_row_state, int rows_per_batch);
 
-  ~DeviceShard() {
+  ~DeviceShard() {  // NOLINT
     dh::safe_cuda(cudaSetDevice(device_id));
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
@@ -747,7 +747,7 @@ struct DeviceShard {
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
 
       auto d_result = d_result_all.subspan(i, 1);
-      if (d_feature_set.size() == 0) {
+      if (d_feature_set.empty()) {
         // Acting as a device side constructor for DeviceSplitCandidate.
         // DeviceSplitCandidate::IsValid is false so that ApplySplit can reject this
         // candidate.
@@ -970,11 +970,11 @@ struct DeviceShard {
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
 
-    GradStats left_stats;
+    GradStats left_stats{};
     left_stats.Add(candidate.split.left_sum);
-    GradStats right_stats;
+    GradStats right_stats{};
     right_stats.Add(candidate.split.right_sum);
-    GradStats parent_sum;
+    GradStats parent_sum{};
     parent_sum.Add(left_stats);
     parent_sum.Add(right_stats);
     node_value_constraints.resize(tree.GetNodes().size());
@@ -1287,7 +1287,9 @@ class GPUHistMakerSpecialised {
     monitor_.Init("updater_gpu_hist");
   }
 
-  ~GPUHistMakerSpecialised() { dh::GlobalMemoryLogger().Log(); }
+  ~GPUHistMakerSpecialised() {  // NOLINT
+    dh::GlobalMemoryLogger().Log();
+  }
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
@@ -1333,8 +1335,6 @@ class GPUHistMakerSpecialised {
                                              dmat, &hmat_);
     monitor_.StopCuda("Quantiles");
 
-    n_bins_ = hmat_.Ptrs().back();
-
     auto is_dense = info_->num_nonzero_ == info_->num_row_ * info_->num_col_;
 
     // Init global data for each shard
@@ -1378,7 +1378,7 @@ class GPUHistMakerSpecialised {
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
-    RegTree reference_tree;
+    RegTree reference_tree{};
     reference_tree.Load(&fs);
     for (const auto& tree : local_trees) {
       CHECK(tree == reference_tree);
@@ -1410,22 +1410,20 @@ class GPUHistMakerSpecialised {
 
   TrainParam param_;           // NOLINT
   common::HistogramCuts hmat_; // NOLINT
-  MetaInfo* info_;             // NOLINT
+  MetaInfo* info_{};             // NOLINT
 
-  std::unique_ptr<DeviceShard<GradientSumT>> shard_;
+  std::unique_ptr<DeviceShard<GradientSumT>> shard_;  // NOLINT
 
  private:
   bool initialised_;
 
-  int n_bins_;
-
-  GPUHistMakerTrainParam hist_maker_param_;
-  GenericParameter const* generic_param_;
+  GPUHistMakerTrainParam hist_maker_param_{};
+  GenericParameter const* generic_param_{};
 
   dh::AllReducer reducer_;
 
   DMatrix* p_last_fmat_;
-  int device_;
+  int device_{};
 
   common::Monitor monitor_;
 };
@@ -1468,7 +1466,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
  private:
-  GPUHistMakerTrainParam hist_maker_param_;
+  GPUHistMakerTrainParam hist_maker_param_{};
   std::unique_ptr<GPUHistMakerSpecialised<GradientPair>> float_maker_;
   std::unique_ptr<GPUHistMakerSpecialised<GradientPairPrecise>> double_maker_;
 };
