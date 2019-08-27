@@ -85,10 +85,6 @@ enum GPUAccess {
   kWrite
 };
 
-inline GPUAccess operator-(GPUAccess a, GPUAccess b) {
-  return static_cast<GPUAccess>(static_cast<int>(a) - static_cast<int>(b));
-}
-
 template <typename T>
 class HostDeviceVector {
  public:
@@ -133,8 +129,10 @@ class HostDeviceVector {
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
-  bool HostCanAccess(GPUAccess access) const;
-  bool DeviceCanAccess(GPUAccess access) const;
+  bool HostCanRead() const;
+  bool HostCanWrite() const;
+  bool DeviceCanRead() const;
+  bool DeviceCanWrite() const;
 
   void SetDevice(int device) const;
 

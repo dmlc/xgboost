@@ -38,19 +38,19 @@ void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
   ASSERT_EQ(v->Size(), n);
   ASSERT_EQ(v->DeviceIdx(), device);
   // ensure that the device have read-write access
-  ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
-  ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kWrite));
+  ASSERT_TRUE(v->DeviceCanRead());
+  ASSERT_TRUE(v->DeviceCanWrite());
   // ensure that the host has no access
-  ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
-  ASSERT_FALSE(v->HostCanAccess(GPUAccess::kRead));
+  ASSERT_FALSE(v->HostCanRead());
+  ASSERT_FALSE(v->HostCanWrite());
 
   // fill in the data on the host
   std::vector<int>& data_h = v->HostVector();
   // ensure that the host has full access, while the device have none
-  ASSERT_TRUE(v->HostCanAccess(GPUAccess::kRead));
-  ASSERT_TRUE(v->HostCanAccess(GPUAccess::kWrite));
-  ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kRead));
-  ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kWrite));
+  ASSERT_TRUE(v->HostCanRead());
+  ASSERT_TRUE(v->HostCanWrite());
+  ASSERT_FALSE(v->DeviceCanRead());
+  ASSERT_FALSE(v->DeviceCanWrite());
   ASSERT_EQ(data_h.size(), n);
   std::copy_n(thrust::make_counting_iterator(0), n, data_h.begin());
 }
@@ -73,37 +73,34 @@ void CheckDevice(HostDeviceVector<int> *v,
     SetDevice(i);
     ASSERT_TRUE(thrust::equal(v->tcbegin(), v->tcend(),
                               thrust::make_counting_iterator(first + starts[i])));
-    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
+    ASSERT_TRUE(v->DeviceCanRead());
     // ensure that the device has at most the access specified by access
-    ASSERT_EQ(v->DeviceCanAccess(GPUAccess::kWrite), access == GPUAccess::kWrite);
+    ASSERT_EQ(v->DeviceCanWrite(), access == GPUAccess::kWrite);
   }
-  ASSERT_EQ(v->HostCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
-  ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
+  ASSERT_EQ(v->HostCanRead(), access == GPUAccess::kRead);
+  ASSERT_FALSE(v->HostCanWrite());
   for (int i = 0; i < n_devices; ++i) {
     SetDevice(i);
     ASSERT_TRUE(thrust::equal(v->tbegin(), v->tend(),
                               thrust::make_counting_iterator(first + starts[i])));
-    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kRead));
-    ASSERT_TRUE(v->DeviceCanAccess(GPUAccess::kWrite));
+    ASSERT_TRUE(v->DeviceCanRead());
+    ASSERT_TRUE(v->DeviceCanWrite());
   }
-  ASSERT_FALSE(v->HostCanAccess(GPUAccess::kRead));
-  ASSERT_FALSE(v->HostCanAccess(GPUAccess::kWrite));
+  ASSERT_FALSE(v->HostCanRead());
+  ASSERT_FALSE(v->HostCanWrite());
 }
 
 void CheckHost(HostDeviceVector<int> *v, GPUAccess access) {
-  const std::vector<int>& data_h = access == GPUAccess::kWrite ?
+  const std::vector<int>& data_h = access == GPUAccess::kNone ?
     v->HostVector() : v->ConstHostVector();
   for (size_t i = 0; i < v->Size(); ++i) {
     ASSERT_EQ(data_h.at(i), i + 1);
   }
-  ASSERT_TRUE(v->HostCanAccess(GPUAccess::kRead));
-  ASSERT_EQ(v->HostCanAccess(GPUAccess::kWrite), access == GPUAccess::kWrite);
-  size_t n_devices = 1;
-  for (int i = 0; i < n_devices; ++i) {
-    ASSERT_EQ(v->DeviceCanAccess(GPUAccess::kRead), access == GPUAccess::kRead);
-    // the devices should have no write access
-    ASSERT_FALSE(v->DeviceCanAccess(GPUAccess::kWrite));
-  }
+  ASSERT_TRUE(v->HostCanRead());
+  ASSERT_EQ(v->HostCanWrite(), access == GPUAccess::kNone);
+  ASSERT_EQ(v->DeviceCanRead(), access == GPUAccess::kRead);
+  // the devices should have no write access
+  ASSERT_FALSE(v->DeviceCanWrite());
 }
 
 void TestHostDeviceVector
@@ -116,7 +113,7 @@ void TestHostDeviceVector
   PlusOne(&v);
   CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
-  CheckHost(&v, GPUAccess::kWrite);
+  CheckHost(&v, GPUAccess::kNone);
 }
 
 TEST(HostDeviceVector, TestBlock) {
@@ -145,7 +142,7 @@ TEST(HostDeviceVector, TestCopy) {
   PlusOne(&v);
   CheckDevice(&v, starts, sizes, 1, GPUAccess::kWrite);
   CheckHost(&v, GPUAccess::kRead);
-  CheckHost(&v, GPUAccess::kWrite);
+  CheckHost(&v, GPUAccess::kNone);
 }
 
 TEST(HostDeviceVector, Shard) {

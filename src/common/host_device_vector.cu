@@ -19,33 +19,12 @@ void SetCudaSetDeviceHandler(void (*handler)(int)) {
   cudaSetDeviceHandler = handler;
 }
 
-// wrapper over access with useful methods
-class Permissions {
-  GPUAccess access_;
-  explicit Permissions(GPUAccess access) : access_{access} {}
-
- public:
-  Permissions() : access_{GPUAccess::kNone} {}
-  explicit Permissions(bool perm)
-    : access_(perm ? GPUAccess::kWrite : GPUAccess::kNone) {}
-
-  bool CanRead() const { return access_ >= kRead; }
-  bool CanWrite() const { return access_ == kWrite; }
-  bool CanAccess(GPUAccess access) const { return access_ >= access; }
-  void Grant(GPUAccess access) { access_ = std::max(access_, access); }
-  void DenyComplementary(GPUAccess compl_access) {
-    access_ = std::min(access_, GPUAccess::kWrite - compl_access);
-  }
-  Permissions Complementary() const {
-    return Permissions(GPUAccess::kWrite - access_);
-  }
-};
-
 template <typename T>
 class HostDeviceVectorImpl {
  public:
-  HostDeviceVectorImpl(size_t size, T v, int device) : device_(device), perm_h_(device < 0) {
+  HostDeviceVectorImpl(size_t size, T v, int device) : device_(device) {
     if (device >= 0) {
+      gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       data_d_.resize(size, v);
     } else {
@@ -53,19 +32,11 @@ class HostDeviceVectorImpl {
     }
   }
 
-  // required, as a new std::mutex has to be created
-  HostDeviceVectorImpl(const HostDeviceVectorImpl<T>& other)
-      : device_(other.device_), data_h_(other.data_h_), perm_h_(other.perm_h_), mutex_() {
-    if (device_ >= 0) {
-      SetDevice();
-      data_d_ = other.data_d_;
-    }
-  }
-
   // Initializer can be std::vector<T> or std::initializer_list<T>
   template <class Initializer>
-  HostDeviceVectorImpl(const Initializer& init, int device) : device_(device), perm_h_(device < 0) {
+  HostDeviceVectorImpl(const Initializer& init, int device) : device_(device) {
     if (device >= 0) {
+      gpu_access_ = GPUAccess::kWrite;
       LazyResizeDevice(init.size());
       Copy(init);
     } else {
@@ -73,13 +44,7 @@ class HostDeviceVectorImpl {
     }
   }
 
-  ~HostDeviceVectorImpl() {
-    if (device_ >= 0) {
-      SetDevice();
-    }
-  }
-
-  size_t Size() const { return perm_h_.CanRead() ? data_h_.size() : data_d_.size(); }
+  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_.size(); }
 
   int DeviceIdx() const { return device_; }
 
@@ -121,9 +86,10 @@ class HostDeviceVectorImpl {
   }
 
   void Fill(T v) {  // NOLINT
-    if (perm_h_.CanWrite()) {
+    if (HostCanWrite()) {
       std::fill(data_h_.begin(), data_h_.end(), v);
     } else {
+      gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       thrust::fill(data_d_.begin(), data_d_.end(), v);
     }
@@ -132,35 +98,33 @@ class HostDeviceVectorImpl {
   void Copy(HostDeviceVectorImpl<T>* other) {
     CHECK_EQ(Size(), other->Size());
     // Data is on host.
-    if (perm_h_.CanWrite() && other->perm_h_.CanWrite()) {
+    if (HostCanWrite() && other->HostCanWrite()) {
       std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
       return;
     }
-    // Data is on device;
-    other->SetDevice(device_);
-    DeviceCopy(other);
+    CopyToDevice(other);
   }
 
   void Copy(const std::vector<T>& other) {
     CHECK_EQ(Size(), other.size());
-    if (perm_h_.CanWrite()) {
+    if (HostCanWrite()) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      DeviceCopy(other.data());
+      CopyToDevice(other.data());
     }
   }
 
   void Copy(std::initializer_list<T> other) {
     CHECK_EQ(Size(), other.size());
-    if (perm_h_.CanWrite()) {
+    if (HostCanWrite()) {
       std::copy(other.begin(), other.end(), data_h_.begin());
     } else {
-      DeviceCopy(other.begin());
+      CopyToDevice(other.begin());
     }
   }
 
   std::vector<T>& HostVector() {
-    LazySyncHost(GPUAccess::kWrite);
+    LazySyncHost(GPUAccess::kNone);
     return data_h_;
   }
 
@@ -172,7 +136,7 @@ class HostDeviceVectorImpl {
   void SetDevice(int device) {
     if (device_ == device) { return; }
     if (device_ >= 0) {
-      LazySyncHost(GPUAccess::kWrite);
+      LazySyncHost(GPUAccess::kNone);
     }
     device_ = device;
     if (device_ >= 0) {
@@ -184,39 +148,37 @@ class HostDeviceVectorImpl {
     if (new_size == Size()) { return; }
     if (Size() == 0 && device_ >= 0) {
       // fast on-device resize
-      perm_h_ = Permissions(false);
+      gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       data_d_.resize(new_size, v);
     } else {
       // resize on host
-      LazySyncHost(GPUAccess::kWrite);
+      LazySyncHost(GPUAccess::kNone);
       data_h_.resize(new_size, v);
     }
   }
 
   void LazySyncHost(GPUAccess access) {
-    if (perm_h_.CanAccess(access)) { return; }
-    if (perm_h_.CanRead()) {
+    if (HostCanAccess(access)) { return; }
+    if (HostCanRead()) {
       // data is present, just need to deny access to the device
-      perm_h_.Grant(access);
+      gpu_access_ = access;
       return;
     }
-    std::lock_guard<std::mutex> lock(mutex_);
+    gpu_access_ = access;
     if (data_h_.size() != data_d_.size()) { data_h_.resize(data_d_.size()); }
     SetDevice();
     dh::safe_cuda(cudaMemcpy(data_h_.data(),
                              data_d_.data().get(),
                              data_d_.size() * sizeof(T),
                              cudaMemcpyDeviceToHost));
-    perm_h_.Grant(access);
   }
 
   void LazySyncDevice(GPUAccess access) {
-    if (DevicePerm().CanAccess(access)) { return; }
-    if (DevicePerm().CanRead()) {
+    if (DeviceCanAccess(access)) { return; }
+    if (DeviceCanRead()) {
       // deny read to the host
-      std::lock_guard<std::mutex> lock(mutex_);
-      perm_h_.DenyComplementary(access);
+      gpu_access_ = access;
       return;
     }
     // data is on the host
@@ -226,39 +188,37 @@ class HostDeviceVectorImpl {
                              data_h_.data(),
                              data_d_.size() * sizeof(T),
                              cudaMemcpyHostToDevice));
-
-    std::lock_guard<std::mutex> lock(mutex_);
-    perm_h_.DenyComplementary(access);
+    gpu_access_ = access;
   }
 
-  bool HostCanAccess(GPUAccess access) { return perm_h_.CanAccess(access); }
-  bool DeviceCanAccess(GPUAccess access) { return DevicePerm().CanAccess(access); }
+  bool HostCanAccess(GPUAccess access) const { return gpu_access_ <= access; }
+  bool HostCanRead() const { return HostCanAccess(GPUAccess::kRead); }
+  bool HostCanWrite() const { return HostCanAccess(GPUAccess::kNone); }
+  bool DeviceCanAccess(GPUAccess access) const { return gpu_access_ >= access; }
+  bool DeviceCanRead() const { return DeviceCanAccess(GPUAccess::kRead); }
+  bool DeviceCanWrite() const { return DeviceCanAccess(GPUAccess::kWrite); }
 
  private:
   int device_{-1};
   std::vector<T> data_h_{};
   dh::device_vector<T> data_d_{};
-  Permissions perm_h_{false};
-  // protects size_d_ and perm_h_ when updated from multiple threads
-  std::mutex mutex_{};
+  GPUAccess gpu_access_{GPUAccess::kNone};
 
-  void DeviceCopy(HostDeviceVectorImpl* other) {
-    if (other->perm_h_.CanWrite()) {
-      DeviceCopy(other->data_h_.data());
+  void CopyToDevice(HostDeviceVectorImpl* other) {
+    if (other->HostCanWrite()) {
+      CopyToDevice(other->data_h_.data());
     } else {
       LazyResizeDevice(Size());
-      std::lock_guard<std::mutex> lock(mutex_);
-      perm_h_.DenyComplementary(GPUAccess::kWrite);
+      gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), other->data_d_.data().get(),
                                     data_d_.size() * sizeof(T), cudaMemcpyDefault));
     }
   }
 
-  void DeviceCopy(const T* begin) {
+  void CopyToDevice(const T* begin) {
     LazyResizeDevice(Size());
-    std::lock_guard<std::mutex> lock(mutex_);
-    perm_h_.DenyComplementary(GPUAccess::kWrite);
+    gpu_access_ = GPUAccess::kWrite;
     SetDevice();
     dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), begin,
                                   data_d_.size() * sizeof(T), cudaMemcpyDefault));
@@ -278,8 +238,6 @@ class HostDeviceVectorImpl {
       (*cudaSetDeviceHandler)(device_);
     }
   }
-
-  Permissions DevicePerm() const { return perm_h_.Complementary(); }
 };
 
 template<typename T>
@@ -389,13 +347,23 @@ const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
 }
 
 template <typename T>
-bool HostDeviceVector<T>::HostCanAccess(GPUAccess access) const {
-  return impl_->HostCanAccess(access);
+bool HostDeviceVector<T>::HostCanRead() const {
+  return impl_->HostCanRead();
 }
 
 template <typename T>
-bool HostDeviceVector<T>::DeviceCanAccess(GPUAccess access) const {
-  return impl_->DeviceCanAccess(access);
+bool HostDeviceVector<T>::HostCanWrite() const {
+  return impl_->HostCanWrite();
+}
+
+template <typename T>
+bool HostDeviceVector<T>::DeviceCanRead() const {
+  return impl_->DeviceCanRead();
+}
+
+template <typename T>
+bool HostDeviceVector<T>::DeviceCanWrite() const {
+  return impl_->DeviceCanWrite();
 }
 
 template <typename T>
