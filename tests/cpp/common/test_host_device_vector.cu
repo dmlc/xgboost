@@ -69,7 +69,7 @@ void CheckDevice(HostDeviceVector<int> *v,
   int n_devices = sizes.size();
   ASSERT_EQ(n_devices, 1);
   for (int i = 0; i < n_devices; ++i) {
-    ASSERT_EQ(v->DeviceSize(), sizes.at(i));
+    ASSERT_EQ(v->Size(), sizes.at(i));
     SetDevice(i);
     ASSERT_TRUE(thrust::equal(v->tcbegin(), v->tcend(),
                               thrust::make_counting_iterator(first + starts[i])));
@@ -157,7 +157,7 @@ TEST(HostDeviceVector, Shard) {
   auto device = 0;
 
   vec.SetDevice(device);
-  ASSERT_EQ(vec.DeviceSize(), h_vec.size());
+  ASSERT_EQ(vec.Size(), h_vec.size());
   ASSERT_EQ(vec.Size(), h_vec.size());
   auto span = vec.DeviceSpan();  // sync to device
 
@@ -178,7 +178,6 @@ TEST(HostDeviceVector, Reshard) {
   auto device = 0;
 
   vec.SetDevice(device);
-  ASSERT_EQ(vec.DeviceSize(), h_vec.size());
   ASSERT_EQ(vec.Size(), h_vec.size());
   PlusOne(&vec);
 
@@ -196,10 +195,10 @@ TEST(HostDeviceVector, Span) {
   HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
   vec.SetDevice(0);
   auto span = vec.DeviceSpan();
-  ASSERT_EQ(vec.DeviceSize(), span.size());
+  ASSERT_EQ(vec.Size(), span.size());
   ASSERT_EQ(vec.DevicePointer(), span.data());
   auto const_span = vec.ConstDeviceSpan();
-  ASSERT_EQ(vec.DeviceSize(), span.size());
+  ASSERT_EQ(vec.Size(), span.size());
   ASSERT_EQ(vec.ConstDevicePointer(), span.data());
 }
 

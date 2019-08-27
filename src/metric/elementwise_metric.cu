@@ -68,7 +68,7 @@ class ElementWiseMetricsReduction {
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
-    size_t n_data = preds.DeviceSize();
+    size_t n_data = preds.Size();
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;

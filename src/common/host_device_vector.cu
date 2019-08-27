@@ -95,18 +95,13 @@ class HostDeviceVectorImpl {
 
   common::Span<T> DeviceSpan() {
     LazySyncDevice(GPUAccess::kWrite);
-    return {data_d_.data().get(), static_cast<typename common::Span<T>::index_type>(DeviceSize())};
+    return {data_d_.data().get(), static_cast<typename common::Span<T>::index_type>(Size())};
   }
 
   common::Span<const T> ConstDeviceSpan() {
     LazySyncDevice(GPUAccess::kRead);
     using SpanInd = typename common::Span<const T>::index_type;
-    return {data_d_.data().get(), static_cast<SpanInd>(DeviceSize())};
-  }
-
-  size_t DeviceSize() {
-    LazySyncDevice(GPUAccess::kRead);
-    return data_d_.size();
+    return {data_d_.data().get(), static_cast<SpanInd>(Size())};
   }
 
   thrust::device_ptr<T> tbegin() {  // NOLINT
@@ -118,11 +113,11 @@ class HostDeviceVectorImpl {
   }
 
   thrust::device_ptr<T> tend() {  // NOLINT
-    return tbegin() + DeviceSize();
+    return tbegin() + Size();
   }
 
   thrust::device_ptr<const T> tcend() {  // NOLINT
-    return tcbegin() + DeviceSize();
+    return tcbegin() + Size();
   }
 
   void Fill(T v) {  // NOLINT
@@ -343,11 +338,6 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan() {
 template <typename T>
 common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
   return impl_->ConstDeviceSpan();
-}
-
-template <typename T>
-size_t HostDeviceVector<T>::DeviceSize() const {
-  return impl_->DeviceSize();
 }
 
 template <typename T>

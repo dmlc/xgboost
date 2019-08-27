@@ -85,7 +85,7 @@ class MultiClassMetricsReduction {
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds,
       const size_t n_class) {
-    size_t n_data = labels.DeviceSize();
+    size_t n_data = labels.Size();
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;

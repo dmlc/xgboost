@@ -111,8 +111,6 @@ class HostDeviceVector {
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
-  size_t DeviceSize() const;
-
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
