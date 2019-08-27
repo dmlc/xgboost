@@ -109,9 +109,6 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 }
 
 template <typename T>
-size_t HostDeviceVector<T>::DeviceSize() const { return 0; }
-
-template <typename T>
 void HostDeviceVector<T>::Fill(T v) {
   std::fill(HostVector().begin(), HostVector().end(), v);
 }
@@ -135,12 +132,22 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
-bool HostDeviceVector<T>::HostCanAccess(GPUAccess access) const {
+bool HostDeviceVector<T>::HostCanRead() const {
   return true;
 }
 
 template <typename T>
-bool HostDeviceVector<T>::DeviceCanAccess(GPUAccess access) const {
+bool HostDeviceVector<T>::HostCanWrite() const {
+  return true;
+}
+
+template <typename T>
+bool HostDeviceVector<T>::DeviceCanRead() const {
+  return false;
+}
+
+template <typename T>
+bool HostDeviceVector<T>::DeviceCanWrite() const {
   return false;
 }
 
