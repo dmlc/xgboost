@@ -129,7 +129,8 @@ class HostDeviceVectorImpl {
     if (perm_h_.CanWrite()) {
       std::fill(data_h_.begin(), data_h_.end(), v);
     } else {
-      DeviceFill(v);
+      SetDevice();
+      thrust::fill(data_d_.begin(), data_d_.end(), v);
     }
   }
 
@@ -246,25 +247,23 @@ class HostDeviceVectorImpl {
   // protects size_d_ and perm_h_ when updated from multiple threads
   std::mutex mutex_{};
 
-  void DeviceFill(T v) {
-    // TODO(canonizer): avoid full copy of host data
-    LazySyncDevice(GPUAccess::kWrite);
-    SetDevice();
-    thrust::fill(data_d_.begin(), data_d_.end(), v);
-  }
-
   void DeviceCopy(HostDeviceVectorImpl* other) {
-    // TODO(canonizer): avoid full copy of host data for this (but not for other)
-    LazySyncDevice(GPUAccess::kWrite);
-    other->LazySyncDevice(GPUAccess::kRead);
-    SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), other->data_d_.data().get(),
-                                  data_d_.size() * sizeof(T), cudaMemcpyDefault));
+    if (other->perm_h_.CanWrite()) {
+      DeviceCopy(other->data_h_.data());
+    } else {
+      LazyResizeDevice(Size());
+      std::lock_guard<std::mutex> lock(mutex_);
+      perm_h_.DenyComplementary(GPUAccess::kWrite);
+      SetDevice();
+      dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), other->data_d_.data().get(),
+                                    data_d_.size() * sizeof(T), cudaMemcpyDefault));
+    }
   }
 
   void DeviceCopy(const T* begin) {
-    // TODO(canonizer): avoid full copy of host data
-    LazySyncDevice(GPUAccess::kWrite);
+    LazyResizeDevice(Size());
+    std::lock_guard<std::mutex> lock(mutex_);
+    perm_h_.DenyComplementary(GPUAccess::kWrite);
     SetDevice();
     dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), begin,
                                   data_d_.size() * sizeof(T), cudaMemcpyDefault));
