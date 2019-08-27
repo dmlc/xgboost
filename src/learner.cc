@@ -271,6 +271,8 @@ class LearnerImpl : public Learner {
             kv.second = "cpu_predictor";
             LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
           }
+          if (saved_param == "max_depth") cfg_[saved_param] = kv.second;
+          if (saved_param == "tree_method") cfg_[saved_param] = kv.second;
         }
       }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
@@ -333,7 +335,7 @@ class LearnerImpl : public Learner {
     {
       // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
       for (const auto& key : std::vector<std::string>{
-          "predictor", "n_gpus", "gpu_id"}) {
+          "predictor", "n_gpus", "gpu_id", "max_depth", "tree_method"}) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
           mparam.contain_extra_attrs = 1;
