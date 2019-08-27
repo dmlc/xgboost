@@ -191,9 +191,8 @@ class LearnerImpl : public Learner {
   }
 
   void Load(dmlc::Stream* fi) override {
-    Args args = {cfg_.cbegin(), cfg_.cend()};
-    tparam_.InitAllowUnknown(args);
-    generic_param_.InitAllowUnknown(args);
+    generic_param_.InitAllowUnknown(Args{});
+    tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
     // backward compatible header check.
@@ -272,6 +271,9 @@ class LearnerImpl : public Learner {
             kv.second = "cpu_predictor";
             LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
           }
+          if (saved_configs_.find(saved_param) != saved_configs_.end()) {
+            cfg_[saved_param] = kv.second;
+          }
         }
       }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
@@ -302,6 +304,10 @@ class LearnerImpl : public Learner {
       p_metric->Configure({cfg_.begin(), cfg_.end()});
     }
 
+    // copy dsplit from config since it will not run again during restore
+    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+      tparam_.dsplit = DataSplitMode::kRow;
+    }
     this->configured_ = true;
   }
 
@@ -654,6 +660,10 @@ class LearnerImpl : public Learner {
   std::vector<std::shared_ptr<DMatrix> > cache_;
 
   common::Monitor monitor_;
+
+  /*! \brief saved config keys used to restore failed worker */
+  std::set<std::string> saved_configs_ = {"max_depth", "tree_method", "dsplit",
+    "seed", "silent", "num_round", "gamma", "min_child_weight"};
 };
 
 std::string const LearnerImpl::kEvalMetric {"eval_metric"};  // NOLINT
