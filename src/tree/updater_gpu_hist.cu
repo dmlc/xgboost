@@ -1417,8 +1417,8 @@ class GPUHistMakerSpecialised {
  private:
   bool initialised_;
 
-  GPUHistMakerTrainParam hist_maker_param_{};
-  GenericParameter const* generic_param_{};
+  GPUHistMakerTrainParam hist_maker_param_;
+  GenericParameter const* generic_param_;
 
   dh::AllReducer reducer_;
 
