@@ -919,12 +919,11 @@ struct DeviceShard {
     monitor.StartCuda("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     reducer->AllReduceSum(
-        0,
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         ellpack_matrix.BinCount() *
             (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
-    reducer->Synchronize(device_id);
+    reducer->Synchronize();
 
     monitor.StopCuda("AllReduce");
   }
@@ -1013,9 +1012,9 @@ struct DeviceShard {
     dh::SumReduction(temp_memory, gpair, node_sum_gradients_d,
                      gpair.size());
     reducer->AllReduceSum(
-        0, reinterpret_cast<float*>(node_sum_gradients_d.data()),
+        reinterpret_cast<float*>(node_sum_gradients_d.data()),
         reinterpret_cast<float*>(node_sum_gradients_d.data()), 2);
-    reducer->Synchronize(device_id);
+    reducer->Synchronize();
     dh::safe_cuda(cudaMemcpy(node_sum_gradients.data(),
                              node_sum_gradients_d.data(), sizeof(GradientPair),
                              cudaMemcpyDeviceToHost));
