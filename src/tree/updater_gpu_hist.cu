@@ -1229,10 +1229,8 @@ inline void DeviceShard<GradientSumT>::CreateHistIndices(
 class DeviceHistogramBuilderState {
  public:
   template <typename GradientSumT>
-  explicit DeviceHistogramBuilderState(
-    const std::unique_ptr<DeviceShard<GradientSumT>>& shard) {
-    device_row_state_ = RowStateOnDevice(shard->n_rows);
-  }
+  explicit DeviceHistogramBuilderState(const std::unique_ptr<DeviceShard<GradientSumT>>& shard)
+      : device_row_state_(shard->n_rows) {}
 
   const RowStateOnDevice& GetRowStateOnDevice() const {
     return device_row_state_;
@@ -1423,7 +1421,7 @@ class GPUHistMakerSpecialised {
   dh::AllReducer reducer_;
 
   DMatrix* p_last_fmat_;
-  int device_{};
+  int device_{-1};
 
   common::Monitor monitor_;
 };
