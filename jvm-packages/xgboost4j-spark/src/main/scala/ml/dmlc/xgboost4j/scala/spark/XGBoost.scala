@@ -25,6 +25,7 @@ import scala.util.Random
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.CheckpointManager.CheckpointParam
+import ml.dmlc.xgboost4j.scala.spark.XGBoost.logger
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -56,14 +57,40 @@ object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
 }
 
-private[this] case class XGBoostNativeParams(
-    numWorkers: Int, round: Int, useExternalMemory: Boolean, obj: ObjectiveTrait, eval: EvalTrait,
-    missing: Float, trackerConf: TrackerConf, timeoutRequestWorkers: Long,
-    checkpointParam: CheckpointParam)
+private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
+                                                             maximizeEvalMetrics: Boolean)
+
+private[this] case class XGBoostExecutionInputParams(
+    trainTestSplitRatio: Float, seed: Long)
+
+private[this] case class XGBoostExecutionParams(
+    numWorkers: Int,
+    round: Int,
+    useExternalMemory: Boolean,
+    obj: ObjectiveTrait,
+    eval: EvalTrait,
+    missing: Float,
+    trackerConf: TrackerConf,
+    timeoutRequestWorkers: Long,
+    checkpointParam: CheckpointParam,
+    xgbInputParams: XGBoostExecutionInputParams,
+    earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
+    cacheTrainingSet: Boolean) {
+
+  private var rawParamMap: Map[String, Any] = _
+
+  def setRawParamMap(inputMap: Map[String, Any]): Unit = {
+    rawParamMap = inputMap
+  }
+
+  def toMap: Map[String, Any] = {
+    rawParamMap
+  }
+}
 
 private[this] object XGBoostNativeParamsFactory {
 
-  private var xgbNativeParams: XGBoostNativeParams = _
+  private var xgbExecutionParams: XGBoostExecutionParams = _
 
   private val logger = LogFactory.getLog("XGBoostSpark")
 
@@ -99,57 +126,114 @@ private[this] object XGBoostNativeParamsFactory {
     }
   }
 
-  private def parameterFetchAndValidation(params: Map[String, Any], sparkContext: SparkContext) = {
-    val nWorkers = params("num_workers").asInstanceOf[Int]
-    val round = params("num_round").asInstanceOf[Int]
-    val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
-    val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
-    val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
-    val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
+  /**
+   * we should not include any nested structure in the output of this function as the map is
+   * eventually to be feed to xgboost4j layer
+   */
+  private def overrideParams(
+      params: Map[String, Any],
+      sc: SparkContext): Map[String, Any] = {
+    val coresPerTask = sc.getConf.getInt("spark.task.cpus", 1)
+    var overridedParams = params
+    if (overridedParams.contains("nthread")) {
+      val nThread = overridedParams("nthread").toString.toInt
+      require(nThread <= coresPerTask,
+        s"the nthread configuration ($nThread) must be no larger than " +
+          s"spark.task.cpus ($coresPerTask)")
+    } else {
+      overridedParams = overridedParams + ("nthread" -> coresPerTask)
+    }
+
+    val numEarlyStoppingRounds = overridedParams.getOrElse[Int](
+      "num_early_stopping_rounds", 0)
+    overridedParams += "num_early_stopping_rounds" -> numEarlyStoppingRounds
+    if (numEarlyStoppingRounds > 0 &&
+      !overridedParams.contains("maximize_evaluation_metrics")) {
+      if (overridedParams.contains("custom_eval")) {
+        throw new IllegalArgumentException("custom_eval does not support early stopping")
+      }
+      val eval_metric = overridedParams("eval_metric").toString
+      val maximize = LearningTaskParams.evalMetricsToMaximize contains eval_metric
+      logger.info("parameter \"maximize_evaluation_metrics\" is set to " + maximize)
+      overridedParams += ("maximize_evaluation_metrics" -> maximize)
+    }
+    overridedParams
+  }
+
+  private def parameterFetchAndValidation(
+      rawParams: Map[String, Any],
+      sparkContext: SparkContext) = {
+    val overridedParams = overrideParams(rawParams, sparkContext)
+    val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
+    val round = overridedParams("num_round").asInstanceOf[Int]
+    val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
+    val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
+    val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
+    val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
     validateSparkSslConf(sparkContext)
 
-    if (params.contains("tree_method")) {
-      require(params("tree_method") == "hist" ||
-        params("tree_method") == "approx" ||
-        params("tree_method") == "auto", "xgboost4j-spark only supports tree_method as 'hist'," +
-        " 'approx' and 'auto'")
+    if (overridedParams.contains("tree_method")) {
+      require(overridedParams("tree_method") == "hist" ||
+        overridedParams("tree_method") == "approx" ||
+        overridedParams("tree_method") == "auto", "xgboost4j-spark only supports tree_method as" +
+        " 'hist', 'approx' and 'auto'")
     }
-    if (params.contains("train_test_ratio")) {
+    if (overridedParams.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
         " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
         "'eval_set_names'")
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
-      require(params.get("objective_type").isDefined, "parameter \"objective_type\" is not" +
-        " defined, you have to specify the objective type as classification or regression" +
+      require(overridedParams.get("objective_type").isDefined, "parameter \"objective_type\" " +
+        "is not defined, you have to specify the objective type as classification or regression" +
         " with a customized objective function")
     }
-    val trackerConf = params.get("tracker_conf") match {
+    val trackerConf = overridedParams.get("tracker_conf") match {
       case None => TrackerConf()
       case Some(conf: TrackerConf) => conf
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
         "instance of TrackerConf.")
     }
-    val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
+    val timeoutRequestWorkers: Long = overridedParams.get("timeout_request_workers") match {
       case None => 0L
       case Some(interval: Long) => interval
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
     }
     val checkpointParam =
-      CheckpointManager.extractParams(params)
-    XGBoostNativeParams(nWorkers, round, useExternalMemory, obj, eval, missing, trackerConf,
+      CheckpointManager.extractParams(overridedParams)
+
+    val trainTestSplit = overridedParams.getOrElse[Float]("train_test_split", 1.0f)
+    val seed = overridedParams.getOrElse[Long]("seed", System.nanoTime())
+    val inputParams = XGBoostExecutionInputParams(trainTestSplit, seed)
+
+    val earlyStoppingRounds = overridedParams.getOrElse[Int](
+      "num_early_stopping_rounds", 0)
+    val maximizeEvalMetrics = overridedParams.getOrElse[Boolean](
+      "maximize_evaluation_metrics", true)
+    val xgbExecEarlyStoppingParams = XGBoostExecutionEarlyStoppingParams(earlyStoppingRounds,
+      maximizeEvalMetrics)
+
+    val cacheTrainingSet = overridedParams.getOrElse[Boolean]("cache_training_set", false)
+
+    val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
+      missing, trackerConf,
       timeoutRequestWorkers,
-      checkpointParam)
+      checkpointParam,
+      inputParams,
+      xgbExecEarlyStoppingParams,
+      cacheTrainingSet)
+    xgbExecParam.setRawParamMap(overridedParams)
+    xgbExecParam
   }
 
-  def getInstance(params: Map[String, Any], sc: SparkContext): XGBoostNativeParams =
+  def getInstance(params: Map[String, Any], sc: SparkContext): XGBoostExecutionParams =
     XGBoost.synchronized {
-    if (xgbNativeParams == null) {
-      xgbNativeParams = parameterFetchAndValidation(params, sc)
+    if (xgbExecutionParams == null) {
+      xgbExecutionParams = parameterFetchAndValidation(params, sc)
     }
-    xgbNativeParams
+    xgbExecutionParams
   }
 }
 
@@ -234,7 +318,7 @@ object XGBoost extends Serializable {
 
   private def buildDistributedBooster(
       watches: Watches,
-      params: Map[String, Any],
+      xgbExecutionParam: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       round: Int,
       obj: ObjectiveTrait,
@@ -255,24 +339,9 @@ object XGBoost extends Serializable {
 
     try {
       Rabit.init(rabitEnv)
-
-      val numEarlyStoppingRounds = params.get("num_early_stopping_rounds")
-        .map(_.toString.toInt).getOrElse(0)
-      val overridedParams = if (numEarlyStoppingRounds > 0 &&
-          !params.contains("maximize_evaluation_metrics")) {
-        if (params.contains("custom_eval")) {
-            throw new IllegalArgumentException("maximize_evaluation_metrics has to be "
-                + "specified when custom_eval is set")
-        }
-        val eval_metric = params("eval_metric").toString
-        val maximize = LearningTaskParams.evalMetricsToMaximize contains eval_metric
-        logger.info("parameter \"maximize_evaluation_metrics\" is set to " + maximize)
-        params + ("maximize_evaluation_metrics" -> maximize)
-      } else {
-        params
-      }
+      val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
-      val booster = SXGBoost.train(watches.toMap("train"), overridedParams, round,
+      val booster = SXGBoost.train(watches.toMap("train"), xgbExecutionParam.toMap, round,
         watches.toMap, metrics, obj, eval,
         earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
@@ -284,22 +353,6 @@ object XGBoost extends Serializable {
       Rabit.shutdown()
       watches.delete()
     }
-  }
-
-  private def overrideParamsAccordingToTaskCPUs(
-      params: Map[String, Any],
-      sc: SparkContext): Map[String, Any] = {
-    val coresPerTask = sc.getConf.getInt("spark.task.cpus", 1)
-    var overridedParams = params
-    if (overridedParams.contains("nthread")) {
-      val nThread = overridedParams("nthread").toString.toInt
-      require(nThread <= coresPerTask,
-        s"the nthread configuration ($nThread) must be no larger than " +
-          s"spark.task.cpus ($coresPerTask)")
-    } else {
-      overridedParams = params + ("nthread" -> coresPerTask)
-    }
-    overridedParams
   }
 
   private def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
@@ -361,61 +414,62 @@ object XGBoost extends Serializable {
 
   private def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
-      params: Map[String, Any],
+      xgbExecutionParams: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
-    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
-        val watches = Watches.buildWatches(params,
-          processMissingValues(labeledPoints, xgbNativeParams.missing),
-          getCacheDirName(xgbNativeParams.useExternalMemory))
-        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-          xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
+        val watches = Watches.buildWatches(xgbExecutionParams,
+          processMissingValues(labeledPoints, xgbExecutionParams.missing),
+          getCacheDirName(xgbExecutionParams.useExternalMemory))
+        buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
+          xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbNativeParams.numWorkers).mapPartitions {
-        nameAndLabeledPointSets =>
-          val watches = Watches.buildWatches(
-            nameAndLabeledPointSets.map {
-              case (name, iter) => (name, processMissingValues(iter, xgbNativeParams.missing))},
-            getCacheDirName(xgbNativeParams.useExternalMemory))
-          buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-            xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
-      }.cache()
+      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
+        mapPartitions {
+          nameAndLabeledPointSets =>
+            val watches = Watches.buildWatches(
+              nameAndLabeledPointSets.map {
+                case (name, iter) => (name, processMissingValues(iter,
+                  xgbExecutionParams.missing))
+              },
+              getCacheDirName(xgbExecutionParams.useExternalMemory))
+            buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
+              xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
+        }.cache()
     }
   }
 
   private def trainForRanking(
       trainingData: RDD[Array[XGBLabeledPoint]],
-      params: Map[String, Any],
+      xgbExecutionParam: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       checkpointRound: Int,
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
-    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
-        val watches = Watches.buildWatchesWithGroup(params,
-          processMissingValuesWithGroup(labeledPointGroups, xgbNativeParams.missing),
-          getCacheDirName(xgbNativeParams.useExternalMemory))
-        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-          xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
+        val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
+          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing),
+          getCacheDirName(xgbExecutionParam.useExternalMemory))
+        buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
+          xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(trainingData, evalSetsMap, xgbNativeParams.numWorkers).mapPartitions(
+      coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
               case (name, iter) => (name, processMissingValuesWithGroup(iter,
-                xgbNativeParams.missing))
+                xgbExecutionParam.missing))
             },
-            getCacheDirName(xgbNativeParams.useExternalMemory))
-          buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-            xgbNativeParams.obj,
-            xgbNativeParams.eval,
+            getCacheDirName(xgbExecutionParam.useExternalMemory))
+          buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
+            xgbExecutionParam.obj,
+            xgbExecutionParam.eval,
             prevBooster)
         }).cache()
     }
@@ -456,9 +510,8 @@ object XGBoost extends Serializable {
     val checkpointManager = new CheckpointManager(sc, xgbNativeParams.checkpointParam.
       checkpointPath)
     checkpointManager.cleanUpHigherVersions(xgbNativeParams.round)
-    val transformedTrainingData = composeInputData(trainingData,
-      params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup,
-      xgbNativeParams.numWorkers)
+    val transformedTrainingData = composeInputData(trainingData, xgbNativeParams.cacheTrainingSet,
+      hasGroup, xgbNativeParams.numWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
@@ -468,16 +521,15 @@ object XGBoost extends Serializable {
         checkpointRound: Int =>
           val tracker = startTracker(xgbNativeParams.numWorkers, xgbNativeParams.trackerConf)
           try {
-            val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
             val parallelismTracker = new SparkParallelismTracker(sc,
               xgbNativeParams.timeoutRequestWorkers,
               xgbNativeParams.numWorkers)
             val rabitEnv = tracker.getWorkerEnvs
             val boostersAndMetrics = if (hasGroup) {
-              trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
+              trainForRanking(transformedTrainingData.left.get, xgbNativeParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             } else {
-              trainForNonRanking(transformedTrainingData.right.get, overriddenParams, rabitEnv,
+              trainForNonRanking(transformedTrainingData.right.get, xgbNativeParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             }
             val sparkJobThread = new Thread() {
@@ -513,8 +565,7 @@ object XGBoost extends Serializable {
         trainingData.sparkContext.stop()
         throw t
     } finally {
-      uncacheTrainingData(params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean],
-        transformedTrainingData)
+      uncacheTrainingData(xgbNativeParams.cacheTrainingSet, transformedTrainingData)
     }
   }
 
@@ -698,11 +749,11 @@ private object Watches {
   }
 
   def buildWatches(
-      params: Map[String, Any],
+      xgbExecutionParams: XGBoostExecutionParams,
       labeledPoints: Iterator[XGBLabeledPoint],
       cacheDirName: Option[String]): Watches = {
-    val trainTestRatio = params.get("train_test_ratio").map(_.toString.toDouble).getOrElse(1.0)
-    val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
+    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestSplitRatio
+    val seed = xgbExecutionParams.xgbInputParams.seed
     val r = new Random(seed)
     val testPoints = mutable.ArrayBuffer.empty[XGBLabeledPoint]
     val trainBaseMargins = new mutable.ArrayBuilder.ofFloat
@@ -768,11 +819,11 @@ private object Watches {
   }
 
   def buildWatchesWithGroup(
-      params: Map[String, Any],
+      xgbExecutionParams: XGBoostExecutionParams,
       labeledPointGroups: Iterator[Array[XGBLabeledPoint]],
       cacheDirName: Option[String]): Watches = {
-    val trainTestRatio = params.get("train_test_ratio").map(_.toString.toDouble).getOrElse(1.0)
-    val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
+    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestSplitRatio
+    val seed = xgbExecutionParams.xgbInputParams.seed
     val r = new Random(seed)
     val testPoints = mutable.ArrayBuilder.make[XGBLabeledPoint]
     val trainBaseMargins = new mutable.ArrayBuilder.ofFloat
