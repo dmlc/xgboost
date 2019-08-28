@@ -238,8 +238,7 @@ class MemoryLogger {
       device_allocations.erase(itr);
     }
   };
-  std::map<int, DeviceStats>
-    stats_;  // Map device ordinal to memory information
+  DeviceStats stats_;
   std::mutex mutex_;
 
 public:
@@ -249,8 +248,8 @@ public:
     std::lock_guard<std::mutex> guard(mutex_);
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
-    stats_[current_device].RegisterAllocation(ptr, n);
-    CHECK_LE(stats_[current_device].peak_allocated_bytes, dh::TotalMemory(current_device));
+    stats_.RegisterAllocation(ptr, n);
+    CHECK_LE(stats_.peak_allocated_bytes, dh::TotalMemory(current_device));
   }
   void RegisterDeallocation(void *ptr, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
@@ -258,19 +257,19 @@ public:
     std::lock_guard<std::mutex> guard(mutex_);
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
-    stats_[current_device].RegisterDeallocation(ptr, n, current_device);
+    stats_.RegisterDeallocation(ptr, n, current_device);
   }
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
     std::lock_guard<std::mutex> guard(mutex_);
-    for (const auto &kv : stats_) {
-      LOG(CONSOLE) << "======== Device " << kv.first << " Memory Allocations: "
-        << " ========";
-      LOG(CONSOLE) << "Peak memory usage: "
-        << kv.second.peak_allocated_bytes / 1000000 << "mb";
-      LOG(CONSOLE) << "Number of allocations: " << kv.second.num_allocations;
-    }
+    int current_device;
+    safe_cuda(cudaGetDevice(&current_device));
+    LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
+      << " ========";
+    LOG(CONSOLE) << "Peak memory usage: "
+      << stats_.peak_allocated_bytes / 1000000 << "mb";
+    LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
 };

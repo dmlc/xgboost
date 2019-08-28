@@ -237,7 +237,7 @@ class GPUPredictor : public xgboost::Predictor {
                          size_t batch_offset) {
       dh::safe_cuda(cudaSetDevice(device_));
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.Size() - 1;
+      size_t num_rows = batch.Size();
       const int GRID_SIZE = static_cast<int>(common::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
