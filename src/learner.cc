@@ -338,9 +338,10 @@ class LearnerImpl : public Learner {
       }
     }
     {
+      std::vector<std::string> saved_params{"predictor", "n_gpus", "gpu_id"};
+      std::copy(saved_configs_.begin(), saved_configs_.end(), std::back_inserter(saved_params));
       // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
-      for (const auto& key : std::vector<std::string>{
-          "predictor", "n_gpus", "gpu_id"}) {
+      for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
           mparam.contain_extra_attrs = 1;

@@ -19,3 +19,13 @@ fi
 if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx" ]; then
     sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
 fi
+
+if [ ${TASK} == "xgb_recovery" ]; then
+  if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then sudo apt-get install python3-pip; fi
+  if [[ ${TRAVIS_OS_NAME} == "osx" ]]; then
+    brew install python3;
+    sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
+  fi
+  sudo pip3 install cpplint pylint urllib3 numpy
+  sudo pip3 install websocket-client kubernetes
+fi

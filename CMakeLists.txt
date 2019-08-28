@@ -32,6 +32,7 @@ option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule (EXPERIMENTAL)" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
+option(RABIT_MOCK "Build rabit with mock" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
@@ -93,11 +94,19 @@ if(MINGW OR R_LIB OR WIN32)
     rabit/src/engine_empty.cc
     rabit/src/c_api.cc)
 else ()
-  set(RABIT_SOURCES
-    rabit/src/allreduce_base.cc
-    rabit/src/allreduce_robust.cc
-    rabit/src/engine.cc
-    rabit/src/c_api.cc)
+  if(RABIT_MOCK)
+    set(RABIT_SOURCES
+      rabit/src/allreduce_base.cc
+      rabit/src/allreduce_robust.cc
+      rabit/src/engine_mock.cc
+      rabit/src/c_api.cc)
+  else()
+    set(RABIT_SOURCES
+      rabit/src/allreduce_base.cc
+      rabit/src/allreduce_robust.cc
+      rabit/src/engine.cc
+      rabit/src/c_api.cc)
+  endif(RABIT_MOCK)
 endif (MINGW OR R_LIB OR WIN32)
 add_library(rabit STATIC ${RABIT_SOURCES})
 target_include_directories(rabit PRIVATE

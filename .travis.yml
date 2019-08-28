@@ -16,6 +16,8 @@ env:
     - TASK=java_test
     # cmake test
     # - TASK=cmake_test
+    # xgb worker fail recovery
+    - TASK=xgb_recovery
 
 # dependent apt packages
 addons:
