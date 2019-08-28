@@ -236,27 +236,15 @@ def _extract_interface_from_cudf(df, is_info):
                          'refer to specific API.')
 
     def get_interface(obj):
-        return obj.mem.__cuda_array_interface__
+        return obj.__cuda_array_interface__
 
     array_interfaces = []
     for col in df.columns:
-        data = df[col].data
-        array_interfaces.append(get_interface(data))
-
-    validity_masks = []
-    for col in df.columns:
-        if df[col].has_null_mask:
-            mask_interface = get_interface(df[col].nullmask)
-            mask_interface['null_count'] = df[col].null_count
-            validity_masks.append(mask_interface)
-        else:
-            validity_masks.append(False)
-
-    for i in range(len(df.columns)):
-        col_interface = array_interfaces[i]
-        mask_interface = validity_masks[i]
-        if mask_interface is not False:
-            col_interface['mask'] = mask_interface
+        data = df[col]
+        interface = get_interface(data)
+        if data.has_null_mask:
+            interface['mask']['null_count'] = data.null_count
+        array_interfaces.append(interface)
 
     if is_info:
         array_interfaces = array_interfaces[0]
