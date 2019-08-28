@@ -58,7 +58,7 @@ class HingeObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(g, h);
         },
         common::Range{0, static_cast<int64_t>(ndata)},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata)).Eval(
+        tparam_->gpu_id).Eval(
             out_gpair, &preds, &info.labels_, &info.weights_);
   }
 
@@ -68,7 +68,7 @@ class HingeObj : public ObjFunction {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
 

@@ -30,8 +30,7 @@ DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 template <typename EvalRow>
 class ElementWiseMetricsReduction {
  public:
-  explicit ElementWiseMetricsReduction(EvalRow policy) :
-    policy_(std::move(policy)) {}
+  explicit ElementWiseMetricsReduction(EvalRow policy) : policy_(std::move(policy)) {}
 
   PackedReduceResult CpuReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
@@ -59,34 +58,31 @@ class ElementWiseMetricsReduction {
 #if defined(XGBOOST_USE_CUDA)
 
   ~ElementWiseMetricsReduction() {
-    for (GPUSet::GpuIdType id = *devices_.begin(); id < *devices_.end(); ++id) {
-      dh::safe_cuda(cudaSetDevice(id));
-      size_t index = devices_.Index(id);
-      allocators_.at(index).Free();
+    if (device_ >= 0) {
+      dh::safe_cuda(cudaSetDevice(device_));
+      allocator_.Free();
     }
   }
 
   PackedReduceResult DeviceReduceMetrics(
-      GPUSet::GpuIdType device_id,
-      size_t device_index,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
-    size_t n_data = preds.DeviceSize(device_id);
+    size_t n_data = preds.DeviceSize();
 
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
-    auto s_label = labels.DeviceSpan(device_id);
-    auto s_preds = preds.DeviceSpan(device_id);
-    auto s_weights = weights.DeviceSpan(device_id);
+    auto s_label = labels.DeviceSpan();
+    auto s_preds = preds.DeviceSpan();
+    auto s_weights = weights.DeviceSpan();
 
     bool const is_null_weight = weights.Size() == 0;
 
     auto d_policy = policy_;
 
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(allocators_.at(device_index)),
+        thrust::cuda::par(allocator_),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -105,37 +101,24 @@ class ElementWiseMetricsReduction {
 
   PackedReduceResult Reduce(
       const GenericParameter &tparam,
-      GPUSet devices,
+      int device,
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (devices.IsEmpty()) {
+    if (device < 0) {
       result = CpuReduceMetrics(weights, labels, preds);
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      if (allocators_.empty()) {
-        devices_ = GPUSet::All(tparam.gpu_id, tparam.n_gpus);
-        allocators_.resize(devices_.Size());
-      }
-      preds.Shard(devices);
-      labels.Shard(devices);
-      weights.Shard(devices);
-      std::vector<PackedReduceResult> res_per_device(devices.Size());
+      device_ = device;
+      preds.SetDevice(device_);
+      labels.SetDevice(device_);
+      weights.SetDevice(device_);
 
-#pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (GPUSet::GpuIdType id = *devices.begin(); id < *devices.end(); ++id) {
-        dh::safe_cuda(cudaSetDevice(id));
-        size_t index = devices.Index(id);
-        res_per_device.at(index) =
-            DeviceReduceMetrics(id, index, weights, labels, preds);
-      }
-
-      for (auto const& res : res_per_device) {
-        result += res;
-      }
+      dh::safe_cuda(cudaSetDevice(device_));
+      result = DeviceReduceMetrics(weights, labels, preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -144,8 +127,8 @@ class ElementWiseMetricsReduction {
  private:
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
-  GPUSet devices_;
-  std::vector<dh::CubMemory> allocators_;
+  int device_{-1};
+  dh::CubMemory allocator_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
@@ -345,11 +328,10 @@ struct EvalEWiseBase : public Metric {
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
     const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
-    // Dealing with ndata < n_gpus.
-    GPUSet devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
+    int device = tparam_->gpu_id;
 
     auto result =
-        reducer_.Reduce(*tparam_, devices, info.weights_, info.labels_, preds);
+        reducer_.Reduce(*tparam_, device, info.weights_, info.labels_, preds);
 
     double dat[2] { result.Residue(), result.Weights() };
     if (distributed) {

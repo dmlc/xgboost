@@ -87,8 +87,8 @@ TEST(ConfigParser, ParseKeyValuePair) {
   ASSERT_TRUE(parser.ParseKeyValuePair("booster = gbtree", &key, &value));
   ASSERT_EQ(key, "booster");
   ASSERT_EQ(value, "gbtree");
-  ASSERT_TRUE(parser.ParseKeyValuePair("n_gpus = 2", &key, &value));
-  ASSERT_EQ(key, "n_gpus");
+  ASSERT_TRUE(parser.ParseKeyValuePair("gpu_id = 2", &key, &value));
+  ASSERT_EQ(key, "gpu_id");
   ASSERT_EQ(value, "2");
   ASSERT_TRUE(parser.ParseKeyValuePair("monotone_constraints = (1,0,-1)",
                                        &key, &value));

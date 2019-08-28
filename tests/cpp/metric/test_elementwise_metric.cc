@@ -6,7 +6,7 @@
 #include "../helpers.h"
 
 TEST(Metric, DeclareUnifiedTest(RMSE)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmse");
@@ -20,7 +20,7 @@ TEST(Metric, DeclareUnifiedTest(RMSE)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(RMSLE)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmsle");
@@ -32,7 +32,7 @@ TEST(Metric, DeclareUnifiedTest(RMSLE)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(MAE)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("mae", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mae");
@@ -45,7 +45,7 @@ TEST(Metric, DeclareUnifiedTest(MAE)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("logloss", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "logloss");
@@ -58,7 +58,7 @@ TEST(Metric, DeclareUnifiedTest(LogLoss)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(Error)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("error", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error");
@@ -90,7 +90,7 @@ TEST(Metric, DeclareUnifiedTest(Error)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("poisson-nloglik", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
