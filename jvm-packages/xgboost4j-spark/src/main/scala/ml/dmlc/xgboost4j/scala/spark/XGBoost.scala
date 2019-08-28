@@ -144,8 +144,8 @@ private[this] object XGBoostNativeParamsFactory {
       overridedParams = overridedParams + ("nthread" -> coresPerTask)
     }
 
-    val numEarlyStoppingRounds = overridedParams.getOrElse[Int](
-      "num_early_stopping_rounds", 0)
+    val numEarlyStoppingRounds = overridedParams.getOrElse(
+      "num_early_stopping_rounds", 0).asInstanceOf[Int]
     overridedParams += "num_early_stopping_rounds" -> numEarlyStoppingRounds
     if (numEarlyStoppingRounds > 0 &&
       !overridedParams.contains("maximize_evaluation_metrics")) {
@@ -204,18 +204,20 @@ private[this] object XGBoostNativeParamsFactory {
     val checkpointParam =
       CheckpointManager.extractParams(overridedParams)
 
-    val trainTestSplit = overridedParams.getOrElse[Float]("train_test_split", 1.0f)
-    val seed = overridedParams.getOrElse[Long]("seed", System.nanoTime())
+    val trainTestSplit = overridedParams.getOrElse("train_test_split", 1.0f)
+      .asInstanceOf[Float]
+    val seed = overridedParams.getOrElse("seed", System.nanoTime()).asInstanceOf[Long]
     val inputParams = XGBoostExecutionInputParams(trainTestSplit, seed)
 
-    val earlyStoppingRounds = overridedParams.getOrElse[Int](
-      "num_early_stopping_rounds", 0)
-    val maximizeEvalMetrics = overridedParams.getOrElse[Boolean](
-      "maximize_evaluation_metrics", true)
+    val earlyStoppingRounds = overridedParams.getOrElse(
+      "num_early_stopping_rounds", 0).asInstanceOf[Int]
+    val maximizeEvalMetrics = overridedParams.getOrElse(
+      "maximize_evaluation_metrics", true).asInstanceOf[Boolean]
     val xgbExecEarlyStoppingParams = XGBoostExecutionEarlyStoppingParams(earlyStoppingRounds,
       maximizeEvalMetrics)
 
-    val cacheTrainingSet = overridedParams.getOrElse[Boolean]("cache_training_set", false)
+    val cacheTrainingSet = overridedParams.getOrElse("cache_training_set", false)
+      .asInstanceOf[Boolean]
 
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, trackerConf,
