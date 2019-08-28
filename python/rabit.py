@@ -7,6 +7,7 @@ Author: Tianqi Chen
 import pickle
 import ctypes
 import os
+import platform
 import sys
 import warnings
 import numpy as np
@@ -62,6 +63,8 @@ def _loadlib(lib='standard', lib_dll=None):
 
     if os.name == 'nt':
         dll_name += '.dll'
+    elif platform.system() == 'Darwin':
+        dll_name += '.dylib'
     else:
         dll_name += '.so'
 

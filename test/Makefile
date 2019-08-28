@@ -1,25 +1,37 @@
+RABIT_BUILD_DMLC = 0
+
+ifeq ($(RABIT_BUILD_DMLC),1)
+    DMLC=../dmlc-core
+else
+    DMLC=../../dmlc-core
+endif
+
 MPICXX=../mpich/bin/mpicxx
 export LDFLAGS=  -L../lib -pthread -lm
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include -I ../dmlc-core/include -std=c++11
+export CFLAGS = -Wall -O3 -Wno-unknown-pragmas
 
-OS := $(shell uname)
+export CC = gcc
+export CXX = g++
 
-ifeq ($(OS), Darwin)
-    ifndef CC
-        export CC = $(if $(shell which clang), clang, gcc)
-    endif
-    ifndef CXX
-        export CXX = $(if $(shell which clang++), clang++, g++)
-    endif
+
+#----------------------------
+# Settings for power and arm arch
+#----------------------------
+ARCH := $(shell uname -a)
+ifneq (,$(filter $(ARCH), armv6l armv7l powerpc64le ppc64le aarch64))
+	CFLAGS += -march=native
 else
-    ifndef CC
-        export CC = gcc
-    endif
-    ifndef CXX
-        export CXX = g++
-    endif
-    LDFLAGS += -lrt
+	CFLAGS += -msse2
 endif
+
+ifndef WITH_FPIC
+	WITH_FPIC = 1
+endif
+ifeq ($(WITH_FPIC), 1)
+	CFLAGS += -fPIC
+endif
+
+CFLAGS += -I../include -I $(DMLC)/include -std=c++11
 
 # specify tensor path
 BIN = speed_test model_recover local_recover lazy_recover

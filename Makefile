@@ -2,14 +2,8 @@ OS := $(shell uname)
 
 RABIT_BUILD_DMLC = 0
 
-ifeq ($(RABIT_BUILD_DMLC),1)
-    DMLC=dmlc-core
-else
-    DMLC=../dmlc-core
-endif
-
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++11
-export CFLAGS = -O3 $(WARNFLAGS) -I $(DMLC)/include -I include/
+export CFLAGS = -O3 $(WARNFLAGS)
 export LDFLAGS =-Llib
 
 #download mpi
@@ -17,46 +11,16 @@ export LDFLAGS =-Llib
 
 MPICXX=./mpich/bin/mpicxx
 
-ifeq ($(OS), Darwin)
-    ifndef CC
-        export CC = gcc-4.9
-    endif
-    ifndef CXX
-        export CXX = g++-4.9
-    endif
-else
-    ifeq ($(OS), FreeBSD)
-         ifndef CXX
-             export CXX = g++6
-         endif
-         export LDFLAGS= -Llib -Wl,-rpath=/usr/local/lib/gcc6
-    else
-        # linux defaults
-        ifndef CC
-            export CC = gcc
-        endif
-        ifndef CXX
-            export CXX = g++
-        endif
-        LDFLAGS +=-lrt
-    endif
-endif
+export CXX = g++
+
 
 #----------------------------
 # Settings for power and arm arch
 #----------------------------
 ARCH := $(shell uname -a)
-ifneq (,$(filter $(ARCH), powerpc64le ppc64le ))
-	USE_SSE=0
+ifneq (,$(filter $(ARCH), armv6l armv7l powerpc64le ppc64le aarch64))
+	CFLAGS += -march=native
 else
-	USE_SSE=1
-endif
-
-ifndef USE_SSE
-	USE_SSE = 1
-endif
-
-ifeq ($(USE_SSE), 1)
 	CFLAGS += -msse2
 endif
 
@@ -70,6 +34,14 @@ endif
 ifndef LINT_LANG
 	LINT_LANG="all"
 endif
+
+ifeq ($(RABIT_BUILD_DMLC),1)
+    DMLC=dmlc-core
+else
+    DMLC=../dmlc-core
+endif
+
+CFLAGS += -I $(DMLC)/include -I include/
 
 # build path
 BPATH=.

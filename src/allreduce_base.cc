@@ -46,6 +46,8 @@ AllreduceBase::AllreduceBase(void) {
   env_vars.push_back("rabit_reduce_ring_mincount");
   env_vars.push_back("rabit_tracker_uri");
   env_vars.push_back("rabit_tracker_port");
+  env_vars.push_back("rabit_bootstrap_cache");
+  env_vars.push_back("rabit_debug");
   // also include dmlc support direct variables
   env_vars.push_back("DMLC_TASK_ID");
   env_vars.push_back("DMLC_ROLE");
@@ -114,6 +116,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
             ", quit this program by exit 0\n");
     exit(0);
   }
+
   // clear the setting before start reconnection
   this->rank = -1;
   //---------------------
@@ -147,6 +150,7 @@ bool AllreduceBase::Shutdown(void) {
     return false;
   }
 }
+
 void AllreduceBase::TrackerPrint(const std::string &msg) {
   if (tracker_uri == "NULL") {
     utils::Printf("%s", msg.c_str()); return;
@@ -156,6 +160,7 @@ void AllreduceBase::TrackerPrint(const std::string &msg) {
   tracker.SendStr(msg);
   tracker.Close();
 }
+
 // util to parse data with unit suffix
 inline size_t ParseUnit(const char *name, const char *val) {
   char unit;
@@ -210,6 +215,12 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     } else {
       throw std::runtime_error("invalid value of DMLC_WORKER_STOP_PROCESS_ON_ERROR");
     }
+  }
+  if (!strcmp(name, "rabit_bootstrap_cache")) {
+    rabit_bootstrap_cache = atoi(val);
+  }
+  if (!strcmp(name, "rabit_debug")) {
+    rabit_debug = atoi(val);
   }
 }
 /*!
@@ -283,6 +294,10 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
     Assert(rank == -1 || newrank == rank,
            "must keep rank to same if the node already have one");
     rank = newrank;
+
+    // tracker got overwhelemed and not able to assign correct rank
+    if (rank == -1) exit(-1);
+
     Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) == \
          sizeof(num_neighbors), "ReConnectLink failure 4");
     for (int i = 0; i < num_neighbors; ++i) {

@@ -54,6 +54,7 @@ class AllreduceBase : public IEngine {
    * \param msg message to be printed in the tracker
    */
   virtual void TrackerPrint(const std::string &msg);
+
   /*! \brief get rank */
   virtual int GetRank(void) const {
     return rank;
@@ -82,13 +83,21 @@ class AllreduceBase : public IEngine {
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
+   * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
+   * \param _file caller file name used to generate unique cache key
+   * \param _line caller line number used to generate unique cache key
+   * \param _caller caller function name used to generate unique cache key
    */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun = NULL,
-                         void *prepare_arg = NULL) {
+                         void *prepare_arg = NULL,
+                         bool is_bootstrap = false,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER) {
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryAllreduce(sendrecvbuf_,
@@ -100,8 +109,14 @@ class AllreduceBase : public IEngine {
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
+   * \param is_bootstrap  if this broadcast is needed to bootstrap filed node
+   * \param _file caller file name used to generate unique cache key
+   * \param _line caller line number used to generate unique cache key
+   * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
+                         bool is_bootstrap = false, const char* _file = _FILE,
+                         const int _line = _LINE, const char* _caller = _CALLER) {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
@@ -525,6 +540,10 @@ class AllreduceBase : public IEngine {
   utils::TCPSocket sock_listen;
   // backdoor port
   int port = 0;
+  // enable bootstrap cache 0 false 1 true
+  int rabit_bootstrap_cache = 0;
+  // enable detailed logging
+  int rabit_debug = 0;
 };
 }  // namespace engine
 }  // namespace rabit

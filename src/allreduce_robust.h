@@ -34,6 +34,23 @@ class AllreduceRobust : public AllreduceBase {
    */
   virtual void SetParam(const char *name, const char *val);
   /*!
+   * \brief perform immutable local bootstrap cache insertion
+   * \param key unique cache key
+   * \param buf buffer of allreduce/robust payload to copy
+   * \param buflen total number of bytes
+   * \return -1 if no recovery cache fetched otherwise 0
+   */
+  int SetBootstrapCache(const std::string &key, const void *buf,
+    const size_t type_nbytes, const size_t count);
+  /*!
+   * \brief perform bootstrap cache lookup if nodes in fault recovery
+   * \param key unique cache key
+   * \param buf buffer for recv allreduce/robust payload
+   * \param buflen total number of bytes
+   */
+  int GetBootstrapCache(const std::string &key, void *buf, const size_t type_nbytes,
+    const size_t count, const bool byref = false);
+  /*!
    * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
@@ -44,20 +61,37 @@ class AllreduceRobust : public AllreduceBase {
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
+   * \param prepare_arg argument used to passed into the lazy preprocessing function
+   * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
+   * \param _file caller file name used to generate unique cache key
+   * \param _line caller line number used to generate unique cache key
+   * \param _caller caller function name used to generate unique cache key
    */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun = NULL,
-                         void *prepare_arg = NULL);
+                         void *prepare_arg = NULL,
+                         bool is_bootstrap = false,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER);
   /*!
    * \brief broadcast data from root to all nodes
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
+   * \param is_bootstrap  if this broadcast is needed to bootstrap filed node
+   * \param _file caller file name used to generate unique cache key
+   * \param _line caller line number used to generate unique cache key
+   * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root);
+  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
+                         bool is_bootstrap = false,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER);
   /*!
    * \brief load latest check point
    * \param global_model pointer to the globally shared model/state
@@ -155,6 +189,13 @@ class AllreduceRobust : public AllreduceBase {
     /*! \brief current node only helps to pass data around */
     kPassData = 2
   };
+
+  enum SeqType {
+    /*! \brief apply to rabit seq code */
+    kSeq = 0,
+    /*! \brief apply to rabit cache seq code */
+    kCache = 1
+  };
   /*!
    * \brief summary of actions proposed in all nodes
    *  this data structure is used to make consensus decision
@@ -162,11 +203,11 @@ class AllreduceRobust : public AllreduceBase {
    */
   struct ActionSummary {
     // maximumly allowed sequence id
-    static const int kSpecialOp = (1 << 26);
+    static const u_int32_t kSpecialOp = (1 << 26);
     // special sequence number for local state checkpoint
-    static const int kLocalCheckPoint = (1 << 26) - 2;
+    static const u_int32_t kLocalCheckPoint = (1 << 26) - 2;
     // special sequnce number for local state checkpoint ack signal
-    static const int kLocalCheckAck = (1 << 26) - 1;
+    static const u_int32_t kLocalCheckAck = (1 << 26) - 1;
     //---------------------------------------------
     // The following are bit mask of flag used in
     //----------------------------------------------
@@ -181,35 +222,59 @@ class AllreduceRobust : public AllreduceBase {
     // this means we want to do recover execution of the lower sequence
     // action instead of normal execution
     static const int kDiffSeq = 8;
+    // there are nodes request load cache
+    static const int kLoadBootstrapCache = 16;
     // constructor
     ActionSummary(void) {}
     // constructor of action
-    explicit ActionSummary(int flag, int minseqno = kSpecialOp) {
-      seqcode = (minseqno << 4) | flag;
+    explicit ActionSummary(int seqno_flag, int cache_flag = 0,
+      u_int32_t minseqno = kSpecialOp, u_int32_t maxseqno = kSpecialOp) {
+      seqcode = (minseqno << 5) | seqno_flag;
+      maxseqcode = (maxseqno << 5) | cache_flag;
     }
-    // minimum number of all operations
-    inline int min_seqno(void) const {
-      return seqcode >> 4;
+    // minimum number of all operations by default
+    // maximum number of all cache operations otherwise
+    inline u_int32_t seqno(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return code >> 5;
     }
     // whether the operation set contains a load_check
-    inline bool load_check(void) const {
-      return (seqcode & kLoadCheck) != 0;
+    inline bool load_check(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return (code & kLoadCheck) != 0;
+    }
+    // whether the operation set contains a load_cache
+    inline bool load_cache(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return (code & kLoadBootstrapCache) != 0;
     }
     // whether the operation set contains a check point
-    inline bool check_point(void) const {
-      return (seqcode & kCheckPoint) != 0;
+    inline bool check_point(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return (code & kCheckPoint) != 0;
     }
     // whether the operation set contains a check ack
-    inline bool check_ack(void) const {
-      return (seqcode & kCheckAck) != 0;
+    inline bool check_ack(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return (code & kCheckAck) != 0;
     }
     // whether the operation set contains different sequence number
-    inline bool diff_seq(void) const {
-      return (seqcode & kDiffSeq) != 0;
+    inline bool diff_seq(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return (code & kDiffSeq) != 0;
     }
     // returns the operation flag of the result
-    inline int flag(void) const {
-      return seqcode & 15;
+    inline int flag(SeqType t = SeqType::kSeq) const {
+      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      return code & 31;
+    }
+    // print flags in user friendly way
+    inline void print_flags(int rank, std::string prefix ) {
+      utils::HandleLogInfo("[%d] %s - |%lu|%d|%d|%d|%d| - |%lu|%d|%d|\n",
+                    rank, prefix.c_str(),
+                    seqno(), check_point(), check_ack(), load_cache(),
+                    diff_seq(), seqno(SeqType::kCache), load_cache(SeqType::kCache),
+                    diff_seq(SeqType::kCache));
     }
     // reducer for Allreduce, get the result ActionSummary from all nodes
     inline static void Reducer(const void *src_, void *dst_,
@@ -217,24 +282,31 @@ class AllreduceRobust : public AllreduceBase {
       const ActionSummary *src = (const ActionSummary*)src_;
       ActionSummary *dst = reinterpret_cast<ActionSummary*>(dst_);
       for (int i = 0; i < len; ++i) {
-        int src_seqno = src[i].min_seqno();
-        int dst_seqno = dst[i].min_seqno();
-        int flag = src[i].flag() | dst[i].flag();
-        if (src_seqno == dst_seqno) {
-          dst[i] = ActionSummary(flag, src_seqno);
-        } else {
-          dst[i] = ActionSummary(flag | kDiffSeq,
-                                 std::min(src_seqno, dst_seqno));
-        }
+        u_int32_t min_seqno = std::min(src[i].seqno(), dst[i].seqno());
+        u_int32_t max_seqno = std::max(src[i].seqno(SeqType::kCache),
+          dst[i].seqno(SeqType::kCache));
+        int action_flag = src[i].flag() | dst[i].flag();
+        // if any node is not requester set to 0 otherwise 1
+        int role_flag = src[i].flag(SeqType::kCache) & dst[i].flag(SeqType::kCache);
+        // if seqno is different in src and destination
+        int seq_diff_flag = src[i].seqno() != dst[i].seqno() ? kDiffSeq : 0;
+        // if cache seqno is different in src and destination
+        int cache_diff_flag =
+          src[i].seqno(SeqType::kCache) != dst[i].seqno(SeqType::kCache) ? kDiffSeq : 0;
+        // apply or to both seq diff flag as well as cache seq diff flag
+        dst[i] = ActionSummary(action_flag | seq_diff_flag,
+          role_flag | cache_diff_flag, min_seqno, max_seqno);
       }
     }
 
    private:
-    // internel sequence code
-    int seqcode;
+    // internel sequence code min of rabit seqno
+    u_int32_t seqcode;
+    // internal sequence code max of cache seqno
+    u_int32_t maxseqcode;
   };
-  /*! \brief data structure to remember result of Bcast and Allreduce calls */
-  class ResultBuffer {
+  /*! \brief data structure to remember result of Bcast and Allreduce calls*/
+  class ResultBuffer{
    public:
     // constructor
     ResultBuffer(void) {
@@ -251,6 +323,7 @@ class AllreduceRobust : public AllreduceBase {
       size_t size = type_nbytes * count;
       size_t nhop = (size + sizeof(uint64_t) - 1) / sizeof(uint64_t);
       utils::Assert(nhop != 0, "cannot allocate 0 size memory");
+      // allocate addational nhop buffer size
       data_.resize(rptr_.back() + nhop);
       return BeginPtr(data_) + rptr_.back();
     }
@@ -362,7 +435,13 @@ class AllreduceRobust : public AllreduceBase {
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
    */
   bool RecoverExec(void *buf, size_t size, int flag,
-                   int seqno = ActionSummary::kSpecialOp);
+    int seqno = ActionSummary::kSpecialOp,
+    int cacheseqno = ActionSummary::kSpecialOp,
+#ifdef __linux__
+    const char* caller = __builtin_FUNCTION());
+#else
+    const char* caller = "N/A");
+#endif
   /*!
    * \brief try to load check point
    *
@@ -375,6 +454,19 @@ class AllreduceRobust : public AllreduceBase {
    * \sa ReturnType
    */
   ReturnType TryLoadCheckPoint(bool requester);
+
+  /*!
+   * \brief try to load cache
+   *
+   *        This is a collaborative function called by all nodes
+   *        only the nodes with requester set to true really needs to load the check point
+   *        other nodes acts as collaborative roles to complete this request
+   * \param requester whether current node is the requester
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryRestoreCache(bool requester, const int min_seq = ActionSummary::kSpecialOp,
+    const int max_seq = ActionSummary::kSpecialOp);
   /*!
    * \brief try to get the result of operation specified by seqno
    *
@@ -519,6 +611,12 @@ o   *  the input state must exactly one saved state(local state of current node)
   int result_buffer_round;
   // result buffer of all reduce
   ResultBuffer resbuf;
+  // current cached allreduce/braodcast sequence number
+  int cur_cache_seq;
+  // result buffer of cached all reduce
+  ResultBuffer cachebuf;
+  // key of each cache entry
+  ResultBuffer lookupbuf;
   // last check point global model
   std::string global_checkpoint;
   // lazy checkpoint of global model

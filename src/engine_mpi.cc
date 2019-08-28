@@ -32,11 +32,17 @@ class MPIEngine : public IEngine {
                          size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
-                         void *prepare_arg) {
+                         void *prepare_arg,
+                         bool is_bootstrap,
+                         const char* _file,
+                         const int _line,
+                         const char* _caller) {
     utils::Error("MPIEngine:: Allreduce is not supported,"\
                  "use Allreduce_ instead");
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {
+  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root,
+    bool is_bootstrap, const char* _file, const int _line,
+    const char* _caller) {
     MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
   }
   virtual void InitAfterException(void) {
@@ -153,7 +159,11 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
-                void *prepare_arg) {
+                void *prepare_arg,
+                bool is_bootstrap,
+                const char* _file,
+                const int _line,
+                const char* _caller) {
   if (prepare_fun != NULL) prepare_fun(prepare_arg);
   MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf,
                             count, GetType(dtype), GetOp(op));
@@ -201,7 +211,11 @@ void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
 void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
-                             void *prepare_arg) {
+                             void *prepare_arg,
+                             bool is_bootstrap,
+                             const char* _file,
+                             const int _line,
+                             const char* _caller) {
   utils::Assert(handle_ != NULL, "must intialize handle to call AllReduce");
   MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
   MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);

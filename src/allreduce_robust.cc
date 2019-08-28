@@ -11,6 +11,7 @@
 #include <limits>
 #include <utility>
 #include "../include/rabit/internal/io.h"
+#include "../include/rabit/internal/timer.h"
 #include "../include/rabit/internal/utils.h"
 #include "../include/rabit/internal/engine.h"
 #include "../include/rabit/internal/rabit-inl.h"
@@ -23,6 +24,7 @@ AllreduceRobust::AllreduceRobust(void) {
   num_global_replica = 5;
   default_local_replica = 2;
   seq_counter = 0;
+  cur_cache_seq = 0;
   local_chkpt_version = 0;
   result_buffer_round = 1;
   global_lazycheck = NULL;
@@ -33,6 +35,9 @@ AllreduceRobust::AllreduceRobust(void) {
 }
 bool AllreduceRobust::Init(int argc, char* argv[]) {
   if (AllreduceBase::Init(argc, argv)) {
+    // chenqin: alert user opted in experimental feature.
+    if (rabit_bootstrap_cache) utils::HandleLogInfo(
+      "[EXPERIMENTAL] rabit bootstrap cache has been enabled\n");
     if (num_global_replica == 0) {
       result_buffer_round = -1;
     } else {
@@ -48,19 +53,18 @@ bool AllreduceRobust::Shutdown(void) {
   try {
     // need to sync the exec before we shutdown, do a pesudo check point
     // execute checkpoint, note: when checkpoint existing, load will not happen
-    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
-                  "Shutdown: check point must return true");
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp,
+      cur_cache_seq), "Shutdown: check point must return true");
     // reset result buffer
-    resbuf.Clear();
-    seq_counter = 0;
+    resbuf.Clear(); seq_counter = 0;
+    cachebuf.Clear(); cur_cache_seq = 0;
+    lookupbuf.Clear();
     // execute check ack step, load happens here
-    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
-                  "Shutdown: check ack must return true");
-
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
+      ActionSummary::kSpecialOp, cur_cache_seq), "Shutdown: check ack must return true");
 #if defined (__APPLE__)
     sleep(1);
 #endif
-
     return AllreduceBase::Shutdown();
   } catch (const std::exception& e) {
     fprintf(stderr, "%s\n", e.what());
@@ -79,6 +83,69 @@ void AllreduceRobust::SetParam(const char *name, const char *val) {
     num_local_replica = atoi(val);
   }
 }
+
+int AllreduceRobust::SetBootstrapCache(const std::string &key, const void *buf,
+  const size_t type_nbytes, const size_t count) {
+  int index = -1;
+  for (int i = 0 ; i < cur_cache_seq; i++) {
+    size_t nsize = 0;
+    void* name = lookupbuf.Query(i, &nsize);
+    if (nsize == key.length() + 1
+      && strcmp(static_cast<const char*>(name), key.c_str()) == 0) {
+      index = i;
+      break;
+    }
+  }
+  utils::Assert(index == -1, "immutable cache key already exists");
+  utils::Assert(type_nbytes*count > 0, "can't set empty cache");
+  void* temp = cachebuf.AllocTemp(type_nbytes, count);
+  cachebuf.PushTemp(cur_cache_seq, type_nbytes, count);
+  std::memcpy(temp, buf, type_nbytes*count);
+
+  std::string k(key);
+  void* name = lookupbuf.AllocTemp(strlen(k.c_str()) + 1, 1);
+  lookupbuf.PushTemp(cur_cache_seq, strlen(k.c_str()) + 1, 1);
+  std::memcpy(name, key.c_str(), strlen(k.c_str()) + 1);
+  cur_cache_seq += 1;
+  return 0;
+}
+
+int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
+  const size_t type_nbytes, const size_t count, const bool byref) {
+  // as requester sync with rest of nodes on latest cache content
+  if (!RecoverExec(NULL, 0, ActionSummary::kLoadBootstrapCache,
+    seq_counter, cur_cache_seq)) return -1;
+
+  int index = -1;
+  for (int i = 0 ; i < cur_cache_seq; i++) {
+    size_t nsize = 0;
+    void* name = lookupbuf.Query(i, &nsize);
+    if (nsize == strlen(key.c_str()) + 1
+      && strcmp(reinterpret_cast<char*>(name), key.c_str()) == 0) {
+      index = i;
+      break;
+    }
+  }
+  // cache doesn't exists
+  if (index == -1) return -1;
+
+  size_t siz = 0;
+  void* temp = cachebuf.Query(index, &siz);
+  utils::Assert(cur_cache_seq > index, "cur_cache_seq is smaller than lookup cache seq index");
+  utils::Assert(siz == type_nbytes*count, "cache size stored expected to be same as requested");
+  utils::Assert(siz > 0, "cache size should be greater than 0");
+
+  // immutable cache, save copy time by pointer manipulation
+  if (byref) {
+    buf = temp;
+  } else {
+    std::memcpy(buf, temp, type_nbytes*count);
+  }
+
+  return 0;
+}
+
+
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf
  *        this function is NOT thread-safe
@@ -90,25 +157,44 @@ void AllreduceRobust::SetParam(const char *name, const char *val) {
  *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to passed into the lazy preprocessing function
+ * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
+ * \param _file caller file name used to generate unique cache key
+ * \param _line caller line number used to generate unique cache key
+ * \param _caller caller function name used to generate unique cache key
  */
 void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 size_t type_nbytes,
                                 size_t count,
                                 ReduceFunction reducer,
                                 PreprocFunction prepare_fun,
-                                void *prepare_arg) {
+                                void *prepare_arg,
+                                bool is_bootstrap,
+                                const char* _file,
+                                const int _line,
+                                const char* _caller) {
   // skip action in single node
   if (world_size == 1 || world_size == -1) {
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
     return;
   }
-  bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
-  // now we are free to remove the last result, if any
+
+  // genreate unique allreduce signature
+  std::string key = std::string(_file) + "::" + std::to_string(_line) + "::"
+    + std::string(_caller) + "#" +std::to_string(type_nbytes) + "x" + std::to_string(count);
+
+  // try fetch bootstrap allreduce results from cache
+  if (is_bootstrap && rabit_bootstrap_cache &&
+    GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count, true) != -1) return;
+
+  double start = utils::GetTime();
+  bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
+
   if (resbuf.LastSeqNo() != -1 &&
-      (result_buffer_round == -1 ||
-       resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
+    (result_buffer_round == -1 ||
+      resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
     resbuf.DropLast();
   }
+
   if (!recovered && prepare_fun != NULL) prepare_fun(prepare_arg);
   void *temp = resbuf.AllocTemp(type_nbytes, count);
   while (true) {
@@ -119,23 +205,51 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
       if (CheckAndRecover(TryAllreduce(temp, type_nbytes, count, reducer))) {
         std::memcpy(sendrecvbuf_, temp, type_nbytes * count); break;
       } else {
-        recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
+        recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
       }
     }
   }
-  resbuf.PushTemp(seq_counter, type_nbytes, count);
-  seq_counter += 1;
+  double delta = utils::GetTime() - start;
+  // log allreduce latency
+  if (rabit_debug) {
+    utils::HandleLogInfo("[%d] allreduce (%s) finished version %d, seq %d, take %f seconds\n",
+      rank, key.c_str(), version_number, seq_counter, delta);
+  }
+
+  // if bootstrap allreduce, store and fetch through cache
+  if (!is_bootstrap || !rabit_bootstrap_cache) {
+    resbuf.PushTemp(seq_counter, type_nbytes, count);
+    seq_counter += 1;
+  } else {
+    SetBootstrapCache(key, sendrecvbuf_, type_nbytes, count);
+  }
 }
 /*!
  * \brief broadcast data from root to all nodes
  * \param sendrecvbuf_ buffer for both sending and recving data
  * \param size the size of the data to be broadcasted
  * \param root the root worker id to broadcast the data
+ * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
+ * \param _file caller file name used to generate unique cache key
+ * \param _line caller line number used to generate unique cache key
+ * \param _caller caller function name used to generate unique cache key
  */
-void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
+                                bool is_bootstrap,
+                                const char* _file,
+                                const int _line,
+                                const char* _caller) {
   // skip action in single node
   if (world_size == 1 || world_size == -1) return;
-  bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter);
+  // genreate unique cache signature
+  std::string key = std::string(_file) + "::" + std::to_string(_line) + "::"
+    + std::string(_caller) + "#" +std::to_string(total_size) + "@" + std::to_string(root);
+  // try fetch bootstrap allreduce results from cache
+  if (is_bootstrap && rabit_bootstrap_cache &&
+    GetBootstrapCache(key, sendrecvbuf_, total_size, 1, true) != -1) return;
+
+  double start = utils::GetTime();
+  bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
       (result_buffer_round == -1 ||
@@ -150,12 +264,25 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
       if (CheckAndRecover(TryBroadcast(sendrecvbuf_, total_size, root))) {
         std::memcpy(temp, sendrecvbuf_, total_size); break;
       } else {
-        recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter);
+        recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
       }
     }
   }
-  resbuf.PushTemp(seq_counter, 1, total_size);
-  seq_counter += 1;
+
+  double delta = utils::GetTime() - start;
+  // log broadcast latency
+  if (rabit_debug) {
+    utils::HandleLogInfo(
+      "[%d] broadcast (%s) root %d finished version %d,seq %d, take %f seconds\n",
+      rank, key.c_str(), root, version_number, seq_counter, delta);
+  }
+  // if bootstrap broadcast, store and fetch through cache
+  if (!is_bootstrap || !rabit_bootstrap_cache) {
+    resbuf.PushTemp(seq_counter, 1, total_size);
+    seq_counter += 1;
+  } else {
+    SetBootstrapCache(key, sendrecvbuf_, total_size, 1);
+  }
 }
 /*!
  * \brief load latest check point
@@ -188,8 +315,9 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
-  // check if we succesful
-  if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp)) {
+  double start = utils::GetTime();
+  // check if we succeed
+  if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp, cur_cache_seq)) {
     int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
     if (local_model != NULL) {
       if (nlocal == num_local_replica + 1) {
@@ -215,10 +343,26 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
                     "local model inconsistent, nlocal=%d", nlocal);
     }
     // run another phase of check ack, if recovered from data
-    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
-                  "check ack must return true");
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
+      ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
+
+    if (!RecoverExec(NULL, 0, ActionSummary::kLoadBootstrapCache, seq_counter, cur_cache_seq)) {
+      utils::Printf("no need to load cache\n");
+    }
+    double delta = utils::GetTime() - start;
+
+    // log broadcast latency
+    if (rabit_debug) {
+      utils::HandleLogInfo("[%d] loadcheckpoint size %ld finished version %d, "
+                         "seq %d, take %f seconds\n",
+                         rank, global_checkpoint.length(),
+                         version_number, seq_counter, delta);
+    }
     return version_number;
   } else {
+    // log job fresh start
+    if (rabit_debug) utils::HandleLogInfo("[%d] loadcheckpoint reset\n", rank);
+
     // reset result buffer
     resbuf.Clear(); seq_counter = 0; version_number = 0;
     // nothing loaded, a fresh start, everyone init model
@@ -269,6 +413,7 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   if (world_size == 1) {
     version_number += 1; return;
   }
+  double start = utils::GetTime();
   this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
@@ -297,7 +442,8 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
     local_chkpt_version = !local_chkpt_version;
   }
   // execute checkpoint, note: when checkpoint existing, load will not happen
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint,
+    ActionSummary::kSpecialOp, cur_cache_seq),
                 "check point must return true");
   // this is the critical region where we will change all the stored models
   // increase version number
@@ -306,18 +452,32 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   if (lazy_checkpt) {
     global_lazycheck = global_model;
   } else {
-    printf("[%d] save global checkpoint #%d \n", this->rank, version_number);
     global_checkpoint.resize(0);
     utils::MemoryBufferStream fs(&global_checkpoint);
     fs.Write(&version_number, sizeof(version_number));
     global_model->Save(&fs);
     global_lazycheck = NULL;
   }
-  // reset result buffer
+  double delta = utils::GetTime() - start;
+  // log checkpoint latency
+  if (rabit_debug) {
+    utils::HandleLogInfo(
+      "[%d] checkpoint finished version %d,seq %d, take %f seconds\n",
+      rank, version_number, seq_counter, delta);
+  }
+  start = utils::GetTime();
+  // reset result buffer, mark boostrap phase complete
   resbuf.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
-                "check ack must return true");
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
+    ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
+
+  delta = utils::GetTime() - start;
+  // log checkpoint ack latency
+  if (rabit_debug) {
+    utils::HandleLogInfo("[%d] checkpoint ack finished version %d, take %f seconds\n",
+    rank, version_number, delta);
+  }
 }
 /*!
  * \brief reset the all the existing links by sending Out-of-Band message marker
@@ -557,6 +717,7 @@ AllreduceRobust::TryDecideRouting(AllreduceRobust::RecoverType role,
   {
     // get the shortest distance to the request point
     std::vector<std::pair<int, size_t> > dist_in, dist_out;
+
     ReturnType succ = MsgPassing(std::make_pair(role == kHaveData, *p_size),
                                  &dist_in, &dist_out, ShortestDist);
     if (succ != kSuccess) return succ;
@@ -724,6 +885,58 @@ AllreduceRobust::TryRecoverData(RecoverType role,
   return kSuccess;
 }
 /*!
+ * \brief try to fetch allreduce/broadcast results from rest of nodes
+ *  as collaberative function called by all nodes, only requester node
+ *  will pass seqno to rest of nodes and reconstruct/backfill sendrecvbuf_ 
+ *  of specific seqno from other nodes.
+ */
+AllreduceRobust::ReturnType AllreduceRobust::TryRestoreCache(bool requester,
+  const int min_seq, const int max_seq) {
+  // clear requester and rebuild from those with most cache entries
+  if (requester) {
+    utils::Assert(cur_cache_seq <= max_seq, "requester is expected to have fewer cache entries");
+    cachebuf.Clear();
+    lookupbuf.Clear();
+    cur_cache_seq = 0;
+  }
+  RecoverType role = requester ? kRequestData : kHaveData;
+  size_t size = 1;
+  int recv_link;
+  std::vector<bool> req_in;
+  ReturnType ret = TryDecideRouting(role, &size, &recv_link, &req_in);
+  if (ret != kSuccess) return ret;
+  // only recover missing cache entries in requester
+  // as tryrecoverdata is collective call, need to go through entire cache
+  // and only work on those missing
+  for (int i = 0; i < max_seq; i++) {
+    // restore lookup map
+    size_t cache_size = 0;
+    void* key = lookupbuf.Query(i, &cache_size);
+    ret = TryRecoverData(role, &cache_size, sizeof(size_t), recv_link, req_in);
+    if (ret != kSuccess) return ret;
+    if (requester) {
+      key = lookupbuf.AllocTemp(cache_size, 1);
+      lookupbuf.PushTemp(i, cache_size, 1);
+    }
+    ret = TryRecoverData(role, key, cache_size, recv_link, req_in);
+    if (ret != kSuccess) return ret;
+    // restore cache content
+    cache_size = 0;
+    void* buf = cachebuf.Query(i, &cache_size);
+    ret = TryRecoverData(role, &cache_size, sizeof(size_t), recv_link, req_in);
+    if (requester) {
+      buf = cachebuf.AllocTemp(cache_size, 1);
+      cachebuf.PushTemp(i, cache_size, 1);
+      cur_cache_seq +=1;
+    }
+    ret = TryRecoverData(role, buf, cache_size, recv_link, req_in);
+    if (ret != kSuccess) return ret;
+  }
+
+  return kSuccess;
+}
+
+/*!
  * \brief try to load check point
  *
  *        This is a collaborative function called by all nodes
@@ -748,9 +961,6 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
     succ = TryRecoverLocalState(&local_rptr[local_chkpt_version],
                                 &local_chkpt[local_chkpt_version]);
     if (succ != kSuccess) return succ;
-
-    printf("[%d] recovered from local checkpoint version %d \n", this->rank, local_chkpt_version);
-
     int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
     // check if everyone is OK
     unsigned state = 0;
@@ -817,6 +1027,7 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
                   "TryGetResult::Checkpoint");
     return TryRecoverLocalState(&local_rptr[new_version], &local_chkpt[new_version]);
   }
+
   // handles normal data recovery
   RecoverType role;
   if (!requester) {
@@ -857,18 +1068,28 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
  *           result by recovering procedure, the action is complete, no further action is needed
  *    - false means this is the lastest action that has not yet been executed, need to execute the action
  */
-bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
-  if (flag != 0) {
+bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
+                                  int cache_seqno, const char* caller) {
+  // kLoadBootstrapCache should be treated similar as allreduce
+  // when loadcheck/check/checkack runs in other nodes
+  if (flag != 0 && flag != ActionSummary::kLoadBootstrapCache) {
     utils::Assert(seqno == ActionSummary::kSpecialOp, "must only set seqno for normal operations");
   }
-  // request
-  ActionSummary req(flag, seqno);
+
+  std::string msg = std::string(caller) + " pass negative seqno "
+    + std::to_string(seqno) + " flag " + std::to_string(flag)
+    + " version " + std::to_string(version_number);
+  utils::Assert(seqno >=0, msg.c_str());
+
+  ActionSummary req(flag, flag, seqno, cache_seqno);
+
   while (true) {
     this->ReportStatus();
-    // action
+    // copy to action and send to allreduce with other nodes
     ActionSummary act = req;
     // get the reduced action
     if (!CheckAndRecover(TryAllreduce(&act, sizeof(act), 1, ActionSummary::Reducer))) continue;
+
     if (act.check_ack()) {
       if (act.check_point()) {
         // if we also have check_point, do check point first
@@ -891,9 +1112,49 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
     } else {
       if (act.check_point()) {
         if (act.diff_seq()) {
-          utils::Assert(act.min_seqno() != ActionSummary::kSpecialOp, "min seq bug");
-          bool requester = req.min_seqno() == act.min_seqno();
-          if (!CheckAndRecover(TryGetResult(buf, size, act.min_seqno(), requester))) continue;
+          utils::Assert(act.seqno() != ActionSummary::kSpecialOp, "min seq bug");
+          // print checkpoint consensus flag if user turn on debug
+          if (rabit_debug) {
+            req.print_flags(rank, "checkpoint req");
+            act.print_flags(rank, "checkpoint act");
+          }
+          /*
+           * Chen Qin
+           * at least one hit checkpoint_ code & at least one not hitting
+           * compare with version_number of req.check_point() set true with rest
+           * expect to be equal, means rest fall behind in sequence
+           * use resbuf resbuf to recover
+           * worker-0           worker-1
+           * checkpoint(n-1)    checkpoint(n-1)
+           * allreduce          allreduce (requester) |
+           * broadcast                                V
+           * checkpoint(n req)
+           * after catch up to checkpoint n, diff_seq will be false
+           * */
+          // assume requester is falling behind
+          bool requester = req.seqno() == act.seqno();
+          // if not load cache
+          if (!act.load_cache()) {
+            if (act.seqno() > 0) {
+              if (!requester) {
+                utils::Assert(req.check_point(), "checkpoint node should be KHaveData role");
+                buf = resbuf.Query(act.seqno(), &size);
+                utils::Assert(buf != NULL, "buf should have data from resbuf");
+                utils::Assert(size > 0, "buf size should be greater than 0");
+              }
+              if (!CheckAndRecover(TryGetResult(buf, size, act.seqno(), requester))) continue;
+            }
+          } else {
+            // cache seq no should be smaller than kSpecialOp
+            utils::Assert(act.seqno(SeqType::kCache) != ActionSummary::kSpecialOp,
+              "checkpoint with kSpecialOp");
+            int max_cache_seq = cur_cache_seq;
+            if (TryAllreduce(&max_cache_seq, sizeof(max_cache_seq), 1,
+              op::Reducer<op::Max, unsigned>) != kSuccess) continue;
+
+            if (TryRestoreCache(req.load_cache(), act.seqno(), max_cache_seq)
+              != kSuccess) continue;
+          }
           if (requester) return true;
         } else  {
           // no difference in seq no, means we are free to check point
@@ -909,11 +1170,43 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
           // if requested load check, then misson complete
           if (req.load_check()) return true;
         } else {
+          // run all nodes in a isolated cache restore logic
+          if (act.load_cache()) {
+            // print checkpoint consensus flag if user turn on debug
+            if (rabit_debug) {
+              req.print_flags(rank, "loadcache req");
+              act.print_flags(rank, "loadcache act");
+            }
+            // load cache should not running in parralel with other states
+            utils::Assert(!act.load_check(),
+              "load cache state expect no nodes doing load checkpoint");
+            utils::Assert(!act.check_point() ,
+              "load cache state expect no nodes doing checkpoint");
+            utils::Assert(!act.check_ack(),
+              "load cache state expect no nodes doing checkpoint ack");
+
+            // if all nodes are requester in load cache, skip
+            if (act.load_cache(SeqType::kCache)) return false;
+
+            // only restore when at least one pair of max_seq are different
+            if (act.diff_seq(SeqType::kCache)) {
+              // if restore cache failed, retry from what's left
+              if (TryRestoreCache(req.load_cache(), act.seqno(), act.seqno(SeqType::kCache))
+                != kSuccess) continue;
+            }
+            // if requested load cache, then mission complete
+            if (req.load_cache()) return true;
+            continue;
+          }
+
+          // assert no req with load cache set goes into seq catch up
+          utils::Assert(!req.load_cache(), "load cache not interacte with rest states");
+
           // no special flags, no checkpoint, check ack, load_check
-          utils::Assert(act.min_seqno() != ActionSummary::kSpecialOp, "min seq bug");
+          utils::Assert(act.seqno() != ActionSummary::kSpecialOp, "min seq bug");
           if (act.diff_seq()) {
-            bool requester = req.min_seqno() == act.min_seqno();
-            if (!CheckAndRecover(TryGetResult(buf, size, act.min_seqno(), requester))) continue;
+            bool requester = req.seqno() == act.seqno();
+            if (!CheckAndRecover(TryGetResult(buf, size, act.seqno(), requester))) continue;
             if (requester) return true;
           } else {
             // all the request is same,

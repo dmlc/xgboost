@@ -96,6 +96,7 @@ template<typename OP, typename DType>
 inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
   const DType *src = (const DType*)src_;
   DType *dst = (DType*)dst_;  // NOLINT(*)
+
   for (int i = 0; i < len; ++i) {
     OP::Reduce(dst[i], src[i]);
   }
@@ -127,28 +128,43 @@ inline std::string GetProcessorName(void) {
   return engine::GetEngine()->GetHost();
 }
 // broadcast data to all other nodes from root
-inline void Broadcast(void *sendrecv_data, size_t size, int root) {
-  engine::GetEngine()->Broadcast(sendrecv_data, size, root);
+inline void Broadcast(void *sendrecv_data, size_t size, int root,
+                      bool is_bootstrap,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
+  engine::GetEngine()->Broadcast(sendrecv_data, size, root,
+    is_bootstrap, _file, _line, _caller);
 }
 template<typename DType>
-inline void Broadcast(std::vector<DType> *sendrecv_data, int root) {
+inline void Broadcast(std::vector<DType> *sendrecv_data, int root,
+                      bool is_bootstrap,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
   size_t size = sendrecv_data->size();
-  Broadcast(&size, sizeof(size), root);
+  Broadcast(&size, sizeof(size), root, is_bootstrap, _file, _line, _caller);
   if (sendrecv_data->size() != size) {
     sendrecv_data->resize(size);
   }
   if (size != 0) {
-    Broadcast(&(*sendrecv_data)[0], size * sizeof(DType), root);
+    Broadcast(&(*sendrecv_data)[0], size * sizeof(DType), root,
+    is_bootstrap, _file, _line, _caller);
   }
 }
-inline void Broadcast(std::string *sendrecv_data, int root) {
+inline void Broadcast(std::string *sendrecv_data, int root,
+                      bool is_bootstrap,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
   size_t size = sendrecv_data->length();
-  Broadcast(&size, sizeof(size), root);
+  Broadcast(&size, sizeof(size), root, is_bootstrap, _file, _line, _caller);
   if (sendrecv_data->length() != size) {
     sendrecv_data->resize(size);
   }
   if (size != 0) {
-    Broadcast(&(*sendrecv_data)[0], size * sizeof(char), root);
+    Broadcast(&(*sendrecv_data)[0], size * sizeof(char), root,
+    is_bootstrap, _file, _line, _caller);
   }
 }
 
@@ -156,9 +172,14 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       void (*prepare_fun)(void *arg),
-                      void *prepare_arg) {
+                      void *prepare_arg,
+                      bool is_bootstrap,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
   engine::Allreduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP, DType>,
-                     engine::mpi::GetType<DType>(), OP::kType, prepare_fun, prepare_arg);
+                     engine::mpi::GetType<DType>(), OP::kType, prepare_fun, prepare_arg,
+                     is_bootstrap, _file, _line, _caller);
 }
 
 // C++11 support for lambda prepare function
@@ -167,9 +188,15 @@ inline void InvokeLambda_(void *fun) {
   (*static_cast<std::function<void()>*>(fun))();
 }
 template<typename OP, typename DType>
-inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> prepare_fun) {
+inline void Allreduce(DType *sendrecvbuf, size_t count,
+                      std::function<void()> prepare_fun,
+                      bool is_bootstrap,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
   engine::Allreduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP, DType>,
-                     engine::mpi::GetType<DType>(), OP::kType, InvokeLambda_, &prepare_fun);
+                     engine::mpi::GetType<DType>(), OP::kType, InvokeLambda_, &prepare_fun,
+                     is_bootstrap, _file, _line, _caller);
 }
 #endif  // C++11
 
@@ -188,6 +215,7 @@ inline void TrackerPrintf(const char *fmt, ...) {
   msg.resize(strlen(msg.c_str()));
   TrackerPrint(msg);
 }
+
 #endif  // RABIT_STRICT_CXX98_
 // load latest check point
 inline int LoadCheckPoint(Serializable *global_model,
@@ -216,8 +244,8 @@ inline void ReducerSafe_(const void *src_, void *dst_, int len_, const MPI::Data
   const size_t kUnit = sizeof(DType);
   const char *psrc = reinterpret_cast<const char*>(src_);
   char *pdst = reinterpret_cast<char*>(dst_);
-  DType tdst, tsrc;
   for (int i = 0; i < len_; ++i) {
+    DType tdst, tsrc;
     // use memcpy to avoid alignment issue
     std::memcpy(&tdst, pdst + i * kUnit, sizeof(tdst));
     std::memcpy(&tsrc, psrc + i * kUnit, sizeof(tsrc));
@@ -247,8 +275,13 @@ inline Reducer<DType, freduce>::Reducer(void) {
 template<typename DType, void (*freduce)(DType &dst, const DType &src)> // NOLINT(*)
 inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
                                                void (*prepare_fun)(void *arg),
-                                               void *prepare_arg) {
-  handle_.Allreduce(sendrecvbuf, sizeof(DType), count, prepare_fun, prepare_arg);
+                                               void *prepare_arg,
+                                               bool is_bootstrap,
+                                               const char* _file,
+                                               const int _line,
+                                               const char* _caller) {
+  handle_.Allreduce(sendrecvbuf, sizeof(DType), count, prepare_fun,
+    prepare_arg, is_bootstrap, _file, _line, _caller);
 }
 // function to perform reduction for SerializeReducer
 template<typename DType>
@@ -256,8 +289,8 @@ inline void SerializeReducerFunc_(const void *src_, void *dst_,
                                   int len_, const MPI::Datatype &dtype) {
   int nbytes = engine::ReduceHandle::TypeSize(dtype);
   // temp space
-  DType tsrc, tdst;
   for (int i = 0; i < len_; ++i) {
+    DType tsrc, tdst;
     utils::MemoryFixSizeBuffer fsrc((char*)(src_) + i * nbytes, nbytes); // NOLINT(*)
     utils::MemoryFixSizeBuffer fdst((char*)(dst_) + i * nbytes, nbytes); // NOLINT(*)
     tsrc.Load(fsrc);
@@ -296,7 +329,11 @@ template<typename DType>
 inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
                                                size_t max_nbyte, size_t count,
                                                void (*prepare_fun)(void *arg),
-                                               void *prepare_arg) {
+                                               void *prepare_arg,
+                                               bool is_bootstrap,
+                                               const char* _file,
+                                               const int _line,
+                                               const char* _caller) {
   buffer_.resize(max_nbyte * count);
   // setup closure
   SerializeReduceClosure<DType> c;
@@ -304,7 +341,8 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
   c.prepare_fun = prepare_fun; c.prepare_arg = prepare_arg; c.p_buffer = &buffer_;
   // invoke here
   handle_.Allreduce(BeginPtr(buffer_), max_nbyte, count,
-                    SerializeReduceClosure<DType>::Invoke, &c);
+                    SerializeReduceClosure<DType>::Invoke, &c,
+                    is_bootstrap, _file, _line, _caller);
   for (size_t i = 0; i < count; ++i) {
     utils::MemoryFixSizeBuffer fs(BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
     sendrecvobj[i].Load(fs);
@@ -314,14 +352,24 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
 #if DMLC_USE_CXX11
 template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)g
 inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
-                                               std::function<void()> prepare_fun) {
-  this->Allreduce(sendrecvbuf, count, InvokeLambda_, &prepare_fun);
+                                               std::function<void()> prepare_fun,
+                                               bool is_bootstrap,
+                                               const char* _file,
+                                               const int _line,
+                                               const char* _caller) {
+  this->Allreduce(sendrecvbuf, count, InvokeLambda_, &prepare_fun,
+    is_bootstrap, _file, _line, _caller);
 }
 template<typename DType>
 inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
                                                size_t max_nbytes, size_t count,
-                                               std::function<void()> prepare_fun) {
-  this->Allreduce(sendrecvobj, max_nbytes, count, InvokeLambda_, &prepare_fun);
+                                               std::function<void()> prepare_fun,
+                                               bool is_bootstrap,
+                                               const char* _file,
+                                               const int _line,
+                                               const char* _caller) {
+  this->Allreduce(sendrecvobj, max_nbytes, count, InvokeLambda_, &prepare_fun,
+    is_bootstrap, _file, _line, _caller);
 }
 #endif  // DMLC_USE_CXX11
 }  // namespace rabit

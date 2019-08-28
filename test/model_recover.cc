@@ -94,6 +94,11 @@ int main(int argc, char *argv[]) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   std::string name = rabit::GetProcessorName();
+
+  int max_rank = rank;
+  rabit::Allreduce<op::Max>(&max_rank, sizeof(int), NULL, NULL, true);
+  utils::Check(max_rank == nproc - 1, "max rank is world size-1");
+
   Model model;
   srand(0);
   int ntrial = 0;
@@ -115,6 +120,7 @@ int main(int argc, char *argv[]) {
       TestBcast(n, i, ntrial, r);
     }
     printf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+
     TestSum(&model, ntrial, r);
     printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
     rabit::CheckPoint(&model);
