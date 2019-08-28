@@ -24,6 +24,7 @@ import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import ml.dmlc.xgboost4j.scala.spark.CheckpointManager.CheckpointParam
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -53,6 +54,103 @@ case class TrackerConf(workerConnectionTimeout: Long, trackerImpl: String)
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
+}
+
+private[this] case class XGBoostNativeParams(
+    numWorkers: Int, round: Int, useExternalMemory: Boolean, obj: ObjectiveTrait, eval: EvalTrait,
+    missing: Float, trackerConf: TrackerConf, timeoutRequestWorkers: Long,
+    checkpointParam: CheckpointParam)
+
+private[this] object XGBoostNativeParamsFactory {
+
+  private var xgbNativeParams: XGBoostNativeParams = _
+
+  private val logger = LogFactory.getLog("XGBoostSpark")
+
+  /**
+   * Check to see if Spark expects SSL encryption (`spark.ssl.enabled` set to true).
+   * If so, throw an exception unless this safety measure has been explicitly overridden
+   * via conf `xgboost.spark.ignoreSsl`.
+   *
+   * @param sc  SparkContext for the training dataset.  When looking for the confs, this method
+   *            first checks for an active SparkSession.  If one is not available, it falls back
+   *            to this SparkContext.
+   */
+  private def validateSparkSslConf(sc: SparkContext): Unit = {
+    val (sparkSslEnabled: Boolean, xgboostSparkIgnoreSsl: Boolean) =
+      SparkSession.getActiveSession match {
+        case Some(ss) =>
+          (ss.conf.getOption("spark.ssl.enabled").getOrElse("false").toBoolean,
+            ss.conf.getOption("xgboost.spark.ignoreSsl").getOrElse("false").toBoolean)
+        case None =>
+          (sc.getConf.getBoolean("spark.ssl.enabled", false),
+            sc.getConf.getBoolean("xgboost.spark.ignoreSsl", false))
+      }
+    if (sparkSslEnabled) {
+      if (xgboostSparkIgnoreSsl) {
+        logger.warn(s"spark-xgboost is being run without encrypting data in transit!  " +
+          s"Spark Conf spark.ssl.enabled=true was overridden with xgboost.spark.ignoreSsl=true.")
+      } else {
+        throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
+          "in transit, but xgboost-spark sends non-encrypted data over the wire for efficiency. " +
+          "To override this protection and still use xgboost-spark at your own risk, " +
+          "you can set the SparkSession conf to use xgboost.spark.ignoreSsl=true.")
+      }
+    }
+  }
+
+  private def parameterFetchAndValidation(params: Map[String, Any], sparkContext: SparkContext) = {
+    val nWorkers = params("num_workers").asInstanceOf[Int]
+    val round = params("num_round").asInstanceOf[Int]
+    val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
+    val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
+    val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
+    val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
+    validateSparkSslConf(sparkContext)
+
+    if (params.contains("tree_method")) {
+      require(params("tree_method") == "hist" ||
+        params("tree_method") == "approx" ||
+        params("tree_method") == "auto", "xgboost4j-spark only supports tree_method as 'hist'," +
+        " 'approx' and 'auto'")
+    }
+    if (params.contains("train_test_ratio")) {
+      logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
+        " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
+        "'eval_set_names'")
+    }
+    require(nWorkers > 0, "you must specify more than 0 workers")
+    if (obj != null) {
+      require(params.get("objective_type").isDefined, "parameter \"objective_type\" is not" +
+        " defined, you have to specify the objective type as classification or regression" +
+        " with a customized objective function")
+    }
+    val trackerConf = params.get("tracker_conf") match {
+      case None => TrackerConf()
+      case Some(conf: TrackerConf) => conf
+      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
+        "instance of TrackerConf.")
+    }
+    val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
+      case None => 0L
+      case Some(interval: Long) => interval
+      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
+        " an instance of Long.")
+    }
+    val checkpointParam =
+      CheckpointManager.extractParams(params)
+    XGBoostNativeParams(nWorkers, round, useExternalMemory, obj, eval, missing, trackerConf,
+      timeoutRequestWorkers,
+      checkpointParam)
+  }
+
+  def getInstance(params: Map[String, Any], sc: SparkContext): XGBoostNativeParams =
+    XGBoost.synchronized {
+    if (xgbNativeParams == null) {
+      xgbNativeParams = parameterFetchAndValidation(params, sc)
+    }
+    xgbNativeParams
+  }
 }
 
 /**
@@ -261,83 +359,6 @@ object XGBoost extends Serializable {
     }
   }
 
-  /**
-   * Check to see if Spark expects SSL encryption (`spark.ssl.enabled` set to true).
-   * If so, throw an exception unless this safety measure has been explicitly overridden
-   * via conf `xgboost.spark.ignoreSsl`.
-   *
-   * @param sc  SparkContext for the training dataset.  When looking for the confs, this method
-   *            first checks for an active SparkSession.  If one is not available, it falls back
-   *            to this SparkContext.
-   */
-  private def validateSparkSslConf(sc: SparkContext): Unit = {
-    val (sparkSslEnabled: Boolean, xgboostSparkIgnoreSsl: Boolean) =
-      SparkSession.getActiveSession match {
-        case Some(ss) =>
-          (ss.conf.getOption("spark.ssl.enabled").getOrElse("false").toBoolean,
-            ss.conf.getOption("xgboost.spark.ignoreSsl").getOrElse("false").toBoolean)
-        case None =>
-          (sc.getConf.getBoolean("spark.ssl.enabled", false),
-            sc.getConf.getBoolean("xgboost.spark.ignoreSsl", false))
-      }
-    if (sparkSslEnabled) {
-      if (xgboostSparkIgnoreSsl) {
-        logger.warn(s"spark-xgboost is being run without encrypting data in transit!  " +
-          s"Spark Conf spark.ssl.enabled=true was overridden with xgboost.spark.ignoreSsl=true.")
-      } else {
-        throw new Exception("xgboost-spark found spark.ssl.enabled=true to encrypt data " +
-          "in transit, but xgboost-spark sends non-encrypted data over the wire for efficiency. " +
-          "To override this protection and still use xgboost-spark at your own risk, " +
-          "you can set the SparkSession conf to use xgboost.spark.ignoreSsl=true.")
-      }
-    }
-  }
-
-  private def parameterFetchAndValidation(params: Map[String, Any], sparkContext: SparkContext) = {
-    val nWorkers = params("num_workers").asInstanceOf[Int]
-    val round = params("num_round").asInstanceOf[Int]
-    val useExternalMemory = params("use_external_memory").asInstanceOf[Boolean]
-    val obj = params.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
-    val eval = params.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
-    val missing = params.getOrElse("missing", Float.NaN).asInstanceOf[Float]
-    validateSparkSslConf(sparkContext)
-
-    if (params.contains("tree_method")) {
-      require(params("tree_method") == "hist" ||
-        params("tree_method") == "approx" ||
-        params("tree_method") == "auto", "xgboost4j-spark only supports tree_method as 'hist'," +
-        " 'approx' and 'auto'")
-    }
-    if (params.contains("train_test_ratio")) {
-      logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
-        " pass a training and multiple evaluation datasets by passing 'eval_sets' and " +
-        "'eval_set_names'")
-    }
-    require(nWorkers > 0, "you must specify more than 0 workers")
-    if (obj != null) {
-      require(params.get("objective_type").isDefined, "parameter \"objective_type\" is not" +
-        " defined, you have to specify the objective type as classification or regression" +
-        " with a customized objective function")
-    }
-    val trackerConf = params.get("tracker_conf") match {
-      case None => TrackerConf()
-      case Some(conf: TrackerConf) => conf
-      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
-        "instance of TrackerConf.")
-    }
-    val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
-      case None => 0L
-      case Some(interval: Long) => interval
-      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
-        " an instance of Long.")
-    }
-    val checkpointParam =
-      CheckpointManager.extractParams(params)
-    (nWorkers, round, useExternalMemory, obj, eval, missing, trackerConf, timeoutRequestWorkers,
-      checkpointParam.checkpointPath, checkpointParam.checkpointInterval,
-      checkpointParam.skipCleanCheckpoint)
-  }
-
   private def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
       params: Map[String, Any],
@@ -345,25 +366,24 @@ object XGBoost extends Serializable {
       checkpointRound: Int,
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
-    val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _, _) =
-      parameterFetchAndValidation(params, trainingData.sparkContext)
+    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(params,
-          processMissingValues(labeledPoints, missing),
-          getCacheDirName(useExternalMemory))
+          processMissingValues(labeledPoints, xgbNativeParams.missing),
+          getCacheDirName(xgbNativeParams.useExternalMemory))
         buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-          obj, eval, prevBooster)
+          xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions {
+      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbNativeParams.numWorkers).mapPartitions {
         nameAndLabeledPointSets =>
           val watches = Watches.buildWatches(
             nameAndLabeledPointSets.map {
-              case (name, iter) => (name, processMissingValues(iter, missing))},
-            getCacheDirName(useExternalMemory))
+              case (name, iter) => (name, processMissingValues(iter, xgbNativeParams.missing))},
+            getCacheDirName(xgbNativeParams.useExternalMemory))
           buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
-            obj, eval, prevBooster)
+            xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
       }.cache()
     }
   }
@@ -375,24 +395,27 @@ object XGBoost extends Serializable {
       checkpointRound: Int,
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
-    val (nWorkers, _, useExternalMemory, obj, eval, missing, _, _, _, _, _) =
-      parameterFetchAndValidation(params, trainingData.sparkContext)
+    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(params,
-          processMissingValuesWithGroup(labeledPointGroups, missing),
-          getCacheDirName(useExternalMemory))
-        buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval, prevBooster)
+          processMissingValuesWithGroup(labeledPointGroups, xgbNativeParams.missing),
+          getCacheDirName(xgbNativeParams.useExternalMemory))
+        buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+          xgbNativeParams.obj, xgbNativeParams.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(trainingData, evalSetsMap, nWorkers).mapPartitions(
+      coPartitionGroupSets(trainingData, evalSetsMap, xgbNativeParams.numWorkers).mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
-              case (name, iter) => (name, processMissingValuesWithGroup(iter, missing))
+              case (name, iter) => (name, processMissingValuesWithGroup(iter,
+                xgbNativeParams.missing))
             },
-            getCacheDirName(useExternalMemory))
-          buildDistributedBooster(watches, params, rabitEnv, checkpointRound, obj, eval,
+            getCacheDirName(xgbNativeParams.useExternalMemory))
+          buildDistributedBooster(watches, params, rabitEnv, checkpointRound,
+            xgbNativeParams.obj,
+            xgbNativeParams.eval,
             prevBooster)
         }).cache()
     }
@@ -428,25 +451,27 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val (nWorkers, round, _, _, _, _, trackerConf, timeoutRequestWorkers,
-      checkpointPath, checkpointInterval, skipCleanCheckpoint) =
-      parameterFetchAndValidation(params,
-      trainingData.sparkContext)
+    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
     val sc = trainingData.sparkContext
-    val checkpointManager = new CheckpointManager(sc, checkpointPath)
-    checkpointManager.cleanUpHigherVersions(round.asInstanceOf[Int])
+    val checkpointManager = new CheckpointManager(sc, xgbNativeParams.checkpointParam.
+      checkpointPath)
+    checkpointManager.cleanUpHigherVersions(xgbNativeParams.round)
     val transformedTrainingData = composeInputData(trainingData,
-      params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup, nWorkers)
+      params.getOrElse("cacheTrainingSet", false).asInstanceOf[Boolean], hasGroup,
+      xgbNativeParams.numWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
-      val producedBooster = checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
+      val producedBooster = checkpointManager.getCheckpointRounds(
+        xgbNativeParams.checkpointParam.checkpointInterval,
+        xgbNativeParams.round).map {
         checkpointRound: Int =>
-          val tracker = startTracker(nWorkers, trackerConf)
+          val tracker = startTracker(xgbNativeParams.numWorkers, xgbNativeParams.trackerConf)
           try {
             val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-            val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers,
-              nWorkers)
+            val parallelismTracker = new SparkParallelismTracker(sc,
+              xgbNativeParams.timeoutRequestWorkers,
+              xgbNativeParams.numWorkers)
             val rabitEnv = tracker.getWorkerEnvs
             val boostersAndMetrics = if (hasGroup) {
               trainForRanking(transformedTrainingData.left.get, overriddenParams, rabitEnv,
@@ -467,7 +492,7 @@ object XGBoost extends Serializable {
             logger.info(s"Rabit returns with exit code $trackerReturnVal")
             val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
               boostersAndMetrics, sparkJobThread)
-            if (checkpointRound < round) {
+            if (checkpointRound < xgbNativeParams.round) {
               prevBooster = booster
               checkpointManager.updateCheckpoint(prevBooster)
             }
@@ -477,7 +502,7 @@ object XGBoost extends Serializable {
           }
       }.last
       // we should delete the checkpoint directory after a successful training
-      if (!skipCleanCheckpoint) {
+      if (!xgbNativeParams.checkpointParam.skipCleanCheckpoint) {
         checkpointManager.cleanPath()
       }
       producedBooster
