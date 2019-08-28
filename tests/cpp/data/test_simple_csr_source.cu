@@ -38,27 +38,56 @@ TEST(SimpleCSRSource, FromColumnarDense) {
   Json::Dump(column_arr, &ss);
   std::string str = ss.str();
 
-  std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
-  source->CopyFrom(str.c_str());
+  // no missing value
+  {
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    source->CopyFrom(str.c_str(), false);
 
-  auto const& data = source->page_.data.HostVector();
-  auto const& offset = source->page_.offset.HostVector();
-  for (size_t i = 0; i < kRows; ++i) {
-    auto e = data[i];
-    ASSERT_NEAR(e.fvalue, i * 2.0, kRtEps);
-    ASSERT_EQ(e.index, 0);  // feature 0
+    auto const& data = source->page_.data.HostVector();
+    auto const& offset = source->page_.offset.HostVector();
+    for (size_t i = 0; i < kRows; ++i) {
+      auto e = data[i];
+      ASSERT_NEAR(e.fvalue, i * 2.0, kRtEps);
+      ASSERT_EQ(e.index, 0);  // feature 0
+    }
+    ASSERT_EQ(offset.back(), 16);
+    for (size_t i = 0; i < kRows + 1; ++i) {
+      ASSERT_EQ(offset[i], i);
+    }
   }
-  ASSERT_EQ(offset.back(), 16);
-  for (size_t i = 0; i < kRows + 1; ++i) {
-    ASSERT_EQ(offset[i], i);
+
+  // with missing value specified
+  {
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    source->CopyFrom(str.c_str(), true, 4.0);
+
+    auto const& data = source->page_.data.HostVector();
+    auto const& offset = source->page_.offset.HostVector();
+    ASSERT_EQ(data.size(), 15);
+    ASSERT_NEAR(data[2].fvalue, 6.0, kRtEps);
+    ASSERT_EQ(offset.back(), 15);
+    for (size_t i = 3; i < kRows + 1; ++i) {
+      ASSERT_EQ(offset[i], i - 1);
+    }
+  }
+
+  {
+    // no missing value, but has NaN
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    d_data[3] = std::numeric_limits<float>::quiet_NaN();
+    ASSERT_TRUE(std::isnan(d_data[3]));  // removes 6.0
+    source->CopyFrom(str.c_str(), false);
+
+    auto const& data = source->page_.data.HostVector();
+    auto const& offset = source->page_.offset.HostVector();
+    ASSERT_EQ(data.size(), 15);
+    ASSERT_NEAR(data[3].fvalue, 8.0, kRtEps);
   }
 }
 
 TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
-  // In this test we construct a data storage similar to cudf
   constexpr size_t kRows = 102;
   constexpr size_t kCols = 24;
-  constexpr size_t kMissingRows = 3;
 
   std::vector<Json> v_columns (kCols);
   std::vector<dh::device_vector<float>> columns_data(kCols);
@@ -90,6 +119,7 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
     // Construct the mask object.
     col["mask"] = Object();
     auto& j_mask = col["mask"];
+    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
     auto& mask_storage = column_bitfields[i];
     mask_storage.resize(16);  // 16 bytes
 
@@ -111,7 +141,6 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
       Json(Boolean(false))};
     j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(16)))});
     j_mask["typestr"] = String("|i1");
-    j_mask["null_count"] = Json(Integer(static_cast<Integer::Int>(kMissingRows)));
   }
 
   Json column_arr {Array(v_columns)};
@@ -119,7 +148,7 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
   Json::Dump(column_arr, &ss);
   std::string str = ss.str();
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
-  source->CopyFrom(str.c_str());
+  source->CopyFrom(str.c_str(), false);
 
   auto const& data = source->page_.data.HostVector();
   auto const& offset = source->page_.offset.HostVector();
@@ -149,6 +178,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     for (size_t j = 0; j < mask.size(); ++j) {
       mask[j] = ~0;
     }
+    // the 2^th entry of first column is invalid
+    // [0 0 0 0 0 1 0 0]
     mask[0] = ~(kUCOne << 2);
   }
   {
@@ -159,6 +190,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     for (size_t j = 0; j < mask.size(); ++j) {
       mask[j] = ~0;
     }
+    // the 19^th entry of second column is invalid
+    // [~0~], [~0~], [0 0 0 0 1 0 0 0]
     mask[2] = ~(kUCOne << 3);
   }
 
@@ -186,12 +219,12 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
 
     column["mask"] = Object();
     auto& j_mask = column["mask"];
+    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
     j_mask["data"] = std::vector<Json>{
       Json(Integer(reinterpret_cast<Integer::Int>(column_bitfields[c].data().get()))),
       Json(Boolean(false))};
     j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(8)))});
     j_mask["typestr"] = String("|i1");
-    j_mask["null_count"] = Json(Integer(static_cast<Integer::Int>(1)));
   }
 
   Json column_arr {Array(j_columns)};
@@ -200,17 +233,64 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
   Json::Dump(column_arr, &ss);
   std::string str = ss.str();
 
-  std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
-  source->CopyFrom(str.c_str());
+  {
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    source->CopyFrom(str.c_str(), false);
 
-  auto const& data = source->page_.data.HostVector();
-  auto const& offset = source->page_.offset.HostVector();
+    auto const& data = source->page_.data.HostVector();
+    auto const& offset = source->page_.offset.HostVector();
 
-  ASSERT_EQ(offset.size(), kRows + 1);
-  ASSERT_EQ(data[4].index, 1);
-  ASSERT_EQ(data[4].fvalue, 2);
-  ASSERT_EQ(data[37].index, 0);
-  ASSERT_EQ(data[37].fvalue, 19);
+    ASSERT_EQ(offset.size(), kRows + 1);
+    ASSERT_EQ(data[4].index, 1);
+    ASSERT_EQ(data[4].fvalue, 2);
+    ASSERT_EQ(data[37].index, 0);
+    ASSERT_EQ(data[37].fvalue, 19);
+  }
+
+  {
+    // with missing value
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    source->CopyFrom(str.c_str(), true, /*missing=*/2.0);
+
+    auto const& data = source->page_.data.HostVector();
+    ASSERT_NE(data[4].fvalue, 2.0);
+  }
+
+  {
+    // no missing value, but has NaN
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    columns_data[0][4] = std::numeric_limits<float>::quiet_NaN();  // 0^th column 4^th row
+    ASSERT_TRUE(std::isnan(columns_data[0][4]));
+    source->CopyFrom(str.c_str(), false);
+
+    auto const& data = source->page_.data.HostVector();
+    auto const& offset = source->page_.offset.HostVector();
+    // Two invalid entries and one NaN, in CSC
+    // 0^th column: 0, 1, 4, 5, 6, ..., kRows
+    // 1^th column: 0, 1, 2, 3, ..., 19, 21, ..., kRows
+    // Turning it into CSR:
+    // | 0, 0 | 1, 1 | 2 | 3, 3 | 4 | ...
+    ASSERT_EQ(data.size(), kRows * kCols - 3);
+    ASSERT_EQ(data[4].index, 1);  // from 1^th column
+    ASSERT_EQ(data[5].fvalue, 3.0);
+    ASSERT_EQ(data[7].index, 1);  // from 1^th column
+    ASSERT_EQ(data[7].fvalue, 4.0);
+
+    ASSERT_EQ(data[offset[2]].fvalue, 2.0);
+    ASSERT_EQ(data[offset[4]].fvalue, 4.0);
+  }
+
+  {
+    // with NaN as missing value
+    // NaN is already set up by above test
+    std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+    source->CopyFrom(str.c_str(), true,
+                     /*missing=*/std::numeric_limits<float>::quiet_NaN());
+
+    auto const& data = source->page_.data.HostVector();
+    ASSERT_EQ(data.size(), kRows * kCols - 1);
+    ASSERT_EQ(data[8].fvalue, 4.0);
+  }
 }
 
 }  // namespace xgboost
