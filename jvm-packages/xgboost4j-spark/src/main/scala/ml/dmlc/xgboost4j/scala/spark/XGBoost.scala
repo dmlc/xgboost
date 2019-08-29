@@ -60,7 +60,7 @@ object TrackerConf {
 private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
                                                              maximizeEvalMetrics: Boolean)
 
-private[this] case class XGBoostExecutionInputParams(trainTestRatio: Float, seed: Long)
+private[this] case class XGBoostExecutionInputParams(trainTestRatio: Double, seed: Long)
 
 private[this] case class XGBoostExecutionParams(
     numWorkers: Int,
@@ -196,8 +196,8 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val checkpointParam =
       CheckpointManager.extractParams(overridedParams)
 
-    val trainTestRatio = overridedParams.getOrElse("train_test_ratio", 1.0f)
-      .asInstanceOf[Float]
+    val trainTestRatio = overridedParams.getOrElse("train_test_ratio", 1.0)
+      .asInstanceOf[Double]
     val seed = overridedParams.getOrElse("seed", System.nanoTime()).asInstanceOf[Long]
     val inputParams = XGBoostExecutionInputParams(trainTestRatio, seed)
 
