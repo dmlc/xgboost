@@ -60,8 +60,8 @@ class MyLogistic : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     // transform margin value to probability.
     std::vector<bst_float> &preds = io_preds->HostVector();
-    for (size_t i = 0; i < preds.size(); ++i) {
-      preds[i] = 1.0f / (1.0f + std::exp(-preds[i]));
+    for (auto& pred : preds) {
+      pred = 1.0f / (1.0f + std::exp(-pred));
     }
   }
   bst_float ProbToMargin(bst_float base_score) const override {

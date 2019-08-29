@@ -19,10 +19,8 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
-  // primary device.
+  // primary device, -1 means no gpu.
   int gpu_id;
-  // number of devices to use, -1 implies using all available devices.
-  int n_gpus;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -36,15 +34,20 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
     DMLC_DECLARE_FIELD(gpu_id)
-        .set_default(0)
+        .set_default(-1)
+        .set_lower_bound(-1)
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
-        .set_range(0, 1)
+        .set_range(0, 0)
         .describe("Deprecated. Single process multi-GPU training is no longer supported. "
                   "Please switch to distributed training with one process per GPU. "
                   "This can be done using Dask or Spark.");
   }
+
+ private:
+  // number of devices to use (deprecated).
+  int n_gpus;
 };
 }  // namespace xgboost
 

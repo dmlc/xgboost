@@ -1,5 +1,5 @@
 #######################################
-XGBoost4J-Spark Tutorial (version 0.8+)
+XGBoost4J-Spark Tutorial (version 0.9+)
 #######################################
 
 **XGBoost4J-Spark** is a project aiming to seamlessly integrate XGBoost and Apache Spark by fitting XGBoost to Apache Spark's MLLIB framework. With the integration, user can not only uses the high-performant algorithm implementation of XGBoost, but also leverages the powerful  data processing engine of Spark for:
@@ -139,7 +139,7 @@ we drop the column "class" and only keeps the feature columns and the transforme
 
 The ``fit`` and ``transform`` are two key operations in MLLIB. Basically, ``fit`` produces a "transformer", e.g. StringIndexer, and each transformer applies ``transform`` method on DataFrame to add new column(s) containing transformed features/labels or prediction results, etc. To understand more about ``fit`` and ``transform``, You can find more details in `here <http://spark.apache.org/docs/latest/ml-pipeline.html#pipeline-components>`_.
 
-Similarly, we can use another transformer, `VectorAssembler <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.VectorAssembler>`_, to assemble feature columns "sepal length", "sepal width", "petal length" and "petal width" as a vector.
+Similarly, we can use another transformer, `VectorAssembler <https://spark.apache.org/docs/2.4.0/api/java/org/apache/spark/ml/feature/VectorAssembler.html>`_, to assemble feature columns "sepal length", "sepal width", "petal length" and "petal width" as a vector.
 
 .. code-block:: scala
 

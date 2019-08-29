@@ -33,8 +33,8 @@ namespace xgboost {
 namespace predictor {
 
 TEST(gpu_predictor, Test) {
-  auto cpu_lparam = CreateEmptyGenericParam(0, 0);
-  auto gpu_lparam = CreateEmptyGenericParam(0, 1);
+  auto cpu_lparam = CreateEmptyGenericParam(-1);
+  auto gpu_lparam = CreateEmptyGenericParam(0);
 
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
@@ -69,7 +69,7 @@ TEST(gpu_predictor, Test) {
 }
 
 TEST(gpu_predictor, ExternalMemoryTest) {
-  auto lparam = CreateEmptyGenericParam(0, 1);
+  auto lparam = CreateEmptyGenericParam(0);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
   gpu_predictor->Configure({}, {});
@@ -83,26 +83,26 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   std::string file1 = tmpdir.path + "/big_1.libsvm";
   std::string file2 = tmpdir.path + "/big_2.libsvm";
   dmats.push_back(CreateSparsePageDMatrix(9, 64UL, file0));
-  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
-  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
+//  dmats.push_back(CreateSparsePageDMatrix(128, 128UL, file1));
+//  dmats.push_back(CreateSparsePageDMatrix(1024, 1024UL, file2));
 
   for (const auto& dmat: dmats) {
-    // Test predict batch
+    dmat->Info().base_margin_.Resize(dmat->Info().num_row_ * n_classes, 0.5);
     HostDeviceVector<float> out_predictions;
     gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
     EXPECT_EQ(out_predictions.Size(), dmat->Info().num_row_ * n_classes);
     const std::vector<float> &host_vector = out_predictions.ConstHostVector();
     for (int i = 0; i < host_vector.size() / n_classes; i++) {
-      ASSERT_EQ(host_vector[i * n_classes], 1.5);
-      ASSERT_EQ(host_vector[i * n_classes + 1], 0.);
-      ASSERT_EQ(host_vector[i * n_classes + 2], 0.);
+      ASSERT_EQ(host_vector[i * n_classes], 2.0);
+      ASSERT_EQ(host_vector[i * n_classes + 1], 0.5);
+      ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);
     }
   }
 }
 
 // Test whether pickling preserves predictor parameters
 TEST(gpu_predictor, PicklingTest) {
-  int const ngpu = 1;
+  int const gpuid = 0;
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -134,7 +134,7 @@ TEST(gpu_predictor, PicklingTest) {
   ASSERT_EQ(XGBoosterSetParam(
       bst, "tree_method", "gpu_hist"), 0) << XGBGetLastError();
   ASSERT_EQ(XGBoosterSetParam(
-      bst, "n_gpus", std::to_string(ngpu).c_str()), 0) << XGBGetLastError();
+      bst, "gpu_id", std::to_string(gpuid).c_str()), 0) << XGBGetLastError();
   ASSERT_EQ(XGBoosterSetParam(bst, "predictor", "gpu_predictor"), 0) << XGBGetLastError();
 
   // Run boosting iterations
@@ -160,7 +160,7 @@ TEST(gpu_predictor, PicklingTest) {
   {  // Query predictor
     const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
     ASSERT_EQ(kwargs.at("predictor"), "gpu_predictor");
-    ASSERT_EQ(kwargs.at("n_gpus"), std::to_string(ngpu).c_str());
+    ASSERT_EQ(kwargs.at("gpu_id"), std::to_string(gpuid).c_str());
   }
 
   {  // Change predictor and query again

@@ -366,7 +366,7 @@ TEST(GpuHist, EvaluateSplits) {
   ASSERT_NEAR(res[1].fvalue, 0.26, xgboost::kRtEps);
 }
 
-void TestHistogramIndexImpl(int n_gpus) {
+void TestHistogramIndexImpl() {
   // Test if the compressed histogram index matches when using a sparse
   // dmatrix with and without using external memory
 
@@ -384,7 +384,7 @@ void TestHistogramIndexImpl(int n_gpus) {
     {"max_leaves", "0"}
   };
 
-  GenericParameter generic_param(CreateEmptyGenericParam(0, n_gpus));
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
   hist_maker.Configure(training_params, &generic_param);
 
   hist_maker.InitDataOnce(hist_maker_dmat.get());
@@ -412,7 +412,7 @@ void TestHistogramIndexImpl(int n_gpus) {
 }
 
 TEST(GpuHist, TestHistogramIndex) {
-  TestHistogramIndexImpl(1);
+  TestHistogramIndexImpl();
 }
 
 }  // namespace tree

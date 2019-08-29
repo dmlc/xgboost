@@ -6,7 +6,7 @@
 namespace xgboost {
 
 TEST(Plugin, ExampleObjective) {
-  xgboost::GenericParameter tparam = CreateEmptyGenericParam(0, 0);
+  xgboost::GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
   auto * obj = xgboost::ObjFunction::Create("mylogistic", &tparam);
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"error"});
   delete obj;

@@ -57,8 +57,8 @@ class RegLossObj : public ObjFunction {
         << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
-    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
+    auto device = tparam_->gpu_id;
+    label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
@@ -83,7 +83,7 @@ class RegLossObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                           Loss::SecondOrderGradient(p, label) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -105,7 +105,7 @@ class RegLossObj : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
         }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
 
@@ -175,8 +175,8 @@ class PoissonRegression : public ObjFunction {
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
-    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
+    auto device = tparam_->gpu_id;
+    label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
@@ -197,7 +197,7 @@ class PoissonRegression : public ObjFunction {
           _out_gpair[_idx] = GradientPair{(expf(p) - y) * w,
                                           expf(p + max_delta_step) * w};
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
     // copy "label correct" flags back to host
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -213,7 +213,7 @@ class PoissonRegression : public ObjFunction {
           _preds[_idx] = expf(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
@@ -340,9 +340,9 @@ class GammaRegression : public ObjFunction {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
     const size_t ndata = preds.Size();
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata);
+    auto device = tparam_->gpu_id;
     out_gpair->Resize(ndata);
-    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
+    label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -361,7 +361,7 @@ class GammaRegression : public ObjFunction {
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata)}, devices).Eval(
+        common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
             &label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -378,7 +378,7 @@ class GammaRegression : public ObjFunction {
           _preds[_idx] = expf(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
@@ -430,8 +430,8 @@ class TweedieRegression : public ObjFunction {
     const size_t ndata = preds.Size();
     out_gpair->Resize(ndata);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
-    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
+    auto device = tparam_->gpu_id;
+    label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
@@ -455,7 +455,7 @@ class TweedieRegression : public ObjFunction {
               std::exp((1 - rho) * p) + (2 - rho) * expf((2 - rho) * p);
           _out_gpair[_idx] = GradientPair(grad * w, hess * w);
         },
-        common::Range{0, static_cast<int64_t>(ndata), 1}, devices)
+        common::Range{0, static_cast<int64_t>(ndata), 1}, device)
         .Eval(&label_correct_, out_gpair, &preds, &info.labels_, &info.weights_);
 
     // copy "label correct" flags back to host
@@ -472,7 +472,7 @@ class TweedieRegression : public ObjFunction {
           _preds[_idx] = expf(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
 
