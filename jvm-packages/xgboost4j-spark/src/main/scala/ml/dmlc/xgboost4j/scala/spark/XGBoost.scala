@@ -60,8 +60,7 @@ object TrackerConf {
 private[this] case class XGBoostExecutionEarlyStoppingParams(numEarlyStoppingRounds: Int,
                                                              maximizeEvalMetrics: Boolean)
 
-private[this] case class XGBoostExecutionInputParams(
-    trainTestSplitRatio: Float, seed: Long)
+private[this] case class XGBoostExecutionInputParams(trainTestRatio: Float, seed: Long)
 
 private[this] case class XGBoostExecutionParams(
     numWorkers: Int,
@@ -197,10 +196,10 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val checkpointParam =
       CheckpointManager.extractParams(overridedParams)
 
-    val trainTestSplit = overridedParams.getOrElse("train_test_split", 1.0f)
+    val trainTestRatio = overridedParams.getOrElse("train_test_ratio", 1.0f)
       .asInstanceOf[Float]
     val seed = overridedParams.getOrElse("seed", System.nanoTime()).asInstanceOf[Long]
-    val inputParams = XGBoostExecutionInputParams(trainTestSplit, seed)
+    val inputParams = XGBoostExecutionInputParams(trainTestRatio, seed)
 
     val earlyStoppingRounds = overridedParams.getOrElse(
       "num_early_stopping_rounds", 0).asInstanceOf[Int]
@@ -740,7 +739,7 @@ private object Watches {
       xgbExecutionParams: XGBoostExecutionParams,
       labeledPoints: Iterator[XGBLabeledPoint],
       cacheDirName: Option[String]): Watches = {
-    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestSplitRatio
+    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestRatio
     val seed = xgbExecutionParams.xgbInputParams.seed
     val r = new Random(seed)
     val testPoints = mutable.ArrayBuffer.empty[XGBLabeledPoint]
@@ -810,7 +809,7 @@ private object Watches {
       xgbExecutionParams: XGBoostExecutionParams,
       labeledPointGroups: Iterator[Array[XGBLabeledPoint]],
       cacheDirName: Option[String]): Watches = {
-    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestSplitRatio
+    val trainTestRatio = xgbExecutionParams.xgbInputParams.trainTestRatio
     val seed = xgbExecutionParams.xgbInputParams.seed
     val r = new Random(seed)
     val testPoints = mutable.ArrayBuilder.make[XGBLabeledPoint]
