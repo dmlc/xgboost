@@ -340,7 +340,11 @@ class LearnerImpl : public Learner {
     }
     {
       std::vector<std::string> saved_params{"predictor", "n_gpus", "gpu_id"};
-      std::copy(saved_configs_.begin(), saved_configs_.end(), std::back_inserter(saved_params));
+      // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
+      if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
+        (cfg_.find("rabit_bootstrap_cache"))->second != "0")
+        std::copy(saved_configs_.begin(), saved_configs_.end(),
+          std::back_inserter(saved_params));
       // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
       for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
