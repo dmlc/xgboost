@@ -88,22 +88,18 @@ private[this] case class XGBoostExecutionParams(
   }
 }
 
-private[this] object XGBoostNativeParamsFactory {
-
-  private var xgbExecutionParams: XGBoostExecutionParams = _
+private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], sc: SparkContext){
 
   private val logger = LogFactory.getLog("XGBoostSpark")
+
+  private val overridedParams = overrideParams(rawParams, sc)
 
   /**
    * Check to see if Spark expects SSL encryption (`spark.ssl.enabled` set to true).
    * If so, throw an exception unless this safety measure has been explicitly overridden
    * via conf `xgboost.spark.ignoreSsl`.
-   *
-   * @param sc  SparkContext for the training dataset.  When looking for the confs, this method
-   *            first checks for an active SparkSession.  If one is not available, it falls back
-   *            to this SparkContext.
    */
-  private def validateSparkSslConf(sc: SparkContext): Unit = {
+  private def validateSparkSslConf: Unit = {
     val (sparkSslEnabled: Boolean, xgboostSparkIgnoreSsl: Boolean) =
       SparkSession.getActiveSession match {
         case Some(ss) =>
@@ -160,17 +156,14 @@ private[this] object XGBoostNativeParamsFactory {
     overridedParams
   }
 
-  private def parameterFetchAndValidation(
-      rawParams: Map[String, Any],
-      sparkContext: SparkContext) = {
-    val overridedParams = overrideParams(rawParams, sparkContext)
+  def buildXGBRuntimeParams: XGBoostExecutionParams = {
     val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
     val round = overridedParams("num_round").asInstanceOf[Int]
     val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
-    validateSparkSslConf(sparkContext)
+    validateSparkSslConf
 
     if (overridedParams.contains("tree_method")) {
       require(overridedParams("tree_method") == "hist" ||
@@ -228,14 +221,6 @@ private[this] object XGBoostNativeParamsFactory {
       cacheTrainingSet)
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
-  }
-
-  def getInstance(params: Map[String, Any], sc: SparkContext): XGBoostExecutionParams =
-    XGBoost.synchronized {
-    if (xgbExecutionParams == null) {
-      xgbExecutionParams = parameterFetchAndValidation(params, sc)
-    }
-    xgbExecutionParams
   }
 }
 
@@ -507,31 +492,32 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val xgbNativeParams = XGBoostNativeParamsFactory.getInstance(params, trainingData.sparkContext)
+    val xgbExecParams = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext).
+      buildXGBRuntimeParams
     val sc = trainingData.sparkContext
-    val checkpointManager = new CheckpointManager(sc, xgbNativeParams.checkpointParam.
+    val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)
-    checkpointManager.cleanUpHigherVersions(xgbNativeParams.round)
-    val transformedTrainingData = composeInputData(trainingData, xgbNativeParams.cacheTrainingSet,
-      hasGroup, xgbNativeParams.numWorkers)
+    checkpointManager.cleanUpHigherVersions(xgbExecParams.round)
+    val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
+      hasGroup, xgbExecParams.numWorkers)
     var prevBooster = checkpointManager.loadCheckpointAsBooster
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val producedBooster = checkpointManager.getCheckpointRounds(
-        xgbNativeParams.checkpointParam.checkpointInterval,
-        xgbNativeParams.round).map {
+        xgbExecParams.checkpointParam.checkpointInterval,
+        xgbExecParams.round).map {
         checkpointRound: Int =>
-          val tracker = startTracker(xgbNativeParams.numWorkers, xgbNativeParams.trackerConf)
+          val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
           try {
             val parallelismTracker = new SparkParallelismTracker(sc,
-              xgbNativeParams.timeoutRequestWorkers,
-              xgbNativeParams.numWorkers)
+              xgbExecParams.timeoutRequestWorkers,
+              xgbExecParams.numWorkers)
             val rabitEnv = tracker.getWorkerEnvs
             val boostersAndMetrics = if (hasGroup) {
-              trainForRanking(transformedTrainingData.left.get, xgbNativeParams, rabitEnv,
+              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             } else {
-              trainForNonRanking(transformedTrainingData.right.get, xgbNativeParams, rabitEnv,
+              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             }
             val sparkJobThread = new Thread() {
@@ -546,7 +532,7 @@ object XGBoost extends Serializable {
             logger.info(s"Rabit returns with exit code $trackerReturnVal")
             val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
               boostersAndMetrics, sparkJobThread)
-            if (checkpointRound < xgbNativeParams.round) {
+            if (checkpointRound < xgbExecParams.round) {
               prevBooster = booster
               checkpointManager.updateCheckpoint(prevBooster)
             }
@@ -556,7 +542,7 @@ object XGBoost extends Serializable {
           }
       }.last
       // we should delete the checkpoint directory after a successful training
-      if (!xgbNativeParams.checkpointParam.skipCleanCheckpoint) {
+      if (!xgbExecParams.checkpointParam.skipCleanCheckpoint) {
         checkpointManager.cleanPath()
       }
       producedBooster
@@ -567,7 +553,7 @@ object XGBoost extends Serializable {
         trainingData.sparkContext.stop()
         throw t
     } finally {
-      uncacheTrainingData(xgbNativeParams.cacheTrainingSet, transformedTrainingData)
+      uncacheTrainingData(xgbExecParams.cacheTrainingSet, transformedTrainingData)
     }
   }
 
