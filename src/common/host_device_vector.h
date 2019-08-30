@@ -79,15 +79,22 @@ void SetCudaSetDeviceHandler(void (*handler)(int));
 
 template <typename T> struct HostDeviceVectorImpl;
 
+/*!
+ * \brief Controls data access from the GPU.
+ *
+ * Since a `HostDeviceVector` can have data on both the host and device, access control needs to be
+ * maintained to keep the data consistent.
+ *
+ * There are 3 scenarios supported:
+ *   - Data is being manipulated on device. GPU has write access, host doesn't have access.
+ *   - Data is read-only on both the host and device.
+ *   - Data is being manipulated on the host. Host has write access, device doesn't have access.
+ */
 enum GPUAccess {
   kNone, kRead,
   // write implies read
   kWrite
 };
-
-inline GPUAccess operator-(GPUAccess a, GPUAccess b) {
-  return static_cast<GPUAccess>(static_cast<int>(a) - static_cast<int>(b));
-}
 
 template <typename T>
 class HostDeviceVector {
@@ -111,8 +118,6 @@ class HostDeviceVector {
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
-  size_t DeviceSize() const;
-
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
 #ifdef __CUDACC__
@@ -135,8 +140,10 @@ class HostDeviceVector {
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
-  bool HostCanAccess(GPUAccess access) const;
-  bool DeviceCanAccess(GPUAccess access) const;
+  bool HostCanRead() const;
+  bool HostCanWrite() const;
+  bool DeviceCanRead() const;
+  bool DeviceCanWrite() const;
 
   void SetDevice(int device) const;
 

@@ -231,12 +231,13 @@ class GPUPredictor : public xgboost::Predictor {
       this->num_group_ = model.param.num_output_group;
     }
 
-    void PredictInternal
-    (const SparsePage& batch, size_t num_features,
-     HostDeviceVector<bst_float>* predictions) {
+    void PredictInternal(const SparsePage& batch,
+                         size_t num_features,
+                         HostDeviceVector<bst_float>* predictions,
+                         size_t batch_offset) {
       dh::safe_cuda(cudaSetDevice(device_));
       const int BLOCK_THREADS = 128;
-      size_t num_rows = batch.offset.DeviceSize() - 1;
+      size_t num_rows = batch.Size();
       const int GRID_SIZE = static_cast<int>(common::DivRoundUp(num_rows, BLOCK_THREADS));
 
       int shared_memory_bytes = static_cast<int>
@@ -249,10 +250,10 @@ class GPUPredictor : public xgboost::Predictor {
       size_t entry_start = 0;
 
       PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan(), dh::ToSpan(tree_segments_),
-         dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
-         batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features,
-         num_rows, entry_start, use_shared, this->num_group_);
+          (dh::ToSpan(nodes_), predictions->DeviceSpan().subspan(batch_offset),
+           dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
+           batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features, num_rows,
+           entry_start, use_shared, this->num_group_);
     }
 
    private:
@@ -297,28 +298,10 @@ class GPUPredictor : public xgboost::Predictor {
     InitModel(model, tree_begin, tree_end);
 
     size_t batch_offset = 0;
-    auto* preds = out_preds;
-    std::unique_ptr<HostDeviceVector<bst_float>> batch_preds{nullptr};
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
-      bool is_external_memory = batch.Size() < dmat->Info().num_row_;
-      if (is_external_memory) {
-        batch_preds.reset(new HostDeviceVector<bst_float>);
-        batch_preds->Resize(batch.Size() * model.param.num_output_group);
-        std::copy(out_preds->ConstHostVector().begin() + batch_offset,
-                  out_preds->ConstHostVector().begin() + batch_offset + batch_preds->Size(),
-                  batch_preds->HostVector().begin());
-        preds = batch_preds.get();
-      }
-
       batch.offset.SetDevice(device_);
       batch.data.SetDevice(device_);
-      preds->SetDevice(device_);
-      shard_.PredictInternal(batch, model.param.num_feature, preds);
-
-      if (is_external_memory) {
-        auto h_preds = preds->ConstHostVector();
-        std::copy(h_preds.begin(), h_preds.end(), out_preds->HostVector().begin() + batch_offset);
-      }
+      shard_.PredictInternal(batch, model.param.num_feature, out_preds, batch_offset);
       batch_offset += batch.Size() * model.param.num_output_group;
     }
 
@@ -356,6 +339,7 @@ class GPUPredictor : public xgboost::Predictor {
     size_t n_classes = model.param.num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
+    out_preds->SetDevice(device_);
     out_preds->Resize(n);
     if (base_margin.Size() != 0) {
       CHECK_EQ(base_margin.Size(), n);
@@ -454,7 +438,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  private:
-  /*! \brief Re configure shards when GPUSet is changed. */
+  /*! \brief Reconfigure the shard when GPU is changed. */
   void ConfigureShard(int device) {
     if (device_ == device) return;
 
