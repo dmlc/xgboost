@@ -89,7 +89,7 @@ list(APPEND LINKED_LIBRARIES_PRIVATE dmlc)
 
 # rabit
 # full rabit doesn't build on windows, so we can't import it as subdirectory
-if(MINGW OR R_LIB OR WIN32)
+if(MINGW OR R_LIB)
   set(RABIT_SOURCES
     rabit/src/engine_empty.cc
     rabit/src/c_api.cc)
@@ -107,7 +107,7 @@ else ()
       rabit/src/engine.cc
       rabit/src/c_api.cc)
   endif(RABIT_MOCK)
-endif (MINGW OR R_LIB OR WIN32)
+endif (MINGW OR R_LIB)
 add_library(rabit STATIC ${RABIT_SOURCES})
 target_include_directories(rabit PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>

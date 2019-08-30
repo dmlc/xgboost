@@ -63,4 +63,7 @@ if [ ${TASK} == "xgb_recovery" ]; then
     cd tests/cli
     cp approx.conf.in approx.conf
     ./runxgb.sh approx.conf
+    rm *.model
+    cp hist.conf.in hist.conf
+    ./runxgb.sh hist.conf
 fi 
