@@ -91,12 +91,11 @@ void GBTree::Configure(const Args& cfg) {
 // make it default.
 void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
   std::string updater_seq = tparam_.updater_seq;
-  auto tree_method = tparam_.tree_method;
   this->PerformTreeMethodHeuristic(fmat);
+  this->ConfigureUpdaters();
 
   // initialize the updaters only when needed.
-  if (tree_method != tparam_.tree_method) {
-    this->ConfigureUpdaters();
+  if (updater_seq != tparam_.updater_seq) {
     LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
     this->updaters_.clear();
   }
@@ -208,9 +207,21 @@ void GBTree::DoBoost(DMatrix* p_fmat,
 }
 
 void GBTree::InitUpdater(Args const& cfg) {
-  if (updaters_.size() != 0) return;
   std::string tval = tparam_.updater_seq;
   std::vector<std::string> ups = common::Split(tval, ',');
+
+  if (updaters_.size() != 0) {
+    // Assert we have a valid set of updaters.
+    CHECK_EQ(ups.size(), updaters_.size());
+    for (auto const& up : updaters_) {
+      CHECK(std::any_of(ups.cbegin(), ups.cend(),
+                        [&up](std::string const& name) {
+                          return name == up->Name();
+                        }));
+    }
+    return;
+  }
+
   for (const std::string& pstr : ups) {
     std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
     up->Configure(cfg);
