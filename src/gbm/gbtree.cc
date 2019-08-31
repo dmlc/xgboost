@@ -91,6 +91,7 @@ void GBTree::Configure(const Args& cfg) {
 // make it default.
 void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
   std::string updater_seq = tparam_.updater_seq;
+
   this->PerformTreeMethodHeuristic(fmat);
   this->ConfigureUpdaters();
 
@@ -214,10 +215,25 @@ void GBTree::InitUpdater(Args const& cfg) {
     // Assert we have a valid set of updaters.
     CHECK_EQ(ups.size(), updaters_.size());
     for (auto const& up : updaters_) {
-      CHECK(std::any_of(ups.cbegin(), ups.cend(),
+      bool contains = std::any_of(ups.cbegin(), ups.cend(),
                         [&up](std::string const& name) {
                           return name == up->Name();
-                        }));
+                        });
+      if (!contains) {
+        std::stringstream ss;
+        ss << "Internal Error: " << " mismatched updater sequence.\n";
+        ss << "Specified updaters: ";
+        std::for_each(ups.cbegin(), ups.cend(),
+                      [&ss](std::string const& name){
+                        ss << name << " ";
+                      });
+        ss << "\n" << "Actual updaters: ";
+        std::for_each(updaters_.cbegin(), updaters_.cend(),
+                      [&ss](std::unique_ptr<TreeUpdater> const& updater){
+                        ss << updater->Name() << " ";
+                      });
+        LOG(FATAL) << ss.str();
+      }
     }
     return;
   }

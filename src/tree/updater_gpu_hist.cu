@@ -1460,7 +1460,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   char const* Name() const override {
-    return "gpu_hist";
+    return "grow_gpu_hist";
   }
 
  private:
