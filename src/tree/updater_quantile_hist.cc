@@ -455,13 +455,27 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     const int32_t right_id = node.RightChild();
     row_set_collection_.AddSplit(nid, n_left, left_id, right_id);
 
-    if (rabit::IsDistributed() ||
-        row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
-      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
-            depth + 1, 0.0, (*timestamp)++));
+    if (rabit::IsDistributed()) {
+      common::GradStatHist hist;
+      hist.sum_grad = row_set_collection_[left_id].Size();
+      hist.sum_hess = row_set_collection_[right_id].Size();
+
+      this->histred_.Allreduce(&hist, 1);
+      if (hist.sum_grad < hist.sum_hess) {
+        temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
+              depth + 1, 0.0, (*timestamp)++));
+      } else {
+        temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
+              depth + 1, 0.0, (*timestamp)++));
+      }
     } else {
-      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
-            depth + 1, 0.0, (*timestamp)++));
+      if (row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
+        temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
+              depth + 1, 0.0, (*timestamp)++));
+      } else {
+        temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
+              depth + 1, 0.0, (*timestamp)++));
+      }
     }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
@@ -589,7 +603,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
 
   // 3. Merge grad stats for each node
   //    Sync histograms in case of distributed computation
-  SyncHistograms(p_tree, nodes, hist_buffers, hist_is_init, grad_stats);
+  SyncHistograms(p_tree, nodes, hist_buffers, hist_is_init, grad_stats, gmat);
 
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::BUILD_HIST);
 }
@@ -599,28 +613,46 @@ void QuantileHistMaker::Builder::SyncHistograms(
     const std::vector<ExpandEntry>& nodes,
     std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
     std::vector<std::vector<uint8_t>>* hist_is_init,
-    const std::vector<std::vector<common::GradStatHist>>& grad_stats) {
+    const std::vector<std::vector<common::GradStatHist>>& grad_stats,
+    const GHistIndexMatrix &gmat) {
   if (rabit::IsDistributed()) {
     const int size = nodes.size();
-    #pragma omp parallel for  // TODO(egorsmir): replace to n_features * nodes.size()
-    for (int i = 0; i < size; ++i) {
-      const int32_t nid = nodes[i].nid;
+    const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
+    const size_t n_features = cut_ptr.size() - 1;
+
+    #pragma omp parallel for
+    for (int i = 0; i < size * n_features; ++i) {
+      const size_t node = i / n_features;
+      const size_t fid  = i % n_features;
+      const int32_t nid = nodes[node].nid;
       common::GradStatHist::GradType* hist_data =
           reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
 
-      ReduceHistograms(hist_data, nullptr, nullptr, 0,  hist_builder_.GetNumBins() * 2, i,
+      ReduceHistograms(hist_data, nullptr, nullptr, cut_ptr[fid] * 2,  cut_ptr[fid+ 1 ] * 2, node,
           *hist_is_init, *hist_buffers);
     }
 
+    // TODO(egorsmir): potential hotspot in case of many computation nodes
     for (auto elem : nodes) {
       this->histred_.Allreduce(hist_[elem.nid].data(), hist_builder_.GetNumBins());
     }
 
-    // TODO(egorsmir): add parallel for
-    for (auto elem : nodes) {
-      if (elem.sibling_nid > -1) {
-        SubtractionTrick(hist_[elem.sibling_nid], hist_[elem.nid],
-                       hist_[(*p_tree)[elem.sibling_nid].Parent()]);
+    #pragma omp parallel for
+    for (int i = 0; i < size * n_features; ++i) {
+      const size_t node = i / n_features;
+      const size_t fid  = i % n_features;
+      const int32_t nid = nodes[node].nid;
+      const int32_t sibling_nid = nodes[node].sibling_nid;
+      const int32_t parent_nid = (*p_tree)[sibling_nid].Parent();
+
+      if (sibling_nid > -1) {
+        common::GradStatHist* p_self    = hist_[sibling_nid].data() + cut_ptr[fid];
+        common::GradStatHist* p_sibling = hist_[nid].data() + cut_ptr[fid];
+        common::GradStatHist* p_parent  = hist_[parent_nid].data() + cut_ptr[fid];
+
+        for (size_t bin_id = 0; bin_id < cut_ptr[fid+1] - cut_ptr[fid]; bin_id++) {
+           p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
+        }
       }
     }
   }

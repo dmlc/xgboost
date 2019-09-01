@@ -249,7 +249,8 @@ class QuantileHistMaker: public TreeUpdater {
         const std::vector<ExpandEntry>& nodes,
         std::vector<std::vector<common::GradStatHist::GradType*>>* hist_buffers,
         std::vector<std::vector<uint8_t>>* hist_is_init,
-        const std::vector<std::vector<common::GradStatHist>>& grad_stats);
+        const std::vector<std::vector<common::GradStatHist>>& grad_stats,
+        const GHistIndexMatrix &gmat);
 
      void ExpandWithDepthWise(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
