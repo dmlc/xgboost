@@ -65,7 +65,11 @@ class GBLinear : public GradientBooster {
     updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
+    if (param_.updater == "gpu_coord_descent") {
+      this->AssertGPUSupport();
+    }
   }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }

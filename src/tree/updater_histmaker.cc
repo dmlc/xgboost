@@ -635,7 +635,7 @@ class CQHistMaker: public HistMaker {
 class GlobalProposalHistMaker: public CQHistMaker {
  public:
   char const* Name() const override {
-    return "grow_global_histmaker";
+    return "grow_histmaker";
   }
 
  protected:
@@ -738,12 +738,6 @@ XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
 .describe("Tree constructor that uses approximate histogram construction.")
 .set_body([]() {
     return new CQHistMaker();
-  });
-
-XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_global_histmaker")
-.describe("Tree constructor that uses approximate global proposal of histogram construction.")
-.set_body([]() {
-    return new GlobalProposalHistMaker();
   });
 
 XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
