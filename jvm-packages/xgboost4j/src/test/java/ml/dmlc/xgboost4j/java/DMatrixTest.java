@@ -15,6 +15,7 @@
  */
 package ml.dmlc.xgboost4j.java;
 
+import java.io.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -59,7 +60,8 @@ public class DMatrixTest {
   @Test
   public void testCreateFromFile() throws XGBoostError {
     //create DMatrix from file
-    DMatrix dmat = new DMatrix(getClass().getResource("/agaricus.txt.test").getFile());
+    String filePath = writeResourceIntoTempFile("/agaricus.txt.test");
+    DMatrix dmat = new DMatrix(filePath);
     //get label
     float[] labels = dmat.getLabel();
     //check length
@@ -321,6 +323,29 @@ public class DMatrixTest {
       }
       Rabit.shutdown();
     }
+  }
+
+  private String writeResourceIntoTempFile(String resource) {
+    InputStream input = getClass().getResourceAsStream(resource);
+    if (input == null) {
+      throw new IllegalArgumentException("Resource " + resource + " does not exist.");
+    }
+    File tmp;
+    try {
+      tmp = File.createTempFile("junit", ".test");
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to write to temp file.", e);
+    }
+    byte[] buff = new byte[1024];
+    try (FileOutputStream output = new FileOutputStream(tmp)) {
+      int n;
+      while ((n = input.read(buff)) > 0) {
+        output.write(buff, 0, n);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to write to temp file.", e);
+    }
+    return tmp.getAbsolutePath();
   }
 
 }
