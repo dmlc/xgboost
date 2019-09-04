@@ -40,8 +40,11 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
     if (d_position_in[idx] == left_nidx) {
       scatter_address = ex_scan_result;
     } else {
+      // current number of rows belong to right node + total number of rows belong to left
+      // node
       scatter_address = (idx - ex_scan_result) + *d_left_count;
     }
+    // copy the node id to output
     d_position_out[scatter_address] = d_position_in[idx];
     d_ridx_out[scatter_address] = d_ridx_in[idx];
   };  // NOLINT
