@@ -23,7 +23,7 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
   // json.
   Json j_statistic { Object() };
   j_statistic["rank"] = Integer(rank);
-  j_statistic["statistic"] = { Object() };
+  j_statistic["statistic"] = Object();
 
   auto& statistic = j_statistic["statistic"];
   for (auto const& kv : statistics_map) {
