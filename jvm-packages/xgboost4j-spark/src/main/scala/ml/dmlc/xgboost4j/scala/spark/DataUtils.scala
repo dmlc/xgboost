@@ -107,7 +107,7 @@ object DataUtils extends Serializable {
       case sparseVector: SparseVector =>
         featureValueOfSparseVector(rowHashCode, sparseVector)
     }
-    (rowHashCode.toLong + featureValue).toInt % numPartitions
+    math.abs((rowHashCode.toLong + featureValue).toString.hashCode % numPartitions)
   }
 
   private def attachPartitionKey(

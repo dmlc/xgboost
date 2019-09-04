@@ -397,7 +397,7 @@ object XGBoost extends Serializable {
         }
     }
   }
-  
+
   private def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
       xgbExecutionParams: XGBoostExecutionParams,
