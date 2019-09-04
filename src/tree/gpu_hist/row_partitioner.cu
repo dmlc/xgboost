@@ -19,7 +19,9 @@ struct IndicateLeftTransform {
     return x == left_nidx ? 1 : 0;
   }
 };
-
+/*
+ * position: Position of rows belonged to current split node.
+ */
 void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
                                   common::Span<TreePositionT> position_out,
                                   common::Span<RowIndexT> ridx,
@@ -32,6 +34,8 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
   auto d_ridx_out = ridx_out.data();
   auto d_ridx_in = ridx.data();
   auto write_results = [=] __device__(size_t idx, int ex_scan_result) {
+    // the ex_scan_result represents how many rows have been assigned to left node so far
+    // during scan.
     int scatter_address;
     if (d_position_in[idx] == left_nidx) {
       scatter_address = ex_scan_result;
@@ -42,12 +46,15 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
     d_ridx_out[scatter_address] = d_ridx_in[idx];
   };  // NOLINT
 
-  IndicateLeftTransform conversion_op(left_nidx);
+  IndicateLeftTransform is_left(left_nidx);
+  // an iterator that given a old position returns whether it belongs to left or right
+  // node.
   cub::TransformInputIterator<TreePositionT, IndicateLeftTransform,
                               TreePositionT*>
-      in_itr(d_position_in, conversion_op);
+      in_itr(d_position_in, is_left);
   dh::DiscardLambdaItr<decltype(write_results)> out_itr(write_results);
   size_t temp_storage_bytes = 0;
+  // position is of the same size with current split node's row segment
   cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, in_itr, out_itr,
                                 position.size(), stream);
   dh::caching_device_vector<uint8_t> temp_storage(temp_storage_bytes);
@@ -125,11 +132,15 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
                                          int64_t* d_left_count,
                                          cudaStream_t stream) {
   SortPosition(
+      // position_in
       common::Span<TreePositionT>(position.Current() + segment.begin,
                                   segment.Size()),
+      // position_out
       common::Span<TreePositionT>(position.other() + segment.begin,
                                   segment.Size()),
+      // row index in
       common::Span<RowIndexT>(ridx.Current() + segment.begin, segment.Size()),
+      // row index out
       common::Span<RowIndexT>(ridx.other() + segment.begin, segment.Size()),
       left_nidx, right_nidx, d_left_count, stream);
   // Copy back key/value

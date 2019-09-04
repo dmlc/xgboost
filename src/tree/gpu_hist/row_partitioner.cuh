@@ -30,7 +30,7 @@ __forceinline__ __device__ void AtomicIncrement(int64_t* d_count, bool increment
  * partition training rows into different leaf nodes. */
 class RowPartitioner {
  public:
-  using TreePositionT = int;
+  using TreePositionT = int32_t;
   using RowIndexT = bst_uint;
   struct Segment;
 
@@ -95,16 +95,19 @@ class RowPartitioner {
   void UpdatePosition(TreePositionT nidx, TreePositionT left_nidx,
                       TreePositionT right_nidx, UpdatePositionOpT op) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    Segment segment = ridx_segments.at(nidx);
+    Segment segment = ridx_segments.at(nidx);  // rows belongs to node nidx
     auto d_ridx = ridx.CurrentSpan();
     auto d_position = position.CurrentSpan();
     if (left_counts.size() <= nidx) {
       left_counts.resize((nidx * 2) + 1);
       thrust::fill(left_counts.begin(), left_counts.end(), 0);
     }
+    // Now we divide the row segment into left and right node.
+
     int64_t* d_left_count = left_counts.data().get() + nidx;
     // Launch 1 thread for each row
     dh::LaunchN<1, 128>(device_idx, segment.Size(), [=] __device__(size_t idx) {
+      // LaunchN starts from zero, so we restore the row index by adding segment.begin
       idx += segment.begin;
       RowIndexT ridx = d_ridx[idx];
       // Missing value

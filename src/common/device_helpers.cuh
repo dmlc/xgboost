@@ -1144,7 +1144,7 @@ public:
 };
 
 /**
- * \brief Thrust compatible iterator type - discards algorithm output and launches device lambda
+ * \brief Thrust compatible iterator type - discard algorithm output and launches device lambda
  *        with the index of the output and the algorithm output as arguments.
  *
  * \author  Rory
