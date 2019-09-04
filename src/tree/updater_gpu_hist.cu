@@ -837,10 +837,10 @@ struct DeviceShard {
               d_matrix.GetElement(ridx, split_node.SplitIndex());
           // Missing value
           int new_position = 0;
-          if (isnan(element)) {
+          if (isnan(cut_value)) {
             new_position = split_node.DefaultChild();
           } else {
-            if (element <= split_node.SplitCond()) {
+            if (cut_value <= split_node.SplitCond()) {
               new_position = split_node.LeftChild();
             } else {
               new_position = split_node.RightChild();
