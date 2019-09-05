@@ -134,7 +134,7 @@ class CPUPredictor : public Predictor {
     } else {
       if (!base_margin.empty()) {
         std::ostringstream oss;
-        oss << "Warning: Ignoring the base margin, since it has incorrect length. "
+        oss << "Ignoring the base margin, since it has incorrect length. "
             << "The base margin must be an array of length ";
         if (model.param.num_output_group > 1) {
           oss << "[num_class] * [number of data points], i.e. "
@@ -145,7 +145,7 @@ class CPUPredictor : public Predictor {
         }
         oss << "Instead, all data points will use "
             << "base_score = " << model.base_margin;
-        LOG(INFO) << oss.str();
+        LOG(WARNING) << oss.str();
       }
       std::fill(out_preds_h.begin(), out_preds_h.end(), model.base_margin);
     }
@@ -159,6 +159,7 @@ class CPUPredictor : public Predictor {
       return;
     }
 
+    LOG(DEBUG) << "Calling CPU Predictor";
     this->InitOutPredictions(dmat->Info(), out_preds, model);
 
     ntree_limit *= model.param.num_output_group;

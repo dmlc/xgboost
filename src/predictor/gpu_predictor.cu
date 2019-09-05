@@ -321,6 +321,8 @@ class GPUPredictor : public xgboost::Predictor {
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
       return;
     }
+
+    LOG(DEBUG) << "Calling GPU Predictor";
     this->InitOutPredictions(dmat->Info(), out_preds, model);
 
     int tree_end = ntree_limit * model.param.num_output_group;

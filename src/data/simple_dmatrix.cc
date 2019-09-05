@@ -49,6 +49,7 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
 };
 
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
+  // since csr is the default data structure so `source_` is always available.
   auto cast = dynamic_cast<SimpleCSRSource*>(source_.get());
   auto begin_iter = BatchIterator<SparsePage>(
       new SimpleBatchIteratorImpl<SparsePage>(&(cast->page_)));
