@@ -242,9 +242,8 @@ class GBTree : public GradientBooster {
                      int bst_group,
                      std::vector<std::unique_ptr<RegTree> >* ret);
 
-  std::unique_ptr<Predictor> const& GetPredictor(
-      HostDeviceVector<float> const* out_pred=nullptr,
-      DMatrix* f_dmat=nullptr) const {
+  std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
+                                                 DMatrix* f_dmat = nullptr) const {
     CHECK(configured_);
     LOG(DEBUG) << "model_.param.num_trees: " << model_.param.num_trees;
     // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
