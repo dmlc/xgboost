@@ -142,11 +142,13 @@ DMLC_REGISTER_PARAMETER(GenericParameter);
 class LearnerImpl : public Learner {
  public:
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
-      : configured_{false}, cache_(std::move(cache)) {}
+      : configured_{false}, cache_(std::move(cache)) {
+    monitor_.Init("Learner");
+  }
   // Configuration before data is known.
   void Configure() override {
     if (configured_) { return; }
-    monitor_.Init("Learner");
+
     monitor_.Start("Configure");
     auto old_tparam = tparam_;
     Args args = {cfg_.cbegin(), cfg_.cend()};
