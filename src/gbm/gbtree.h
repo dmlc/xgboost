@@ -245,7 +245,6 @@ class GBTree : public GradientBooster {
   std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
                                                  DMatrix* f_dmat = nullptr) const {
     CHECK(configured_);
-    LOG(DEBUG) << "model_.param.num_trees: " << model_.param.num_trees;
     // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
     // Predictor is not used for training dataset.  But when XGBoost performs continue
     // training with an existing model, the prediction cache is not availbale and number
