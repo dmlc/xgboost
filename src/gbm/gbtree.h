@@ -244,14 +244,19 @@ class GBTree : public GradientBooster {
 
   std::unique_ptr<Predictor> const& GetPredictor(
       HostDeviceVector<float> const* out_pred=nullptr,
-      DMatrix* f_dmat = nullptr) const {
+      DMatrix* f_dmat=nullptr) const {
     CHECK(configured_);
+    LOG(DEBUG) << "model_.param.num_trees: " << model_.param.num_trees;
     // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
     // Predictor is not used for training dataset.  But when XGBoost performs continue
     // training with an existing model, the prediction cache is not availbale and number
-    // of tree doesn't equal zero, the whole training dataset got copied into GPU.  This
-    // condition tries to avoid such copy by calling CPU Predictor.
+    // of tree doesn't equal zero, the whole training dataset got copied into GPU for
+    // precise prediction.  This condition tries to avoid such copy by calling CPU
+    // Predictor.
     if ((out_pred && out_pred->Size() == 0) &&
+        (model_.param.num_trees != 0) &&
+        // FIXME(trivialfis): Implement a better method for testing whether data is on
+        // device after DMatrix refactoring is done.
         (f_dmat && !((*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead()))) {
       return cpu_predictor_;
     }

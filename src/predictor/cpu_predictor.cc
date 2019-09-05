@@ -159,7 +159,6 @@ class CPUPredictor : public Predictor {
       return;
     }
 
-    LOG(DEBUG) << "Calling CPU Predictor";
     this->InitOutPredictions(dmat->Info(), out_preds, model);
 
     ntree_limit *= model.param.num_output_group;
