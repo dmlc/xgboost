@@ -303,8 +303,8 @@ void DenseCuts::Init
   }
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
-  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size(),
-    nullptr, nullptr, true);
+  // TODO(chenqin): after remove is_bootstrap, hist break rabit assumeption
+  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
   p_cuts_->min_vals_.resize(sketchs.size());
 
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {

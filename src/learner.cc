@@ -615,7 +615,7 @@ class LearnerImpl : public Learner {
       num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
-    rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr, true);
+    rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;
     }

@@ -230,7 +230,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
   rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1, nullptr,
-    nullptr, true, fname.c_str());
+    nullptr, fname.c_str());
   // backward compatiblity code.
   if (!load_row_split) {
     MetaInfo& info = dmat->Info();
