@@ -339,7 +339,7 @@ class LearnerImpl : public Learner {
       }
     }
     {
-      std::vector<std::string> saved_params{"predictor", "n_gpus", "gpu_id"};
+      std::vector<std::string> saved_params{"predictor", "gpu_id"};
       // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
       if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
         (cfg_.find("rabit_bootstrap_cache"))->second != "0") {
