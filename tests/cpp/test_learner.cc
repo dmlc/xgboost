@@ -241,7 +241,6 @@ TEST(Learner, GPUConfiguration) {
 
   delete pp_dmat;
 }
-
 #endif  // XGBOOST_USE_CUDA
 
 }  // namespace xgboost
