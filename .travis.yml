@@ -1,14 +1,11 @@
 # disable sudo for container build.
 sudo: required
 
-# Enabling test on Linux and OS X
+# Enabling test OS X
 os:
-  - linux
   - osx
 
 osx_image: xcode9.3
-
-dist: xenial
 
 # Use Build Matrix to do lint and build seperately
 env:
