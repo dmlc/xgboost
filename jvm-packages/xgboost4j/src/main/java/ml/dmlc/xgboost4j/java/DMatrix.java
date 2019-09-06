@@ -211,7 +211,7 @@ public class DMatrix {
    * @return group size as array
    */
   public int[] getGroup() throws XGBoostError {
-    getIntInfo("group_ptr");
+    return getIntInfo("group_ptr");
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {
