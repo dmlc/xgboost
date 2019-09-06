@@ -208,6 +208,7 @@ public class DMatrix {
    * Get group sizes of DMatrix
    *
    * @throws XGBoostError native error
+   * @return group size as array
    */
   public int[] getGroup() throws XGBoostError {
     getIntInfo("group_ptr");
