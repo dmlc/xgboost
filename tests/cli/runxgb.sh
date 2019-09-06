@@ -10,4 +10,4 @@ submit="python3 ../../dmlc-core/tracker/dmlc-submit"
 # instrument worker failure with mock=xxxx
 # check if host recovered from expectected iteration
 echo "====== 1. Fault recovery distributed test ======"
-$submit --cluster=local --num-workers=10 --local-num-attempt=10 ../../xgboost $1 mock=0,10,1,0 mock=1,11,1,0 mock=1,11,1,1 mock=0,11,1,0 mock=4,11,1,0 mock=9,11,1,0 mock=8,11,2,0 mock=4,11,3,0 rabit_bootstrap_cache=1
+$submit --cluster=local --num-workers=10 --local-num-attempt=10 ../../xgboost $1 mock=0,10,1,0 mock=1,11,1,0 mock=1,11,1,1 mock=0,11,1,0 mock=4,11,1,0 mock=9,11,1,0 mock=8,11,2,0 mock=4,11,3,0 rabit_bootstrap_cache=1 rabit_debug=1

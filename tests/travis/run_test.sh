@@ -56,12 +56,10 @@ if [ ${TASK} == "xgb_recovery" ]; then
     set -e
     mkdir build
     cd build
-    cmake -DRABIT_MOCK=ON -DUSE_OPENMP=OFF ..
+    cmake -DRABIT_MOCK=ON ..
     make
     cd ..
     rm -rf build
     cd tests/cli
     ./runxgb.sh approx.conf.in
-    # rm *.model
-    # ./runxgb.sh hist.conf.in
 fi 

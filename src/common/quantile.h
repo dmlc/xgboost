@@ -651,6 +651,7 @@ class QuantileSketchTemplate {
      * \param src the source summary
      * \param max_nbyte maximum number of byte allowed in here
      */
+    #pragma omp declare simd uniform(src, max_nbyte)
     inline void Reduce(const Summary &src, size_t max_nbyte) {
       this->Reserve((max_nbyte - sizeof(this->size)) / sizeof(Entry));
       SummaryContainer temp;
