@@ -29,6 +29,8 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
                                   TreePositionT left_nidx,
                                   TreePositionT right_nidx,
                                   int64_t* d_left_count, cudaStream_t stream) {
+  // radix sort over 1 bit, see:
+  // https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html
   auto d_position_out = position_out.data();
   auto d_position_in = position.data();
   auto d_ridx_out = ridx_out.data();
