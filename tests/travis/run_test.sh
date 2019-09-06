@@ -56,7 +56,7 @@ if [ ${TASK} == "xgb_recovery" ]; then
     set -e
     mkdir build
     cd build
-    cmake -DRABIT_MOCK=ON ..
+    cmake -DRABIT_MOCK=ON -DUSE_OPENMP=OFF ..
     make
     cd ..
     rm -rf build
