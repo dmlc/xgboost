@@ -210,7 +210,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public int[] getGroup() throws XGBoostError {
-    getIntInfo("group")
+    getIntInfo("group_ptr")
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {
