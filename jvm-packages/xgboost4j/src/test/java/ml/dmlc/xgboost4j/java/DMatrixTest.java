@@ -223,4 +223,33 @@ public class DMatrixTest {
     TestCase.assertTrue(dmat0.rowNum() == 10);
     TestCase.assertTrue(dmat0.getLabel().length == 10);
   }
+
+  @Test
+  public void testSetAndGetGroup() throws XGBoostError {
+    //create DMatrix from 10*5 dense matrix
+    int nrow = 10;
+    int ncol = 5;
+    float[] data0 = new float[nrow * ncol];
+    //put random nums
+    Random random = new Random();
+    for (int i = 0; i < nrow * ncol; i++) {
+      data0[i] = random.nextFloat();
+    }
+
+    //create label
+    float[] label0 = new float[nrow];
+    for (int i = 0; i < nrow; i++) {
+      label0[i] = random.nextFloat();
+    }
+
+    //create two groups
+    int[] groups = new int[]{5, 5};
+
+    DMatrix dmat0 = new DMatrix(data0, nrow, ncol, -0.1f);
+    dmat0.setLabel(label0);
+    dmat0.setGroup(groups);
+
+    //check
+    TestCase.assertTrue(Arrays.equals(new int[]{0, 5, 10}, dmat0.getGroup()));
+  }
 }
