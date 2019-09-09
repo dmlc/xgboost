@@ -33,6 +33,8 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
             "mode.");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
+    DMLC_DECLARE_ALIAS(nthread, n_jobs);
+
     DMLC_DECLARE_FIELD(gpu_id)
         .set_default(-1)
         .set_lower_bound(-1)
