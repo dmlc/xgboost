@@ -26,33 +26,15 @@
 #ifndef RABIT_API_CALLER_SIGNATURE
 #define RABIT_API_CALLER_SIGNATURE
 
-#ifdef __has_builtin
-
-#if __has_builtin(__builtin_FILE)
+#if (defined(__GNUC__) && !defined(__clang__))
 #define _FILE  __builtin_FILE()
-#else
-#define _FILE  "N/A"
-#endif  // __has_builtin(__builtin_FILE)
-
-#if __has_builtin(__builtin_LINE)
 #define _LINE  __builtin_LINE()
-#else
-#define _LINE  -1
-#endif  // __has_builtin(__builtin_LINE)
-
-#if __has_builtin(__builtin_FUNCTION)
 #define _CALLER  __builtin_FUNCTION()
 #else
-#define _CALLER  "N/A"
-#endif  // __has_builtin(__builtin_FUNCTION)
-
-#else
-
 #define _FILE  "N/A"
 #define _LINE  -1
 #define _CALLER  "N/A"
-
-#endif  // __has_builtin
+#endif  // (defined(__GNUC__) && !defined(__clang__))
 
 #endif  // RABIT_API_CALLER_SIGNATURE
 
@@ -153,13 +135,11 @@ inline void TrackerPrintf(const char *fmt, ...);
  * \param sendrecv_data the pointer to the send/receive buffer,
  * \param size the data size
  * \param root the process root
- * \param is_bootstrap if this allreduce is needed to bootstrap failed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
  */
 inline void Broadcast(void *sendrecv_data, size_t size, int root,
-                      bool is_bootstrap = false,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -169,7 +149,6 @@ inline void Broadcast(void *sendrecv_data, size_t size, int root,
  * \param sendrecv_data the pointer to send/receive vector,
  *        for the receiver, the vector does not need to be pre-allocated
  * \param root the process root
- * \param is_bootstrap if this allreduce is needed to bootstrap failed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
@@ -178,7 +157,6 @@ inline void Broadcast(void *sendrecv_data, size_t size, int root,
  */
 template<typename DType>
 inline void Broadcast(std::vector<DType> *sendrecv_data, int root,
-                      bool is_bootstrap = false,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -186,14 +164,12 @@ inline void Broadcast(std::vector<DType> *sendrecv_data, int root,
  * \brief broadcasts a std::string to every node from the root
  * \param sendrecv_data the pointer to the send/receive buffer,
  *        for the receiver, the vector does not need to be pre-allocated
- * \param is_bootstrap if this allreduce is needed to bootstrap failed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
  * \param root the process root
  */
 inline void Broadcast(std::string *sendrecv_data, int root,
-                      bool is_bootstrap = false,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -215,7 +191,6 @@ inline void Broadcast(std::string *sendrecv_data, int root,
  *                    will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to pass into the lazy preprocessing function
- * \param is_bootstrap if this allreduce is needed to bootstrap filed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
@@ -226,7 +201,6 @@ template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       void (*prepare_fun)(void *) = NULL,
                       void *prepare_arg = NULL,
-                      bool is_bootstrap = false,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -254,7 +228,6 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  * \param prepare_fun  Lazy lambda preprocessing function, prepare_fun() will be invoked
  *                     by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
- * \param is_bootstrap if this allreduce is needed to bootstrap failed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
@@ -264,7 +237,6 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       std::function<void()> prepare_fun,
-                      bool is_bootstrap = false,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -363,7 +335,6 @@ class Reducer {
    *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
@@ -371,7 +342,6 @@ class Reducer {
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         void (*prepare_fun)(void *) = NULL,
                         void *prepare_arg = NULL,
-                        bool is_bootstrap = false,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);
@@ -381,14 +351,12 @@ class Reducer {
    * \param sendrecvbuf pointer to the array of objects to be reduced
    * \param count number of elements to be reduced
    * \param prepare_fun lambda function executed to prepare the data, if necessary
-   * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         std::function<void()> prepare_fun,
-                        bool is_bootstrap = false,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);
@@ -422,7 +390,6 @@ class SerializeReducer {
    *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then the prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param is_bootstrap if this allreduce is needed to bootstrap failed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
@@ -431,7 +398,6 @@ class SerializeReducer {
                         size_t max_nbyte, size_t count,
                         void (*prepare_fun)(void *) = NULL,
                         void *prepare_arg = NULL,
-                        bool is_bootstrap = false,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);
@@ -444,7 +410,6 @@ class SerializeReducer {
    *        this includes budget limit for intermediate and final result
    * \param count number of elements to be reduced
    * \param prepare_fun lambda function executed to prepare the data, if necessary
-   * \param is_bootstrap if this allreduce is needed to bootstrap failed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
@@ -452,7 +417,6 @@ class SerializeReducer {
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
                         std::function<void()> prepare_fun,
-                        bool is_bootstrap = false,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);

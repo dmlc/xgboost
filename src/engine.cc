@@ -93,12 +93,11 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg,
-                bool is_bootstrap,
                 const char* _file,
                 const int _line,
                 const char* _caller) {
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun,
-    prepare_arg, is_bootstrap, _file, _line, _caller);
+    prepare_arg, _file, _line, _caller);
 }
 
 // code for reduce handle
@@ -121,14 +120,13 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
                              void *prepare_arg,
-                             bool is_bootstrap,
                              const char* _file,
                              const int _line,
                              const char* _caller) {
   utils::Assert(redfunc_ != NULL, "must intialize handle to call AllReduce");
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
                          redfunc_, prepare_fun, prepare_arg,
-                         is_bootstrap, _file, _line, _caller);
+                         _file, _line, _caller);
 }
 }  // namespace engine
 }  // namespace rabit

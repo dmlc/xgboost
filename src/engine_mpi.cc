@@ -33,7 +33,6 @@ class MPIEngine : public IEngine {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
                          void *prepare_arg,
-                         bool is_bootstrap,
                          const char* _file,
                          const int _line,
                          const char* _caller) {
@@ -41,7 +40,7 @@ class MPIEngine : public IEngine {
                  "use Allreduce_ instead");
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root,
-    bool is_bootstrap, const char* _file, const int _line,
+    const char* _file, const int _line,
     const char* _caller) {
     MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
   }
@@ -160,7 +159,6 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg,
-                bool is_bootstrap,
                 const char* _file,
                 const int _line,
                 const char* _caller) {
@@ -212,7 +210,6 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
                              void *prepare_arg,
-                             bool is_bootstrap,
                              const char* _file,
                              const int _line,
                              const char* _caller) {

@@ -22,6 +22,10 @@ All these features comes from the facts about small rabbit:)
   - Programs persist over all the iterations, unless they fail and recover.
 * Reliable: rabit dig burrows to avoid disasters
   - Rabit programs can recover the model and results using synchronous function calls.
+  - Rabit programs can set rabit_boostrap_cache=1 to support allreduce/broadcast operations before loadcheckpoint
+  `
+    rabit::Init(); -> rabit::AllReduce(); -> rabit::loadCheckpoint(); -> for () { rabit::AllReduce(); rabit::Checkpoint();} -> rabit::Shutdown();
+  `
 
 ## Use Rabit
 * Type make in the root folder will compile the rabit library in lib folder

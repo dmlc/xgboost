@@ -30,6 +30,7 @@ AllreduceRobust::AllreduceRobust(void) {
   global_lazycheck = NULL;
   use_local_model = -1;
   recover_counter = 0;
+  checkpoint_loaded = false;
   env_vars.push_back("rabit_global_replica");
   env_vars.push_back("rabit_local_replica");
 }
@@ -38,6 +39,7 @@ bool AllreduceRobust::Init(int argc, char* argv[]) {
     // chenqin: alert user opted in experimental feature.
     if (rabit_bootstrap_cache) utils::HandleLogInfo(
       "[EXPERIMENTAL] rabit bootstrap cache has been enabled\n");
+    checkpoint_loaded = false;
     if (num_global_replica == 0) {
       result_buffer_round = -1;
     } else {
@@ -157,7 +159,6 @@ int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
  *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to passed into the lazy preprocessing function
- * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
@@ -168,7 +169,6 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 ReduceFunction reducer,
                                 PreprocFunction prepare_fun,
                                 void *prepare_arg,
-                                bool is_bootstrap,
                                 const char* _file,
                                 const int _line,
                                 const char* _caller) {
@@ -183,7 +183,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
     + std::string(_caller) + "#" +std::to_string(type_nbytes) + "x" + std::to_string(count);
 
   // try fetch bootstrap allreduce results from cache
-  if (is_bootstrap && rabit_bootstrap_cache &&
+  if (!checkpoint_loaded && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count, true) != -1) return;
 
   double start = utils::GetTime();
@@ -217,7 +217,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
   }
 
   // if bootstrap allreduce, store and fetch through cache
-  if (!is_bootstrap || !rabit_bootstrap_cache) {
+  if (checkpoint_loaded || !rabit_bootstrap_cache) {
     resbuf.PushTemp(seq_counter, type_nbytes, count);
     seq_counter += 1;
   } else {
@@ -229,13 +229,11 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
  * \param sendrecvbuf_ buffer for both sending and recving data
  * \param size the size of the data to be broadcasted
  * \param root the root worker id to broadcast the data
- * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
  */
 void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-                                bool is_bootstrap,
                                 const char* _file,
                                 const int _line,
                                 const char* _caller) {
@@ -245,7 +243,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
   std::string key = std::string(_file) + "::" + std::to_string(_line) + "::"
     + std::string(_caller) + "#" +std::to_string(total_size) + "@" + std::to_string(root);
   // try fetch bootstrap allreduce results from cache
-  if (is_bootstrap && rabit_bootstrap_cache &&
+  if (!checkpoint_loaded && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf_, total_size, 1, true) != -1) return;
 
   double start = utils::GetTime();
@@ -277,7 +275,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
       rank, key.c_str(), root, version_number, seq_counter, delta);
   }
   // if bootstrap broadcast, store and fetch through cache
-  if (!is_bootstrap || !rabit_bootstrap_cache) {
+  if (checkpoint_loaded || !rabit_bootstrap_cache) {
     resbuf.PushTemp(seq_counter, 1, total_size);
     seq_counter += 1;
   } else {
@@ -308,6 +306,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
  */
 int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
                                     Serializable *local_model) {
+  checkpoint_loaded = true;
   // skip action in single node
   if (world_size == 1) return 0;
   this->LocalModelCheck(local_model != NULL);

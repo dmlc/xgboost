@@ -62,7 +62,6 @@ class AllreduceRobust : public AllreduceBase {
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
    * \param prepare_arg argument used to passed into the lazy preprocessing function
-   * \param is_bootstrap  if this allreduce is needed to bootstrap filed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
@@ -73,7 +72,6 @@ class AllreduceRobust : public AllreduceBase {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun = NULL,
                          void *prepare_arg = NULL,
-                         bool is_bootstrap = false,
                          const char* _file = _FILE,
                          const int _line = _LINE,
                          const char* _caller = _CALLER);
@@ -82,13 +80,11 @@ class AllreduceRobust : public AllreduceBase {
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
-   * \param is_bootstrap  if this broadcast is needed to bootstrap filed node
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-                         bool is_bootstrap = false,
                          const char* _file = _FILE,
                          const int _line = _LINE,
                          const char* _caller = _CALLER);
@@ -643,6 +639,8 @@ o   *  the input state must exactly one saved state(local state of current node)
   std::string local_chkpt[2];
   // version of local checkpoint can be 1 or 0
   int local_chkpt_version;
+  // if checkpoint were loaded, used to distinguish results boostrap cache from seqno cache
+  bool checkpoint_loaded;
 };
 }  // namespace engine
 }  // namespace rabit
