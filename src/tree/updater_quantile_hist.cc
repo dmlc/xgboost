@@ -628,7 +628,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
       common::GradStatHist::GradType* hist_data =
           reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
 
-      ReduceHistograms(hist_data, nullptr, nullptr, cut_ptr[fid] * 2,  cut_ptr[fid+ 1 ] * 2, node,
+      ReduceHistograms(hist_data, nullptr, nullptr, cut_ptr[fid] * 2,  cut_ptr[fid + 1] * 2, node,
           *hist_is_init, *hist_buffers);
     }
 
@@ -1110,6 +1110,11 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
   // partial results
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
+
+  // result of rabit::IsDistributed() inside parallel loop is false always
+  // so compute it once before parallel loop
+  const bool isDistr = rabit::IsDistributed();
+
   // parallel enumeration
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < tasks.size(); ++i) {
@@ -1129,7 +1134,7 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
         reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
 
     // reduce needed part of a hist here to have it in cache before enumeration
-    if (!rabit::IsDistributed()) {
+    if (!isDistr) {
       const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
       const size_t ibegin = 2 * cut_ptr[fid];
       const size_t iend = 2 * cut_ptr[fid + 1];
