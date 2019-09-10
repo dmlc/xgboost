@@ -92,97 +92,6 @@ struct ELLPackMatrix {
   }
 };
 
-/**
- * \struct  DeviceHistogram
- *
- * \summary Data storage for node histograms on device. Automatically expands.
- *
- * \tparam GradientSumT      histogram entry type.
- * \tparam kStopGrowingSize  Do not grow beyond this size
- *
- * \author  Rory
- * \date    28/07/2018
- */
-template <typename GradientSumT, size_t kStopGrowingSize = 1 << 26>
-class DeviceHistogram {
- private:
-  /*! \brief Map nidx to starting index of its histogram. */
-  std::map<int, size_t> nidx_map_;
-  dh::device_vector<typename GradientSumT::ValueT> data_;
-  int n_bins_;
-  int device_id_;
-  static constexpr size_t kNumItemsInGradientSum =
-      sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
-  static_assert(kNumItemsInGradientSum == 2,
-                "Number of items in gradient type should be 2.");
-
- public:
-  void Init(int device_id, int n_bins) {
-    this->n_bins_ = n_bins;
-    this->device_id_ = device_id;
-  }
-
-  void Reset() {
-    dh::safe_cuda(cudaMemsetAsync(
-        data_.data().get(), 0,
-        data_.size() * sizeof(typename decltype(data_)::value_type)));
-    nidx_map_.clear();
-  }
-  bool HistogramExists(int nidx) const {
-    return nidx_map_.find(nidx) != nidx_map_.cend();
-  }
-  size_t HistogramSize() const {
-    return n_bins_ * kNumItemsInGradientSum;
-  }
-
-  dh::device_vector<typename GradientSumT::ValueT>& Data() {
-    return data_;
-  }
-
-  void AllocateHistogram(int nidx) {
-    if (HistogramExists(nidx)) return;
-    // Number of items currently used in data
-    const size_t used_size = nidx_map_.size() * HistogramSize();
-    const size_t new_used_size = used_size + HistogramSize();
-    dh::safe_cuda(cudaSetDevice(device_id_));
-    if (data_.size() >= kStopGrowingSize) {
-      // Recycle histogram memory
-      if (new_used_size <= data_.size()) {
-        // no need to remove old node, just insert the new one.
-        nidx_map_[nidx] = used_size;
-        // memset histogram size in bytes
-        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + used_size, 0,
-                                      n_bins_ * sizeof(GradientSumT)));
-      } else {
-        std::pair<int, size_t> old_entry = *nidx_map_.begin();
-        nidx_map_.erase(old_entry.first);
-        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
-                                      n_bins_ * sizeof(GradientSumT)));
-        nidx_map_[nidx] = old_entry.second;
-      }
-    } else {
-      // Append new node histogram
-      nidx_map_[nidx] = used_size;
-      size_t new_required_memory = std::max(data_.size() * 2, HistogramSize());
-      if (data_.size() < new_required_memory) {
-        data_.resize(new_required_memory);
-      }
-    }
-  }
-
-  /**
-   * \summary   Return pointer to histogram memory for a given node.
-   * \param nidx    Tree node index.
-   * \return    hist pointer.
-   */
-  common::Span<GradientSumT> GetNodeHistogram(int nidx) {
-    CHECK(this->HistogramExists(nidx));
-    auto ptr = data_.data().get() + nidx_map_[nidx];
-    return common::Span<GradientSumT>(
-        reinterpret_cast<GradientSumT*>(ptr), n_bins_);
-  }
-};
-
 // Instances of this type are created while creating the histogram bins for the
 // entire dataset across multiple sparse page batches. This keeps track of the number
 // of rows to process from a batch and the position from which to process on each device.
@@ -258,51 +167,36 @@ class DeviceHistogramBuilderState {
   RowStateOnDevice device_row_state_{0};
 };
 
-class EllpackPageImpl {
- public:
+struct EllpackPageImpl {
+  ELLPackMatrix ellpack_matrix;
+  common::HistogramCuts hmat;
+  /*! \brief global index of histogram, which is stored in ELLPack format. */
+  common::Span<common::CompressedByteT> gidx_buffer;
+  /*! \brief Cut. */
+  common::Span<bst_float> gidx_fvalue_map;
+  /*! \brief row_ptr form HistogramCuts. */
+  common::Span<uint32_t> feature_segments;
+  /*! \brief minimum value for each feature. */
+  common::Span<bst_float> min_fvalue;
+
   explicit EllpackPageImpl(DMatrix* dmat);
 
-  template<typename GradientSumT>
   void Init(int device, const tree::TrainParam& param, int gpu_batch_nrows);
 
  private:
-  template<typename GradientSumT>
-  void InitCompressedData(const common::HistogramCuts& hmat,
-                          const tree::TrainParam& param,
-                          size_t row_stride,
-                          bool is_dense);
+  void InitCompressedData(size_t row_stride, bool is_dense);
 
-  template<typename GradientSumT>
-  void CreateHistIndices(
-      const SparsePage& row_batch, const common::HistogramCuts& hmat,
-      const RowStateOnDevice& device_row_state, int rows_per_batch);
+  void CreateHistIndices(const SparsePage& row_batch,
+                         const RowStateOnDevice& device_row_state);
 
   bool initialised_{false};
   int device_{-1};
   int n_bins{};
-  bool use_shared_memory_histograms {false};
 
   DMatrix* dmat_;
-  common::HistogramCuts hmat_;
   common::Monitor monitor_;
-
   dh::BulkAllocator ba;
-  ELLPackMatrix ellpack_matrix;
-
-  /*! \brief row_ptr form HistogramCuts. */
-  common::Span<uint32_t> feature_segments_;
-  /*! \brief minimum value for each feature. */
-  common::Span<bst_float> min_fvalue_;
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map_;
-  /*! \brief global index of histogram, which is stored in ELLPack format. */
-  common::Span<common::CompressedByteT> gidx_buffer_;
 };
-
-// Total number of nodes in tree, given depth
-XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
-  return (1 << (depth + 1)) - 1;
-}
 
 }  // namespace xgboost
 

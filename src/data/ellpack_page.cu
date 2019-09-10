@@ -18,86 +18,6 @@ EllpackPage::~EllpackPage() = default;
 
 EllpackPageImpl::EllpackPageImpl(DMatrix* dmat) : dmat_{dmat} {}
 
-template<typename GradientSumT>
-void EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_batch_nrows) {
-  if (initialised_) return;
-
-  device_ = device;
-  monitor_.Init("ellpack_page");
-
-  monitor_.StartCuda("Quantiles");
-  // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
-  size_t row_stride = common::DeviceSketch(device, param.max_bin, gpu_batch_nrows, dmat_, &hmat_);
-  monitor_.StopCuda("Quantiles");
-
-  const auto& info = dmat_->Info();
-  auto is_dense = info.num_nonzero_ == info.num_row_ * info.num_col_;
-
-  // Init global data for each shard
-  monitor_.StartCuda("InitCompressedData");
-  dh::safe_cuda(cudaSetDevice(device));
-  InitCompressedData<GradientSumT>(hmat_, param, row_stride, is_dense);
-  monitor_.StopCuda("InitCompressedData");
-
-  monitor_.StartCuda("BinningCompression");
-  DeviceHistogramBuilderState hist_builder_row_state(info.num_row_);
-  for (const auto& batch : dmat_->GetBatches<SparsePage>()) {
-    hist_builder_row_state.BeginBatch(batch);
-
-    dh::safe_cuda(cudaSetDevice(device_));
-    CreateHistIndices<GradientSumT>(batch,
-                                    hmat_,
-                                    hist_builder_row_state.GetRowStateOnDevice(),
-                                    gpu_batch_nrows);
-
-    hist_builder_row_state.EndBatch();
-  }
-  monitor_.StopCuda("BinningCompression");
-
-  initialised_ = true;
-}
-
-template<typename GradientSumT>
-void EllpackPageImpl::InitCompressedData(const common::HistogramCuts& hmat,
-                                         const tree::TrainParam& param,
-                                         size_t row_stride,
-                                         bool is_dense) {
-  n_bins = hmat.Ptrs().back();
-  int null_gidx_value = hmat.Ptrs().back();
-
-  int num_symbols = n_bins + 1;
-  // Required buffer size for storing data matrix in ELLPack format.
-  size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      row_stride * dmat_->Info().num_row_, num_symbols);
-
-  ba.Allocate(device_,
-              &feature_segments_, hmat.Ptrs().size(),
-              &gidx_fvalue_map_, hmat.Values().size(),
-              &min_fvalue_, hmat.MinValues().size(),
-              &gidx_buffer_, compressed_size_bytes);
-
-  dh::CopyVectorToDeviceSpan(gidx_fvalue_map_, hmat.Values());
-  dh::CopyVectorToDeviceSpan(min_fvalue_, hmat.MinValues());
-  dh::CopyVectorToDeviceSpan(feature_segments_, hmat.Ptrs());
-  thrust::fill(
-      thrust::device_pointer_cast(gidx_buffer_.data()),
-      thrust::device_pointer_cast(gidx_buffer_.data() + gidx_buffer_.size()), 0);
-
-  ellpack_matrix.Init(
-      feature_segments_, min_fvalue_,
-      gidx_fvalue_map_, row_stride,
-      common::CompressedIterator<uint32_t>(gidx_buffer_.data(), num_symbols),
-      is_dense, null_gidx_value);
-  // check if we can use shared memory for building histograms
-  // (assuming atleast we need 2 CTAs per SM to maintain decent latency
-  // hiding)
-  auto histogram_size = sizeof(GradientSumT) * hmat.Ptrs().back();
-  auto max_smem = dh::MaxSharedMemory(device_);
-  if (histogram_size <= max_smem) {
-    use_shared_memory_histograms = true;
-  }
-}
-
 // Bin each input data entry, store the bin indices in compressed form.
 template<typename std::enable_if<true,  int>::type = 0>
 __global__ void CompressBinEllpackKernel(
@@ -138,12 +58,72 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-template <typename GradientSumT>
-void EllpackPageImpl::CreateHistIndices(
-    const SparsePage &row_batch,
-    const common::HistogramCuts &hmat,
-    const RowStateOnDevice &device_row_state,
-    int rows_per_batch) {
+void EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_batch_nrows) {
+  if (initialised_) return;
+
+  device_ = device;
+  monitor_.Init("ellpack_page");
+
+  monitor_.StartCuda("Quantiles");
+  // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
+  size_t row_stride = common::DeviceSketch(device, param.max_bin, gpu_batch_nrows, dmat_, &hmat);
+  monitor_.StopCuda("Quantiles");
+
+  const auto& info = dmat_->Info();
+  auto is_dense = info.num_nonzero_ == info.num_row_ * info.num_col_;
+
+  // Init global data for each shard
+  monitor_.StartCuda("InitCompressedData");
+  dh::safe_cuda(cudaSetDevice(device));
+  InitCompressedData(row_stride, is_dense);
+  monitor_.StopCuda("InitCompressedData");
+
+  monitor_.StartCuda("BinningCompression");
+  DeviceHistogramBuilderState hist_builder_row_state(info.num_row_);
+  for (const auto& batch : dmat_->GetBatches<SparsePage>()) {
+    hist_builder_row_state.BeginBatch(batch);
+
+    dh::safe_cuda(cudaSetDevice(device_));
+    CreateHistIndices(batch, hist_builder_row_state.GetRowStateOnDevice());
+
+    hist_builder_row_state.EndBatch();
+  }
+  monitor_.StopCuda("BinningCompression");
+
+  initialised_ = true;
+}
+
+void EllpackPageImpl::InitCompressedData(size_t row_stride, bool is_dense) {
+  n_bins = hmat.Ptrs().back();
+  int null_gidx_value = hmat.Ptrs().back();
+
+  int num_symbols = n_bins + 1;
+  // Required buffer size for storing data matrix in ELLPack format.
+  size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
+      row_stride * dmat_->Info().num_row_, num_symbols);
+
+  ba.Allocate(device_,
+              &feature_segments, hmat.Ptrs().size(),
+              &gidx_fvalue_map, hmat.Values().size(),
+              &min_fvalue, hmat.MinValues().size(),
+              &gidx_buffer, compressed_size_bytes);
+
+  dh::CopyVectorToDeviceSpan(gidx_fvalue_map, hmat.Values());
+  dh::CopyVectorToDeviceSpan(min_fvalue, hmat.MinValues());
+  dh::CopyVectorToDeviceSpan(feature_segments, hmat.Ptrs());
+  thrust::fill(
+      thrust::device_pointer_cast(gidx_buffer.data()),
+      thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
+
+  ellpack_matrix.Init(
+      feature_segments, min_fvalue,
+      gidx_fvalue_map, row_stride,
+      common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols),
+      is_dense, null_gidx_value);
+}
+
+void EllpackPageImpl::CreateHistIndices(const SparsePage& row_batch,
+                                        const RowStateOnDevice& device_row_state) {
   // Has any been allocated for me in this batch?
   if (!device_row_state.rows_to_process_from_batch) return;
 
@@ -195,11 +175,11 @@ void EllpackPageImpl::CreateHistIndices(
                      common::DivRoundUp(row_stride, block3.y), 1);
     CompressBinEllpackKernel<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols),
-            gidx_buffer_.data(),
+            gidx_buffer.data(),
             row_ptrs.data().get(),
             entries_d.data().get(),
-            gidx_fvalue_map_.data(),
-            feature_segments_.data(),
+            gidx_fvalue_map.data(),
+            feature_segments.data(),
             device_row_state.total_rows_processed + batch_row_begin,
             batch_nrows,
             row_stride,
