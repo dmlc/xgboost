@@ -1074,18 +1074,14 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     for (size_t j = 0; j < nfeature; ++j) {
       tasks.emplace_back(i, feature_set[j]);
     }
-
-    // pre-allocate all memory of HistCollection before parallel execution
-    hist_.AddHistRow(nodes[i].nid);
-    if (nodes[i].sibling_nid > -1) {
-      hist_.AddHistRow(nodes[i].sibling_nid);
-    }
   }
 
+  // rabit::IsDistributed is not thread-safe
+  auto isDistributed = rabit::IsDistributed();
   // partial results
   std::vector<std::pair<SplitEntry, SplitEntry>> splits(tasks.size());
   // parallel enumeration
-  #pragma omp parallel for schedule(guided)
+  #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < tasks.size(); ++i) {
     const int32_t  node_idx    = tasks[i].first;
     const size_t   fid         // node_idx : offset within `nodes` list
@@ -1094,16 +1090,16 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
     const int32_t  sibling_nid = nodes[node_idx].sibling_nid;
     const int32_t  parent_nid  = nodes[node_idx].parent_nid;
 
-    common::GradStatHist::GradType* hist_data =
-        reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
-    common::GradStatHist::GradType* sibling_hist_data = sibling_nid > -1 ?
-        reinterpret_cast<common::GradStatHist::GradType*>(
-          hist_[sibling_nid].data()) : nullptr;
-    common::GradStatHist::GradType* parent_hist_data  = sibling_nid > -1 ?
-        reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
-
     // reduce needed part of a hist here to have it in cache before enumeration
-    if (!rabit::IsDistributed()) {
+    if (!isDistributed) {
+      common::GradStatHist::GradType* hist_data =
+          reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
+      common::GradStatHist::GradType* sibling_hist_data = sibling_nid > -1 ?
+                                                          reinterpret_cast<common::GradStatHist::GradType*>(
+                                                              hist_[sibling_nid].data()) : nullptr;
+      common::GradStatHist::GradType* parent_hist_data  = sibling_nid > -1 ?
+                                                          reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
+
       const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
       const size_t ibegin = 2 * cut_ptr[fid];
       const size_t iend = 2 * cut_ptr[fid + 1];
