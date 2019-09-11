@@ -58,15 +58,17 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-void EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_batch_nrows) {
-  if (initialised_) return;
+int EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_batch_nrows) {
+  if (initialised_) return n_bins;
 
   device_ = device;
   monitor_.Init("ellpack_page");
 
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
+  common::HistogramCuts hmat;
   size_t row_stride = common::DeviceSketch(device, param.max_bin, gpu_batch_nrows, dmat_, &hmat);
+  n_bins = hmat.Ptrs().back();
   monitor_.StopCuda("Quantiles");
 
   const auto& info = dmat_->Info();
@@ -75,7 +77,7 @@ void EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_ba
   // Init global data for each shard
   monitor_.StartCuda("InitCompressedData");
   dh::safe_cuda(cudaSetDevice(device));
-  InitCompressedData(row_stride, is_dense);
+  InitCompressedData(hmat, row_stride, is_dense);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
@@ -91,13 +93,18 @@ void EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_ba
   monitor_.StopCuda("BinningCompression");
 
   initialised_ = true;
+  return n_bins;
 }
 
-void EllpackPageImpl::InitCompressedData(size_t row_stride, bool is_dense) {
-  n_bins = hmat.Ptrs().back();
-  int null_gidx_value = hmat.Ptrs().back();
-
+void EllpackPageImpl::InitCompressedData(const common::HistogramCuts& hmat,
+                                         size_t row_stride,
+                                         bool is_dense) {
+  int null_gidx_value = n_bins;
   int num_symbols = n_bins + 1;
+
+  // minimum value for each feature.
+  common::Span<bst_float> min_fvalue;
+
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
       row_stride * dmat_->Info().num_row_, num_symbols);
@@ -115,11 +122,13 @@ void EllpackPageImpl::InitCompressedData(size_t row_stride, bool is_dense) {
       thrust::device_pointer_cast(gidx_buffer.data()),
       thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
 
-  ellpack_matrix.Init(
-      feature_segments, min_fvalue,
-      gidx_fvalue_map, row_stride,
-      common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols),
-      is_dense, null_gidx_value);
+  ellpack_matrix.Init(feature_segments,
+                      min_fvalue,
+                      gidx_fvalue_map,
+                      row_stride,
+                      common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols),
+                      is_dense,
+                      null_gidx_value);
 }
 
 void EllpackPageImpl::CreateHistIndices(const SparsePage& row_batch,
@@ -127,7 +136,7 @@ void EllpackPageImpl::CreateHistIndices(const SparsePage& row_batch,
   // Has any been allocated for me in this batch?
   if (!device_row_state.rows_to_process_from_batch) return;
 
-  unsigned int null_gidx_value = hmat.Ptrs().back();
+  unsigned int null_gidx_value = n_bins;
   size_t row_stride = this->ellpack_matrix.row_stride;
 
   const auto &offset_vec = row_batch.offset.ConstHostVector();
@@ -166,24 +175,25 @@ void EllpackPageImpl::CreateHistIndices(const SparsePage& row_batch,
     size_t n_entries = ent_cnt_end - ent_cnt_begin;
     dh::device_vector<Entry> entries_d(n_entries);
     // copy data entries to device.
-    dh::safe_cuda
-        (cudaMemcpy
-             (entries_d.data().get(), data_vec.data() + ent_cnt_begin,
-              n_entries * sizeof(Entry), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpy(entries_d.data().get(),
+                             data_vec.data() + ent_cnt_begin,
+                             n_entries * sizeof(Entry),
+                             cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
-                     common::DivRoundUp(row_stride, block3.y), 1);
-    CompressBinEllpackKernel<<<grid3, block3>>>
-        (common::CompressedBufferWriter(num_symbols),
-            gidx_buffer.data(),
-            row_ptrs.data().get(),
-            entries_d.data().get(),
-            gidx_fvalue_map.data(),
-            feature_segments.data(),
-            device_row_state.total_rows_processed + batch_row_begin,
-            batch_nrows,
-            row_stride,
-            null_gidx_value);
+                     common::DivRoundUp(row_stride, block3.y),
+                     1);
+    CompressBinEllpackKernel<<<grid3, block3>>>(
+        common::CompressedBufferWriter(num_symbols),
+        gidx_buffer.data(),
+        row_ptrs.data().get(),
+        entries_d.data().get(),
+        gidx_fvalue_map.data(),
+        feature_segments.data(),
+        device_row_state.total_rows_processed + batch_row_begin,
+        batch_nrows,
+        row_stride,
+        null_gidx_value);
   }
 }
 

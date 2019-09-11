@@ -109,83 +109,6 @@ inline static bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   }
 }
 
-// Find a gidx value for a given feature otherwise return -1 if not found
-__forceinline__ __device__ int BinarySearchRow(
-    bst_uint begin, bst_uint end,
-    common::CompressedIterator<uint32_t> data,
-    int const fidx_begin, int const fidx_end) {
-  bst_uint previous_middle = UINT32_MAX;
-  while (end != begin) {
-    auto middle = begin + (end - begin) / 2;
-    if (middle == previous_middle) {
-      break;
-    }
-    previous_middle = middle;
-
-    auto gidx = data[middle];
-
-    if (gidx >= fidx_begin && gidx < fidx_end) {
-      return gidx;
-    } else if (gidx < fidx_begin) {
-      begin = middle;
-    } else {
-      end = middle;
-    }
-  }
-  // Value is missing
-  return -1;
-}
-
-/** \brief Struct for accessing and manipulating an ellpack matrix on the
- * device. Does not own underlying memory and may be trivially copied into
- * kernels.*/
-struct ELLPackMatrix {
-  common::Span<uint32_t> feature_segments;
-  /*! \brief minimum value for each feature. */
-  common::Span<bst_float> min_fvalue;
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row length for ELLPack. */
-  size_t row_stride{0};
-  common::CompressedIterator<uint32_t> gidx_iter;
-  bool is_dense;
-  int null_gidx_value;
-
-  XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
-
-  // Get a matrix element, uses binary search for look up Return NaN if missing
-  // Given a row index and a feature index, returns the corresponding cut value
-  __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
-    auto row_begin = row_stride * ridx;
-    auto row_end = row_begin + row_stride;
-    auto gidx = -1;
-    if (is_dense) {
-      gidx = gidx_iter[row_begin + fidx];
-    } else {
-      gidx =
-          BinarySearchRow(row_begin, row_end, gidx_iter, feature_segments[fidx],
-                          feature_segments[fidx + 1]);
-    }
-    if (gidx == -1) {
-      return nan("");
-    }
-    return gidx_fvalue_map[gidx];
-  }
-  void Init(common::Span<uint32_t> feature_segments,
-    common::Span<bst_float> min_fvalue,
-    common::Span<bst_float> gidx_fvalue_map, size_t row_stride,
-    common::CompressedIterator<uint32_t> gidx_iter, bool is_dense,
-    int null_gidx_value) {
-    this->feature_segments = feature_segments;
-    this->min_fvalue = min_fvalue;
-    this->gidx_fvalue_map = gidx_fvalue_map;
-    this->row_stride = row_stride;
-    this->gidx_iter = gidx_iter;
-    this->is_dense = is_dense;
-    this->null_gidx_value = null_gidx_value;
-  }
-};
-
 // With constraints
 template <typename GradientPairT>
 XGBOOST_DEVICE float inline LossChangeMissing(
@@ -474,46 +397,6 @@ struct CalcWeightTrainParam {
         learning_rate(p.learning_rate) {}
 };
 
-// Bin each input data entry, store the bin indices in compressed form.
-template<typename std::enable_if<true,  int>::type = 0>
-__global__ void CompressBinEllpackKernel(
-    common::CompressedBufferWriter wr,
-    common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
-    const size_t* __restrict__ row_ptrs,           // row offset of input data
-    const Entry* __restrict__ entries,      // One batch of input data
-    const float* __restrict__ cuts,         // HistogramCuts::cut
-    const uint32_t* __restrict__ cut_rows,  // HistogramCuts::row_ptrs
-    size_t base_row,                        // batch_row_begin
-    size_t n_rows,
-    size_t row_stride,
-    unsigned int null_gidx_value) {
-  size_t irow = threadIdx.x + blockIdx.x * blockDim.x;
-  int ifeature = threadIdx.y + blockIdx.y * blockDim.y;
-  if (irow >= n_rows || ifeature >= row_stride) {
-    return;
-  }
-  int row_length = static_cast<int>(row_ptrs[irow + 1] - row_ptrs[irow]);
-  unsigned int bin = null_gidx_value;
-  if (ifeature < row_length) {
-    Entry entry = entries[row_ptrs[irow] - row_ptrs[0] + ifeature];
-    int feature = entry.index;
-    float fvalue = entry.fvalue;
-    // {feature_cuts, ncuts} forms the array of cuts of `feature'.
-    const float *feature_cuts = &cuts[cut_rows[feature]];
-    int ncuts = cut_rows[feature + 1] - cut_rows[feature];
-    // Assigning the bin in current entry.
-    // S.t.: fvalue < feature_cuts[bin]
-    bin = dh::UpperBound(feature_cuts, ncuts, fvalue);
-    if (bin >= ncuts) {
-      bin = ncuts - 1;
-    }
-    // Add the number of bins in previous features.
-    bin += cut_rows[feature];
-  }
-  // Write to gidx buffer.
-  wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
-}
-
 template <typename GradientSumT>
 __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
@@ -548,37 +431,6 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
     }
   }
 }
-
-// Instances of this type are created while creating the histogram bins for the
-// entire dataset across multiple sparse page batches. This keeps track of the number
-// of rows to process from a batch and the position from which to process on each device.
-struct RowStateOnDevice {
-  // Number of rows assigned to this device
-  size_t total_rows_assigned_to_device;
-  // Number of rows processed thus far
-  size_t total_rows_processed;
-  // Number of rows to process from the current sparse page batch
-  size_t rows_to_process_from_batch;
-  // Offset from the current sparse page batch to begin processing
-  size_t row_offset_in_current_batch;
-
-  explicit RowStateOnDevice(size_t total_rows)
-    : total_rows_assigned_to_device(total_rows), total_rows_processed(0),
-      rows_to_process_from_batch(0), row_offset_in_current_batch(0) {
-  }
-
-  explicit RowStateOnDevice(size_t total_rows, size_t batch_rows)
-    : total_rows_assigned_to_device(total_rows), total_rows_processed(0),
-      rows_to_process_from_batch(batch_rows), row_offset_in_current_batch(0) {
-  }
-
-  // Advance the row state by the number of rows processed
-  void Advance() {
-    total_rows_processed += rows_to_process_from_batch;
-    CHECK_LE(total_rows_processed, total_rows_assigned_to_device);
-    rows_to_process_from_batch = row_offset_in_current_batch = 0;
-  }
-};
 
 // Manage memory for a single GPU
 template <typename GradientSumT>
@@ -623,22 +475,20 @@ struct DeviceShard {
   std::unique_ptr<ExpandQueue> qexpand;
 
   DeviceShard(int _device_id,
-              const std::vector<EllpackPageImpl*> pages,
+              EllpackPageImpl* page,
+              int n_bins,
               bst_uint _n_rows,
               TrainParam _param,
               uint32_t column_sampler_seed,
               uint32_t n_features)
       : device_id(_device_id),
+        page(page),
+        n_bins(n_bins),
         n_rows(_n_rows),
-        n_bins(0),
         param(std::move(_param)),
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features) {
-    // TODO(rongou): support multiple Ellpack pages.
-    CHECK_EQ(pages.size(), 1);
-    page = pages.front();
-
     monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
   }
 
@@ -1092,8 +942,6 @@ struct DeviceShard {
 
 template <typename GradientSumT>
 inline void DeviceShard<GradientSumT>::InitHistogram() {
-  n_bins = page->hmat.Ptrs().back();
-
   CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
       << "Max leaves and max depth cannot both be unconstrained for "
       "gpu_hist.";
@@ -1123,52 +971,6 @@ inline void DeviceShard<GradientSumT>::InitHistogram() {
   // Init histogram
   hist.Init(device_id, n_bins);
 }
-
-// An instance of this type is created which keeps track of total number of rows to process,
-// rows processed thus far, rows to process and the offset from the current sparse page batch
-// to begin processing on each device
-class DeviceHistogramBuilderState {
- public:
-  template <typename GradientSumT>
-  explicit DeviceHistogramBuilderState(const std::unique_ptr<DeviceShard<GradientSumT>>& shard)
-      : device_row_state_(shard->n_rows) {}
-
-  const RowStateOnDevice& GetRowStateOnDevice() const {
-    return device_row_state_;
-  }
-
-  // This method is invoked at the beginning of each sparse page batch. This distributes
-  // the rows in the sparse page to the device.
-  // TODO(sriramch): Think of a way to utilize *all* the GPUs to build the compressed bins.
-  void BeginBatch(const SparsePage &batch) {
-    size_t rem_rows = batch.Size();
-    size_t row_offset_in_current_batch = 0;
-
-    // Do we have anymore left to process from this batch on this device?
-    if (device_row_state_.total_rows_assigned_to_device > device_row_state_.total_rows_processed) {
-      // There are still some rows that needs to be assigned to this device
-      device_row_state_.rows_to_process_from_batch =
-        std::min(
-          device_row_state_.total_rows_assigned_to_device - device_row_state_.total_rows_processed,
-          rem_rows);
-    } else {
-      // All rows have been assigned to this device
-      device_row_state_.rows_to_process_from_batch = 0;
-    }
-
-    device_row_state_.row_offset_in_current_batch = row_offset_in_current_batch;
-    row_offset_in_current_batch += device_row_state_.rows_to_process_from_batch;
-    rem_rows -= device_row_state_.rows_to_process_from_batch;
-  }
-
-  // This method is invoked after completion of each sparse page batch
-  void EndBatch() {
-    device_row_state_.Advance();
-  }
-
- private:
-  RowStateOnDevice device_row_state_{0};
-};
 
 template <typename GradientSumT>
 class GPUHistMakerSpecialised {
@@ -1219,17 +1021,19 @@ class GPUHistMakerSpecialised {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
-    std::vector<EllpackPageImpl*> pages{};
-    for (auto& page : dmat->GetBatches<EllpackPage>()) {
-      auto* impl = page.Impl();
-      impl->Init(device_, param_, hist_maker_param_.gpu_batch_nrows);
-      pages.emplace_back(impl);
+    // TODO(rongou): support multiple Ellpack pages.
+    EllpackPageImpl* page{};
+    int n_bins{};
+    for (auto& batch : dmat->GetBatches<EllpackPage>()) {
+      page = batch.Impl();
+      n_bins = page->Init(device_, param_, hist_maker_param_.gpu_batch_nrows);
     }
 
     // Create device shard
     dh::safe_cuda(cudaSetDevice(device_));
     shard_.reset(new DeviceShard<GradientSumT>(device_,
-                                               pages,
+                                               page,
+                                               n_bins,
                                                info_->num_row_,
                                                param_,
                                                column_sampling_seed,

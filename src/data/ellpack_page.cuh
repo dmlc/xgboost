@@ -169,25 +169,21 @@ class DeviceHistogramBuilderState {
 
 struct EllpackPageImpl {
   ELLPackMatrix ellpack_matrix;
-  common::HistogramCuts hmat;
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   /*! \brief Cut. */
   common::Span<bst_float> gidx_fvalue_map;
   /*! \brief row_ptr form HistogramCuts. */
   common::Span<uint32_t> feature_segments;
-  /*! \brief minimum value for each feature. */
-  common::Span<bst_float> min_fvalue;
 
   explicit EllpackPageImpl(DMatrix* dmat);
 
-  void Init(int device, const tree::TrainParam& param, int gpu_batch_nrows);
+  int Init(int device, const tree::TrainParam& param, int gpu_batch_nrows);
 
  private:
-  void InitCompressedData(size_t row_stride, bool is_dense);
+  void InitCompressedData(const common::HistogramCuts& hmat, size_t row_stride, bool is_dense);
 
-  void CreateHistIndices(const SparsePage& row_batch,
-                         const RowStateOnDevice& device_row_state);
+  void CreateHistIndices(const SparsePage& row_batch, const RowStateOnDevice& device_row_state);
 
   bool initialised_{false};
   int device_{-1};
