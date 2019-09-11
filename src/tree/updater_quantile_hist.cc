@@ -1092,13 +1092,13 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
 
     // reduce needed part of a hist here to have it in cache before enumeration
     if (!isDistributed) {
-      common::GradStatHist::GradType* hist_data =
-          reinterpret_cast<common::GradStatHist::GradType*>(hist_[nid].data());
-      common::GradStatHist::GradType* sibling_hist_data = sibling_nid > -1 ?
-                                                          reinterpret_cast<common::GradStatHist::GradType*>(
-                                                              hist_[sibling_nid].data()) : nullptr;
-      common::GradStatHist::GradType* parent_hist_data  = sibling_nid > -1 ?
-                                                          reinterpret_cast<common::GradStatHist::GradType*>(hist_[parent_nid].data()) : nullptr;
+      auto hist_data = reinterpret_cast<common::GradStatHist::GradType *>(hist_[nid].data());
+      auto sibling_hist_data = sibling_nid > -1 ?
+                               reinterpret_cast<common::GradStatHist::GradType *>(
+                                   hist_[sibling_nid].data()) : nullptr;
+      auto parent_hist_data = sibling_nid > -1 ?
+                              reinterpret_cast<common::GradStatHist::GradType *>(
+                                  hist_[parent_nid].data()) : nullptr;
 
       const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
       const size_t ibegin = 2 * cut_ptr[fid];
