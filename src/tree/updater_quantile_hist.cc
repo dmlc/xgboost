@@ -556,7 +556,7 @@ void QuantileHistMaker::Builder::BuildHistsBatch(const std::vector<ExpandEntry>&
       reinterpret_cast<const GradientPair::ValueT*>(gpair.data());
 
   // 2. Build partial histograms for each node
-  #pragma omp parallel for schedule(guided)
+  #pragma omp parallel for schedule(static)
   for (int32_t itask = 0; itask < n_hist_buidling_tasks; ++itask) {
     const size_t tid = omp_get_thread_num();
     const int32_t nid = task_nid[itask];
@@ -856,7 +856,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
     }
   }
 
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(static)
   for (omp_ulong k = 0; k < tasks_elem.size(); ++k) {
     const RowSetCollection::Elem rowset = tasks_elem[k];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.node_id != -1) {
@@ -1083,9 +1083,9 @@ void QuantileHistMaker::Builder::EvaluateSplitsBatch(
   // parallel enumeration
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < tasks.size(); ++i) {
+    // node_idx : offset within `nodes` list
     const int32_t  node_idx    = tasks[i].first;
-    const size_t   fid         // node_idx : offset within `nodes` list
-        = tasks[i].second;
+    const size_t   fid         = tasks[i].second;
     const int32_t  nid         = nodes[node_idx].nid;  // usually node_idx != nid
     const int32_t  sibling_nid = nodes[node_idx].sibling_nid;
     const int32_t  parent_nid  = nodes[node_idx].parent_nid;
