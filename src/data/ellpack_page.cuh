@@ -54,7 +54,6 @@ struct ELLPackMatrix {
   /*! \brief row length for ELLPack. */
   size_t row_stride{0};
   common::CompressedIterator<uint32_t> gidx_iter;
-  bool is_dense;
   int null_gidx_value;
 
   XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
@@ -90,6 +89,9 @@ struct ELLPackMatrix {
     this->is_dense = is_dense;
     this->null_gidx_value = null_gidx_value;
   }
+
+ private:
+  bool is_dense;
 };
 
 // Instances of this type are created while creating the histogram bins for the
@@ -180,13 +182,17 @@ struct EllpackPageImpl {
 
   int Init(int device, const tree::TrainParam& param, int gpu_batch_nrows);
 
+  void InitCompressedData(int device,
+                          const common::HistogramCuts& hmat,
+                          size_t row_stride,
+                          bool is_dense);
+
+  void CreateHistIndices(int device,
+                         const SparsePage& row_batch,
+                         const RowStateOnDevice& device_row_state);
+
  private:
-  void InitCompressedData(const common::HistogramCuts& hmat, size_t row_stride, bool is_dense);
-
-  void CreateHistIndices(const SparsePage& row_batch, const RowStateOnDevice& device_row_state);
-
   bool initialised_{false};
-  int device_{-1};
   int n_bins{};
 
   DMatrix* dmat_;
