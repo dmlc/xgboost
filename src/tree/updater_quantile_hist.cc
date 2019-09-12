@@ -455,27 +455,20 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
     const int32_t right_id = node.RightChild();
     row_set_collection_.AddSplit(nid, n_left, left_id, right_id);
 
-    if (rabit::IsDistributed()) {
-      common::GradStatHist hist;
-      hist.sum_grad = row_set_collection_[left_id].Size();
-      hist.sum_hess = row_set_collection_[right_id].Size();
+    size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
+                             row_set_collection_[right_id].Size() };
 
-      this->histred_.Allreduce(&hist, 1);
-      if (hist.sum_grad < hist.sum_hess) {
-        temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
-              depth + 1, 0.0, (*timestamp)++));
-      } else {
-        temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
-              depth + 1, 0.0, (*timestamp)++));
-      }
+    if (rabit::IsDistributed()) {
+      // compute amount of samples in each dtree node accross all distributed workers
+      rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
+    }
+
+    if (node_sizes[0] < node_sizes[1]) { // left size < right size
+      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
+            depth + 1, 0.0, (*timestamp)++));
     } else {
-      if (row_set_collection_[left_id].Size() < row_set_collection_[right_id].Size()) {
-        temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
-              depth + 1, 0.0, (*timestamp)++));
-      } else {
-        temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
-              depth + 1, 0.0, (*timestamp)++));
-      }
+      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id, nid,
+            depth + 1, 0.0, (*timestamp)++));
     }
   }
   perf_monitor.UpdatePerfTimer(TreeGrowingPerfMonitor::timer_name::APPLY_SPLIT);
