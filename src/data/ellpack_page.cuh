@@ -169,7 +169,8 @@ class DeviceHistogramBuilderState {
   RowStateOnDevice device_row_state_{0};
 };
 
-struct EllpackPageImpl {
+class EllpackPageImpl {
+ public:
   ELLPackMatrix ellpack_matrix;
   int n_bins{};
   /*! \brief global index of histogram, which is stored in ELLPack format. */
