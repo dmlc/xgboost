@@ -171,33 +171,30 @@ class DeviceHistogramBuilderState {
 
 struct EllpackPageImpl {
   ELLPackMatrix ellpack_matrix;
+  int n_bins{};
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row_ptr form HistogramCuts. */
-  common::Span<uint32_t> feature_segments;
 
   explicit EllpackPageImpl(DMatrix* dmat);
-
-  int Init(int device, const tree::TrainParam& param, int gpu_batch_nrows);
-
+  void Init(int device, int max_bin, int gpu_batch_nrows);
   void InitCompressedData(int device,
                           const common::HistogramCuts& hmat,
                           size_t row_stride,
                           bool is_dense);
-
   void CreateHistIndices(int device,
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
 
  private:
   bool initialised_{false};
-  int n_bins{};
-
   DMatrix* dmat_;
   common::Monitor monitor_;
   dh::BulkAllocator ba;
+
+  /*! \brief Cut. */
+  common::Span<bst_float> gidx_fvalue_map;
+  /*! \brief row_ptr form HistogramCuts. */
+  common::Span<uint32_t> feature_segments;
 };
 
 }  // namespace xgboost

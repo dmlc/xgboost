@@ -131,7 +131,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   };
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
-  DeviceShard<GradientSumT> shard(0, page.get(), 24, kNRows, param, kNCols, kNCols);
+  DeviceShard<GradientSumT> shard(0, page.get(), kNRows, param, kNCols, kNCols);
   shard.InitHistogram();
   
   xgboost::SimpleLCG gen;
@@ -233,8 +233,7 @@ TEST(GpuHist, EvaluateSplits) {
   // Initialize DeviceShard
   auto page = BuildEllpackPage(kNRows, kNCols);
   std::unique_ptr<DeviceShard<GradientPairPrecise>> shard{
-      new DeviceShard<GradientPairPrecise>(
-          0, page.get(), 24, kNRows, param, kNCols, kNCols)};
+      new DeviceShard<GradientPairPrecise>(0, page.get(), kNRows, param, kNCols, kNCols)};
   // Initialize DeviceShard::node_sum_gradients
   shard->node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -243,16 +242,13 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Copy cut matrix to device.
   shard->ba.Allocate(0,
-                     &(page->feature_segments), cmat.Ptrs().size(),
+                     &(page->ellpack_matrix.feature_segments), cmat.Ptrs().size(),
                      &(page->ellpack_matrix.min_fvalue), cmat.MinValues().size(),
-                     &(page->gidx_fvalue_map), 24,
+                     &(page->ellpack_matrix.gidx_fvalue_map), 24,
                      &(shard->monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(page->feature_segments, cmat.Ptrs());
-  dh::CopyVectorToDeviceSpan(page->gidx_fvalue_map, cmat.Values());
-  dh::CopyVectorToDeviceSpan(shard->monotone_constraints,
-                             param.monotone_constraints);
-  page->ellpack_matrix.feature_segments = page->feature_segments;
-  page->ellpack_matrix.gidx_fvalue_map = page->gidx_fvalue_map;
+  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.feature_segments, cmat.Ptrs());
+  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.gidx_fvalue_map, cmat.Values());
+  dh::CopyVectorToDeviceSpan(shard->monotone_constraints, param.monotone_constraints);
   dh::CopyVectorToDeviceSpan(page->ellpack_matrix.min_fvalue, cmat.MinValues());
 
   // Initialize DeviceShard::hist
@@ -330,7 +326,7 @@ void TestHistogramIndexImpl() {
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(dev_shard_ext->page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, dev_shard_ext->page->gidx_buffer);
 
-  ASSERT_EQ(dev_shard->n_bins, dev_shard_ext->n_bins);
+  ASSERT_EQ(dev_shard->page->n_bins, dev_shard_ext->page->n_bins);
   ASSERT_EQ(dev_shard->page->gidx_buffer.size(), dev_shard_ext->page->gidx_buffer.size());
 
   ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);

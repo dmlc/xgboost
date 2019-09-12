@@ -435,7 +435,6 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
 // Manage memory for a single GPU
 template <typename GradientSumT>
 struct DeviceShard {
-  int n_bins;
   int device_id;
   EllpackPageImpl* page;
 
@@ -476,14 +475,12 @@ struct DeviceShard {
 
   DeviceShard(int _device_id,
               EllpackPageImpl* page,
-              int n_bins,
               bst_uint _n_rows,
               TrainParam _param,
               uint32_t column_sampler_seed,
               uint32_t n_features)
       : device_id(_device_id),
         page(page),
-        n_bins(n_bins),
         n_rows(_n_rows),
         param(std::move(_param)),
         prediction_cache_initialised(false),
@@ -656,7 +653,7 @@ struct DeviceShard {
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, n_bins, [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, page->n_bins, [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -962,14 +959,14 @@ inline void DeviceShard<GradientSumT>::InitHistogram() {
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
   // hiding)
-  auto histogram_size = sizeof(GradientSumT) * n_bins;
+  auto histogram_size = sizeof(GradientSumT) * page->n_bins;
   auto max_smem = dh::MaxSharedMemory(device_id);
   if (histogram_size <= max_smem) {
     use_shared_memory_histograms = true;
   }
 
   // Init histogram
-  hist.Init(device_id, n_bins);
+  hist.Init(device_id, page->n_bins);
 }
 
 template <typename GradientSumT>
@@ -1023,17 +1020,15 @@ class GPUHistMakerSpecialised {
 
     // TODO(rongou): support multiple Ellpack pages.
     EllpackPageImpl* page{};
-    int n_bins{};
     for (auto& batch : dmat->GetBatches<EllpackPage>()) {
       page = batch.Impl();
-      n_bins = page->Init(device_, param_, hist_maker_param_.gpu_batch_nrows);
+      page->Init(device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows);
     }
 
     // Create device shard
     dh::safe_cuda(cudaSetDevice(device_));
     shard_.reset(new DeviceShard<GradientSumT>(device_,
                                                page,
-                                               n_bins,
                                                info_->num_row_,
                                                param_,
                                                column_sampling_seed,

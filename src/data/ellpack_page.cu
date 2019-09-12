@@ -58,8 +58,8 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-int EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_batch_nrows) {
-  if (initialised_) return n_bins;
+void EllpackPageImpl::Init(int device, int max_bin, int gpu_batch_nrows) {
+  if (initialised_) return;
 
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(device));
@@ -67,7 +67,7 @@ int EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_bat
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   common::HistogramCuts hmat;
-  size_t row_stride = common::DeviceSketch(device, param.max_bin, gpu_batch_nrows, dmat_, &hmat);
+  size_t row_stride = common::DeviceSketch(device, max_bin, gpu_batch_nrows, dmat_, &hmat);
   monitor_.StopCuda("Quantiles");
 
   const auto& info = dmat_->Info();
@@ -88,7 +88,6 @@ int EllpackPageImpl::Init(int device, const tree::TrainParam& param, int gpu_bat
   monitor_.StopCuda("BinningCompression");
 
   initialised_ = true;
-  return n_bins;
 }
 
 void EllpackPageImpl::InitCompressedData(int device,
