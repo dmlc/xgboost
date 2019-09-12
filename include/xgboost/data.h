@@ -294,13 +294,6 @@ class EllpackPage {
  public:
   explicit EllpackPage(DMatrix* dmat);
   ~EllpackPage();
-  EllpackPage() = delete;
-  // no copy
-  EllpackPage(const EllpackPage&) = delete;
-  EllpackPage& operator=(const EllpackPage&) = delete;
-  // movable
-  EllpackPage(EllpackPage&&) = default;
-  EllpackPage& operator=(EllpackPage&&) = default;
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }

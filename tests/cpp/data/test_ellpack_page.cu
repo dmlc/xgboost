@@ -46,7 +46,7 @@ TEST(EllpackPage, BuildGidxDense) {
   }
 }
 
-TEST(GpuHist, BuildGidxSparse) {
+TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
   auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
 
