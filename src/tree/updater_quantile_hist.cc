@@ -463,7 +463,7 @@ void QuantileHistMaker::Builder::CreateNewNodesBatch(
       rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
     }
 
-    if (node_sizes[0] < node_sizes[1]) { // left size < right size
+    if (node_sizes[0] < node_sizes[1]) {  // left size < right size
       temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id, nid,
             depth + 1, 0.0, (*timestamp)++));
     } else {
