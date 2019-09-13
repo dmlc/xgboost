@@ -15,8 +15,6 @@
 namespace xgboost {
 namespace data {
 
-extern template class SimpleBatchIteratorImpl<EllpackPage>;
-
 MetaInfo& SparsePageDMatrix::Info() {
   return row_source_->info;
 }

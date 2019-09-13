@@ -474,13 +474,13 @@ struct DeviceShard {
   std::unique_ptr<ExpandQueue> qexpand;
 
   DeviceShard(int _device_id,
-              EllpackPageImpl* page,
+              EllpackPageImpl* _page,
               bst_uint _n_rows,
               TrainParam _param,
               uint32_t column_sampler_seed,
               uint32_t n_features)
       : device_id(_device_id),
-        page(page),
+        page(_page),
         n_rows(_n_rows),
         param(std::move(_param)),
         prediction_cache_initialised(false),

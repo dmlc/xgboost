@@ -13,6 +13,22 @@
 
 namespace xgboost {
 
+TEST(EllpackPage, EmptyDMatrix) {
+  constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
+  constexpr float kSparsity = 0;
+  auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
+  auto& page = *dmat->GetBatches<EllpackPage>().begin();
+  auto impl = page.Impl();
+  impl->Init(0, kMaxBin, kGpuBatchNRows);
+  ASSERT_EQ(impl->ellpack_matrix.feature_segments.size(), 1);
+  ASSERT_EQ(impl->ellpack_matrix.min_fvalue.size(), 0);
+  ASSERT_EQ(impl->ellpack_matrix.gidx_fvalue_map.size(), 0);
+  ASSERT_EQ(impl->ellpack_matrix.row_stride, 0);
+  ASSERT_EQ(impl->ellpack_matrix.null_gidx_value, 0);
+  ASSERT_EQ(impl->n_bins, 0);
+  ASSERT_EQ(impl->gidx_buffer.size(), 4);
+}
+
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
   auto page = BuildEllpackPage(kNRows, kNCols);
