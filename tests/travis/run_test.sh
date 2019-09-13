@@ -51,15 +51,3 @@ if [ ${TASK} == "cmake_test" ]; then
     cd ..
     rm -rf build
 fi
-
-if [ ${TASK} == "xgb_recovery" ]; then
-    set -e
-    mkdir build
-    cd build
-    cmake -DRABIT_MOCK=ON -DUSE_OPENMP=OFF ..
-    make
-    cd ..
-    rm -rf build
-    cd tests/cli
-    ./runxgb.sh approx.conf.in
-fi 

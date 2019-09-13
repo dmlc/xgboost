@@ -56,6 +56,7 @@ pipeline {
         script {
           parallel ([
             'build-cpu': { BuildCPU() },
+            'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
@@ -76,6 +77,7 @@ pipeline {
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-cpp-rabit': {TestCppRabit()},
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
@@ -185,6 +187,29 @@ def BuildCPU() {
   }
 }
 
+def BuildCPUMock() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Build CPU with rabit mock"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_mock_cmake.sh
+    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    """
+    // Sanitizer test
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 --cap-add SYS_PTRACE'"
+    def docker_args = "--build-arg CMAKE_VERSION=3.12"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address" \
+      -DCMAKE_BUILD_TYPE=Debug -DRABIT_MOCK=ON -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    """
+    deleteDir()
+  }
+}
+
+
 def BuildCUDA(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
@@ -275,6 +300,20 @@ def TestPythonGPU(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
     }
+    deleteDir()
+  }
+}
+
+def TestCppRabit() {
+  node(nodeReq) {
+    unstash name: 'xgboost_rabit_cpp_tests'
+    unstash name: 'srcs'
+    echo "Test C++, rabit mock on"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh tests/ci_build/approx.conf.in
+    """
     deleteDir()
   }
 }
