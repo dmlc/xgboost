@@ -8,5 +8,5 @@ max_depth = 5
 
 num_round = 12 
 save_period = 100 
-data = "../../demo/data/agaricus.txt.train"
-eval[test] = "../../demo/data/agaricus.txt.test"
+data = "demo/data/agaricus.txt.train"
+eval[test] = "demo/data/agaricus.txt.test"

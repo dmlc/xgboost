@@ -195,7 +195,7 @@ def BuildCPUMock() {
     def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_mock_cmake.sh
-    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    ${dockerRun} ${container_type} ${docker_binary} xgboost
     """
     // Sanitizer test
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 --cap-add SYS_PTRACE'"
@@ -203,8 +203,10 @@ def BuildCPUMock() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address" \
       -DCMAKE_BUILD_TYPE=Debug -DRABIT_MOCK=ON -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} xgboost
     """
+     echo 'Stashing rabit C++ test executable (xgboost)...'
+    stash name: 'xgboost_rabit_tests', includes: 'xgboost'
     deleteDir()
   }
 }
@@ -306,7 +308,7 @@ def TestPythonGPU(args) {
 
 def TestCppRabit() {
   node(nodeReq) {
-    unstash name: 'xgboost_rabit_cpp_tests'
+    unstash name: 'xgboost_rabit_tests'
     unstash name: 'srcs'
     echo "Test C++, rabit mock on"
     def container_type = "cpu"
