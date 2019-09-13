@@ -305,7 +305,7 @@ def TestCppRabit() {
     def container_type = "cpu"
     def docker_binary = "docker"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh tests/ci_build/approx.conf.in
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh xgboost tests/ci_build/approx.conf.in
     """
     deleteDir()
   }
