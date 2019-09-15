@@ -252,7 +252,6 @@ private[spark] trait ParamMapFuncs extends Params {
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name) match {
-        case None =>
         case Some(_: DoubleParam) =>
           set(name, paramValue.toString.toDouble)
         case Some(_: BooleanParam) =>
@@ -263,6 +262,7 @@ private[spark] trait ParamMapFuncs extends Params {
           set(name, paramValue.toString.toFloat)
         case Some(_: Param[_]) =>
           set(name, paramValue)
+        case _ =>
       }
     }
   }

@@ -16,18 +16,12 @@
 
 package org.apache.spark
 
-import java.net.URL
-import java.util.concurrent.atomic.AtomicBoolean
-
 import org.apache.commons.logging.LogFactory
-
 import org.apache.spark.scheduler._
-import org.codehaus.jackson.map.ObjectMapper
-import scala.collection.JavaConverters._
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future, TimeoutException}
-import scala.util.control.ControlThrowable
 
 /**
  * A tracker that ensures enough number of executor cores are alive.
@@ -43,27 +37,12 @@ class SparkParallelismTracker(
     numWorkers: Int) {
 
   private[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
-  private[this] val mapper = new ObjectMapper()
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
-  private[this] val url = sc.uiWebUrl match {
-    case Some(baseUrl) => new URL(s"$baseUrl/api/v1/applications/${sc.applicationId}/executors")
-    case _ => null
-  }
 
   private[this] def numAliveCores: Int = {
-    try {
-      if (url != null) {
-        mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
-      } else {
-        Int.MaxValue
-      }
-    } catch {
-      case ex: Throwable =>
-        logger.warn(s"Unable to read total number of alive cores from REST API." +
-          s"Health Check will be ignored.")
-        ex.printStackTrace()
-        Int.MaxValue
-    }
+    //  except master node
+    val aliveWorkers = sc.statusTracker.getExecutorInfos.length - 1
+    aliveWorkers * sc.conf.getInt("spark.executor.cores", 1)
   }
 
   private[this] def waitForCondition(
@@ -107,7 +86,7 @@ class SparkParallelismTracker(
         waitForCondition(numAliveCores >= requestedCores, timeout)
       } catch {
         case _: TimeoutException =>
-          throw new IllegalStateException(s"Unable to get $requestedCores workers for" +
+          throw new IllegalStateException(s"Unable to get $requestedCores cores for" +
             s" XGBoost training")
       }
       safeExecute(body)
