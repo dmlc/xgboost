@@ -101,7 +101,7 @@ __global__ void CreateCSRKernel(Columnar<T> const column,
 template <typename T>
 void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
                 bool has_missing, float missing,
-                SparsePage* p_page,
+                HostDeviceVector<size_t>* out_offset,
                 dh::caching_device_vector<int32_t>* out_d_flag,
                 uint32_t* out_n_rows) {
   int32_t constexpr kThreads = 256;
@@ -116,17 +116,17 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
   dh::safe_cuda(cudaSetDevice(device));
 
   if (column_id == 0) {
-    p_page->offset.SetDevice(device);
-    p_page->offset.Resize(n_rows + 1);
+    out_offset->SetDevice(device);
+    out_offset->Resize(n_rows + 1);
   }
-  CHECK_EQ(p_page->offset.DeviceIdx(), device)
-      "All columns should use the same device.";
-  CHECK_EQ(p_page->offset.Size(), n_rows + 1) <<
-      "All columns should have same number of rows.";
+  CHECK_EQ(out_offset->DeviceIdx(), device)
+      << "All columns should use the same device.";
+  CHECK_EQ(out_offset->Size(), n_rows + 1)
+      << "All columns should have same number of rows.";
 
-  auto s_offsets = p_page->offset.DeviceSpan();
+  common::Span<size_t> s_offsets = out_offset->DeviceSpan();
 
-  int32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
+  int32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
   CountValidKernel<T><<<kBlocks, kThreads>>>(
       foreign_column, n_rows,
       has_missing, missing,
@@ -161,7 +161,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   for (size_t i = 0; i < n_cols; ++i) {
     auto const& typestr = get<String const>(columns[i]["typestr"]);
     DISPATCH_TYPE(CountValid, typestr,
-                  columns, i, has_missing, missing, &(this->page_), &d_flag, &n_rows);
+                  columns, i, has_missing, missing, &(this->page_.offset), &d_flag, &n_rows);
   }
   // don't pay for what you don't use.
   if (!common::CheckNAN(missing)) {
