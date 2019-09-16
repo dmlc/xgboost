@@ -40,21 +40,31 @@ class SparkParallelismTracker(
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
 
   private[this] def numAliveCores: Int = {
+<<<<<<< Updated upstream
     //  except master node
     val aliveWorkers = sc.statusTracker.getExecutorInfos.length - 1
     aliveWorkers * sc.conf.getInt("spark.executor.cores", 1)
+=======
+    sc.statusStore.executorList(true). map(_.totalCores).sum
+>>>>>>> Stashed changes
   }
 
   private[this] def waitForCondition(
       condition: => Boolean,
       timeout: Long,
       checkInterval: Long = 100L) = {
-    val monitor = Future {
-      while (!condition) {
-        Thread.sleep(checkInterval)
+    val waitImpl = new ((Long, Boolean) => Boolean) {
+      override def apply(waitedTime: Long, status: Boolean): Boolean = status match {
+        case s if s => true
+        case _ => waitedTime match {
+          case t if t < timeout =>
+            Thread.sleep(checkInterval)
+            apply(t + checkInterval, status = condition)
+          case _ => false
+        }
       }
     }
-    Await.ready(monitor, timeout.millis)
+    waitImpl(0L, condition)
   }
 
   private[this] def safeExecute[T](body: => T): T = {
@@ -81,6 +91,7 @@ class SparkParallelismTracker(
       logger.info("starting training without setting timeout for waiting for resources")
       body
     } else {
+<<<<<<< Updated upstream
       try {
         logger.info(s"starting training with timeout set as $timeout ms for waiting for resources")
         waitForCondition(numAliveCores >= requestedCores, timeout)
@@ -88,6 +99,11 @@ class SparkParallelismTracker(
         case _: TimeoutException =>
           throw new IllegalStateException(s"Unable to get $requestedCores cores for" +
             s" XGBoost training")
+=======
+      logger.info(s"starting training with timeout set as $timeout ms for waiting for resources")
+      if (!waitForCondition(numAliveCores >= requestedCores, timeout)) {
+        throw new IllegalStateException(s"Unable to get $requestedCores cores for XGBoost training")
+>>>>>>> Stashed changes
       }
       safeExecute(body)
     }
