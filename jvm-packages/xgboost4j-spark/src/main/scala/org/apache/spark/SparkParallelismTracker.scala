@@ -19,10 +19,6 @@ package org.apache.spark
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.scheduler._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import scala.concurrent.{Await, Future, TimeoutException}
-
 /**
  * A tracker that ensures enough number of executor cores are alive.
  * Throws an exception when the number of alive cores is less than nWorkers.
@@ -40,13 +36,7 @@ class SparkParallelismTracker(
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
 
   private[this] def numAliveCores: Int = {
-<<<<<<< Updated upstream
-    //  except master node
-    val aliveWorkers = sc.statusTracker.getExecutorInfos.length - 1
-    aliveWorkers * sc.conf.getInt("spark.executor.cores", 1)
-=======
     sc.statusStore.executorList(true). map(_.totalCores).sum
->>>>>>> Stashed changes
   }
 
   private[this] def waitForCondition(
@@ -91,19 +81,9 @@ class SparkParallelismTracker(
       logger.info("starting training without setting timeout for waiting for resources")
       body
     } else {
-<<<<<<< Updated upstream
-      try {
-        logger.info(s"starting training with timeout set as $timeout ms for waiting for resources")
-        waitForCondition(numAliveCores >= requestedCores, timeout)
-      } catch {
-        case _: TimeoutException =>
-          throw new IllegalStateException(s"Unable to get $requestedCores cores for" +
-            s" XGBoost training")
-=======
       logger.info(s"starting training with timeout set as $timeout ms for waiting for resources")
       if (!waitForCondition(numAliveCores >= requestedCores, timeout)) {
         throw new IllegalStateException(s"Unable to get $requestedCores cores for XGBoost training")
->>>>>>> Stashed changes
       }
       safeExecute(body)
     }
