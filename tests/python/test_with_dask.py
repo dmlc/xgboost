@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 def run_train():
     # Contains one label equal to rank
-    dmat = xgb.DMatrix([[0]], label=[xgb.rabit.get_rank()])
+    dmat = xgb.DMatrix(np.array([[0]]), label=[xgb.rabit.get_rank()])
     bst = xgb.train({"eta": 1.0, "lambda": 0.0}, dmat, 1)
     pred = bst.predict(dmat)
     expected_result = np.average(range(xgb.rabit.get_world_size()))

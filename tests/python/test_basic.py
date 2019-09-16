@@ -430,4 +430,3 @@ class TestBasicPathLike(unittest.TestCase):
 
         # invalid values raise Type error
         self.assertRaises(TypeError, xgb.compat.os_fspath, 123)
-
