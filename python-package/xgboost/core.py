@@ -234,16 +234,12 @@ def _extract_interface_from_cudf(df, is_info):
                          'columnar format.  For other libraries please ' +
                          'refer to specific API.')
 
-    def get_interface(obj):
-        return obj.__cuda_array_interface__
-
     array_interfaces = []
     for col in df.columns:
         data = df[col]
-        interface = get_interface(data)
+        interface = data.__cuda_array_interface__
         if data.has_null_mask:
-            mask = interface['mask'].__dict__['__cuda_array_interface__']
-            interface['mask'] = mask
+            interface['mask'] = interface['mask'].__cuda_array_interface__
         array_interfaces.append(interface)
 
     if is_info:
@@ -414,6 +410,9 @@ class DMatrix(object):
             if feature_types is not None:
                 self._feature_types = feature_types
             return
+
+        if isinstance(data, list):
+            raise TypeError('Input data can not be a list.')
 
         data, feature_names, feature_types = _maybe_pandas_data(data,
                                                                 feature_names,

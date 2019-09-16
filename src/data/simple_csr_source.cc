@@ -192,11 +192,6 @@ void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str,
   CHECK_EQ(typestr.size(),    3)  << ColumnarErrors::TypestrFormat();
   CHECK_NE(typestr.front(), '>')  << ColumnarErrors::BigEndian();
 
-  for (auto const& col : columns) {
-    auto const& typestr_i = get<String const>(col["typestr"]);
-    CHECK_EQ(typestr, typestr_i) << "Columns should be of same type.  Preferably float32.";
-  }
-
   this->FromDeviceColumnar(columns, has_missing, missing);
 }
 

@@ -12,27 +12,25 @@ def dmatrix_from_cudf(input_type, missing=np.NAN):
     import pandas as pd
 
     kRows = 80
-    kCols = 2
+    kCols = 3
 
-    na = np.random.randn(kRows, kCols).astype(input_type)
-    na[3, 1] = missing
+    na = np.random.randn(kRows, kCols)
+    na[:, 0:2] = na[:, 0:2].astype(input_type)
+
     na[5, 0] = missing
+    na[3, 1] = missing
 
-    pa = pd.DataFrame(na)
+    pa = pd.DataFrame({'0': na[:, 0],
+                       '1': na[:, 1],
+                       '2': na[:, 2].astype(np.int32)})
 
     np_label = np.random.randn(kRows).astype(input_type)
     pa_label = pd.DataFrame(np_label)
 
-    names = []
-
-    for i in range(0, kCols):
-        names.append(str(i))
-    pa.columns = names
-
     cd: cudf.DataFrame = cudf.from_pandas(pa)
     cd_label: cudf.DataFrame = cudf.from_pandas(pa_label)
 
-    dtrain = xgb.DMatrix(cd, label=cd_label, missing=missing)
+    dtrain = xgb.DMatrix(cd, missing=missing, label=cd_label)
     assert dtrain.num_col() == kCols
     assert dtrain.num_row() == kRows
 
