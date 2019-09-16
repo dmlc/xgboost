@@ -23,7 +23,7 @@ class TestGPULinear(unittest.TestCase):
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_gpu_coordinate(self):
         parameters = self.common_param.copy()
-        parameters['n_gpus'] = [1]
+        parameters['gpu_id'] = [0]
         for param in test_linear.parameter_combinations(parameters):
             results = test_linear.run_suite(
                 param, 150, self.datasets, scale_features=True)

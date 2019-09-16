@@ -63,6 +63,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/timer.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
 #include "../src/common/json.cc"

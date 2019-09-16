@@ -4,7 +4,7 @@
 #include "../helpers.h"
 
 TEST(Metric, UnknownMetric) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = nullptr;
   EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name", &tparam));
   EXPECT_NO_THROW(metric = xgboost::Metric::Create("rmse", &tparam));

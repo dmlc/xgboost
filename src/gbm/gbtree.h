@@ -147,20 +147,13 @@ class GBTree : public GradientBooster {
     cache_ = cache;
   }
 
-  static void AssertGPUSupport() {
-#ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif  // XGBOOST_USE_CUDA
-  }
-
   void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
-  // data matrix
-  void PerformTreeMethodHeuristic(std::map<std::string, std::string> const& cfg,
-                                  DMatrix* fmat);
+  // data matrix, only useful when tree_method is auto.
+  void PerformTreeMethodHeuristic(DMatrix* fmat);
   /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters(const std::map<std::string, std::string>& cfg);
-  void ConfigureWithKnownData(std::map<std::string, std::string> const& cfg, DMatrix* fmat);
+  void ConfigureUpdaters();
+  void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
 
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat,
@@ -198,7 +191,7 @@ class GBTree : public GradientBooster {
                     HostDeviceVector<bst_float>* out_preds,
                     unsigned ntree_limit) override {
     CHECK(configured_);
-    GetPredictor()->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
+    GetPredictor(out_preds, p_fmat)->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
@@ -241,7 +234,7 @@ class GBTree : public GradientBooster {
 
  protected:
   // initialize updater before using them
-  void InitUpdater();
+  void InitUpdater(Args const& cfg);
 
   // do group specific group
   void BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
@@ -249,8 +242,22 @@ class GBTree : public GradientBooster {
                      int bst_group,
                      std::vector<std::unique_ptr<RegTree> >* ret);
 
-  std::unique_ptr<Predictor> const& GetPredictor() const {
+  std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
+                                                 DMatrix* f_dmat = nullptr) const {
     CHECK(configured_);
+    // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
+    // Predictor is not used for training dataset.  But when XGBoost performs continue
+    // training with an existing model, the prediction cache is not availbale and number
+    // of tree doesn't equal zero, the whole training dataset got copied into GPU for
+    // precise prediction.  This condition tries to avoid such copy by calling CPU
+    // Predictor.
+    if ((out_pred && out_pred->Size() == 0) &&
+        (model_.param.num_trees != 0) &&
+        // FIXME(trivialfis): Implement a better method for testing whether data is on
+        // device after DMatrix refactoring is done.
+        (f_dmat && !((*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead()))) {
+      return cpu_predictor_;
+    }
     if (tparam_.predictor == "cpu_predictor") {
       CHECK(cpu_predictor_);
       return cpu_predictor_;
@@ -277,6 +284,8 @@ class GBTree : public GradientBooster {
   // training parameter
   GBTreeTrainParam tparam_;
   // ----training fields----
+  bool specified_updater_   {false};
+  bool specified_predictor_ {false};
   bool configured_ {false};
   // configurations for tree
   Args cfg_;

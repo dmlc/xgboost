@@ -168,10 +168,9 @@ TEST(Learner, IO) {
   std::unique_ptr<Learner> learner {Learner::Create(mat)};
   learner->SetParams({Arg{"tree_method", "auto"},
                       Arg{"predictor", "gpu_predictor"},
-                      Arg{"n_gpus", "1"}});
+                      Arg{"gpu_id", "0"}});
   learner->UpdateOneIter(0, p_dmat.get());
   ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
 
   dmlc::TemporaryDirectory tempdir;
   const std::string fname = tempdir.path + "/model.bst";
@@ -185,7 +184,6 @@ TEST(Learner, IO) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
   learner->Load(fi.get());
   ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-  ASSERT_EQ(learner->GetGenericParameter().n_gpus, 0);
 
   delete pp_dmat;
 }
@@ -208,31 +206,27 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"updater", "gpu_coord_descent"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat.get());
-    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 0);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
   }
   {
-    // with CPU algorithm, but `n_gpus` takes priority
+    // with CPU algorithm, but `gpu_id` takes priority
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"},
-                        Arg{"n_gpus", "1"}});
+                        Arg{"gpu_id", "0"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
   {
     // With CPU algorithm but GPU Predictor, this is to simulate when
@@ -243,12 +237,10 @@ TEST(Learner, GPUConfiguration) {
                         Arg{"predictor", "gpu_predictor"}});
     learner->UpdateOneIter(0, p_dmat.get());
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-    ASSERT_EQ(learner->GetGenericParameter().n_gpus, 1);
   }
 
   delete pp_dmat;
 }
-
 #endif  // XGBOOST_USE_CUDA
 
 }  // namespace xgboost

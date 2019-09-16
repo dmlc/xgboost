@@ -61,7 +61,6 @@ base_params = {
 
 def params_basic_1x4(rank):
     return dict(base_params, **{
-        'n_gpus': 1,
         'gpu_id': rank,
     }), 20
 
