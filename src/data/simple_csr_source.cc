@@ -183,7 +183,6 @@ void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str,
                                bool has_missing, float missing) {
   Json interfaces = Json::Load({cuda_interfaces_str.c_str(),
                                 cuda_interfaces_str.size()});
-  std::isnan(missing);
   std::vector<Json> const& columns = get<Array>(interfaces);
   size_t n_columns = columns.size();
   CHECK_GT(n_columns, 0) << "Number of columns must not be greater than 0.";
