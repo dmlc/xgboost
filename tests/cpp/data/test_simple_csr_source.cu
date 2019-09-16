@@ -54,6 +54,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
     for (size_t i = 0; i < kRows + 1; ++i) {
       ASSERT_EQ(offset[i], i);
     }
+    ASSERT_EQ(source->info.num_row_, kRows);
   }
 
   // with missing value specified
@@ -69,6 +70,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
     for (size_t i = 3; i < kRows + 1; ++i) {
       ASSERT_EQ(offset[i], i - 1);
     }
+    ASSERT_EQ(source->info.num_row_, kRows);
   }
 
   {
@@ -82,6 +84,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
     auto const& offset = source->page_.offset.HostVector();
     ASSERT_EQ(data.size(), 15);
     ASSERT_NEAR(data[3].fvalue, 8.0, kRtEps);
+    ASSERT_EQ(source->info.num_row_, kRows);
   }
 }
 
@@ -160,6 +163,7 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
       ASSERT_NEAR(data[j].fvalue, i - 1, kRtEps);
     }
   }
+  ASSERT_EQ(source->info.num_row_, kRows);
 }
 
 TEST(SimpleCSRSource, FromColumnarSparse) {

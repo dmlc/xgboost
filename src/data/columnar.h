@@ -203,5 +203,32 @@ class ArrayInterfaceHandler {
     return foreign_col;
   }
 };
+
+#define DISPATCH_TYPE(__dispatched_func, __typestr, ...) {              \
+    if (__typestr.at(1) == 'f' && __typestr.at(2) == '4') {             \
+      __dispatched_func<float>(__VA_ARGS__);                            \
+    } else if (__typestr.at(1) == 'f' && __typestr.at(2) == '8') {      \
+      __dispatched_func<double>(__VA_ARGS__);                           \
+    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '1') {      \
+      __dispatched_func<int8_t>(__VA_ARGS__);                           \
+    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '2') {      \
+      __dispatched_func<int16_t>(__VA_ARGS__);                          \
+    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '4') {      \
+      __dispatched_func<int32_t>(__VA_ARGS__);                          \
+    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '8') {      \
+      __dispatched_func<int64_t>(__VA_ARGS__);                          \
+    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '1') {      \
+      __dispatched_func<uint8_t>(__VA_ARGS__);                          \
+    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '2') {      \
+      __dispatched_func<uint16_t>(__VA_ARGS__);                         \
+    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '4') {      \
+      __dispatched_func<uint32_t>(__VA_ARGS__);                         \
+    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '8') {      \
+      __dispatched_func<uint64_t>(__VA_ARGS__);                         \
+    } else {                                                            \
+      LOG(FATAL) << ColumnarErrors::UnknownTypeStr(__typestr);          \
+    }                                                                   \
+  }
+
 }      // namespace xgboost
 #endif  // XGBOOST_DATA_COLUMNAR_H_

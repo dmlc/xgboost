@@ -34,33 +34,6 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
   thrust::copy(p_src, p_src + length, p_dst);
 }
 
-void CopyInfo(std::map<std::string, Json> const& column, HostDeviceVector<float>* out) {
-  auto const& typestr = get<String const>(column.at("typestr"));
-  if (typestr.at(1) == 'f' && typestr.at(2) == '4') {
-    CopyInfoImpl<float>(column, out);
-  } else if (typestr.at(1) == 'f' && typestr.at(2) == '8') {
-    CopyInfoImpl<double>(column, out);
-  } else if (typestr.at(1) == 'i' && typestr.at(2) == '1') {
-    CopyInfoImpl<int8_t>(column, out);
-  } else if (typestr.at(1) == 'i' && typestr.at(2) == '2') {
-    CopyInfoImpl<int16_t>(column, out);
-  } else if (typestr.at(1) == 'i' && typestr.at(2) == '4') {
-    CopyInfoImpl<int32_t>(column, out);
-  } else if (typestr.at(1) == 'i' && typestr.at(2) == '8') {
-    CopyInfoImpl<int64_t>(column, out);
-  } else if (typestr.at(1) == 'u' && typestr.at(2) == '1') {
-    CopyInfoImpl<uint8_t>(column, out);
-  } else if (typestr.at(1) == 'u' && typestr.at(2) == '2') {
-    CopyInfoImpl<uint16_t>(column, out);
-  } else if (typestr.at(1) == 'u' && typestr.at(2) == '4') {
-    CopyInfoImpl<uint32_t>(column, out);
-  } else if (typestr.at(1) == 'u' && typestr.at(2) == '8') {
-    CopyInfoImpl<uint64_t>(column, out);
-  } else {
-    LOG(FATAL) << ColumnarErrors::UnknownTypeStr(typestr);
-  }
-}
-
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_arr = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr_obj = get<Object>(j_arr);
@@ -69,15 +42,16 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   if (j_arr_obj.find("mask") != j_arr_obj.cend()) {
     LOG(FATAL) << "Meta info " << key << " should be dense, found validity mask";
   }
+  auto const& typestr = get<String const>(j_arr_obj.at("typestr"));
 
   if (key == "root_index") {
     LOG(FATAL) << "root index for columnar data is not supported.";
   } else if (key == "label") {
-    CopyInfo(j_arr_obj, &labels_);
+    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &labels_);
   } else if (key == "weight") {
-    CopyInfo(j_arr_obj, &weights_);
+    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &weights_);
   } else if (key == "base_margin") {
-    CopyInfo(j_arr_obj, &base_margin_);
+    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &base_margin_);
   } else if (key == "group") {
     // Ranking is not performed on device.
     auto s_data = ArrayInterfaceHandler::ExtractData<uint32_t>(j_arr_obj);
