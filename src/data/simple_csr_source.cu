@@ -164,7 +164,7 @@ void FromDeviceColumnarImpl(std::vector<Json> const& columns,
   // don't pay for what you don't use.
   if (!common::CheckNAN(missing)) {
     int32_t flag {0};
-    thrust::copy(d_flag.begin(), d_flag.end(), &flag);
+    dh::safe_cuda(cudaMemcpy(&flag, d_flag.data().get(), sizeof(int32_t), cudaMemcpyDeviceToHost));
     CHECK_EQ(flag, 0) << "missing value is specifed but input data contains NaN.";
   }
 
@@ -175,7 +175,8 @@ void FromDeviceColumnarImpl(std::vector<Json> const& columns,
   // Created for building csr matrix, where we need to change index after processing each
   // column.
   dh::device_vector<size_t> tmp_offset(p_page->offset.Size());
-  thrust::copy(p_offsets, p_offsets + n_rows + 1, tmp_offset.begin());
+  dh::safe_cuda(cudaMemcpy(tmp_offset.data().get(), s_offsets.data(),
+                           s_offsets.size_bytes(), cudaMemcpyDeviceToDevice));
 
   // We can use null_count from columnar data format, but that will add a non-standard
   // entry in the array interface, also involves accumulating from all columns.  Invoking
