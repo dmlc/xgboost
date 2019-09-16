@@ -78,7 +78,7 @@ def test_get_local_data(client):
 
 def run_sklearn():
     # Contains one label equal to rank
-    X = [[0]]
+    X = np.array([[0]])
     y = [xgb.rabit.get_rank()]
     model = xgb.XGBRegressor(learning_rate=1.0)
     model.fit(X, y)
