@@ -27,9 +27,9 @@ namespace xgboost {
 namespace data {
 
 template <typename T>
-__global__ void CountValidKernel(Columnar<T> const column, int32_t const n_rows,
-                                 bool has_missing, float missing, int32_t* flag,
-                                 common::Span<size_t> offsets, uint32_t column_id) {
+__global__ void CountValidKernel(Columnar<T> const column,
+                                 bool has_missing, float missing,
+                                 int32_t* flag, common::Span<size_t> offsets) {
   auto const tid =  threadIdx.x + blockDim.x * blockIdx.x;
   bool const missing_is_nan = common::CheckNAN(missing);
 
@@ -41,18 +41,15 @@ __global__ void CountValidKernel(Columnar<T> const column, int32_t const n_rows,
   if (!has_missing) {
     if ((mask.Data() == nullptr || mask.Check(tid)) &&
         !common::CheckNAN(column.data[tid])) {
-      atomicAdd(reinterpret_cast<BitFieldAtomicType*>(&offsets[tid+1]),
-                static_cast<BitFieldAtomicType>(1));
+      offsets[tid+1] += 1;
     }
   } else if (missing_is_nan) {
     if (!common::CheckNAN(column.data[tid])) {
-      atomicAdd(reinterpret_cast<BitFieldAtomicType*>(&offsets[tid+1]),
-                static_cast<BitFieldAtomicType>(1));
+      offsets[tid+1] += 1;
     }
   } else {
     if (!common::CloseTo(column.data[tid], missing)) {
-      atomicAdd(reinterpret_cast<BitFieldAtomicType*>(&offsets[tid+1]),
-                static_cast<BitFieldAtomicType>(1));
+      offsets[tid+1] += 1;
     }
     if (common::CheckNAN(column.data[tid])) {
       *flag = 1;
@@ -128,9 +125,9 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 
   int32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
   CountValidKernel<T><<<kBlocks, kThreads>>>(
-      foreign_column, n_rows,
+      foreign_column,
       has_missing, missing,
-      out_d_flag->data().get(), s_offsets, column_id);
+      out_d_flag->data().get(), s_offsets);
   *out_n_rows = n_rows;
 }
 
