@@ -7,7 +7,6 @@ import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping  # Python 3
 # pylint: enable=no-name-in-module,import-error
-import math
 import ctypes
 import os
 import re
@@ -235,28 +234,13 @@ def _extract_interface_from_cudf(df, is_info):
                          'columnar format.  For other libraries please ' +
                          'refer to specific API.')
 
-    def get_interface(obj):
-        return obj.mem.__cuda_array_interface__
-
     array_interfaces = []
     for col in df.columns:
-        data = df[col].data
-        array_interfaces.append(get_interface(data))
-
-    validity_masks = []
-    for col in df.columns:
-        if df[col].has_null_mask:
-            mask_interface = get_interface(df[col].nullmask)
-            mask_interface['null_count'] = df[col].null_count
-            validity_masks.append(mask_interface)
-        else:
-            validity_masks.append(False)
-
-    for i in range(len(df.columns)):
-        col_interface = array_interfaces[i]
-        mask_interface = validity_masks[i]
-        if mask_interface is not False:
-            col_interface['mask'] = mask_interface
+        data = df[col]
+        interface = data.__cuda_array_interface__
+        if data.has_null_mask:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        array_interfaces.append(interface)
 
     if is_info:
         array_interfaces = array_interfaces[0]
@@ -369,22 +353,6 @@ def _maybe_dt_array(array):
     return array
 
 
-def _check_data(data, missing):
-    '''The missing value applies only to np.ndarray.'''
-    is_invalid = (not isinstance(data, np.ndarray)) and (missing is not None)
-    is_invalid = is_invalid and not math.isnan(missing)
-    if is_invalid:
-        raise ValueError(
-            'missing value only applies to dense input, ' +
-            'e.g. `numpy.ndarray`.' +
-            ' For a possibly sparse data type: ' + str(type(data)) +
-            ' please remove missing values or set it to nan.' +
-            ' Current missing value is set to: ' + str(missing))
-    if isinstance(data, list):
-        warnings.warn('Initializing DMatrix from List is deprecated.',
-                      DeprecationWarning)
-
-
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -443,7 +411,8 @@ class DMatrix(object):
                 self._feature_types = feature_types
             return
 
-        _check_data(data, missing)
+        if isinstance(data, list):
+            raise TypeError('Input data can not be a list.')
 
         data, feature_names, feature_types = _maybe_pandas_data(data,
                                                                 feature_names,
@@ -472,7 +441,7 @@ class DMatrix(object):
         elif isinstance(data, DataTable):
             self._init_from_dt(data, nthread)
         elif _use_columnar_initializer(data):
-            self._init_from_columnar(data)
+            self._init_from_columnar(data, missing)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -599,15 +568,18 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
-    def _init_from_columnar(self, df):
+    def _init_from_columnar(self, df, missing):
         '''Initialize DMatrix from columnar memory format.
 
         '''
         interfaces = _extract_interface_from_cudf(df, False)
         handle = ctypes.c_void_p()
+        has_missing = missing is not None
+        missing = missing if has_missing else np.nan
         _check_call(
-            _LIB.XGDMatrixCreateFromArrayInterfaces(interfaces,
-                                                    ctypes.byref(handle)))
+            _LIB.XGDMatrixCreateFromArrayInterfaces(
+                interfaces, ctypes.c_int32(has_missing),
+                ctypes.c_float(missing), ctypes.byref(handle)))
         self.handle = handle
 
     def __del__(self):

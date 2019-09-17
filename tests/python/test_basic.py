@@ -67,17 +67,17 @@ class TestBasic(unittest.TestCase):
     def test_np_view(self):
         # Sliced Float32 array
         y = np.array([12, 34, 56], np.float32)[::2]
-        from_view = xgb.DMatrix([], label=y).get_label()
-        from_array = xgb.DMatrix([], label=y + 0).get_label()
+        from_view = xgb.DMatrix(np.array([[]]), label=y).get_label()
+        from_array = xgb.DMatrix(np.array([[]]), label=y + 0).get_label()
         assert (from_view.shape == from_array.shape)
         assert (from_view == from_array).all()
 
         # Sliced UInt array
         z = np.array([12, 34, 56], np.uint32)[::2]
-        dmat = xgb.DMatrix([])
+        dmat = xgb.DMatrix(np.array([[]]))
         dmat.set_uint_info('root_index', z)
         from_view = dmat.get_uint_info('root_index')
-        dmat = xgb.DMatrix([])
+        dmat = xgb.DMatrix(np.array([[]]))
         dmat.set_uint_info('root_index', z + 0)
         from_array = dmat.get_uint_info('root_index')
         assert (from_view.shape == from_array.shape)
@@ -256,7 +256,7 @@ class TestBasic(unittest.TestCase):
         assert dm.num_row() == 5
         assert dm.num_col() == 5
 
-        data = np.matrix([[1, 2], [3, 4]])
+        data = np.array([[1, 2], [3, 4]])
         dm = xgb.DMatrix(data)
         assert dm.num_row() == 2
         assert dm.num_col() == 2
@@ -430,4 +430,3 @@ class TestBasicPathLike(unittest.TestCase):
 
         # invalid values raise Type error
         self.assertRaises(TypeError, xgb.compat.os_fspath, 123)
-

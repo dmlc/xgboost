@@ -345,6 +345,8 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
 // Replacement of allocator with custom backend should occur here
 template <typename T>
 using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
+/*! Be careful that the initialization constructor is a no-op, which means calling
+ *  `vec.resize(n, 1)` won't initialize the memory region to 1. */
 template <typename T>
 using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */

@@ -393,7 +393,8 @@ def test_sklearn_nfolds_cv():
     nfolds = 5
     skf = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=seed)
 
-    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed, as_pandas=True)
+    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
+                 seed=seed, as_pandas=True)
     cv2 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
                  folds=skf, seed=seed, as_pandas=True)
     cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds,
