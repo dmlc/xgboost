@@ -10,6 +10,8 @@
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_dmatrix.h"
 
+#include "./simple_batch_iterator.h"
+
 namespace xgboost {
 namespace data {
 
@@ -70,6 +72,16 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   auto begin_iter = BatchIterator<SortedCSCPage>(
       new SparseBatchIteratorImpl<SortedCSCPage>(sorted_column_source_.get()));
   return BatchSet<SortedCSCPage>(begin_iter);
+}
+
+BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches() {
+  // ELLPACK page doesn't exist, generate it
+  if (!ellpack_page_) {
+    ellpack_page_.reset(new EllpackPage(this));
+  }
+  auto begin_iter =
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_.get()));
+  return BatchSet<EllpackPage>(begin_iter);
 }
 
 float SparsePageDMatrix::GetColDensity(size_t cidx) {

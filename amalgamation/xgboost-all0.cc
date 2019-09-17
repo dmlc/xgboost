@@ -29,6 +29,7 @@
 
 // data
 #include "../src/data/data.cc"
+#include "../src/data/ellpack_page.cc"
 #include "../src/data/simple_csr_source.cc"
 #include "../src/data/simple_dmatrix.cc"
 #include "../src/data/sparse_page_raw_format.cc"
