@@ -232,7 +232,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
     std::string format {file_format};
     if (args.size() == 1 && file_format == "auto") {
       auto extension = common::Split(args.front(), '.').back();
-      LOG(WARNING) << "extension: " << extension;
       if (extension == "csv" || extension == "libsvm") {
         format = extension;
       }
@@ -244,7 +243,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
       } else {
         LOG(WARNING)
             << "No format parameter is provided in input uri.  Choosing default parser in dmlc-core.  "
-            << "Consider providing a uri parameter: filename?format=csv";
+            << "Consider providing a uri parameter like: filename?format=csv";
       }
 
       LOG(FATAL) << "Encountered parser error:\n" << e.what();
