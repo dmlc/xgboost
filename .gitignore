@@ -69,10 +69,8 @@ config.mk
 /xgboost
 *.data
 build_plugin
-.idea
 recommonmark/
 tags
-*.iml
 *.class
 target
 *.swp
@@ -95,3 +93,11 @@ metastore_db
 # files from R-package source install
 **/config.status
 R-package/src/Makevars
+
+# Visual Studio Code
+/.vscode/
+
+# IntelliJ/CLion
+/.idea/
+*.iml
+/cmake-build-debug/
