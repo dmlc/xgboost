@@ -201,7 +201,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setGroup(int[] group) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetGroup(handle, group));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetUIntInfo(handle, "group", group));
   }
 
   /**
