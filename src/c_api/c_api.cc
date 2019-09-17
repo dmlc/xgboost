@@ -720,6 +720,17 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
+                              const unsigned* group,
+                              xgboost::bst_ulong len) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
+  static_cast<std::shared_ptr<DMatrix>*>(handle)
+      ->get()->Info().SetInfo("group", group, kUInt32, len);
+  API_END();
+}
+
 XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
                                   const char* field,
                                   xgboost::bst_ulong* out_len,
