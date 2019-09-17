@@ -98,6 +98,6 @@ R-package/src/Makevars
 /.vscode/
 
 # IntelliJ/CLion
-/.idea/
+.idea
 *.iml
 /cmake-build-debug/
