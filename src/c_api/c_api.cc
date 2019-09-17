@@ -720,21 +720,6 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
-                              const unsigned* group,
-                              xgboost::bst_ulong len) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
-  MetaInfo& info = pmat->get()->Info();
-  info.group_ptr_.resize(len + 1);
-  info.group_ptr_[0] = 0;
-  for (uint64_t i = 0; i < len; ++i) {
-    info.group_ptr_[i + 1] = info.group_ptr_[i] + group[i];
-  }
-  API_END();
-}
-
 XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
                                   const char* field,
                                   xgboost::bst_ulong* out_len,
