@@ -303,6 +303,8 @@ void DenseCuts::Init
   }
   CHECK_EQ(summary_array.size(), in_sketchs->size());
   size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
+  // TODO(chenqin): rabit failure recovery assumes no boostrap onetime call after loadcheckpoint
+  // we need to move this allreduce before loadcheckpoint call in future
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
   p_cuts_->min_vals_.resize(sketchs.size());
 

@@ -56,6 +56,7 @@ pipeline {
         script {
           parallel ([
             'build-cpu': { BuildCPU() },
+            'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
@@ -76,6 +77,7 @@ pipeline {
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-cpp-rabit': {TestCppRabit()},
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
@@ -185,6 +187,22 @@ def BuildCPU() {
   }
 }
 
+def BuildCPUMock() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Build CPU with rabit mock"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_mock_cmake.sh
+    """
+     echo 'Stashing rabit C++ test executable (xgboost)...'
+    stash name: 'xgboost_rabit_tests', includes: 'xgboost'
+    deleteDir()
+  }
+}
+
+
 def BuildCUDA(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
@@ -275,6 +293,20 @@ def TestPythonGPU(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
     }
+    deleteDir()
+  }
+}
+
+def TestCppRabit() {
+  node(nodeReq) {
+    unstash name: 'xgboost_rabit_tests'
+    unstash name: 'srcs'
+    echo "Test C++, rabit mock on"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh xgboost tests/ci_build/approx.conf.in
+    """
     deleteDir()
   }
 }
