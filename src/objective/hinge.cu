@@ -37,8 +37,12 @@ class HingeObj : public ObjFunction {
         << "preds.size=" << preds.Size()
         << ", label.size=" << info.labels_.Size();
 
-    const bool is_null_weight = info.weights_.Size() == 0;
     const size_t ndata = preds.Size();
+    const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     out_gpair->Resize(ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
