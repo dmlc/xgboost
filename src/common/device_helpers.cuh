@@ -127,7 +127,8 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
  * \return the smallest index i such that v < cuts[i], or n if v is greater or equal
  *  than all elements of the array
 */
-DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
+template <typename T>
+DEV_INLINE int UpperBound(const T* __restrict__ cuts, int n, T v) {
   if (n == 0)           { return 0; }
   if (cuts[n - 1] <= v) { return n; }
   if (cuts[0] > v)      { return 0; }
@@ -268,7 +269,7 @@ public:
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
       << " ========";
     LOG(CONSOLE) << "Peak memory usage: "
-      << stats_.peak_allocated_bytes / 1000000 << "mb";
+      << stats_.peak_allocated_bytes / 1048576 << "mb";
     LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
@@ -978,7 +979,7 @@ class AllReducer {
     if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       LOG(CONSOLE) << "======== NCCL Statistics========";
       LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
-      LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1000000;
+      LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1048576;
     }
 #endif
   }
