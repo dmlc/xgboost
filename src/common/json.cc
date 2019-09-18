@@ -384,8 +384,18 @@ void JsonReader::Error(std::string msg) const {
   auto end = cursor_.Pos() + kExtend >= raw_str_.size() ?
              raw_str_.size() : cursor_.Pos() + kExtend;
 
+  std::string const& raw_portion = raw_str_.substr(beg, end - beg);
+  std::string portion;
+  for (auto c : raw_portion) {
+    if (c == '\n') {
+      portion += "\\n";
+    } else {
+      portion += c;
+    }
+  }
+
   msg += "    ";
-  msg += raw_str_.substr(beg, end - beg);
+  msg += portion;
   msg += '\n';
 
   msg += "    ";
@@ -488,11 +498,11 @@ Json JsonReader::ParseArray() {
 }
 
 Json JsonReader::ParseObject() {
-  char ch = GetChar('{');
+  GetChar('{');
 
   std::map<std::string, Json> data;
   SkipSpaces();
-  ch = PeekNextChar();
+  char ch = PeekNextChar();
 
   if (ch == '}') return Json(std::move(data));
 
