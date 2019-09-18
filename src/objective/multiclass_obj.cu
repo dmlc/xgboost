@@ -159,7 +159,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   // output probability
   bool output_prob_;
   // parameter
-  SoftmaxMultiClassParam param_{};
+  SoftmaxMultiClassParam param_;
   // Cache for max_preds
   HostDeviceVector<bst_float> max_preds_;
   HostDeviceVector<int> label_correct_;
