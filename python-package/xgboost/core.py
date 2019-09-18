@@ -811,9 +811,7 @@ class DMatrix(object):
         if _use_columnar_initializer(group):
             self.set_interface_info('group', group)
         else:
-            _check_call(_LIB.XGDMatrixSetGroup(self.handle,
-                                               c_array(ctypes.c_uint, group),
-                                               c_bst_ulong(len(group))))
+            self.set_uint_info('group', group)
 
     def get_label(self):
         """Get the label of the DMatrix.

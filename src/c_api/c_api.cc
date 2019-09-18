@@ -725,13 +725,9 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
-  auto *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
-  MetaInfo& info = pmat->get()->Info();
-  info.group_ptr_.resize(len + 1);
-  info.group_ptr_[0] = 0;
-  for (uint64_t i = 0; i < len; ++i) {
-    info.group_ptr_[i + 1] = info.group_ptr_[i] + group[i];
-  }
+  LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
+  static_cast<std::shared_ptr<DMatrix>*>(handle)
+      ->get()->Info().SetInfo("group", group, kUInt32, len);
   API_END();
 }
 
