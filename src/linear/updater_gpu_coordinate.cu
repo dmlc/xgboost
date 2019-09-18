@@ -53,7 +53,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     if ( IsEmpty() ) { return; }
     dh::safe_cuda(cudaSetDevice(device_));
     // The begin and end indices for the section of each column associated with
-    // this shard
+    // this device
     std::vector<std::pair<bst_uint, bst_uint>> column_segments;
     row_ptr_ = {0};
     // iterate through columns

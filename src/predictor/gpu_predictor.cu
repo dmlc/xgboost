@@ -419,7 +419,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  private:
-  /*! \brief Reconfigure the shard when GPU is changed. */
+  /*! \brief Reconfigure the device when GPU is changed. */
   void ConfigureDevice(int device) {
     if (device_ == device) return;
     device_ = device;

@@ -33,9 +33,7 @@ struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
         .describe("Number of output class in the multi-class classification.");
   }
 };
-// TODO(trivialfis): Currently the sharding in softmax is less than ideal
-// due to repeated copying data between CPU and GPUs.  Maybe we just use single
-// GPU?
+
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
   explicit SoftmaxMultiClassObj(bool output_prob)
@@ -161,7 +159,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   // output probability
   bool output_prob_;
   // parameter
-  SoftmaxMultiClassParam param_;
+  SoftmaxMultiClassParam param_{};
   // Cache for max_preds
   HostDeviceVector<bst_float> max_preds_;
   HostDeviceVector<int> label_correct_;
