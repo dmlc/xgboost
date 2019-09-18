@@ -433,11 +433,7 @@ class AllreduceRobust : public AllreduceBase {
   bool RecoverExec(void *buf, size_t size, int flag,
     int seqno = ActionSummary::kSpecialOp,
     int cacheseqno = ActionSummary::kSpecialOp,
-#ifdef __linux__
-    const char* caller = __builtin_FUNCTION());
-#else
-    const char* caller = "N/A");
-#endif
+    const char* caller = _CALLER);
   /*!
    * \brief try to load check point
    *
