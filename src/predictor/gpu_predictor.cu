@@ -286,7 +286,7 @@ class GPUPredictor : public xgboost::Predictor {
  public:
   GPUPredictor() : device_{-1} {}
 
-  ~GPUPredictor() override {
+  ~GPUPredictor() {
     if (device_ >= 0) {
       dh::safe_cuda(cudaSetDevice(device_));
     }
