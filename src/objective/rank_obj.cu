@@ -242,98 +242,98 @@ struct MAPLambdaWeightComputer {
 #if defined(__CUDACC__)
 class SortedLabelList {
  private:
-  dh::device_vector<bst_float> dpreds;   // Used to store sorted predictions
-  dh::device_vector<bst_float> dlabels;  // Used to store sorted labels
-  const bst_float *orig_dpreds;          // Original predictions - unsorted
-  const bst_float *orig_dlabels;         // Original labels - unsorted
+  dh::device_vector<bst_float> dpreds_;   // Used to store sorted predictions
+  dh::device_vector<bst_float> dlabels_;  // Used to store sorted labels
+  const bst_float *orig_dpreds_;          // Original predictions - unsorted
+  const bst_float *orig_dlabels_;         // Original labels - unsorted
 
-  dh::device_vector<int> dpos;           // Original position of the labels in the dataset
-  dh::device_vector<int> dlabels_count;  // Unique label count in CSR format
-  cudaStream_t stream{nullptr};
-  int begin_group_idx{-1};               // Begining index within the group
-  int device_id{-1};                     // GPU device ID
+  dh::device_vector<int> dpos_;           // Original position of the labels in the dataset
+  dh::device_vector<int> dlabels_count_;  // Unique label count in CSR format
+  cudaStream_t stream_{nullptr};
+  int begin_group_idx_{-1};               // Begining index within the group
+  int device_id_{-1};                     // GPU device ID
 
  public:
   SortedLabelList(int dev_id,
                   const bst_float *preds, const bst_float *labels,
                   int begin, int end)
-    : dpreds(preds + begin, preds + end),
-      dlabels(labels + begin, labels + end),
-      orig_dpreds(preds),
-      orig_dlabels(labels),
-      dpos(end - begin),
-      dlabels_count(end - begin + 1, 1),
-      begin_group_idx(begin),
-      device_id(dev_id) {
-    dh::safe_cuda(cudaStreamCreate(&stream));
-    thrust::sequence(thrust::cuda::par.on(stream), dpos.begin(), dpos.end());
-    dlabels_count[0] = 0;
+    : dpreds_(preds + begin, preds + end),
+      dlabels_(labels + begin, labels + end),
+      orig_dpreds_(preds),
+      orig_dlabels_(labels),
+      dpos_(end - begin),
+      dlabels_count_(end - begin + 1, 1),
+      begin_group_idx_(begin),
+      device_id_(dev_id) {
+    dh::safe_cuda(cudaStreamCreate(&stream_));
+    thrust::sequence(thrust::cuda::par.on(stream_), dpos_.begin(), dpos_.end());
+    dlabels_count_[0] = 0;
   }
 
   ~SortedLabelList() {
-    dh::safe_cuda(cudaSetDevice(device_id));
-    dh::safe_cuda(cudaStreamDestroy(stream));
+    dh::safe_cuda(cudaSetDevice(device_id_));
+    dh::safe_cuda(cudaStreamDestroy(stream_));
   }
 
   // Sort by predictions first and then sort the labels by predictions next
   void Sort() {
-    dh::device_vector<bst_float> cdpreds(dpreds);
+    dh::device_vector<bst_float> cdpreds(dpreds_);
     // Sort the predictions first and rearrange its positional indices
-    thrust::sort_by_key(thrust::cuda::par.on(stream),
-                        cdpreds.begin(), cdpreds.end(), dpos.begin(),
+    thrust::sort_by_key(thrust::cuda::par.on(stream_),
+                        cdpreds.begin(), cdpreds.end(), dpos_.begin(),
                         thrust::greater<bst_float>());
     // Gather the labels based on the sorted indices
-    thrust::gather(thrust::cuda::par.on(stream),
-                   dpos.begin(), dpos.end(), orig_dlabels + begin_group_idx, dlabels.begin());
+    thrust::gather(thrust::cuda::par.on(stream_),
+                   dpos_.begin(), dpos_.end(), orig_dlabels_ + begin_group_idx_, dlabels_.begin());
 
     // Sort the labels next and get the final order
-    thrust::sort_by_key(thrust::cuda::par.on(stream),
-                        dlabels.begin(), dlabels.end(), dpos.begin(),
+    thrust::sort_by_key(thrust::cuda::par.on(stream_),
+                        dlabels_.begin(), dlabels_.end(), dpos_.begin(),
                         thrust::greater<bst_float>());
     // Use the order to then sort the original predictions
-    thrust::gather(thrust::cuda::par.on(stream),
-                   dpos.begin(), dpos.end(), orig_dpreds + begin_group_idx, dpreds.begin());
+    thrust::gather(thrust::cuda::par.on(stream_),
+                   dpos_.begin(), dpos_.end(), orig_dpreds_ + begin_group_idx_, dpreds_.begin());
   }
 
   // For all the unique labels, create a number of such labels for those unique label
   // values. Returns the number of such unique labels
   int CreateUniqueLabelCount() {
-    dh::device_vector<bst_float> dunique_labels(dlabels.size());
+    dh::device_vector<bst_float> dunique_labels(dlabels_.size());
     // Find all unique values first and the number of such labels in that group
     auto itr_pair =
-      thrust::reduce_by_key(thrust::cuda::par.on(stream),
-                            dlabels.begin(), dlabels.end(), dlabels_count.begin() + 1,
-                            dunique_labels.begin(), dlabels_count.begin() + 1);
+      thrust::reduce_by_key(thrust::cuda::par.on(stream_),
+                            dlabels_.begin(), dlabels_.end(), dlabels_count_.begin() + 1,
+                            dunique_labels.begin(), dlabels_count_.begin() + 1);
 
-    dlabels_count.resize(itr_pair.second - dlabels_count.begin());
-    dlabels_count.shrink_to_fit();
+    dlabels_count_.resize(itr_pair.second - dlabels_count_.begin());
+    dlabels_count_.shrink_to_fit();
     // Create a CSR style unique count array that can be used to pick a sample outside
     // the label group while computing the lambda pairs
-    thrust::inclusive_scan(thrust::cuda::par.on(stream),
-                           dlabels_count.begin(), dlabels_count.end(), dlabels_count.begin());
+    thrust::inclusive_scan(thrust::cuda::par.on(stream_),
+                           dlabels_count_.begin(), dlabels_count_.end(), dlabels_count_.begin());
 
-    return dlabels_count.size() - 1;  // -1 for the first element which is 0 for the CSR format
+    return dlabels_count_.size() - 1;  // -1 for the first element which is 0 for the CSR format
   }
 
   void ComputeGradients(GradientPair *out_gpair, float weight, int nsamples) {
     // Unique labels
-    int *dlabels_count_arr = thrust::raw_pointer_cast(&dlabels_count[0]);
-    int dlabels_count_arr_size = dlabels_count.size();
+    int *dlabels_count_arr = thrust::raw_pointer_cast(&dlabels_count_[0]);
+    int dlabels_count_arr_size = dlabels_count_.size();
 
     // Position within the original dataset
-    int *dpos_arr = thrust::raw_pointer_cast(&dpos[0]);
+    int *dpos_arr = thrust::raw_pointer_cast(&dpos_[0]);
 
     // Group predictions
-    float *dpreds_arr = thrust::raw_pointer_cast(&dpreds[0]);
+    float *dpreds_arr = thrust::raw_pointer_cast(&dpreds_[0]);
 
-    int niter = nsamples * dpreds.size();
+    int niter = nsamples * dpreds_.size();
 
     // As multiple groups can be processed in parallel, this is the index offset into the
     // out_gpair
-    int pos_offset = begin_group_idx;
+    int pos_offset = begin_group_idx_;
 
     // For each instance in the group, compute the gradient pair concurrently
-    dh::LaunchN(device_id, niter, stream, [=] __device__(size_t idx) {
+    dh::LaunchN(device_id_, niter, stream_, [=] __device__(size_t idx) {
       int total_items = dlabels_count_arr[dlabels_count_arr_size-1];
       int item_idx = idx % total_items;
 
