@@ -298,6 +298,7 @@ class EllpackPageImpl;
  */
 class EllpackPage {
  public:
+  EllpackPage() = default;
   explicit EllpackPage(DMatrix* dmat);
   ~EllpackPage();
 

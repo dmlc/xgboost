@@ -252,13 +252,23 @@ class SparsePageSource : public DataSource<T> {
   }
 
   /*!
-   * \brief Create source cache by copy content from DMatrix. Creates transposed column page, may be sorted or not.
+   * \brief Create source cache by copy content from DMatrix.
+   * Creates transposed column page, may be sorted or not.
    * \param cache_info The cache_info of cache file location.
    * \param sorted Whether columns should be pre-sorted
    */
   static void CreateColumnPage(DMatrix* src,
                                const std::string& cache_info, bool sorted) {
     const std::string page_type = sorted ? ".sorted.col.page" : ".col.page";
+    CreatePageFromDMatrix(src, cache_info, page_type);
+  }
+
+  /*!
+   * \brief Create ELLPACK source cache by copy content from DMatrix.
+   * \param cache_info The cache_info of cache file location.
+   */
+  static void CreateEllpackPage(DMatrix* src, const std::string& cache_info) {
+    const std::string page_type = ".ellpack.page";
     CreatePageFromDMatrix(src, cache_info, page_type);
   }
 
@@ -354,11 +364,11 @@ class SparsePageSource : public DataSource<T> {
   /*! \brief internal clock ptr */
   size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */
-  std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
+  std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
   /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePageFormat> > formats_;
+  std::vector<std::unique_ptr<SparsePageFormat>> formats_;
   /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<dmlc::ThreadedIter<T> > > prefetchers_;
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<T>>> prefetchers_;
 };
 }  // namespace data
 }  // namespace xgboost

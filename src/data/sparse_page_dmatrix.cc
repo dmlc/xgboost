@@ -75,12 +75,15 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 }
 
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches() {
-  // ELLPACK page doesn't exist, generate it
-  if (!ellpack_page_) {
-    ellpack_page_.reset(new EllpackPage(this));
+  // Lazily instantiate
+  if (!ellpack_source_) {
+    SparsePageSource<EllpackPage>::CreateEllpackPage(this, cache_info_);
+    ellpack_source_.reset(new SparsePageSource<EllpackPage>(cache_info_, ".ellpack.page"));
   }
+  ellpack_source_->BeforeFirst();
+  ellpack_source_->Next();
   auto begin_iter =
-      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_.get()));
+      BatchIterator<EllpackPage>(new SparseBatchIteratorImpl<EllpackPage>(ellpack_source_.get()));
   return BatchSet<EllpackPage>(begin_iter);
 }
 
