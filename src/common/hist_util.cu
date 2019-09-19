@@ -27,9 +27,11 @@ namespace common {
 
 using WXQSketch = DenseCuts::WXQSketch;
 
-__global__ void FindCutsK
-(WXQSketch::Entry* __restrict__ cuts, const bst_float* __restrict__ data,
- const float* __restrict__ cum_weights, int nsamples, int ncuts) {
+__global__ void FindCutsK(WXQSketch::Entry* __restrict__ cuts,
+                          const bst_float* __restrict__ data,
+                          const float* __restrict__ cum_weights,
+                          int nsamples,
+                          int ncuts) {
   // ncuts < nsamples
   int icut = threadIdx.x + blockIdx.x * blockDim.x;
   if (icut >= ncuts) {
@@ -42,7 +44,7 @@ __global__ void FindCutsK
     isample = nsamples - 1;
   } else {
     bst_float rank = cum_weights[nsamples - 1] / static_cast<float>(ncuts - 1)
-      * static_cast<float>(icut);
+        * static_cast<float>(icut);
     // -1 is used because cum_weights is an inclusive sum
     isample = dh::UpperBound(cum_weights, nsamples, rank);
     isample = max(0, min(isample, nsamples - 1));
@@ -99,9 +101,8 @@ struct SketchContainer {
   std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
-  SketchContainer(int max_bin, DMatrix *dmat) :
-    col_locks_(dmat->Info().num_col_) {
-    const MetaInfo &info = dmat->Info();
+  SketchContainer(int max_bin, DMatrix* dmat) : col_locks_(dmat->Info().num_col_) {
+    const MetaInfo& info = dmat->Info();
     // Initialize Sketches for this dmatrix
     sketches_.resize(info.num_col_);
 #pragma omp parallel for default(none) shared(info, max_bin) schedule(static) \
@@ -139,16 +140,15 @@ class GPUSketcher {
   /* Builds the sketches on the GPU for the dmatrix and returns the row stride
    * for the entire dataset */
   size_t Sketch(DMatrix *dmat, DenseCuts *hmat) {
-    const MetaInfo &info = dmat->Info();
+    const MetaInfo& info = dmat->Info();
 
     row_stride_ = 0;
     sketch_container_.reset(new SketchContainer(max_bin_, dmat));
-    for (const auto &batch : dmat->GetBatches<SparsePage>()) {
+    for (const auto& batch : dmat->GetBatches<SparsePage>()) {
       this->SketchBatch(batch, info);
     }
 
     hmat->Init(&sketch_container_->sketches_, max_bin_);
-
     return row_stride_;
   }
 
@@ -162,11 +162,10 @@ class GPUSketcher {
     }; // NOLINT
 
     auto counting = thrust::make_counting_iterator(size_t(0));
-    using TransformT = thrust::transform_iterator<decltype(get_size),
-                                                  decltype(counting), size_t>;
+    using TransformT = thrust::transform_iterator<decltype(get_size), decltype(counting), size_t>;
     TransformT row_size_iter = TransformT(counting, get_size);
-    row_stride_ = thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0,
-                                 thrust::maximum<size_t>());
+    row_stride_ =
+        thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0, thrust::maximum<size_t>());
   }
 
   // This needs to be public because of the __device__ lambda.
@@ -174,9 +173,13 @@ class GPUSketcher {
     size_t tmp_size = tmp_storage_.size();
     // filter out NaNs in feature values
     auto fvalues_begin = fvalues_.data() + icol * gpu_batch_nrows_;
-    cub::DeviceSelect::If
-        (tmp_storage_.data().get(), tmp_size, fvalues_begin,
-         fvalues_cur_.data(), num_elements_.begin(), batch_nrows, IsNotNaN());
+    cub::DeviceSelect::If(tmp_storage_.data().get(),
+                          tmp_size,
+                          fvalues_begin,
+                          fvalues_cur_.data(),
+                          num_elements_.begin(),
+                          batch_nrows,
+                          IsNotNaN());
     size_t nfvalues_cur = 0;
     thrust::copy_n(num_elements_.begin(), 1, &nfvalues_cur);
 
@@ -185,39 +188,53 @@ class GPUSketcher {
       // filter out NaNs in weights;
       // since cub::DeviceSelect::If performs stable filtering,
       // the weights are stored in the correct positions
-      auto feature_weights_begin = feature_weights_.data() +
-          icol * gpu_batch_nrows_;
-      cub::DeviceSelect::If
-          (tmp_storage_.data().get(), tmp_size, feature_weights_begin,
-           weights_.data().get(), num_elements_.begin(), batch_nrows, IsNotNaN());
+      auto feature_weights_begin = feature_weights_.data() + icol * gpu_batch_nrows_;
+      cub::DeviceSelect::If(tmp_storage_.data().get(),
+                            tmp_size,
+                            feature_weights_begin,
+                            weights_.data().get(),
+                            num_elements_.begin(),
+                            batch_nrows,
+                            IsNotNaN());
 
       // sort the values and weights
-      cub::DeviceRadixSort::SortPairs
-          (tmp_storage_.data().get(), tmp_size, fvalues_cur_.data().get(),
-           fvalues_begin.get(), weights_.data().get(), weights2_.data().get(),
-           nfvalues_cur);
+      cub::DeviceRadixSort::SortPairs(tmp_storage_.data().get(),
+                                      tmp_size,
+                                      fvalues_cur_.data().get(),
+                                      fvalues_begin.get(),
+                                      weights_.data().get(),
+                                      weights2_.data().get(),
+                                      nfvalues_cur);
 
       // sum the weights to get cumulative weight values
-      cub::DeviceScan::InclusiveSum
-          (tmp_storage_.data().get(), tmp_size, weights2_.begin(),
-           weights_.begin(), nfvalues_cur);
+      cub::DeviceScan::InclusiveSum(tmp_storage_.data().get(),
+                                    tmp_size,
+                                    weights2_.begin(),
+                                    weights_.begin(),
+                                    nfvalues_cur);
     } else {
       // sort the batch values
-      cub::DeviceRadixSort::SortKeys
-          (tmp_storage_.data().get(), tmp_size,
-           fvalues_cur_.data().get(), fvalues_begin.get(), nfvalues_cur);
+      cub::DeviceRadixSort::SortKeys(tmp_storage_.data().get(),
+                                     tmp_size,
+                                     fvalues_cur_.data().get(),
+                                     fvalues_begin.get(),
+                                     nfvalues_cur);
 
       // fill in cumulative weights with counting iterator
-      thrust::copy_n(thrust::make_counting_iterator(1), nfvalues_cur,
-                     weights_.begin());
+      thrust::copy_n(thrust::make_counting_iterator(1), nfvalues_cur, weights_.begin());
     }
 
     // remove repeated items and sum the weights across them;
     // non-negative weights are assumed
-    cub::DeviceReduce::ReduceByKey
-        (tmp_storage_.data().get(), tmp_size, fvalues_begin,
-         fvalues_cur_.begin(), weights_.begin(), weights2_.begin(),
-         num_elements_.begin(), thrust::maximum<bst_float>(), nfvalues_cur);
+    cub::DeviceReduce::ReduceByKey(tmp_storage_.data().get(),
+                                   tmp_size,
+                                   fvalues_begin,
+                                   fvalues_cur_.begin(),
+                                   weights_.begin(),
+                                   weights2_.begin(),
+                                   num_elements_.begin(),
+                                   thrust::maximum<bst_float>(),
+                                   nfvalues_cur);
     size_t n_unique = 0;
     thrust::copy_n(num_elements_.begin(), 1, &n_unique);
 
@@ -236,9 +253,12 @@ class GPUSketcher {
     } else if (n_cuts_cur_[icol] > 0) {
       // if more elements than cuts: use binary search on cumulative weights
       int block = 256;
-      FindCutsK<<<common::DivRoundUp(n_cuts_cur_[icol], block), block>>>
-          (cuts_d_.data().get() + icol * n_cuts_, fvalues_cur_.data().get(),
-              weights2_.data().get(), n_unique, n_cuts_cur_[icol]);
+      FindCutsK<<<common::DivRoundUp(n_cuts_cur_[icol], block), block>>>(
+          cuts_d_.data().get() + icol * n_cuts_,
+          fvalues_cur_.data().get(),
+          weights2_.data().get(),
+          n_unique,
+          n_cuts_cur_[icol]);
       dh::safe_cuda(cudaGetLastError());  // NOLINT
     }
   }
@@ -251,8 +271,7 @@ class GPUSketcher {
     // find the batch size
     if (gpu_batch_nrows == 0) {
       // By default, use no more than 1/16th of GPU memory
-      gpu_batch_nrows_ = dh::TotalMemory(device_) /
-          (16 * num_cols_ * sizeof(Entry));
+      gpu_batch_nrows_ = dh::TotalMemory(device_) / (16 * num_cols_ * sizeof(Entry));
     } else if (gpu_batch_nrows == -1) {
       gpu_batch_nrows_ = n_rows_;
     } else {
@@ -289,32 +308,49 @@ class GPUSketcher {
     size_t tmp_size = 0, cur_tmp_size = 0;
     // size for sorting
     if (has_weights_) {
-      cub::DeviceRadixSort::SortPairs
-          (nullptr, cur_tmp_size, fvalues_cur_.data().get(),
-           fvalues_.data().get(), weights_.data().get(), weights2_.data().get(),
-           gpu_batch_nrows_);
+      cub::DeviceRadixSort::SortPairs(nullptr,
+                                      cur_tmp_size,
+                                      fvalues_cur_.data().get(),
+                                      fvalues_.data().get(),
+                                      weights_.data().get(),
+                                      weights2_.data().get(),
+                                      gpu_batch_nrows_);
     } else {
-      cub::DeviceRadixSort::SortKeys
-          (nullptr, cur_tmp_size, fvalues_cur_.data().get(), fvalues_.data().get(),
-           gpu_batch_nrows_);
+      cub::DeviceRadixSort::SortKeys(nullptr,
+                                     cur_tmp_size,
+                                     fvalues_cur_.data().get(),
+                                     fvalues_.data().get(),
+                                     gpu_batch_nrows_);
     }
     tmp_size = std::max(tmp_size, cur_tmp_size);
     // size for inclusive scan
     if (has_weights_) {
-      cub::DeviceScan::InclusiveSum
-          (nullptr, cur_tmp_size, weights2_.begin(), weights_.begin(), gpu_batch_nrows_);
+      cub::DeviceScan::InclusiveSum(nullptr,
+                                    cur_tmp_size,
+                                    weights2_.begin(),
+                                    weights_.begin(),
+                                    gpu_batch_nrows_);
       tmp_size = std::max(tmp_size, cur_tmp_size);
     }
     // size for reduction by key
-    cub::DeviceReduce::ReduceByKey
-        (nullptr, cur_tmp_size, fvalues_.begin(),
-         fvalues_cur_.begin(), weights_.begin(), weights2_.begin(),
-         num_elements_.begin(), thrust::maximum<bst_float>(), gpu_batch_nrows_);
+    cub::DeviceReduce::ReduceByKey(nullptr,
+                                   cur_tmp_size,
+                                   fvalues_.begin(),
+                                   fvalues_cur_.begin(),
+                                   weights_.begin(),
+                                   weights2_.begin(),
+                                   num_elements_.begin(),
+                                   thrust::maximum<bst_float>(),
+                                   gpu_batch_nrows_);
     tmp_size = std::max(tmp_size, cur_tmp_size);
     // size for filtering
-    cub::DeviceSelect::If
-        (nullptr, cur_tmp_size, fvalues_.begin(), fvalues_cur_.begin(),
-         num_elements_.begin(), gpu_batch_nrows_, IsNotNaN());
+    cub::DeviceSelect::If(nullptr,
+                          cur_tmp_size,
+                          fvalues_.begin(),
+                          fvalues_cur_.begin(),
+                          num_elements_.begin(),
+                          gpu_batch_nrows_,
+                          IsNotNaN());
     tmp_size = std::max(tmp_size, cur_tmp_size);
 
     tmp_storage_.resize(tmp_size);
@@ -332,8 +368,7 @@ class GPUSketcher {
     }
   }
 
-  void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
-                   size_t gpu_batch) {
+  void SketchBatch(const SparsePage& row_batch, const MetaInfo& info, size_t gpu_batch) {
     // compute start and end indices
     size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
     size_t batch_row_end = std::min((gpu_batch + 1) * gpu_batch_nrows_,
@@ -345,17 +380,17 @@ class GPUSketcher {
 
     size_t n_entries = offset_vec[batch_row_end] - offset_vec[batch_row_begin];
     // copy the batch to the GPU
-    dh::safe_cuda
-        (cudaMemcpyAsync(entries_.data().get(),
-                         data_vec.data() + offset_vec[batch_row_begin],
-                         n_entries * sizeof(Entry), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpyAsync(entries_.data().get(),
+                                  data_vec.data() + offset_vec[batch_row_begin],
+                                  n_entries * sizeof(Entry),
+                                  cudaMemcpyDefault));
     // copy the weights if necessary
     if (has_weights_) {
       const auto& weights_vec = info.weights_.HostVector();
-      dh::safe_cuda
-          (cudaMemcpyAsync(weights_.data().get(),
-                           weights_vec.data() + batch_row_begin,
-                           batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(weights_.data().get(),
+                                    weights_vec.data() + batch_row_begin,
+                                    batch_nrows * sizeof(bst_float),
+                                    cudaMemcpyDefault));
     }
 
     // unpack the features; also unpack weights if present
@@ -368,11 +403,14 @@ class GPUSketcher {
     // NOTE: This will typically support ~ 4M features - 64K*64
     dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                common::DivRoundUp(num_cols_, block3.y), 1);
-    UnpackFeaturesK<<<grid3, block3>>>
-        (fvalues_.data().get(), has_weights_ ? feature_weights_.data().get() : nullptr,
-            row_ptrs_.data().get() + batch_row_begin,
-            has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
-            gpu_batch_nrows_, offset_vec[batch_row_begin], batch_nrows);
+    UnpackFeaturesK<<<grid3, block3>>>(
+        fvalues_.data().get(),
+        has_weights_ ? feature_weights_.data().get() : nullptr,
+        row_ptrs_.data().get() + batch_row_begin,
+        has_weights_ ? weights_.data().get() : nullptr, entries_.data().get(),
+        gpu_batch_nrows_,
+        offset_vec[batch_row_begin],
+        batch_nrows);
 
     for (int icol = 0; icol < num_cols_; ++icol) {
       FindColumnCuts(batch_nrows, icol);
