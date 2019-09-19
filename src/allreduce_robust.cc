@@ -611,28 +611,12 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
   utils::Assert(err_link != NULL, "must know the error source");
   recover_counter += 1;
-  {
-    // simple way, shutdown all links
-    for (size_t i = 0; i < all_links.size(); ++i) {
-      if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
-    }
-    ReConnectLinks("recover");
-    return false;
+
+  // simple way, shutdown all links
+  for (size_t i = 0; i < all_links.size(); ++i) {
+    if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
   }
-  // this was old way
-  // TryResetLinks still causes possible errors, so not use this one
-  while (err_type != kSuccess) {
-    switch (err_type.value) {
-      case kGetExcept: err_type = TryResetLinks(); break;
-      case kSockError: {
-        TryResetLinks();
-        ReConnectLinks();
-        err_type = kSuccess;
-        break;
-      }
-      default: utils::Assert(false, "RecoverLinks: cannot reach here");
-    }
-  }
+  ReConnectLinks("recover");
   return false;
 }
 /*!
