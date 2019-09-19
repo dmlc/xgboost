@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
-#include <math.h>
+#include <cmath>
 #include "../common/math.h"
 #include "../common/random.h"
 #include "../common/survival_util.h"
@@ -23,8 +23,6 @@ namespace xgboost {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(aft_obj);
-
-
 
 class AFTObj : public ObjFunction {
  public:
@@ -38,14 +36,13 @@ class AFTObj : public ObjFunction {
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     /* Boilerplate */
-    //CHECK_EQ(preds.Size(), info.labels_.Size());
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
-    const auto& yhat     = preds.HostVector();
-    const auto& y_lower  = info.labels_lower_bound_.HostVector();
+    const auto& yhat = preds.HostVector();
+    const auto& y_lower = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
-    const auto& weights  = info.weights_.HostVector();
+    const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
 
     out_gpair->Resize(yhat.size());
@@ -57,11 +54,10 @@ class AFTObj : public ObjFunction {
     for (int i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
-      first_order_grad  = loss_->gradient(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
-      second_order_grad = loss_->hessian(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
-      // std::cout<<"("<< first_order_grad<<","<<second_order_grad<<")"<<std::endl;
-      // std::cin.get();
-      LOG(CONSOLE)<<"("<< first_order_grad<<","<<second_order_grad<<")";
+      first_order_grad = loss_->gradient(std::log(y_lower[i]), std::log(y_higher[i]),
+                                         yhat[i], param_.aft_sigma);
+      second_order_grad = loss_->hessian(std::log(y_lower[i]), std::log(y_higher[i]),
+                                         yhat[i], param_.aft_sigma);
       gpair[i] = GradientPair(first_order_grad * w, second_order_grad * w);
     }
   }
@@ -74,8 +70,8 @@ class AFTObj : public ObjFunction {
       preds[j] = std::exp(preds[j]);
     }
   }
+
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
-  //  PredTransform(io_preds);
   }
 
   bst_float ProbToMargin(bst_float base_score) const override {

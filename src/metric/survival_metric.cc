@@ -1,8 +1,8 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2019 by Contributors
  * \file survival_metric.cc
- * \brief Metrics for Survival Analysis
- * \author Avinash Barnwal, Hyunsu Cho and Prof. Toby Hocking
+ * \brief Metrics for survival analysis
+ * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
 #include <rabit/rabit.h>
@@ -47,8 +47,8 @@ struct EvalAFT : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
-		CHECK_NE(info.labels_lower_bound_.Size(), 0U) << "y_lower cannot be empty";
-		CHECK_NE(info.labels_upper_bound_.Size(), 0U) << "y_higher cannot be empty";
+    CHECK_NE(info.labels_lower_bound_.Size(), 0U) << "y_lower cannot be empty";
+    CHECK_NE(info.labels_upper_bound_.Size(), 0U) << "y_higher cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
@@ -56,29 +56,26 @@ struct EvalAFT : public Metric {
     double nloglik_sum = 0.0;
     double weight_sum = 0.0;
 
-    const auto& yhat     = preds.HostVector();
-    const auto& y_lower  = info.labels_lower_bound_.HostVector();
+    const auto& yhat = preds.HostVector();
+    const auto& y_lower = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
-    const auto& weights  = info.weights_.HostVector();
+    const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
     const size_t nsize = yhat.size();
 
     for (size_t i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
-      double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]), yhat[i], param_.aft_sigma);
-      // CHECK(!std::isinf(loss)) << "inf in log likelihood at element " << i
-      //                          << ", log(y_lower[i]) = " << std::log(y_lower[i])
-      //                          << ", log(y_higher[i]) = " << std::log(y_higher[i])
-      //                          << ", yhat[i] = " << yhat[i];
+      double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]),
+                                yhat[i], param_.aft_sigma);
       nloglik_sum += loss;
       weight_sum += w;
     }
 
-    double dat[2] { nloglik_sum, weight_sum };
-		if (distributed) {
-			rabit::Allreduce<rabit::op::Sum>(dat, 2);
-		}
+    double dat[2]{nloglik_sum, weight_sum};
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
     return static_cast<bst_float>(dat[0] / dat[1]);
   }
 

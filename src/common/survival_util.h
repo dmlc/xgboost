@@ -1,3 +1,13 @@
+/*!
+ * Copyright 2019 by Contributors
+ * \file survival_util.h
+ * \brief Utility functions, useful for implementing objective and metric functions for survival
+ *        analysis
+ * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
+ */
+#ifndef XGBOOST_COMMON_SURVIVAL_UTIL_H_
+#define XGBOOST_COMMON_SURVIVAL_UTIL_H_
+
 #include <xgboost/enum_class_param.h>
 #include <memory>
 
@@ -74,10 +84,10 @@ class AFTExtreme : public AFTDistribution {
 
 class AFTLoss {
  private:
-   std::unique_ptr<AFTDistribution> dist_;
+  std::unique_ptr<AFTDistribution> dist_;
 
  public:
-  AFTLoss(AFTDistributionType dist) {
+  explicit AFTLoss(AFTDistributionType dist) {
     dist_.reset(AFTDistribution::Create(dist));
   }
 
@@ -89,3 +99,5 @@ class AFTLoss {
 
 }  // namespace common
 }  // namespace xgboost
+
+#endif  // XGBOOST_COMMON_SURVIVAL_UTIL_H_
