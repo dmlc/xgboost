@@ -36,7 +36,7 @@ class SparkParallelismTracker(
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
 
   private[this] def numAliveCores: Int = {
-    sc.statusStore.executorList(true). map(_.totalCores).sum
+    sc.statusStore.executorList(true).map(_.totalCores).sum
   }
 
   private[this] def waitForCondition(
