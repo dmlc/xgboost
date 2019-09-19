@@ -66,7 +66,7 @@ struct EvalAFT : public Metric {
     for (size_t i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
-      double loss = loss_->loss(std::log(y_lower[i]), std::log(y_higher[i]),
+      double loss = loss_->Loss(std::log(y_lower[i]), std::log(y_higher[i]),
                                 yhat[i], param_.aft_sigma);
       nloglik_sum += loss;
       weight_sum += w;

@@ -50,36 +50,36 @@ struct AFTParam : public dmlc::Parameter<AFTParam> {
 
 class AFTDistribution {
  public:
-  virtual double pdf(double z) = 0;
-  virtual double cdf(double z) = 0;
-  virtual double grad_pdf(double z) = 0;
-  virtual double hess_pdf(double z) = 0;
+  virtual double PDF(double z) = 0;
+  virtual double CDF(double z) = 0;
+  virtual double GradPDF(double z) = 0;
+  virtual double HessPDF(double z) = 0;
 
   static AFTDistribution* Create(AFTDistributionType dist);
 };
 
 class AFTNormal : public AFTDistribution {
  public:
-  double pdf(double z) override;
-  double cdf(double z) override;
-  double grad_pdf(double z) override;
-  double hess_pdf(double z) override;
+  double PDF(double z) override;
+  double CDF(double z) override;
+  double GradPDF(double z) override;
+  double HessPDF(double z) override;
 };
 
 class AFTLogistic : public AFTDistribution {
  public:
-  double pdf(double z) override;
-  double cdf(double z) override;
-  double grad_pdf(double z) override;
-  double hess_pdf(double z) override;
+  double PDF(double z) override;
+  double CDF(double z) override;
+  double GradPDF(double z) override;
+  double HessPDF(double z) override;
 };
 
 class AFTExtreme : public AFTDistribution {
  public:
-  double pdf(double z) override;
-  double cdf(double z) override;
-  double grad_pdf(double z) override;
-  double hess_pdf(double z) override;
+  double PDF(double z) override;
+  double CDF(double z) override;
+  double GradPDF(double z) override;
+  double HessPDF(double z) override;
 };
 
 class AFTLoss {
@@ -92,9 +92,9 @@ class AFTLoss {
   }
 
  public:
-  double loss(double y_lower, double y_higher, double y_pred, double sigma);
-  double gradient(double y_lower, double y_higher, double y_pred, double sigma);
-  double hessian(double y_lower, double y_higher, double y_pred, double sigma);
+  double Loss(double y_lower, double y_higher, double y_pred, double sigma);
+  double Gradient(double y_lower, double y_higher, double y_pred, double sigma);
+  double Hessian(double y_lower, double y_higher, double y_pred, double sigma);
 };
 
 }  // namespace common
