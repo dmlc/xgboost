@@ -207,7 +207,7 @@ private[spark] trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1, ringReduceMin -> (32 << 10),
+    checkpointPath -> "", checkpointInterval -> -1,
     reduceBuffer -> "256MB", bootstrapCache -> 0, rabitDebug -> 0, connectRetry -> 5)
 }
 
