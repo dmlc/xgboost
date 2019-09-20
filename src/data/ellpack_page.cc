@@ -12,6 +12,10 @@ namespace xgboost {
 
 class EllpackPageImpl {};
 
+EllpackPage::EllpackPage() {
+  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
+}
+
 EllpackPage::EllpackPage(DMatrix* dmat) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
 }
