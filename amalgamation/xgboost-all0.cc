@@ -14,6 +14,7 @@
 #include "../src/metric/elementwise_metric.cc"
 #include "../src/metric/multiclass_metric.cc"
 #include "../src/metric/rank_metric.cc"
+#include "../src/metric/survival_metric.cc"
 
 // objectives
 #include "../src/objective/objective.cc"
@@ -70,6 +71,7 @@
 #include "../src/common/hist_util.cc"
 #include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/survival_util.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"
