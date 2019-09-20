@@ -13,6 +13,7 @@ from .training import train, cv
 from . import rabit                   # noqa
 from . import tracker  # noqa
 from .tracker import RabitTracker  # noqa
+from . import dask
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor
@@ -29,4 +30,4 @@ __all__ = ['DMatrix', 'Booster',
            'RabitTracker',
            'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',
            'XGBRFClassifier', 'XGBRFRegressor',
-           'plot_importance', 'plot_tree', 'to_graphviz']
+           'plot_importance', 'plot_tree', 'to_graphviz', 'dask']
