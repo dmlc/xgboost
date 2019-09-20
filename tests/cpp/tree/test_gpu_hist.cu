@@ -332,7 +332,8 @@ void TestHistogramIndexImpl() {
   ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
 }
 
-TEST(GpuHist, TestHistogramIndex) {
+// TODO(rongou): reenable this.
+TEST(GpuHist, DISABLED_TestHistogramIndex) {
   TestHistogramIndexImpl();
 }
 

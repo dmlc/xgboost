@@ -37,6 +37,10 @@ class SparsePageFormat {
    * \return true of the loading as successful, false if end of file was reached
    */
   virtual bool Read(SparsePage* page, dmlc::SeekStream* fi) = 0;
+
+  // TODO(rongou): place holder.
+  virtual bool Read(EllpackPage* page, dmlc::SeekStream* fi) = 0;
+
   /*!
    * \brief read only the segments we are interested in, advance fi to end of the block.
    * \param page The page to load the data into.

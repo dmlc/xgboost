@@ -298,9 +298,15 @@ class EllpackPageImpl;
  */
 class EllpackPage {
  public:
-  EllpackPage() = default;
+  EllpackPage();
   explicit EllpackPage(DMatrix* dmat);
   ~EllpackPage();
+
+  // TODO(rongou): place holder.
+  size_t base_rowid{};
+  inline size_t Size() const {
+    return 0;
+  }
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }

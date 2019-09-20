@@ -12,6 +12,8 @@
 
 namespace xgboost {
 
+EllpackPage::EllpackPage() = default;
+
 EllpackPage::EllpackPage(DMatrix* dmat) : impl_{new EllpackPageImpl(dmat)} {}
 
 EllpackPage::~EllpackPage() = default;
