@@ -198,6 +198,8 @@ private[spark] trait GeneralParams extends Params {
   final def connectRetry: IntParam = new IntParam(this, "DMLC_WORKER_CONNECT_RETRY",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
 
+  final def getConnectRetry: Int = ${connectRetry}
+
   /** Random seed for the C++ part of XGBoost and train/test splitting. */
   final val seed = new LongParam(this, "seed", "random seed")
 

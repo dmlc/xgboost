@@ -273,12 +273,12 @@ class XGBoostRegressionModel private[ml] (
           if (batchCnt == 0) {
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
-              "DMLC_WORKER_CONNECT_RETRY" -> connectRetry.toString(),
+              "DMLC_WORKER_CONNECT_RETRY" -> String.valueOf(getConnectRetry),
               "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false",
-              "rabit_bootstrap_cache" -> bootstrapCache.toString(),
-              "rabit_debug" -> rabitDebug.toString(),
-              "rabit_reduce_buffer" -> reduceBuffer.toString(),
-              "rabit_reduce_ring_mincount" -> ringReduceMin.toString()
+              "rabit_bootstrap_cache" -> String.valueOf(getBootstrapCache),
+              "rabit_debug" -> String.valueOf(getRabitDebug),
+              "rabit_reduce_buffer" -> String.valueOf(getReduceBuffer),
+              "rabit_reduce_ring_mincount" -> String.valueOf(getRingReduceMin)
             ).toMap
             Rabit.init(rabitEnv.asJava)
           }

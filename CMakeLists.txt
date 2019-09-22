@@ -111,7 +111,7 @@ endif (MINGW OR R_LIB OR WIN32)
 add_library(rabit STATIC ${RABIT_SOURCES})
 target_include_directories(rabit PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include/rabit>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/rabit/include>)
 set_target_properties(rabit
   PROPERTIES
   CXX_STANDARD 11
