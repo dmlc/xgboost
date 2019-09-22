@@ -338,16 +338,16 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def predict(model, data, *args, client=None):
+def predict(client, model, data, *args):
     '''Run prediction with a trained booster.
     parameters:
     ----------
+    client (optional): dask.distributed.Client
+       Specify the dask client.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix
         Input data used for prediction.
-    client (optional): dask.distributed.Client
-       Specify the dask client.
 
     Returns
     -------
@@ -497,8 +497,8 @@ class DaskXGBRegressor(XGBModel):
         prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
-        pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
-                             client=self.client)
+        pred_probs = predict(client=self.client,
+                             model=self.get_booster(), data=test_dmatrix)
         return pred_probs
 
 
@@ -573,6 +573,6 @@ class DaskXGBClassifier(XGBModel, XGBClassifierBase):
         prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
-        pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
-                             client=self.client)
+        pred_probs = predict(client=self.client,
+                             model=self.get_booster(), data=test_dmatrix)
         return pred_probs

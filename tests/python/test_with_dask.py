@@ -39,7 +39,7 @@ def test_from_dask_dataframe(client):
     booster = xgb.dask.train(
         client, {}, dtrain, num_boost_round=2)['booster']
 
-    prediction = xgb.dask.predict(model=booster, data=dtrain)
+    prediction = xgb.dask.predict(client, model=booster, data=dtrain)
 
     assert isinstance(prediction, da.Array)
     assert prediction.shape[0] == kRows, prediction
@@ -56,7 +56,7 @@ def test_from_dask_array(client):
     # results is {'booster': Booster, 'history': {...}}
     result = xgb.dask.train(client, {}, dtrain)
 
-    prediction = xgb.dask.predict(result, dtrain)
+    prediction = xgb.dask.predict(client, result, dtrain)
 
     assert isinstance(prediction, da.Array)
 

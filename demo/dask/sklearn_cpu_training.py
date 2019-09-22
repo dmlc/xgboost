@@ -7,7 +7,7 @@ from dask import array as da
 import xgboost
 
 if __name__ == '__main__':
-    cluster = LocalCluster(n_workers=4)  # or use any other clusters
+    cluster = LocalCluster(n_workers=2, silence_logs=False)  # or use any other clusters
     client = Client(cluster)
 
     n = 100
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     X = da.random.random((m, n), partition_size)
     y = da.random.random(m, partition_size)
 
-    regressor = xgboost.dask.DaskXGBRegressor(verbosity=2)
+    regressor = xgboost.dask.DaskXGBRegressor(verbosity=2, n_estimators=2)
     regressor.set_params(tree_method='hist')
     regressor.client = client
 
@@ -27,3 +27,4 @@ if __name__ == '__main__':
     history = regressor.evals_result()
 
     print('Evaluation history:', history)
+    assert isinstance(prediction, da.Array)

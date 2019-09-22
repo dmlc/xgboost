@@ -333,7 +333,7 @@ class RabitTracker(object):
         self.thread.start()
 
     def join(self):
-        while self.thread.is_alive():
+        while self.thread.isAlive():
             self.thread.join(100)
 
     def alive(self):
