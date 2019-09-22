@@ -83,7 +83,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     val testDM = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> 1, "rabit_debug" -> 1,
+      "rabit_bootstrap_cache" -> 1, "rabit_debug" -> 1, "rabit_reduce_ring_mincount" -> 100,
       "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1)
 
     val model = new XGBoostClassifier(paramMap).fit(training)
