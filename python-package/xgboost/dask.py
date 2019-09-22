@@ -9,15 +9,14 @@ import platform
 import logging
 from collections import defaultdict
 from threading import Thread
-from toolz import first
 
 import numpy
-import pandas
 
 from . import rabit
 from .compat import DASK_INSTALLED
 from .compat import distributed_get_worker, sparse, scipy_sparse, delayed
 from .compat import da, dd, distributed_wait, get_client, distributed_comm
+from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas
 from .core import DMatrix, Booster, _expect
 from .training import train as worker_train
 from .tracker import RabitTracker
@@ -29,7 +28,6 @@ from .sklearn import XGBModel, XGBClassifierBase
 # TODOs:
 #   - Callback.
 #   - Label encoding.
-#   - Prediction for leaf, out_margin, probability etc.
 #   - CV
 
 
@@ -70,14 +68,13 @@ def concat(value):
     '''To be replaced with dask builtin.'''
     if isinstance(value[0], numpy.ndarray):
         return numpy.concatenate(value, axis=0)
-    if isinstance(value[0], (pandas.DataFrame, pandas.Series)):
-        return pandas.concat(value, axis=0)
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         return scipy_sparse.vstack(value, format='csr')
     if sparse and isinstance(value[0], sparse.SparseArray):
         return sparse.concatenate(value, axis=0)
-    raise TypeError(
-        _expect(['numpy arrays', 'pandas dataframes'], type(value[0])))
+    if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
+        return pandas.concat(value, axis=0)
+    return dd.multi.concat(list(value), axis=0)
 
 
 class DaskDMatrix:
@@ -174,9 +171,30 @@ class DaskDMatrix:
 
         worker_map = defaultdict(list)
         for key, workers in who_has.items():
-            worker_map[first(workers)].append(key_to_partition[key])
+            worker_map[next(iter(workers))].append(key_to_partition[key])
 
         self.worker_map = worker_map
+
+    def get_worker_parts(self, worker):
+        '''Get mapped parts of data in each worker.'''
+        list_of_parts = self.worker_map[worker.address]
+        assert list_of_parts, 'data in ' + worker.address + ' was moved.'
+        assert isinstance(list_of_parts, list)
+
+        client = worker._get_client()  # pylint: disable=protected-access
+        list_of_parts = client.gather(list_of_parts)
+
+        if self.has_label:
+            if self.has_weights:
+                data, labels, weights = zip(*list_of_parts)
+            else:
+                data, labels = zip(*list_of_parts)
+                weights = None
+        else:
+            data = [d[0] for d in list_of_parts]
+            labels = None
+            weights = None
+        return data, labels, weights
 
     def get_worker_data(self, worker):
         '''Get data that local to worker.
@@ -186,19 +204,8 @@ class DaskDMatrix:
         -------
         A DMatrix object.
         '''
-        client = get_client()
-        list_of_parts = self.worker_map[worker.address]
-        assert list_of_parts, 'data in ' + worker.address + ' was moved.'
-
-        list_of_parts = client.gather(list_of_parts)
-
-        if self.has_label:
-            if self.has_weights:
-                data, labels, weights = zip(*list_of_parts)
-            else:
-                data, labels = zip(*list_of_parts)
-        else:
-            data = zip(*list_of_parts)
+        # client = get_client()
+        data, labels, weights = self.get_worker_parts(worker)
 
         data = concat(data)
 
@@ -219,12 +226,33 @@ class DaskDMatrix:
                           feature_types=self._feature_types)
         return dmatrix
 
+    def get_worker_data_shape(self, worker):
+        '''Get the shape of data X in each worker.'''
+        data, _, _ = self.get_worker_parts(worker)
+
+        shapes = [d.shape for d in data]
+        rows = 0
+        cols = 0
+        for shape in shapes:
+            rows += shape[0]
+            cols += shape[1]
+        return (rows, cols)
+
     def num_row(self):
         return self.n_rows
 
     def num_col(self):
         return self.n_cols
 
+
+def _get_rabit_args(worker_map, client):
+    '''Get rabit context arguments from data distribution in DaskDMatrix.'''
+    host = distributed_comm.get_address_host(client.scheduler.address)
+
+    env = client.run_on_scheduler(_start_tracker, host.strip('/:'),
+                                  len(worker_map))
+    rabit_args = [('%s=%s' % item).encode() for item in env.items()]
+    return rabit_args
 
 # train and predict methods are supposed to be "functional", which meets the
 # dask paradigm.  But as a side effect, the `evals_result` in single-node API
@@ -249,18 +277,15 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     if client is None:
         client = get_client()
 
-    host = distributed_comm.get_address_host(client.scheduler.address)
     worker_map = dtrain.worker_map
-
-    env = client.run_on_scheduler(_start_tracker, host.strip('/:'),
-                                  len(worker_map))
-    rabit_args = [('%s=%s' % item).encode() for item in env.items()]
+    rabit_args = _get_rabit_args(worker_map, client)
 
     def dispatched_train(worker_id):
         '''Perform training on worker.'''
         logging.info('Training on %d', worker_id)
         worker = distributed_get_worker()
         local_dtrain = dtrain.get_worker_data(worker)
+
         local_evals = []
         if evals:
             for mat, name in evals:
@@ -288,7 +313,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def predict(model, data, client=None):
+def predict(model, data, *args, client=None):
     '''Run prediction with a trained booster.
     parameters:
     ----------
@@ -314,16 +339,45 @@ def predict(model, data, client=None):
     if not isinstance(data, DaskDMatrix):
         raise TypeError(_expect([DaskDMatrix], type(data)))
 
-    if client is None:
-        client = get_client()
     worker_map = data.worker_map
-    futures = client.map(predict,
+    if not client:
+        client = get_client()
+
+    rabit_args = _get_rabit_args(worker_map, client)
+
+    def dispatched_predict(worker_id):
+        '''Perform prediction on each worker.'''
+        logging.info('Predicting on %d', worker_id)
+        worker = distributed_get_worker()
+        local_x = data.get_worker_data(worker)
+
+        with RabitContext(rabit_args):
+            local_predictions = booster.predict(data=local_x, *args)
+        return local_predictions
+
+    futures = client.map(dispatched_predict,
                          range(len(worker_map)),
-                         workers=list(worker_map.keys()),
-                         booster=booster,
-                         data=data)
-    prediction = da.stack(futures, axis=0)
-    return prediction
+                         workers=list(worker_map.keys()))
+
+    def dispatched_get_shape(worker_id):
+        '''Get shape of data in each worker.'''
+        logging.info('Trying to get data shape on %d', worker_id)
+        worker = distributed_get_worker()
+        rows, cols = data.get_worker_data_shape(worker)
+        return rows, cols
+
+    # Constructing a dask array from list of numpy arrays
+    # See https://docs.dask.org/en/latest/array-creation.html
+    futures_shape = client.map(dispatched_get_shape,
+                               range(len(worker_map)),
+                               workers=list(worker_map.keys()))
+    shapes = client.gather(futures_shape)
+    arrays = []
+    for i in range(len(futures_shape)):
+        arrays.append(da.from_delayed(futures[i], shape=shapes[i],
+                                      dtype=numpy.float32))
+    predictions = da.concatenate(arrays, axis=0)
+    return predictions
 
 
 def _evaluation_matrices(validation_set, sample_weights):
@@ -395,7 +449,8 @@ class DaskXGBRegressor(XGBModel):
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
-        pred_probs = predict(self.get_booster(), test_dmatrix, self.client)
+        pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
+                             client=self.client)
         return pred_probs
 
 
@@ -447,5 +502,6 @@ class DaskXGBClassifier(XGBModel, XGBClassifierBase):
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
-        pred_probs = predict(self.get_booster(), test_dmatrix, self.client)
+        pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
+                             client=self.client)
         return pred_probs

@@ -96,14 +96,17 @@ except ImportError:
 
 # pandas
 try:
-    from pandas import DataFrame
+    from pandas import DataFrame, Series
     from pandas import MultiIndex
+    import pandas
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
     DataFrame = object
+    Series = object
+    pandas = None
     PANDAS_INSTALLED = False
 
 # dt
