@@ -13,10 +13,13 @@ from threading import Thread
 import numpy
 
 from . import rabit
+
 from .compat import DASK_INSTALLED
-from .compat import distributed_get_worker, sparse, scipy_sparse, delayed
-from .compat import da, dd, distributed_wait, get_client, distributed_comm
+from .compat import distributed_get_worker, distributed_wait, distributed_comm
+from .compat import da, dd, delayed, get_client
+from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas
+
 from .core import DMatrix, Booster, _expect
 from .training import train as worker_train
 from .tracker import RabitTracker
@@ -262,7 +265,29 @@ def _get_rabit_args(worker_map, client):
 
 
 def train(client, params, dtrain, *args, evals=(), **kwargs):
-    '''Train XGBoost model.'''
+    '''Train XGBoost model.
+
+    parameters:
+    ----------
+    client (optional): dask.distributed.Client
+      Specify the dask client used for training.
+
+    Other parameters are the same as `xgboost.train` except for `evals_result`
+    is returned as part of function return value instead of argument.
+
+    Returns
+    -------
+    results: dict
+      A dictionary containing trained booster and evaluation history.
+     `history` field is the same as `eval_result` from `xgboost.train`.
+
+      .. code-block:: python
+
+        {'booster': xgboost.Booster,
+         'history': {'train': {'logloss': ['0.48253', '0.35953']},
+                     'eval': {'logloss': ['0.480385', '0.357756']}}}
+
+    '''
     _assert_dask_installed()
     if platform.system() == 'Windows':
         msg = 'Windows is not officially supported for dask/xgboost,'
@@ -433,6 +458,23 @@ class DaskXGBRegressor(XGBModel):
             sample_weights=None,
             eval_set=None,
             sample_weight_eval_set=None):
+        '''Fit the regressor.
+
+        Parameters
+        ----------
+        X : array_like
+            Feature matrix
+        y : array_like
+            Labels
+        sample_weight : array_like
+            instance weights
+        eval_set : list, optional
+            A list of (X, y) tuple pairs to use as validation sets, for which
+            metrics will be computed.
+            Validation metrics will help us track the performance of the model.
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
+            of group weights on the i-th validation set.'''
         _assert_dask_installed()
         dtrain = DaskDMatrix(data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
@@ -447,6 +489,12 @@ class DaskXGBRegressor(XGBModel):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
+        '''Predict with `data`.
+        Parameters:
+          data: data that can be used to construct a DaskDMatrix
+        Returns
+        -------
+        prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
         pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
@@ -475,6 +523,23 @@ class DaskXGBClassifier(XGBModel, XGBClassifierBase):
             sample_weights=None,
             eval_set=None,
             sample_weight_eval_set=None):
+        '''Fit the classifier.
+
+        Parameters
+        ----------
+        X : array_like
+            Feature matrix
+        y : array_like
+            Labels
+        sample_weight : array_like
+            instance weights
+        eval_set : list, optional
+            A list of (X, y) tuple pairs to use as validation sets, for which
+            metrics will be computed.
+            Validation metrics will help us track the performance of the model.
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
+            of group weights on the i-th validation set.'''
         _assert_dask_installed()
         dtrain = DaskDMatrix(data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
@@ -500,6 +565,12 @@ class DaskXGBClassifier(XGBModel, XGBClassifierBase):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
+        '''Predict with `data`.
+        Parameters:
+          data: data that can be used to construct a DaskDMatrix
+        Returns
+        -------
+        prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
         pred_probs = predict(model=self.get_booster(), data=test_dmatrix,
