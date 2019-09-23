@@ -51,12 +51,14 @@ illustrated in above example.  Given the data and a set of parameters, `train` f
 returns a model and the computation history as Python dictionary
 
 .. code-block:: python
+
   {'booster': Booster,
    'history': dict}
 
 For prediction, pass the ``output`` returned by ``train`` into ``xgb.dask.predict``
 
 .. code-block:: python
+
   prediction = xgb.dask.predict(client, output, dtrain)
 
 Here ``prediction`` is a dask ``Array`` object containing predictions from model.

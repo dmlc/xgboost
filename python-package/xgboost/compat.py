@@ -98,7 +98,7 @@ except ImportError:
 try:
     from pandas import DataFrame, Series
     from pandas import MultiIndex
-    import pandas
+    from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
@@ -106,7 +106,7 @@ except ImportError:
     MultiIndex = object
     DataFrame = object
     Series = object
-    pandas = None
+    pandas_concat = None
     PANDAS_INSTALLED = False
 
 # dt
