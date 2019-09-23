@@ -242,7 +242,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
             << "Consider providing a uri parameter: filename?format=" << format;
       } else {
         LOG(WARNING)
-            << "No format parameter is provided in input uri.  Choosing default parser in dmlc-core.  "
+            << "No format parameter is provided in input uri.  "
+            << "Choosing default parser in dmlc-core.  "
             << "Consider providing a uri parameter like: filename?format=csv";
       }
 
