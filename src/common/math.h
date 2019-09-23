@@ -148,11 +148,19 @@ bool CheckNAN(double v);
 #else
 
 XGBOOST_DEVICE bool inline CheckNAN(float x) {
+#if defined(__CUDA_ARCH__)
+  return isnan(x);
+#else
   return std::isnan(x);
+#endif  // defined(__CUDA_ARCH__)
 }
 
 XGBOOST_DEVICE bool inline CheckNAN(double x) {
+#if defined(__CUDA_ARCH__)
+  return isnan(x);
+#else
   return std::isnan(x);
+#endif  // defined(__CUDA_ARCH__)
 }
 
 #endif  // XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
