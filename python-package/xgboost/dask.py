@@ -555,23 +555,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             sample_weights=None,
             eval_set=None,
             sample_weight_eval_set=None):
-        '''Fit the classifier.
-
-        Parameters
-        ----------
-        X : array_like
-            Feature matrix
-        y : array_like
-            Labels
-        sample_weight : array_like
-            instance weights
-        eval_set : list, optional
-            A list of (X, y) tuple pairs to use as validation sets, for which
-            metrics will be computed.
-            Validation metrics will help us track the performance of the model.
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
-            of group weights on the i-th validation set.'''
         _assert_dask_installed()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
