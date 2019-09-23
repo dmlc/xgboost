@@ -368,20 +368,19 @@ class DMatrix(object):
                  weight=None, silent=False,
                  feature_names=None, feature_types=None,
                  nthread=None):
-        """
-        Parameters
+        """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
                dt.Frame/cudf.DataFrame
             Data source of DMatrix.
             When data is string or os.PathLike type, it represents the path libsvm format
             txt file, or binary file that xgboost can read from.
-        label : list or numpy 1-D array, optional
+        label : list, numpy 1-D array or cudf.DataFrame, optional
             Label of the training data.
         missing : float, optional
-            Value in the dense input data (e.g. `numpy.ndarray`) which needs
-            to be present as a missing value. If None, defaults to np.nan.
-        weight : list or numpy 1-D array , optional
+            Value in the input data which needs to be present as a missing
+            value. If None, defaults to np.nan.
+        weight : list, numpy 1-D array or cudf.DataFrame , optional
             Weight for each instance.
 
             .. note:: For ranking task, weights are per-group.
@@ -400,6 +399,7 @@ class DMatrix(object):
         nthread : integer, optional
             Number of threads to use for loading data from numpy array. If -1,
             uses maximum threads available on the system.
+
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
