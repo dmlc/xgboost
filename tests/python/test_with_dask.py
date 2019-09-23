@@ -9,7 +9,6 @@ if sys.platform.startswith("win"):
 
 try:
     from distributed.utils_test import client, loop, cluster_fixture
-    # from dask.distributed import Client, LocalCluster
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix

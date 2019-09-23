@@ -184,7 +184,9 @@ class DaskDMatrix:
         assert list_of_parts, 'data in ' + worker.address + ' was moved.'
         assert isinstance(list_of_parts, list)
 
-        client = worker._get_client()  # pylint: disable=protected-access
+        # `get_worker_parts` is launched inside worker.  In dask side
+        # that this should equal to `worker._get_client`.
+        client = get_client()
         list_of_parts = client.gather(list_of_parts)
 
         if self.has_label:
@@ -207,7 +209,6 @@ class DaskDMatrix:
         -------
         A DMatrix object.
         '''
-        # client = get_client()
         data, labels, weights = self.get_worker_parts(worker)
 
         data = concat(data)
@@ -437,19 +438,10 @@ def _evaluation_matrices(validation_set, sample_weights):
     return evals
 
 
-class DaskXGBRegressor(XGBModel):
-    # pylint: disable=missing-docstring
-    __doc__ = XGBModel.__doc__.split('\n')[2:]
+class DaskScikitLearnBase(XGBModel):
+    '''Base class for implementing scikit-learn interface with Dask'''
+
     _client = None
-
-    @property
-    def client(self):
-        '''The dask client used in this regressor.'''
-        return self._client
-
-    @client.setter
-    def client(self, clt):
-        self._client = clt
 
     # pylint: disable=arguments-differ
     def fit(self,
@@ -475,6 +467,39 @@ class DaskXGBRegressor(XGBModel):
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
             of group weights on the i-th validation set.'''
+        raise NotImplementedError
+
+    def predict(self, data):  # pylint: disable=arguments-differ
+        '''Predict with `data`.
+        Parameters:
+          data: data that can be used to construct a DaskDMatrix
+        Returns
+        -------
+        prediction : dask.array.Array'''
+        raise NotImplementedError
+
+    @property
+    def client(self):
+        '''The dask client used in this regressor.'''
+        return self._client
+
+    @client.setter
+    def client(self, clt):
+        self._client = clt
+
+
+class DaskXGBRegressor(DaskScikitLearnBase):
+    # pylint: disable=missing-docstring
+    __doc__ = ('Implementation of the scikit-learn API for XGBoost ' +
+               'regression. \n\n') + '\n'.join(
+                   XGBModel.__doc__.split('\n')[2:])
+
+    def fit(self,
+            X,
+            y,
+            sample_weights=None,
+            eval_set=None,
+            sample_weight_eval_set=None):
         _assert_dask_installed()
         dtrain = DaskDMatrix(data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
@@ -489,12 +514,6 @@ class DaskXGBRegressor(XGBModel):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
-        '''Predict with `data`.
-        Parameters:
-          data: data that can be used to construct a DaskDMatrix
-        Returns
-        -------
-        prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
         pred_probs = predict(client=self.client,
@@ -502,21 +521,13 @@ class DaskXGBRegressor(XGBModel):
         return pred_probs
 
 
-class DaskXGBClassifier(XGBModel, XGBClassifierBase):
+class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     # pylint: disable=missing-docstring
-    __doc__ = XGBModel.__doc__.split('\n')[2:]
     _client = None
+    __doc__ = ('Implementation of the scikit-learn API for XGBoost ' +
+               'classification.\n\n') + '\n'.join(
+                   XGBModel.__doc__.split('\n')[2:])
 
-    @property
-    def client(self):
-        '''The dask client used in this regressor.'''
-        return self._client
-
-    @client.setter
-    def client(self, clt):
-        self._client = clt
-
-    # pylint: disable=arguments-differ
     def fit(self,
             X,
             y,
@@ -565,12 +576,6 @@ class DaskXGBClassifier(XGBModel, XGBClassifierBase):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
-        '''Predict with `data`.
-        Parameters:
-          data: data that can be used to construct a DaskDMatrix
-        Returns
-        -------
-        prediction : dask.array.Array'''
         _assert_dask_installed()
         test_dmatrix = DaskDMatrix(data)
         pred_probs = predict(client=self.client,
