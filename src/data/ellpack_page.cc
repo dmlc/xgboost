@@ -1,7 +1,5 @@
 /*!
  * Copyright 2019 XGBoost contributors
- *
- * \file ellpack_page.cc
  */
 #ifndef XGBOOST_USE_CUDA
 

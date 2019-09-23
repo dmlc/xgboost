@@ -1,7 +1,5 @@
 /*!
  * Copyright 2019 by XGBoost Contributors
- *
- * \file ellpack_page.cuh
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_H_

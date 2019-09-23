@@ -77,8 +77,8 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches() {
   // Lazily instantiate
   if (!ellpack_source_) {
-    SparsePageSource<EllpackPage>::CreateEllpackPage(this, cache_info_);
-    ellpack_source_.reset(new SparsePageSource<EllpackPage>(cache_info_, ".ellpack.page"));
+    EllpackPageSource::CreateEllpackPage(this, cache_info_);
+    ellpack_source_.reset(new EllpackPageSource(cache_info_));
   }
   ellpack_source_->BeforeFirst();
   ellpack_source_->Next();

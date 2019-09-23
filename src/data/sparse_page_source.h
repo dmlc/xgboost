@@ -264,15 +264,6 @@ class SparsePageSource : public DataSource<T> {
   }
 
   /*!
-   * \brief Create ELLPACK source cache by copy content from DMatrix.
-   * \param cache_info The cache_info of cache file location.
-   */
-  static void CreateEllpackPage(DMatrix* src, const std::string& cache_info) {
-    const std::string page_type = ".ellpack.page";
-    CreatePageFromDMatrix(src, cache_info, page_type);
-  }
-
-  /*!
    * \brief Check if the cache file already exists.
    * \param cache_info The cache prefix of files.
    * \param page_type   Type of the page.
