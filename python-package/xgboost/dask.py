@@ -82,20 +82,38 @@ def concat(value):
 
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
-    __doc__ = '''DMatrix holding on references to Dask DataFrame or ''' + \
-        '''Dask Array.\n\n'''.join(DMatrix.__doc__)
+    '''DMatrix holding on references to Dask DataFrame or Dask Array.
+
+      parameters:
+      ----------
+      client : dask.distributed.Client
+        Specify the dask client used for training.  Use default client
+        if it's None.
+      data : dask.array.Array/dask.dataframe.DataFrame
+        data source of DMatrix.
+      label: dask.array.Array/dask.dataframe.DataFrame
+        label used for trainin.
+      missing : float, optional
+          Value in the  input data (e.g. `numpy.ndarray`) which needs
+          to be present as a missing value. If None, defaults to np.nan.
+      weight : dask.array.Array/dask.dataframe.DataFrame
+        Weight for each instance.
+      feature_names : list, optional
+        Set names for features.
+      feature_types : list, optional
+        Set types for features'''
 
     _feature_names = None  # for previous version's pickle
     _feature_types = None
 
     def __init__(self,
+                 client,
                  data,
                  label=None,
                  missing=None,
                  weight=None,
                  feature_names=None,
-                 feature_types=None,
-                 client=None):
+                 feature_types=None):
         _assert_dask_installed()
 
         self._feature_names = feature_names
@@ -115,13 +133,11 @@ class DaskDMatrix:
             raise TypeError(
                 _expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
-        if client is None:
-            client = get_client()
-
         self.worker_map = None
         self.has_label = label is not None
         self.has_weights = weight is not None
 
+        client = get_client() if client is None else client
         client.sync(self.map_local_data, client, data, label, weight)
 
     async def map_local_data(self, client, data, label=None, weights=None):
@@ -270,8 +286,9 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     parameters:
     ----------
-    client (optional): dask.distributed.Client
-      Specify the dask client used for training.
+    client: dask.distributed.Client
+      Specify the dask client used for training.  Use default client
+      if it's None.
 
     Other parameters are the same as `xgboost.train` except for `evals_result`
     is returned as part of function return value instead of argument.
@@ -406,7 +423,7 @@ def predict(client, model, data, *args):
     return predictions
 
 
-def _evaluation_matrices(validation_set, sample_weights):
+def _evaluation_matrices(client, validation_set, sample_weights):
     '''
     parameters:
     ----------
@@ -431,7 +448,7 @@ def _evaluation_matrices(validation_set, sample_weights):
         for i, e in enumerate(validation_set):
             w = (sample_weights[i]
                  if sample_weights is not None else None)
-            dmat = DaskDMatrix(data=e[0], label=e[1], weight=w)
+            dmat = DaskDMatrix(client=client, data=e[0], label=e[1], weight=w)
             evals.append((dmat, 'validation_{}'.format(i)))
     else:
         evals = None
@@ -481,6 +498,8 @@ class DaskScikitLearnBase(XGBModel):
     @property
     def client(self):
         '''The dask client used in this regressor.'''
+        if self._client is None:
+            return get_client()
         return self._client
 
     @client.setter
@@ -501,9 +520,11 @@ class DaskXGBRegressor(DaskScikitLearnBase):
             eval_set=None,
             sample_weight_eval_set=None):
         _assert_dask_installed()
-        dtrain = DaskDMatrix(data=X, label=y, weight=sample_weights)
+        dtrain = DaskDMatrix(client=self.client,
+                             data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
-        evals = _evaluation_matrices(eval_set, sample_weight_eval_set)
+        evals = _evaluation_matrices(self.client,
+                                     eval_set, sample_weight_eval_set)
 
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
@@ -515,7 +536,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_installed()
-        test_dmatrix = DaskDMatrix(data)
+        test_dmatrix = DaskDMatrix(client=self.client, data=data)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)
         return pred_probs
@@ -552,7 +573,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
             of group weights on the i-th validation set.'''
         _assert_dask_installed()
-        dtrain = DaskDMatrix(data=X, label=y, weight=sample_weights)
+        dtrain = DaskDMatrix(client=self.client,
+                             data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
 
         # pylint: disable=attribute-defined-outside-init
@@ -566,7 +588,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             params["objective"] = "binary:logistic"
         params.setdefault('num_class', self.n_classes_)
 
-        evals = _evaluation_matrices(eval_set, sample_weight_eval_set)
+        evals = _evaluation_matrices(self.client,
+                                     eval_set, sample_weight_eval_set)
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
                         evals=evals)
@@ -577,7 +600,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_installed()
-        test_dmatrix = DaskDMatrix(data)
+        test_dmatrix = DaskDMatrix(client=self.client, data=data)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)
         return pred_probs

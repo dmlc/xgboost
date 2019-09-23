@@ -34,7 +34,7 @@ def test_from_dask_dataframe(client):
     X = dd.from_dask_array(X)
     y = dd.from_dask_array(y)
 
-    dtrain = DaskDMatrix(X, y)
+    dtrain = DaskDMatrix(client, X, y)
     booster = xgb.dask.train(
         client, {}, dtrain, num_boost_round=2)['booster']
 
@@ -51,7 +51,7 @@ def test_from_dask_dataframe(client):
 
 def test_from_dask_array(client):
     X, y = generate_array()
-    dtrain = DaskDMatrix(X, y)
+    dtrain = DaskDMatrix(client, X, y)
     # results is {'booster': Booster, 'history': {...}}
     result = xgb.dask.train(client, {}, dtrain)
 

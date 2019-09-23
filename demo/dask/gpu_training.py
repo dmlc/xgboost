@@ -14,7 +14,7 @@ def main(client):
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
     # DMatrix scatter around workers.
-    dtrain = DaskDMatrix(X, y)
+    dtrain = DaskDMatrix(client, X, y)
 
     # Use train method from xgboost.dask instead of xgboost.  This
     # distributed version of train returns a dictionary containing the

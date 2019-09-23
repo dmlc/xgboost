@@ -12,7 +12,7 @@ def main(client):
     X = da.random.random((m, n), partition_size)
     y = da.random.random(m, partition_size)
 
-    dtrain = DaskDMatrix(X, y)
+    dtrain = DaskDMatrix(client, X, y)
 
     output = xgb.dask.train(client,
                             {'verbosity': 2,
