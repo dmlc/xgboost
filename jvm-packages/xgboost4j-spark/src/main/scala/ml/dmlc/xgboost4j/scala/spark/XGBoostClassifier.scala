@@ -37,16 +37,11 @@ import org.json4s.DefaultFormats
 import scala.collection.JavaConverters._
 import scala.collection.{AbstractIterator, Iterator, mutable}
 
-private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
-  with BoosterParams with RabitParams with HasWeightCol with HasBaseMarginCol
-  with HasNumClass with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
-  with NonParamVariables
-
 class XGBoostClassifier (
     override val uid: String,
     private val xgboostParams: Map[String, Any])
   extends ProbabilisticClassifier[Vector, XGBoostClassifier, XGBoostClassificationModel]
-    with XGBoostClassifierParams with DefaultParamsWritable {
+    with XGBoostClassifierParams with RabitParams with DefaultParamsWritable {
 
   def this() = this(Identifiable.randomUID("xgbc"), Map[String, Any]())
 
@@ -183,11 +178,11 @@ class XGBoostClassifier (
 
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
       col($(labelCol)), col($(featuresCol)), weight, baseMargin,
-      None, dataset.asInstanceOf[DataFrame]).head
+      None, $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, None, dataFrame).head)
+          weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning, dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
