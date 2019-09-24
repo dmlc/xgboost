@@ -297,7 +297,6 @@ class XGBoostClassificationModel private[ml](
           if (batchCnt == 0) {
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
-              "DMLC_WORKER_CONNECT_RETRY" -> String.valueOf(getConnectRetry),
               "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false"
             ).toMap
             Rabit.init(ApplyRabitParams(rabitEnv).asJava)
