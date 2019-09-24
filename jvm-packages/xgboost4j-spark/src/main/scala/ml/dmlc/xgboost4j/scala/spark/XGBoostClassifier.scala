@@ -51,6 +51,7 @@ class XGBoostClassifier (
     Identifiable.randomUID("xgbc"), xgboostParams)
 
   XGBoostToMLlibParams(xgboostParams)
+  XGBoostToRabitParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
@@ -185,7 +186,7 @@ class XGBoostClassifier (
           weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning, dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams
+    val derivedXGBParamMap = MLlib2XGBoostParams ++ RabitParamsToXGBoost
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
       hasGroup = false, evalRDDMap)
@@ -293,7 +294,7 @@ class XGBoostClassificationModel private[ml](
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
               "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
-            Rabit.init(ApplyRabitParams(rabitEnv).asJava)
+            Rabit.init(rabitEnv.asJava)
           }
 
           val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))

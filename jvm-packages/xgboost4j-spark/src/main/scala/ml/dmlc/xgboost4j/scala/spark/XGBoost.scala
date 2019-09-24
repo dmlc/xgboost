@@ -21,6 +21,7 @@ import java.nio.file.Files
 
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
@@ -221,6 +222,19 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
+
+  def getRabitParams: Map[String, String] = Map(
+    "rabit_reduce_ring_mincount" ->
+      overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).asInstanceOf[String],
+    "rabit_reduce_buffer" ->
+      overridedParams.getOrElse("rabit_reduce_buffer", "256MB").asInstanceOf[String],
+    "rabit_bootstrap_cache" ->
+      overridedParams.getOrElse("rabit_bootstrap_cache", 0).asInstanceOf[String],
+    "rabit_debug" ->
+      overridedParams.getOrElse("rabit_debug", 0).asInstanceOf[String],
+    "DMLC_WORKER_CONNECT_RETRY" ->
+      overridedParams.getOrElse("DMLC_WORKER_CONNECT_RETRY", 5).asInstanceOf[String]
+  )
 }
 
 /**
@@ -490,8 +504,9 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val xgbExecParams = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext).
-      buildXGBRuntimeParams
+    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
+    val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
+    val xgbRabitParams = xgbParamsFactory.getRabitParams
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)
@@ -510,12 +525,12 @@ object XGBoost extends Serializable {
             val parallelismTracker = new SparkParallelismTracker(sc,
               xgbExecParams.timeoutRequestWorkers,
               xgbExecParams.numWorkers)
-            val rabitEnv = tracker.getWorkerEnvs
+            val rabitEnv = tracker.getWorkerEnvs.asScala ++ xgbRabitParams
             val boostersAndMetrics = if (hasGroup) {
-              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv,
+              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv.asJava,
                 checkpointRound, prevBooster, evalSetsMap)
             } else {
-              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
+              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv.asJava,
                 checkpointRound, prevBooster, evalSetsMap)
             }
             val sparkJobThread = new Thread() {

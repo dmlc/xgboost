@@ -271,7 +271,7 @@ class XGBoostRegressionModel private[ml] (
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
               "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
-            Rabit.init(ApplyRabitParams(rabitEnv).asJava)
+            Rabit.init(rabitEnv.asJava)
           }
 
           val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
