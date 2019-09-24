@@ -4,9 +4,10 @@ Distributed XGBoost with Dask
 
 `Dask <https://dask.org>`_ is a parallel computing library built on Python. Dask allows
 easy management of distributed workers and excels handling large distributed data science
-workflows.  The interface in XGBoost originates from `dask-xgboost
-<https://github.com/dask/dask-xgboost>`_ with some extended functionalities.  Right now it
-is still under construction and may change overtime.
+workflows.  The implementation in XGBoost originates from `dask-xgboost
+<https://github.com/dask/dask-xgboost>`_ with some extended functionalities and a
+different interface.  Right now it is still under construction and may change (with proper
+warnings) in the future.
 
 ************
 Requirements
@@ -74,3 +75,18 @@ Here ``prediction`` is a dask ``Array`` object containing predictions from model
 Another set of API is a Scikit-Learn wrapper, which mimics the stateful Scikit-Learn
 interface with ``DaskXGBClassifier`` and ``DaskXGBRegressor``.  See ``xgboost/demo/dask``
 for more examples.
+
+
+***********
+Limitations
+***********
+
+Basic functionalities including training and generating predictions for regression and
+classification are implemented.  But there are still some other limitations we haven't
+addressed yet.
+
+- Label encoding for Scikit-Learn classifier.
+- Ranking
+- Callback functions are not tested.
+- To use cross validation one needs to explicitly train different models instead of using
+  a functional API like ``xgboost.cv``.

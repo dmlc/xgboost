@@ -38,6 +38,7 @@ from .sklearn import XGBModel, XGBClassifierBase
 #   - Callback.
 #   - Label encoding.
 #   - CV
+#   - Ranking
 
 
 def _start_tracker(host, n_workers):
