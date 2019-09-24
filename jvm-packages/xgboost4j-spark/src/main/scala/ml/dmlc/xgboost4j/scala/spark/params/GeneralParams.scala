@@ -20,7 +20,9 @@ import com.google.common.base.CaseFormat
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import org.apache.spark.ml.param._
 import scala.collection.mutable
+
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Column, DataFrame, Row}
