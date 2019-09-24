@@ -58,8 +58,8 @@ private[spark] trait RabitParams extends Params {
   setDefault(ringReduceMin -> (32 << 10),
     reduceBuffer -> "256MB", bootstrapCache -> 0, rabitDebug -> 0, connectRetry -> 5)
 
-  def ApplyRabitParams(rabitParams: Map[String, String]): Map[String, String]
-    = rabitParams + (
+  def ApplyRabitParams(rabitEnvs: Map[String, String]): Map[String, String]
+    = rabitEnvs + (
     "rabit_reduce_ring_mincount" -> getRingReduceMin.toString,
     "rabit_reduce_buffer" -> getReduceBuffer.toString,
     "rabit_bootstrap_cache" -> getBootstrapCache.toString,
