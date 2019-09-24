@@ -84,7 +84,7 @@ class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
     '''DMatrix holding on references to Dask DataFrame or Dask Array.
 
-      parameters:
+      Parameters
       ----------
       client : dask.distributed.Client
         Specify the dask client used for training.  Use default client
@@ -101,7 +101,9 @@ class DaskDMatrix:
       feature_names : list, optional
         Set names for features.
       feature_types : list, optional
-        Set types for features'''
+        Set types for features
+
+    '''
 
     _feature_names = None  # for previous version's pickle
     _feature_types = None
@@ -284,7 +286,7 @@ def _get_rabit_args(worker_map, client):
 def train(client, params, dtrain, *args, evals=(), **kwargs):
     '''Train XGBoost model.
 
-    parameters:
+    Parameters
     ----------
     client: dask.distributed.Client
       Specify the dask client used for training.  Use default client
@@ -358,10 +360,11 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
 def predict(client, model, data, *args):
     '''Run prediction with a trained booster.
-    parameters:
+
+    Parameters
     ----------
     client (optional): dask.distributed.Client
-       Specify the dask client.
+       Specify the dask client. Use default client if it's None.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix
@@ -370,6 +373,7 @@ def predict(client, model, data, *args):
     Returns
     -------
     prediction: dask.array.Array
+
     '''
     _assert_dask_installed()
     if isinstance(model, Booster):
@@ -425,7 +429,7 @@ def predict(client, model, data, *args):
 
 def _evaluation_matrices(client, validation_set, sample_weights):
     '''
-    parameters:
+    Parameters
     ----------
     validation_set: list of tuples
         Each tuple contains a validation dataset including input X and label y.
@@ -488,7 +492,8 @@ class DaskScikitLearnBase(XGBModel):
 
     def predict(self, data):  # pylint: disable=arguments-differ
         '''Predict with `data`.
-        Parameters:
+        Parameters
+        ----------
           data: data that can be used to construct a DaskDMatrix
         Returns
         -------

@@ -21,3 +21,4 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   param_tuning
   external_memory
   custom_metric_obj
+  dask
