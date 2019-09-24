@@ -8,8 +8,8 @@
 namespace xgboost {
 namespace data {
 
-EllpackPageSource::EllpackPageSource(const std::string& cache_info) noexcept(false)
-    : SparsePageSource(cache_info, ".ellpack.page") {
+EllpackPageSource::EllpackPageSource(DMatrix* dmat, const std::string& cache_info) noexcept(false)
+    : page_(dmat) {
   LOG(FATAL) << "Internal Error: "
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
 }
