@@ -35,7 +35,7 @@ from .sklearn import XGBModel, XGBClassifierBase
 
 
 def _start_tracker(host, n_workers):
-    """ Start Rabit tracker """
+    """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
     rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
     env.update(rabit_context.slave_envs())
@@ -43,6 +43,7 @@ def _start_tracker(host, n_workers):
     rabit_context.start(n_workers)
     thread = Thread(target=rabit_context.join)
     thread.daemon = True
+    # FIXME(trvialfis): So this is never meant to be closed?
     thread.start()
     return env
 
@@ -80,15 +81,21 @@ def concat(value):
     return dd.multi.concat(list(value), axis=0)
 
 
+def _xgb_get_client(client):
+    '''Simple wrapper around testing None.'''
+    ret = get_client() if client is None else client
+    return ret
+
+
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
     '''DMatrix holding on references to Dask DataFrame or Dask Array.
 
       Parameters
       ----------
-      client : dask.distributed.Client
+      client: dask.distributed.Client
         Specify the dask client used for training.  Use default client
-        if it's None.
+        return from dask if it's set to None.
       data : dask.array.Array/dask.dataframe.DataFrame
         data source of DMatrix.
       label: dask.array.Array/dask.dataframe.DataFrame
@@ -139,7 +146,7 @@ class DaskDMatrix:
         self.has_label = label is not None
         self.has_weights = weight is not None
 
-        client = get_client() if client is None else client
+        client = _xgb_get_client(client)
         client.sync(self.map_local_data, client, data, label, weight)
 
     async def map_local_data(self, client, data, label=None, weights=None):
@@ -203,7 +210,7 @@ class DaskDMatrix:
         assert isinstance(list_of_parts, list)
 
         # `get_worker_parts` is launched inside worker.  In dask side
-        # that this should equal to `worker._get_client`.
+        # this should be equal to `worker._get_client`.
         client = get_client()
         list_of_parts = client.gather(list_of_parts)
 
@@ -221,11 +228,15 @@ class DaskDMatrix:
 
     def get_worker_data(self, worker):
         '''Get data that local to worker.
-        worker: The worker used as key to data.
 
-        Returns
-        -------
-        A DMatrix object.
+          Parameters
+          ----------
+          worker: The worker used as key to data.
+
+          Returns
+          -------
+          A DMatrix object.
+
         '''
         data, labels, weights = self.get_worker_parts(worker)
 
@@ -290,10 +301,10 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     ----------
     client: dask.distributed.Client
       Specify the dask client used for training.  Use default client
-      if it's None.
+      return from dask if it's set to None.
 
-    Other parameters are the same as `xgboost.train` except for `evals_result`
-    is returned as part of function return value instead of argument.
+    Other parameters are the same as `xgboost.train` except for `evals_result`,
+    which is returned as part of function return value instead of argument.
 
     Returns
     -------
@@ -319,8 +330,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
             'evals_result is not supported in dask interface.',
             'The evaluation history is returned as result of training.')
 
-    if client is None:
-        client = get_client()
+    client = _xgb_get_client(client)
 
     worker_map = dtrain.worker_map
     rabit_args = _get_rabit_args(worker_map, client)
@@ -363,8 +373,9 @@ def predict(client, model, data, *args):
 
     Parameters
     ----------
-    client (optional): dask.distributed.Client
-       Specify the dask client. Use default client if it's None.
+    client: dask.distributed.Client
+      Specify the dask client used for training.  Use default client
+      return from dask if it's set to None.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix
@@ -387,8 +398,7 @@ def predict(client, model, data, *args):
         raise TypeError(_expect([DaskDMatrix], type(data)))
 
     worker_map = data.worker_map
-    if not client:
-        client = get_client()
+    client = _xgb_get_client(client)
 
     rabit_args = _get_rabit_args(worker_map, client)
 
@@ -502,10 +512,9 @@ class DaskScikitLearnBase(XGBModel):
 
     @property
     def client(self):
-        '''The dask client used in this regressor.'''
-        if self._client is None:
-            return get_client()
-        return self._client
+        '''The dask client used in this model.'''
+        client = _xgb_get_client(self._client)
+        return client
 
     @client.setter
     def client(self, clt):

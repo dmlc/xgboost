@@ -182,8 +182,7 @@ try:
     from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
-except ImportError as e:
-    print(e)
+except ImportError:
     dd = None
     da = None
     Client = None
