@@ -129,9 +129,11 @@ except ImportError:
 
 try:
     from cudf import DataFrame as CUDF_DataFrame
+    from cudf import Series as CUDF_Series
     CUDF_INSTALLED = True
 except ImportError:
     CUDF_DataFrame = object
+    CUDF_Series = object
     CUDF_INSTALLED = False
 
 # sklearn
