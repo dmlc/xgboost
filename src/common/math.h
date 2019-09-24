@@ -132,11 +132,6 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
   return a.second > b.second;
 }
 
-#if XGBOOST_STRICT_R_MODE
-// check nan
-bool CheckNAN(double v);
-#else
-
 // Redefined here to workaround a VC bug that doesn't support overloadng for integer
 // types.
 template <typename T>
@@ -146,26 +141,29 @@ CheckNAN(T) {
   return false;
 }
 
+#if XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
+
+bool CheckNAN(double v);
+
+#else
+
 XGBOOST_DEVICE bool inline CheckNAN(float x) {
-#if (defined(_WIN32) || defined(__CUDA_ARCH__)) && \
-  !defined(__MINGW64__) && !defined(__MINGW32__) && !defined(__CYGWIN__)
+#if defined(__CUDA_ARCH__)
   return isnan(x);
 #else
   return std::isnan(x);
-#endif  // has c++11 std::isnan
+#endif  // defined(__CUDA_ARCH__)
 }
 
 XGBOOST_DEVICE bool inline CheckNAN(double x) {
-#if (defined(_WIN32) || defined(__CUDA_ARCH__)) && \
-  !defined(__MINGW64__) && !defined(__MINGW32__) && !defined(__CYGWIN__)
+#if defined(__CUDA_ARCH__)
   return isnan(x);
 #else
   return std::isnan(x);
-#endif  // has c++11 std::isnan
+#endif  // defined(__CUDA_ARCH__)
 }
 
-#endif  // XGBOOST_STRICT_R_MODE_
-
+#endif  // XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
 // GPU version is not uploaded in CRAN anyway.
 // Specialize only when using R with CPU.
 #if XGBOOST_STRICT_R_MODE && !defined(XGBOOST_USE_CUDA)
