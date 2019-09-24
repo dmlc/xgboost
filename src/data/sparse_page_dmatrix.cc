@@ -23,10 +23,10 @@ const MetaInfo& SparsePageDMatrix::Info() const {
   return row_source_->info;
 }
 
-template<typename T>
+template<typename S, typename T>
 class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
-  explicit SparseBatchIteratorImpl(SparsePageSource<T>* source) : source_(source) {
+  explicit SparseBatchIteratorImpl(S* source) : source_(source) {
     CHECK(source_ != nullptr);
   }
   T& operator*() override { return source_->Value(); }
@@ -35,7 +35,7 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
   bool AtEnd() const override { return at_end_; }
 
  private:
-  SparsePageSource<T>* source_{nullptr};
+  S* source_{nullptr};
   bool at_end_{ false };
 };
 
@@ -43,7 +43,8 @@ BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
   cast->BeforeFirst();
   cast->Next();
-  auto begin_iter = BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(cast));
+  auto begin_iter = BatchIterator<SparsePage>(
+      new SparseBatchIteratorImpl<SparsePageSource<SparsePage>, SparsePage>(cast));
   return BatchSet<SparsePage>(begin_iter);
 }
 
@@ -55,8 +56,8 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   }
   column_source_->BeforeFirst();
   column_source_->Next();
-  auto begin_iter =
-      BatchIterator<CSCPage>(new SparseBatchIteratorImpl<CSCPage>(column_source_.get()));
+  auto begin_iter = BatchIterator<CSCPage>(
+      new SparseBatchIteratorImpl<SparsePageSource<CSCPage>, CSCPage>(column_source_.get()));
   return BatchSet<CSCPage>(begin_iter);
 }
 
@@ -70,20 +71,20 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   sorted_column_source_->BeforeFirst();
   sorted_column_source_->Next();
   auto begin_iter = BatchIterator<SortedCSCPage>(
-      new SparseBatchIteratorImpl<SortedCSCPage>(sorted_column_source_.get()));
+      new SparseBatchIteratorImpl<SparsePageSource<SortedCSCPage>, SortedCSCPage>(
+          sorted_column_source_.get()));
   return BatchSet<SortedCSCPage>(begin_iter);
 }
 
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches() {
   // Lazily instantiate
   if (!ellpack_source_) {
-    EllpackPageSource::CreateEllpackPage(this, cache_info_);
-    ellpack_source_.reset(new EllpackPageSource(cache_info_));
+    ellpack_source_.reset(new EllpackPageSource(this, cache_info_));
   }
   ellpack_source_->BeforeFirst();
   ellpack_source_->Next();
-  auto begin_iter =
-      BatchIterator<EllpackPage>(new SparseBatchIteratorImpl<EllpackPage>(ellpack_source_.get()));
+  auto begin_iter = BatchIterator<EllpackPage>(
+      new SparseBatchIteratorImpl<EllpackPageSource, EllpackPage>(ellpack_source_.get()));
   return BatchSet<EllpackPage>(begin_iter);
 }
 

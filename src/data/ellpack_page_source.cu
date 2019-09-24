@@ -7,10 +7,10 @@
 namespace xgboost {
 namespace data {
 
-EllpackPageSource::EllpackPageSource(const std::string& cache_info) noexcept(false)
-    : SparsePageSource(cache_info, ".ellpack.page") {}
+EllpackPageSource::EllpackPageSource(DMatrix* dmat, const std::string& cache_info) noexcept(false)
+    : page_(dmat) {}
 
-void EllpackPageSource::CreateEllpackPage(DMatrix* src, const std::string& cache_info) {}
+void EllpackPageSource::CreateEllpackPage(DMatrix* dmat, const std::string& cache_info) {}
 
 }  // namespace data
 }  // namespace xgboost

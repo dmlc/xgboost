@@ -16,13 +16,13 @@ namespace data {
 /*!
  * \brief External memory data source for ELLPACK format.
  */
-class EllpackPageSource : public SparsePageSource<EllpackPage> {
+class EllpackPageSource : public DataSource<EllpackPage> {
  public:
   /*!
    * \brief Create source from cache files the cache_prefix.
    * \param cache_prefix The prefix of cache we want to solve.
    */
-  explicit EllpackPageSource(const std::string& cache_info) noexcept(false);
+  explicit EllpackPageSource(DMatrix* src, const std::string& cache_info) noexcept(false);
 
   /*!
    * \brief Create ELLPACK source cache by copy content from DMatrix.
@@ -38,12 +38,16 @@ class EllpackPageSource : public SparsePageSource<EllpackPage> {
     return false;
   }
 
+  EllpackPage& Value() {
+    return page_;
+  }
+
   const EllpackPage& Value() const override {
-    return page;
+    return page_;
   }
 
  private:
-  EllpackPage page;
+  EllpackPage page_;
 };
 
 }  // namespace data
