@@ -1,9 +1,15 @@
 # pylint: disable=too-many-arguments, too-many-locals
-"""Dask extensions for distributed training. See xgboost/demo/dask for
-examples.
+"""Dask extensions for distributed training. See
+https://xgboost.readthedocs.io/en/latest/tutorials/dask.html for simple
+tutorial.  Also xgboost/demo/dask for some examples.
+
+There are two sets of APIs in this module, one is the functional API including
+``train`` and ``predict`` methods.  Another is stateful Scikit-Learner wrapper
+inherited from single-node Scikit-Learn interface.
 
 The implementation is heavily influenced by dask_xgboost:
 https://github.com/dask/dask-xgboost
+
 """
 import platform
 import logging
@@ -43,7 +49,6 @@ def _start_tracker(host, n_workers):
     rabit_context.start(n_workers)
     thread = Thread(target=rabit_context.join)
     thread.daemon = True
-    # FIXME(trvialfis): So this is never meant to be closed?
     thread.start()
     return env
 
@@ -95,7 +100,7 @@ class DaskDMatrix:
       ----------
       client: dask.distributed.Client
         Specify the dask client used for training.  Use default client
-        return from dask if it's set to None.
+        returned from dask if it's set to None.
       data : dask.array.Array/dask.dataframe.DataFrame
         data source of DMatrix.
       label: dask.array.Array/dask.dataframe.DataFrame
@@ -301,7 +306,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     ----------
     client: dask.distributed.Client
       Specify the dask client used for training.  Use default client
-      return from dask if it's set to None.
+      returned from dask if it's set to None.
 
     Other parameters are the same as `xgboost.train` except for `evals_result`,
     which is returned as part of function return value instead of argument.
@@ -375,7 +380,7 @@ def predict(client, model, data, *args):
     ----------
     client: dask.distributed.Client
       Specify the dask client used for training.  Use default client
-      return from dask if it's set to None.
+      returned from dask if it's set to None.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix

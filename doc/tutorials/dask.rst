@@ -46,7 +46,7 @@ connect a ``client`` to this cluster, setting up environment for later computati
 Similar to non-distributed interface, we create a ``DMatrix`` object and pass it to
 ``train`` along with some other parameters.  Except in dask interface, client is an extra
 argument for carrying out the computation, when set to ``None`` XGBoost will use the
-default client returned by dask.
+default client returned from dask.
 
 There are two sets of APIs implemented in XGBoost.  The first set is functional API
 illustrated in above example.  Given the data and a set of parameters, `train` function
