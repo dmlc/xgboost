@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
-import com.google.common.base.CaseFormat
 import org.apache.spark.ml.param._
 
 private[spark] trait RabitParams extends Params {
@@ -56,17 +55,8 @@ private[spark] trait RabitParams extends Params {
 
   final def getConnectRetry: Int = ${connectRetry}
 
-  setDefault(ringReduceMin -> (32 << 10),
-    reduceBuffer -> "256MB", bootstrapCache -> 0, rabitDebug -> 0, connectRetry -> 5)
-
-  def ApplyRabitParams(rabitEnvs: Map[String, String]): Map[String, String]
-    = rabitEnvs + (
-    "rabit_reduce_ring_mincount" -> getRingReduceMin.toString,
-    "rabit_reduce_buffer" -> getReduceBuffer.toString,
-    "rabit_bootstrap_cache" -> getBootstrapCache.toString,
-    "rabit_debug" -> getRabitDebug.toString,
-    "DMLC_WORKER_CONNECT_RETRY" -> getConnectRetry.toString
-  )
+  setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> 0,
+    rabitDebug -> 0, connectRetry -> 5)
 
   def XGBoostToRabitParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {

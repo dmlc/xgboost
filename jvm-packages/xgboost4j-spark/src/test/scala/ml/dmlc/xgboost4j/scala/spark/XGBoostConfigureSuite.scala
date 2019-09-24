@@ -87,6 +87,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1)
 
     val model = new XGBoostClassifier(paramMap).fit(training)
+
     val eval = new EvalError()
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
   }

@@ -4,7 +4,6 @@
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/chenqin/rabit
-	branch = getparam
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub

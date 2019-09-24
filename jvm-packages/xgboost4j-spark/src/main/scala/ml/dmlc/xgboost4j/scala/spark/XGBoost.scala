@@ -26,7 +26,6 @@ import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.CheckpointManager.CheckpointParam
-import ml.dmlc.xgboost4j.scala.spark.XGBoost.logger
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -223,7 +222,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam
   }
 
-  def getRabitParams: Map[String, String] = Map(
+  def buildRabitParams: Map[String, String] = Map(
     "rabit_reduce_ring_mincount" ->
       overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).toString,
     "rabit_reduce_buffer" ->
@@ -506,7 +505,7 @@ object XGBoost extends Serializable {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val xgbRabitParams = xgbParamsFactory.getRabitParams
+    val xgbRabitParams = xgbParamsFactory.buildRabitParams
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)

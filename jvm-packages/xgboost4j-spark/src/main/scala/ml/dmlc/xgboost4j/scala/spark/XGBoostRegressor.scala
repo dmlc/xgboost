@@ -55,6 +55,7 @@ class XGBoostRegressor (
     Identifiable.randomUID("xgbr"), xgboostParams)
 
   XGBoostToMLlibParams(xgboostParams)
+  XGBoostToRabitParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
@@ -182,7 +183,7 @@ class XGBoostRegressor (
           dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams
+    val derivedXGBParamMap = MLlib2XGBoostParams ++ RabitParamsToXGBoost
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
       hasGroup = group != lit(-1), evalRDDMap)
