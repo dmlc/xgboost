@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import com.google.common.base.CaseFormat
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
+
 import org.apache.spark.ml.param._
 import scala.collection.mutable
 
