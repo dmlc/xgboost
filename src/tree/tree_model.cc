@@ -115,7 +115,9 @@ class TreeGenerator {
   virtual ~TreeGenerator() = default;
 
   virtual void BuildTree(RegTree const& tree) {
-    ss_ << this->BuildTree(tree, 0, 0);
+    for (int32_t i = 0; i < tree.param.num_roots; ++i) {
+      ss_ << this->BuildTree(tree, i, 0);
+    }
   }
 
   std::string Str() const {
@@ -273,10 +275,12 @@ class TextGenerator : public TreeGenerator {
 
   void BuildTree(RegTree const& tree) override {
     static std::string const& kTreeTemplate = "{nodes}\n";
-    auto result = SuperT::Match(
-        kTreeTemplate,
-        {{"{nodes}", this->BuildTree(tree, 0, 0)}});
-    ss_ << result;
+    for (int32_t i = 0; i < tree.param.num_roots; ++i) {
+      auto result = SuperT::Match(
+          kTreeTemplate,
+          {{"{nodes}", this->BuildTree(tree, i, 0)}});
+      ss_ << result;
+    }
   }
 };
 
@@ -588,12 +592,14 @@ class GraphvizGenerator : public TreeGenerator {
         "    graph [ rankdir={rankdir} ]\n"
         "{graph_attrs}\n"
         "{nodes}}";
-    auto result = SuperT::Match(
-        kTreeTemplate,
-        {{"{rankdir}",     param_.rankdir},
-         {"{graph_attrs}", param_.graph_attrs},
-         {"{nodes}",       this->BuildTree(tree, 0, 0)}});
-    ss_ << result;
+    for (int32_t i = 0; i < tree.param.num_roots; ++i) {
+      auto result = SuperT::Match(
+          kTreeTemplate,
+          {{"{rankdir}",     param_.rankdir},
+           {"{graph_attrs}", param_.graph_attrs},
+           {"{nodes}",       this->BuildTree(tree, i, 0)}});
+      ss_ << result;
+    }
   };
 };
 
@@ -609,10 +615,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
   std::unique_ptr<TreeGenerator> builder {
     TreeGenerator::Create(format, fmap, with_stats)
   };
-  for (int32_t i = 0; i < param.num_roots; ++i) {
-    builder->BuildTree(*this);
-  }
-
+  builder->BuildTree(*this);
   std::string result = builder->Str();
   return result;
 }
