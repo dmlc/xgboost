@@ -1,3 +1,3 @@
 tracker.py
 build.sh
-*/.classpath
+jvm-packages/xgboost4j*/.classpath
