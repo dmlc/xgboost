@@ -38,8 +38,9 @@ import scala.collection.JavaConverters._
 import scala.collection.{AbstractIterator, Iterator, mutable}
 
 private[spark] trait XGBoostClassifierParams extends GeneralParams with LearningTaskParams
-  with BoosterParams with HasWeightCol with HasBaseMarginCol with HasNumClass with ParamMapFuncs
-  with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
+  with BoosterParams with RabitParams with HasWeightCol with HasBaseMarginCol
+  with HasNumClass with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol
+  with NonParamVariables
 
 class XGBoostClassifier (
     override val uid: String,
@@ -297,13 +298,9 @@ class XGBoostClassificationModel private[ml](
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
               "DMLC_WORKER_CONNECT_RETRY" -> String.valueOf(getConnectRetry),
-              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false",
-              "rabit_bootstrap_cache" -> String.valueOf(getBootstrapCache),
-              "rabit_debug" -> String.valueOf(getRabitDebug),
-              "rabit_reduce_buffer" -> String.valueOf(getReduceBuffer),
-              "rabit_reduce_ring_mincount" -> String.valueOf(getRingReduceMin)
+              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false"
             ).toMap
-            Rabit.init(rabitEnv.asJava)
+            Rabit.init(ApplyRabitParams(rabitEnv).asJava)
           }
 
           val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))

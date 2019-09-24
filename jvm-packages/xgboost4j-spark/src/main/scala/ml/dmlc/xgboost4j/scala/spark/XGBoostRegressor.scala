@@ -42,7 +42,7 @@ import scala.collection.mutable.ListBuffer
 import org.apache.spark.broadcast.Broadcast
 
 private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
-  with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
+  with LearningTaskParams with RabitParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
   with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
 
 class XGBoostRegressor (
@@ -274,13 +274,9 @@ class XGBoostRegressionModel private[ml] (
             val rabitEnv = Array(
               "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
               "DMLC_WORKER_CONNECT_RETRY" -> String.valueOf(getConnectRetry),
-              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false",
-              "rabit_bootstrap_cache" -> String.valueOf(getBootstrapCache),
-              "rabit_debug" -> String.valueOf(getRabitDebug),
-              "rabit_reduce_buffer" -> String.valueOf(getReduceBuffer),
-              "rabit_reduce_ring_mincount" -> String.valueOf(getRingReduceMin)
+              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false"
             ).toMap
-            Rabit.init(rabitEnv.asJava)
+            Rabit.init(ApplyRabitParams(rabitEnv).asJava)
           }
 
           val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))

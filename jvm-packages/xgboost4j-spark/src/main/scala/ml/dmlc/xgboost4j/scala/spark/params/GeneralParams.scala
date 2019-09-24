@@ -164,42 +164,6 @@ private[spark] trait GeneralParams extends Params {
     */
   final val trackerConf = new TrackerConfParam(this, "trackerConf", "Rabit tracker configurations")
 
-  /**
-    * Rabit worker configurations. These parameters were passed to Rabit.Init and decide
-    * rabit_reduce_ring_mincount - threshold of enable ring based allreduce/broadcast operations.
-    * rabit_reduce_buffer - buffer size to recv and run reduction
-    * rabit_bootstrap_cache - enable save allreduce cache before loadcheckpoint
-    * rabit_debug - enable more verbose rabit logging to stdout
-    * DMLC_WORKER_CONNECT_RETRY - number of retrys to tracker
-    */
-  final val ringReduceMin = new IntParam(this, "rabit_reduce_ring_mincount",
-    "minimal counts of enable allreduce/broadcast with ring based topology",
-    ParamValidators.gtEq(1))
-
-  final def getRingReduceMin: Int = $(ringReduceMin)
-
-  final def reduceBuffer: Param[String] = new Param[String](this, "rabit_reduce_buffer",
-    "buffer size (MB/GB) allocated to each xgb trainner recv and run reduction",
-    (buf: String) => buf.contains("MB") || buf.contains("GB"))
-
-  final def getReduceBuffer: String = ${reduceBuffer}
-
-  final def bootstrapCache: IntParam = new IntParam(this, "rabit_bootstrap_cache",
-    "enable save allreduce cache before loadcheckpoint, used to allow failed task retry",
-    (cache: Int) => cache == 0 || cache == 1)
-
-  final def getBootstrapCache: Int = ${bootstrapCache}
-
-  final def rabitDebug: IntParam = new IntParam(this, "rabit_debug",
-    "enable more verbose rabit logging to stdout", (debug: Int) => debug == 0 || debug == 1)
-
-  final def getRabitDebug: Int = ${rabitDebug}
-
-  final def connectRetry: IntParam = new IntParam(this, "DMLC_WORKER_CONNECT_RETRY",
-    "number of retry worker do before fail", ParamValidators.gtEq(1))
-
-  final def getConnectRetry: Int = ${connectRetry}
-
   /** Random seed for the C++ part of XGBoost and train/test splitting. */
   final val seed = new LongParam(this, "seed", "random seed")
 
@@ -209,8 +173,7 @@ private[spark] trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1, ringReduceMin -> (32 << 10),
-    reduceBuffer -> "256MB", bootstrapCache -> 0, rabitDebug -> 0, connectRetry -> 5)
+    checkpointPath -> "", checkpointInterval -> -1)
 }
 
 trait HasLeafPredictionCol extends Params {
