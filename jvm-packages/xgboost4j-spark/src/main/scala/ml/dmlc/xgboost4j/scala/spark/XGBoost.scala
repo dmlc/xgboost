@@ -475,8 +475,7 @@ object XGBoost extends Serializable {
       Left(cacheData(ifCacheDataBoolean, repartitionedData).
         asInstanceOf[RDD[Array[XGBLabeledPoint]]])
     } else {
-      val repartitionedData = repartitionForTraining(trainingData, nWorkers)
-      Right(cacheData(ifCacheDataBoolean, repartitionedData).asInstanceOf[RDD[XGBLabeledPoint]])
+      Right(cacheData(ifCacheDataBoolean, trainingData).asInstanceOf[RDD[XGBLabeledPoint]])
     }
   }
 
@@ -565,15 +564,6 @@ object XGBoost extends Serializable {
       } else {
         transformedTrainingData.right.get.unpersist()
       }
-    }
-  }
-
-  private[spark] def repartitionForTraining(trainingData: RDD[XGBLabeledPoint], nWorkers: Int) = {
-    if (trainingData.getNumPartitions != nWorkers) {
-      logger.info(s"repartitioning training set to $nWorkers partitions")
-      trainingData.repartition(nWorkers)
-    } else {
-      trainingData
     }
   }
 

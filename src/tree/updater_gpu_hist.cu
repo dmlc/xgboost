@@ -72,8 +72,9 @@ struct ExpandEntry {
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;
     }
-    if (param.max_depth > 0 && depth == param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
+    if (split.loss_chg < param.min_split_loss) { return false; }
+    if (param.max_depth > 0 && depth == param.max_depth) {return false; }
+    if (param.max_leaves > 0 && num_leaves == param.max_leaves) { return false; }
     return true;
   }
 
