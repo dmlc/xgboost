@@ -1085,7 +1085,6 @@ class GPUHistMakerSpecialised {
     }
     monitor_.StartCuda("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
-    dh::safe_cuda(cudaSetDevice(maker_->device_id));
     maker_->UpdatePredictionCache(p_out_preds->DevicePointer());
     monitor_.StopCuda("UpdatePredictionCache");
     return true;

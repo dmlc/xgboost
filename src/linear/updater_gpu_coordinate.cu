@@ -28,8 +28,8 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_coordinate);
 class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
  public:
   ~GPUCoordinateUpdater() {  // NOLINT
-    if (device_ >= 0) {
-      dh::safe_cuda(cudaSetDevice(device_));
+    if (learner_param_->gpu_id >= 0) {
+      dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     }
   }
 
@@ -41,9 +41,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   }
 
   void LazyInitDevice(DMatrix *p_fmat, const gbm::GBLinearModelParam &model_param) {
-    if (device_ >= 0) return;
-    device_ = learner_param_->gpu_id;
-    if (device_ < 0) return;
+    if (learner_param_->gpu_id < 0) return;
 
     num_row_ = static_cast<size_t>(p_fmat->Info().num_row_);
 
@@ -51,7 +49,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
 
     if ( IsEmpty() ) { return; }
-    dh::safe_cuda(cudaSetDevice(device_));
+    dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     // The begin and end indices for the section of each column associated with
     // this device
     std::vector<std::pair<bst_uint, bst_uint>> column_segments;
@@ -72,7 +70,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
           std::make_pair(column_begin - col.cbegin(), column_end - col.cbegin()));
       row_ptr_.push_back(row_ptr_.back() + (column_end - column_begin));
     }
-    ba_.Allocate(device_, &data_, row_ptr_.back(), &gpair_,
+    ba_.Allocate(learner_param_->gpu_id, &data_, row_ptr_.back(), &gpair_,
                  num_row_ * model_param.num_output_group);
 
     for (size_t fidx = 0; fidx < batch.Size(); fidx++) {
@@ -95,7 +93,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     monitor_.Start("UpdateGpair");
     auto &in_gpair_host = in_gpair->ConstHostVector();
     // Update gpair
-    if (device_ >= 0) {
+    if (learner_param_->gpu_id >= 0) {
       this->UpdateGpair(in_gpair_host, model->param);
     }
     monitor_.Stop("UpdateGpair");
@@ -124,7 +122,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     for (int group_idx = 0; group_idx < model->param.num_output_group; ++group_idx) {
       // Get gradient
       auto grad = GradientPair(0, 0);
-      if (device_ >= 0) {
+      if (learner_param_->gpu_id >= 0) {
         grad = GetBiasGradient(group_idx, model->param.num_output_group);
       }
       auto dbias = static_cast<float>(
@@ -133,7 +131,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
       model->bias()[group_idx] += dbias;
 
       // Update residual
-      if (device_ >= 0) {
+      if (learner_param_->gpu_id >= 0) {
         UpdateBiasResidual(dbias, group_idx, model->param.num_output_group);
       }
     }
@@ -145,7 +143,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     bst_float &w = (*model)[fidx][group_idx];
     // Get gradient
     auto grad = GradientPair(0, 0);
-    if (device_ >= 0) {
+    if (learner_param_->gpu_id >= 0) {
       grad = GetGradient(group_idx, model->param.num_output_group, fidx);
     }
     auto dw = static_cast<float>(tparam_.learning_rate *
@@ -154,14 +152,14 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
                                                  tparam_.reg_lambda_denorm));
     w += dw;
 
-    if (device_ >= 0) {
+    if (learner_param_->gpu_id >= 0) {
       UpdateResidual(dw, group_idx, model->param.num_output_group, fidx);
     }
   }
 
   // This needs to be public because of the __device__ lambda.
   GradientPair GetBiasGradient(int group_idx, int num_group) {
-    dh::safe_cuda(cudaSetDevice(device_));
+    dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     auto counting = thrust::make_counting_iterator(0ull);
     auto f = [=] __device__(size_t idx) {
       return idx * num_group + group_idx;
@@ -177,7 +175,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   void UpdateBiasResidual(float dbias, int group_idx, int num_groups) {
     if (dbias == 0.0f) return;
     auto d_gpair = gpair_;
-    dh::LaunchN(device_, num_row_, [=] __device__(size_t idx) {
+    dh::LaunchN(learner_param_->gpu_id, num_row_, [=] __device__(size_t idx) {
       auto &g = d_gpair[idx * num_groups + group_idx];
       g += GradientPair(g.GetHess() * dbias, 0);
     });
@@ -185,7 +183,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
   // This needs to be public because of the __device__ lambda.
   GradientPair GetGradient(int group_idx, int num_group, int fidx) {
-    dh::safe_cuda(cudaSetDevice(device_));
+    dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     common::Span<xgboost::Entry> d_col = data_.subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
     common::Span<GradientPair> d_gpair = gpair_;
@@ -206,7 +204,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     common::Span<GradientPair> d_gpair = gpair_;
     common::Span<Entry> d_col = data_.subspan(row_ptr_[fidx]);
     size_t col_size = row_ptr_[fidx + 1] - row_ptr_[fidx];
-    dh::LaunchN(device_, col_size, [=] __device__(size_t idx) {
+    dh::LaunchN(learner_param_->gpu_id, col_size, [=] __device__(size_t idx) {
       auto entry = d_col[idx];
       auto &g = d_gpair[entry.index * num_groups + group_idx];
       g += GradientPair(g.GetHess() * dw * entry.fvalue, 0);
@@ -229,7 +227,6 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   // training parameter
   LinearTrainParam tparam_;
   CoordinateParam coord_param_;
-  int device_{-1};
   std::unique_ptr<FeatureSelector> selector_;
   common::Monitor monitor_;
 
