@@ -225,15 +225,15 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
 
   def getRabitParams: Map[String, String] = Map(
     "rabit_reduce_ring_mincount" ->
-      overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).asInstanceOf[String],
+      overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).toString,
     "rabit_reduce_buffer" ->
-      overridedParams.getOrElse("rabit_reduce_buffer", "256MB").asInstanceOf[String],
+      overridedParams.getOrElse("rabit_reduce_buffer", "256MB").toString,
     "rabit_bootstrap_cache" ->
-      overridedParams.getOrElse("rabit_bootstrap_cache", 0).asInstanceOf[String],
+      overridedParams.getOrElse("rabit_bootstrap_cache", 0).toString,
     "rabit_debug" ->
-      overridedParams.getOrElse("rabit_debug", 0).asInstanceOf[String],
+      overridedParams.getOrElse("rabit_debug", 0).toString,
     "DMLC_WORKER_CONNECT_RETRY" ->
-      overridedParams.getOrElse("DMLC_WORKER_CONNECT_RETRY", 5).asInstanceOf[String]
+      overridedParams.getOrElse("DMLC_WORKER_CONNECT_RETRY", 5).toString
   )
 }
 
