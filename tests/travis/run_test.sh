@@ -18,6 +18,7 @@ if [ ${TASK} == "python_test" ]; then
     conda install numpy scipy pandas matplotlib scikit-learn
 
     python -m pip install graphviz pytest pytest-cov codecov
+    python -m pip install dask distributed dask[dataframe]
     python -m pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
