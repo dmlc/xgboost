@@ -106,6 +106,28 @@ def from_cstr_to_pystr(data, length):
     return res
 
 
+def _expect(expectations, got):
+    '''Translate input error into string.
+
+    Parameters
+    ----------
+    expectations: sequence
+        a list of expected value.
+    got:
+        actual input
+
+    Returns
+    -------
+    msg: str'''
+    msg = 'Expecting '
+    for t in range(len(expectations) - 1):
+        msg += str(expectations[t])
+        msg += ' or '
+    msg += str(expectations[-1])
+    msg += '.  Got ' + str(got)
+    return msg
+
+
 def _log_callback(msg):
     """Redirect logs from native library into Python console"""
     print("{0:s}".format(py_str(msg)))
@@ -513,7 +535,8 @@ class DMatrix(object):
         and type if memory use is a concern.
         """
         if len(mat.shape) != 2:
-            raise ValueError('Input numpy.ndarray must be 2 dimensional')
+            raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
+                             mat.shape)
         # flatten the array by rows and ensure it is float32.
         # we try to avoid data copies if possible (reshape returns a view when possible
         # and we explicitly tell np.array to try and avoid copying)
@@ -1010,7 +1033,7 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(type(d).__name__))
+                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
             self._validate_features(d)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
@@ -1352,6 +1375,10 @@ class Booster(object):
             option_mask |= 0x08
         if pred_interactions:
             option_mask |= 0x10
+
+        if not isinstance(data, DMatrix):
+            raise TypeError('Expecting data to be a DMatrix object, got: ',
+                            type(data))
 
         if validate_features:
             self._validate_features(data)

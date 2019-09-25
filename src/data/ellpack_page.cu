@@ -71,7 +71,7 @@ void EllpackPageImpl::Init(int device, int max_bin, int gpu_batch_nrows) {
   const auto& info = dmat_->Info();
   auto is_dense = info.num_nonzero_ == info.num_row_ * info.num_col_;
 
-  // Init global data for each shard
+  // Init global data
   monitor_.StartCuda("InitCompressedData");
   InitCompressedData(device, hmat, row_stride, is_dense);
   monitor_.StopCuda("InitCompressedData");

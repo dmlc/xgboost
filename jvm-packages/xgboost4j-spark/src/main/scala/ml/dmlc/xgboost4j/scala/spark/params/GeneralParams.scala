@@ -260,6 +260,8 @@ private[spark] trait ParamMapFuncs extends Params {
           set(name, paramValue.toString.toInt)
         case _: FloatParam =>
           set(name, paramValue.toString.toFloat)
+        case _: LongParam =>
+          set(name, paramValue.toString.toLong)
         case _: Param[_] =>
           set(name, paramValue)
       }
