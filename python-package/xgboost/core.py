@@ -226,15 +226,15 @@ def _use_columnar_initializer(data):
         return True
     return False
 
+
 def _extract_interface_from_cudf_series(data):
-    """
-        This returns the array interface from the cudf series
-        This function should be upstreamed to cudf.
-    """
+    """This returns the array interface from the cudf series. This function should
+       be upstreamed to cudf."""
     interface = data.__cuda_array_interface__
     if data.has_null_mask:
         interface['mask'] = interface['mask'].__cuda_array_interface__
     return interface
+
 
 def _extract_interface_from_cudf(df, is_info):
     """This function should be upstreamed to cudf."""
@@ -246,7 +246,8 @@ def _extract_interface_from_cudf(df, is_info):
     array_interfaces = []
     if isinstance(df, CUDF_DataFrame):
         for col in df.columns:
-            array_interfaces.append(_extract_interface_from_cudf_series(df[col]))
+            array_interfaces.append(
+                _extract_interface_from_cudf_series(df[col]))
     else:
         array_interfaces.append(_extract_interface_from_cudf_series(df))
 
