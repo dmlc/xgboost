@@ -280,13 +280,6 @@ class SparsePage {
    * \param batch The row batch to be pushed
    */
   void PushCSC(const SparsePage& batch);
-  /*!
-   * \brief Push one instance into page
-   *  \param inst an instance row
-   */
-  void Push(const Inst &inst);
-
-  size_t Size() { return offset.Size() - 1; }
 };
 
 class CSCPage: public SparsePage {
@@ -323,7 +316,7 @@ class EllpackPage {
   EllpackPageImpl* Impl() { return impl_.get(); }
 
  private:
-  std::unique_ptr<EllpackPageImpl> impl_;
+  std::shared_ptr<EllpackPageImpl> impl_;
 };
 
 template<typename T>
