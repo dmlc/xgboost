@@ -1021,9 +1021,10 @@ class GPUHistMakerSpecialised {
 
     // TODO(rongou): support multiple Ellpack pages.
     EllpackPageImpl* page{};
-    for (auto& batch : dmat->GetBatches<EllpackPage>()) {
+    for (auto& batch : dmat->GetBatches<EllpackPage>({device_,
+                                                      param_.max_bin,
+                                                      hist_maker_param_.gpu_batch_nrows})) {
       page = batch.Impl();
-      page->Init(device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows);
     }
 
     dh::safe_cuda(cudaSetDevice(device_));

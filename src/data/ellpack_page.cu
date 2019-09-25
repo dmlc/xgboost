@@ -10,11 +10,10 @@
 
 namespace xgboost {
 
-EllpackPage::EllpackPage(DMatrix* dmat) : impl_{new EllpackPageImpl(dmat)} {}
+EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param)
+    : impl_{new EllpackPageImpl(dmat, param)} {}
 
 EllpackPage::~EllpackPage() = default;
-
-EllpackPageImpl::EllpackPageImpl(DMatrix* dmat) : dmat_{dmat} {}
 
 // Bin each input data entry, store the bin indices in compressed form.
 template<typename std::enable_if<true,  int>::type = 0>
@@ -56,16 +55,15 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-void EllpackPageImpl::Init(int device, int max_bin, int gpu_batch_nrows) {
-  if (initialised_) return;
-
+EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) : dmat_{dmat} {
   monitor_.Init("ellpack_page");
-  dh::safe_cuda(cudaSetDevice(device));
+  dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   common::HistogramCuts hmat;
-  size_t row_stride = common::DeviceSketch(device, max_bin, gpu_batch_nrows, dmat_, &hmat);
+  size_t row_stride =
+      common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat_, &hmat);
   monitor_.StopCuda("Quantiles");
 
   const auto& info = dmat_->Info();
@@ -73,19 +71,17 @@ void EllpackPageImpl::Init(int device, int max_bin, int gpu_batch_nrows) {
 
   // Init global data
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(device, hmat, row_stride, is_dense);
+  InitCompressedData(param.gpu_id, hmat, row_stride, is_dense);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
   DeviceHistogramBuilderState hist_builder_row_state(info.num_row_);
   for (const auto& batch : dmat_->GetBatches<SparsePage>()) {
     hist_builder_row_state.BeginBatch(batch);
-    CreateHistIndices(device, batch, hist_builder_row_state.GetRowStateOnDevice());
+    CreateHistIndices(param.gpu_id, batch, hist_builder_row_state.GetRowStateOnDevice());
     hist_builder_row_state.EndBatch();
   }
   monitor_.StopCuda("BinningCompression");
-
-  initialised_ = true;
 }
 
 void EllpackPageImpl::InitCompressedData(int device,

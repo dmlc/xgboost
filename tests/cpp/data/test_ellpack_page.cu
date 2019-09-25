@@ -17,9 +17,8 @@ TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
   constexpr float kSparsity = 0;
   auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
-  auto& page = *dmat->GetBatches<EllpackPage>().begin();
+  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin, kGpuBatchNRows}).begin();
   auto impl = page.Impl();
-  impl->Init(0, kMaxBin, kGpuBatchNRows);
   ASSERT_EQ(impl->ellpack_matrix.feature_segments.size(), 1);
   ASSERT_EQ(impl->ellpack_matrix.min_fvalue.size(), 0);
   ASSERT_EQ(impl->ellpack_matrix.gidx_fvalue_map.size(), 0);

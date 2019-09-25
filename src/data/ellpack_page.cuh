@@ -174,8 +174,7 @@ class EllpackPageImpl {
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
 
-  explicit EllpackPageImpl(DMatrix* dmat);
-  void Init(int device, int max_bin, int gpu_batch_nrows);
+  explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
   void InitCompressedData(int device,
                           const common::HistogramCuts& hmat,
                           size_t row_stride,
@@ -185,7 +184,6 @@ class EllpackPageImpl {
                          const RowStateOnDevice& device_row_state);
 
  private:
-  bool initialised_{false};
   DMatrix* dmat_;
   common::Monitor monitor_;
   dh::BulkAllocator ba;

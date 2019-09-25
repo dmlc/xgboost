@@ -244,7 +244,7 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
 
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get()));
+  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
   page->InitCompressedData(0, cmat, row_stride, is_dense);
   page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
 

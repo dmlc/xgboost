@@ -38,7 +38,7 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-  BatchSet<EllpackPage> GetEllpackBatches() override;
+  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
   // source data pointer.
   std::unique_ptr<DataSource<SparsePage>> source_;

@@ -22,7 +22,9 @@ class EllpackPageSource : public DataSource<EllpackPage> {
    * \brief Create source from cache files the cache_prefix.
    * \param cache_prefix The prefix of cache we want to solve.
    */
-  explicit EllpackPageSource(DMatrix* src, const std::string& cache_info) noexcept(false);
+  explicit EllpackPageSource(DMatrix* src,
+                             const std::string& cache_info,
+                             const BatchParam& param) noexcept(false);
 
   /*!
    * \brief Create ELLPACK source cache by copy content from DMatrix.

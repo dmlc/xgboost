@@ -159,6 +159,18 @@ struct Entry {
 };
 
 /*!
+ * \brief Parameters for constructing batches.
+ */
+struct BatchParam {
+  /*! \brief The GPU device to use. */
+  int gpu_id;
+  /*! \brief Maximum number of bins per feature for histograms. */
+  int max_bin;
+  /*! \brief Number of rows in a GPU batch, used for finding quantiles on GPU. */
+  int gpu_batch_nrows;
+};
+
+/*!
  * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
 class SparsePage {
@@ -298,7 +310,7 @@ class EllpackPageImpl;
  */
 class EllpackPage {
  public:
-  explicit EllpackPage(DMatrix* dmat);
+  explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
   ~EllpackPage();
 
   // TODO(rongou): place holder.
@@ -392,7 +404,8 @@ class DataSource : public dmlc::DataIter<T> {
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
  *
  *  - Provide a dmlc::Parser and pass into the DMatrix::Create
- *  - Alternatively, if data can be represented by an URL, define a new dmlc::Parser and register by DMLC_REGISTER_DATA_PARSER;
+ *  - Alternatively, if data can be represented by an URL, define a new dmlc::Parser and register by
+ *    DMLC_REGISTER_DATA_PARSER;
  *      - This works best for user defined data input source, such as data-base, filesystem.
  *  - Provide a DataSource, that can be passed to DMatrix::Create
  *      This can be used to re-use inmemory data structure into DMatrix.
@@ -409,7 +422,7 @@ class DMatrix {
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
   template<typename T>
-  BatchSet<T> GetBatches();
+  BatchSet<T> GetBatches(const BatchParam& param = {});
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
@@ -474,27 +487,27 @@ class DMatrix {
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
-  virtual BatchSet<EllpackPage> GetEllpackBatches() = 0;
+  virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
 };
 
 template<>
-inline BatchSet<SparsePage> DMatrix::GetBatches() {
+inline BatchSet<SparsePage> DMatrix::GetBatches(const BatchParam&) {
   return GetRowBatches();
 }
 
 template<>
-inline BatchSet<CSCPage> DMatrix::GetBatches() {
+inline BatchSet<CSCPage> DMatrix::GetBatches(const BatchParam&) {
   return GetColumnBatches();
 }
 
 template<>
-inline BatchSet<SortedCSCPage> DMatrix::GetBatches() {
+inline BatchSet<SortedCSCPage> DMatrix::GetBatches(const BatchParam&) {
   return GetSortedColumnBatches();
 }
 
 template<>
-inline BatchSet<EllpackPage> DMatrix::GetBatches() {
-  return GetEllpackBatches();
+inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
+  return GetEllpackBatches(param);
 }
 }  // namespace xgboost
 
