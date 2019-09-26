@@ -27,5 +27,7 @@ Contents
   JVM package <jvm/index>
   Ruby package <https://github.com/ankane/xgb>
   Julia package <julia>
+  C Package <c>
+  C++ Interface <c++>
   CLI interface <cli>
   contrib/index
