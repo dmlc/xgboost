@@ -118,21 +118,19 @@ To run this check locally, run the following command from the top level source t
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py --gtest-path=/path/to/google-test
-
-where ``--gtest-path`` option specifies the full path of Google Test library.
+  python3 tests/ci_build/tidy.py
 
 Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``. By default they are both set to 1, meaning that both C++ and CUDA code will be checked. If the CUDA toolkit is not installed on your machine, you'll encounter an error. To exclude CUDA source from linting, use:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py --cuda=0 --gtest-path=/path/to/google-test
+  python3 tests/ci_build/tidy.py --cuda=0
 
 Similarly, if you want to exclude C++ source from linting:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py --cpp=0 --gtest-path=/path/to/google-test
+  python3 tests/ci_build/tidy.py --cpp=0
 

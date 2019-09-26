@@ -31,7 +31,7 @@ TEST(EnumClassParam, Basic) {
     {"foo", "frog"}, {"bar", "10"}
   };
   // try initializing
-  param.Init(kwargs);
+  param.Init(kwargs); // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
   ASSERT_EQ(param.foo, Foo::kFrog);
   ASSERT_EQ(param.bar, 10);
 
