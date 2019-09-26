@@ -27,8 +27,8 @@ def dmatrix_from_cudf(input_type, missing=np.NAN):
     np_label = np.random.randn(kRows).astype(input_type)
     pa_label = pd.DataFrame(np_label)
 
-    cd: cudf.DataFrame = cudf.from_pandas(pa)
-    cd_label: cudf.DataFrame = cudf.from_pandas(pa_label)
+    cd = cudf.from_pandas(pa)
+    cd_label = cudf.from_pandas(pa_label).iloc[:, 0]
 
     dtrain = xgb.DMatrix(cd, missing=missing, label=cd_label)
     assert dtrain.num_col() == kCols

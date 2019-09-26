@@ -19,7 +19,7 @@ import scipy.sparse
 
 from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
                      PANDAS_INSTALLED, DataTable,
-                     CUDF_INSTALLED, CUDF_DataFrame,
+                     CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series,
                      os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
@@ -243,26 +243,35 @@ def c_array(ctype, values):
 
 def _use_columnar_initializer(data):
     '''Whether should we use columnar format initializer (pass data in as
-json string).  Currently cudf is the only valid option.'''
-    if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
+    json string).  Currently cudf is the only valid option.'''
+    if CUDF_INSTALLED and (isinstance(data, (CUDF_DataFrame, CUDF_Series))):
         return True
     return False
 
 
+def _extract_interface_from_cudf_series(data):
+    """This returns the array interface from the cudf series. This function should
+       be upstreamed to cudf."""
+    interface = data.__cuda_array_interface__
+    if data.has_null_mask:
+        interface['mask'] = interface['mask'].__cuda_array_interface__
+    return interface
+
+
 def _extract_interface_from_cudf(df, is_info):
-    '''This function should be upstreamed to cudf.'''
+    """This function should be upstreamed to cudf."""
     if not _use_columnar_initializer(df):
         raise ValueError('Only cudf is supported for initializing as json ' +
                          'columnar format.  For other libraries please ' +
                          'refer to specific API.')
 
     array_interfaces = []
-    for col in df.columns:
-        data = df[col]
-        interface = data.__cuda_array_interface__
-        if data.has_null_mask:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        array_interfaces.append(interface)
+    if isinstance(df, CUDF_DataFrame):
+        for col in df.columns:
+            array_interfaces.append(
+                _extract_interface_from_cudf_series(df[col]))
+    else:
+        array_interfaces.append(_extract_interface_from_cudf_series(df))
 
     if is_info:
         array_interfaces = array_interfaces[0]
