@@ -13,6 +13,7 @@
 #include "xgboost/common/host_device_vector.h"
 
 #include <memory>
+#include "../gbm/gbtree_model.h"
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
 

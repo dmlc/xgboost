@@ -16,12 +16,14 @@
 #include <utility>
 #include <vector>
 
-#include "../../src/gbm/gbtree_model.h"
 #include <xgboost/common/host_device_vector.h>
 
 // Forward declarations
 namespace xgboost {
 class TreeUpdater;
+namespace gbm {
+class GBTreeModel;
+}
 }
 
 namespace xgboost {

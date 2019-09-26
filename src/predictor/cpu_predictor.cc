@@ -7,6 +7,8 @@
 #include "xgboost/logging.h"
 #include "xgboost/common/host_device_vector.h"
 
+#include "../gbm/gbtree_model.h"
+
 namespace xgboost {
 namespace predictor {
 

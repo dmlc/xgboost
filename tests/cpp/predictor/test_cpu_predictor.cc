@@ -2,7 +2,9 @@
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
+
 #include "../helpers.h"
+#include "../../../src/gbm/gbtree_model.h"
 
 namespace xgboost {
 TEST(cpu_predictor, Test) {
