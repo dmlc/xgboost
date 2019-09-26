@@ -7,18 +7,18 @@
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
-#include <xgboost/logging.h>
-#include <xgboost/gbm.h>
-#include <xgboost/predictor.h>
-#include <xgboost/tree_updater.h>
-#include "xgboost/common/host_device_vector.h"
-
 #include <vector>
 #include <memory>
 #include <utility>
 #include <string>
 #include <limits>
 #include <algorithm>
+
+#include "xgboost/logging.h"
+#include "xgboost/gbm.h"
+#include "xgboost/predictor.h"
+#include "xgboost/tree_updater.h"
+#include "xgboost/common/host_device_vector.h"
 
 #include "gbtree.h"
 #include "gbtree_model.h"

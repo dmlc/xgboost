@@ -11,6 +11,8 @@
 #include <dmlc/data.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
+#include <xgboost/common/span.h>
+#include <xgboost/common/host_device_vector.h>
 
 #include <memory>
 #include <numeric>
@@ -18,9 +20,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <xgboost/common/span.h>
-#include <xgboost/common/host_device_vector.h>
 
 namespace xgboost {
 // forward declare learner.

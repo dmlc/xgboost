@@ -13,13 +13,12 @@
 #include <xgboost/data.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/common/host_device_vector.h>
 
 #include <functional>
 #include <vector>
 #include <utility>
 #include <string>
-
-#include <xgboost/common/host_device_vector.h>
 
 namespace xgboost {
 /*!
