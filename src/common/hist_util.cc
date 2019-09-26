@@ -8,6 +8,8 @@
 #include <dmlc/omp.h>
 #include <numeric>
 #include <vector>
+
+#include "../common/common.h"
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./quantile.h"
