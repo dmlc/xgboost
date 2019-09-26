@@ -10,12 +10,12 @@
 #define NOMINMAX
 #include <limits>
 #include <utility>
-#include "../include/rabit/internal/io.h"
-#include "../include/rabit/internal/timer.h"
-#include "../include/rabit/internal/utils.h"
-#include "../include/rabit/internal/engine.h"
-#include "../include/rabit/internal/rabit-inl.h"
-#include "./allreduce_robust.h"
+#include "rabit/internal/io.h"
+#include "rabit/internal/timer.h"
+#include "rabit/internal/utils.h"
+#include "rabit/internal/engine.h"
+#include "rabit/internal/rabit-inl.h"
+#include "allreduce_robust.h"
 
 namespace rabit {
 namespace engine {
@@ -870,7 +870,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
 /*!
  * \brief try to fetch allreduce/broadcast results from rest of nodes
  *  as collaberative function called by all nodes, only requester node
- *  will pass seqno to rest of nodes and reconstruct/backfill sendrecvbuf_ 
+ *  will pass seqno to rest of nodes and reconstruct/backfill sendrecvbuf_
  *  of specific seqno from other nodes.
  */
 AllreduceRobust::ReturnType AllreduceRobust::TryRestoreCache(bool requester,

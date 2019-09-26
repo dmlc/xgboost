@@ -3,8 +3,8 @@
  * \file thread_local.h
  * \brief Common utility for thread local storage.
  */
-#ifndef RABIT_THREAD_LOCAL_H_
-#define RABIT_THREAD_LOCAL_H_
+#ifndef RABIT_INTERNAL_THREAD_LOCAL_H_
+#define RABIT_INTERNAL_THREAD_LOCAL_H_
 
 #include "../include/dmlc/base.h"
 
@@ -84,4 +84,4 @@ class ThreadLocalStore {
   std::vector<T*> data_;
 };
 }  // namespace rabit
-#endif  // RABIT_THREAD_LOCAL_H_
+#endif  // RABIT_INTERNAL_THREAD_LOCAL_H_

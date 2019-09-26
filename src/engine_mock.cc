@@ -11,6 +11,6 @@
 #define NOMINMAX
 // switch engine to AllreduceMock
 #define RABIT_USE_MOCK
-#include "./allreduce_mock.h"
-#include "./engine.cc"
+#include "allreduce_mock.h"
+#include "engine.cc"
 

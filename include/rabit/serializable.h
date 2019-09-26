@@ -8,10 +8,10 @@
 #define RABIT_SERIALIZABLE_H_
 #include <vector>
 #include <string>
-#include "./internal/utils.h"
+#include "rabit/internal/utils.h"
 
 #ifndef DMLC_IO_H_
-#include "../../dmlc-core/include/dmlc/io.h"
+#include "dmlc/io.h"
 #endif  // DMLC_IO_H_
 
 namespace rabit {

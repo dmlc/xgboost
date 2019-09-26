@@ -5,8 +5,8 @@
 
 #include <cstring>
 #include <string>
-#include "../include/rabit/rabit.h"
-#include "../include/rabit/c_api.h"
+#include "rabit/rabit.h"
+#include "rabit/c_api.h"
 
 namespace rabit {
 namespace c_api {

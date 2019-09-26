@@ -11,8 +11,8 @@
 #include <cstring>
 #include <string>
 #include <algorithm>
-#include "./utils.h"
-#include "../serializable.h"
+#include "rabit/internal/utils.h"
+#include "rabit/serializable.h"
 
 namespace rabit {
 namespace utils {

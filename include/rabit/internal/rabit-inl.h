@@ -10,9 +10,9 @@
 // use engine for implementation
 #include <vector>
 #include <string>
-#include "./io.h"
-#include "./utils.h"
-#include "../rabit.h"
+#include "rabit/internal/io.h"
+#include "rabit/internal/utils.h"
+#include "rabit/rabit.h"
 
 namespace rabit {
 namespace engine {

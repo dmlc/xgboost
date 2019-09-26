@@ -7,7 +7,7 @@
 #ifndef RABIT_INTERNAL_ENGINE_H_
 #define RABIT_INTERNAL_ENGINE_H_
 #include <string>
-#include "../serializable.h"
+#include "rabit/serializable.h"
 
 #if (defined(__GNUC__) && !defined(__clang__))
 #define _FILE  __builtin_FILE()

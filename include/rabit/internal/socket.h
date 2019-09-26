@@ -4,8 +4,8 @@
  * \brief this file aims to provide a wrapper of sockets
  * \author Tianqi Chen
  */
-#ifndef RABIT_SOCKET_H_
-#define RABIT_SOCKET_H_
+#ifndef RABIT_INTERNAL_SOCKET_H_
+#define RABIT_INTERNAL_SOCKET_H_
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -26,7 +26,7 @@
 #include <cstring>
 #include <vector>
 #include <unordered_map>
-#include "../include/rabit/internal/utils.h"
+#include "utils.h"
 
 #if defined(_WIN32) || defined(__MINGW32__)
 typedef int ssize_t;
@@ -533,4 +533,4 @@ struct PollHelper {
 };
 }  // namespace utils
 }  // namespace rabit
-#endif  // RABIT_SOCKET_H_
+#endif  // RABIT_INTERNAL_SOCKET_H_

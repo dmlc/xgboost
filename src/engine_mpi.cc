@@ -11,8 +11,8 @@
 #define NOMINMAX
 #include <mpi.h>
 #include <cstdio>
-#include "../include/rabit/internal/engine.h"
-#include "../include/rabit/internal/utils.h"
+#include "rabit/internal/engine.h"
+#include "rabit/internal/utils.h"
 
 namespace rabit {
 

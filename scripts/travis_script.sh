@@ -24,7 +24,10 @@ fi
 if [ ${TASK} == "cmake-test" ]; then
     mkdir build
     cd build
-    cmake -DRABIT_BUILD_TESTS=ON -DRABIT_BUILD_DMLC=ON ..
+    cmake -DRABIT_BUILD_TESTS=ON -DRABIT_BUILD_DMLC=ON -DGTEST_ROOT=${HOME}/.local ..
+    #unit tests
+    make
+    make test
     make install || exit -1
     cd ../test
     ../scripts/travis_runtest.sh || exit -1

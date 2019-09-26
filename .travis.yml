@@ -38,6 +38,8 @@ addons:
       - openssh-server
       - python3
       - python3-setuptools
+      - python3-pip
+      - tree
   homebrew:
     packages:
       - gcc49
@@ -45,18 +47,13 @@ addons:
       - libgit2
       - python3
     update: true
-      
+
 before_install:
   - git clone https://github.com/dmlc/dmlc-core
   - export TRAVIS=dmlc-core/scripts/travis/
   - source ${TRAVIS}/travis_setup_env.sh
   - ${TRAVIS}/travis_osx_install.sh
-
-install:
-  - if [[ ${TRAVIS_OS_NAME} == "linux" ]]; then sudo apt-get install python3-pip; fi
-  - if [[ ${TRAVIS_OS_NAME} == "osx" ]]; then brew install python3; fi
-  - pip3 install cpplint pylint urllib3 numpy
-  - pip3 install websocket-client kubernetes
+  - source ./scripts/travis_setup.sh
 
 script: scripts/travis_script.sh
 
@@ -78,4 +75,3 @@ notifications:
   email:
     on_success: change
     on_failure: always
-
