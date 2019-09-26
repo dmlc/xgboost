@@ -51,13 +51,15 @@ public class Rabit {
       throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
-
+  // used as way to test/debug passed rabit init parameters
+  public static Map<String, String> rabitEnvs;
   /**
    * Initialize the rabit library on current working thread.
    * @param envs The additional environment variables to pass to rabit.
    * @throws XGBoostError
    */
   public static void init(Map<String, String> envs) throws XGBoostError {
+    rabitEnvs = envs;
     String[] args = new String[envs.size()];
     int idx = 0;
     for (java.util.Map.Entry<String, String> e : envs.entrySet()) {

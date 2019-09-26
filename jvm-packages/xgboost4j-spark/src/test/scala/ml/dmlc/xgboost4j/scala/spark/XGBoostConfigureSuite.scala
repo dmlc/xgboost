@@ -16,7 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+
+import scala.collection.JavaConverters._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
@@ -88,7 +91,16 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
 
     val model = new XGBoostClassifier(paramMap).fit(training)
 
+    Rabit.rabitEnvs.asScala.foreach( item => {
+      if (item._1 eq "rabit_bootstrap_cache") assert(item._2 eq "1")
+      if (item._1 eq "rabit_debug") assert(item._2 eq "1")
+      if (item._1 eq "rabit_reduce_ring_mincount") assert(item._2 eq "100")
+      if (item._1 eq "rabit_reduce_buffer") assert(item._2 eq "2MB")
+      if (item._1 eq "DMLC_WORKER_CONNECT_RETRY") assert(item._2 eq "1")
+    })
+
     val eval = new EvalError()
     assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
+
   }
 }
