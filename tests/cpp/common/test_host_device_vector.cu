@@ -7,7 +7,7 @@
 #include <thrust/iterator/counting_iterator.h>
 
 #include "../../../src/common/device_helpers.cuh"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/common/host_device_vector.h>
 
 namespace xgboost {
 namespace common {

@@ -21,7 +21,7 @@
 #include <functional>
 #include <memory>
 
-#include "../../src/common/host_device_vector.h"
+#include <xgboost/common/host_device_vector.h>
 
 namespace xgboost {
 /*!

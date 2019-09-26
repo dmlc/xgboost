@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "../../src/gbm/gbtree_model.h"
-#include "../../src/common/host_device_vector.h"
+#include <xgboost/common/host_device_vector.h>
 
 // Forward declarations
 namespace xgboost {

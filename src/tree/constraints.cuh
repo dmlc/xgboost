@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "param.h"
-#include "../common/span.h"
+#include "xgboost/common/span.h"
 #include "../common/bitfield.h"
 #include "../common/device_helpers.cuh"
 

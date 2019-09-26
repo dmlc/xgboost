@@ -13,7 +13,8 @@
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
-#include "../common/span.h"
+#include "xgboost/common/span.h"
+
 #include "../common/bitfield.h"
 
 namespace xgboost {

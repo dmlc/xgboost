@@ -10,10 +10,11 @@
 #include <xgboost/logging.h>
 #include <rabit/rabit.h>
 #include <cub/util_allocator.cuh>
-#include "host_device_vector.h"
+
+#include "xgboost/common/host_device_vector.h"
+#include "xgboost/common/span.h"
 
 #include "common.h"
-#include "span.h"
 
 #include <algorithm>
 #include <omp.h>

@@ -4,12 +4,13 @@
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
-#include <xgboost/objective.h>
+#include "xgboost/objective.h"
+#include "xgboost/common/span.h"
+#include "xgboost/common/host_device_vector.h"
+
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
-#include "../common/span.h"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace obj {

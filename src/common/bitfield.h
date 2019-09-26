@@ -18,7 +18,7 @@
 #include <thrust/device_ptr.h>
 #endif  // defined(__CUDACC__)
 
-#include "span.h"
+#include "xgboost/common/span.h"
 
 namespace xgboost {
 

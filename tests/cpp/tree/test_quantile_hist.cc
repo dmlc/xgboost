@@ -1,18 +1,18 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
-#include "../helpers.h"
-#include "../../../src/tree/param.h"
-#include "../../../src/tree/updater_quantile_hist.h"
-#include "../../../src/tree/split_evaluator.h"
-#include "../../../src/common/host_device_vector.h"
-
+#include <xgboost/common/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <vector>
 #include <string>
+
+#include "../helpers.h"
+#include "../../../src/tree/param.h"
+#include "../../../src/tree/updater_quantile_hist.h"
+#include "../../../src/tree/split_evaluator.h"
 
 namespace xgboost {
 namespace tree {

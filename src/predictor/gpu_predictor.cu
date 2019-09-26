@@ -10,10 +10,11 @@
 #include <xgboost/predictor.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
+#include "xgboost/common/host_device_vector.h"
+
 #include <memory>
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace predictor {

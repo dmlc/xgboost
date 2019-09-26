@@ -2,7 +2,6 @@
  * Copyright 2018 XGBoost contributors
  */
 
-#include "./hist_util.h"
 #include <xgboost/logging.h>
 
 #include <thrust/copy.h>
@@ -17,10 +16,11 @@
 #include <memory>
 #include <mutex>
 
+#include "hist_util.h"
+#include "xgboost/common/host_device_vector.h"
+#include "device_helpers.cuh"
+#include "quantile.h"
 #include "../tree/param.h"
-#include "./host_device_vector.h"
-#include "./device_helpers.cuh"
-#include "./quantile.h"
 
 namespace xgboost {
 namespace common {

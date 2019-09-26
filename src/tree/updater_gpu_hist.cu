@@ -14,13 +14,15 @@
 #include <queue>
 #include <utility>
 #include <vector>
+
+#include "xgboost/common/host_device_vector.h"
+#include "xgboost/common/span.h"
+
 #include "../common/common.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
-#include "../common/host_device_vector.h"
 #include "../common/timer.h"
-#include "../common/span.h"
 #include "../data/ellpack_page.cuh"
 #include "param.h"
 #include "updater_gpu_common.cuh"

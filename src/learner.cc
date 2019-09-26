@@ -19,11 +19,12 @@
 #include <ios>
 #include <utility>
 #include <vector>
-#include "./common/common.h"
-#include "./common/host_device_vector.h"
-#include "./common/io.h"
-#include "./common/random.h"
-#include "./common/timer.h"
+
+#include "xgboost/common/host_device_vector.h"
+#include "common/common.h"
+#include "common/io.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace {
 

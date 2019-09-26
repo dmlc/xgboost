@@ -19,8 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include "../../src/common/span.h"
-#include "../../src/common/host_device_vector.h"
+#include <xgboost/common/span.h>
+#include <xgboost/common/host_device_vector.h>
 
 namespace xgboost {
 // forward declare learner.

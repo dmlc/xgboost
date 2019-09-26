@@ -2,15 +2,16 @@
  * Copyright 2017 XGBoost contributors
  */
 
-#include "./host_device_vector.h"
 #include <thrust/fill.h>
 #include <thrust/device_ptr.h>
 
-#include <xgboost/data.h>
 #include <algorithm>
 #include <cstdint>
 #include <mutex>
-#include "./device_helpers.cuh"
+
+#include "xgboost/data.h"
+#include "xgboost/common/host_device_vector.h"
+#include "device_helpers.cuh"
 
 namespace xgboost {
 
