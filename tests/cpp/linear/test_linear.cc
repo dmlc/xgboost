@@ -2,8 +2,11 @@
  * Copyright 2018-2019 by Contributors
  */
 #include <xgboost/linear_updater.h>
+#include <xgboost/gbm.h>
+
 #include "../helpers.h"
-#include "xgboost/gbm.h"
+
+#include "../../../src/gbm/gblinear_model.h"
 
 TEST(Linear, shotgun) {
   auto mat = xgboost::CreateDMatrix(10, 10, 0);
