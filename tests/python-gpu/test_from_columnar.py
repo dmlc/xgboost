@@ -42,6 +42,7 @@ Arrow specification.'''
     @pytest.mark.skipif(**tm.no_cudf())
     def test_from_cudf(self):
         '''Test constructing DMatrix from cudf'''
+        import cudf
         dmatrix_from_cudf(np.float32, np.NAN)
         dmatrix_from_cudf(np.float64, np.NAN)
 
@@ -52,3 +53,16 @@ Arrow specification.'''
         dmatrix_from_cudf(np.int8, 2)
         dmatrix_from_cudf(np.int32, -2)
         dmatrix_from_cudf(np.int64, -3)
+
+        cd = cudf.DataFrame({'x': [1, 2, 3], 'y': [0.1, 0.2, 0.3]})
+        dtrain = xgb.DMatrix(cd)
+
+        assert dtrain.feature_names == ['x', 'y']
+        assert dtrain.feature_types == ['int', 'float']
+
+        series = cudf.DataFrame({'x': [1, 2, 3]}).iloc[:, 0]
+        assert isinstance(series, cudf.Series)
+        dtrain = xgb.DMatrix(series)
+
+        assert dtrain.feature_names == ['x']
+        assert dtrain.feature_types == ['int']

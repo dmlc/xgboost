@@ -236,7 +236,8 @@ def c_str(string):
 
 def c_array(ctype, values):
     """Convert a python string to c array."""
-    if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
+    if (isinstance(values, np.ndarray)
+            and values.dtype.itemsize == ctypes.sizeof(ctype)):
         return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
 
@@ -335,6 +336,24 @@ def _maybe_pandas_label(label):
     # pd.Series can be passed to xgb as it is
 
     return label
+
+
+def _maybe_cudf_dataframe(data, feature_names, feature_types):
+    if not (CUDF_INSTALLED and isinstance(data,
+                                          (CUDF_DataFrame, CUDF_Series))):
+        return data, feature_names
+    if feature_names is None:
+        if isinstance(data, CUDF_Series):
+            feature_names = [data.name]
+        else:
+            feature_names = data.columns.format()
+    if feature_types is None:
+        if isinstance(data, CUDF_Series):
+            dtypes = [data.dtype]
+        else:
+            dtypes = data.dtypes
+        feature_types = [PANDAS_DTYPE_MAPPER[d.name] for d in dtypes]
+    return data, feature_names, feature_types
 
 
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
@@ -452,6 +471,9 @@ class DMatrix(object):
         data, feature_names, feature_types = _maybe_dt_data(data,
                                                             feature_names,
                                                             feature_types)
+
+        data, feature_names, feature_types = _maybe_cudf_dataframe(
+            data, feature_names, feature_types)
 
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
