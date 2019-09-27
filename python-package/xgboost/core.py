@@ -403,6 +403,21 @@ def _maybe_dt_array(array):
     return array
 
 
+def _convert_dataframes(data, feature_names, feature_types):
+    data, feature_names, feature_types = _maybe_pandas_data(data,
+                                                            feature_names,
+                                                            feature_types)
+
+    data, feature_names, feature_types = _maybe_dt_data(data,
+                                                        feature_names,
+                                                        feature_types)
+
+    data, feature_names, feature_types = _maybe_cudf_dataframe(
+        data, feature_names, feature_types)
+
+    return data, feature_names, feature_types
+
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -423,8 +438,10 @@ class DMatrix(object):
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
                dt.Frame/cudf.DataFrame
             Data source of DMatrix.
-            When data is string or os.PathLike type, it represents the path libsvm format
-            txt file, or binary file that xgboost can read from.
+            When data is string or os.PathLike type, it represents the path
+            libsvm format txt file, csv file (by specifying uri parameter
+            'path_to_csv?format=csv'), or binary file that xgboost can read
+            from.
         label : list, numpy 1-D array or cudf.DataFrame, optional
             Label of the training data.
         missing : float, optional
@@ -464,16 +481,9 @@ class DMatrix(object):
         if isinstance(data, list):
             raise TypeError('Input data can not be a list.')
 
-        data, feature_names, feature_types = _maybe_pandas_data(data,
-                                                                feature_names,
-                                                                feature_types)
-
-        data, feature_names, feature_types = _maybe_dt_data(data,
-                                                            feature_names,
-                                                            feature_types)
-
-        data, feature_names, feature_types = _maybe_cudf_dataframe(
-            data, feature_names, feature_types)
+        data, feature_names, feature_types = _convert_dataframes(
+            data, feature_names, feature_types
+        )
 
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
