@@ -341,7 +341,7 @@ def _maybe_pandas_label(label):
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
     if not (CUDF_INSTALLED and isinstance(data,
                                           (CUDF_DataFrame, CUDF_Series))):
-        return data, feature_names
+        return data, feature_names, feature_types
     if feature_names is None:
         if isinstance(data, CUDF_Series):
             feature_names = [data.name]
