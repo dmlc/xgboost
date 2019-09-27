@@ -90,7 +90,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1)
 
     val model = new XGBoostClassifier(paramMap).fit(training)
-
+    assert(Rabit.rabitEnvs.asScala.size > 5)
     Rabit.rabitEnvs.asScala.foreach( item => {
       if (item._1 eq "rabit_bootstrap_cache") assert(item._2 eq "1")
       if (item._1 eq "rabit_debug") assert(item._2 eq "1")
