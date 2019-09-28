@@ -16,11 +16,6 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
 }
 
-void EllpackPageSource::CreateEllpackPage(DMatrix* src, const std::string& cache_info) {
-  LOG(FATAL) << "Internal Error: "
-                "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-}
-
 }  // namespace data
 }  // namespace xgboost
 

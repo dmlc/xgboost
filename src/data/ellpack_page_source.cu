@@ -6,11 +6,28 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "../common/hist_util.h"
 
 namespace xgboost {
 namespace data {
+
+class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
+ public:
+  bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
+    return true;
+  }
+
+  bool Read(EllpackPage* page,
+            dmlc::SeekStream* fi,
+            const std::vector<bst_uint>& sorted_index_set) override {
+    return true;
+  }
+
+  void Write(const EllpackPage& page, dmlc::Stream* fo) override {
+  }
+};
 
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
                                      const std::string& cache_info,
@@ -22,12 +39,12 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   common::HistogramCuts hmat;
   size_t row_stride = common::DeviceSketch(
       param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
+  printf("%lu\n", row_stride);
   monitor_.StopCuda("Quantiles");
 
   const std::string page_type = ".ellpack.page";
   auto cinfo = ParseCacheInfo(cache_info, page_type);
-  SparsePageWriter<EllpackPage, EllpackPageFormat>
-      writer(cinfo.name_shards, cinfo.format_shards, 6);
+  SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
   page->Clear();
@@ -60,12 +77,10 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   LOG(INFO) << "EllpackPageSource: Finished writing to " << cinfo.name_info;
 }
 
-void EllpackPageSource::CreateEllpackPage(DMatrix* dmat, const std::string& cache_info) {}
-
 XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)
     .describe("Raw binary data format.")
     .set_body([]() {
-      return new EllpackPageFormat();
+      return new EllpackPageRawFormat();
     });
 
 }  // namespace data

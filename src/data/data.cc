@@ -18,8 +18,8 @@
 #endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
-DMLC_REGISTRY_ENABLE(::xgboost::data::PageFormatReg<::xgboost::data::SparsePageFormat>);
-DMLC_REGISTRY_ENABLE(::xgboost::data::PageFormatReg<::xgboost::data::EllpackPageFormat>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::EllpackPage>);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -298,24 +298,6 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-
-std::pair<std::string, std::string>
-data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
-  size_t pos = cache_prefix.rfind(".fmt-");
-
-  if (pos != std::string::npos) {
-    std::string fmt = cache_prefix.substr(pos + 5, cache_prefix.length());
-    size_t cpos = fmt.rfind('-');
-    if (cpos != std::string::npos) {
-      return std::make_pair(fmt.substr(0, cpos), fmt.substr(cpos + 1, fmt.length()));
-    } else {
-      return std::make_pair(fmt, fmt);
-    }
-  } else {
-    std::string raw = "raw";
-    return std::make_pair(raw, raw);
-  }
-}
 
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();

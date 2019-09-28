@@ -24,12 +24,13 @@
 namespace xgboost {
 namespace data {
 
-template<typename PageFormatT>
-PageFormatT* CreatePageFormat(const std::string& name);
+template<typename T>
+struct SparsePageFormatReg;
 
 /*!
  * \brief Format specification of SparsePage.
  */
+template<typename T>
 class SparsePageFormat {
  public:
   /*! \brief virtual destructor */
@@ -40,7 +41,7 @@ class SparsePageFormat {
    * \param fi the input stream of the file
    * \return true of the loading as successful, false if end of file was reached
    */
-  virtual bool Read(SparsePage* page, dmlc::SeekStream* fi) = 0;
+  virtual bool Read(T* page, dmlc::SeekStream* fi) = 0;
 
   /*!
    * \brief read only the segments we are interested in, advance fi to end of the block.
@@ -49,39 +50,34 @@ class SparsePageFormat {
    * \param sorted_index_set sorted index of segments we are interested in
    * \return true of the loading as successful, false if end of file was reached
    */
-  virtual bool Read(SparsePage* page,
+  virtual bool Read(T* page,
                     dmlc::SeekStream* fi,
                     const std::vector<bst_uint>& sorted_index_set) = 0;
   /*!
    * \brief save the data to fo, when a page was written.
    * \param fo output stream
    */
-  virtual void Write(const SparsePage& page, dmlc::Stream* fo) = 0;
-  /*!
-   * \brief decide the format from cache prefix.
-   * \return pair of row format, column format type of the cache prefix.
-   */
-  static std::pair<std::string, std::string> DecideFormat(const std::string& cache_prefix);
+  virtual void Write(const T& page, dmlc::Stream* fo) = 0;
 };
 
 /*!
- * \brief Format specification of EllpackPage.
+ * \brief Create sparse page of format.
+ * \return The created format functors.
  */
-class EllpackPageFormat {
- public:
-  /*!
-   * \brief save the data to fo, when a page was written.
-   * TODO(rongou): placeholder.
-   * \param fo output stream
-   */
-  void Write(const EllpackPage& page, dmlc::Stream* fo) {}
-};
+template<typename T>
+inline SparsePageFormat<T>* CreatePageFormat(const std::string& name) {
+  auto *e = ::dmlc::Registry<SparsePageFormatReg<T>>::Get()->Find(name);
+  if (e == nullptr) {
+    LOG(FATAL) << "Unknown format type " << name;
+  }
+  return (e->body)();
+}
 
 #if DMLC_ENABLE_STD_THREAD
 /*!
  * \brief A threaded writer to write sparse batch page to sharded files.
  */
-template<typename PageT, typename PageFormatT>
+template<typename T>
 class SparsePageWriter {
  public:
   /*!
@@ -106,9 +102,9 @@ class SparsePageWriter {
       workers_[i].reset(new std::thread(
           [this, name_shard, format_shard, wqueue]() {
             std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_shard.c_str(), "w"));
-            std::unique_ptr<PageFormatT> fmt(CreatePageFormat<PageFormatT>(format_shard));
+            std::unique_ptr<SparsePageFormat<T>> fmt(CreatePageFormat<T>(format_shard));
             fo->Write(format_shard);
-            std::shared_ptr<PageT> page;
+            std::shared_ptr<T> page;
             while (wqueue->Pop(&page)) {
               if (page == nullptr) break;
               fmt->Write(*page, fo.get());
@@ -124,7 +120,7 @@ class SparsePageWriter {
   ~SparsePageWriter() {
     for (auto& queue : qworkers_) {
       // use nullptr to signal termination.
-      std::shared_ptr<PageT> sig(nullptr);
+      std::shared_ptr<T> sig(nullptr);
       queue.Push(std::move(sig));
     }
     for (auto& thread : workers_) {
@@ -138,7 +134,7 @@ class SparsePageWriter {
    * writing is done by another thread inside writer.
    * \param page The page to be written
    */
-  void PushWrite(std::shared_ptr<PageT>&& page) {
+  void PushWrite(std::shared_ptr<T>&& page) {
     qworkers_[clock_ptr_].Push(std::move(page));
     clock_ptr_ = (clock_ptr_ + 1) % workers_.size();
   }
@@ -149,10 +145,10 @@ class SparsePageWriter {
    *  have not yet been recycled.
    * \param out_page Used to store the allocated pages.
    */
-  void Alloc(std::shared_ptr<PageT>* out_page) {
+  void Alloc(std::shared_ptr<T>* out_page) {
     CHECK(*out_page == nullptr);
     if (num_free_buffer_ != 0) {
-      out_page->reset(new PageT());
+      out_page->reset(new T());
       --num_free_buffer_;
     } else {
       CHECK(qrecycle_.Pop(out_page));
@@ -165,35 +161,22 @@ class SparsePageWriter {
   /*! \brief clock_pointer */
   size_t clock_ptr_;
   /*! \brief writer threads */
-  std::vector<std::unique_ptr<std::thread> > workers_;
+  std::vector<std::unique_ptr<std::thread>> workers_;
   /*! \brief recycler queue */
-  dmlc::ConcurrentBlockingQueue<std::shared_ptr<PageT> > qrecycle_;
+  dmlc::ConcurrentBlockingQueue<std::shared_ptr<T>> qrecycle_;
   /*! \brief worker threads */
-  std::vector<dmlc::ConcurrentBlockingQueue<std::shared_ptr<PageT> > > qworkers_;
+  std::vector<dmlc::ConcurrentBlockingQueue<std::shared_ptr<T>>> qworkers_;
 };
 #endif  // DMLC_ENABLE_STD_THREAD
 
 /*!
  * \brief Registry entry for sparse page format.
  */
-template<typename PageFormatT>
-struct PageFormatReg
-    : public dmlc::FunctionRegEntryBase<PageFormatReg<PageFormatT>,
-                                        std::function<PageFormatT* ()> > {
+template<typename T>
+struct SparsePageFormatReg
+    : public dmlc::FunctionRegEntryBase<SparsePageFormatReg<T>,
+                                        std::function<SparsePageFormat<T>* ()>> {
 };
-
-/*!
- * \brief Create sparse page of format.
- * \return The created format functors.
- */
-template<typename PageFormatT>
-inline PageFormatT* CreatePageFormat(const std::string& name) {
-  auto *e = ::dmlc::Registry<PageFormatReg<PageFormatT>>::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown format type " << name;
-  }
-  return (e->body)();
-}
 
 /*!
  * \brief Macro to register sparse page format.
@@ -207,11 +190,14 @@ inline PageFormatT* CreatePageFormat(const std::string& name) {
  *   });
  * \endcode
  */
+#define SparsePageFmt SparsePageFormat<SparsePage>
 #define XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(Name)                       \
-  DMLC_REGISTRY_REGISTER(PageFormatReg<SparsePageFormat>, SparsePageFormat, Name)
+  DMLC_REGISTRY_REGISTER(SparsePageFormatReg<SparsePage>, SparsePageFmt, Name)
 
+
+#define EllpackPageFmt SparsePageFormat<EllpackPage>
 #define XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(Name)                       \
-  DMLC_REGISTRY_REGISTER(PageFormatReg<EllpackPageFormat>, EllpackPageFormat, Name)
+  DMLC_REGISTRY_REGISTER(SparsePageFormatReg<EllpackPage>, EllpackPageFm, Name)
 
 }  // namespace data
 }  // namespace xgboost

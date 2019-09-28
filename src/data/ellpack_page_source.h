@@ -27,12 +27,6 @@ class EllpackPageSource : public DataSource<EllpackPage> {
                              const std::string& cache_info,
                              const BatchParam& param) noexcept(false);
 
-  /*!
-   * \brief Create ELLPACK source cache by copy content from DMatrix.
-   * \param cache_info The cache_info of cache file location.
-   */
-  static void CreateEllpackPage(DMatrix* src, const std::string& cache_info);
-
   /*! \brief destructor */
   ~EllpackPageSource() override = default;
 

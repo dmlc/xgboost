@@ -12,7 +12,7 @@ namespace data {
 
 DMLC_REGISTRY_FILE_TAG(sparse_page_raw_format);
 
-class SparsePageRawFormat : public SparsePageFormat {
+class SparsePageRawFormat : public SparsePageFormat<SparsePage> {
  public:
   bool Read(SparsePage* page, dmlc::SeekStream* fi) override {
     auto& offset_vec = page->offset.HostVector();
