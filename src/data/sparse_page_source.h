@@ -104,7 +104,7 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
       std::string format;
       CHECK(fi->Read(&format)) << "Invalid page format";
-      formats_[i].reset(SparsePageFormat::Create(format));
+      formats_[i].reset(CreatePageFormat<SparsePageFormat>(format));
       std::unique_ptr<SparsePageFormat>& fmt = formats_[i];
       size_t fbegin = fi->Tell();
       prefetchers_[i].reset(new dmlc::ThreadedIter<T>(4));
@@ -170,7 +170,8 @@ class SparsePageSource : public DataSource<T> {
     const std::string page_type = ".row.page";
     auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter writer(cinfo.name_shards, cinfo.format_shards, 6);
+      SparsePageWriter<SparsePage, SparsePageFormat> writer(
+          cinfo.name_shards, cinfo.format_shards, 6);
       std::shared_ptr<SparsePage> page;
       writer.Alloc(&page); page->Clear();
 
@@ -295,7 +296,8 @@ class SparsePageSource : public DataSource<T> {
                                     const size_t page_size = DMatrix::kPageSize) {
     auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter writer(cinfo.name_shards, cinfo.format_shards, 6);
+      SparsePageWriter<SparsePage, SparsePageFormat> writer(
+          cinfo.name_shards, cinfo.format_shards, 6);
       std::shared_ptr<SparsePage> page;
       writer.Alloc(&page);
       page->Clear();

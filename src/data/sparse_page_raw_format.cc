@@ -29,11 +29,6 @@ class SparsePageRawFormat : public SparsePageFormat {
     return true;
   }
 
-  // TODO(rongou): place holder.
-  bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
-    return false;
-  }
-
   bool Read(SparsePage* page,
             dmlc::SeekStream* fi,
             const std::vector<bst_uint>& sorted_index_set) override {

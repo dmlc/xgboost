@@ -9,6 +9,7 @@
 #include <string>
 
 #include "sparse_page_source.h"
+#include "../common/timer.h"
 
 namespace xgboost {
 namespace data {
@@ -22,7 +23,7 @@ class EllpackPageSource : public DataSource<EllpackPage> {
    * \brief Create source from cache files the cache_prefix.
    * \param cache_prefix The prefix of cache we want to solve.
    */
-  explicit EllpackPageSource(DMatrix* src,
+  explicit EllpackPageSource(DMatrix* dmat,
                              const std::string& cache_info,
                              const BatchParam& param) noexcept(false);
 
@@ -50,6 +51,7 @@ class EllpackPageSource : public DataSource<EllpackPage> {
 
  private:
   EllpackPage page_;
+  common::Monitor monitor_;
 };
 
 }  // namespace data

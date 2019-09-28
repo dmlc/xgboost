@@ -40,7 +40,6 @@
 
 #if DMLC_ENABLE_STD_THREAD
 #include "../src/data/sparse_page_dmatrix.cc"
-#include "../src/data/sparse_page_writer.cc"
 #endif
 
 // tress

@@ -18,7 +18,8 @@
 #endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
-DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
+DMLC_REGISTRY_ENABLE(::xgboost::data::PageFormatReg<::xgboost::data::SparsePageFormat>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::PageFormatReg<::xgboost::data::EllpackPageFormat>);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -297,13 +298,6 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-  data::SparsePageFormat* data::SparsePageFormat::Create(const std::string& name) {
-  auto *e = ::dmlc::Registry< ::xgboost::data::SparsePageFormatReg>::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown format type " << name;
-  }
-  return (e->body)();
-}
 
 std::pair<std::string, std::string>
 data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
