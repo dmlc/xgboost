@@ -17,10 +17,11 @@ import json
 import numpy as np
 import scipy.sparse
 
-from .compat import (STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
-                     PANDAS_INSTALLED, DataTable,
-                     CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series,
-                     os_fspath, os_PathLike)
+from .compat import (
+    STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
+    PANDAS_INSTALLED, DataTable,
+    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
+    os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
 
@@ -243,8 +244,11 @@ def c_array(ctype, values):
 
 
 def _use_columnar_initializer(data):
-    '''Whether should we use columnar format initializer (pass data in as
-    json string).  Currently cudf is the only valid option.'''
+    '''Whether should we use columnar format initializer (pass data in as json
+    string).  Currently cudf is the only valid option.  For other dataframe
+    types, use their sepcific API instead.
+
+    '''
     if CUDF_INSTALLED and (isinstance(data, (CUDF_DataFrame, CUDF_Series))):
         return True
     return False
@@ -259,7 +263,7 @@ def _extract_interface_from_cudf_series(data):
     return interface
 
 
-def _extract_interface_from_cudf(df, is_info):
+def _extract_interface_from_cudf(df):
     """This function should be upstreamed to cudf."""
     if not _use_columnar_initializer(df):
         raise ValueError('Only cudf is supported for initializing as json ' +
@@ -273,9 +277,6 @@ def _extract_interface_from_cudf(df, is_info):
                 _extract_interface_from_cudf_series(df[col]))
     else:
         array_interfaces.append(_extract_interface_from_cudf_series(df))
-
-    if is_info:
-        array_interfaces = array_interfaces[0]
 
     interfaces = bytes(json.dumps(array_interfaces, indent=2), 'utf-8')
     return interfaces
@@ -339,12 +340,18 @@ def _maybe_pandas_label(label):
 
 
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
+    '''Extract internal data from cudf.DataFrame for DMatrix data.'''
     if not (CUDF_INSTALLED and isinstance(data,
                                           (CUDF_DataFrame, CUDF_Series))):
         return data, feature_names, feature_types
     if feature_names is None:
         if isinstance(data, CUDF_Series):
             feature_names = [data.name]
+        elif isinstance(data.columns, CUDF_MultiIndex):
+            feature_names = [
+                ' '.join([str(x) for x in i])
+                for i in data.columns
+            ]
         else:
             feature_names = data.columns.format()
     if feature_types is None:
@@ -636,7 +643,7 @@ class DMatrix(object):
         '''Initialize DMatrix from columnar memory format.
 
         '''
-        interfaces = _extract_interface_from_cudf(df, False)
+        interfaces = _extract_interface_from_cudf(df)
         handle = ctypes.c_void_p()
         has_missing = missing is not None
         missing = missing if has_missing else np.nan
@@ -715,7 +722,7 @@ class DMatrix(object):
 
     def set_interface_info(self, field, data):
         '''Set info type peoperty into DMatrix.'''
-        interfaces = _extract_interface_from_cudf(data, True)
+        interfaces = _extract_interface_from_cudf(data)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
                                                        c_str(field),
                                                        interfaces))

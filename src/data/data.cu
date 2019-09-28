@@ -35,8 +35,10 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
 }
 
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
-  Json j_arr = Json::Load({interface_str.c_str(), interface_str.size()});
-  auto const& j_arr_obj = get<Object>(j_arr);
+  Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
+  auto const& j_arr = get<Array>(j_interface);
+  CHECK_EQ(j_arr.size(), 1) << "MetaInfo: " << c_key << ". " << ColumnarErrors::Dimension(1);;
+  auto const& j_arr_obj = get<Object const>(j_arr[0]);
   std::string key {c_key};
   ArrayInterfaceHandler::Validate(j_arr_obj);
   if (j_arr_obj.find("mask") != j_arr_obj.cend()) {

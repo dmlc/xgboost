@@ -66,3 +66,6 @@ Arrow specification.'''
 
         assert dtrain.feature_names == ['x']
         assert dtrain.feature_types == ['int']
+
+        with pytest.raises(Exception):
+            dtrain = xgb.DMatrix(cd, label=cd)

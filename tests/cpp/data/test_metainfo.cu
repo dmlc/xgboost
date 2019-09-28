@@ -31,9 +31,10 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out) {
         Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
         Json(Boolean(false))};
   column["data"] = j_data;
+  Json array(std::vector<Json>{column});
 
   std::stringstream ss;
-  Json::Dump(column, &ss);
+  Json::Dump(array, &ss);
   std::string str = ss.str();
 
   return str;
