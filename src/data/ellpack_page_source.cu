@@ -71,7 +71,7 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   }
 
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
-  int tmagic = SparsePageSource<EllpackPage>::kMagic;
+  int tmagic = SparsePageSource<SparsePage>::kMagic;
   fo->Write(&tmagic, sizeof(tmagic));
   info.SaveBinary(fo.get());
   LOG(INFO) << "EllpackPageSource: Finished writing to " << cinfo.name_info;
