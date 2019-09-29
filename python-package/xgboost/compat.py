@@ -133,10 +133,12 @@ except ImportError:
 try:
     from cudf import DataFrame as CUDF_DataFrame
     from cudf import Series as CUDF_Series
+    from cudf import MultiIndex as CUDF_MultiIndex
     CUDF_INSTALLED = True
 except ImportError:
     CUDF_DataFrame = object
     CUDF_Series = object
+    CUDF_MultiIndex = object
     CUDF_INSTALLED = False
 
 # sklearn
