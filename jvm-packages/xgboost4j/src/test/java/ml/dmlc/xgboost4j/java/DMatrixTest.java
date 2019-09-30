@@ -315,7 +315,6 @@ public class DMatrixTest {
         assertEquals(1, preds.length);
         assertArrayEquals(new float[]{(float) (i + 1)}, preds[0], 1e-2f);
       }
-      assertEquals(rabitEnv, Rabit.rabitEnvs);
     } finally {
       if (trainMat != null)
         trainMat.dispose();

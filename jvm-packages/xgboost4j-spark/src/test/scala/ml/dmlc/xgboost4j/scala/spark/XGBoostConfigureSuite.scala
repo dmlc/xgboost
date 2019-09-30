@@ -81,7 +81,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     ss.conf.unset("xgboost.spark.ignoreSsl")
   }
 
-  test("Check setting rabit configs no affect on prediction") {
+  test("Check setting rabit configs propagated") {
     val training = buildDataFrame(Classification.train)
     val testDM = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
@@ -98,9 +98,5 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       if (item._1 eq "rabit_reduce_buffer") assert(item._2 eq "2MB")
       if (item._1 eq "DMLC_WORKER_CONNECT_RETRY") assert(item._2 eq "1")
     })
-
-    val eval = new EvalError()
-    assert(eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM) < 0.1)
-
   }
 }
