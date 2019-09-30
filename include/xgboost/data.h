@@ -307,29 +307,21 @@ class EllpackPage {
   explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
   ~EllpackPage();
 
-  // TODO(rongou): place holder.
-  inline size_t Size() const {
-    return 0;
-  }
+  size_t Size() const;
 
   /*! \brief clear the page
-   * TODO(rongou): placeholder.
    */
-  inline void Clear() {}
+  void Clear();
 
   /*!
    * \brief Push a sparse page
-   * TODO(rongou): placeholder.
    * \param batch the row page
    */
-  void Push(const SparsePage& batch) {}
+  void Push(const SparsePage& batch);
 
   /*! \return estimation of memory cost of this page
-   * TODO(rongou): placeholder.
    */
-  inline size_t MemCostBytes() const {
-    return 0;
-  }
+  size_t MemCostBytes() const;
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }

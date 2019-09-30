@@ -15,6 +15,22 @@ EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param)
 
 EllpackPage::~EllpackPage() = default;
 
+size_t EllpackPage::Size() const {
+  return impl_->Size();
+}
+
+void EllpackPage::Clear() {
+  impl_->Clear();
+}
+
+void EllpackPage::Push(const SparsePage& batch) {
+  impl_->Push(batch);
+}
+
+size_t EllpackPage::MemCostBytes() const {
+  return impl_->MemCostBytes();
+}
+
 // Bin each input data entry, store the bin indices in compressed form.
 template<typename std::enable_if<true,  int>::type = 0>
 __global__ void CompressBinEllpackKernel(
@@ -186,6 +202,20 @@ void EllpackPageImpl::CreateHistIndices(int device,
         row_stride,
         null_gidx_value);
   }
+}
+
+size_t EllpackPageImpl::Size() const {
+  return 0;
+}
+
+void EllpackPageImpl::Clear() {
+}
+
+void EllpackPageImpl::Push(const SparsePage& batch) {
+}
+
+size_t EllpackPageImpl::MemCostBytes() const {
+  return 0;
 }
 
 }  // namespace xgboost

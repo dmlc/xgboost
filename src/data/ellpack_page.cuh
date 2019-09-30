@@ -183,6 +183,22 @@ class EllpackPageImpl {
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
 
+  size_t Size() const;
+
+  /*! \brief clear the page
+   */
+  void Clear();
+
+  /*!
+   * \brief Push a sparse page
+   * \param batch the row page
+   */
+  void Push(const SparsePage& batch);
+
+  /*! \return estimation of memory cost of this page
+   */
+  size_t MemCostBytes() const;
+
  private:
   DMatrix* dmat_;
   common::Monitor monitor_;

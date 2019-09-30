@@ -78,7 +78,7 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
 }
 
 XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)
-    .describe("Raw binary data format.")
+    .describe("Raw ELLPACK binary data format.")
     .set_body([]() {
       return new EllpackPageRawFormat();
     });
