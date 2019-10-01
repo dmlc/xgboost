@@ -48,16 +48,23 @@ class AllreduceMock : public AllreduceRobust {
                          size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
-                         void *prepare_arg) {
+                         void *prepare_arg,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER) {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "AllReduce");
     double tstart = utils::GetTime();
     AllreduceRobust::Allreduce(sendrecvbuf_, type_nbytes,
-                               count, reducer, prepare_fun, prepare_arg);
+                               count, reducer, prepare_fun, prepare_arg,
+                               _file, _line, _caller);
     tsum_allreduce += utils::GetTime() - tstart;
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER) {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "Broadcast");
-    AllreduceRobust::Broadcast(sendrecvbuf_, total_size, root);
+    AllreduceRobust::Broadcast(sendrecvbuf_, total_size, root, _file, _line, _caller);
   }
   virtual int LoadCheckPoint(Serializable *global_model,
                              Serializable *local_model) {
@@ -168,8 +175,8 @@ class AllreduceMock : public AllreduceRobust {
   inline void Verify(const MockKey &key, const char *name) {
     if (mock_map.count(key) != 0) {
       num_trial += 1;
-      fprintf(stderr, "[%d]@@@Hit Mock Error:%s\n", rank, name);
-      exit(-2);
+      // data processing frameworks runs on shared process
+      utils::Error("[%d]@@@Hit Mock Error:%s\n", rank, name);
     }
   }
 };

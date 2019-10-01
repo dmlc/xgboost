@@ -113,7 +113,7 @@ int AllreduceRobust::SetBootstrapCache(const std::string &key, const void *buf,
 }
 
 int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
-  const size_t type_nbytes, const size_t count, const bool byref) {
+  const size_t type_nbytes, const size_t count) {
   // as requester sync with rest of nodes on latest cache content
   if (!RecoverExec(NULL, 0, ActionSummary::kLoadBootstrapCache,
     seq_counter, cur_cache_seq)) return -1;
@@ -136,14 +136,7 @@ int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
   utils::Assert(cur_cache_seq > index, "cur_cache_seq is smaller than lookup cache seq index");
   utils::Assert(siz == type_nbytes*count, "cache size stored expected to be same as requested");
   utils::Assert(siz > 0, "cache size should be greater than 0");
-
-  // immutable cache, save copy time by pointer manipulation
-  if (byref) {
-    buf = temp;
-  } else {
-    std::memcpy(buf, temp, type_nbytes*count);
-  }
-
+  std::memcpy(buf, temp, type_nbytes*count);
   return 0;
 }
 
@@ -184,7 +177,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
 
   // try fetch bootstrap allreduce results from cache
   if (!checkpoint_loaded && rabit_bootstrap_cache &&
-    GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count, true) != -1) return;
+    GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count) != -1) return;
 
   double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
@@ -244,8 +237,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
     + std::string(_caller) + "#" +std::to_string(total_size) + "@" + std::to_string(root);
   // try fetch bootstrap allreduce results from cache
   if (!checkpoint_loaded && rabit_bootstrap_cache &&
-    GetBootstrapCache(key, sendrecvbuf_, total_size, 1, true) != -1) return;
-
+  GetBootstrapCache(key, sendrecvbuf_, total_size, 1) != -1) return;
   double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
   // now we are free to remove the last result, if any
@@ -1171,9 +1163,10 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
             // if all nodes are requester in load cache, skip
             if (act.load_cache(SeqType::kCache)) return false;
 
-            // only restore when at least one pair of max_seq are different
-            if (act.diff_seq(SeqType::kCache)) {
-              // if restore cache failed, retry from what's left
+            // bootstrap cache always restore before loadcheckpoint
+            // requester always have seq diff with non requester
+            if (act.diff_seq()) {
+              // restore cache failed, retry from what's left
               if (TryRestoreCache(req.load_cache(), act.seqno(), act.seqno(SeqType::kCache))
                 != kSuccess) continue;
             }

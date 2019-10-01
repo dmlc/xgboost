@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
   std::string name = rabit::GetProcessorName();
 
   int max_rank = rank;
-  rabit::Allreduce<op::Max>(&max_rank, sizeof(int));
+  rabit::Allreduce<op::Max>(&max_rank, 1);
   utils::Check(max_rank == nproc - 1, "max rank is world size-1");
 
   Model model;

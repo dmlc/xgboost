@@ -49,7 +49,7 @@ class AllreduceRobust : public AllreduceBase {
    * \param buflen total number of bytes
    */
   int GetBootstrapCache(const std::string &key, void *buf, const size_t type_nbytes,
-    const size_t count, const bool byref = false);
+    const size_t count);
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
@@ -255,9 +255,8 @@ class AllreduceRobust : public AllreduceBase {
       return (code & kCheckAck) != 0;
     }
     // whether the operation set contains different sequence number
-    inline bool diff_seq(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
-      return (code & kDiffSeq) != 0;
+    inline bool diff_seq() const {
+      return (seqcode & kDiffSeq) != 0;
     }
     // returns the operation flag of the result
     inline int flag(SeqType t = SeqType::kSeq) const {
@@ -266,11 +265,10 @@ class AllreduceRobust : public AllreduceBase {
     }
     // print flags in user friendly way
     inline void print_flags(int rank, std::string prefix ) {
-      utils::HandleLogInfo("[%d] %s - |%lu|%d|%d|%d|%d| - |%lu|%d|%d|\n",
+      utils::HandleLogInfo("[%d] %s - |%lu|%d|%d|%d|%d| - |%lu|%d|\n",
                     rank, prefix.c_str(),
                     seqno(), check_point(), check_ack(), load_cache(),
-                    diff_seq(), seqno(SeqType::kCache), load_cache(SeqType::kCache),
-                    diff_seq(SeqType::kCache));
+                    diff_seq(), seqno(SeqType::kCache), load_cache(SeqType::kCache));
     }
     // reducer for Allreduce, get the result ActionSummary from all nodes
     inline static void Reducer(const void *src_, void *dst_,
@@ -286,12 +284,9 @@ class AllreduceRobust : public AllreduceBase {
         int role_flag = src[i].flag(SeqType::kCache) & dst[i].flag(SeqType::kCache);
         // if seqno is different in src and destination
         int seq_diff_flag = src[i].seqno() != dst[i].seqno() ? kDiffSeq : 0;
-        // if cache seqno is different in src and destination
-        int cache_diff_flag =
-          src[i].seqno(SeqType::kCache) != dst[i].seqno(SeqType::kCache) ? kDiffSeq : 0;
         // apply or to both seq diff flag as well as cache seq diff flag
         dst[i] = ActionSummary(action_flag | seq_diff_flag,
-          role_flag | cache_diff_flag, min_seqno, max_seqno);
+          role_flag, min_seqno, max_seqno);
       }
     }
 

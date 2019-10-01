@@ -3,12 +3,13 @@ find_package(GTest REQUIRED)
 add_executable(
   unit_tests
   allreduce_base_test.cpp
+  allreduce_mock_test.cpp
   test_main.cpp)
 
 target_link_libraries(
   unit_tests
   GTest::GTest GTest::Main
-  rabit_base)
+  rabit_base rabit_mock)
 
 target_include_directories(unit_tests PUBLIC
   "$<BUILD_INTERFACE:${rabit_SOURCE_DIR}/include>"
