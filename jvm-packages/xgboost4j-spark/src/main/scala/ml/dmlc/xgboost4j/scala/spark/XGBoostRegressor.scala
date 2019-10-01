@@ -45,7 +45,7 @@ class XGBoostRegressor (
     override val uid: String,
     private val xgboostParams: Map[String, Any])
   extends Predictor[Vector, XGBoostRegressor, XGBoostRegressionModel]
-    with XGBoostRegressorParams with RabitParams with DefaultParamsWritable {
+    with XGBoostRegressorParams with DefaultParamsWritable {
 
   def this() = this(Identifiable.randomUID("xgbr"), Map[String, Any]())
 
@@ -55,7 +55,6 @@ class XGBoostRegressor (
     Identifiable.randomUID("xgbr"), xgboostParams)
 
   XGBoostToMLlibParams(xgboostParams)
-  XGBoostToRabitParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 

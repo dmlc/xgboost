@@ -41,7 +41,7 @@ class XGBoostClassifier (
     override val uid: String,
     private val xgboostParams: Map[String, Any])
   extends ProbabilisticClassifier[Vector, XGBoostClassifier, XGBoostClassificationModel]
-    with XGBoostClassifierParams with RabitParams with DefaultParamsWritable {
+    with XGBoostClassifierParams with DefaultParamsWritable {
 
   def this() = this(Identifiable.randomUID("xgbc"), Map[String, Any]())
 
@@ -51,7 +51,6 @@ class XGBoostClassifier (
     Identifiable.randomUID("xgbc"), xgboostParams)
 
   XGBoostToMLlibParams(xgboostParams)
-  XGBoostToRabitParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
