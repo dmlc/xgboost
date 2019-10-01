@@ -6,18 +6,18 @@ from dask.distributed import LocalCluster
 from dask import array as da
 import xgboost
 
-if __name__ == '__main__':
-    cluster = LocalCluster(n_workers=2, silence_logs=False)  # or use any other clusters
-    client = Client(cluster)
 
+def main(client):
+    # generate some random data for demonstration
     n = 100
     m = 10000
     partition_size = 100
     X = da.random.random((m, n), partition_size)
     y = da.random.random(m, partition_size)
 
-    regressor = xgboost.dask.DaskXGBRegressor(verbosity=2, n_estimators=2)
+    regressor = xgboost.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
     regressor.set_params(tree_method='hist')
+    # assigning client here is optional
     regressor.client = client
 
     regressor.fit(X, y, eval_set=[(X, y)])
@@ -27,4 +27,13 @@ if __name__ == '__main__':
     history = regressor.evals_result()
 
     print('Evaluation history:', history)
+    # returned prediction is always a dask array.
     assert isinstance(prediction, da.Array)
+    return bst                  # returning the trained model
+
+
+if __name__ == '__main__':
+    # or use other clusters for scaling
+    with LocalCluster(n_workers=4, threads_per_worker=1) as cluster:
+        with Client(cluster) as client:
+            main(client)
