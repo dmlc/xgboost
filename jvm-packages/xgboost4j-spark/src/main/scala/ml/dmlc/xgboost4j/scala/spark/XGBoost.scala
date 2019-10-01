@@ -155,7 +155,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     overridedParams
   }
 
-  private def buildXGBRuntimeParams: XGBoostExecutionParams = {
+  private[spark] def buildXGBRuntimeParams: XGBoostExecutionParams = {
     val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
     val round = overridedParams("num_round").asInstanceOf[Int]
     val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
@@ -222,7 +222,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam
   }
 
-  private def buildRabitParams: Map[String, String] = Map(
+  private[spark] def buildRabitParams: Map[String, String] = Map(
     "rabit_reduce_ring_mincount" ->
       overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).toString,
     "rabit_reduce_buffer" ->
