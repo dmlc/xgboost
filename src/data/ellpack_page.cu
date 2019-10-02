@@ -23,16 +23,12 @@ void EllpackPage::Clear() {
   impl_->Clear();
 }
 
-void EllpackPage::Push(const SparsePage& batch) {
-  impl_->Push(batch);
-}
-
 size_t EllpackPage::MemCostBytes() const {
   return impl_->MemCostBytes();
 }
 
 // Bin each input data entry, store the bin indices in compressed form.
-template<typename std::enable_if<true,  int>::type = 0>
+template<typename std::enable_if<true, int>::type = 0>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
@@ -56,7 +52,7 @@ __global__ void CompressBinEllpackKernel(
     int feature = entry.index;
     float fvalue = entry.fvalue;
     // {feature_cuts, ncuts} forms the array of cuts of `feature'.
-    const float *feature_cuts = &cuts[cut_rows[feature]];
+    const float* feature_cuts = &cuts[cut_rows[feature]];
     int ncuts = cut_rows[feature + 1] - cut_rows[feature];
     // Assigning the bin in current entry.
     // S.t.: fvalue < feature_cuts[bin]
@@ -146,7 +142,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
   unsigned int null_gidx_value = n_bins;
   size_t row_stride = this->ellpack_matrix.row_stride;
 
-  const auto &offset_vec = row_batch.offset.ConstHostVector();
+  const auto& offset_vec = row_batch.offset.ConstHostVector();
 
   int num_symbols = n_bins + 1;
   // bin and compress entries in batches of rows
@@ -172,7 +168,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
         offset_vec[device_row_state.row_offset_in_current_batch + batch_row_end];
 
     /*! \brief row offset in SparsePage (the input data). */
-    dh::device_vector<size_t> row_ptrs(batch_nrows+1);
+    dh::device_vector<size_t> row_ptrs(batch_nrows + 1);
     thrust::copy(
         offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
         offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
@@ -211,7 +207,9 @@ size_t EllpackPageImpl::Size() const {
 void EllpackPageImpl::Clear() {
 }
 
-void EllpackPageImpl::Push(const SparsePage& batch) {
+void EllpackPageImpl::Push(size_t row_stride,
+                           const common::HistogramCuts& hmat,
+                           const SparsePage& batch) {
 }
 
 size_t EllpackPageImpl::MemCostBytes() const {

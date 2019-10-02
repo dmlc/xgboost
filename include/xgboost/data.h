@@ -317,12 +317,6 @@ class EllpackPage {
    */
   void Clear();
 
-  /*!
-   * \brief Push a sparse page
-   * \param batch the row page
-   */
-  void Push(const SparsePage& batch);
-
   /*! \return estimation of memory cost of this page
    */
   size_t MemCostBytes() const;

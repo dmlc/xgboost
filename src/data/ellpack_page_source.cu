@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../common/hist_util.h"
+#include "ellpack_page.cuh"
 
 namespace xgboost {
 namespace data {
@@ -39,7 +40,6 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   common::HistogramCuts hmat;
   size_t row_stride = common::DeviceSketch(
       param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
-  printf("%lu\n", row_stride);
   monitor_.StopCuda("Quantiles");
 
   const std::string page_type = ".ellpack.page";
@@ -53,7 +53,7 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   size_t bytes_write = 0;
   double tstart = dmlc::GetTime();
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    page->Push(batch);
+    page->Impl()->Push(row_stride, hmat, batch);
 
     if (page->MemCostBytes() >= DMatrix::kPageSize) {
       bytes_write += page->MemCostBytes();

@@ -63,6 +63,8 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
 }
 
 BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) {
+  CHECK_GE(param.gpu_id, 0);
+  CHECK_GE(param.max_bin, 2);
   // ELLPACK page doesn't exist, generate it
   if (!ellpack_page_) {
     ellpack_page_.reset(new EllpackPage(this, param));

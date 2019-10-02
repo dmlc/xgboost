@@ -13,7 +13,7 @@ TEST(GPUSparsePageDMatrix, DISABLED_EllpackPage) {
   DMatrix* dmat = DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
 
   // Loop over the batches and assert the data is as expected
-  for (const auto& batch : dmat->GetBatches<EllpackPage>()) {
+  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 64})) {
     EXPECT_EQ(batch.Size(), dmat->Info().num_row_);
   }
 

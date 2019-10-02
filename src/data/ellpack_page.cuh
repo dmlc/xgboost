@@ -193,7 +193,7 @@ class EllpackPageImpl {
    * \brief Push a sparse page
    * \param batch the row page
    */
-  void Push(const SparsePage& batch);
+  void Push(size_t row_stride, const common::HistogramCuts& hmat, const SparsePage& batch);
 
   /*! \return estimation of memory cost of this page
    */

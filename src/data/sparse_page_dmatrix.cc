@@ -77,6 +77,8 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
 }
 
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& param) {
+  CHECK_GE(param.gpu_id, 0);
+  CHECK_GE(param.max_bin, 2);
   // Lazily instantiate
   if (!ellpack_source_) {
     ellpack_source_.reset(new EllpackPageSource(this, cache_info_, param));
