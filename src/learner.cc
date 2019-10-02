@@ -154,7 +154,10 @@ class LearnerImpl : public Learner {
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
     tparam_.InitAllowUnknown(args);
+
     generic_param_.InitAllowUnknown(args);
+    generic_param_.CheckDeprecated();
+
     ConsoleLogger::Configure(args);
     if (generic_param_.nthread != 0) {
       omp_set_num_threads(generic_param_.nthread);
