@@ -104,6 +104,12 @@ void EllpackPageImpl::InitCompressedData(int device,
   int null_gidx_value = hmat.Ptrs().back();
   int num_symbols = n_bins + 1;
 
+  // row_ptr form HistogramCuts.
+  common::Span<uint32_t> feature_segments;
+
+  // cut
+  common::Span<bst_float> gidx_fvalue_map;
+
   // minimum value for each feature.
   common::Span<bst_float> min_fvalue;
 
@@ -191,8 +197,8 @@ void EllpackPageImpl::CreateHistIndices(int device,
         gidx_buffer.data(),
         row_ptrs.data().get(),
         entries_d.data().get(),
-        gidx_fvalue_map.data(),
-        feature_segments.data(),
+        ellpack_matrix.gidx_fvalue_map.data(),
+        ellpack_matrix.feature_segments.data(),
         device_row_state.total_rows_processed + batch_row_begin,
         batch_nrows,
         row_stride,

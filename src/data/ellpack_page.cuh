@@ -203,11 +203,6 @@ class EllpackPageImpl {
   DMatrix* dmat_;
   common::Monitor monitor_;
   dh::BulkAllocator ba;
-
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row_ptr form HistogramCuts. */
-  common::Span<uint32_t> feature_segments;
 };
 
 }  // namespace xgboost
