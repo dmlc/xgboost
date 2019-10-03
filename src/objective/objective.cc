@@ -36,11 +36,12 @@ namespace obj {
 DMLC_REGISTRY_LINK_TAG(regression_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(hinge_obj_gpu);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj_gpu);
+DMLC_REGISTRY_LINK_TAG(rank_obj_gpu);
 #else
 DMLC_REGISTRY_LINK_TAG(regression_obj);
 DMLC_REGISTRY_LINK_TAG(hinge_obj);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj);
-#endif  // XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(rank_obj);
+#endif  // XGBOOST_USE_CUDA
 }  // namespace obj
 }  // namespace xgboost
