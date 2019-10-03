@@ -158,6 +158,7 @@ void HostDeviceVector<T>::SetDevice(int device) const {}
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<int>;
+template class HostDeviceVector<bst_uint>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<size_t>;
 

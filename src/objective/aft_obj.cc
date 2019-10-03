@@ -36,12 +36,12 @@ class AFTObj : public ObjFunction {
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     /* Boilerplate */
-    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
-    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
+    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_lower_bound").Size());
+    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_upper_bound").Size());
 
     const auto& yhat = preds.HostVector();
-    const auto& y_lower = info.labels_lower_bound_.HostVector();
-    const auto& y_higher = info.labels_upper_bound_.HostVector();
+    const auto& y_lower = info.extra_float_info_.at("label_lower_bound").HostVector();
+    const auto& y_higher = info.extra_float_info_.at("label_upper_bound").HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
 

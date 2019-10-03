@@ -50,12 +50,10 @@ class MetaInfo {
   uint64_t num_nonzero_{0};
   /*! \brief label of each instance */
   HostDeviceVector<bst_float> labels_;
-  /*! \brief lower bound label of each instance; used for survival analysis,
-   *         where labels are left-, right- or interval-censored. */
-  HostDeviceVector<bst_float> labels_lower_bound_;
-  /*! \brief upper bound label of each instance; used for survival analysis,
-   *         where labels are left-, right- or interval-censored. */
-  HostDeviceVector<bst_float> labels_upper_bound_;
+  /*! \brief key-valu store for extra 1D float vectors */
+  std::map<std::string, HostDeviceVector<bst_float>> extra_float_info_;
+  /*! \brief key-valu store for extra 1D uint vectors */
+  std::map<std::string, HostDeviceVector<bst_uint>> extra_uint_info_;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
@@ -78,8 +76,8 @@ class MetaInfo {
   static const int kVersion = 3;
   /*! \brief version that contains qid field */
   static const int kVersionWithQid = 2;
-  /*! \brief version that introduced fields labels_lower_bound_, labels_upper_bound_ */
-  static const int kVersionBounedLabelAdded = 3;
+  /*! \brief version that introduced fields extra_float_info_, extra_uint_into_ */
+  static const int kVersionExtraInfoAdded = 3;
   /*! \brief default constructor */
   MetaInfo()  = default;
   /*!

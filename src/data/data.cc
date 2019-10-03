@@ -17,6 +17,54 @@
 #include "./sparse_page_dmatrix.h"
 #endif  // DMLC_ENABLE_STD_THREAD
 
+namespace {
+
+/*!
+ * \brief Write a map of HostDeviceVector to a dmlc::Stream
+ * \param strm Stream to write data to
+ * \param vec map object to be serialized
+ */
+template <typename T>
+inline void
+WriteMapOfHostDeviceVector(dmlc::Stream* strm,
+                           const std::map<std::string, xgboost::HostDeviceVector<T>>& vec) {
+  uint64_t sz = static_cast<uint64_t>(vec.size());
+  strm->Write<uint64_t>(sz);
+  for (const auto& e : vec) {
+    strm->Write(e.first);
+    strm->Write(e.second.HostVector());
+  }
+}
+
+/*!
+ * \brief Read a map of HostDeviceVector from a dmlc::Stream
+ * \param strm Stream to read data from
+ * \param out_vec Pointer to store data object to be deserialized
+ * \return whether the read is successful
+ */
+template <typename T>
+inline bool
+ReadMapOfHostDeviceVector(dmlc::Stream* strm,
+                          std::map<std::string, xgboost::HostDeviceVector<T>>* out_vec) {
+  uint64_t sz;
+  std::string key;
+  if (!strm->Read<uint64_t>(&sz)) {
+    return false;
+  }
+  for (uint64_t i = 0; i < sz; ++i) {
+    if (!strm->Read(&key)) {
+      return false;
+    }
+    (*out_vec)[key] = xgboost::HostDeviceVector<T>();
+    if (!strm->Read(&(*out_vec)[key].HostVector())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // anonymous namespace
+
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
 }  // namespace dmlc
@@ -40,8 +88,8 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(&num_nonzero_, sizeof(num_nonzero_));
   fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
-  fo->Write(labels_lower_bound_.HostVector());
-  fo->Write(labels_upper_bound_.HostVector());
+  WriteMapOfHostDeviceVector(fo, extra_float_info_);
+  WriteMapOfHostDeviceVector(fo, extra_uint_info_);
   fo->Write(weights_.HostVector());
   fo->Write(root_index_);
   fo->Write(base_margin_.HostVector());
@@ -61,12 +109,12 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
     std::vector<uint64_t> qids;
     CHECK(fi->Read(&qids)) << "MetaInfo: invalid format";
   }
-  if (version >= kVersionBounedLabelAdded) {
-    CHECK(fi->Read(&labels_lower_bound_.HostVector())) << "MetaInfo: invalid format";
-    CHECK(fi->Read(&labels_upper_bound_.HostVector())) << "MetaInfo: invalid format";
-  } else {  // old format doesn't contain fields labels_lower_bound_, labels_upper_bound_
-    labels_lower_bound_.HostVector().clear();
-    labels_upper_bound_.HostVector().clear();
+  if (version >= kVersionExtraInfoAdded) {
+    CHECK(ReadMapOfHostDeviceVector(fi, &extra_float_info_)) << "MetaInfo: invalid format";
+    CHECK(ReadMapOfHostDeviceVector(fi, &extra_uint_info_)) << "MetaInfo: invalid format";
+  } else {  // old format doesn't contain fields extra_float_info_, extra_uint_info_
+    extra_float_info_.clear();
+    extra_uint_info_.clear();
   }
   CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
   CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
@@ -130,16 +178,6 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, labels.begin()));
-  } else if (!std::strcmp(key, "label_lower_bound")) {
-    auto& labels = labels_lower_bound_.HostVector();
-    labels.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
-  } else if (!std::strcmp(key, "label_upper_bound")) {
-    auto& labels = labels_upper_bound_.HostVector();
-    labels.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
   } else if (!std::strcmp(key, "weight")) {
     auto& weights = weights_.HostVector();
     weights.resize(num);
@@ -159,7 +197,24 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
   } else {
-    LOG(FATAL) << "Unknown metainfo: " << key;
+    // Store extra information
+    if (dtype == kFloat32) {
+      if (extra_float_info_.count(key) == 0) {
+        extra_float_info_[key] = HostDeviceVector<bst_float>();
+      }
+      auto& extra_info = extra_float_info_.at(key).HostVector();
+      DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                         std::copy(cast_dptr, cast_dptr + num, extra_info.begin()));
+    } else if (dtype == kUInt32) {
+      if (extra_uint_info_.count(key) == 0) {
+        extra_uint_info_[key] = HostDeviceVector<bst_uint>();
+      }
+      auto& extra_info = extra_uint_info_.at(key).HostVector();
+      DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                         std::copy(cast_dptr, cast_dptr + num, extra_info.begin()));
+    } else {
+      LOG(FATAL) << "Can only set extra information of type float and uint32";
+    }
   }
 }
 
