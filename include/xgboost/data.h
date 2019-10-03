@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "../../src/common/span.h"
 #include "../../src/common/group_data.h"
