@@ -127,6 +127,10 @@ class MetaInfo {
    * \brief Set information in the meta info with array interface.
    * \param key The key of the information.
    * \param interface_str String representation of json format array interface.
+   *
+   *          [ column_0, column_1, ... column_n ]
+   *
+   *        Right now only 1 column is permitted.
    */
   void SetInfo(const char* key, std::string const& interface_str);
 

@@ -72,8 +72,9 @@ struct ExpandEntry {
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
       return false;
     }
-    if (param.max_depth > 0 && depth == param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
+    if (split.loss_chg < param.min_split_loss) { return false; }
+    if (param.max_depth > 0 && depth == param.max_depth) {return false; }
+    if (param.max_leaves > 0 && num_leaves == param.max_leaves) { return false; }
     return true;
   }
 
@@ -434,7 +435,7 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
 
 // Manage memory for a single GPU
 template <typename GradientSumT>
-struct DeviceShard {
+struct GPUHistMakerDevice {
   int device_id;
   EllpackPageImpl* page;
 
@@ -473,12 +474,12 @@ struct DeviceShard {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
-  DeviceShard(int _device_id,
-              EllpackPageImpl* _page,
-              bst_uint _n_rows,
-              TrainParam _param,
-              uint32_t column_sampler_seed,
-              uint32_t n_features)
+  GPUHistMakerDevice(int _device_id,
+                     EllpackPageImpl* _page,
+                     bst_uint _n_rows,
+                     TrainParam _param,
+                     uint32_t column_sampler_seed,
+                     uint32_t n_features)
       : device_id(_device_id),
         page(_page),
         n_rows(_n_rows),
@@ -486,12 +487,12 @@ struct DeviceShard {
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features) {
-    monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
+    monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
   void InitHistogram();
 
-  ~DeviceShard() {  // NOLINT
+  ~GPUHistMakerDevice() {  // NOLINT
     dh::safe_cuda(cudaSetDevice(device_id));
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
@@ -780,7 +781,7 @@ struct DeviceShard {
     auto left_node_rows = row_partitioner->GetRows(nidx_left).size();
     auto right_node_rows = row_partitioner->GetRows(nidx_right).size();
     // Decide whether to build the left histogram or right histogram
-    // Find the largest number of training instances on any given Shard
+    // Find the largest number of training instances on any given device
     // Assume this will be the bottleneck and avoid building this node if
     // possible
     std::vector<size_t> max_reduce;
@@ -938,7 +939,7 @@ struct DeviceShard {
 };
 
 template <typename GradientSumT>
-inline void DeviceShard<GradientSumT>::InitHistogram() {
+inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
       << "Max leaves and max depth cannot both be unconstrained for "
       "gpu_hist.";
@@ -1025,19 +1026,17 @@ class GPUHistMakerSpecialised {
       page->Init(device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows);
     }
 
-    // Create device shard
     dh::safe_cuda(cudaSetDevice(device_));
-    shard_.reset(new DeviceShard<GradientSumT>(device_,
-                                               page,
-                                               info_->num_row_,
-                                               param_,
-                                               column_sampling_seed,
-                                               info_->num_col_));
+    maker_.reset(new GPUHistMakerDevice<GradientSumT>(device_,
+                                                      page,
+                                                      info_->num_row_,
+                                                      param_,
+                                                      column_sampling_seed,
+                                                      info_->num_col_));
 
-    // Init global data for each shard
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
-    shard_->InitHistogram();
+    maker_->InitHistogram();
     monitor_.StopCuda("InitHistogram");
 
     p_last_fmat_ = dmat;
@@ -1076,18 +1075,17 @@ class GPUHistMakerSpecialised {
     monitor_.StopCuda("InitData");
 
     gpair->SetDevice(device_);
-    shard_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
+    maker_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
   }
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
-    if (shard_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
-    dh::safe_cuda(cudaSetDevice(shard_->device_id));
-    shard_->UpdatePredictionCache(p_out_preds->DevicePointer());
+    maker_->UpdatePredictionCache(p_out_preds->DevicePointer());
     monitor_.StopCuda("UpdatePredictionCache");
     return true;
   }
@@ -1095,7 +1093,7 @@ class GPUHistMakerSpecialised {
   TrainParam param_;           // NOLINT
   MetaInfo* info_{};             // NOLINT
 
-  std::unique_ptr<DeviceShard<GradientSumT>> shard_;  // NOLINT
+  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker_;  // NOLINT
 
  private:
   bool initialised_;

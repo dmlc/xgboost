@@ -96,14 +96,17 @@ except ImportError:
 
 # pandas
 try:
-    from pandas import DataFrame
+    from pandas import DataFrame, Series
     from pandas import MultiIndex
+    from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
     DataFrame = object
+    Series = object
+    pandas_concat = None
     PANDAS_INSTALLED = False
 
 # dt
@@ -129,9 +132,13 @@ except ImportError:
 
 try:
     from cudf import DataFrame as CUDF_DataFrame
+    from cudf import Series as CUDF_Series
+    from cudf import MultiIndex as CUDF_MultiIndex
     CUDF_INSTALLED = True
 except ImportError:
     CUDF_DataFrame = object
+    CUDF_Series = object
+    CUDF_MultiIndex = object
     CUDF_INSTALLED = False
 
 # sklearn
@@ -169,16 +176,35 @@ except ImportError:
 
 # dask
 try:
-    from dask.dataframe import DataFrame as DaskDataFrame
-    from dask.dataframe import Series as DaskSeries
-    from dask.array import Array as DaskArray
+    import dask
+    from dask import delayed
+    from dask import dataframe as dd
+    from dask import array as da
+    from dask.distributed import Client, get_client
+    from dask.distributed import comm as distributed_comm
+    from dask.distributed import wait as distributed_wait
     from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
 except ImportError:
-    DaskDataFrame = object
-    DaskSeries = object
-    DaskArray = object
+    dd = None
+    da = None
+    Client = None
+    delayed = None
+    get_client = None
+    distributed_comm = None
+    distributed_wait = None
     distributed_get_worker = None
+    dask = None
 
     DASK_INSTALLED = False
+
+
+try:
+    import sparse
+    import scipy.sparse as scipy_sparse
+    SCIPY_INSTALLED = True
+except ImportError:
+    sparse = False
+    scipy_sparse = False
+    SCIPY_INSTALLED = False

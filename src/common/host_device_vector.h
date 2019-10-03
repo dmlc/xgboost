@@ -14,8 +14,8 @@
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
  * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'Shard' method
- * to specify the devices.
+ * allocate/resize memory explicitly, and use the 'SetDevice' method
+ * to specify the device.
  *
  * Accessing underlying data:<br/>
  * Use 'HostVector' method to explicitly query for the underlying std::vector.
