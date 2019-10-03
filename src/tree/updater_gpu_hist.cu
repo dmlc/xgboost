@@ -179,9 +179,8 @@ __device__ void EvaluateFeature(
     int constraint,              // monotonic_constraints
     const ValueConstraint& value_constraint) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
-  uint32_t gidx_begin = matrix.feature_segments[fidx];  // begining bin
-  uint32_t gidx_end =
-      matrix.feature_segments[fidx + 1];  // end bin for i^th feature
+  uint32_t gidx_begin = matrix.info.feature_segments[fidx];  // begining bin
+  uint32_t gidx_end = matrix.info.feature_segments[fidx + 1];  // end bin for i^th feature
 
   // Sum histogram bins for current feature
   GradientSumT const feature_sum = ReduceFeature<BLOCK_THREADS, ReduceT>(
@@ -229,9 +228,9 @@ __device__ void EvaluateFeature(
       int split_gidx = (scan_begin + threadIdx.x) - 1;
       float fvalue;
       if (split_gidx < static_cast<int>(gidx_begin)) {
-        fvalue =  matrix.min_fvalue[fidx];
+        fvalue =  matrix.info.min_fvalue[fidx];
       } else {
-        fvalue = matrix.gidx_fvalue_map[split_gidx];
+        fvalue = matrix.info.gidx_fvalue_map[split_gidx];
       }
       GradientSumT left = missing_left ? bin + missing : bin;
       GradientSumT right = parent_sum - left;
@@ -411,10 +410,10 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.row_stride ];
+    int ridx = d_ridx[idx / matrix.info.row_stride ];
     int gidx =
-        matrix.gidx_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
-    if (gidx != matrix.null_gidx_value) {
+        matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
+    if (gidx != matrix.info.null_gidx_value) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
@@ -630,7 +629,7 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     auto d_gpair = gpair.data();
 
-    auto n_elements = d_ridx.size() * page->ellpack_matrix.row_stride;
+    auto n_elements = d_ridx.size() * page->ellpack_matrix.info.row_stride;
 
     const size_t smem_size =
         use_shared_memory_histograms

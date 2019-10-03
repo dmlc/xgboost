@@ -207,14 +207,14 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Copy cut matrix to device.
   maker.ba.Allocate(0,
-                    &(page->ellpack_matrix.feature_segments), cmat.Ptrs().size(),
-                    &(page->ellpack_matrix.min_fvalue), cmat.MinValues().size(),
-                    &(page->ellpack_matrix.gidx_fvalue_map), 24,
+                    &(page->ellpack_matrix.info.feature_segments), cmat.Ptrs().size(),
+                    &(page->ellpack_matrix.info.min_fvalue), cmat.MinValues().size(),
+                    &(page->ellpack_matrix.info.gidx_fvalue_map), 24,
                     &(maker.monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.feature_segments, cmat.Ptrs());
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.gidx_fvalue_map, cmat.Values());
+  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.info.feature_segments, cmat.Ptrs());
+  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.info.gidx_fvalue_map, cmat.Values());
   dh::CopyVectorToDeviceSpan(maker.monotone_constraints, param.monotone_constraints);
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.min_fvalue, cmat.MinValues());
+  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.info.min_fvalue, cmat.MinValues());
 
   // Initialize GPUHistMakerDevice::hist
   maker.hist.Init(0, (max_bins - 1) * kNCols);

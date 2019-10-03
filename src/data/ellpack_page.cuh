@@ -40,56 +40,51 @@ __forceinline__ __device__ int BinarySearchRow(
   return -1;
 }
 
+/** \brief Meta information about the ELLPACK matrix. */
+struct ELLPackMatrixInfo {
+  /*! \brief whether or not if the matrix is dense. */
+  bool is_dense;
+  /*! \brief row length for ELLPack, equal to number of features. */
+  size_t row_stride;
+  /*! \brief the null index value, equal to the total number of bins. */
+  int null_gidx_value;
+  /*! \brief minimum value for each feature. Size equals to number of features. */
+  common::Span<bst_float> min_fvalue;
+  /*! \brief histogram cut pointers. Size equals to (number of features + 1). */
+  common::Span<uint32_t> feature_segments;
+  /*! \brief histogram cut values. Size equals to (bins per feature * number of features). */
+  common::Span<bst_float> gidx_fvalue_map;
+};
+
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
 struct ELLPackMatrix {
-  common::Span<uint32_t> feature_segments;
-  /*! \brief minimum value for each feature. */
-  common::Span<bst_float> min_fvalue;
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row length for ELLPack. */
-  size_t row_stride{0};
+  ELLPackMatrixInfo info;
   common::CompressedIterator<uint32_t> gidx_iter;
-  int null_gidx_value;
 
-  XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
+  XGBOOST_DEVICE size_t BinCount() const { return info.gidx_fvalue_map.size(); }
 
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
   __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
-    auto row_begin = row_stride * ridx;
-    auto row_end = row_begin + row_stride;
+    auto row_begin = info.row_stride * ridx;
+    auto row_end = row_begin + info.row_stride;
     auto gidx = -1;
-    if (is_dense) {
+    if (info.is_dense) {
       gidx = gidx_iter[row_begin + fidx];
     } else {
-      gidx =
-          BinarySearchRow(row_begin, row_end, gidx_iter, feature_segments[fidx],
-                          feature_segments[fidx + 1]);
+      gidx = BinarySearchRow(row_begin,
+                             row_end,
+                             gidx_iter,
+                             info.feature_segments[fidx],
+                             info.feature_segments[fidx + 1]);
     }
     if (gidx == -1) {
       return nan("");
     }
-    return gidx_fvalue_map[gidx];
+    return info.gidx_fvalue_map[gidx];
   }
-  void Init(common::Span<uint32_t> feature_segments,
-            common::Span<bst_float> min_fvalue,
-            common::Span<bst_float> gidx_fvalue_map, size_t row_stride,
-            common::CompressedIterator<uint32_t> gidx_iter, bool is_dense,
-            int null_gidx_value) {
-    this->feature_segments = feature_segments;
-    this->min_fvalue = min_fvalue;
-    this->gidx_fvalue_map = gidx_fvalue_map;
-    this->row_stride = row_stride;
-    this->gidx_iter = gidx_iter;
-    this->is_dense = is_dense;
-    this->null_gidx_value = null_gidx_value;
-  }
-
- private:
-  bool is_dense;
 };
 
 // Instances of this type are created while creating the histogram bins for the

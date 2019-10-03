@@ -104,7 +104,7 @@ void EllpackPageImpl::InitCompressedData(int device,
   int null_gidx_value = hmat.Ptrs().back();
   int num_symbols = n_bins + 1;
 
-  // row_ptr form HistogramCuts.
+  // row_ptr from HistogramCuts.
   common::Span<uint32_t> feature_segments;
 
   // cut
@@ -130,13 +130,15 @@ void EllpackPageImpl::InitCompressedData(int device,
       thrust::device_pointer_cast(gidx_buffer.data()),
       thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
 
-  ellpack_matrix.Init(feature_segments,
-                      min_fvalue,
-                      gidx_fvalue_map,
-                      row_stride,
-                      common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols),
-                      is_dense,
-                      null_gidx_value);
+  ellpack_matrix.info = {
+    .is_dense =  is_dense,
+    .row_stride = row_stride,
+    .null_gidx_value = null_gidx_value,
+    .min_fvalue = min_fvalue,
+    .feature_segments = feature_segments,
+    .gidx_fvalue_map = gidx_fvalue_map
+  };
+  ellpack_matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
 
 void EllpackPageImpl::CreateHistIndices(int device,
@@ -146,7 +148,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
   if (!device_row_state.rows_to_process_from_batch) return;
 
   unsigned int null_gidx_value = n_bins;
-  size_t row_stride = this->ellpack_matrix.row_stride;
+  size_t row_stride = this->ellpack_matrix.info.row_stride;
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 
@@ -197,8 +199,8 @@ void EllpackPageImpl::CreateHistIndices(int device,
         gidx_buffer.data(),
         row_ptrs.data().get(),
         entries_d.data().get(),
-        ellpack_matrix.gidx_fvalue_map.data(),
-        ellpack_matrix.feature_segments.data(),
+        ellpack_matrix.info.gidx_fvalue_map.data(),
+        ellpack_matrix.info.feature_segments.data(),
         device_row_state.total_rows_processed + batch_row_begin,
         batch_nrows,
         row_stride,
