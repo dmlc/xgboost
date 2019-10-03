@@ -46,8 +46,8 @@ struct ELLPackMatrixInfo {
   bool is_dense;
   /*! \brief row length for ELLPack, equal to number of features. */
   size_t row_stride;
-  /*! \brief the null index value, equal to the total number of bins. */
-  int null_gidx_value;
+  /*! \brief total number of bins, also used as the null index value, . */
+  int n_bins;
   /*! \brief minimum value for each feature. Size equals to number of features. */
   common::Span<bst_float> min_fvalue;
   /*! \brief histogram cut pointers. Size equals to (number of features + 1). */
@@ -164,16 +164,16 @@ class DeviceHistogramBuilderState {
 
 class EllpackPageImpl {
  public:
-  ELLPackMatrix ellpack_matrix;
-  int n_bins{};
+  ELLPackMatrix matrix;
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
 
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
+  void InitInfo(int device, size_t row_stride, bool is_dense, const common::HistogramCuts& hmat);
   void InitCompressedData(int device,
-                          const common::HistogramCuts& hmat,
                           size_t row_stride,
-                          bool is_dense);
+                          size_t num_rows,
+                          const common::HistogramCuts& hmat);
   void CreateHistIndices(int device,
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
@@ -195,7 +195,6 @@ class EllpackPageImpl {
   size_t MemCostBytes() const;
 
  private:
-  DMatrix* dmat_;
   common::Monitor monitor_;
   dh::BulkAllocator ba;
 };

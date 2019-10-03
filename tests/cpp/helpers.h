@@ -245,7 +245,8 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
   }
 
   auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
-  page->InitCompressedData(0, cmat, row_stride, is_dense);
+  page->InitInfo(0, row_stride, is_dense, cmat);
+  page->InitCompressedData(0, row_stride, n_rows, cmat);
   page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
 
   delete dmat;

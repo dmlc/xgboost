@@ -67,7 +67,7 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) : dmat_{dmat} {
+EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
@@ -75,20 +75,23 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) : dmat_
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   common::HistogramCuts hmat;
   size_t row_stride =
-      common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat_, &hmat);
+      common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
 
-  const auto& info = dmat_->Info();
+  const auto& info = dmat->Info();
   auto is_dense = info.num_nonzero_ == info.num_row_ * info.num_col_;
 
-  // Init global data
+  monitor_.StartCuda("InitInfo");
+  InitInfo(param.gpu_id, row_stride, is_dense, hmat);
+  monitor_.StopCuda("InitInfo");
+
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(param.gpu_id, hmat, row_stride, is_dense);
+  InitCompressedData(param.gpu_id, row_stride, info.num_row_, hmat);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
   DeviceHistogramBuilderState hist_builder_row_state(info.num_row_);
-  for (const auto& batch : dmat_->GetBatches<SparsePage>()) {
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     hist_builder_row_state.BeginBatch(batch);
     CreateHistIndices(param.gpu_id, batch, hist_builder_row_state.GetRowStateOnDevice());
     hist_builder_row_state.EndBatch();
@@ -96,47 +99,47 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) : dmat_
   monitor_.StopCuda("BinningCompression");
 }
 
-void EllpackPageImpl::InitCompressedData(int device,
-                                         const common::HistogramCuts& hmat,
-                                         size_t row_stride,
-                                         bool is_dense) {
-  n_bins = hmat.Ptrs().back();
-  int null_gidx_value = hmat.Ptrs().back();
-  int num_symbols = n_bins + 1;
-
-  // row_ptr from HistogramCuts.
+void EllpackPageImpl::InitInfo(int device,
+                               size_t row_stride,
+                               bool is_dense,
+                               const common::HistogramCuts& hmat) {
   common::Span<uint32_t> feature_segments;
-
-  // cut
   common::Span<bst_float> gidx_fvalue_map;
-
-  // minimum value for each feature.
   common::Span<bst_float> min_fvalue;
-
-  // Required buffer size for storing data matrix in ELLPack format.
-  size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      row_stride * dmat_->Info().num_row_, num_symbols);
 
   ba.Allocate(device,
               &feature_segments, hmat.Ptrs().size(),
               &gidx_fvalue_map, hmat.Values().size(),
-              &min_fvalue, hmat.MinValues().size(),
-              &gidx_buffer, compressed_size_bytes);
+              &min_fvalue, hmat.MinValues().size());
 
   dh::CopyVectorToDeviceSpan(gidx_fvalue_map, hmat.Values());
   dh::CopyVectorToDeviceSpan(min_fvalue, hmat.MinValues());
   dh::CopyVectorToDeviceSpan(feature_segments, hmat.Ptrs());
+
+  matrix.info.is_dense = is_dense;
+  matrix.info.row_stride = row_stride;
+  matrix.info.n_bins = hmat.Ptrs().back();
+  matrix.info.min_fvalue = min_fvalue;
+  matrix.info.feature_segments = feature_segments;
+  matrix.info.gidx_fvalue_map = gidx_fvalue_map;
+}
+
+void EllpackPageImpl::InitCompressedData(int device,
+                                         size_t row_stride,
+                                         size_t num_rows,
+                                         const common::HistogramCuts& hmat) {
+  int num_symbols = hmat.Ptrs().back() + 1;
+
+  // Required buffer size for storing data matrix in ELLPack format.
+  size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
+      row_stride * num_rows, num_symbols);
+  ba.Allocate(device, &gidx_buffer, compressed_size_bytes);
+
   thrust::fill(
       thrust::device_pointer_cast(gidx_buffer.data()),
       thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
 
-  ellpack_matrix.info.is_dense = is_dense;
-  ellpack_matrix.info.row_stride = row_stride;
-  ellpack_matrix.info.null_gidx_value = null_gidx_value;
-  ellpack_matrix.info.min_fvalue = min_fvalue;
-  ellpack_matrix.info.feature_segments = feature_segments;
-  ellpack_matrix.info.gidx_fvalue_map = gidx_fvalue_map;
-  ellpack_matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
+  matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
 
 void EllpackPageImpl::CreateHistIndices(int device,
@@ -145,12 +148,12 @@ void EllpackPageImpl::CreateHistIndices(int device,
   // Has any been allocated for me in this batch?
   if (!device_row_state.rows_to_process_from_batch) return;
 
-  unsigned int null_gidx_value = n_bins;
-  size_t row_stride = this->ellpack_matrix.info.row_stride;
+  unsigned int null_gidx_value = matrix.info.n_bins;
+  size_t row_stride = this->matrix.info.row_stride;
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 
-  int num_symbols = n_bins + 1;
+  int num_symbols = matrix.info.n_bins + 1;
   // bin and compress entries in batches of rows
   size_t gpu_batch_nrows = std::min(
       dh::TotalMemory(device) / (16 * row_stride * sizeof(Entry)),
@@ -197,8 +200,8 @@ void EllpackPageImpl::CreateHistIndices(int device,
         gidx_buffer.data(),
         row_ptrs.data().get(),
         entries_d.data().get(),
-        ellpack_matrix.info.gidx_fvalue_map.data(),
-        ellpack_matrix.info.feature_segments.data(),
+        matrix.info.gidx_fvalue_map.data(),
+        matrix.info.feature_segments.data(),
         device_row_state.total_rows_processed + batch_row_begin,
         batch_nrows,
         row_stride,
