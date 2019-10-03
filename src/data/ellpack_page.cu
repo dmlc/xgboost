@@ -130,14 +130,12 @@ void EllpackPageImpl::InitCompressedData(int device,
       thrust::device_pointer_cast(gidx_buffer.data()),
       thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
 
-  ellpack_matrix.info = {
-    .is_dense =  is_dense,
-    .row_stride = row_stride,
-    .null_gidx_value = null_gidx_value,
-    .min_fvalue = min_fvalue,
-    .feature_segments = feature_segments,
-    .gidx_fvalue_map = gidx_fvalue_map
-  };
+  ellpack_matrix.info.is_dense = is_dense;
+  ellpack_matrix.info.row_stride = row_stride;
+  ellpack_matrix.info.null_gidx_value = null_gidx_value;
+  ellpack_matrix.info.min_fvalue = min_fvalue;
+  ellpack_matrix.info.feature_segments = feature_segments;
+  ellpack_matrix.info.gidx_fvalue_map = gidx_fvalue_map;
   ellpack_matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
 
