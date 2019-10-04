@@ -440,6 +440,10 @@ class DMatrix {
    * \return The created DMatrix.
    */
   virtual void SaveToLocalFile(const std::string& fname);
+  /*! \brief whether the matrix is dense */
+  bool IsDense() const {
+    return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
+  }
   /*!
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.

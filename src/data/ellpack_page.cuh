@@ -167,6 +167,7 @@ class EllpackPageImpl {
   ELLPackMatrix matrix;
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
+  std::vector<common::CompressedByteT> idx_buffer;
 
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
   void InitInfo(int device, size_t row_stride, bool is_dense, const common::HistogramCuts& hmat);

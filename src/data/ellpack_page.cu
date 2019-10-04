@@ -79,10 +79,8 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("Quantiles");
 
   const auto& info = dmat->Info();
-  auto is_dense = info.num_nonzero_ == info.num_row_ * info.num_col_;
-
   monitor_.StartCuda("InitInfo");
-  InitInfo(param.gpu_id, row_stride, is_dense, hmat);
+  InitInfo(param.gpu_id, row_stride, dmat->IsDense(), hmat);
   monitor_.StopCuda("InitInfo");
 
   monitor_.StartCuda("InitCompressedData");
