@@ -9,6 +9,7 @@
 #include <xgboost/data.h>
 #include <cstdint>
 #include <utility>
+#include <type_traits>
 #include "./host_device_vector.h"
 
 namespace xgboost {
@@ -154,13 +155,26 @@ bool HostDeviceVector<T>::DeviceCanWrite() const {
 template <typename T>
 void HostDeviceVector<T>::SetDevice(int device) const {}
 
+}  // namespace xgboost
+
+namespace {
+
+template<int> struct DummyType { };
+
+}  // anonymous namespace
+
+namespace xgboost {
+
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<int>;
 template class HostDeviceVector<bst_uint>;
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
+// Instantiate HostDeviceVector<size_t> only when size_t is distinct from bst_uint
+template class HostDeviceVector<std::conditional<std::is_same<size_t, bst_uint>::value,
+                                                 DummyType<0>,
+                                                 size_t>::type>;
 
 }  // namespace xgboost
 
