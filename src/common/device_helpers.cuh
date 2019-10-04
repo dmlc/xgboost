@@ -527,15 +527,19 @@ class BulkAllocator {
   void operator=(const BulkAllocator&) = delete;
   void operator=(BulkAllocator&&) = delete;
 
-  ~BulkAllocator() {
-    for (size_t i = 0; i < d_ptr_.size(); i++) {
-      if (!(d_ptr_[i] == nullptr)) {
+  void Clear() {
+    for (size_t i = 0; i < d_ptr_.size(); i++) { // NOLINT(modernize-loop-convert)
+      if (d_ptr_[i] != nullptr) {
         safe_cuda(cudaSetDevice(device_idx_[i]));
         XGBDeviceAllocator<char> allocator;
         allocator.deallocate(thrust::device_ptr<char>(d_ptr_[i]), size_[i]);
         d_ptr_[i] = nullptr;
       }
     }
+  }
+
+  ~BulkAllocator() {
+    Clear();
   }
 
   // returns sum of bytes for all allocations

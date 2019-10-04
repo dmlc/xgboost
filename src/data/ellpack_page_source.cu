@@ -52,6 +52,7 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
+  page->Impl()->matrix.info = ellpack_info;
   page->Clear();
 
   const MetaInfo& info = dmat->Info();

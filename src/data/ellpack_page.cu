@@ -209,6 +209,9 @@ size_t EllpackPageImpl::Size() const {
 }
 
 void EllpackPageImpl::Clear() {
+  ba.Clear();
+  gidx_buffer = {};
+  idx_buffer.clear();
 }
 
 void EllpackPageImpl::Push(size_t row_stride,
