@@ -362,7 +362,7 @@ class SparsePageSource : public DataSource<T> {
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */
-  T *page_;
+  T* page_;
   /*! \brief internal clock ptr */
   size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */

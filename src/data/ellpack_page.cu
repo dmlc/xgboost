@@ -83,7 +83,7 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("InitInfo");
 
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(param.gpu_id, row_stride, dmat->Info().num_row_, hmat);
+  InitCompressedData(param.gpu_id, dmat->Info().num_row_);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
@@ -119,15 +119,12 @@ void EllpackPageImpl::InitInfo(int device,
   matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba);
 }
 
-void EllpackPageImpl::InitCompressedData(int device,
-                                         size_t row_stride,
-                                         size_t num_rows,
-                                         const common::HistogramCuts& hmat) {
-  int num_symbols = hmat.Ptrs().back() + 1;
+void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
+  int num_symbols = matrix.info.n_bins + 1;
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      row_stride * num_rows, num_symbols);
+      matrix.info.row_stride * num_rows, num_symbols);
   ba.Allocate(device, &gidx_buffer, compressed_size_bytes);
 
   thrust::fill(
@@ -214,13 +211,30 @@ void EllpackPageImpl::Clear() {
   idx_buffer.clear();
 }
 
-void EllpackPageImpl::Push(size_t row_stride,
-                           const common::HistogramCuts& hmat,
-                           const SparsePage& batch) {
+void EllpackPageImpl::Push(int device, const SparsePage& batch) {
+  monitor_.StartCuda("InitCompressedData");
+  InitCompressedData(device, batch.Size());
+  monitor_.StopCuda("InitCompressedData");
+
+  monitor_.StartCuda("BinningCompression");
+  DeviceHistogramBuilderState hist_builder_row_state(batch.Size());
+  hist_builder_row_state.BeginBatch(batch);
+  CreateHistIndices(device, batch, hist_builder_row_state.GetRowStateOnDevice());
+  hist_builder_row_state.EndBatch();
+  monitor_.StopCuda("BinningCompression");
+
+  monitor_.StartCuda("CopyDeviceToHost");
+  std::vector<common::CompressedByteT> buffer(gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&buffer, gidx_buffer);
+  idx_buffer.reserve(idx_buffer.size() + buffer.size());
+  idx_buffer.insert(idx_buffer.end(), buffer.begin(), buffer.end());
+  ba.Clear();
+  gidx_buffer = {};
+  monitor_.StopCuda("CopyDeviceToHost");
 }
 
 size_t EllpackPageImpl::MemCostBytes() const {
-  return 0;
+  return idx_buffer.size() * sizeof(common::CompressedByteT);
 }
 
 }  // namespace xgboost

@@ -36,15 +36,15 @@ class EllpackPageSource : public DataSource<EllpackPage> {
   }
 
   EllpackPage& Value() {
-    return page_;
+    return *page_;
   }
 
   const EllpackPage& Value() const override {
-    return page_;
+    return *page_;
   }
 
  private:
-  EllpackPage page_;
+  EllpackPage* page_;
   common::Monitor monitor_;
 };
 

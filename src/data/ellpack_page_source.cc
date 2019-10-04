@@ -11,7 +11,7 @@ namespace data {
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
                                      const std::string& cache_info,
                                      const BatchParam& param) noexcept(false)
-    : page_(dmat, param) {
+    : page_(nullptr) {
   LOG(FATAL) << "Internal Error: "
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
 }

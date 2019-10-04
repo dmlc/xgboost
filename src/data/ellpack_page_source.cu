@@ -32,7 +32,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
 
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
                                      const std::string& cache_info,
-                                     const BatchParam& param) noexcept(false) : page_(dmat, param) {
+                                     const BatchParam& param) noexcept(false) : page_(nullptr) {
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
@@ -59,12 +59,13 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   size_t bytes_write = 0;
   double tstart = dmlc::GetTime();
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    page->Impl()->Push(row_stride, hmat, batch);
+    page->Impl()->Push(param.gpu_id, batch);
 
     if (page->MemCostBytes() >= DMatrix::kPageSize) {
       bytes_write += page->MemCostBytes();
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);
+      page->Impl()->matrix.info = ellpack_info;
       page->Clear();
       double tdiff = dmlc::GetTime() - tstart;
       LOG(INFO) << "Writing to " << cache_info << " in "

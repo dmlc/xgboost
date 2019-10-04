@@ -179,10 +179,7 @@ class EllpackPageImpl {
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
   void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
-  void InitCompressedData(int device,
-                          size_t row_stride,
-                          size_t num_rows,
-                          const common::HistogramCuts& hmat);
+  void InitCompressedData(int device, size_t num_rows);
   void CreateHistIndices(int device,
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
@@ -197,7 +194,7 @@ class EllpackPageImpl {
    * \brief Push a sparse page
    * \param batch the row page
    */
-  void Push(size_t row_stride, const common::HistogramCuts& hmat, const SparsePage& batch);
+  void Push(int device, const SparsePage& batch);
 
   /*! \return estimation of memory cost of this page
    */
