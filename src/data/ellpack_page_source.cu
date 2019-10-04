@@ -27,6 +27,9 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   }
 
   void Write(const EllpackPage& page, dmlc::Stream* fo) override {
+    auto buffer = page.Impl()->idx_buffer;
+    CHECK(!buffer.empty());
+    fo->Write(buffer);
   }
 };
 
