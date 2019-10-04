@@ -41,26 +41,33 @@ __forceinline__ __device__ int BinarySearchRow(
 }
 
 /** \brief Meta information about the ELLPACK matrix. */
-struct ELLPackMatrixInfo {
+struct EllpackInfo {
   /*! \brief whether or not if the matrix is dense. */
   bool is_dense;
   /*! \brief row length for ELLPack, equal to number of features. */
   size_t row_stride;
   /*! \brief total number of bins, also used as the null index value, . */
-  int n_bins;
+  size_t n_bins;
   /*! \brief minimum value for each feature. Size equals to number of features. */
   common::Span<bst_float> min_fvalue;
   /*! \brief histogram cut pointers. Size equals to (number of features + 1). */
   common::Span<uint32_t> feature_segments;
   /*! \brief histogram cut values. Size equals to (bins per feature * number of features). */
   common::Span<bst_float> gidx_fvalue_map;
+
+  EllpackInfo() = default;
+  explicit EllpackInfo(int device,
+                       bool is_dense,
+                       size_t row_stride,
+                       const common::HistogramCuts& hmat,
+                       dh::BulkAllocator& ba);
 };
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
-struct ELLPackMatrix {
-  ELLPackMatrixInfo info;
+struct EllpackMatrix {
+  EllpackInfo info;
   common::CompressedIterator<uint32_t> gidx_iter;
 
   XGBOOST_DEVICE size_t BinCount() const { return info.gidx_fvalue_map.size(); }
@@ -164,13 +171,14 @@ class DeviceHistogramBuilderState {
 
 class EllpackPageImpl {
  public:
-  ELLPackMatrix matrix;
+  EllpackMatrix matrix;
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
 
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
-  void InitInfo(int device, size_t row_stride, bool is_dense, const common::HistogramCuts& hmat);
+
+  void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
   void InitCompressedData(int device,
                           size_t row_stride,
                           size_t num_rows,

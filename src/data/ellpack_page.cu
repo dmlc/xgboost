@@ -78,17 +78,16 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
       common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
 
-  const auto& info = dmat->Info();
   monitor_.StartCuda("InitInfo");
-  InitInfo(param.gpu_id, row_stride, dmat->IsDense(), hmat);
+  InitInfo(param.gpu_id, dmat->IsDense(), row_stride, hmat);
   monitor_.StopCuda("InitInfo");
 
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(param.gpu_id, row_stride, info.num_row_, hmat);
+  InitCompressedData(param.gpu_id, row_stride, dmat->Info().num_row_, hmat);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
-  DeviceHistogramBuilderState hist_builder_row_state(info.num_row_);
+  DeviceHistogramBuilderState hist_builder_row_state(dmat->Info().num_row_);
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     hist_builder_row_state.BeginBatch(batch);
     CreateHistIndices(param.gpu_id, batch, hist_builder_row_state.GetRowStateOnDevice());
@@ -97,29 +96,27 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("BinningCompression");
 }
 
-void EllpackPageImpl::InitInfo(int device,
-                               size_t row_stride,
-                               bool is_dense,
-                               const common::HistogramCuts& hmat) {
-  common::Span<uint32_t> feature_segments;
-  common::Span<bst_float> gidx_fvalue_map;
-  common::Span<bst_float> min_fvalue;
+EllpackInfo::EllpackInfo(int device,
+                         bool is_dense,
+                         size_t row_stride,
+                         const common::HistogramCuts& hmat,
+                         dh::BulkAllocator& ba)
+    : is_dense(is_dense), row_stride(row_stride), n_bins(hmat.Ptrs().back()) {
 
   ba.Allocate(device,
               &feature_segments, hmat.Ptrs().size(),
               &gidx_fvalue_map, hmat.Values().size(),
               &min_fvalue, hmat.MinValues().size());
-
   dh::CopyVectorToDeviceSpan(gidx_fvalue_map, hmat.Values());
   dh::CopyVectorToDeviceSpan(min_fvalue, hmat.MinValues());
   dh::CopyVectorToDeviceSpan(feature_segments, hmat.Ptrs());
+}
 
-  matrix.info.is_dense = is_dense;
-  matrix.info.row_stride = row_stride;
-  matrix.info.n_bins = hmat.Ptrs().back();
-  matrix.info.min_fvalue = min_fvalue;
-  matrix.info.feature_segments = feature_segments;
-  matrix.info.gidx_fvalue_map = gidx_fvalue_map;
+void EllpackPageImpl::InitInfo(int device,
+                               bool is_dense,
+                               size_t row_stride,
+                               const common::HistogramCuts& hmat) {
+  matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba);
 }
 
 void EllpackPageImpl::InitCompressedData(int device,

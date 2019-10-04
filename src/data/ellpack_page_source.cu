@@ -38,16 +38,20 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
 
   monitor_.StartCuda("Quantiles");
   common::HistogramCuts hmat;
-  size_t row_stride = common::DeviceSketch(
-      param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
+  size_t row_stride =
+      common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
+
+  monitor_.StartCuda("CreateInfo");
+  dh::BulkAllocator ba;
+  EllpackInfo ellpack_info{param.gpu_id, dmat->IsDense(), row_stride, hmat, ba};
+  monitor_.StopCuda("CreateInfo");
 
   const std::string page_type = ".ellpack.page";
   auto cinfo = ParseCacheInfo(cache_info, page_type);
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
-  page->Impl()->InitInfo(param.gpu_id, row_stride, dmat->IsDense(), hmat);
   page->Clear();
 
   const MetaInfo& info = dmat->Info();

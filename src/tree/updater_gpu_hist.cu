@@ -172,7 +172,7 @@ template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
           typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
     int fidx, common::Span<const GradientSumT> node_histogram,
-    const xgboost::ELLPackMatrix& matrix,
+    const xgboost::EllpackMatrix& matrix,
     DeviceSplitCandidate* best_split,  // shared memory storing best split
     const DeviceNodeStats& node, const GPUTrainingParam& param,
     TempStorageT* temp_storage,  // temp memory for cub operations
@@ -246,7 +246,7 @@ __global__ void EvaluateSplitKernel(
     common::Span<const GradientSumT> node_histogram,  // histogram for gradients
     common::Span<const int> feature_set,              // Selected features
     DeviceNodeStats node,
-    xgboost::ELLPackMatrix matrix,
+    xgboost::EllpackMatrix matrix,
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,
@@ -398,7 +398,7 @@ struct CalcWeightTrainParam {
 };
 
 template <typename GradientSumT>
-__global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
+__global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* d_node_hist,
                                     const GradientPair* d_gpair, size_t n_elements,
