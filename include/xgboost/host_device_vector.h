@@ -46,8 +46,8 @@
  * @note: Size and Devices methods are thread-safe.
  */
 
-#ifndef XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
-#define XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
+#ifndef XGBOOST_HOST_DEVICE_VECTOR_H_
+#define XGBOOST_HOST_DEVICE_VECTOR_H_
 
 #include <initializer_list>
 #include <vector>
@@ -127,4 +127,4 @@ class HostDeviceVector {
 
 }  // namespace xgboost
 
-#endif  // XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
+#endif  // XGBOOST_HOST_DEVICE_VECTOR_H_
