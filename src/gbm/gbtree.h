@@ -23,7 +23,7 @@
 #include <string>
 
 #include "gbtree_model.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 #include "../common/common.h"
 #include "../common/timer.h"

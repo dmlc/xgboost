@@ -7,7 +7,7 @@
 #include <thrust/inner_product.h>
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
-#include "xgboost/common/span.h"
+#include "xgboost/span.h"
 
 #include "coordinate_common.h"
 #include "../common/common.h"

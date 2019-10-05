@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
-#include <xgboost/common/span.h>
-#include <xgboost/common/host_device_vector.h>
+#include <xgboost/span.h>
+#include <xgboost/host_device_vector.h>
 
 #include <vector>
 

@@ -5,7 +5,7 @@
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
 #include "xgboost/logging.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 #include "../gbm/gbtree_model.h"
 

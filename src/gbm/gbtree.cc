@@ -18,7 +18,7 @@
 #include "xgboost/gbm.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_updater.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 #include "gbtree.h"
 #include "gbtree_model.h"

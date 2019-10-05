@@ -13,7 +13,7 @@
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
-#include "xgboost/common/span.h"
+#include "xgboost/span.h"
 
 #include "../common/bitfield.h"
 

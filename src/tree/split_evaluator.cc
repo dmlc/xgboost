@@ -15,7 +15,7 @@
 #include <utility>
 
 #include "xgboost/logging.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 #include "param.h"
 #include "split_evaluator.h"
 #include "../common/common.h"

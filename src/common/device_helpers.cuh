@@ -11,8 +11,8 @@
 #include <rabit/rabit.h>
 #include <cub/util_allocator.cuh>
 
-#include "xgboost/common/host_device_vector.h"
-#include "xgboost/common/span.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
 
 #include "common.h"
 

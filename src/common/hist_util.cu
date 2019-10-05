@@ -17,7 +17,7 @@
 #include <mutex>
 
 #include "hist_util.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "../tree/param.h"

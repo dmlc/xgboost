@@ -11,7 +11,7 @@
 #include <xgboost/generic_parameters.h>
 #include <xgboost/data.h>
 #include <xgboost/base.h>
-#include <xgboost/common/host_device_vector.h>
+#include <xgboost/host_device_vector.h>
 
 #include <vector>
 #include <string>

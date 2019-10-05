@@ -6,7 +6,7 @@
 #include <xgboost/objective.h>
 #include <dmlc/registry.h>
 
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);

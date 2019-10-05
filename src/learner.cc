@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 #include "common/common.h"
 #include "common/io.h"
 #include "common/random.h"

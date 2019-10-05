@@ -13,7 +13,7 @@
 #include <set>
 
 #include "xgboost/logging.h"
-#include "xgboost/common/span.h"
+#include "xgboost/span.h"
 #include "constraints.cuh"
 #include "param.h"
 #include "../common/device_helpers.cuh"

@@ -15,8 +15,8 @@
 #include <utility>
 #include <vector>
 
-#include "xgboost/common/host_device_vector.h"
-#include "xgboost/common/span.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
 
 #include "../common/common.h"
 #include "../common/compressed_iterator.h"

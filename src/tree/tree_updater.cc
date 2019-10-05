@@ -6,7 +6,7 @@
 #include <dmlc/registry.h>
 
 #include "xgboost/tree_updater.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);

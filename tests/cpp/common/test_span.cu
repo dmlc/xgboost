@@ -8,7 +8,7 @@
 #include <thrust/execution_policy.h>
 
 #include "../../../src/common/device_helpers.cuh"
-#include <xgboost/common/span.h>
+#include <xgboost/span.h>
 #include "test_span.h"
 
 namespace xgboost {

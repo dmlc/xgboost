@@ -5,8 +5,8 @@
  * \author Henry Gouk
  */
 #include "xgboost/objective.h"
-#include "xgboost/common/span.h"
-#include "xgboost/common/host_device_vector.h"
+#include "xgboost/span.h"
+#include "xgboost/host_device_vector.h"
 
 #include "../common/math.h"
 #include "../common/transform.h"
