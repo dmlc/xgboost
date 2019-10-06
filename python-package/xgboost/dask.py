@@ -369,6 +369,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     futures = client.map(dispatched_train,
                          range(len(worker_map)),
+                         pure=False,
                          workers=list(worker_map.keys()))
     results = client.gather(futures)
     return list(filter(lambda ret: ret is not None, results))[0]
@@ -420,6 +421,7 @@ def predict(client, model, data, *args):
 
     futures = client.map(dispatched_predict,
                          range(len(worker_map)),
+                         pure=False,
                          workers=list(worker_map.keys()))
 
     def dispatched_get_shape(worker_id):
@@ -433,6 +435,7 @@ def predict(client, model, data, *args):
     # See https://docs.dask.org/en/latest/array-creation.html
     futures_shape = client.map(dispatched_get_shape,
                                range(len(worker_map)),
+                               pure=False,
                                workers=list(worker_map.keys()))
     shapes = client.gather(futures_shape)
     arrays = []
