@@ -35,7 +35,7 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
  private:
   EllpackPage* page_;
   common::Monitor monitor_;
-  dh::BulkAllocator ba;
+  dh::BulkAllocator ba_;
 };
 
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
@@ -91,7 +91,7 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("CreateInfo");
-  EllpackInfo ellpack_info{param.gpu_id, dmat->IsDense(), row_stride, hmat, ba};
+  EllpackInfo ellpack_info{param.gpu_id, dmat->IsDense(), row_stride, hmat, ba_};
   monitor_.StopCuda("CreateInfo");
 
   monitor_.StartCuda("WriteEllpackPages");
@@ -100,28 +100,30 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
-  page->Impl()->matrix.info = ellpack_info;
-  page->Clear();
+  auto* impl = page->Impl();
+  impl->matrix.info = ellpack_info;
+  impl->Clear();
 
   const MetaInfo& info = dmat->Info();
   size_t bytes_write = 0;
   double tstart = dmlc::GetTime();
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    page->Impl()->Push(param.gpu_id, batch);
+    impl->Push(param.gpu_id, batch);
 
-    if (page->MemCostBytes() >= DMatrix::kPageSize) {
-      bytes_write += page->MemCostBytes();
+    if (impl->MemCostBytes() >= DMatrix::kPageSize) {
+      bytes_write += impl->MemCostBytes();
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);
-      page->Impl()->matrix.info = ellpack_info;
-      page->Clear();
+      impl = page->Impl();
+      impl->matrix.info = ellpack_info;
+      impl->Clear();
       double tdiff = dmlc::GetTime() - tstart;
       LOG(INFO) << "Writing to " << cache_info << " in "
                 << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
                 << (bytes_write >> 20UL) << " written";
     }
   }
-  if (page->Size() != 0) {
+  if (impl->Size() != 0) {
     writer.PushWrite(std::move(page));
   }
   LOG(INFO) << "EllpackPageSource: Finished writing to " << cinfo.name_info;

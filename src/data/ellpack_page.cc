@@ -23,16 +23,6 @@ size_t EllpackPage::Size() const {
   return 0;
 }
 
-void EllpackPage::Clear() {
-  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
-}
-
-size_t EllpackPage::MemCostBytes() const {
-  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
-  return 0;
-}
-
-
 }  // namespace xgboost
 
 #endif  // XGBOOST_USE_CUDA

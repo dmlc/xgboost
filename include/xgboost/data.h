@@ -284,14 +284,6 @@ class EllpackPage {
   /*! \return number of instance in the page */
   size_t Size() const;
 
-  /*! \brief clear the page
-   */
-  void Clear();
-
-  /*! \return estimation of memory cost of this page
-   */
-  size_t MemCostBytes() const;
-
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }
 
