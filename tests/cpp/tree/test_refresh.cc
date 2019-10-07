@@ -1,13 +1,15 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
-#include "../helpers.h"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <gtest/gtest.h>
+
 #include <vector>
 #include <string>
 #include <memory>
+
+#include "../helpers.h"
 
 namespace xgboost {
 namespace tree {

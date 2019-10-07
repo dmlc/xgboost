@@ -4,8 +4,8 @@
 #ifndef XGBOOST_TEST_SPAN_H_
 #define XGBOOST_TEST_SPAN_H_
 
-#include "../../include/xgboost/base.h"
-#include "../../../src/common/span.h"
+#include <xgboost/base.h>
+#include <xgboost/span.h>
 
 template <typename Iter>
 XGBOOST_DEVICE void InitializeRange(Iter _begin, Iter _end) {

@@ -187,11 +187,9 @@ if (BUILD_C_DOC)
 endif (BUILD_C_DOC)
 
 include(GNUInstallDirs)
-# Exposing only C APIs.
-install(FILES
-  "${PROJECT_SOURCE_DIR}/include/xgboost/c_api.h"
-  DESTINATION
-  include/xgboost/)
+# Install all headers.  Please note that currently the C++ headers does not form an "API".
+install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 install(TARGETS xgboost runxgboost
   EXPORT XGBoostTargets

@@ -11,7 +11,7 @@
 
 #include <vector>
 
-#include "../common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 #include "../common/math.h"
 
 namespace {

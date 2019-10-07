@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "../../../src/common/span.h"
+#include <xgboost/span.h>
 #include "test_span.h"
 
 namespace xgboost {

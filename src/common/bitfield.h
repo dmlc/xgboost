@@ -13,7 +13,12 @@
 #include <string>
 #include <vector>
 
-#include "span.h"
+#if defined(__CUDACC__)
+#include <thrust/copy.h>
+#include <thrust/device_ptr.h>
+#endif  // defined(__CUDACC__)
+
+#include "xgboost/span.h"
 
 namespace xgboost {
 

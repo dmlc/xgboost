@@ -11,6 +11,7 @@
 #include <string>
 #include "gtest/gtest.h"
 #include "../helpers.h"
+#include "../../../src/gbm/gbtree_model.h"
 
 namespace {
 
