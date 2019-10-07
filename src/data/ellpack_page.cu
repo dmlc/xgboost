@@ -21,6 +21,10 @@ size_t EllpackPage::Size() const {
   return impl_->Size();
 }
 
+void EllpackPage::SetBaseRowId(size_t row_id) {
+  impl_->SetBaseRowId(row_id);
+}
+
 // Bin each input data entry, store the bin indices in compressed form.
 template<typename std::enable_if<true, int>::type = 0>
 __global__ void CompressBinEllpackKernel(
@@ -110,7 +114,7 @@ void EllpackPageImpl::InitInfo(int device,
                                bool is_dense,
                                size_t row_stride,
                                const common::HistogramCuts& hmat) {
-  matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba);
+  matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba_);
 }
 
 void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
@@ -119,7 +123,7 @@ void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
       matrix.info.row_stride * num_rows, num_symbols);
-  ba.Allocate(device, &gidx_buffer, compressed_size_bytes);
+  ba_.Allocate(device, &gidx_buffer, compressed_size_bytes);
 
   thrust::fill(
       thrust::device_pointer_cast(gidx_buffer.data()),
@@ -196,14 +200,14 @@ void EllpackPageImpl::CreateHistIndices(int device,
 }
 
 size_t EllpackPageImpl::Size() const {
-  return n_rows;
+  return n_rows_;
 }
 
 void EllpackPageImpl::Clear() {
-  ba.Clear();
+  ba_.Clear();
   gidx_buffer = {};
   idx_buffer.clear();
-  n_rows = 0;
+  n_rows_ = 0;
 }
 
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
@@ -223,15 +227,33 @@ void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   dh::CopyDeviceSpanToVector(&buffer, gidx_buffer);
   idx_buffer.reserve(idx_buffer.size() + buffer.size());
   idx_buffer.insert(idx_buffer.end(), buffer.begin(), buffer.end());
-  ba.Clear();
+  ba_.Clear();
   gidx_buffer = {};
   monitor_.StopCuda("CopyDeviceToHost");
 
-  n_rows += batch.Size();
+  n_rows_ += batch.Size();
 }
 
 size_t EllpackPageImpl::MemCostBytes() const {
   return idx_buffer.size() * sizeof(common::CompressedByteT);
+}
+
+void EllpackPageImpl::InitDevice(int device, EllpackInfo info) {
+  if (device_initialized_) return;
+
+  monitor_.StartCuda("CopyPageToDevice");
+  dh::safe_cuda(cudaSetDevice(device));
+
+  gidx_buffer = {};
+  ba_.Allocate(device, &gidx_buffer, idx_buffer.size());
+  dh::CopyVectorToDeviceSpan(gidx_buffer, idx_buffer);
+
+  matrix.info = info;
+  matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), info.n_bins + 1);
+
+  monitor_.StopCuda("CopyPageToDevice");
+
+  device_initialized_ = true;
 }
 
 }  // namespace xgboost

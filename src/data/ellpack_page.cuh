@@ -187,6 +187,10 @@ class EllpackPageImpl {
 
   size_t Size() const;
 
+  inline void SetBaseRowId(size_t row_id) {
+    base_rowid_ = row_id;
+  }
+
   /*! \brief clear the page
    */
   void Clear();
@@ -201,10 +205,14 @@ class EllpackPageImpl {
    */
   size_t MemCostBytes() const;
 
+  void InitDevice(int device, EllpackInfo info);
+
  private:
   common::Monitor monitor_;
-  dh::BulkAllocator ba;
-  size_t n_rows{};
+  dh::BulkAllocator ba_;
+  size_t base_rowid_{};
+  size_t n_rows_{};
+  bool device_initialized_{false};
 };
 
 }  // namespace xgboost

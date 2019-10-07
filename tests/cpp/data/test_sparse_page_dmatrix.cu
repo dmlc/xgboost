@@ -5,8 +5,7 @@
 
 namespace xgboost {
 
-TEST(GPUSparsePageDMatrix, DISABLED_EllpackPage) {
-//TEST(GPUSparsePageDMatrix, EllpackPage) {
+TEST(GPUSparsePageDMatrix, EllpackPage) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);

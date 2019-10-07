@@ -224,6 +224,10 @@ class SparsePage {
     data.HostVector().clear();
   }
 
+  inline void SetBaseRowId(size_t row_id) {
+    base_rowid = row_id;
+  }
+
   SparsePage GetTranspose(int num_columns) const;
 
   void SortRows() {
@@ -283,6 +287,7 @@ class EllpackPage {
 
   /*! \return number of instance in the page */
   size_t Size() const;
+  void SetBaseRowId(size_t row_id);
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }
