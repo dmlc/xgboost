@@ -14,6 +14,51 @@
 namespace xgboost {
 namespace data {
 
+class EllpackPageSourceImpl : public DataSource<EllpackPage> {
+ public:
+  /*!
+   * \brief Create source from cache files the cache_prefix.
+   * \param cache_prefix The prefix of cache we want to solve.
+   */
+  explicit EllpackPageSourceImpl(DMatrix* dmat,
+                                 const std::string& cache_info,
+                                 const BatchParam& param) noexcept(false);
+
+  /*! \brief destructor */
+  ~EllpackPageSourceImpl() override = default;
+
+  void BeforeFirst() override;
+  bool Next() override;
+  EllpackPage& Value();
+  const EllpackPage& Value() const override;
+
+ private:
+  EllpackPage* page_;
+  common::Monitor monitor_;
+  dh::BulkAllocator ba;
+};
+
+EllpackPageSource::EllpackPageSource(DMatrix* dmat,
+                                     const std::string& cache_info,
+                                     const BatchParam& param) noexcept(false)
+    : impl_{new EllpackPageSourceImpl(dmat, cache_info, param)} {}
+
+void EllpackPageSource::BeforeFirst() {
+  impl_->BeforeFirst();
+}
+
+bool EllpackPageSource::Next() {
+  return impl_->Next();
+}
+
+EllpackPage& EllpackPageSource::Value() {
+  return impl_->Value();
+}
+
+const EllpackPage& EllpackPageSource::Value() const {
+  return impl_->Value();
+}
+
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
  public:
   bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
@@ -33,9 +78,9 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   }
 };
 
-EllpackPageSource::EllpackPageSource(DMatrix* dmat,
-                                     const std::string& cache_info,
-                                     const BatchParam& param) noexcept(false) : page_(nullptr) {
+EllpackPageSourceImpl::EllpackPageSourceImpl(
+    DMatrix* dmat, const std::string& cache_info, const BatchParam& param) noexcept(false)
+    : page_(nullptr) {
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
@@ -46,10 +91,10 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("CreateInfo");
-  dh::BulkAllocator ba;
   EllpackInfo ellpack_info{param.gpu_id, dmat->IsDense(), row_stride, hmat, ba};
   monitor_.StopCuda("CreateInfo");
 
+  monitor_.StartCuda("WriteEllpackPages");
   const std::string page_type = ".ellpack.page";
   auto cinfo = ParseCacheInfo(cache_info, page_type);
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
@@ -79,12 +124,22 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   if (page->Size() != 0) {
     writer.PushWrite(std::move(page));
   }
-
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
-  int tmagic = SparsePageSource<SparsePage>::kMagic;
-  fo->Write(&tmagic, sizeof(tmagic));
-  info.SaveBinary(fo.get());
   LOG(INFO) << "EllpackPageSource: Finished writing to " << cinfo.name_info;
+  monitor_.StopCuda("WriteEllpackPages");
+}
+
+void EllpackPageSourceImpl::BeforeFirst() {}
+
+bool EllpackPageSourceImpl::Next() {
+  return false;
+}
+
+EllpackPage& EllpackPageSourceImpl::Value() {
+  return *page_;
+}
+
+const EllpackPage& EllpackPageSourceImpl::Value() const {
+  return *page_;
 }
 
 XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)

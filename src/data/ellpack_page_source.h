@@ -6,6 +6,7 @@
 #define XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 
 #include <xgboost/data.h>
+#include <memory>
 #include <string>
 
 #include "sparse_page_source.h"
@@ -14,8 +15,13 @@
 namespace xgboost {
 namespace data {
 
+class EllpackPageSourceImpl;
+
 /*!
  * \brief External memory data source for ELLPACK format.
+ *
+ * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
+ * including CUDA-specific implementation details in the header.
  */
 class EllpackPageSource : public DataSource<EllpackPage> {
  public:
@@ -30,22 +36,16 @@ class EllpackPageSource : public DataSource<EllpackPage> {
   /*! \brief destructor */
   ~EllpackPageSource() override = default;
 
-  void BeforeFirst() override {}
-  bool Next() override {
-    return false;
-  }
+  void BeforeFirst() override;
+  bool Next() override;
+  EllpackPage& Value();
+  const EllpackPage& Value() const override;
 
-  EllpackPage& Value() {
-    return *page_;
-  }
-
-  const EllpackPage& Value() const override {
-    return *page_;
-  }
+  const EllpackPageSourceImpl* Impl() const { return impl_.get(); }
+  EllpackPageSourceImpl* Impl() { return impl_.get(); }
 
  private:
-  EllpackPage* page_;
-  common::Monitor monitor_;
+  std::shared_ptr<EllpackPageSourceImpl> impl_;
 };
 
 }  // namespace data
