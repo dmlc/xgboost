@@ -127,8 +127,8 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
       std::string format;
       CHECK(fi->Read(&format)) << "Invalid page format";
-      formats_[i].reset(CreatePageFormat<SparsePage>(format));
-      std::unique_ptr<SparsePageFormat<SparsePage>>& fmt = formats_[i];
+      formats_[i].reset(CreatePageFormat<T>(format));
+      std::unique_ptr<SparsePageFormat<T>>& fmt = formats_[i];
       size_t fbegin = fi->Tell();
       prefetchers_[i].reset(new dmlc::ThreadedIter<T>(4));
       prefetchers_[i]->Init([&fi, &fmt] (T** dptr) {
@@ -364,7 +364,7 @@ class SparsePageSource : public DataSource<T> {
   /*! \brief file pointer to the row blob file. */
   std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
   /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePageFormat<SparsePage>>> formats_;
+  std::vector<std::unique_ptr<SparsePageFormat<T>>> formats_;
   /*! \brief internal prefetcher. */
   std::vector<std::unique_ptr<dmlc::ThreadedIter<T>>> prefetchers_;
 };

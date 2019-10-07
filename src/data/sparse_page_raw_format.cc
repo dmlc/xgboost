@@ -12,9 +12,10 @@ namespace data {
 
 DMLC_REGISTRY_FILE_TAG(sparse_page_raw_format);
 
-class SparsePageRawFormat : public SparsePageFormat<SparsePage> {
+template<typename T>
+class SparsePageRawFormat : public SparsePageFormat<T> {
  public:
-  bool Read(SparsePage* page, dmlc::SeekStream* fi) override {
+  bool Read(T* page, dmlc::SeekStream* fi) override {
     auto& offset_vec = page->offset.HostVector();
     if (!fi->Read(&offset_vec)) return false;
     auto& data_vec = page->data.HostVector();
@@ -29,7 +30,7 @@ class SparsePageRawFormat : public SparsePageFormat<SparsePage> {
     return true;
   }
 
-  bool Read(SparsePage* page,
+  bool Read(T* page,
             dmlc::SeekStream* fi,
             const std::vector<bst_uint>& sorted_index_set) override {
     if (!fi->Read(&disk_offset_)) return false;
@@ -79,7 +80,7 @@ class SparsePageRawFormat : public SparsePageFormat<SparsePage> {
     return true;
   }
 
-  void Write(const SparsePage& page, dmlc::Stream* fo) override {
+  void Write(const T& page, dmlc::Stream* fo) override {
     const auto& offset_vec = page.offset.HostVector();
     const auto& data_vec = page.data.HostVector();
     CHECK(page.offset.Size() != 0 && offset_vec[0] == 0);
@@ -98,7 +99,20 @@ class SparsePageRawFormat : public SparsePageFormat<SparsePage> {
 XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(raw)
 .describe("Raw binary data format.")
 .set_body([]() {
-    return new SparsePageRawFormat();
+    return new SparsePageRawFormat<SparsePage>();
   });
+
+XGBOOST_REGISTER_CSC_PAGE_FORMAT(raw)
+.describe("Raw binary data format.")
+.set_body([]() {
+    return new SparsePageRawFormat<CSCPage>();
+  });
+
+XGBOOST_REGISTER_SORTED_CSC_PAGE_FORMAT(raw)
+.describe("Raw binary data format.")
+.set_body([]() {
+    return new SparsePageRawFormat<SortedCSCPage>();
+  });
+
 }  // namespace data
 }  // namespace xgboost

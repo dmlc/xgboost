@@ -194,6 +194,13 @@ struct SparsePageFormatReg
 #define XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(Name)                       \
   DMLC_REGISTRY_REGISTER(SparsePageFormatReg<SparsePage>, SparsePageFmt, Name)
 
+#define CSCPageFmt SparsePageFormat<CSCPage>
+#define XGBOOST_REGISTER_CSC_PAGE_FORMAT(Name)                       \
+  DMLC_REGISTRY_REGISTER(SparsePageFormatReg<CSCPage>, CSCPageFmt, Name)
+
+#define SortedCSCPageFmt SparsePageFormat<SortedCSCPage>
+#define XGBOOST_REGISTER_SORTED_CSC_PAGE_FORMAT(Name)                       \
+  DMLC_REGISTRY_REGISTER(SparsePageFormatReg<SortedCSCPage>, SortedCSCPageFmt, Name)
 
 #define EllpackPageFmt SparsePageFormat<EllpackPage>
 #define XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(Name)                       \
