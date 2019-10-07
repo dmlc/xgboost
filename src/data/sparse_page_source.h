@@ -113,6 +113,7 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r"));
       int tmagic;
       CHECK_EQ(finfo->Read(&tmagic, sizeof(tmagic)), sizeof(tmagic));
+      CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
       this->info.LoadBinary(finfo.get());
     }
     files_.resize(cache_shards.size());
@@ -350,12 +351,6 @@ class SparsePageSource : public DataSource<T> {
       if (page->data.Size() != 0) {
         writer.PushWrite(std::move(page));
       }
-
-      std::unique_ptr<dmlc::Stream> fo(
-          dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
-      int tmagic = kMagic;
-      fo->Write(&tmagic, sizeof(tmagic));
-      info.SaveBinary(fo.get());
     }
     LOG(INFO) << "SparsePageSource: Finished writing to " << cinfo.name_info;
   }
