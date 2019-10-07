@@ -277,10 +277,11 @@ class EllpackPageImpl;
  */
 class EllpackPage {
  public:
-  EllpackPage() = default;
+  EllpackPage();
   explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
   ~EllpackPage();
 
+  /*! \return number of instance in the page */
   size_t Size() const;
 
   /*! \brief clear the page

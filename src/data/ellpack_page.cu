@@ -10,6 +10,8 @@
 
 namespace xgboost {
 
+EllpackPage::EllpackPage() : impl_{new EllpackPageImpl()} {}
+
 EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param)
     : impl_{new EllpackPageImpl(dmat, param)} {}
 
@@ -202,13 +204,14 @@ void EllpackPageImpl::CreateHistIndices(int device,
 }
 
 size_t EllpackPageImpl::Size() const {
-  return 0;
+  return n_rows;
 }
 
 void EllpackPageImpl::Clear() {
   ba.Clear();
   gidx_buffer = {};
   idx_buffer.clear();
+  n_rows = 0;
 }
 
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
@@ -231,6 +234,8 @@ void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   ba.Clear();
   gidx_buffer = {};
   monitor_.StopCuda("CopyDeviceToHost");
+
+  n_rows += batch.Size();
 }
 
 size_t EllpackPageImpl::MemCostBytes() const {

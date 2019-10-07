@@ -176,6 +176,7 @@ class EllpackPageImpl {
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
 
+  EllpackPageImpl() = default;
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
   void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
@@ -203,6 +204,7 @@ class EllpackPageImpl {
  private:
   common::Monitor monitor_;
   dh::BulkAllocator ba;
+  size_t n_rows{};
 };
 
 }  // namespace xgboost
