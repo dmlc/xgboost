@@ -7,12 +7,13 @@
 #include <thrust/inner_product.h>
 #include <xgboost/data.h>
 #include <xgboost/linear_updater.h>
+#include "xgboost/span.h"
+
+#include "coordinate_common.h"
 #include "../common/common.h"
-#include "../common/span.h"
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
-#include "coordinate_common.h"
 
 namespace xgboost {
 namespace linear {

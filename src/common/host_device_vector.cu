@@ -2,13 +2,16 @@
  * Copyright 2017 XGBoost contributors
  */
 
-#include "./host_device_vector.h"
 #include <thrust/fill.h>
-#include <xgboost/data.h>
+#include <thrust/device_ptr.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <mutex>
-#include "./device_helpers.cuh"
+
+#include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
+#include "device_helpers.cuh"
 
 namespace xgboost {
 
@@ -73,22 +76,6 @@ class HostDeviceVectorImpl {
     LazySyncDevice(GPUAccess::kRead);
     using SpanInd = typename common::Span<const T>::index_type;
     return {data_d_.data().get(), static_cast<SpanInd>(Size())};
-  }
-
-  thrust::device_ptr<T> tbegin() {  // NOLINT
-    return thrust::device_ptr<T>(DevicePointer());
-  }
-
-  thrust::device_ptr<const T> tcbegin() {  // NOLINT
-    return thrust::device_ptr<const T>(ConstDevicePointer());
-  }
-
-  thrust::device_ptr<T> tend() {  // NOLINT
-    return tbegin() + Size();
-  }
-
-  thrust::device_ptr<const T> tcend() {  // NOLINT
-    return tcbegin() + Size();
   }
 
   void Fill(T v) {  // NOLINT
@@ -302,26 +289,6 @@ common::Span<T> HostDeviceVector<T>::DeviceSpan() {
 template <typename T>
 common::Span<const T> HostDeviceVector<T>::ConstDeviceSpan() const {
   return impl_->ConstDeviceSpan();
-}
-
-template <typename T>
-thrust::device_ptr<T> HostDeviceVector<T>::tbegin() {  // NOLINT
-  return impl_->tbegin();
-}
-
-template <typename T>
-thrust::device_ptr<const T> HostDeviceVector<T>::tcbegin() const {  // NOLINT
-  return impl_->tcbegin();
-}
-
-template <typename T>
-thrust::device_ptr<T> HostDeviceVector<T>::tend() {  // NOLINT
-  return impl_->tend();
-}
-
-template <typename T>
-thrust::device_ptr<const T> HostDeviceVector<T>::tcend() const {  // NOLINT
-  return impl_->tcend();
 }
 
 template <typename T>

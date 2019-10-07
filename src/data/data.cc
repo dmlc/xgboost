@@ -11,6 +11,7 @@
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
 #include "../common/io.h"
+#include "../common/group_data.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -298,7 +299,35 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-
+SparsePage SparsePage::GetTranspose(int num_columns) const {
+  SparsePage transpose;
+  common::ParallelGroupBuilder<Entry> builder(&transpose.offset.HostVector(),
+                                              &transpose.data.HostVector());
+  const int nthread = omp_get_max_threads();
+  builder.InitBudget(num_columns, nthread);
+  long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
+#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto inst = (*this)[i];
+    for (const auto& entry : inst) {
+      builder.AddBudget(entry.index, tid);
+    }
+  }
+  builder.InitStorage();
+#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto inst = (*this)[i];
+    for (const auto& entry : inst) {
+      builder.Push(
+          entry.index,
+          Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
+          tid);
+    }
+  }
+  return transpose;
+}
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();

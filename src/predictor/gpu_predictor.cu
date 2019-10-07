@@ -6,14 +6,17 @@
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
-#include <xgboost/data.h>
-#include <xgboost/predictor.h>
-#include <xgboost/tree_model.h>
-#include <xgboost/tree_updater.h>
 #include <memory>
+
+#include "xgboost/data.h"
+#include "xgboost/predictor.h"
+#include "xgboost/tree_model.h"
+#include "xgboost/tree_updater.h"
+#include "xgboost/host_device_vector.h"
+
+#include "../gbm/gbtree_model.h"
 #include "../common/common.h"
 #include "../common/device_helpers.cuh"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace predictor {

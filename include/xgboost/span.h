@@ -26,8 +26,8 @@
  * THE SOFTWARE.
  */
 
-#ifndef XGBOOST_COMMON_SPAN_H_
-#define XGBOOST_COMMON_SPAN_H_
+#ifndef XGBOOST_SPAN_H_
+#define XGBOOST_SPAN_H_
 
 #include <xgboost/logging.h>  // CHECK
 
@@ -637,4 +637,4 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
 #undef __span_noexcept
 #endif  // _MSC_VER < 1910
 
-#endif  // XGBOOST_COMMON_SPAN_H_
+#endif  // XGBOOST_SPAN_H_

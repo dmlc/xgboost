@@ -14,14 +14,13 @@
 #include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 #include <vector>
 #include <utility>
 #include <string>
 #include <functional>
 #include <memory>
-
-#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!

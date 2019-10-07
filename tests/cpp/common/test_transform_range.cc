@@ -1,10 +1,11 @@
-#include <xgboost/base.h>
 #include <gtest/gtest.h>
+#include <xgboost/base.h>
+#include <xgboost/span.h>
+#include <xgboost/host_device_vector.h>
+
 #include <vector>
 
-#include "../../../src/common/host_device_vector.h"
 #include "../../../src/common/transform.h"
-#include "../../../src/common/span.h"
 #include "../helpers.h"
 
 #if defined(__CUDACC__)

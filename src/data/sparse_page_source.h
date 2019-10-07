@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "sparse_page_writer.h"
+#include "../common/common.h"
 
 namespace {
 
