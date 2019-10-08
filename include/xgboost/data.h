@@ -293,7 +293,7 @@ class EllpackPage {
   EllpackPageImpl* Impl() { return impl_.get(); }
 
  private:
-  std::shared_ptr<EllpackPageImpl> impl_;
+  std::unique_ptr<EllpackPageImpl> impl_;
 };
 
 template<typename T>

@@ -139,7 +139,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
   if (!device_row_state.rows_to_process_from_batch) return;
 
   unsigned int null_gidx_value = matrix.info.n_bins;
-  size_t row_stride = this->matrix.info.row_stride;
+  size_t row_stride = matrix.info.row_stride;
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 

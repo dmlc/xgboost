@@ -5,7 +5,7 @@
 
 #include <xgboost/data.h>
 
-// dummy implementation of ELlpackPage in case CUDA is not used
+// dummy implementation of EllpackPage in case CUDA is not used
 namespace xgboost {
 
 class EllpackPageImpl {};
@@ -16,11 +16,6 @@ EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param) {
 
 EllpackPage::~EllpackPage() {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
-}
-
-size_t EllpackPage::Size() const {
-  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
-  return 0;
 }
 
 }  // namespace xgboost
