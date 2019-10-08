@@ -175,6 +175,7 @@ class EllpackPageImpl {
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
+  size_t n_rows{};
 
   EllpackPageImpl() = default;
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
@@ -211,7 +212,6 @@ class EllpackPageImpl {
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
   size_t base_rowid_{};
-  size_t n_rows_{};
   bool device_initialized_{false};
 };
 

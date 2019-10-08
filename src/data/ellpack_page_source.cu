@@ -33,6 +33,10 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   const EllpackPage& Value() const override;
 
  private:
+  void WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const;
+
+  const std::string kPageType{".ellpack.page"};
+
   int device_{-1};
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
@@ -64,17 +68,23 @@ const EllpackPage& EllpackPageSource::Value() const {
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
  public:
   bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
-    return fi->Read(&page->Impl()->idx_buffer);
+    auto* impl = page->Impl();
+    if (!fi->Read(&impl->n_rows))  return false;
+    return fi->Read(&impl->idx_buffer);
   }
 
   bool Read(EllpackPage* page,
             dmlc::SeekStream* fi,
             const std::vector<bst_uint>& sorted_index_set) override {
+    auto* impl = page->Impl();
+    if (!fi->Read(&impl->n_rows))  return false;
     return fi->Read(&page->Impl()->idx_buffer);
   }
 
   void Write(const EllpackPage& page, dmlc::Stream* fo) override {
-    auto buffer = page.Impl()->idx_buffer;
+    auto* impl = page.Impl();
+    fo->Write(impl->n_rows);
+    auto buffer = impl->idx_buffer;
     CHECK(!buffer.empty());
     fo->Write(buffer);
   }
@@ -99,8 +109,34 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   monitor_.StopCuda("CreateInfo");
 
   monitor_.StartCuda("WriteEllpackPages");
-  const std::string page_type = ".ellpack.page";
-  auto cinfo = ParseCacheInfo(cache_info, page_type);
+  WriteEllpackPages(dmat, cache_info);
+  monitor_.StopCuda("WriteEllpackPages");
+
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info, kPageType));
+}
+
+void EllpackPageSourceImpl::BeforeFirst() {
+  source_->BeforeFirst();
+}
+
+bool EllpackPageSourceImpl::Next() {
+  return source_->Next();
+}
+
+EllpackPage& EllpackPageSourceImpl::Value() {
+  EllpackPage& page = source_->Value();
+  page.Impl()->InitDevice(device_, ellpack_info_);
+  return page;
+}
+
+const EllpackPage& EllpackPageSourceImpl::Value() const {
+  EllpackPage& page = source_->Value();
+  page.Impl()->InitDevice(device_, ellpack_info_);
+  return page;
+}
+
+void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const {
+  auto cinfo = ParseCacheInfo(cache_info, kPageType);
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
@@ -130,30 +166,6 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   if (impl->Size() != 0) {
     writer.PushWrite(std::move(page));
   }
-  LOG(INFO) << "EllpackPageSource: Finished writing to " << cinfo.name_info;
-  monitor_.StopCuda("WriteEllpackPages");
-
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info, page_type));
-}
-
-void EllpackPageSourceImpl::BeforeFirst() {
-  source_->BeforeFirst();
-}
-
-bool EllpackPageSourceImpl::Next() {
-  return source_->Next();
-}
-
-EllpackPage& EllpackPageSourceImpl::Value() {
-  EllpackPage& page = source_->Value();
-  page.Impl()->InitDevice(device_, ellpack_info_);
-  return page;
-}
-
-const EllpackPage& EllpackPageSourceImpl::Value() const {
-  EllpackPage& page = source_->Value();
-  page.Impl()->InitDevice(device_, ellpack_info_);
-  return page;
 }
 
 XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)

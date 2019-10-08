@@ -200,14 +200,14 @@ void EllpackPageImpl::CreateHistIndices(int device,
 }
 
 size_t EllpackPageImpl::Size() const {
-  return n_rows_;
+  return n_rows;
 }
 
 void EllpackPageImpl::Clear() {
   ba_.Clear();
   gidx_buffer = {};
   idx_buffer.clear();
-  n_rows_ = 0;
+  n_rows = 0;
 }
 
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
@@ -231,7 +231,7 @@ void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   gidx_buffer = {};
   monitor_.StopCuda("CopyDeviceToHost");
 
-  n_rows_ += batch.Size();
+  n_rows += batch.Size();
 }
 
 size_t EllpackPageImpl::MemCostBytes() const {
