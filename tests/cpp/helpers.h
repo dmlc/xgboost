@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
@@ -188,8 +189,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
  *
  * \return The new dmatrix.
  */
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
+    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
+    const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
 gbm::GBTreeModel CreateTestModel();
 

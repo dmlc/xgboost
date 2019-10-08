@@ -2,6 +2,7 @@
  * Copyright 2017-2019 XGBoost contributors
  */
 #include <thrust/device_vector.h>
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <random>
 #include <string>
@@ -265,8 +266,10 @@ void TestHistogramIndexImpl() {
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker, hist_maker_ext;
   std::unique_ptr<DMatrix> hist_maker_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
+
+  dmlc::TemporaryDirectory tempdir;
   std::unique_ptr<DMatrix> hist_maker_ext_dmat(
-    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
+    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true, tempdir));
 
   std::vector<std::pair<std::string, std::string>> training_params = {
     {"max_depth", "10"},
@@ -275,18 +278,17 @@ void TestHistogramIndexImpl() {
 
   GenericParameter generic_param(CreateEmptyGenericParam(0));
   hist_maker.Configure(training_params, &generic_param);
-
   hist_maker.InitDataOnce(hist_maker_dmat.get());
   hist_maker_ext.Configure(training_params, &generic_param);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
-  const auto &maker = hist_maker.maker_;
+  const auto &maker = hist_maker.maker;
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, maker->page->gidx_buffer);
 
-  const auto &maker_ext = hist_maker_ext.maker_;
+  const auto &maker_ext = hist_maker_ext.maker;
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, maker_ext->page->gidx_buffer);
 
@@ -296,8 +298,7 @@ void TestHistogramIndexImpl() {
   ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
 }
 
-// TODO(rongou): reenable this.
-TEST(GpuHist, DISABLED_TestHistogramIndex) {
+TEST(GpuHist, TestHistogramIndex) {
   TestHistogramIndexImpl();
 }
 

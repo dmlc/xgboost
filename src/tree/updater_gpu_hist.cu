@@ -1028,16 +1028,16 @@ class GPUHistMakerSpecialised {
     }
 
     dh::safe_cuda(cudaSetDevice(device_));
-    maker_.reset(new GPUHistMakerDevice<GradientSumT>(device_,
-                                                      page,
-                                                      info_->num_row_,
-                                                      param_,
-                                                      column_sampling_seed,
-                                                      info_->num_col_));
+    maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
+                                                     page,
+                                                     info_->num_row_,
+                                                     param_,
+                                                     column_sampling_seed,
+                                                     info_->num_col_));
 
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
-    maker_->InitHistogram();
+    maker->InitHistogram();
     monitor_.StopCuda("InitHistogram");
 
     p_last_fmat_ = dmat;
@@ -1076,17 +1076,17 @@ class GPUHistMakerSpecialised {
     monitor_.StopCuda("InitData");
 
     gpair->SetDevice(device_);
-    maker_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
+    maker->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
   }
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
-    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+    if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
-    maker_->UpdatePredictionCache(p_out_preds->DevicePointer());
+    maker->UpdatePredictionCache(p_out_preds->DevicePointer());
     monitor_.StopCuda("UpdatePredictionCache");
     return true;
   }
@@ -1094,7 +1094,7 @@ class GPUHistMakerSpecialised {
   TrainParam param_;           // NOLINT
   MetaInfo* info_{};             // NOLINT
 
-  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker_;  // NOLINT
+  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
  private:
   bool initialised_;
