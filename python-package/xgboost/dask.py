@@ -25,6 +25,7 @@ from .compat import distributed_get_worker, distributed_wait, distributed_comm
 from .compat import da, dd, delayed, get_client
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
+from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
 
 from .core import DMatrix, Booster, _expect
 from .training import train as worker_train
@@ -84,6 +85,8 @@ def concat(value):
         return sparse.concatenate(value, axis=0)
     if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
         return pandas_concat(value, axis=0)
+    if CUDF_INSTALLED and isinstance(value[0], (CUDF_DataFrame, CUDF_Series)):
+        return CUDF_concat(value, axis=0)
     return dd.multi.concat(list(value), axis=0)
 
 
