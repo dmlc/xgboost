@@ -225,8 +225,12 @@ void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   monitor_.StartCuda("CopyDeviceToHost");
   std::vector<common::CompressedByteT> buffer(gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&buffer, gidx_buffer);
-  idx_buffer.reserve(idx_buffer.size() + buffer.size());
-  idx_buffer.insert(idx_buffer.end(), buffer.begin(), buffer.end());
+  int offset = 0;
+  if (!idx_buffer.empty()) {
+    offset = ::xgboost::common::detail::kPadding;
+  }
+  idx_buffer.reserve(idx_buffer.size() + buffer.size() - offset);
+  idx_buffer.insert(idx_buffer.end(), buffer.begin() + offset, buffer.end());
   ba_.Clear();
   gidx_buffer = {};
   monitor_.StopCuda("CopyDeviceToHost");
