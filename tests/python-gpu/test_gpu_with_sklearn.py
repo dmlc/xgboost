@@ -23,8 +23,7 @@ def test_gpu_binary_classification():
         for train_index, test_index in kf.split(X, y):
             xgb_model = cls(
                 random_state=42, tree_method='gpu_hist',
-                n_estimators=4, num_parallel_tree=4,
-                gpu_id='0').fit(X[train_index], y[train_index])
+                n_estimators=4, gpu_id='0').fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
             err = sum(1 for i in range(len(preds))

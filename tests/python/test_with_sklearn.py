@@ -175,6 +175,21 @@ def test_feature_importances_gain():
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
+def test_num_parallel_tree():
+    from sklearn.datasets import load_boston
+    reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
+                           tree_method='hist')
+    boston = load_boston()
+    bst = reg.fit(X=boston['data'], y=boston['target'])
+    dump = bst.get_booster().get_dump(dump_format='json')
+    assert len(dump) == 16
+
+    reg = xgb.XGBRFRegressor(n_estimators=4)
+    bst = reg.fit(X=boston['data'], y=boston['target'])
+    dump = bst.get_booster().get_dump(dump_format='json')
+    assert len(dump) == 4
+
+
 def test_boston_housing_regression():
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import load_boston
