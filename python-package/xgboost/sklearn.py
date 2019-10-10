@@ -654,6 +654,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             evals = ()
 
+        if len(X.shape) != 2:
+            # Simply raise an error here since there might be many
+            # different ways of reshaping
+            raise ValueError(
+                'Please reshape the input data X into 2-dimensional matrix.')
         self._features_count = X.shape[1]
 
         if sample_weight is not None:
