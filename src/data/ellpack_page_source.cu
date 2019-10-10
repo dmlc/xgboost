@@ -35,7 +35,7 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
  private:
   void WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const;
 
-  const std::string kPageType{".ellpack.page"};
+  const std::string kPageType_{".ellpack.page"};
 
   int device_{-1};
   common::Monitor monitor_;
@@ -112,7 +112,7 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   WriteEllpackPages(dmat, cache_info);
   monitor_.StopCuda("WriteEllpackPages");
 
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info, kPageType));
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info, kPageType_));
 }
 
 void EllpackPageSourceImpl::BeforeFirst() {
@@ -136,7 +136,7 @@ const EllpackPage& EllpackPageSourceImpl::Value() const {
 }
 
 void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const {
-  auto cinfo = ParseCacheInfo(cache_info, kPageType);
+  auto cinfo = ParseCacheInfo(cache_info, kPageType_);
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
