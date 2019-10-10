@@ -447,7 +447,7 @@ def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
     assert clf.get_xgb_params()['random_state'] == 402
 
-    clf = xgb.XGBClassifier(seed=401)
+    clf = xgb.XGBClassifier(random_state=401)
     assert clf.get_xgb_params()['random_state'] == 401
 
 
