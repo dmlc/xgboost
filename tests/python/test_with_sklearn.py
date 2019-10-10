@@ -430,18 +430,18 @@ def test_split_value_histograms():
 
 def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=402)
-    assert clf.get_xgb_params()['seed'] == 402
+    assert clf.get_xgb_params()['random_state'] == 402
 
     clf = xgb.XGBClassifier(seed=401)
-    assert clf.get_xgb_params()['seed'] == 401
+    assert clf.get_xgb_params()['random_state'] == 401
 
 
 def test_sklearn_n_jobs():
     clf = xgb.XGBClassifier(n_jobs=1)
-    assert clf.get_xgb_params()['nthread'] == 1
+    assert clf.get_xgb_params()['n_jobs'] == 1
 
     clf = xgb.XGBClassifier(nthread=2)
-    assert clf.get_xgb_params()['nthread'] == 2
+    assert clf.get_xgb_params()['n_jobs'] == 2
 
 
 def test_kwargs():
@@ -482,7 +482,7 @@ def test_kwargs_error():
 def test_sklearn_clone():
     from sklearn.base import clone
 
-    clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
+    clf = xgb.XGBClassifier(n_jobs=2)
     clf.n_jobs = -1
     clone(clf)
 
