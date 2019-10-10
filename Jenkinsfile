@@ -297,7 +297,7 @@ def TestPythonGPU(args) {
     if (args.cuda_version == '10.0') {
       echo "Running tests with cuDF..."
       sh """
-      ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
+      ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh cudf
       """
     }
     deleteDir()
