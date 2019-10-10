@@ -251,7 +251,6 @@ public:
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
     stats_.RegisterAllocation(ptr, n);
-    CHECK_LE(stats_.peak_allocated_bytes, dh::TotalMemory(current_device));
   }
   void RegisterDeallocation(void *ptr, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
