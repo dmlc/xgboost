@@ -101,6 +101,8 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    num_parallel_tree: int
+        Used for boosting random forest.
     importance_type: string, default "gain"
         The feature importance type for the feature_importances\\_ property:
         either "gain", "weight", "cover", "total_gain" or "total_cover".
@@ -138,7 +140,7 @@ class XGBModel(XGBModelBase):
                  min_child_weight=1, max_delta_step=0, subsample=1,
                  colsample_bytree=1, colsample_bylevel=1, colsample_bynode=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1, base_score=0.5,
-                 random_state=0, missing=None,
+                 random_state=0, missing=None, num_parallel_tree=1,
                  importance_type="gain", **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
@@ -162,6 +164,7 @@ class XGBModel(XGBModelBase):
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
         self.missing = missing if missing is not None else np.nan
+        self.num_parallel_tree = num_parallel_tree
         self.kwargs = kwargs
         self._Booster = None
         self.random_state = random_state
@@ -831,9 +834,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
-    __doc__ = "Experimental implementation of the scikit-learn API "\
-              + "for XGBoost random forest classification.\n\n"\
-              + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+    __doc__ = "scikit-learn API for XGBoost random forest classification.\n\n"\
+        + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=1, n_estimators=100,
                  verbosity=1, objective="binary:logistic", n_jobs=1,
@@ -872,9 +874,8 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
-    __doc__ = "Experimental implementation of the scikit-learn API "\
-              + "for XGBoost random forest regression.\n\n"\
-              + '\n'.join(XGBModel.__doc__.split('\n')[2:])
+    __doc__ = "scikit-learn API for XGBoost random forest regression.\n\n"\
+        + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=1, n_estimators=100,
                  verbosity=1, objective="reg:squarederror", n_jobs=1,
