@@ -35,6 +35,10 @@ case "$suite" in
     ./runtests-gpu.sh
     ;;
 
+  cudf)
+    pytest -v -s --fulltrace tests/python-gpu/test_from_columnar.py
+    ;;
+
   cpu)
     pytest -v -s --fulltrace tests/python
     cd tests/distributed
@@ -42,7 +46,7 @@ case "$suite" in
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cpu}"
+    echo "Usage: $0 {gpu|mgpu|cudf|cpu}"
     exit 1
     ;;
 esac

@@ -293,6 +293,13 @@ def TestPythonGPU(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
     }
+    // For CUDA 10.0 target, run cuDF tests too
+    if (args.cuda_version == '10.0') {
+      echo "Running tests with cuDF..."
+      sh """
+      ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
+      """
+    }
     deleteDir()
   }
 }
