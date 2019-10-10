@@ -455,7 +455,7 @@ def test_sklearn_n_jobs():
     clf = xgb.XGBClassifier(n_jobs=1)
     assert clf.get_xgb_params()['n_jobs'] == 1
 
-    clf = xgb.XGBClassifier(nthread=2)
+    clf = xgb.XGBClassifier(n_jobs=2)
     assert clf.get_xgb_params()['n_jobs'] == 2
 
 
