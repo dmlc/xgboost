@@ -3,6 +3,7 @@ FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
