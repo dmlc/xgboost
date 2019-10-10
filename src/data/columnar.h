@@ -35,7 +35,7 @@ struct ColumnarErrors {
     return "Memory should be contigious.";
   }
   static char const* TypestrFormat() {
-    return "`typestr` should be of format <endian><type><size>.";
+    return "`typestr' should be of format <endian><type><size of type>.";
   }
   // Not supported in Apache Arrow.
   static char const* BigEndian() {
@@ -50,7 +50,7 @@ struct ColumnarErrors {
     return str.c_str();
   }
   static char const* Version() {
-    return "Only version 1 of __cuda_array_interface__ is being supported.";
+    return "Only version 1 of `__cuda_array_interface__' is supported.";
   }
   static char const* ofType(std::string const& type) {
     static std::string str;
@@ -110,23 +110,23 @@ class ArrayInterfaceHandler {
 
   static void Validate(std::map<std::string, Json> const& array) {
     if (array.find("version") == array.cend()) {
-      LOG(FATAL) << "Missing version field for array interface";
+      LOG(FATAL) << "Missing `version' field for array interface";
     }
     auto version = get<Integer const>(array.at("version"));
     CHECK_EQ(version, 1) << ColumnarErrors::Version();
 
     if (array.find("typestr") == array.cend()) {
-      LOG(FATAL) << "Missing typestr field for array interface";
+      LOG(FATAL) << "Missing `typestr' field for array interface";
     }
     auto typestr = get<String const>(array.at("typestr"));
     CHECK_EQ(typestr.size(),    3) << ColumnarErrors::TypestrFormat();
     CHECK_NE(typestr.front(), '>') << ColumnarErrors::BigEndian();
 
     if (array.find("shape") == array.cend()) {
-      LOG(FATAL) << "Missing shape field for array interface";
+      LOG(FATAL) << "Missing `shape' field for array interface";
     }
     if (array.find("data") == array.cend()) {
-      LOG(FATAL) << "Missing data field for array interface";
+      LOG(FATAL) << "Missing `data' field for array interface";
     }
   }
 
@@ -143,22 +143,29 @@ class ArrayInterfaceHandler {
 
       auto j_shape = get<Array const>(j_mask.at("shape"));
       CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
-      CHECK_EQ(get<Integer>(j_shape.front()) % 8, 0) <<
-          "Length of validity mask must be a multiple of 8 bytes.";
-      int64_t size = get<Integer>(j_shape.at(0)) *
-                     sizeof(unsigned char) / sizeof(RBitField8::value_type);
       auto typestr = get<String const>(j_mask.at("typestr"));
+      // For now this is just 1, we can support different size of interger in mask.
+      int64_t const type_length = typestr.at(2) - 48;
+      // shape represents how many bits is in the mask. (This is a grey area, don't be
+      // suprised if it suddently represents something else when supporting a new
+      // implementation).
+      int64_t const size = get<Integer>(j_shape.at(0)) * type_length /
+                           sizeof(RBitField8::value_type);
+
+      if (j_mask.find("strides") != j_mask.cend()) {
+        auto strides = get<Array const>(column.at("strides"));
+        CHECK_EQ(strides.size(),                        1) << ColumnarErrors::Dimension(1);
+        CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ColumnarErrors::Contigious();
+      }
 
       if (typestr.at(1) == 't') {
-        CHECK_EQ(typestr.at(2),   '1') << "There can be only 1 bit in each entry of bitfield.";
+        CHECK_EQ(typestr.at(2),   '1') << "mask with integer type should be of 1 byte per bitfield.";
       } else if (typestr.at(1) == 'i') {
         CHECK_EQ(typestr.at(2),   '1') << "mask with integer type should be of 1 byte per integer.";
       } else {
         LOG(FATAL) << "mask must be of integer type or bit field type.";
       }
 
-      // For now this is just 1
-      int64_t const type_length = typestr.at(2) - 48;
       s_mask = {p_mask, size / type_length};
     }
   }
@@ -178,8 +185,8 @@ class ArrayInterfaceHandler {
 
     if (column.find("strides") != column.cend()) {
       auto strides = get<Array const>(column.at("strides"));
-      CHECK_EQ(strides.size(), 1)              << ColumnarErrors::Dimension(1);
-      CHECK_EQ(get<Integer>(strides.at(0)), 4) << ColumnarErrors::Contigious();
+      CHECK_EQ(strides.size(),         1)              << ColumnarErrors::Dimension(1);
+      CHECK_EQ(get<Integer>(strides.at(0)), sizeof(T)) << ColumnarErrors::Contigious();
     }
 
     auto length = get<Integer const>(j_shape.at(0));

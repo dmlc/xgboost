@@ -69,3 +69,10 @@ Arrow specification.'''
 
         with pytest.raises(Exception):
             dtrain = xgb.DMatrix(cd, label=cd)
+
+        # Test when number of elements is less than 8
+        X = cudf.DataFrame({'x': cudf.Series([0, 1, 2, np.NAN, 4],
+                                             dtype=np.int32)})
+        dtrain = xgb.DMatrix(X)
+        assert dtrain.num_col() == 1
+        assert dtrain.num_row() == 5

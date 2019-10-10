@@ -216,7 +216,7 @@ struct RBitsPolicy : public BitFieldContainer<VT, RBitsPolicy<VT>> {
   }
 };
 
-// Format: <Direction>BitField<size of underlying type>, underlying type must be unsigned.
+// Format: <Direction>BitField<size of underlying type in bits>, underlying type must be unsigned.
 using LBitField64 = BitFieldContainer<uint64_t, LBitsPolicy<uint64_t>>;
 using RBitField8 = BitFieldContainer<unsigned char, RBitsPolicy<unsigned char>>;
 

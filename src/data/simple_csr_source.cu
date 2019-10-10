@@ -186,7 +186,8 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   // one copy seems easier.
   this->info.num_nonzero_ = tmp_offset.back();
 
-  int device = this->page_.offset.DeviceIdx();
+  // Device is obtained and set in `CountValid'
+  int32_t const device = this->page_.offset.DeviceIdx();
   this->page_.data.SetDevice(device);
   this->page_.data.Resize(this->info.num_nonzero_);
   auto s_data = this->page_.data.DeviceSpan();

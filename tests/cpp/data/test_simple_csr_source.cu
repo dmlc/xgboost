@@ -47,7 +47,7 @@ Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
   Json column { Object() };
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
-  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(4)))});
+  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(sizeof(T))))});
 
   d_data.resize(kRows);
   for (size_t i = 0; i < d_data.size(); ++i) {
@@ -64,6 +64,29 @@ Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
   column["version"] = Integer(static_cast<Integer::Int>(1));
   column["typestr"] = String(typestr);
   return column;
+}
+
+void TestDenseColumn(std::unique_ptr<data::SimpleCSRSource> const& source,
+                     size_t n_rows, size_t n_cols) {
+  auto const& data = source->page_.data.HostVector();
+  auto const& offset = source->page_.offset.HostVector();
+
+  for (size_t i = 0; i < n_rows; i++) {
+    auto const idx = i * n_cols;
+    auto const e_0 = data.at(idx);
+    ASSERT_NEAR(e_0.fvalue, i * 2.0, kRtEps) << "idx: " << idx;
+    ASSERT_EQ(e_0.index, 0);  // feature 0
+
+    auto e_1 = data.at(idx+1);
+    ASSERT_NEAR(e_1.fvalue, i * 2.0, kRtEps);
+    ASSERT_EQ(e_1.index, 1);  // feature 1
+  }
+  ASSERT_EQ(offset.back(), n_rows * n_cols);
+  for (size_t i = 0; i < n_rows + 1; ++i) {
+    ASSERT_EQ(offset[i], i * n_cols);
+  }
+  ASSERT_EQ(source->info.num_row_, n_rows);
+  ASSERT_EQ(source->info.num_col_, n_cols);
 }
 
 TEST(SimpleCSRSource, FromColumnarDense) {
@@ -85,25 +108,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
   {
     std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
     source->CopyFrom(str.c_str(), false);
-
-    auto const& data = source->page_.data.HostVector();
-    auto const& offset = source->page_.offset.HostVector();
-    for (size_t i = 0; i < kRows; i++) {
-      auto const idx = i * kCols;
-      auto const e_0 = data.at(idx);
-      ASSERT_NEAR(e_0.fvalue, i * 2.0, kRtEps) << "idx: " << idx;
-      ASSERT_EQ(e_0.index, 0);  // feature 0
-
-      auto e_1 = data.at(idx+1);
-      ASSERT_NEAR(e_1.fvalue, i * 2.0, kRtEps);
-      ASSERT_EQ(e_1.index, 1);  // feature 1
-    }
-    ASSERT_EQ(offset.back(), kRows * kCols);
-    for (size_t i = 0; i < kRows + 1; ++i) {
-      ASSERT_EQ(offset[i], i * kCols);
-    }
-    ASSERT_EQ(source->info.num_row_, kRows);
-    ASSERT_EQ(source->info.num_col_, kCols);
+    TestDenseColumn(source, kRows, kCols);
   }
 
   // with missing value specified
@@ -346,6 +351,28 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     ASSERT_EQ(data.size(), kRows * kCols - 1);
     ASSERT_EQ(data[8].fvalue, 4.0);
   }
+}
+
+TEST(SimpleCSRSource, Types) {
+  // Test with different types of different size
+  constexpr size_t kRows {16};
+  constexpr size_t kCols {2};
+  std::vector<Json> columns;
+  thrust::device_vector<double> d_data_0(kRows);
+  thrust::device_vector<uint32_t> d_data_1(kRows);
+
+  columns.emplace_back(GenerateDenseColumn<double>("<f8", kRows, &d_data_0));
+  columns.emplace_back(GenerateDenseColumn<uint32_t>("<u4", kRows, &d_data_1));
+
+  Json column_arr {columns};
+
+  std::stringstream ss;
+  Json::Dump(column_arr, &ss);
+  std::string str = ss.str();
+
+  std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
+  source->CopyFrom(str.c_str(), false);
+  TestDenseColumn(source, kRows, kCols);
 }
 
 }  // namespace xgboost
