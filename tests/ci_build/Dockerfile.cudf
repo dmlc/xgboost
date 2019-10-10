@@ -10,7 +10,8 @@ RUN \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
+    ln -s /opt/python/etc/profile.d/conda.sh /etc/profile.d/conda.sh
 
 ENV PATH=/opt/python/bin:$PATH
 
