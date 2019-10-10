@@ -7,15 +7,18 @@ import numpy as np
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
+pytestmark = pytest.mark.skipif(**tm.no_dask())
+
 try:
     from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix
 except ImportError:
+    client = None
+    loop = None
+    cluster_fixture = None
     pass
-
-pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 kRows = 1000
 
