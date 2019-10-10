@@ -344,6 +344,8 @@ class XGBModel(XGBModelBase):
         evals_result = {}
 
         if eval_set is not None:
+            if not isinstance(eval_set[0], (list, tuple)):
+                raise TypeError('Unexpected input type for `eval_set`')
             if sample_weight_eval_set is None:
                 sample_weight_eval_set = [None] * len(eval_set)
             evals = list(
