@@ -36,7 +36,8 @@ case "$suite" in
     ;;
 
   cudf)
-    pytest -v -s --fulltrace tests/python-gpu/test_from_columnar.py
+    source activate cudf_test
+    python -m pytest -v -s --fulltrace tests/python-gpu/test_from_columnar.py tests/python-gpu/test_gpu_with_dask.py
     ;;
 
   cpu)
