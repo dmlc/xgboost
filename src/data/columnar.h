@@ -159,9 +159,9 @@ class ArrayInterfaceHandler {
       }
 
       if (typestr.at(1) == 't') {
-        CHECK_EQ(typestr.at(2),   '1') << "mask with bitfield type should be of 1 byte per bitfield.";
+        CHECK_EQ(typestr.at(2), '1') << "mask with bitfield type should be of 1 byte per bitfield.";
       } else if (typestr.at(1) == 'i') {
-        CHECK_EQ(typestr.at(2),   '1') << "mask with integer type should be of 1 byte per integer.";
+        CHECK_EQ(typestr.at(2), '1') << "mask with integer type should be of 1 byte per integer.";
       } else {
         LOG(FATAL) << "mask must be of integer type or bit field type.";
       }
