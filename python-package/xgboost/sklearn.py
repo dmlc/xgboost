@@ -98,6 +98,10 @@ class XGBModel(XGBModelBase):
         The initial prediction score of all instances, global bias.
     random_state : int
         Random number seed.
+
+        .. note:: Using gblinear booster with shotgun updater is
+        nondeterministic as it uses Hogwild algorithm.
+
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
@@ -132,6 +136,7 @@ class XGBModel(XGBModelBase):
         The value of the gradient for each sample point.
     hess: array_like of shape [n_samples]
         The value of the second derivative for each sample point
+
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
@@ -952,6 +957,10 @@ class XGBRanker(XGBModel):
             The initial prediction score of all instances, global bias.
         random_state : int
             Random number seed.
+
+            .. note:: Using gblinear booster with shotgun updater is
+            nondeterministic as it uses Hogwild algorithm.
+
         missing : float, optional
             Value in the data which needs to be present as a missing value. If
             None, defaults to np.nan.
@@ -1000,7 +1009,8 @@ class XGBRanker(XGBModel):
         +-------+-----------+---------------+
 
         then your group array should be ``[3, 4]``.
-        """
+
+    """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  verbosity=1, objective="rank:pairwise", booster='gbtree',
