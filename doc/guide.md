@@ -154,6 +154,8 @@ you can also refer to [wormhole](https://github.com/dmlc/wormhole/blob/master/le
 int main(int argc, char *argv[]) {
   ...
   rabit::Init(argc, argv);
+  // sync on expected model size before load checkpoint, if we pass rabit_bootstrap_cache=true
+  rabit::Allreduce<rabit::op::Max>(&model.size(), 1);
   // load the latest checked model
   int version = rabit::LoadCheckPoint(&model);
   // initialize the model if it is the first version
@@ -370,3 +372,12 @@ Allreduce/Broadcast calls after the checkpoint from some alive nodes.
 
 This is just a conceptual introduction to rabit's fault tolerance model. The actual implementation is more sophisticated,
 and can deal with more complicated cases such as multiple nodes failure and node failure during recovery phase.
+
+Rabit Timeout
+---------------
+
+In certain cases, rabit cluster may suffer lack of resources to retry failed workers.
+Thanks to fault tolerant assumption with infinite retry, it might cause entire cluster hang infinitely.
+We introduce sidecar thread which runs when rabit fault tolerant runtime observed allreduce/broadcast errors.
+By default, it will wait for 30 mins before all workers program exit. 
+User can opt-in this feature and change treshold by passing rabit_timeout=true and rabit_timeout_sec=x (in seconds).

@@ -496,7 +496,7 @@ class AllreduceBase : public IEngine {
   // version number of model
   int version_number;
   // whether the job is running in hadoop
-  int hadoop_mode;
+  bool hadoop_mode;
   //---- local data related to link ----
   // index of parent link, can be -1, meaning this is root of the tree
   int parent_index;
@@ -543,9 +543,13 @@ class AllreduceBase : public IEngine {
   // backdoor port
   int port = 0;
   // enable bootstrap cache 0 false 1 true
-  int rabit_bootstrap_cache = 0;
+  bool rabit_bootstrap_cache = false;
   // enable detailed logging
-  int rabit_debug = 0;
+  bool rabit_debug = false;
+  // by default, if rabit worker not recover in half an hour exit
+  int timeout_sec = 1800;
+  // flag to enable rabit_timeout
+  bool rabit_timeout = false;
 };
 }  // namespace engine
 }  // namespace rabit

@@ -20,11 +20,16 @@ if(R_LIB OR MINGW OR WIN32)
           CXX_STANDARD_REQUIRED ON
           POSITION_INDEPENDENT_CODE ON)
 else()
-  add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
-  add_library(rabit_base src/allreduce_base.cc src/engine_base.cc src/c_api.cc)
+  find_package(Threads REQUIRED)
   add_library(rabit_empty src/engine_empty.cc src/c_api.cc)
+  add_library(rabit_base src/allreduce_base.cc src/engine_base.cc src/c_api.cc)
+
+  add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
   add_library(rabit_mock_static src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
   add_library(rabit_mock SHARED src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
+  target_link_libraries(rabit Threads::Threads)
+  target_link_libraries(rabit_mock_static Threads::Threads)
+  target_link_libraries(rabit_mock Threads::Threads)
 
   set(rabit_libs rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
   set_target_properties(rabit rabit_base rabit_empty rabit_mock rabit_mock_static

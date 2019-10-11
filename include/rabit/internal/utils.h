@@ -7,6 +7,7 @@
 #ifndef RABIT_INTERNAL_UTILS_H_
 #define RABIT_INTERNAL_UTILS_H_
 #define _CRT_SECURE_NO_WARNINGS
+#include <string.h>
 #include <cstdio>
 #include <string>
 #include <cstdlib>
@@ -66,6 +67,11 @@ const int kPrintBuffer = 1 << 12;
  * co-locate in the same process */
 extern bool STOP_PROCESS_ON_ERROR;
 
+/* \brief parse config string too bool*/
+inline bool StringToBool(const char* s) {
+  return strcasecmp(s, "true") == 0 || atoi(s) != 0;
+}
+
 #ifndef RABIT_CUSTOMIZE_MSG_
 /*!
  * \brief handling of Assert error, caused by inappropriate input
@@ -86,7 +92,7 @@ inline void HandleAssertError(const char *msg) {
  */
 inline void HandleCheckError(const char *msg) {
   if (STOP_PROCESS_ON_ERROR) {
-    fprintf(stderr, "%s, shutting down process", msg);
+    fprintf(stderr, "%s, shutting down process\n", msg);
     exit(-1);
   } else {
     fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);

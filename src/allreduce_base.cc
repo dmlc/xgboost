@@ -73,7 +73,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
     if (task_id == NULL) {
       task_id = getenv("mapreduce_task_id");
     }
-    if (hadoop_mode != 0) {
+    if (hadoop_mode) {
       utils::Check(task_id != NULL,
                    "hadoop_mode is set but cannot find mapred_task_id");
     }
@@ -94,7 +94,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
     if (num_task == NULL) {
       num_task = getenv("mapreduce_job_maps");
     }
-    if (hadoop_mode != 0) {
+    if (hadoop_mode) {
       utils::Check(num_task != NULL,
                    "hadoop_mode is set but cannot find mapred_map_tasks");
     }
@@ -188,7 +188,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "DMLC_TASK_ID")) task_id = val;
   if (!strcmp(name, "DMLC_ROLE")) dmlc_role = val;
   if (!strcmp(name, "rabit_world_size")) world_size = atoi(val);
-  if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = atoi(val);
+  if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = utils::StringToBool(val);
   if (!strcmp(name, "rabit_reduce_ring_mincount")) {
     reduce_ring_mincount = atoi(val);
     utils::Assert(reduce_ring_mincount > 0, "rabit_reduce_ring_mincount should be greater than 0");
@@ -209,10 +209,17 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     }
   }
   if (!strcmp(name, "rabit_bootstrap_cache")) {
-    rabit_bootstrap_cache = atoi(val);
+    rabit_bootstrap_cache = utils::StringToBool(val);
   }
   if (!strcmp(name, "rabit_debug")) {
-    rabit_debug = atoi(val);
+    rabit_debug = utils::StringToBool(val);
+  }
+  if (!strcmp(name, "rabit_timeout")) {
+    rabit_timeout = utils::StringToBool(val);
+  }
+  if (!strcmp(name, "rabit_timeout_sec")) {
+    timeout_sec = atoi(val);
+    utils::Assert(rabit_timeout > 0, "rabit_timeout_sec should be greater than 0 second");
   }
 }
 /*!

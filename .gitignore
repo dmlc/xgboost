@@ -47,3 +47,6 @@ mpich-3.2/
 cmake-build-debug/
 .vscode/
 
+# cmake
+build/
+

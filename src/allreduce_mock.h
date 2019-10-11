@@ -176,7 +176,7 @@ class AllreduceMock : public AllreduceRobust {
     if (mock_map.count(key) != 0) {
       num_trial += 1;
       // data processing frameworks runs on shared process
-      utils::Error("[%d]@@@Hit Mock Error:%s\n", rank, name);
+      _error("[%d]@@@Hit Mock Error:%s ", rank, name);
     }
   }
 };
