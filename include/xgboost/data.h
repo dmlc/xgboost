@@ -207,14 +207,17 @@ class SparsePage {
   SparsePage() {
     this->Clear();
   }
-  /*! \return number of instance in the page */
+
+  /*! \return Number of instances in the page. */
   inline size_t Size() const {
     return offset.Size() - 1;
   }
+
   /*! \return estimation of memory cost of this page */
   inline size_t MemCostBytes() const {
     return offset.Size() * sizeof(size_t) + data.Size() * sizeof(Entry);
   }
+
   /*! \brief clear the page */
   inline void Clear() {
     base_rowid = 0;
@@ -224,6 +227,7 @@ class SparsePage {
     data.HostVector().clear();
   }
 
+  /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) {
     base_rowid = row_id;
   }
@@ -281,12 +285,29 @@ class EllpackPageImpl;
  */
 class EllpackPage {
  public:
+  /*!
+   * \brief Default constructor.
+   *
+   * This is used in the external memory case. An empty ELLPACK page is constructed with its content
+   * set later by the reader.
+   */
   EllpackPage();
+
+  /*!
+   * \brief Constructor from an existing DMatrix.
+   *
+   * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
+   * in CSR format.
+   */
   explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
+
+  /*! \brief Destructor. */
   ~EllpackPage();
 
-  /*! \return number of instance in the page */
+  /*! \return Number of instances in the page. */
   size_t Size() const;
+
+  /*! \brief Set the base row id for this page. */
   void SetBaseRowId(size_t row_id);
 
   const EllpackPageImpl* Impl() const { return impl_.get(); }
@@ -408,10 +429,12 @@ class DMatrix {
    * \return The created DMatrix.
    */
   virtual void SaveToLocalFile(const std::string& fname);
-  /*! \brief whether the matrix is dense */
+
+  /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
     return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
   }
+
   /*!
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.

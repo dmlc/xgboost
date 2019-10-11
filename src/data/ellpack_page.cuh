@@ -42,20 +42,30 @@ __forceinline__ __device__ int BinarySearchRow(
 
 /** \brief Meta information about the ELLPACK matrix. */
 struct EllpackInfo {
-  /*! \brief whether or not if the matrix is dense. */
+  /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief row length for ELLPack, equal to number of features. */
+  /*! \brief Row length for ELLPack, equal to number of features. */
   size_t row_stride;
-  /*! \brief total number of bins, also used as the null index value, . */
+  /*! \brief Total number of bins, also used as the null index value, . */
   size_t n_bins;
-  /*! \brief minimum value for each feature. Size equals to number of features. */
+  /*! \brief Minimum value for each feature. Size equals to number of features. */
   common::Span<bst_float> min_fvalue;
-  /*! \brief histogram cut pointers. Size equals to (number of features + 1). */
+  /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
   common::Span<uint32_t> feature_segments;
-  /*! \brief histogram cut values. Size equals to (bins per feature * number of features). */
+  /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
   common::Span<bst_float> gidx_fvalue_map;
 
   EllpackInfo() = default;
+
+  /*!
+   * \brief Constructor.
+   *
+   * @param device The GPU device to use.
+   * @param is_dense Whether the matrix is dense.
+   * @param row_stride The number of features between starts of consecutive rows.
+   * @param hmat The histogram cuts of all the features.
+   * @param ba The BulkAllocator that owns the GPU memory.
+   */
   explicit EllpackInfo(int device,
                        bool is_dense,
                        size_t row_stride,
@@ -177,35 +187,80 @@ class EllpackPageImpl {
   std::vector<common::CompressedByteT> idx_buffer;
   size_t n_rows{};
 
+  /*!
+   * \brief Default constructor.
+   *
+   * This is used in the external memory case. An empty ELLPACK page is constructed with its content
+   * set later by the reader.
+   */
   EllpackPageImpl() = default;
+
+  /*!
+   * \brief Constructor from an existing DMatrix.
+   *
+   * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
+   * in CSR format.
+   */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
+  /*!
+   * \brief Initialize the EllpackInfo contained in the EllpackMatrix.
+   *
+   * This is used in the in-memory case. The current page owns the BulkAllocator, which in turn owns
+   * the GPU memory used by the EllpackInfo.
+   *
+   * @param device The GPU device to use.
+   * @param is_dense Whether the matrix is dense.
+   * @param row_stride The number of features between starts of consecutive rows.
+   * @param hmat The histogram cuts of all the features.
+   */
   void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
+
+  /*!
+   * \brief Initialize the buffer to store compressed features.
+   *
+   * @param device The GPU device to use.
+   * @param num_rows The number of rows we are storing in the buffer.
+   */
   void InitCompressedData(int device, size_t num_rows);
+
+  /*!
+   * \brief Compress a single page of CSR data into ELLPACK.
+   *
+   * @param device The GPU device to use.
+   * @param row_batch The CSR page.
+   * @param device_row_state On-device data for maintaining state.
+   */
   void CreateHistIndices(int device,
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
 
+  /*! \return Number of instances in the page. */
   size_t Size() const;
 
+  /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) {
     base_rowid_ = row_id;
   }
 
-  /*! \brief clear the page
-   */
+  /*! \brief clear the page. */
   void Clear();
 
   /*!
-   * \brief Push a sparse page
-   * \param batch the row page
+   * \brief Push a sparse page.
+   * \param batch The row page.
    */
   void Push(int device, const SparsePage& batch);
 
-  /*! \return estimation of memory cost of this page
-   */
+  /*! \return Estimation of memory cost of this page. */
   size_t MemCostBytes() const;
 
+  /*!
+   * \brief Copy the ELLPACK matrix to GPU.
+   *
+   * @param device The GPU device to use.
+   * @param info The EllpackInfo for the matrix.
+   */
   void InitDevice(int device, EllpackInfo info);
 
  private:

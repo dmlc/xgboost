@@ -65,6 +65,7 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
+// Construct an ELLPACK matrix in memory.
 EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
@@ -76,9 +77,9 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
       common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
 
-  monitor_.StartCuda("InitInfo");
+  monitor_.StartCuda("InitEllpackInfo");
   InitInfo(param.gpu_id, dmat->IsDense(), row_stride, hmat);
-  monitor_.StopCuda("InitInfo");
+  monitor_.StopCuda("InitEllpackInfo");
 
   monitor_.StartCuda("InitCompressedData");
   InitCompressedData(param.gpu_id, dmat->Info().num_row_);
@@ -94,6 +95,7 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("BinningCompression");
 }
 
+// Construct an EllpackInfo based on histogram cuts of features.
 EllpackInfo::EllpackInfo(int device,
                          bool is_dense,
                          size_t row_stride,
@@ -110,6 +112,7 @@ EllpackInfo::EllpackInfo(int device,
   dh::CopyVectorToDeviceSpan(feature_segments, hmat.Ptrs());
 }
 
+// Initialize the EllpackInfo for this page.
 void EllpackPageImpl::InitInfo(int device,
                                bool is_dense,
                                size_t row_stride,
@@ -117,6 +120,7 @@ void EllpackPageImpl::InitInfo(int device,
   matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba_);
 }
 
+// Initialize the buffer to stored compressed features.
 void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
   int num_symbols = matrix.info.n_bins + 1;
 
@@ -132,6 +136,7 @@ void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
   matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
 
+// Compress a CSR page into ELLPACK.
 void EllpackPageImpl::CreateHistIndices(int device,
                                         const SparsePage& row_batch,
                                         const RowStateOnDevice& device_row_state) {
@@ -199,10 +204,12 @@ void EllpackPageImpl::CreateHistIndices(int device,
   }
 }
 
+// Return the number of rows contained in this page.
 size_t EllpackPageImpl::Size() const {
   return n_rows;
 }
 
+// Clear the current page.
 void EllpackPageImpl::Clear() {
   ba_.Clear();
   gidx_buffer = {};
@@ -210,6 +217,10 @@ void EllpackPageImpl::Clear() {
   n_rows = 0;
 }
 
+// Push a CSR page to the current page.
+//
+// First compress the CSR page into ELLPACK, then the compressed buffer is copied to host and
+// appended to the existing host vector.
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   monitor_.StartCuda("InitCompressedData");
   InitCompressedData(device, batch.Size());
@@ -238,10 +249,12 @@ void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   n_rows += batch.Size();
 }
 
+// Return the memory cost for storing the compressed features.
 size_t EllpackPageImpl::MemCostBytes() const {
   return idx_buffer.size() * sizeof(common::CompressedByteT);
 }
 
+// Copy the compressed features to GPU.
 void EllpackPageImpl::InitDevice(int device, EllpackInfo info) {
   if (device_initialized_) return;
 

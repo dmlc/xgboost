@@ -521,13 +521,18 @@ class BulkAllocator {
   }
 
  public:
-   BulkAllocator() = default;
+  BulkAllocator() = default;
   // prevent accidental copying, moving or assignment of this object
   BulkAllocator(const BulkAllocator&) = delete;
   BulkAllocator(BulkAllocator&&) = delete;
   void operator=(const BulkAllocator&) = delete;
   void operator=(BulkAllocator&&) = delete;
 
+  /*!
+   * \brief Clear the bulk allocator.
+   *
+   * This frees the GPU memory managed by this allocator.
+   */
   void Clear() {
     for (size_t i = 0; i < d_ptr_.size(); i++) { // NOLINT(modernize-loop-convert)
       if (d_ptr_[i] != nullptr) {

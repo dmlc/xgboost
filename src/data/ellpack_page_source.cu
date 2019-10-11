@@ -33,13 +33,16 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   const EllpackPage& Value() const override;
 
  private:
+  /*! \brief Write Ellpack pages after accumulating them in memory. */
   void WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const;
 
+  /*! \brief The page type string for ELLPACK. */
   const std::string kPageType_{".ellpack.page"};
 
   int device_{-1};
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
+  /*! \brief The EllpackInfo, with the underlying GPU memory shared by all pages. */
   EllpackInfo ellpack_info_;
   std::unique_ptr<SparsePageSource<EllpackPage>> source_;
 };
@@ -90,6 +93,8 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   }
 };
 
+// Build the quantile sketch across the whole input data, then use the histogram cuts to compress
+// each CSR page, and write the accumulated ELLPACK pages to disk.
 EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
                                              const std::string& cache_info,
                                              const BatchParam& param) noexcept(false) {
@@ -104,9 +109,9 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
       common::DeviceSketch(device_, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
 
-  monitor_.StartCuda("CreateInfo");
+  monitor_.StartCuda("CreateEllpackInfo");
   ellpack_info_ = EllpackInfo(device_, dmat->IsDense(), row_stride, hmat, ba_);
-  monitor_.StopCuda("CreateInfo");
+  monitor_.StopCuda("CreateEllpackInfo");
 
   monitor_.StartCuda("WriteEllpackPages");
   WriteEllpackPages(dmat, cache_info);
@@ -135,6 +140,7 @@ const EllpackPage& EllpackPageSourceImpl::Value() const {
   return page;
 }
 
+// Compress each CSR page to ELLPACK, and write the accumulated pages to disk.
 void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const {
   auto cinfo = ParseCacheInfo(cache_info, kPageType_);
   SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
