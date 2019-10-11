@@ -16,30 +16,38 @@ namespace xgboost {
 TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
   constexpr float kSparsity = 0;
-  auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
-  auto& page = *dmat->GetBatches<EllpackPage>().begin();
-  auto impl = page.Impl();
-  impl->Init(0, kMaxBin, kGpuBatchNRows);
-  ASSERT_EQ(impl->ellpack_matrix.feature_segments.size(), 1);
-  ASSERT_EQ(impl->ellpack_matrix.min_fvalue.size(), 0);
-  ASSERT_EQ(impl->ellpack_matrix.gidx_fvalue_map.size(), 0);
-  ASSERT_EQ(impl->ellpack_matrix.row_stride, 0);
-  ASSERT_EQ(impl->ellpack_matrix.null_gidx_value, 0);
-  ASSERT_EQ(impl->n_bins, 0);
-  ASSERT_EQ(impl->gidx_buffer.size(), 4);
+
+  auto check = [&](bool on_device) {
+    auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
+    if (on_device) {
+      for (const auto& page : dmat->GetBatches<SparsePage>()) {
+        page.data.SetDevice(0);
+        page.data.DeviceSpan();
+        page.offset.SetDevice(0);
+        page.offset.DeviceSpan();
+        ASSERT_TRUE(page.data.DeviceCanRead());
+      }
+    }
+
+    auto& page = *dmat->GetBatches<EllpackPage>().begin();
+    auto impl = page.Impl();
+    impl->Init(0, kMaxBin, kGpuBatchNRows);
+    ASSERT_EQ(impl->ellpack_matrix.feature_segments.size(), 1);
+    ASSERT_EQ(impl->ellpack_matrix.min_fvalue.size(), 0);
+    ASSERT_EQ(impl->ellpack_matrix.gidx_fvalue_map.size(), 0);
+    ASSERT_EQ(impl->ellpack_matrix.row_stride, 0);
+    ASSERT_EQ(impl->ellpack_matrix.null_gidx_value, 0);
+    ASSERT_EQ(impl->n_bins, 0);
+    ASSERT_EQ(impl->gidx_buffer.size(), 4);
+  };
+
+  check(false);
+  check(true);
 }
 
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
-
-  ASSERT_EQ(page->ellpack_matrix.row_stride, kNCols);
-
-  std::vector<uint32_t> solution = {
+  std::vector<uint32_t> const solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
     0, 4, 7, 10, 14, 16, 19, 22,
     1, 3, 7, 11, 14, 15, 19, 21,
@@ -57,29 +65,58 @@ TEST(EllpackPage, BuildGidxDense) {
     2, 4, 8, 10, 14, 15, 19, 22,
     1, 4, 7, 10, 14, 16, 19, 21,
   };
-  for (size_t i = 0; i < kNRows * kNCols; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+
+  auto check = [&](std::unique_ptr<EllpackPageImpl> const& page) {
+    std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
+    common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+
+    ASSERT_EQ(page->ellpack_matrix.row_stride, kNCols);
+
+    for (size_t i = 0; i < kNRows * kNCols; ++i) {
+      ASSERT_EQ(solution[i], gidx[i]);
+    }
+  };
+
+  {
+    auto page = BuildEllpackPage(kNRows, kNCols, 0, false);
+    check(page);
+  }
+  {
+    auto page = BuildEllpackPage(kNRows, kNCols, 0, true);
+    check(page);
   }
 }
 
 TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
-
-  ASSERT_LE(page->ellpack_matrix.row_stride, 3);
 
   // row_stride = 3, 16 rows, 48 entries for ELLPack
-  std::vector<uint32_t> solution = {
+  std::vector<uint32_t> const solution = {
     15, 24, 24,  0, 24, 24, 24, 24, 24, 24, 24, 24, 20, 24, 24, 24,
     24, 24, 24, 24, 24,  5, 24, 24,  0, 16, 24, 15, 24, 24, 24, 24,
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
-  for (size_t i = 0; i < kNRows * page->ellpack_matrix.row_stride; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+
+  auto check = [&](std::unique_ptr<EllpackPageImpl> const& page) {
+    std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
+    dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
+    common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+
+    ASSERT_LE(page->ellpack_matrix.row_stride, 3);
+
+    for (size_t i = 0; i < kNRows * page->ellpack_matrix.row_stride; ++i) {
+      ASSERT_EQ(solution[i], gidx[i]);
+    }
+  };
+
+  {
+    auto page = BuildEllpackPage(kNRows, kNCols, 0.9f, false);
+    check(page);
+  }
+  {
+    auto page = BuildEllpackPage(kNRows, kNCols, 0.9f, true);
+    check(page);
   }
 }
 

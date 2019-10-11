@@ -23,8 +23,8 @@ template<typename std::enable_if<true,  int>::type = 0>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
-    const size_t* __restrict__ row_ptrs,           // row offset of input data
-    const Entry* __restrict__ entries,      // One batch of input data
+    common::Span<const size_t> row_ptrs,           // row offset of input data
+    common::Span<const Entry>   entries,           // One batch of input data
     const float* __restrict__ cuts,         // HistogramCuts::cut
     const uint32_t* __restrict__ cut_rows,  // HistogramCuts::row_ptrs
     size_t base_row,                        // batch_row_begin
@@ -136,17 +136,16 @@ void EllpackPageImpl::CreateHistIndices(int device,
   unsigned int null_gidx_value = n_bins;
   size_t row_stride = this->ellpack_matrix.row_stride;
 
-  const auto &offset_vec = row_batch.offset.ConstHostVector();
-
   int num_symbols = n_bins + 1;
   // bin and compress entries in batches of rows
   size_t gpu_batch_nrows = std::min(
       dh::TotalMemory(device) / (16 * row_stride * sizeof(Entry)),
       static_cast<size_t>(device_row_state.rows_to_process_from_batch));
-  const std::vector<Entry>& data_vec = row_batch.data.ConstHostVector();
 
   size_t gpu_nbatches = common::DivRoundUp(device_row_state.rows_to_process_from_batch,
                                            gpu_batch_nrows);
+  bool const data_on_device =
+      row_batch.offset.DeviceCanRead() && row_batch.data.DeviceCanRead();
 
   for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
     size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
@@ -156,35 +155,74 @@ void EllpackPageImpl::CreateHistIndices(int device,
     }
     size_t batch_nrows = batch_row_end - batch_row_begin;
 
-    const auto ent_cnt_begin =
-        offset_vec[device_row_state.row_offset_in_current_batch + batch_row_begin];
-    const auto ent_cnt_end =
-        offset_vec[device_row_state.row_offset_in_current_batch + batch_row_end];
-
-    /*! \brief row offset in SparsePage (the input data). */
-    dh::device_vector<size_t> row_ptrs(batch_nrows+1);
-    thrust::copy(
-        offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
-        offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
-        row_ptrs.begin());
-
-    // number of entries in this batch.
-    size_t n_entries = ent_cnt_end - ent_cnt_begin;
-    dh::device_vector<Entry> entries_d(n_entries);
-    // copy data entries to device.
-    dh::safe_cuda(cudaMemcpy(entries_d.data().get(),
-                             data_vec.data() + ent_cnt_begin,
-                             n_entries * sizeof(Entry),
-                             cudaMemcpyDefault));
     const dim3 block3(32, 8, 1);  // 256 threads
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                      common::DivRoundUp(row_stride, block3.y),
                      1);
+
+    common::Span<size_t> s_row_ptrs;
+    common::Span<Entry> s_entries;
+
+    if (!data_on_device) {
+      auto const& offset_vec = row_batch.offset.ConstHostVector();
+      auto const& data_vec = row_batch.data.ConstHostVector();
+
+      const auto ent_cnt_begin =
+          offset_vec[device_row_state.row_offset_in_current_batch + batch_row_begin];
+      const auto ent_cnt_end =
+          offset_vec[device_row_state.row_offset_in_current_batch + batch_row_end];
+
+      /*! \brief row offset in SparsePage (the input data). */
+      dh::device_vector<size_t> row_ptrs(batch_nrows+1);
+      thrust::copy(
+          offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_begin,
+          offset_vec.data() + device_row_state.row_offset_in_current_batch + batch_row_end + 1,
+          row_ptrs.begin());
+
+      // number of entries in this batch.
+      size_t n_entries = ent_cnt_end - ent_cnt_begin;
+      dh::device_vector<Entry> entries_d(n_entries);
+      // copy data entries to device.
+      dh::safe_cuda(cudaMemcpy(entries_d.data().get(),
+                               data_vec.data() + ent_cnt_begin,
+                               n_entries * sizeof(Entry),
+                               cudaMemcpyDefault));
+      s_row_ptrs = dh::ToSpan(row_ptrs);
+      s_entries = dh::ToSpan(entries_d);
+    } else {
+      auto const& s_offset = row_batch.offset.ConstDeviceSpan();
+      auto const& s_data = row_batch.data.ConstDeviceSpan();
+      // allocate two spans on device
+      dh::caching_device_vector<common::Span<size_t const>> d_row_ptrs (1);
+      dh::caching_device_vector<common::Span<Entry const>> d_entries (1);
+      auto* p_row_ptrs_span = d_row_ptrs.data().get();
+      auto* p_entries_span = d_entries.data().get();
+
+      dh::LaunchN(device, 1, [=] __device__(size_t idx) {
+          const auto ent_cnt_begin =
+              s_offset[device_row_state.row_offset_in_current_batch + batch_row_begin];
+          const auto ent_cnt_end =
+              s_offset[device_row_state.row_offset_in_current_batch + batch_row_end];
+          common::Span<size_t const> row_ptrs { s_offset.subspan(ent_cnt_begin, batch_nrows + 1) };
+
+          size_t n_entries = ent_cnt_end - ent_cnt_begin;
+          common::Span<Entry const> entries_d { s_data.subspan(ent_cnt_begin, n_entries) };
+
+          *p_row_ptrs_span = row_ptrs;
+          *p_entries_span = entries_d;
+        });
+
+      dh::safe_cuda(cudaMemcpy(&s_row_ptrs, p_row_ptrs_span,
+                               sizeof(s_row_ptrs), cudaMemcpyDeviceToHost));
+      dh::safe_cuda(cudaMemcpy(&s_entries, p_entries_span,
+                               sizeof(s_entries), cudaMemcpyDeviceToHost));
+    }
+
     CompressBinEllpackKernel<<<grid3, block3>>>(
         common::CompressedBufferWriter(num_symbols),
         gidx_buffer.data(),
-        row_ptrs.data().get(),
-        entries_d.data().get(),
+        s_row_ptrs,
+        s_entries,
         gidx_fvalue_map.data(),
         feature_segments.data(),
         device_row_state.total_rows_processed + batch_row_begin,
