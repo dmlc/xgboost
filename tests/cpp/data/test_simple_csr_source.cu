@@ -38,6 +38,15 @@ TEST(ArrayInterfaceHandler, Error) {
             Json(Boolean(false))};
   column["data"] = j_data;
   EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj));
+
+  std::vector<Json> j_mask_shape {Json(Integer(static_cast<Integer::Int>(kRows - 1)))};
+  column["mask"] = Object();
+  column["mask"]["shape"] = j_mask_shape;
+  column["mask"]["data"] = j_data;
+  column["mask"]["typestr"] = String("<i1");
+  column["mask"]["version"] = Integer(static_cast<Integer::Int>(1));
+  // shape of mask and data doesn't match.
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
 }
 
 template <typename T>

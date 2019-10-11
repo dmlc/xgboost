@@ -220,7 +220,9 @@ class ArrayInterfaceHandler {
     foreign_col.valid = RBitField8(s_mask);
 
     if (s_mask.data()) {
-      CHECK_EQ(n_bits, foreign_col.data.size());
+      CHECK_EQ(n_bits, foreign_col.data.size())
+          << "Shape of bit mask doesn't match data shape. "
+          << "XGBoost doesn't support internal broadcasting.";
     }
 
     return foreign_col;
