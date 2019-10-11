@@ -150,9 +150,9 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
 
   std::vector<Json> v_columns (kCols);
   std::vector<dh::device_vector<float>> columns_data(kCols);
-  std::vector<dh::device_vector<unsigned char>> column_bitfields(kCols);
+  std::vector<dh::device_vector<RBitField8::value_type>> column_bitfields(kCols);
 
-  unsigned char constexpr kUCOne = 1;
+  RBitField8::value_type constexpr kUCOne = 1;
 
   for (size_t i = 0; i < kCols; ++i) {
     auto& col = v_columns[i];
@@ -198,7 +198,7 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
     j_mask["data"] = std::vector<Json>{
       Json(Integer(reinterpret_cast<Integer::Int>(mask_storage.data().get()))),
       Json(Boolean(false))};
-    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(16)))});
+    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(kRows)))});
     j_mask["typestr"] = String("|i1");
   }
 
@@ -225,10 +225,10 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
 TEST(SimpleCSRSource, FromColumnarSparse) {
   constexpr size_t kRows = 32;
   constexpr size_t kCols = 2;
-  unsigned char constexpr kUCOne = 1;
+  RBitField8::value_type constexpr kUCOne = 1;
 
   std::vector<dh::device_vector<float>> columns_data(kCols);
-  std::vector<dh::device_vector<unsigned char>> column_bitfields(kCols);
+  std::vector<dh::device_vector<RBitField8::value_type>> column_bitfields(kCols);
 
   {
     // column 0
@@ -283,7 +283,7 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     j_mask["data"] = std::vector<Json>{
       Json(Integer(reinterpret_cast<Integer::Int>(column_bitfields[c].data().get()))),
       Json(Boolean(false))};
-    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(8)))});
+    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(kRows)))});
     j_mask["typestr"] = String("|i1");
   }
 

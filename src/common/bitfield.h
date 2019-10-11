@@ -19,6 +19,7 @@
 #endif  // defined(__CUDACC__)
 
 #include "xgboost/span.h"
+#include "common.h"
 
 namespace xgboost {
 
@@ -84,17 +85,11 @@ struct BitFieldContainer {
   XGBOOST_DEVICE BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
   XGBOOST_DEVICE BitFieldContainer(BitFieldContainer const& other) : bits_{other.bits_} {}
 
+  /*\brief Compute the size of needed memory allocation.  The returned value is in terms
+   *       of number of elements with `BitFieldContainer::value_type'.
+   */
   static size_t ComputeStorageSize(size_t size) {
-    auto pos = ToBitPos(size);
-    if (size < kValueSize) {
-      return 1;
-    }
-
-    if (pos.bit_pos != 0) {
-      return pos.int_pos + 2;
-    } else {
-      return pos.int_pos + 1;
-    }
+    return common::DivRoundUp(size, kValueSize);
   }
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
@@ -218,7 +213,7 @@ struct RBitsPolicy : public BitFieldContainer<VT, RBitsPolicy<VT>> {
 
 // Format: <Direction>BitField<size of underlying type in bits>, underlying type must be unsigned.
 using LBitField64 = BitFieldContainer<uint64_t, LBitsPolicy<uint64_t>>;
-using RBitField8 = BitFieldContainer<unsigned char, RBitsPolicy<unsigned char>>;
+using RBitField8 = BitFieldContainer<uint8_t, RBitsPolicy<unsigned char>>;
 
 #if defined(__CUDACC__)
 

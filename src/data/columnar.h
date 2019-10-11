@@ -35,7 +35,7 @@ struct ColumnarErrors {
     return "Memory should be contigious.";
   }
   static char const* TypestrFormat() {
-    return "`typestr' should be of format <endian><type><size of type>.";
+    return "`typestr' should be of format <endian><type><size of type in bytes>.";
   }
   // Not supported in Apache Arrow.
   static char const* BigEndian() {
@@ -132,8 +132,8 @@ class ArrayInterfaceHandler {
 
   // Find null mask (validity mask) field
   // Mask object is also an array interface, but with different requirements.
-  static void ExtractMask(std::map<std::string, Json> const& column,
-                             common::Span<RBitField8::value_type>* p_out) {
+  static size_t ExtractMask(std::map<std::string, Json> const &column,
+                            common::Span<RBitField8::value_type> *p_out) {
     auto& s_mask = *p_out;
     if (column.find("mask") != column.cend()) {
       auto const& j_mask = get<Object const>(column.at("mask"));
@@ -146,11 +146,20 @@ class ArrayInterfaceHandler {
       auto typestr = get<String const>(j_mask.at("typestr"));
       // For now this is just 1, we can support different size of interger in mask.
       int64_t const type_length = typestr.at(2) - 48;
-      // shape represents how many bits is in the mask. (This is a grey area, don't be
-      // suprised if it suddently represents something else when supporting a new
-      // implementation).
-      int64_t const size = get<Integer>(j_shape.at(0)) * type_length /
-                           sizeof(RBitField8::value_type);
+      /*
+       * shape represents how many bits is in the mask. (This is a grey area, don't be
+       * suprised if it suddently represents something else when supporting a new
+       * implementation).  Quoting from numpy array interface:
+       *
+       *   The shape of this object should be "broadcastable" to the shape of the original
+       *   array.
+       *
+       * And that's the only requirement.
+       */
+      int64_t const n_bits = get<Integer>(j_shape.at(0));
+      // The size of span required to cover all bits.  Here with 8 bits bitfield, we
+      // assume 1 byte alignment.
+      int64_t const span_size = RBitField8::ComputeStorageSize(n_bits);
 
       if (j_mask.find("strides") != j_mask.cend()) {
         auto strides = get<Array const>(column.at("strides"));
@@ -166,8 +175,10 @@ class ArrayInterfaceHandler {
         LOG(FATAL) << "mask must be of integer type or bit field type.";
       }
 
-      s_mask = {p_mask, size / type_length};
+      s_mask = {p_mask, span_size};
+      return n_bits;
     }
+    return 0;
   }
 
   template <typename T>
@@ -204,9 +215,13 @@ class ArrayInterfaceHandler {
     foreign_col.size  = s_data.size();
 
     common::Span<RBitField8::value_type> s_mask;
-    ArrayInterfaceHandler::ExtractMask(column, &s_mask);
+    size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
 
     foreign_col.valid = RBitField8(s_mask);
+
+    if (s_mask.data()) {
+      CHECK_EQ(n_bits, foreign_col.data.size());
+    }
 
     return foreign_col;
   }
