@@ -15,7 +15,7 @@ class Json;
 // a static class for handling version info
 struct Version {
   using TripletT = std::tuple<XGBoostVersionT, XGBoostVersionT, XGBoostVersionT>;
-  static constexpr TripletT kInvalid {-1, -1, -1};
+  static const TripletT kInvalid;
 
   // Save/Load version info to Json document
   static TripletT Load(Json const& in, bool check = false);

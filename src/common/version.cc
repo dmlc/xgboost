@@ -13,7 +13,7 @@
 
 namespace xgboost {
 
-constexpr Version::TripletT Version::kInvalid;
+const Version::TripletT Version::kInvalid {-1, -1, -1};
 
 Version::TripletT Version::Load(Json const& in, bool check) {
   if (get<Object const>(in).find("version") == get<Object const>(in).cend()) {
@@ -30,7 +30,7 @@ Version::TripletT Version::Load(Json const& in, bool check) {
     LOG(FATAL) << "Invaid version format in loaded JSON object: " << in;
   }
 
-  return {major, minor, patch};
+  return std::make_tuple(major, minor, patch);
 }
 
 Version::TripletT Version::Load(dmlc::Stream* fi) {
@@ -41,7 +41,7 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&major, sizeof(major)), sizeof(major)) << msg;
   CHECK_EQ(fi->Read(&minor, sizeof(major)), sizeof(minor)) << msg;
   CHECK_EQ(fi->Read(&patch, sizeof(major)), sizeof(patch)) << msg;
-  return {major, minor, patch};
+  return std::make_tuple(major, minor, patch);
 }
 
 void Version::Save(Json* out) {
@@ -67,7 +67,7 @@ std::string Version::String(TripletT const& version) {
 }
 
 Version::TripletT Version::Self() {
-  return {XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOST_VER_PATCH};
+  return std::make_tuple(XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR, XGBOOST_VER_PATCH);
 }
 
 bool Version::Same(TripletT const& triplet) {
