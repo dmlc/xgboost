@@ -60,22 +60,6 @@ struct ColumnarErrors {
     str += " type.";
     return str.c_str();
   }
-  static std::string UnknownTypeStr(std::string const& typestr) {
-    return "typestr from array interface: " + typestr + " is not supported.";
-  }
-};
-
-// TODO(trivialfis): Abstract this into a class that accept a json
-// object and turn it into an array (for cupy and numba).
-class ArrayInterfaceHandler {
- public:
-  template <typename T>
-  static constexpr char TypeChar() {
-    return
-        (std::is_floating_point<T>::value ? 'f' :
-         (std::is_integral<T>::value ?
-          (std::is_signed<T>::value ? 'i' : 'u') : '\0'));
-  }
 
   static std::string TypeStr(char c) {
     switch (c) {
@@ -89,10 +73,44 @@ class ArrayInterfaceHandler {
         return "Unsigned integer";
       case 'f':
         return "Floating point";
+      case 'c':
+        return "Complex floating point";
+      case 'm':
+        return "Timedelta";
+      case 'M':
+        return "Datetime";
+      case 'O':
+        return "Object";
+      case 'S':
+        return "String";
+      case 'U':
+        return "Unicode";
+      case 'V':
+        return "Other";
       default:
-        LOG(FATAL) << "Invalid type code: " << c << " in typestr of input array interface.";
+        LOG(FATAL) << "Invalid type code: " << c << " in `typestr' of input array."
+                   << "\nPlease verify the `__cuda_array_interface__' of your input data complies to: "
+                   << "https://docs.scipy.org/doc/numpy/reference/arrays.interface.html"
+                   << "\nOr open an issue.";
         return "";
     }
+  }
+
+  static std::string UnSupportedType(std::string const& typestr) {
+    return TypeStr(typestr.at(1)) + " is not supported.";
+  }
+};
+
+// TODO(trivialfis): Abstract this into a class that accept a json
+// object and turn it into an array (for cupy and numba).
+class ArrayInterfaceHandler {
+ public:
+  template <typename T>
+  static constexpr char TypeChar() {
+    return
+        (std::is_floating_point<T>::value ? 'f' :
+         (std::is_integral<T>::value ?
+          (std::is_signed<T>::value ? 'i' : 'u') : '\0'));
   }
 
   template <typename PtrType>
@@ -230,6 +248,7 @@ class ArrayInterfaceHandler {
 };
 
 #define DISPATCH_TYPE(__dispatched_func, __typestr, ...) {              \
+    CHECK_EQ(__typestr.size(), 3) << ColumnarErrors::TypestrFormat();   \
     if (__typestr.at(1) == 'f' && __typestr.at(2) == '4') {             \
       __dispatched_func<float>(__VA_ARGS__);                            \
     } else if (__typestr.at(1) == 'f' && __typestr.at(2) == '8') {      \
@@ -251,7 +270,7 @@ class ArrayInterfaceHandler {
     } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '8') {      \
       __dispatched_func<uint64_t>(__VA_ARGS__);                         \
     } else {                                                            \
-      LOG(FATAL) << ColumnarErrors::UnknownTypeStr(__typestr);          \
+      LOG(FATAL) << ColumnarErrors::UnSupportedType(__typestr);         \
     }                                                                   \
   }
 
