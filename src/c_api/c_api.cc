@@ -149,7 +149,7 @@ struct XGBAPIThreadLocalEntry {
   std::vector<GradientPair> tmp_gpair;
 };
 
-XGB_EXTERN_C void XGBoostVersion(int* major, int* minor, int* patch) {
+XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   *major = XGBOOST_VER_MAJOR;
   *minor = XGBOOST_VER_MINOR;
   *patch = XGBOOST_VER_PATCH;

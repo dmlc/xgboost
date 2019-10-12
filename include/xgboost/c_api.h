@@ -58,6 +58,13 @@ typedef struct {  // NOLINT(*)
   float* value;
 } XGBoostBatchCSR;
 
+/*!
+ * \brief Return the version of the XGBoost library being currently used.
+ * \param major Store the major version number
+ * \param minor Store the minor version number
+ * \param patch Store the patch (revision) number
+ */
+XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch);
 
 /*!
  * \brief Callback to set the data to handle,
