@@ -89,7 +89,8 @@ struct ColumnarErrors {
         return "Other";
       default:
         LOG(FATAL) << "Invalid type code: " << c << " in `typestr' of input array."
-                   << "\nPlease verify the `__cuda_array_interface__' of your input data complies to: "
+                   << "\nPlease verify the `__cuda_array_interface__' "
+                   << "of your input data complies to: "
                    << "https://docs.scipy.org/doc/numpy/reference/arrays.interface.html"
                    << "\nOr open an issue.";
         return "";
