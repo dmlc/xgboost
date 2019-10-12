@@ -601,7 +601,7 @@ class LearnerImpl : public Learner {
     gbm_->Configure(args);
 
     if (this->gbm_->UseGPU()) {
-      if (cfg_.find("gpu_id") == cfg_.cend()) {
+      if (generic_param_.gpu_id == -1) {
         generic_param_.gpu_id = 0;
       }
     }
