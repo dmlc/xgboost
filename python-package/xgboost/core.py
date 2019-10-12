@@ -1819,6 +1819,9 @@ class Booster(object):
         Set feature_names and feature_types from DMatrix
         """
         if self.feature_names is None:
+            warnings.warn("Booster's feature_names did not exist. Booster's "
+                          "feature_names and feature_types are being set to "
+                          "match the data.")
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
         else:
