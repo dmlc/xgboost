@@ -19,7 +19,7 @@ pipeline {
   options {
     ansiColor('xterm')
     timestamps()
-    timeout(time: 120, unit: 'MINUTES')
+    timeout(time: 240, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '10'))
     preserveStashes()
   }
