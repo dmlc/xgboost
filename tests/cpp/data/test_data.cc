@@ -50,7 +50,7 @@ TEST(SparsePage, PushCSC) {
   inst = page[1];
   ASSERT_EQ(inst.size(), 6);
   std::vector<size_t> indices_sol {1, 2, 3};
-  for (int64_t i = 0; i < inst.size(); ++i) {
+  for (size_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
   }
 }
@@ -76,7 +76,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   // how the dmatrix has been created
   for (size_t i = 0; i < page.Size(); ++i) {
     auto inst = page[i];
-    for (int j = 1; j < inst.size(); ++j) {
+    for (size_t j = 1; j < inst.size(); ++j) {
       ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
     }
   }

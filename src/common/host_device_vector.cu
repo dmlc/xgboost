@@ -69,13 +69,12 @@ class HostDeviceVectorImpl {
 
   common::Span<T> DeviceSpan() {
     LazySyncDevice(GPUAccess::kWrite);
-    return {data_d_.data().get(), static_cast<typename common::Span<T>::index_type>(Size())};
+    return {data_d_.data().get(), Size()};
   }
 
   common::Span<const T> ConstDeviceSpan() {
     LazySyncDevice(GPUAccess::kRead);
-    using SpanInd = typename common::Span<const T>::index_type;
-    return {data_d_.data().get(), static_cast<SpanInd>(Size())};
+    return {data_d_.data().get(), Size()};
   }
 
   void Fill(T v) {  // NOLINT
