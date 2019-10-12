@@ -322,6 +322,9 @@ class Json {
   static void Dump(Json json, std::ostream* stream,
                    bool pretty = ConsoleLogger::ShouldLog(
                        ConsoleLogger::LogVerbosity::kDebug));
+  static void Dump(Json json, std::string* out,
+                   bool pretty = ConsoleLogger::ShouldLog(
+                       ConsoleLogger::LogVerbosity::kDebug));
 
   Json() : ptr_{new JsonNull} {}
 
@@ -398,6 +401,13 @@ class Json {
 
   bool operator==(Json const& rhs) const {
     return *ptr_ == *(rhs.ptr_);
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, Json const& j) {
+    std::string str;
+    Json::Dump(j, &str);
+    os << str;
+    return os;
   }
 
  private:
