@@ -5,6 +5,7 @@
 
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "xgboost/logging.h"
 #include "xgboost/json.h"

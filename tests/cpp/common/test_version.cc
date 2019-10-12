@@ -9,10 +9,12 @@
 #include <xgboost/json.h>
 #include <xgboost/base.h>
 
+#include <string>
+
 #include "../../../src/common/version.h"
 
 namespace xgboost {
-TEST(Version, IO) {
+TEST(Version, Basic) {
   Json j_ver { Object() };
   Version::Save(&j_ver);
   auto triplet { Version::Load(j_ver) };
@@ -31,5 +33,29 @@ TEST(Version, IO) {
     auto triplet { Version::Load(fi.get())};;
     ASSERT_TRUE(Version::Same(triplet));
   }
+
+  std::string str { Version::String(triplet) };
+
+  size_t ptr {0};
+  XGBoostVersionT v {0};
+  v = std::stoi(str, &ptr);
+  ASSERT_EQ(str.at(ptr), '.');
+  ASSERT_EQ(v, XGBOOST_VER_MAJOR) << "major: " << v;
+
+  str = str.substr(ptr+1);
+
+  ptr = 0;
+  v = std::stoi(str, &ptr);
+  ASSERT_EQ(str.at(ptr), '.');
+  ASSERT_EQ(v, XGBOOST_VER_MINOR) << "minor: " << v;;
+
+  str = str.substr(ptr+1);
+
+  ptr = 0;
+  v = std::stoi(str, &ptr);
+  ASSERT_EQ(v, XGBOOST_VER_MINOR) << "patch: " << v;;
+
+  str = str.substr(ptr);
+  ASSERT_EQ(str.size(), 0);
 }
 }  // namespace xgboost
