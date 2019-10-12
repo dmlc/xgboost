@@ -229,7 +229,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  DMatrix* dmat;
+  DMatrix* dmat {nullptr};
 
   try {
     dmat = DMatrix::Create(parser.get(), cache_file, page_size);
@@ -253,9 +253,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
             << "Choosing default parser in dmlc-core.  "
             << "Consider providing a uri parameter like: filename?format=csv";
       }
-
-      LOG(FATAL) << "Encountered parser error:\n" << e.what();
     }
+    LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
 
   if (!silent) {

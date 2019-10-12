@@ -6,8 +6,10 @@
 #include <vector>
 
 int main(int argc, char ** argv) {
-  xgboost::Args args {{"verbosity", "2"}};
+  xgboost::Args args {{"verbosity", "3"}};
   xgboost::ConsoleLogger::Configure(args);
+  LOG(INFO) << __GNUC__ << typeid(__GNUC__).name();
+
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

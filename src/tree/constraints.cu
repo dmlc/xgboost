@@ -173,7 +173,7 @@ void FeatureInteractionConstraint::ClearBuffers() {
       output_buffer_bits_, input_buffer_bits_);
 }
 
-common::Span<int32_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
+common::Span<bst_feature_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
   if (!has_constraint_) { return {}; }
   CHECK_LT(node_id, s_node_constraints_.size());
 
@@ -184,7 +184,7 @@ common::Span<int32_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
   auto p_result_buffer = result_buffer_.data();
   LBitField64 node_constraints = s_node_constraints_[node_id];
 
-  thrust::device_ptr<int32_t> const out_end = thrust::copy_if(
+  thrust::device_ptr<bst_feature_t> const out_end = thrust::copy_if(
       thrust::device,
       begin, end,
       p_result_buffer,
@@ -197,7 +197,7 @@ common::Span<int32_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
   return {s_result_buffer_.data(), s_result_buffer_.data() + n_available};
 }
 
-__global__ void SetInputBufferKernel(common::Span<int32_t> feature_list_input,
+__global__ void SetInputBufferKernel(common::Span<bst_feature_t> feature_list_input,
                                      LBitField64 result_buffer_input) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   if (tid < feature_list_input.size()) {
@@ -212,8 +212,8 @@ __global__ void QueryFeatureListKernel(LBitField64 node_constraints,
   result_buffer_output &= result_buffer_input;
 }
 
-common::Span<int32_t> FeatureInteractionConstraint::Query(
-    common::Span<int32_t> feature_list, int32_t nid) {
+common::Span<bst_feature_t> FeatureInteractionConstraint::Query(
+    common::Span<bst_feature_t> feature_list, int32_t nid) {
   if (!has_constraint_ || nid == 0) {
     return feature_list;
   }
@@ -238,7 +238,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
 
   LBitField64 local_result_buffer = output_buffer_bits_;
 
-  thrust::device_ptr<int32_t> const out_end = thrust::copy_if(
+  thrust::device_ptr<bst_feature_t> const out_end = thrust::copy_if(
       thrust::device,
       begin, end,
       result_buffer_.data(),
@@ -248,7 +248,7 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
       });
   size_t const n_available = std::distance(result_buffer_.data(), out_end);
 
-  common::Span<int32_t> result =
+  common::Span<bst_feature_t> result =
       {s_result_buffer_.data(), s_result_buffer_.data() + n_available};
   return result;
 }
@@ -258,12 +258,12 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
 __global__ void RestoreFeatureListFromSetsKernel(
     LBitField64 feature_buffer,
 
-    int32_t fid,
+    bst_feature_t fid,
     common::Span<int32_t> feature_interactions,
     common::Span<int32_t> feature_interactions_ptr,  // of size n interaction set + 1
 
-    common::Span<int32_t> interactions_list,
-    common::Span<int32_t> interactions_list_ptr) {
+    common::Span<bst_feature_t> interactions_list,
+    common::Span<size_t> interactions_list_ptr) {
   auto const tid_x = threadIdx.x + blockIdx.x * blockDim.x;
   auto const tid_y = threadIdx.y + blockIdx.y * blockDim.y;
   // painful mapping: fid -> sets related to it -> features related to sets.
@@ -312,7 +312,7 @@ __global__ void InteractionConstraintSplitKernel(LBitField64 feature,
 }
 
 void FeatureInteractionConstraint::Split(
-    int32_t node_id, int32_t feature_id, int32_t left_id, int32_t right_id) {
+    bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id) {
   if (!has_constraint_) { return; }
   CHECK_NE(node_id, left_id)
       << " Split node: " << node_id << " and its left child: "

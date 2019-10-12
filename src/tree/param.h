@@ -395,7 +395,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
  */
 struct SplitEntry {
   /*! \brief loss change after split this node */
-  bst_float loss_chg{0.0f};
+  bst_float loss_chg {0.0f};
   /*! \brief split index */
   unsigned sindex{0};
   bst_float split_value{0.0f};

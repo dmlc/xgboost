@@ -9,15 +9,18 @@
 
 #include <rabit/rabit.h>
 
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
+
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <limits>
 #include <utility>
 
-#include "./param.h"
+#include "xgboost/base.h"
+#include "xgboost/tree_updater.h"
+#include "param.h"
+#include "constraints.h"
+
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
@@ -75,10 +78,11 @@ class BaseMaker: public TreeUpdater {
         return 2;
       }
     }
-    inline bst_float MaxValue(bst_uint fid) const {
+    bst_float MaxValue(bst_uint fid) const {
       return fminmax_[fid *2 + 1];
     }
-    inline void SampleCol(float p, std::vector<bst_uint> *p_findex) const {
+
+    void SampleCol(float p, std::vector<bst_uint> *p_findex) const {
       std::vector<bst_uint> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax_.size(); i += 2) {
@@ -161,6 +165,7 @@ class BaseMaker: public TreeUpdater {
       }
       this->UpdateNode2WorkIndex(tree);
     }
+    this->interaction_constraints_.Configure(param_, fmat.Info().num_col_);
   }
   /*! \brief update queue expand add in new leaves */
   inline void UpdateQueueExpand(const RegTree &tree) {
@@ -215,7 +220,7 @@ class BaseMaker: public TreeUpdater {
     // so that they are ignored in future statistics collection
     const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
@@ -461,6 +466,8 @@ class BaseMaker: public TreeUpdater {
    *   see also Decode/EncodePosition
    */
   std::vector<int> position_;
+
+  FeatureInteractionConstraintHost interaction_constraints_;
 
  private:
   inline void UpdateNode2WorkIndex(const RegTree &tree) {

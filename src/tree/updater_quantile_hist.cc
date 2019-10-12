@@ -22,6 +22,7 @@
 #include "./param.h"
 #include "./updater_quantile_hist.h"
 #include "./split_evaluator.h"
+#include "constraints.h"
 #include "../common/random.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
@@ -65,12 +66,14 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
+  int_constraint_.Configure(param_, dmat->Info().num_col_);
   // build tree
   if (!builder_) {
     builder_.reset(new Builder(
         param_,
         std::move(pruner_),
-        std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
+        std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
+        int_constraint_));
   }
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
@@ -170,6 +173,8 @@ void QuantileHistMaker::Builder::BuildNodeStats(
       auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
       spliteval_->AddSplit(parent_id, left_sibling_id, nid, parent_split_feature_id,
                            snode_[left_sibling_id].weight, snode_[nid].weight);
+      interaction_constraints_.Split(parent_id, parent_split_feature_id,
+                                     left_sibling_id, nid);
     }
   }
   builder_monitor_.Stop("BuildNodeStats");
@@ -298,6 +303,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       bst_uint featureid = snode_[nid].best.SplitIndex();
       spliteval_->AddSplit(nid, cleft, cright, featureid,
                            snode_[cleft].weight, snode_[cright].weight);
+      interaction_constraints_.Split(nid, featureid, cleft, cright);
 
       this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree);
       this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree);
@@ -325,6 +331,7 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
 
   spliteval_->Reset();
+  interaction_constraints_.Reset();
 
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
 
@@ -457,7 +464,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       }
 
       bool has_neg_hess = false;
-      for (size_t tid = 0; tid < this->nthread_; ++tid) {
+      for (int32_t tid = 0; tid < this->nthread_; ++tid) {
         if (p_buff[tid]) {
           has_neg_hess = true;
         }
@@ -561,8 +568,8 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
   // start enumeration
   const MetaInfo& info = fmat.Info();
   auto p_feature_set = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
-  const auto& feature_set = p_feature_set->HostVector();
-  const auto nfeature = static_cast<bst_uint>(feature_set.size());
+  auto const& feature_set = p_feature_set->HostVector();
+  const auto nfeature = static_cast<bst_feature_t>(feature_set.size());
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   best_split_tloc_.resize(nthread);
 #pragma omp parallel for schedule(static) num_threads(nthread)
@@ -576,9 +583,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const int nid,
     const auto feature_id = static_cast<bst_uint>(feature_set[i]);
     const auto tid = static_cast<unsigned>(omp_get_thread_num());
     const auto node_id = static_cast<bst_uint>(nid);
-    // Narrow search space by dropping features that are not feasible under the
-    // given set of constraints (e.g. feature interaction constraints)
-    if (spliteval_->CheckFeatureConstraint(node_id, feature_id)) {
+    if (interaction_constraints_.Query(node_id, feature_id)) {
       this->EnumerateSplit(-1, gmat, node_hist, snode_[nid], info,
                            &best_split_tloc_[tid], feature_id, node_id);
       this->EnumerateSplit(+1, gmat, node_hist, snode_[nid], info,

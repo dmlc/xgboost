@@ -100,7 +100,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols);
   maker.InitHistogram();
-  
+
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   std::vector<GradientPair> h_gpair(kNRows);

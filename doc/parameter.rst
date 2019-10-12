@@ -142,6 +142,8 @@ Parameters for Tree Booster
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_local_histmaker``: based on local histogram counting.
     - ``grow_skmaker``: uses the approximate sketching algorithm.
+    - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
+    - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma).

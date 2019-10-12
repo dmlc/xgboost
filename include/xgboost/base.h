@@ -110,6 +110,17 @@ using bst_int = int32_t;    // NOLINT
 typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
 using bst_float = float;  // NOLINT
+/*! \brief Type for data column (feature) index. */
+using bst_feature_t = uint32_t;  // NOLINT
+/*! \breif Type for data row index. */
+using bst_row_t = uint64_t;      // NOLINT
+/*! \brief Type for tree node index. */
+using bst_node_t = int32_t;      // NOLINT
+/*! \brief Type for ranking group index. */
+using bst_group_t = uint32_t;    // NOLINT
+
+static_assert(sizeof(bst_row_t) == sizeof(size_t),
+              "`size_t' should of 64 bits.");
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
