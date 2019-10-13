@@ -12,6 +12,7 @@
 #include <string>
 #include <algorithm>
 #include <numeric>
+#include <limits>
 #include "rabit/internal/utils.h"
 #include "rabit/serializable.h"
 
