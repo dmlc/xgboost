@@ -51,6 +51,7 @@ class XGBoostClassifier (
     Identifiable.randomUID("xgbc"), xgboostParams)
 
   XGBoostToMLlibParams(xgboostParams)
+  XGBoostToRabitParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 

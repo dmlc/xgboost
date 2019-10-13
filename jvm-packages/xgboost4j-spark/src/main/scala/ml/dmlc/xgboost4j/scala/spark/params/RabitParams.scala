@@ -74,10 +74,16 @@ private[spark] trait RabitParams extends Params {
     for ((paramName, paramValue) <- xgboostParams) {
       val name = paramName
       params.find(_.name == name).foreach {
+        case _: DoubleParam =>
+          set(name, paramValue.toString.toDouble)
+        case _: BooleanParam =>
+          set(name, paramValue.toString.toBoolean)
         case _: IntParam =>
           set(name, paramValue.toString.toInt)
-        case _: Param[String] =>
-          set(name, paramValue.toString)
+        case _: FloatParam =>
+          set(name, paramValue.toString.toFloat)
+        case _: Param[_] =>
+          set(name, paramValue)
       }
     }
   }
