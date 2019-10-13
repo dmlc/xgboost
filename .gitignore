@@ -49,4 +49,4 @@ cmake-build-debug/
 
 # cmake
 build/
-
+compile_commands.json

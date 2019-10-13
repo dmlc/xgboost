@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014 by Contributors
+ *  Copyright (c) 2014-2019 by Contributors
  * \file io.h
  * \brief utilities with different serializable implementations
  * \author Tianqi Chen
@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 #include <algorithm>
+#include <numeric>
 #include "rabit/internal/utils.h"
 #include "rabit/serializable.h"
 
@@ -21,6 +22,10 @@ typedef dmlc::SeekStream SeekStream;
 /*! \brief fixed size memory buffer */
 struct MemoryFixSizeBuffer : public SeekStream {
  public:
+  // similar to SEEK_END in libc
+  static size_t constexpr SeekEnd = std::numeric_limits<size_t>::max();
+
+ public:
   MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
       : p_buffer_(reinterpret_cast<char*>(p_buffer)),
         buffer_size_(buffer_size) {
@@ -28,8 +33,6 @@ struct MemoryFixSizeBuffer : public SeekStream {
   }
   virtual ~MemoryFixSizeBuffer(void) {}
   virtual size_t Read(void *ptr, size_t size) {
-    utils::Assert(curr_ptr_ + size <= buffer_size_,
-                  "read can not have position excceed buffer length");
     size_t nread = std::min(buffer_size_ - curr_ptr_, size);
     if (nread != 0) std::memcpy(ptr, p_buffer_ + curr_ptr_, nread);
     curr_ptr_ += nread;
@@ -43,7 +46,11 @@ struct MemoryFixSizeBuffer : public SeekStream {
     curr_ptr_ += size;
   }
   virtual void Seek(size_t pos) {
-    curr_ptr_ = static_cast<size_t>(pos);
+    if (pos == SeekEnd) {
+      curr_ptr_ = buffer_size_;
+    } else {
+      curr_ptr_ = static_cast<size_t>(pos);
+    }
   }
   virtual size_t Tell(void) {
     return curr_ptr_;
