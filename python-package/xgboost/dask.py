@@ -158,6 +158,14 @@ class DaskDMatrix:
 
     async def map_local_data(self, client, data, label=None, weights=None):
         '''Obtain references to local data.'''
+
+        def inconsistent(a, a_name, b, b_name):
+            msg = 'Partitions between {a_name} and {b_name} are not ' \
+                'consistent: {a_len} != {b_len}'.format(
+                    a_name=a_name, b_name=b_name, a_len=len(a), b_len=len(b)
+                )
+            return msg
+
         data = data.persist()
         if label is not None:
             label = label.persist()
@@ -169,7 +177,7 @@ class DaskDMatrix:
         # equivalents.
         X_parts = data.to_delayed()
         if isinstance(X_parts, numpy.ndarray):
-            assert X_parts.shape[1] == 1
+            assert X_parts.shape[1] == 1, X_parts.shape[1]
             X_parts = X_parts.flatten().tolist()
 
         if label is not None:
@@ -186,11 +194,11 @@ class DaskDMatrix:
         parts = [X_parts]
         if label is not None:
             assert len(X_parts) == len(
-                y_parts), 'Partitions between X and y are not consistent'
+                y_parts), inconsistent(X_parts, 'X', y_parts, 'labels')
             parts.append(y_parts)
         if weights is not None:
             assert len(X_parts) == len(
-                w_parts), 'Partitions between X and weight are not consistent.'
+                w_parts), inconsistent(X_parts, 'X', w_parts, 'weights')
             parts.append(w_parts)
         parts = list(map(delayed, zip(*parts)))
 
@@ -275,7 +283,10 @@ class DaskDMatrix:
         cols = 0
         for shape in shapes:
             rows += shape[0]
-            cols += shape[1]
+
+            c = shape[1]
+            assert cols == c or cols == 0
+            cols = c
         return (rows, cols)
 
 
