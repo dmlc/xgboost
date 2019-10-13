@@ -27,74 +27,46 @@ private[spark] trait RabitParams extends Params {
    * rabit_debug - enable more verbose rabit logging to stdout
    * rabit_timeout - enable sidecar thread after rabit observed failures
    * rabit_timeout_sec - wait interval before exit after rabit observed failures
-   * DMLC_WORKER_CONNECT_RETRY - number of retrys to tracker
+   * dmlc_worker_connect_retry - number of retrys to tracker
    */
-  final val ringReduceMin = new IntParam(this, "rabit_reduce_ring_mincount",
+  final val ringReduceMin = new IntParam(this, "rabitReduceRingMincount",
     "minimal counts of enable allreduce/broadcast with ring based topology",
     ParamValidators.gtEq(1))
 
   final def getRingReduceMin: Int = $(ringReduceMin)
 
-  final def reduceBuffer: Param[String] = new Param[String](this, "rabit_reduce_buffer",
+  final def reduceBuffer: Param[String] = new Param[String](this, "rabitReduceBuffer",
     "buffer size (MB/GB) allocated to each xgb trainner recv and run reduction",
     (buf: String) => buf.contains("MB") || buf.contains("GB"))
 
   final def getReduceBuffer: String = ${reduceBuffer}
 
-  final def bootstrapCache: IntParam = new IntParam(this, "rabit_bootstrap_cache",
+  final def bootstrapCache: IntParam = new IntParam(this, "rabitBootstrapCache",
     "enable save allreduce cache before loadcheckpoint, used to allow failed task retry",
     (cache: Int) => cache == 0 || cache == 1)
 
   final def getBootstrapCache: Int = ${bootstrapCache}
 
-  final def rabitDebug: IntParam = new IntParam(this, "rabit_debug",
+  final def rabitDebug: IntParam = new IntParam(this, "rabitDebug",
     "enable more verbose rabit logging to stdout", (debug: Int) => debug == 0 || debug == 1)
 
   final def getRabitDebug: Int = ${rabitDebug}
 
-  final def rabitTimeout: IntParam = new IntParam(this, "rabit_timeout",
+  final def rabitTimeout: IntParam = new IntParam(this, "rabitTimeout",
     "enable failure timeout sidecar threads", (timeout: Int) => timeout == 0 || timeout == 1)
 
   final def getRabitTimeout: Int = ${rabitTimeout}
 
-  final def timeoutInterval: IntParam = new IntParam(this, "rabit_timeout_sec",
+  final def timeoutInterval: IntParam = new IntParam(this, "rabitTimeoutSec",
   "timeout threshold after rabit observed failures", (interval: Int) => interval > 0)
 
   final def getTimeoutInterval: Int = ${timeoutInterval}
 
-  final def connectRetry: IntParam = new IntParam(this, "DMLC_WORKER_CONNECT_RETRY",
+  final def connectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
 
   final def getConnectRetry: Int = ${connectRetry}
 
   setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> 0,
     rabitDebug -> 0, connectRetry -> 5, rabitTimeout -> 0, timeoutInterval -> 1800)
-
-  def XGBoostToRabitParams(xgboostParams: Map[String, Any]): Unit = {
-    for ((paramName, paramValue) <- xgboostParams) {
-      val name = paramName
-      params.find(_.name == name).foreach {
-        case _: DoubleParam =>
-          set(name, paramValue.toString.toDouble)
-        case _: BooleanParam =>
-          set(name, paramValue.toString.toBoolean)
-        case _: IntParam =>
-          set(name, paramValue.toString.toInt)
-        case _: FloatParam =>
-          set(name, paramValue.toString.toFloat)
-        case _: Param[_] =>
-          set(name, paramValue)
-      }
-    }
-  }
-
-  def RabitParamsToXGBoost: Map[String, String] = Map(
-      ringReduceMin.name -> getRingReduceMin.toString,
-      reduceBuffer.name -> getReduceBuffer.toString,
-      bootstrapCache.name -> getBootstrapCache.toString,
-      rabitDebug.name -> getRabitDebug.toString,
-      rabitTimeout.name -> getRabitTimeout.toString,
-      timeoutInterval.name -> getTimeoutInterval.toString,
-      connectRetry.name -> getConnectRetry.toString
-    )
 }

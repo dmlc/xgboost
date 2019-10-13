@@ -80,26 +80,4 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     }
     ss.conf.unset("xgboost.spark.ignoreSsl")
   }
-
-  test("Check setting rabit configs propagated") {
-    val training = buildDataFrame(Classification.train)
-    val testDM = new DMatrix(Classification.test.iterator, null)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> 1, "rabit_debug" -> 1, "rabit_reduce_ring_mincount" -> 100,
-      "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> 1, "rabit_timeout_sec" -> 5)
-
-    val model = new XGBoostClassifier(paramMap).fit(training)
-    assert(Rabit.rabitEnvs.asScala.size > 7)
-    Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "1")
-      if (item._1.toString == "rabit_debug") assert(item._2 == "1")
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "100")
-      if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
-      if (item._1.toString == "DMLC_WORKER_CONNECT_RETRY") assert(item._2 == "1")
-      if (item._1.toString == "rabit_timeout") assert(item._2 == "1")
-      if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
-    })
-  }
 }

@@ -50,8 +50,7 @@ class XGBoostClassifier (
   def this(xgboostParams: Map[String, Any]) = this(
     Identifiable.randomUID("xgbc"), xgboostParams)
 
-  XGBoostToMLlibParams(xgboostParams)
-  XGBoostToRabitParams(xgboostParams)
+  XGBoost2MLlibParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
@@ -186,7 +185,7 @@ class XGBoostClassifier (
           weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning, dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
-    val derivedXGBParamMap = MLlib2XGBoostParams ++ RabitParamsToXGBoost
+    val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
     val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
       hasGroup = false, evalRDDMap)
