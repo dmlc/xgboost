@@ -99,8 +99,10 @@ class XGBModel(XGBModelBase):
     random_state : int
         Random number seed.
 
-        .. note:: Using gblinear booster with shotgun updater is
-        nondeterministic as it uses Hogwild algorithm.
+        .. note::
+
+           Using gblinear booster with shotgun updater is
+           nondeterministic as it uses Hogwild algorithm.
 
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
