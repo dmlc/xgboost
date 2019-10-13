@@ -16,9 +16,10 @@
 #include <vector>
 #include <limits>
 
-#include "columnar.h"
-
 namespace xgboost {
+
+class Json;
+
 namespace data {
 /*!
  * \brief The simplest form of data holder, can be used to create DMatrix.
