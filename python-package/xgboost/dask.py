@@ -159,10 +159,11 @@ class DaskDMatrix:
     async def map_local_data(self, client, data, label=None, weights=None):
         '''Obtain references to local data.'''
 
-        def inconsistent(a, a_name, b, b_name):
+        def inconsistent(left, left_name, right, right_name):
             msg = 'Partitions between {a_name} and {b_name} are not ' \
                 'consistent: {a_len} != {b_len}'.format(
-                    a_name=a_name, b_name=b_name, a_len=len(a), b_len=len(b)
+                    a_name=left_name, b_name=right_name, a_len=len(left),
+                    b_len=len(right)
                 )
             return msg
 
@@ -285,7 +286,7 @@ class DaskDMatrix:
             rows += shape[0]
 
             c = shape[1]
-            assert cols == c or cols == 0
+            assert cols in (0, c)
             cols = c
         return (rows, cols)
 
