@@ -69,6 +69,7 @@
 #include "../src/common/hist_util.cc"
 #include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/version.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"
