@@ -12,8 +12,10 @@
 #include <memory>
 #include <vector>
 
-#include "xgboost/span.h"
 #include "xgboost/host_device_vector.h"
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
+#include "xgboost/span.h"
 
 #include "../common/transform.h"
 #include "../common/common.h"
@@ -27,7 +29,7 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct RegLossParam : public dmlc::Parameter<RegLossParam> {
+struct RegLossParam : public XGBoostParameter<RegLossParam> {
   float scale_pos_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(RegLossParam) {
@@ -45,7 +47,7 @@ class RegLossObj : public ObjFunction {
   RegLossObj() = default;
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -114,6 +116,16 @@ class RegLossObj : public ObjFunction {
     return Loss::ProbToMargin(base_score);
   }
 
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(Loss::Name());
+    out["reg_loss_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["reg_loss_param"], &param_);
+  }
+
  protected:
   RegLossParam param_;
 };
@@ -121,23 +133,23 @@ class RegLossObj : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 
-XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, "reg:squarederror")
+XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
 .describe("Regression with squared error.")
 .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(SquareLogError, "reg:squaredlogerror")
+XGBOOST_REGISTER_OBJECTIVE(SquareLogError, SquaredLogError::Name())
 .describe("Regression with root mean squared logarithmic error.")
 .set_body([]() { return new RegLossObj<SquaredLogError>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, "reg:logistic")
+XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
 .describe("Logistic regression for probability regression task.")
 .set_body([]() { return new RegLossObj<LogisticRegression>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, "binary:logistic")
+XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
 .describe("Logistic regression for binary classification task.")
 .set_body([]() { return new RegLossObj<LogisticClassification>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
+XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, LogisticRaw::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation.")
 .set_body([]() { return new RegLossObj<LogisticRaw>(); });
@@ -151,7 +163,7 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
 // End deprecated
 
 // declare parameter
-struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
+struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> {
   float max_delta_step;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
     DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
@@ -165,7 +177,7 @@ class PoissonRegression : public ObjFunction {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -225,6 +237,16 @@ class PoissonRegression : public ObjFunction {
   }
   const char* DefaultEvalMetric() const override {
     return "poisson-nloglik";
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("count:poisson");
+    out["poisson_regression_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["poisson_regression_param"], &param_);
   }
 
  private:
@@ -321,6 +343,12 @@ class CoxRegression : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "cox-nloglik";
   }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("survival:cox");
+  }
+  void LoadConfig(Json const&) override {}
 };
 
 // register the objective function
@@ -391,6 +419,11 @@ class GammaRegression : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "gamma-nloglik";
   }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:gamma");
+  }
+  void LoadConfig(Json const&) override {}
 
  private:
   HostDeviceVector<int> label_correct_;
@@ -403,7 +436,7 @@ XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 
 
 // declare parameter
-struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
+struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> {
   float tweedie_variance_power;
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
     DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
@@ -416,7 +449,7 @@ class TweedieRegression : public ObjFunction {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     metric_ = os.str();
@@ -483,6 +516,15 @@ class TweedieRegression : public ObjFunction {
 
   const char* DefaultEvalMetric() const override {
     return metric_.c_str();
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("reg:tweedie");
+    out["tweedie_regression_param"] = toJson(param_);
+  }
+  void LoadConfig(Json const& in) override {
+    fromJson(in["tweedie_regression_param"], &param_);
   }
 
  private:

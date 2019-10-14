@@ -14,7 +14,7 @@
 #include <xgboost/gbm.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 
 #include <vector>
 #include <map>
