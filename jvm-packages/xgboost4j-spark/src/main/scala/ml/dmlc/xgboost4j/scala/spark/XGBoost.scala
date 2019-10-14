@@ -228,17 +228,17 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     "rabit_reduce_buffer" ->
       overridedParams.getOrElse("rabit_reduce_buffer", "256MB").toString,
     "rabit_bootstrap_cache" ->
-      overridedParams.getOrElse("rabit_bootstrap_cache", 0).toString,
+      overridedParams.getOrElse("rabit_bootstrap_cache", false).toString,
     "rabit_debug" ->
-      overridedParams.getOrElse("rabit_debug", 0).toString,
+      overridedParams.getOrElse("rabit_debug", false).toString,
     "rabit_timeout" ->
-      overridedParams.getOrElse("rabit_timeout", 0).toString,
+      overridedParams.getOrElse("rabit_timeout", false).toString,
     "rabit_timeout_sec" ->
       overridedParams.getOrElse("rabit_timeout_sec", 1800).toString,
     "DMLC_WORKER_CONNECT_RETRY" ->
       overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
-    "mock" ->
-    overridedParams.getOrElse("mock", "-1,-1,-1,-1").toString
+    "DMLC_WORKER_STOP_PROCESS_ON_ERROR" ->
+      overridedParams.getOrElse("dmlc_worker_stop_process_on_error", true).toString
   )
 }
 

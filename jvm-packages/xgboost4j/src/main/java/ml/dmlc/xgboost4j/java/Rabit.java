@@ -3,6 +3,8 @@ package ml.dmlc.xgboost4j.java;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,6 +55,7 @@ public class Rabit {
   }
   // used as way to test/debug passed rabit init parameters
   public static Map<String, String> rabitEnvs;
+  public static List<String> mockList = new LinkedList<>();
   /**
    * Initialize the rabit library on current working thread.
    * @param envs The additional environment variables to pass to rabit.
@@ -60,10 +63,14 @@ public class Rabit {
    */
   public static void init(Map<String, String> envs) throws XGBoostError {
     rabitEnvs = envs;
-    String[] args = new String[envs.size()];
+    String[] args = new String[envs.size() + mockList.size()];
     int idx = 0;
     for (java.util.Map.Entry<String, String> e : envs.entrySet()) {
       args[idx++] = e.getKey() + '=' + e.getValue();
+    }
+    // pass list of rabit mock strings eg mock=0,1,0,0
+    for(String mock : mockList) {
+      args[idx++] =  "mock=" + mock;
     }
     checkCall(XGBoostJNI.RabitInit(args));
   }

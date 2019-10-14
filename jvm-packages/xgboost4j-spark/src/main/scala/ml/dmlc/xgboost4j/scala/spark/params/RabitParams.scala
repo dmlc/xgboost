@@ -28,50 +28,35 @@ private[spark] trait RabitParams extends Params {
    * rabit_timeout - enable sidecar thread after rabit observed failures
    * rabit_timeout_sec - wait interval before exit after rabit observed failures
    * dmlc_worker_connect_retry - number of retrys to tracker
+   * dmlc_worker_stop_process_on_error - exit process when rabit see assert/error
    */
   final val ringReduceMin = new IntParam(this, "rabitReduceRingMincount",
     "minimal counts of enable allreduce/broadcast with ring based topology",
     ParamValidators.gtEq(1))
 
-  final def getRingReduceMin: Int = $(ringReduceMin)
-
   final def reduceBuffer: Param[String] = new Param[String](this, "rabitReduceBuffer",
     "buffer size (MB/GB) allocated to each xgb trainner recv and run reduction",
     (buf: String) => buf.contains("MB") || buf.contains("GB"))
 
-  final def getReduceBuffer: String = ${reduceBuffer}
+  final def bootstrapCache: BooleanParam = new BooleanParam(this, "rabitBootstrapCache",
+    "enable save allreduce cache before loadcheckpoint, used to allow failed task retry")
 
-  final def bootstrapCache: IntParam = new IntParam(this, "rabitBootstrapCache",
-    "enable save allreduce cache before loadcheckpoint, used to allow failed task retry",
-    (cache: Int) => cache == 0 || cache == 1)
+  final def rabitDebug: BooleanParam = new BooleanParam(this, "rabitDebug",
+    "enable more verbose rabit logging to stdout")
 
-  final def getBootstrapCache: Int = ${bootstrapCache}
-
-  final def rabitDebug: IntParam = new IntParam(this, "rabitDebug",
-    "enable more verbose rabit logging to stdout", (debug: Int) => debug == 0 || debug == 1)
-
-  final def getRabitDebug: Int = ${rabitDebug}
-
-  final def rabitTimeout: IntParam = new IntParam(this, "rabitTimeout",
-    "enable failure timeout sidecar threads", (timeout: Int) => timeout == 0 || timeout == 1)
-
-  final def getRabitTimeout: Int = ${rabitTimeout}
+  final def rabitTimeout: BooleanParam = new BooleanParam(this, "rabitTimeout",
+    "enable failure timeout sidecar threads")
 
   final def timeoutInterval: IntParam = new IntParam(this, "rabitTimeoutSec",
   "timeout threshold after rabit observed failures", (interval: Int) => interval > 0)
 
-  final def getTimeoutInterval: Int = ${timeoutInterval}
-
   final def connectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
 
-  final def getConnectRetry: Int = ${connectRetry}
+  final def exitOnError: BooleanParam = new BooleanParam(this, "dmlcWorkerStopProcessOnError",
+  "exit process when rabit see assert error")
 
-  final def mock: Param[String] = new Param[String](this, "mock",
-    "simulate failure in rabit worker with four digit split by comma",
-    (mock : String) => mock.split(",").length == 4)
-
-  setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> 0,
-    rabitDebug -> 0, connectRetry -> 5, rabitTimeout -> 0, timeoutInterval -> 1800,
-    mock -> "-1,-1,-1,-1")
+  setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> false,
+    rabitDebug -> false, connectRetry -> 5, rabitTimeout -> false, timeoutInterval -> 1800,
+    exitOnError -> true)
 }

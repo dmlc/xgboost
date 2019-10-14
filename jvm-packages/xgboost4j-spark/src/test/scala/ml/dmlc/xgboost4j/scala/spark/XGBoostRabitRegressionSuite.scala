@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.java.{Rabit, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 
 import scala.collection.JavaConverters._
@@ -39,18 +39,18 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> 1, "rabit_debug" -> 1, "rabit_reduce_ring_mincount" -> 100,
+      "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 100,
       "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> 1, "rabit_timeout_sec" -> 5)).fit(training)
+      "rabit_timeout" -> true, "rabit_timeout_sec" -> 5)).fit(training)
 
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "1")
-      if (item._1.toString == "rabit_debug") assert(item._2 == "1")
+      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "true")
+      if (item._1.toString == "rabit_debug") assert(item._2 == "true")
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "100")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "1")
-      if (item._1.toString == "rabit_timeout") assert(item._2 == "1")
+      if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
     })
 
@@ -73,17 +73,17 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> 1, "rabit_debug" -> 1, "rabit_reduce_ring_mincount" -> 100,
+      "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 100,
       "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> 1, "rabit_timeout_sec" -> 5)).fit(training)
+      "rabit_timeout" -> true, "rabit_timeout_sec" -> 5)).fit(training)
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "1")
-      if (item._1.toString == "rabit_debug") assert(item._2 == "1")
+      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "true")
+      if (item._1.toString == "rabit_debug") assert(item._2 == "true")
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "100")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
-      if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "1")
-      if (item._1.toString == "rabit_timeout") assert(item._2 == "1")
+      if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "true")
+      if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
     })
     // check the equality of single instance prediction
@@ -91,6 +91,21 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     // check parity w/o rabit cache
     prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
       assert(math.abs(p1 - p2) < 0.01f)
+    }
+  }
+
+  test("test mock failure") {
+    val training = buildDataFrame(Classification.train)
+    val testDF = buildDataFrame(Classification.test)
+    // mock rank 0 failure during 3rd allreduce synchronization
+    Rabit.mockList = Array("0,3,0,0").toList.asJava
+    intercept[XGBoostError] {
+      new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+        "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 1,
+        "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 0,
+        "rabit_timeout" -> true, "rabit_timeout_sec" -> 1,
+        "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> false)).fit(training)
     }
   }
 }
