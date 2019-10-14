@@ -165,6 +165,14 @@ class ArrayInterfaceHandler {
       auto typestr = get<String const>(j_mask.at("typestr"));
       // For now this is just 1, we can support different size of interger in mask.
       int64_t const type_length = typestr.at(2) - 48;
+
+      if (typestr.at(1) == 't') {
+        CHECK_EQ(type_length, 1) << "mask with bitfield type should be of 1 byte per bitfield.";
+      } else if (typestr.at(1) == 'i') {
+        CHECK_EQ(type_length, 1) << "mask with integer type should be of 1 byte per integer.";
+      } else {
+        LOG(FATAL) << "mask must be of integer type or bit field type.";
+      }
       /*
        * shape represents how many bits is in the mask. (This is a grey area, don't be
        * suprised if it suddently represents something else when supporting a new
@@ -175,23 +183,15 @@ class ArrayInterfaceHandler {
        *
        * And that's the only requirement.
        */
-      int64_t const n_bits = get<Integer>(j_shape.at(0));
+      size_t const n_bits = static_cast<size_t>(get<Integer>(j_shape.at(0)));
       // The size of span required to cover all bits.  Here with 8 bits bitfield, we
       // assume 1 byte alignment.
-      int64_t const span_size = RBitField8::ComputeStorageSize(n_bits);
+      size_t const span_size = RBitField8::ComputeStorageSize(n_bits);
 
       if (j_mask.find("strides") != j_mask.cend()) {
         auto strides = get<Array const>(column.at("strides"));
         CHECK_EQ(strides.size(),                        1) << ColumnarErrors::Dimension(1);
         CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ColumnarErrors::Contigious();
-      }
-
-      if (typestr.at(1) == 't') {
-        CHECK_EQ(typestr.at(2), '1') << "mask with bitfield type should be of 1 byte per bitfield.";
-      } else if (typestr.at(1) == 'i') {
-        CHECK_EQ(typestr.at(2), '1') << "mask with integer type should be of 1 byte per integer.";
-      } else {
-        LOG(FATAL) << "mask must be of integer type or bit field type.";
       }
 
       s_mask = {p_mask, span_size};
@@ -219,7 +219,7 @@ class ArrayInterfaceHandler {
       CHECK_EQ(get<Integer>(strides.at(0)), sizeof(T)) << ColumnarErrors::Contigious();
     }
 
-    auto length = get<Integer const>(j_shape.at(0));
+    auto length = static_cast<size_t>(get<Integer const>(j_shape.at(0)));
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
     return common::Span<T>{p_data, length};

@@ -73,7 +73,7 @@ class QuantileHistMock : public QuantileHistMaker {
           ASSERT_LT(gmat_row_offset, gmat.index.size());
           SparsePage::Inst inst = batch[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
-          for (int64_t j = 0; j < inst.size(); ++j) {
+          for (size_t j = 0; j < inst.size(); ++j) {
             // Each entry of GHistIndexMatrix represents a bin ID
             const size_t bin_id = gmat.index[gmat_row_offset + j];
             const size_t fid = inst[j].index;
@@ -129,7 +129,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       // Now validate the computed histogram returned by BuildHist
-      for (int64_t i = 0; i < hist_[nid].size(); ++i) {
+      for (size_t i = 0; i < hist_[nid].size(); ++i) {
         GradientPairPrecise sol = histogram_expected[i];
         ASSERT_NEAR(sol.GetGrad(), hist_[nid][i].GetGrad(), kEps);
         ASSERT_NEAR(sol.GetHess(), hist_[nid][i].GetHess(), kEps);
