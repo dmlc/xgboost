@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file tree_model.h
  * \brief model structure for tree
  * \author Tianqi Chen
@@ -9,16 +9,18 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/logging.h>
+#include <xgboost/feature_map.h>
+
 #include <limits>
 #include <vector>
 #include <string>
 #include <cstring>
 #include <algorithm>
 #include <tuple>
-#include "./base.h"
-#include "./data.h"
-#include "./logging.h"
-#include "./feature_map.h"
 
 namespace xgboost {
 

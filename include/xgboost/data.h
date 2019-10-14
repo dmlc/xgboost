@@ -11,6 +11,8 @@
 #include <dmlc/data.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
+#include <xgboost/span.h>
+#include <xgboost/host_device_vector.h>
 
 #include <memory>
 #include <numeric>
@@ -18,10 +20,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "../../src/common/span.h"
-#include "../../src/common/group_data.h"
-#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 // forward declare learner.
@@ -214,35 +212,7 @@ class SparsePage {
     data.HostVector().clear();
   }
 
-  SparsePage GetTranspose(int num_columns) const {
-    SparsePage transpose;
-    common::ParallelGroupBuilder<Entry> builder(&transpose.offset.HostVector(),
-                                                &transpose.data.HostVector());
-    const int nthread = omp_get_max_threads();
-    builder.InitBudget(num_columns, nthread);
-    long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
-    for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
-      int tid = omp_get_thread_num();
-      auto inst = (*this)[i];
-      for (const auto& entry : inst) {
-        builder.AddBudget(entry.index, tid);
-      }
-    }
-    builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
-    for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
-      int tid = omp_get_thread_num();
-      auto inst = (*this)[i];
-      for (const auto& entry : inst) {
-        builder.Push(
-            entry.index,
-            Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
-            tid);
-      }
-    }
-    return transpose;
-  }
+  SparsePage GetTranspose(int num_columns) const;
 
   void SortRows() {
     auto ncol = static_cast<bst_omp_uint>(this->Size());

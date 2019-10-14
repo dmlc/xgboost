@@ -19,11 +19,12 @@
 #include <ios>
 #include <utility>
 #include <vector>
-#include "./common/common.h"
-#include "./common/host_device_vector.h"
-#include "./common/io.h"
-#include "./common/random.h"
-#include "./common/timer.h"
+
+#include "xgboost/host_device_vector.h"
+#include "common/common.h"
+#include "common/io.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace {
 
@@ -600,7 +601,7 @@ class LearnerImpl : public Learner {
     gbm_->Configure(args);
 
     if (this->gbm_->UseGPU()) {
-      if (cfg_.find("gpu_id") == cfg_.cend()) {
+      if (generic_param_.gpu_id == -1) {
         generic_param_.gpu_id = 0;
       }
     }

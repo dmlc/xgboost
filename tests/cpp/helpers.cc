@@ -9,6 +9,7 @@
 #include "xgboost/c_api.h"
 
 #include "../../src/data/simple_csr_source.h"
+#include "../../src/gbm/gbtree_model.h"
 
 bool FileExists(const std::string& filename) {
   struct stat st;

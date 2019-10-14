@@ -10,10 +10,13 @@
 #include <xgboost/gbm.h>
 #include <xgboost/logging.h>
 #include <xgboost/linear_updater.h>
+
 #include <vector>
 #include <string>
 #include <sstream>
 #include <algorithm>
+
+#include "gblinear_model.h"
 #include "../common/timer.h"
 
 namespace xgboost {
