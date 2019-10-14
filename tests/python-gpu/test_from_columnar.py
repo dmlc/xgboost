@@ -69,3 +69,20 @@ Arrow specification.'''
 
         with pytest.raises(Exception):
             dtrain = xgb.DMatrix(cd, label=cd)
+
+        # Test when number of elements is less than 8
+        X = cudf.DataFrame({'x': cudf.Series([0, 1, 2, np.NAN, 4],
+                                             dtype=np.int32)})
+        dtrain = xgb.DMatrix(X)
+        assert dtrain.num_col() == 1
+        assert dtrain.num_row() == 5
+
+        # Boolean is not supported.
+        X_boolean = cudf.DataFrame({'x': cudf.Series([True, False])})
+        with pytest.raises(Exception):
+            dtrain = xgb.DMatrix(X_boolean)
+
+        y_boolean = cudf.DataFrame({
+            'x': cudf.Series([True, False, True, True, True])})
+        with pytest.raises(Exception):
+            dtrain = xgb.DMatrix(X_boolean, label=y_boolean)

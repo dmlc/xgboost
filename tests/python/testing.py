@@ -37,3 +37,12 @@ def no_matplotlib():
 def no_cudf():
     return {'condition': not CUDF_INSTALLED,
             'reason': 'CUDF is not installed'}
+
+
+def no_dask_cudf():
+    reason = 'dask_cudf is not installed.'
+    try:
+        import dask_cudf as _   # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}

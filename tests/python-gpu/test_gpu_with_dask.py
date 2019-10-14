@@ -22,6 +22,7 @@ import testing as tm
 
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_dask_cudf())
 def test_dask_dataframe(client):
     X, y = generate_array()
 

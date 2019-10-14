@@ -17,6 +17,16 @@ __global__ void TestSetKernel(LBitField64 bits) {
   }
 }
 
+TEST(BitField, StorageSize) {
+  size_t constexpr kElements { 16 };
+  size_t size = LBitField64::ComputeStorageSize(kElements);
+  ASSERT_EQ(1, size);
+  size = RBitField8::ComputeStorageSize(4);
+  ASSERT_EQ(1, size);
+  size = RBitField8::ComputeStorageSize(kElements);
+  ASSERT_EQ(2, size);
+}
+
 TEST(BitField, GPU_Set) {
   dh::device_vector<LBitField64::value_type> storage;
   uint32_t constexpr kBits = 128;

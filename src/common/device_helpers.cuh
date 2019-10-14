@@ -380,9 +380,7 @@ class DoubleBuffer {
 
   T *Current() { return buff.Current(); }
   xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{
-        buff.Current(),
-        static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
+    return xgboost::common::Span<T>{buff.Current(), Size()};
   }
 
   T *other() { return buff.Alternate(); }
@@ -1129,17 +1127,16 @@ template <typename T,
 xgboost::common::Span<T> ToSpan(
     device_vector<T>& vec,
     IndexT offset = 0,
-    IndexT size = -1) {
-  size = size == -1 ? vec.size() : size;
+    IndexT size = std::numeric_limits<size_t>::max()) {
+  size = size == std::numeric_limits<size_t>::max() ? vec.size() : size;
   CHECK_LE(offset + size, vec.size());
-  return {vec.data().get() + offset, static_cast<IndexT>(size)};
+  return {vec.data().get() + offset, size};
 }
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
                                 size_t offset, size_t size) {
-  using IndexT = typename xgboost::common::Span<T>::index_type;
-  return ToSpan(vec, static_cast<IndexT>(offset), static_cast<IndexT>(size));
+  return ToSpan(vec, offset, size);
 }
 
 // thrust begin, similiar to std::begin
