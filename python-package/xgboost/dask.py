@@ -139,13 +139,14 @@ class DaskDMatrix:
         self._missing = missing
 
         if len(data.shape) != 2:
-            _expect('2 dimensions input', data.shape)
+            raise ValueError(
+                'Expecting 2 dimensional input, got: {shape}'.format(
+                    shape=data.shape))
 
-        if not any(isinstance(data, t) for t in (dd.DataFrame, da.Array)):
+        if not isinstance(data, (dd.DataFrame, da.Array)):
             raise TypeError(_expect((dd.DataFrame, da.Array), type(data)))
-        if not any(
-                isinstance(label, t)
-                for t in (dd.DataFrame, da.Array, dd.Series, type(None))):
+        if not isinstance(label, (dd.DataFrame, da.Array, dd.Series,
+                                  type(None))):
             raise TypeError(
                 _expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
@@ -286,7 +287,8 @@ class DaskDMatrix:
             rows += shape[0]
 
             c = shape[1]
-            assert cols in (0, c), 'Shape between partitions are not the same.'
+            assert cols in (0, c), 'Shape between partitions are not the' \
+                ' same. Got: {left} and {right}'.format(left=c, right=cols)
             cols = c
         return (rows, cols)
 
