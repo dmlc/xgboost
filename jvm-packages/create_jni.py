@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
+import getopt
 
 
 # Monkey-patch the API inconsistency between Python2.X and 3.X.
@@ -18,7 +19,7 @@ CONFIG = {
     "USE_HDFS": "OFF",
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
-
+    "RABIT_MOCK": "OFF",
     "USE_CUDA": "OFF",
     "JVM_BINDINGS": "ON"
 }
@@ -68,6 +69,7 @@ def normpath(path):
 
 
 if __name__ == "__main__":
+    CONFIG["RABIT_MOCK"] = str(sys.argv[1])
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"

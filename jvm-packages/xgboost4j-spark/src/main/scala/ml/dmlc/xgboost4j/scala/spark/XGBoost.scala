@@ -236,7 +236,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     "rabit_timeout_sec" ->
       overridedParams.getOrElse("rabit_timeout_sec", 1800).toString,
     "DMLC_WORKER_CONNECT_RETRY" ->
-      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString
+      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
+    "mock" ->
+    overridedParams.getOrElse("mock", "-1,-1,-1,-1").toString
   )
 }
 

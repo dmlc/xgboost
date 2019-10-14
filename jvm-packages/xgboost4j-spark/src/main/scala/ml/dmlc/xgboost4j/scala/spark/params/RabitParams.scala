@@ -67,6 +67,11 @@ private[spark] trait RabitParams extends Params {
 
   final def getConnectRetry: Int = ${connectRetry}
 
+  final def mock: Param[String] = new Param[String](this, "mock",
+    "simulate failure in rabit worker with four digit split by comma",
+    (mock : String) => mock.split(",").length == 4)
+
   setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> 0,
-    rabitDebug -> 0, connectRetry -> 5, rabitTimeout -> 0, timeoutInterval -> 1800)
+    rabitDebug -> 0, connectRetry -> 5, rabitTimeout -> 0, timeoutInterval -> 1800,
+    mock -> "-1,-1,-1,-1")
 }

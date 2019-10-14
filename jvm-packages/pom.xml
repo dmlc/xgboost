@@ -37,6 +37,7 @@
         <spark.version>2.4.3</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
+        <rabit.mock>OFF</rabit.mock>
     </properties>
     <repositories>
         <repository>
@@ -52,6 +53,83 @@
         <module>xgboost4j-flink</module>
     </modules>
     <profiles>
+        <profile>
+          <id>dev</id>
+          <properties>
+            <rabit.mock>ON</rabit.mock>
+          </properties>
+          <build>
+            <plugins>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.0.2</version>
+                <executions>
+                  <execution>
+                    <id>empty-javadoc-jar</id>
+                    <phase>package</phase>
+                    <goals>
+                      <goal>jar</goal>
+                    </goals>
+                    <configuration>
+                      <classifier>javadoc</classifier>
+                      <classesDirectory>${basedir}/javadoc</classesDirectory>
+                    </configuration>
+                  </execution>
+                </executions>
+              </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.5.3</version>
+                <configuration>
+                  <autoVersionSubmodules>true</autoVersionSubmodules>
+                  <useReleaseProfile>false</useReleaseProfile>
+                  <releaseProfiles>release</releaseProfiles>
+                  <goals>deploy</goals>
+                </configuration>
+              </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.5</version>
+                <executions>
+                  <execution>
+                    <id>sign-artifacts</id>
+                    <phase>verify</phase>
+                    <goals>
+                      <goal>sign</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>2.2.1</version>
+                <executions>
+                  <execution>
+                    <id>attach-sources</id>
+                    <goals>
+                      <goal>jar-no-fork</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
+              <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.6.7</version>
+                <extensions>true</extensions>
+                <configuration>
+                  <serverId>ossrh</serverId>
+                  <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                  <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                </configuration>
+              </plugin>
+            </plugins>
+          </build>
+        </profile>
         <profile>
             <id>release</id>
             <build>

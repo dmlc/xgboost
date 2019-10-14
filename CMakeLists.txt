@@ -93,7 +93,11 @@ set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
 set(RABIT_WITH_R_LIB ${R_LIB})
 add_subdirectory(rabit)
 
-list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
+if (RABIT_MOCK)
+  list(APPEND LINKED_LIBRARIES_PRIVATE rabit_mock_static)
+else()
+  list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
+endif(RABIT_MOCK)
 
 # Exports some R specific definitions and objects
 if (R_LIB)
