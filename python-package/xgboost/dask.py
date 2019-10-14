@@ -286,7 +286,7 @@ class DaskDMatrix:
             rows += shape[0]
 
             c = shape[1]
-            assert cols in (0, c)
+            assert cols in (0, c), 'Shape between partitions are not the same.'
             cols = c
         return (rows, cols)
 
