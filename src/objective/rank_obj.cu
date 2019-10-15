@@ -265,7 +265,7 @@ CountNumLabelsImpl(bool left, const float * __restrict__ labels, int n, float v)
   }
 
   return left ? labels_begin - labels : labels + n - labels_begin;
-};
+}
 
 __device__ __forceinline__ int
 CountNumLabelsToTheLeftOf(const float * __restrict__ labels, int n, float v) {
