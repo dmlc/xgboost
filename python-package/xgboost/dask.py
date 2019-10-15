@@ -173,8 +173,8 @@ class DaskDMatrix:
             # x is required to be 2 dim in __init__
             assert parts.ndim == 1 or parts.shape[1], 'Data should be' \
                 ' partitioned by row. To avoid this specify the number' \
-                ' of columns for your dask DataFrame/Array' \
-                ' to 1 explicitly. e.g. chunks=(partition_size, X.shape[1])'
+                ' of columns for your dask Array explicitly. e.g.' \
+                ' chunks=(partition_size, X.shape[1])'
 
         data = data.persist()
         if label is not None:
