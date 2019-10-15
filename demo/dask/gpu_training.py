@@ -32,6 +32,7 @@ def main(client):
 
     # you can pass output directly into `predict` too.
     prediction = xgb.dask.predict(client, bst, dtrain)
+    prediction = prediction.compute()
     print('Evaluation history:', history)
     return prediction
 

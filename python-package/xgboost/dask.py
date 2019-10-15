@@ -445,8 +445,8 @@ def predict(client, model, data, *args):
         '''Get shape of data in each worker.'''
         logging.info('Trying to get data shape on %d', worker_id)
         worker = distributed_get_worker()
-        rows, cols = data.get_worker_data_shape(worker)
-        return rows, cols
+        rows, _ = data.get_worker_data_shape(worker)
+        return rows, 1          # default is 1
 
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
@@ -457,7 +457,7 @@ def predict(client, model, data, *args):
     shapes = client.gather(futures_shape)
     arrays = []
     for i in range(len(futures_shape)):
-        arrays.append(da.from_delayed(futures[i], shape=shapes[i],
+        arrays.append(da.from_delayed(futures[i], shape=(shapes[i][0], ),
                                       dtype=numpy.float32))
     predictions = da.concatenate(arrays, axis=0)
     return predictions
