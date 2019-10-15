@@ -162,11 +162,19 @@ class DaskDMatrix:
 
         def inconsistent(left, left_name, right, right_name):
             msg = 'Partitions between {a_name} and {b_name} are not ' \
-                'consistent: {a_len} != {b_len}'.format(
+                'consistent: {a_len} != {b_len}.  ' \
+                'Please try to repartition/rechunk your data.'.format(
                     a_name=left_name, b_name=right_name, a_len=len(left),
                     b_len=len(right)
                 )
             return msg
+
+        def check_columns(parts):
+            # x is required to be 2 dim in __init__
+            assert parts.ndim == 1 or parts.shape[1], 'Data should be' \
+                ' partitioned by row. To avoid this specify the number' \
+                ' of columns for your dask DataFrame/Array' \
+                ' to 1 explicitly. e.g. chunks=(partition_size, X.shape[1])'
 
         data = data.persist()
         if label is not None:
@@ -179,18 +187,18 @@ class DaskDMatrix:
         # equivalents.
         X_parts = data.to_delayed()
         if isinstance(X_parts, numpy.ndarray):
-            assert X_parts.shape[1] == 1, X_parts.shape[1]
+            check_columns(X_parts)
             X_parts = X_parts.flatten().tolist()
 
         if label is not None:
             y_parts = label.to_delayed()
             if isinstance(y_parts, numpy.ndarray):
-                assert y_parts.ndim == 1 or y_parts.shape[1] == 1
+                check_columns(y_parts)
                 y_parts = y_parts.flatten().tolist()
         if weights is not None:
             w_parts = weights.to_delayed()
             if isinstance(w_parts, numpy.ndarray):
-                assert w_parts.ndim == 1 or w_parts.shape[1] == 1
+                check_columns(w_parts)
                 w_parts = w_parts.flatten().tolist()
 
         parts = [X_parts]
