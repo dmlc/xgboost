@@ -43,6 +43,7 @@ def test_from_dask_dataframe(client):
 
     prediction = xgb.dask.predict(client, model=booster, data=dtrain)
 
+    assert prediction.ndim == 1
     assert isinstance(prediction, da.Array)
     assert prediction.shape[0] == kRows
 
@@ -76,6 +77,7 @@ def test_regressor(client):
     regressor.fit(X, y, eval_set=[(X, y)])
     prediction = regressor.predict(X)
 
+    assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
 
     history = regressor.evals_result()
@@ -95,6 +97,7 @@ def test_classifier(client):
     classifier.fit(X, y,  eval_set=[(X, y)])
     prediction = classifier.predict(X)
 
+    assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
 
     history = classifier.evals_result()

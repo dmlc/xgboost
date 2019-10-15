@@ -395,6 +395,10 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 def predict(client, model, data, *args):
     '''Run prediction with a trained booster.
 
+      .. note::
+
+          Only default prediction mode is supported right now.
+
     Parameters
     ----------
     client: dask.distributed.Client
