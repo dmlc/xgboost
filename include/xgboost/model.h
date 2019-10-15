@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2019 by Contributors
+ * \file model.h
+ * \brief Defines the abstract interface for different components in XGBoost.
+ */
 #ifndef XGBOOST_MODEL_H_
 #define XGBOOST_MODEL_H_
 
