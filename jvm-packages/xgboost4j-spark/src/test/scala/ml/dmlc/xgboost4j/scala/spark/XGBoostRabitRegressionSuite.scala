@@ -94,16 +94,14 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  test("test mock failure") {
+  test("test graceful failure handle") {
     val training = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    // mock rank 0 failure during 3rd allreduce synchronization
-    Rabit.mockList = Array("0,3,0,0").toList.asJava
+    // mock rank 0 failure during 4th allreduce synchronization
+    Rabit.mockList = Array("0,4,0,0").toList.asJava
     intercept[XGBoostError] {
       new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
         "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-        "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 1,
-        "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 0,
         "rabit_timeout" -> true, "rabit_timeout_sec" -> 1,
         "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> false)).fit(training)
     }
