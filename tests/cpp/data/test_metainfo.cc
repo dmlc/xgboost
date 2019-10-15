@@ -58,8 +58,8 @@ TEST(MetaInfo, SaveLoadBinary) {
     info.SaveBinary(fs.get());
   }
 
-  ASSERT_EQ(GetFileSize(tmp_file), 84)
-    << "Expected saved binary file size to be same as object size";
+  ASSERT_EQ(GetFileSize(tmp_file), 92)
+      << "Expected saved binary file size to be same as object size";
 
   std::unique_ptr<dmlc::Stream> fs {
     dmlc::Stream::Create(tmp_file.c_str(), "r")
