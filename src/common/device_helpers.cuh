@@ -32,6 +32,27 @@
 #include "../common/io.h"
 #endif
 
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+
+#else  // In device code and CUDA < 600
+XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
+  unsigned long long int* address_as_ull =
+      (unsigned long long int*)address;                   // NOLINT
+  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed,
+                    __double_as_longlong(val + __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
+    // NaN)
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
+}
+#endif
+
 namespace dh {
 
 #define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
@@ -270,7 +291,7 @@ public:
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
       << " ========";
     LOG(CONSOLE) << "Peak memory usage: "
-      << stats_.peak_allocated_bytes / 1048576 << "mb";
+      << stats_.peak_allocated_bytes / 1048576 << "MiB";
     LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
@@ -978,7 +999,7 @@ class AllReducer {
     if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       LOG(CONSOLE) << "======== NCCL Statistics========";
       LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
-      LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1048576;
+      LOG(CONSOLE) << "AllReduce total MiB communicated: " << allreduce_bytes_/1048576;
     }
 #endif
   }
@@ -1217,5 +1238,17 @@ public:
     return *offset;
   }
 };
+
+// Atomic add function for gradients
+template <typename OutputGradientT, typename InputGradientT>
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                               const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
+
+  atomicAdd(dst_ptr,
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
+  atomicAdd(dst_ptr + 1,
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
+}
 
 }  // namespace dh

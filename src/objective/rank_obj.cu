@@ -243,46 +243,38 @@ struct MAPLambdaWeightComputer {
 #if defined(__CUDACC__)
 // Helper functions
 
-// Labels are sorted in a descending order
-// Find the first label in 'labels' that is < v. Return -1, if not present
-__device__ __forceinline__ int UpperBound(const float * __restrict__ labels, int n, float v) {
-  if (n == 0)                  { return -1; }
-  // Nothing can be < v as the first item itself is lesser
-  if (v > labels[0])           { return 0; }
-  // This is the last element and nothing can be < v as it is sorted descendingly
-  if (v <= labels[n-1])        { return -1; }
-
-  int left = 0, right = n - 1;
-  while (right - left > 1) {
-    int middle = left + (right - left) / 2;
-    if (labels[middle] < v) {
-      right = middle;
+// Labels of size 'n' are sorted in a descending order
+// If left is true,  find the number of elements > v; 0 if nothing is greater
+// If left is false, find the number of elements < v; 0 if nothing is lesser
+__device__ __forceinline__ int
+CountNumLabelsImpl(bool left, const float * __restrict__ labels, int n, float v) {
+  const float *labels_begin = labels;
+  int num_remaining = n;
+  const float *middle_item = nullptr;
+  int middle;
+  while (num_remaining > 0) {
+    middle_item = labels_begin;
+    middle = num_remaining / 2;
+    middle_item += middle;
+    if ((left && *middle_item > v) || (!left && !(v > *middle_item))) {
+      labels_begin = ++middle_item;
+      num_remaining -= middle + 1;
     } else {
-      left = middle;
+      num_remaining = middle;
     }
   }
-  return right;
+
+  return left ? labels_begin - labels : labels + n - labels_begin;
+};
+
+__device__ __forceinline__ int
+CountNumLabelsToTheLeftOf(const float * __restrict__ labels, int n, float v) {
+  return CountNumLabelsImpl(true, labels, n, v);
 }
 
-// Labels are sorted in a descending order
-// Find the first label in 'labels' that is <= v. Return -1, if not present
-__device__ __forceinline__ int LowerBound(const float * __restrict__ labels, int n, float v) {
-  if (n == 0)                  { return -1; }
-  // Nothing can be > v as the first item itself is greater
-  if (v >= labels[0])          { return -1; }
-  // The last element itself is greater than v; so, return its position
-  if (labels[n-1] > v)         { return n-1; }
-
-  int left = 0, right = n - 1;
-  while (right - left > 1) {
-    int middle = left + (right - left) / 2;
-    if (labels[middle] > v) {
-      left = middle;
-    } else {
-      right = middle;
-    }
-  }
-  return left;
+__device__ __forceinline__ int
+CountNumLabelsToTheRightOf(const float * __restrict__ labels, int n, float v) {
+  return CountNumLabelsImpl(false, labels, n, v);
 }
 
 class SortedLabelList {
@@ -291,13 +283,13 @@ class SortedLabelList {
   dh::caching_device_vector<float> dsorted_labels_;
 
   // Original position of the labels before they are sorted descendingly within its groups
-  dh::caching_device_vector<int> doriginal_pos_;
+  dh::caching_device_vector<uint32_t> doriginal_pos_;
 
   // Segments within the original list that delineates the different groups
-  dh::caching_device_vector<int> group_segments_;
+  dh::caching_device_vector<uint32_t> group_segments_;
 
   // Need this on the device as it is used in the kernels
-  dh::caching_device_vector<unsigned> dgroups_;       // Group information on device
+  dh::caching_device_vector<uint32_t> dgroups_;       // Group information on device
 
   int device_id_{-1};                                 // GPU device ID
   const LambdaRankParam &param_;                      // Objective configuration
@@ -308,7 +300,7 @@ class SortedLabelList {
     : device_id_(dev_id),
       param_(param) {}
 
-  void InitWithTrainingInfo(const std::vector<unsigned> &groups) {
+  void InitWithTrainingInfo(const std::vector<uint32_t> &groups) {
     int num_elems = groups.back();
 
     dsorted_labels_.resize(num_elems);
@@ -321,7 +313,7 @@ class SortedLabelList {
     dgroups_ = groups;
 
     // Launch a kernel that populates the segment information for the different groups
-    int *gsegs = group_segments_.data().get();
+    uint32_t *gsegs = group_segments_.data().get();
     const unsigned *dgroups = dgroups_.data().get();
     int ngroups = dgroups_.size();
     dh::LaunchN(device_id_, num_elems, nullptr, [=] __device__(unsigned idx){
@@ -350,7 +342,7 @@ class SortedLabelList {
   // NOTE: This consumes space, but is much faster than some of the other approaches - sorting
   //       in kernel, sorting using predicates etc.
   void Sort(const HostDeviceVector<bst_float> &dlabels) {
-    dsorted_labels_.assign(dlabels.tcbegin(), dlabels.tcend());
+    dsorted_labels_.assign(dh::tcbegin(dlabels), dh::tcend(dlabels));
     thrust::stable_sort_by_key(dsorted_labels_.begin(), dsorted_labels_.end(),
                                doriginal_pos_.begin(), thrust::greater<float>());
 
@@ -358,7 +350,7 @@ class SortedLabelList {
     // holisitic label sort order on the segments
     // group_segments_c_:   3 3 2 2 1 0 0 1 2 0
     // doriginal_pos_:      8 9 6 7 3 0 2 4 5 1 (stays the same)
-    thrust::device_vector<int> group_segments_c(group_segments_);
+    thrust::device_vector<uint32_t> group_segments_c(group_segments_);
     thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
                    group_segments_.begin(), group_segments_c.begin());
 
@@ -374,7 +366,7 @@ class SortedLabelList {
     // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9  (stays the same)
     // dsorted_labels_:     1 1 0 2 1 3 3 1 4 4  (from unsorted dlabels - dlabels)
     thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
-                   dlabels.tcbegin(), dsorted_labels_.begin());
+                   dh::tcbegin(dlabels), dsorted_labels_.begin());
   }
 
   ~SortedLabelList() {
@@ -391,12 +383,12 @@ class SortedLabelList {
     const unsigned *dgroups = dgroups_.data().get();
     int ngroups = dgroups_.size();
 
-    int total_items = group_segments_.size();
+    uint32_t total_items = group_segments_.size();
     int niter = param_.num_pairsample * total_items;
 
     float fix_list_weight = param_.fix_list_weight;
 
-    const int *original_pos = doriginal_pos_.data().get();
+    const uint32_t *original_pos = doriginal_pos_.data().get();
 
     size_t num_weights = weights.Size();
     auto dweights = num_weights ? weights.ConstDevicePointer() : nullptr;
@@ -419,12 +411,10 @@ class SortedLabelList {
 
       // Find the number of labels less than and greater than the current label
       // at the sorted index position item_idx
-      int nleft  = LowerBound(sorted_labels + group_begin, total_group_items,
-                              sorted_labels[item_idx]);
-      int nright = UpperBound(sorted_labels + group_begin, total_group_items,
-                              sorted_labels[item_idx]);
-      nleft  = (nleft  == -1) ? 0 : nleft + 1;
-      nright = (nright == -1) ? 0 : total_group_items - nright;
+      int nleft  = CountNumLabelsToTheLeftOf(
+        sorted_labels + group_begin, total_group_items, sorted_labels[item_idx]);
+      int nright = CountNumLabelsToTheRightOf(
+        sorted_labels + group_begin, total_group_items, sorted_labels[item_idx]);
 
       // Create a minstd_rand object to act as our source of randomness
       thrust::minstd_rand rng;
@@ -463,15 +453,11 @@ class SortedLabelList {
       weight *= weight_normalization_factor;
       weight *= scale;
       // Accumulate gradient and hessian in both positive and negative indices
-      float *out_pos_gpair = reinterpret_cast<float *>(&out_gpair[original_pos[pos_idx]]);
       const GradientPair in_pos_gpair(g * weight, 2.0f * weight * h);
-      atomicAdd(out_pos_gpair, in_pos_gpair.GetGrad());
-      atomicAdd(out_pos_gpair + 1, in_pos_gpair.GetHess());
+      dh::AtomicAddGpair(&out_gpair[original_pos[pos_idx]], in_pos_gpair);
 
-      float *out_neg_gpair = reinterpret_cast<float *>(&out_gpair[original_pos[neg_idx]]);
       const GradientPair in_neg_gpair(-g * weight, 2.0f * weight * h);
-      atomicAdd(out_neg_gpair, in_neg_gpair.GetGrad());
-      atomicAdd(out_neg_gpair + 1, in_neg_gpair.GetHess());
+      dh::AtomicAddGpair(&out_gpair[original_pos[neg_idx]], in_neg_gpair);
     });
   }
 };
