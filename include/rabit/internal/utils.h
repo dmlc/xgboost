@@ -67,9 +67,18 @@ const int kPrintBuffer = 1 << 12;
  * co-locate in the same process */
 extern bool STOP_PROCESS_ON_ERROR;
 
+/* \brief Case-insensitive string comparison */
+inline int CompareStringsCaseInsensitive(const char* s1, const char* s2) {
+#ifdef _MSC_VER
+  return _stricmp(s1, s2);
+#else  // _MSC_VER
+  return strcasecmp(s1, s2);
+#endif  // _MSC_VER
+}
+
 /* \brief parse config string too bool*/
 inline bool StringToBool(const char* s) {
-  return strcasecmp(s, "true") == 0 || atoi(s) != 0;
+  return CompareStringsCaseInsensitive(s, "true") == 0 || atoi(s) != 0;
 }
 
 #ifndef RABIT_CUSTOMIZE_MSG_
