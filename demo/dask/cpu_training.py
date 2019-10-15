@@ -7,11 +7,10 @@ from dask import array as da
 
 def main(client):
     # generate some random data for demonstration
-    n = 100
     m = 100000
-    partition_size = 1000
-    X = da.random.random((m, n), partition_size)
-    y = da.random.random(m, partition_size)
+    n = 100
+    X = da.random.random(size=(m, n), chunks=100)
+    y = da.random.random(size=(m, ), chunks=100)
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
     # DMatrix scatter around workers.
@@ -38,6 +37,6 @@ def main(client):
 
 if __name__ == '__main__':
     # or use other clusters for scaling
-    with LocalCluster(n_workers=4, threads_per_worker=1) as cluster:
+    with LocalCluster(n_workers=7, threads_per_worker=1) as cluster:
         with Client(cluster) as client:
             main(client)

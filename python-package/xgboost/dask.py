@@ -139,13 +139,14 @@ class DaskDMatrix:
         self._missing = missing
 
         if len(data.shape) != 2:
-            _expect('2 dimensions input', data.shape)
+            raise ValueError(
+                'Expecting 2 dimensional input, got: {shape}'.format(
+                    shape=data.shape))
 
-        if not any(isinstance(data, t) for t in (dd.DataFrame, da.Array)):
+        if not isinstance(data, (dd.DataFrame, da.Array)):
             raise TypeError(_expect((dd.DataFrame, da.Array), type(data)))
-        if not any(
-                isinstance(label, t)
-                for t in (dd.DataFrame, da.Array, dd.Series, type(None))):
+        if not isinstance(label, (dd.DataFrame, da.Array, dd.Series,
+                                  type(None))):
             raise TypeError(
                 _expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
@@ -158,6 +159,23 @@ class DaskDMatrix:
 
     async def map_local_data(self, client, data, label=None, weights=None):
         '''Obtain references to local data.'''
+
+        def inconsistent(left, left_name, right, right_name):
+            msg = 'Partitions between {a_name} and {b_name} are not ' \
+                'consistent: {a_len} != {b_len}.  ' \
+                'Please try to repartition/rechunk your data.'.format(
+                    a_name=left_name, b_name=right_name, a_len=len(left),
+                    b_len=len(right)
+                )
+            return msg
+
+        def check_columns(parts):
+            # x is required to be 2 dim in __init__
+            assert parts.ndim == 1 or parts.shape[1], 'Data should be' \
+                ' partitioned by row. To avoid this specify the number' \
+                ' of columns for your dask Array explicitly. e.g.' \
+                ' chunks=(partition_size, X.shape[1])'
+
         data = data.persist()
         if label is not None:
             label = label.persist()
@@ -169,28 +187,28 @@ class DaskDMatrix:
         # equivalents.
         X_parts = data.to_delayed()
         if isinstance(X_parts, numpy.ndarray):
-            assert X_parts.shape[1] == 1
+            check_columns(X_parts)
             X_parts = X_parts.flatten().tolist()
 
         if label is not None:
             y_parts = label.to_delayed()
             if isinstance(y_parts, numpy.ndarray):
-                assert y_parts.ndim == 1 or y_parts.shape[1] == 1
+                check_columns(y_parts)
                 y_parts = y_parts.flatten().tolist()
         if weights is not None:
             w_parts = weights.to_delayed()
             if isinstance(w_parts, numpy.ndarray):
-                assert w_parts.ndim == 1 or w_parts.shape[1] == 1
+                check_columns(w_parts)
                 w_parts = w_parts.flatten().tolist()
 
         parts = [X_parts]
         if label is not None:
             assert len(X_parts) == len(
-                y_parts), 'Partitions between X and y are not consistent'
+                y_parts), inconsistent(X_parts, 'X', y_parts, 'labels')
             parts.append(y_parts)
         if weights is not None:
             assert len(X_parts) == len(
-                w_parts), 'Partitions between X and weight are not consistent.'
+                w_parts), inconsistent(X_parts, 'X', w_parts, 'weights')
             parts.append(w_parts)
         parts = list(map(delayed, zip(*parts)))
 
@@ -275,7 +293,11 @@ class DaskDMatrix:
         cols = 0
         for shape in shapes:
             rows += shape[0]
-            cols += shape[1]
+
+            c = shape[1]
+            assert cols in (0, c), 'Shape between partitions are not the' \
+                ' same. Got: {left} and {right}'.format(left=c, right=cols)
+            cols = c
         return (rows, cols)
 
 
@@ -373,6 +395,10 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 def predict(client, model, data, *args):
     '''Run prediction with a trained booster.
 
+      .. note::
+
+          Only default prediction mode is supported right now.
+
     Parameters
     ----------
     client: dask.distributed.Client
@@ -423,8 +449,8 @@ def predict(client, model, data, *args):
         '''Get shape of data in each worker.'''
         logging.info('Trying to get data shape on %d', worker_id)
         worker = distributed_get_worker()
-        rows, cols = data.get_worker_data_shape(worker)
-        return rows, cols
+        rows, _ = data.get_worker_data_shape(worker)
+        return rows, 1          # default is 1
 
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
@@ -435,7 +461,7 @@ def predict(client, model, data, *args):
     shapes = client.gather(futures_shape)
     arrays = []
     for i in range(len(futures_shape)):
-        arrays.append(da.from_delayed(futures[i], shape=shapes[i],
+        arrays.append(da.from_delayed(futures[i], shape=(shapes[i][0], ),
                                       dtype=numpy.float32))
     predictions = da.concatenate(arrays, axis=0)
     return predictions
