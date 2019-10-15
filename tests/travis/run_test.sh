@@ -26,7 +26,8 @@ fi
 if [ ${TASK} == "java_test" ]; then
     set -e
     cd jvm-packages
-    mvn -Pdev package
+    mvn -Pdev package -DskipTests
+    mvn test
 fi
 
 if [ ${TASK} == "cmake_test" ]; then
