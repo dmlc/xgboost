@@ -6,11 +6,11 @@ from xgboost.dask import DaskDMatrix
 
 
 def main(client):
-    n = 100
+    # generate some random data for demonstration
     m = 100000
-    partition_size = 1000
-    X = da.random.random((m, n), partition_size)
-    y = da.random.random(m, partition_size)
+    n = 100
+    X = da.random.random(size=(m, n), chunks=100)
+    y = da.random.random(size=(m, ), chunks=100)
 
     # DaskDMatrix acts like normal DMatrix, works as a proxy for local
     # DMatrix scatter around workers.
@@ -23,6 +23,7 @@ def main(client):
     output = xgb.dask.train(client,
                             {'verbosity': 2,
                              'nthread': 1,
+                             # Golden line for GPU training
                              'tree_method': 'gpu_hist'},
                             dtrain,
                             num_boost_round=4, evals=[(dtrain, 'train')])
