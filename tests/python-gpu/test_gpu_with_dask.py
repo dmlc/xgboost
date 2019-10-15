@@ -40,3 +40,6 @@ def test_dask_dataframe(client):
 
     assert isinstance(out['booster'], dxgb.Booster)
     assert len(out['history']['X']['rmse']) == 2
+
+    predictions = dxgb.predict(out, dtrain)
+    predictions = predictions.compute()
