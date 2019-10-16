@@ -109,4 +109,33 @@ TEST(GBTree, ChoosePredictor) {
   ASSERT_FALSE(data.HostCanWrite());
 }
 #endif
+
+TEST(GBTree, PredictIncorrect) {
+  size_t constexpr kRows = 10;
+  size_t constexpr kCols = 10;
+  GenericParameter generic_param;
+  generic_param.InitAllowUnknown(Args{});
+  std::unique_ptr<GradientBooster> p_gbm{
+    GradientBooster::Create("gbtree", &generic_param, {}, 0)};
+  auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
+  std::string n_feat = std::to_string(kCols);
+  gbtree.Configure(Args{{"tree_method", "exact"},
+                        {"num_feature", n_feat}});
+  auto incorrect_test_mat = CreateDMatrix(kRows, kCols - 1, 0);
+  HostDeviceVector<float> tmp;
+  ASSERT_ANY_THROW(
+      { gbtree.PredictBatch(incorrect_test_mat->get(), &tmp, 0); });
+  ASSERT_ANY_THROW(
+      { gbtree.PredictLeaf(incorrect_test_mat->get(), &tmp.HostVector(), 0); });
+  ASSERT_ANY_THROW({
+    gbtree.PredictContribution(incorrect_test_mat->get(), &tmp.HostVector(), 0,
+                               false, 0, 0);
+  });
+  ASSERT_ANY_THROW({
+    gbtree.PredictInteractionContributions(incorrect_test_mat->get(),
+                                           &tmp.HostVector(), 0, false);
+  });
+  delete incorrect_test_mat;
+}
+
 }  // namespace xgboost

@@ -191,14 +191,14 @@ class GBTree : public GradientBooster {
   void PredictBatch(DMatrix* p_fmat,
                     HostDeviceVector<bst_float>* out_preds,
                     unsigned ntree_limit) override {
-    CHECK(configured_);
+    this->Check(p_fmat);
     GetPredictor(out_preds, p_fmat)->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
-               std::vector<bst_float>* out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
+                       std::vector<bst_float>* out_preds,
+                       unsigned ntree_limit,
+                       unsigned root_index) override {
     CHECK(configured_);
     cpu_predictor_->PredictInstance(inst, out_preds, model_,
                                     ntree_limit, root_index);
@@ -207,7 +207,7 @@ class GBTree : public GradientBooster {
   void PredictLeaf(DMatrix* p_fmat,
                    std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
-    CHECK(configured_);
+    this->Check(p_fmat);
     cpu_predictor_->PredictLeaf(p_fmat, out_preds, model_, ntree_limit);
   }
 
@@ -215,14 +215,14 @@ class GBTree : public GradientBooster {
                            std::vector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition,
                            unsigned condition_feature) override {
-    CHECK(configured_);
+    this->Check(p_fmat);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_, ntree_limit, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
                                        std::vector<bst_float>* out_contribs,
                                        unsigned ntree_limit, bool approximate) override {
-    CHECK(configured_);
+    this->Check(p_fmat);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
                                                     ntree_limit, approximate);
   }
@@ -236,6 +236,14 @@ class GBTree : public GradientBooster {
  protected:
   // initialize updater before using them
   void InitUpdater(Args const& cfg);
+
+  void Check(DMatrix const *p_fmat) {
+    CHECK(configured_);
+    if (p_fmat) {
+      CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+          << "Model trained on different number of features than prediction input matrix";
+    }
+  }
 
   // do group specific group
   void BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
