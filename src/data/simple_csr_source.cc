@@ -185,7 +185,7 @@ void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str,
                                 cuda_interfaces_str.size()});
   std::vector<Json> const& columns = get<Array>(interfaces);
   size_t n_columns = columns.size();
-  CHECK_GT(n_columns, 0) << "Number of columns must not be greater than 0.";
+  CHECK_GT(n_columns, 0) << "Number of columns must not eqaul to 0.";
 
   auto const& typestr = get<String const>(columns[0]["typestr"]);
   CHECK_EQ(typestr.size(),    3)  << ColumnarErrors::TypestrFormat();
