@@ -39,7 +39,7 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
   std::string msg { "Incorrect version format found in binary file.  "
                     "Binary file from XGBoost < 1.0.0 is no longer supported. "
                     "Please generate it again." };
-  std::string verstr { "version:" }, read;
+  std::string verstr { u8"version:" }, read;
   read.resize(verstr.size(), 0);
 
   CHECK_EQ(fi->Read(&read[0], verstr.size()), verstr.size()) << msg;
@@ -66,7 +66,7 @@ void Version::Save(Json* out) {
 void Version::Save(dmlc::Stream* fo) {
   XGBoostVersionT major, minor, patch;
   std::tie(major, minor, patch) = Self();
-  std::string verstr { "version:" };
+  std::string verstr { u8"version:" };
   fo->Write(&verstr[0], verstr.size());
   fo->Write(&major, sizeof(major));
   fo->Write(&minor, sizeof(minor));

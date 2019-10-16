@@ -60,6 +60,9 @@ typedef struct {  // NOLINT(*)
 
 /*!
  * \brief Return the version of the XGBoost library being currently used.
+ *
+ *  The output variable is only written if it's not NULL.
+ *
  * \param major Store the major version number
  * \param minor Store the minor version number
  * \param patch Store the patch (revision) number

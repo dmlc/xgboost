@@ -150,9 +150,15 @@ struct XGBAPIThreadLocalEntry {
 };
 
 XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
-  *major = XGBOOST_VER_MAJOR;
-  *minor = XGBOOST_VER_MINOR;
-  *patch = XGBOOST_VER_PATCH;
+  if (major) {
+    *major = XGBOOST_VER_MAJOR;
+  }
+  if (minor) {
+    *minor = XGBOOST_VER_MINOR;
+  }
+  if (patch) {
+    *patch = XGBOOST_VER_PATCH;
+  }
 }
 
 // define the threadlocal store.

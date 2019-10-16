@@ -63,3 +63,9 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     delete dmat;
   }
 }
+
+TEST(c_api, Version) {
+  int patch {0};
+  XGBoostVersion(NULL, NULL, &patch);  // make sure it doesn't crash
+  ASSERT_EQ(patch, XGBOOST_VER_PATCH);
+}
