@@ -80,8 +80,12 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
   CHECK_GE(param.gpu_id, 0);
   CHECK_GE(param.max_bin, 2);
   // Lazily instantiate
-  if (!ellpack_source_) {
+  if (!ellpack_source_ ||
+      batch_param_.gpu_id != param.gpu_id ||
+      batch_param_.max_bin != param.max_bin ||
+      batch_param_.gpu_batch_nrows != param.gpu_batch_nrows) {
     ellpack_source_.reset(new EllpackPageSource(this, cache_info_, param));
+    batch_param_ = param;
   }
   ellpack_source_->BeforeFirst();
   ellpack_source_->Next();

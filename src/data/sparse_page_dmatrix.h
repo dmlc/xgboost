@@ -46,6 +46,8 @@ class SparsePageDMatrix : public DMatrix {
   std::unique_ptr<SparsePageSource<CSCPage>> column_source_;
   std::unique_ptr<SparsePageSource<SortedCSCPage>> sorted_column_source_;
   std::unique_ptr<EllpackPageSource> ellpack_source_;
+  // saved batch param
+  BatchParam batch_param_;
   // the cache prefix
   std::string cache_info_;
   // Store column densities to avoid recalculating

@@ -68,31 +68,6 @@ const EllpackPage& EllpackPageSource::Value() const {
   return impl_->Value();
 }
 
-class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
- public:
-  bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
-    auto* impl = page->Impl();
-    if (!fi->Read(&impl->n_rows))  return false;
-    return fi->Read(&impl->idx_buffer);
-  }
-
-  bool Read(EllpackPage* page,
-            dmlc::SeekStream* fi,
-            const std::vector<bst_uint>& sorted_index_set) override {
-    auto* impl = page->Impl();
-    if (!fi->Read(&impl->n_rows))  return false;
-    return fi->Read(&page->Impl()->idx_buffer);
-  }
-
-  void Write(const EllpackPage& page, dmlc::Stream* fo) override {
-    auto* impl = page.Impl();
-    fo->Write(impl->n_rows);
-    auto buffer = impl->idx_buffer;
-    CHECK(!buffer.empty());
-    fo->Write(buffer);
-  }
-};
-
 // Build the quantile sketch across the whole input data, then use the histogram cuts to compress
 // each CSR page, and write the accumulated ELLPACK pages to disk.
 EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
@@ -143,7 +118,9 @@ const EllpackPage& EllpackPageSourceImpl::Value() const {
 // Compress each CSR page to ELLPACK, and write the accumulated pages to disk.
 void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const {
   auto cinfo = ParseCacheInfo(cache_info, kPageType_);
-  SparsePageWriter<EllpackPage> writer(cinfo.name_shards, cinfo.format_shards, 6);
+  const size_t extra_buffer_capacity = 6;
+  SparsePageWriter<EllpackPage> writer(
+      cinfo.name_shards, cinfo.format_shards, extra_buffer_capacity);
   std::shared_ptr<EllpackPage> page;
   writer.Alloc(&page);
   auto* impl = page->Impl();
@@ -173,12 +150,6 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
     writer.PushWrite(std::move(page));
   }
 }
-
-XGBOOST_REGISTER_ELLPACK_PAGE_FORMAT(raw)
-    .describe("Raw ELLPACK binary data format.")
-    .set_body([]() {
-      return new EllpackPageRawFormat();
-    });
 
 }  // namespace data
 }  // namespace xgboost

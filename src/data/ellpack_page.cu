@@ -26,7 +26,6 @@ void EllpackPage::SetBaseRowId(size_t row_id) {
 }
 
 // Bin each input data entry, store the bin indices in compressed form.
-template<typename std::enable_if<true, int>::type = 0>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer

@@ -76,6 +76,7 @@ inline SparsePageFormat<T>* CreatePageFormat(const std::string& name) {
 #if DMLC_ENABLE_STD_THREAD
 /*!
  * \brief A threaded writer to write sparse batch page to sharded files.
+ * @tparam T Type of the page.
  */
 template<typename T>
 class SparsePageWriter {
