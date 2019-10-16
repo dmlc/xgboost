@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
-import getopt
 
 
 # Monkey-patch the API inconsistency between Python2.X and 3.X.
