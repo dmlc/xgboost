@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <vector>
+#include "dmlc/io.h"
 
 #ifndef RABIT_STRICT_CXX98_
 #include <cstdarg>
@@ -92,7 +93,7 @@ inline void HandleAssertError(const char *msg) {
     exit(-1);
   } else {
     fprintf(stderr, "AssertError:%s, rabit is configured to keep process running\n", msg);
-    throw std::runtime_error(msg);
+    throw dmlc::Error(msg);
   }
 }
 /*!
@@ -105,7 +106,7 @@ inline void HandleCheckError(const char *msg) {
     exit(-1);
   } else {
     fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
-    throw std::runtime_error(msg);
+    throw dmlc::Error(msg);
   }
 }
 inline void HandlePrint(const char *msg) {

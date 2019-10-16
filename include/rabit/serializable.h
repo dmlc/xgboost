@@ -10,10 +10,6 @@
 #include <string>
 #include "rabit/internal/utils.h"
 
-#ifndef DMLC_IO_H_
-#include "dmlc/io.h"
-#endif  // DMLC_IO_H_
-
 namespace rabit {
 /*!
  * \brief defines stream used in rabit
