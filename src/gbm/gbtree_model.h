@@ -4,6 +4,7 @@
 #pragma once
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
+#include <xgboost/model.h>
 #include <xgboost/tree_model.h>
 
 #include <memory>
@@ -61,7 +62,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   }
 };
 
-struct GBTreeModel {
+struct GBTreeModel : public Model {
   explicit GBTreeModel(bst_float base_margin) : base_margin(base_margin) {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
@@ -81,6 +82,15 @@ struct GBTreeModel {
     }
   }
 
+  void LoadModel(dmlc::Stream* fi) override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Load(fi);
+  }
+  void SaveModel(dmlc::Stream* fo) const override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Save(fo);
+  }
+
   void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param))
         << "GBTree: invalid model file";
@@ -88,7 +98,7 @@ struct GBTreeModel {
     trees_to_update.clear();
     for (int i = 0; i < param.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->Load(fi);
+      ptr->LoadModel(fi);
       trees.push_back(std::move(ptr));
     }
     tree_info.resize(param.num_trees);
@@ -103,7 +113,7 @@ struct GBTreeModel {
     CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
     fo->Write(&param, sizeof(param));
     for (const auto & tree : trees) {
-      tree->Save(fo);
+      tree->SaveModel(fo);
     }
     if (tree_info.size() != 0) {
       fo->Write(dmlc::BeginPtr(tree_info), sizeof(int) * tree_info.size());

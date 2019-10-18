@@ -1,9 +1,9 @@
 /*!
  * Copyright (c) 2015-2019 by Contributors
  * \file logging.h
- * \brief defines console logging options for xgboost.
- *  Use to enforce unified print behavior.
- *  For debug loggers, use LOG(INFO) and LOG(ERROR).
+ *
+ * \brief defines console logging options for xgboost.  Use to enforce unified print
+ *  behavior.
  */
 #ifndef XGBOOST_LOGGING_H_
 #define XGBOOST_LOGGING_H_

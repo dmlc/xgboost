@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 XGBoost contributors
+ * Copyright 2015-2019 XGBoost contributors
  */
 #include <dmlc/omp.h>
 #include <dmlc/timer.h>
@@ -8,6 +8,10 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
+
 #include "../common/math.h"
 #include "../common/random.h"
 

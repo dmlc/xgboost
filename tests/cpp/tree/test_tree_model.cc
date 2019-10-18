@@ -77,7 +77,7 @@ TEST(Tree, Load) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
 
   xgboost::RegTree tree;
-  tree.Load(fi.get());
+  tree.LoadModel(fi.get());
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree[0].SplitCond(), 0.5f);
   EXPECT_EQ(tree[0].SplitIndex(), 5);
