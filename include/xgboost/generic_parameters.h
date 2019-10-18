@@ -7,7 +7,7 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/logging.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 
 #include <string>
 

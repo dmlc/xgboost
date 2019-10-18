@@ -6,6 +6,8 @@
 #include <xgboost/objective.h>
 #include <dmlc/registry.h>
 
+#include <sstream>
+
 #include "xgboost/host_device_vector.h"
 
 namespace dmlc {
@@ -17,10 +19,12 @@ namespace xgboost {
 ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const* tparam) {
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
+    std::stringstream ss;
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {
-      LOG(INFO) << "Objective candidate: " << entry->name;
+      ss << "Objective candidate: " << entry->name << "\n";
     }
-    LOG(FATAL) << "Unknown objective function " << name;
+    LOG(FATAL) << "Unknown objective function: `" << name << "`\n"
+               << ss.str();
   }
   auto pobj = (e->body)();
   pobj->tparam_ = tparam;

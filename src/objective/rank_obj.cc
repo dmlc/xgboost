@@ -10,6 +10,10 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
+
 #include "../common/math.h"
 #include "../common/random.h"
 
@@ -18,7 +22,7 @@ namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(rank_obj);
 
-struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
+struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   int num_pairsample;
   float fix_list_weight;
   // declare parameters
@@ -35,7 +39,7 @@ struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
 class LambdaRankObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -170,7 +174,16 @@ class LambdaRankObj : public ObjFunction {
   virtual void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                                std::vector<LambdaPair> *io_pairs) = 0;
 
- private:
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("LambdaRankObj");
+    out["lambda_rank_param"] = Object();
+    for (auto const& kv : param_.__DICT__()) {
+      out["lambda_rank_param"][kv.first] = kv.second;
+    }
+  }
+
+ protected:
   LambdaRankParam param_;
 };
 
@@ -178,6 +191,15 @@ class PairwiseRankObj: public LambdaRankObj{
  protected:
   void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                        std::vector<LambdaPair> *io_pairs) override {}
+
+  void SaveConfig(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:pairwise");
+    out["lambda_rank_param"] = toJson(LambdaRankObj::param_);
+  }
+  void LoadConfig(Json const& in) override {
+    fromJson(in["lambda_rank_param"], &(LambdaRankObj::param_));
+  }
 };
 
 // beta version: NDCG lambda rank
@@ -227,6 +249,14 @@ class LambdaRankObjNDCG : public LambdaRankObj {
       }
     }
     return static_cast<bst_float>(sumdcg);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:ndcg");
+    out["lambda_rank_param"] = toJson(LambdaRankObj::param_);
+  }
+  void LoadConfig(Json const& in) override {
+    fromJson(in["lambda_rank_param"], &(LambdaRankObj::param_));
   }
 };
 
@@ -314,6 +344,15 @@ class LambdaRankObjMAP : public LambdaRankObj {
           GetLambdaMAP(sorted_list, pair.pos_index,
                        pair.neg_index, &map_stats);
     }
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto&  out = *p_out;
+    out["name"] = String("rank:map");
+    out["lambda_rank_param"] = toJson(LambdaRankObj::param_);
+  }
+  void LoadConfig(Json const& in) override {
+    fromJson(in["lambda_rank_param"], &(LambdaRankObj::param_));
   }
 };
 

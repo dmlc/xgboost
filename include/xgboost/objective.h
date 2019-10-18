@@ -10,6 +10,7 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 
@@ -21,7 +22,7 @@
 namespace xgboost {
 
 /*! \brief interface of objective function */
-class ObjFunction {
+class ObjFunction : public Configurable {
  protected:
   GenericParameter const* tparam_;
 

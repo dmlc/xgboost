@@ -17,6 +17,7 @@
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
+#include <xgboost/json.h>
 #include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 
@@ -46,20 +47,30 @@ void CreateSimpleTestData(const std::string& filename);
 
 void CreateBigTestData(const std::string& filename, size_t n_entries);
 
-void CheckObjFunction(xgboost::ObjFunction * obj,
+void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
 
-void CheckRankingObjFunction(xgboost::ObjFunction * obj,
-                      std::vector<xgboost::bst_float> preds,
-                      std::vector<xgboost::bst_float> labels,
-                      std::vector<xgboost::bst_float> weights,
-                      std::vector<xgboost::bst_uint> groups,
-                      std::vector<xgboost::bst_float> out_grad,
-                      std::vector<xgboost::bst_float> out_hess);
+xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
+                                    std::string name);
+
+template <typename T>
+xgboost::Json CheckConfigReload(std::unique_ptr<T> const& configurable,
+                                std::string name = "") {
+  return CheckConfigReloadImpl(dynamic_cast<xgboost::Configurable*>(configurable.get()),
+                               name);
+}
+
+void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
+                             std::vector<xgboost::bst_float> preds,
+                             std::vector<xgboost::bst_float> labels,
+                             std::vector<xgboost::bst_float> weights,
+                             std::vector<xgboost::bst_uint> groups,
+                             std::vector<xgboost::bst_float> out_grad,
+                             std::vector<xgboost::bst_float> out_hess);
 
 xgboost::bst_float GetMetricEval(
   xgboost::Metric * metric,

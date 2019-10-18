@@ -718,5 +718,13 @@ void Json::Dump(Json json, std::ostream *stream, bool pretty) {
   writer.Save(json);
 }
 
+void Json::Dump(Json json, std::string* str, bool pretty) {
+  GlobalCLocale guard;
+  std::stringstream ss;
+  JsonWriter writer(&ss, pretty);
+  writer.Save(json);
+  *str = ss.str();
+}
+
 Json& Json::operator=(Json const &other) = default;
 }  // namespace xgboost
