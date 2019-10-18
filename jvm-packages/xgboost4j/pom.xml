@@ -66,7 +66,6 @@
                           <executable>python</executable>
                           <arguments>
                             <argument>create_jni.py</argument>
-                            <argument>${rabit.mock}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                       </configuration>

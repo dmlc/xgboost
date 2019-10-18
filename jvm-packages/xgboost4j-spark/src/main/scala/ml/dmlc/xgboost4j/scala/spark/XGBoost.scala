@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 - 2019 by Contributors
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import java.nio.file.Files
 
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
-import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.CheckpointManager.CheckpointParam
+import ml.dmlc.xgboost4j.scala.spark.XGBoost.logger
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -155,7 +155,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     overridedParams
   }
 
-  private[spark] def buildXGBRuntimeParams: XGBoostExecutionParams = {
+  def buildXGBRuntimeParams: XGBoostExecutionParams = {
     val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
     val round = overridedParams("num_round").asInstanceOf[Int]
     val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
@@ -221,25 +221,6 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
-
-  private[spark] def buildRabitParams: Map[String, String] = Map(
-    "rabit_reduce_ring_mincount" ->
-      overridedParams.getOrElse("rabit_reduce_ring_mincount", 32<<10).toString,
-    "rabit_reduce_buffer" ->
-      overridedParams.getOrElse("rabit_reduce_buffer", "256MB").toString,
-    "rabit_bootstrap_cache" ->
-      overridedParams.getOrElse("rabit_bootstrap_cache", false).toString,
-    "rabit_debug" ->
-      overridedParams.getOrElse("rabit_debug", false).toString,
-    "rabit_timeout" ->
-      overridedParams.getOrElse("rabit_timeout", false).toString,
-    "rabit_timeout_sec" ->
-      overridedParams.getOrElse("rabit_timeout_sec", 1800).toString,
-    "DMLC_WORKER_CONNECT_RETRY" ->
-      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
-    "DMLC_WORKER_STOP_PROCESS_ON_ERROR" ->
-      overridedParams.getOrElse("dmlc_worker_stop_process_on_error", false).toString
-  )
 }
 
 /**
@@ -340,6 +321,7 @@ object XGBoost extends Serializable {
     }
     val taskId = TaskContext.getPartitionId().toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
+    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
       Rabit.init(rabitEnv)
@@ -508,9 +490,8 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
-    val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val xgbRabitParams = xgbParamsFactory.buildRabitParams
+    val xgbExecParams = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext).
+      buildXGBRuntimeParams
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)
@@ -529,12 +510,12 @@ object XGBoost extends Serializable {
             val parallelismTracker = new SparkParallelismTracker(sc,
               xgbExecParams.timeoutRequestWorkers,
               xgbExecParams.numWorkers)
-            val rabitEnv = tracker.getWorkerEnvs.asScala ++ xgbRabitParams
+            val rabitEnv = tracker.getWorkerEnvs
             val boostersAndMetrics = if (hasGroup) {
-              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv.asJava,
+              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             } else {
-              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv.asJava,
+              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
                 checkpointRound, prevBooster, evalSetsMap)
             }
             val sparkJobThread = new Thread() {
