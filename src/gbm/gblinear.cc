@@ -11,10 +11,13 @@
 #include <xgboost/logging.h>
 #include <xgboost/linear_updater.h>
 #include <xgboost/model_visitor.h>
+
 #include <vector>
 #include <string>
 #include <sstream>
 #include <algorithm>
+
+#include "gblinear_model.h"
 #include "../common/timer.h"
 
 namespace xgboost {
@@ -60,15 +63,19 @@ class GBLinear : public GradientBooster {
       cache_[d.get()] = std::move(e);
     }
   }
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.param.InitAllowUnknown(cfg);
     }
     param_.InitAllowUnknown(cfg);
     updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
-    updater_->Init(cfg);
+    updater_->Configure(cfg);
     monitor_.Init("GBLinear");
+    if (param_.updater == "gpu_coord_descent") {
+      this->AssertGPUSupport();
+    }
   }
+
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
   }
@@ -143,7 +150,7 @@ class GBLinear : public GradientBooster {
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // start collecting the contributions
-    for (const auto &batch : p_fmat->GetRowBatches()) {
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       #pragma omp parallel for schedule(static)
@@ -188,6 +195,13 @@ class GBLinear : public GradientBooster {
     // This is forcing visit of model which is inherent part of this object
     model_.Accept(v);
   }
+  bool UseGPU() const override {
+    if (param_.updater == "gpu_coord_descent") {
+      return true;
+    } else {
+      return false;
+    }
+  }
 
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
@@ -199,7 +213,7 @@ class GBLinear : public GradientBooster {
     // start collecting the prediction
     const int ngroup = model_.param.num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
-    for (const auto &batch : p_fmat->GetRowBatches()) {
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
@@ -266,6 +280,7 @@ class GBLinear : public GradientBooster {
     }
     preds[gid] = psum;
   }
+
   // biase margin score
   bst_float base_margin_;
   // model field

@@ -25,6 +25,9 @@ Contents
   Python package <python/index>
   R package <R-package/index>
   JVM package <jvm/index>
+  Ruby package <https://github.com/ankane/xgb>
   Julia package <julia>
+  C Package <c>
+  C++ Interface <c++>
   CLI interface <cli>
-  contribute
+  contrib/index

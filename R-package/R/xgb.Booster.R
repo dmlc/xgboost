@@ -51,11 +51,13 @@ is.null.handle <- function(handle) {
 # Return a verified to be valid handle out of either xgb.Booster.handle or xgb.Booster
 # internal utility function
 xgb.get.handle <- function(object) {
-  handle <- switch(class(object)[1],
-    xgb.Booster = object$handle,
-    xgb.Booster.handle = object,
+  if (inherits(object, "xgb.Booster")) {
+    handle <- object$handle
+  } else if (inherits(object, "xgb.Booster.handle")) {
+    handle <- object
+  } else {
     stop("argument must be of either xgb.Booster or xgb.Booster.handle class")
-  )
+  }
   if (is.null.handle(handle)) {
     stop("invalid xgb.Booster.handle")
   }
@@ -95,6 +97,7 @@ xgb.get.handle <- function(object) {
 #' saveRDS(bst, "xgb.model.rds")
 #'
 #' bst1 <- readRDS("xgb.model.rds")
+#' if (file.exists("xgb.model.rds")) file.remove("xgb.model.rds")
 #' # the handle is invalid:
 #' print(bst1$handle)
 #'
@@ -418,6 +421,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #'
 #' xgb.save(bst, 'xgb.model')
 #' bst1 <- xgb.load('xgb.model')
+#' if (file.exists('xgb.model')) file.remove('xgb.model')
 #' print(xgb.attr(bst1, "my_attribute"))
 #' print(xgb.attributes(bst1))
 #'

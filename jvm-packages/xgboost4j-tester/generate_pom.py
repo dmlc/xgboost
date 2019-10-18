@@ -8,10 +8,10 @@ pom_template = """
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ml.dmlc</groupId>
-  <artifactId>xgboost4j-tester</artifactId>
+  <artifactId>xgboost4j-tester_2.12</artifactId>
   <version>1.0-SNAPSHOT</version>
 
-  <name>xgboost4j-tester</name>
+  <name>xgboost4j-tester_2.12</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -51,19 +51,25 @@ pom_template = """
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-actor_${{scala.binary.version}}</artifactId>
-      <version>2.3.11</version>
+      <version>2.5.23</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.typesafe.akka</groupId>
       <artifactId>akka-testkit_${{scala.binary.version}}</artifactId>
-      <version>2.3.11</version>
+      <version>2.5.23</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${{scala.binary.version}}</artifactId>
-      <version>3.0.0</version>
+      <version>3.0.8</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.scalactic</groupId>
+      <artifactId>scalactic_${{scala.binary.version}}</artifactId>
+      <version>3.0.8</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -97,12 +103,12 @@ pom_template = """
     </dependency>
     <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j</artifactId>
+      <artifactId>xgboost4j_${{scala.binary.version}}</artifactId>
       <version>{xgboost4j_version}</version>
     </dependency>
     <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j</artifactId>
+      <artifactId>xgboost4j_${{scala.binary.version}}</artifactId>
       <version>{xgboost4j_version}</version>
       <classifier>tests</classifier>
       <type>test-jar</type>
@@ -110,12 +116,12 @@ pom_template = """
     </dependency>
     <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j-spark</artifactId>
+      <artifactId>xgboost4j-spark_${{scala.binary.version}}</artifactId>
       <version>{xgboost4j_version}</version>
     </dependency>
     <dependency>
       <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j-example</artifactId>
+      <artifactId>xgboost4j-example_${{scala.binary.version}}</artifactId>
       <version>{xgboost4j_version}</version>
     </dependency>
   </dependencies>
@@ -186,7 +192,7 @@ pom_template = """
         <version>2.22.1</version>
         <configuration>
           <dependenciesToScan>
-            <dependency>ml.dmlc:xgboost4j</dependency>
+            <dependency>ml.dmlc:xgboost4j_2.12</dependency>
           </dependenciesToScan>
         </configuration>
       </plugin>

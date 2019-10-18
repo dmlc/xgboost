@@ -131,9 +131,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
   }
 
   def stop(): Unit = {
-    if (!system.isTerminated) {
-      system.shutdown()
-    }
+    system.terminate()
   }
 
   /**
@@ -170,12 +168,10 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
           case Failure(e) =>
             IRabitTracker.TrackerStatus.FAILURE.getStatusCode
         }
-        system.shutdown()
+        system.terminate()
         statusCode
       case Failure(ex: Throwable) =>
-        if (!system.isTerminated) {
-          system.shutdown()
-        }
+        system.terminate()
         IRabitTracker.TrackerStatus.FAILURE.getStatusCode
     }
   }

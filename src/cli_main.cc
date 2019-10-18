@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file cli_main.cc
  * \brief The command line interface program of xgboost.
  *  This file is not included in dynamic library.
@@ -21,7 +21,6 @@
 #include <vector>
 #include "./common/common.h"
 #include "./common/config.h"
-
 
 namespace xgboost {
 
@@ -189,10 +188,9 @@ void CLITrain(const CLIParam& param) {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
-      learner->Configure(param.cfg);
+      learner->SetParams(param.cfg);
     } else {
-      learner->Configure(param.cfg);
-      learner->InitModel();
+      learner->SetParams(param.cfg);
     }
   }
   LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
@@ -240,6 +238,7 @@ void CLITrain(const CLIParam& param) {
     version += 1;
     CHECK_EQ(version, rabit::VersionNumber());
   }
+  LOG(INFO) << "Complete Training loop time: " << dmlc::GetTime() - start << " sec";
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
       param.model_out != "NONE" &&
@@ -275,7 +274,7 @@ void CLIDumpModel(const CLIParam& param) {
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
-  learner->Configure(param.cfg);
+  learner->SetParams(param.cfg);
   learner->Load(fi.get());
   // dump data
   std::vector<std::string> dump = learner->DumpModel(
@@ -316,7 +315,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
   learner->Load(fi.get());
-  learner->Configure(param.cfg);
+  learner->SetParams(param.cfg);
 
   LOG(INFO) << "start prediction...";
   HostDeviceVector<bst_float> preds;

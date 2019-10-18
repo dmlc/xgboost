@@ -10,6 +10,9 @@
 #include <dmlc/omp.h>
 #include <cmath>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <utility>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
@@ -65,6 +68,12 @@
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #endif  // GLIBC VERSION
+
+#if defined(__GNUC__)
+#define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
+#else
+#define XGBOOST_EXPECT(cond, ret) (cond)
+#endif  // defined(__GNUC__)
 
 /*!
  * \brief Tag function as usable by device
@@ -198,6 +207,8 @@ using GradientPairPrecise = detail::GradientPairInternal<double>;
  * storage. Operators are associative where floating point versions are not
  * associative. */
 using GradientPairInteger = detail::GradientPairInternal<int64_t>;
+
+using Args = std::vector<std::pair<std::string, std::string> >;
 
 /*! \brief small eps gap for minimum split decision. */
 const bst_float kRtEps = 1e-6f;

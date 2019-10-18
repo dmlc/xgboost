@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 XGBoost contributors
+ * Copyright 2017-2019 XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
@@ -34,6 +34,29 @@ struct LinearSquareLoss {
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
+};
+
+struct SquaredLogError {
+  XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
+  XGBOOST_DEVICE static bool CheckLabel(bst_float label) {
+    return label > -1;
+  }
+  XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
+    predt = fmaxf(predt, -1 + 1e-6);  // ensure correct value for log1p
+    return (std::log1p(predt) - std::log1p(label)) / (predt + 1);
+  }
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
+    predt = fmaxf(predt, -1 + 1e-6);
+    float res = (-std::log1p(predt) + std::log1p(label) + 1) /
+                std::pow(predt + 1, 2);
+    res = fmaxf(res, 1e-6f);
+    return res;
+  }
+  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+  static const char* LabelErrorMsg() {
+    return "label must be greater than -1 for rmsle so that log(label + 1) can be valid.";
+  }
+  static const char* DefaultEvalMetric() { return "rmsle"; }
 };
 
 // logistic loss for probability regression task

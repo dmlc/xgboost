@@ -2,7 +2,7 @@
  * Copyright 2018-2019 by Contributors
  */
 #include "../helpers.h"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <gtest/gtest.h>
 #include <vector>
@@ -13,7 +13,7 @@ namespace xgboost {
 namespace tree {
 
 TEST(Updater, Prune) {
-  int constexpr kNRows = 32, kNCols = 16;
+  int constexpr kNCols = 16;
 
   std::vector<std::pair<std::string, std::string>> cfg;
   cfg.emplace_back(std::pair<std::string, std::string>(
@@ -29,7 +29,7 @@ TEST(Updater, Prune) {
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
   auto dmat = CreateDMatrix(32, 16, 0.4, 3);
 
-  auto lparam = CreateEmptyGenericParam(0, 0);
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
 
   // prepare tree
   RegTree tree = RegTree();
@@ -37,7 +37,7 @@ TEST(Updater, Prune) {
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));
-  pruner->Init(cfg);
+  pruner->Configure(cfg);
 
   // loss_chg < min_split_loss;
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 0.0f, 0.0f);

@@ -19,11 +19,11 @@ def _get_callback_context(env):
 def _fmt_metric(value, show_stdv=True):
     """format metric string"""
     if len(value) == 2:
-        return '%s:%g' % (value[0], value[1])
+        return '{0}:{1:.5f}'.format(value[0], value[1])
     if len(value) == 3:
         if show_stdv:
-            return '%s:%g+%g' % (value[0], value[1], value[2])
-        return '%s:%g' % (value[0], value[1])
+            return  '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
+        return '{0}:{1:.5f}'.format(value[0], value[1])
     raise ValueError("wrong metric value")
 
 
@@ -226,9 +226,9 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
 
     def callback(env):
         """internal function"""
-        score = env.evaluation_result_list[-1][1]
         if not state:
             init(env)
+        score = env.evaluation_result_list[-1][1]
         best_score = state['best_score']
         best_iteration = state['best_iteration']
         maximize_score = state['maximize_score']

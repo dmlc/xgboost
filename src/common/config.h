@@ -24,8 +24,21 @@ class ConfigReaderBase {
    * \brief get current name, called after Next returns true
    * \return current parameter name
    */
-  inline const char *Name() const {
-    return s_name_.c_str();
+  explicit ConfigParser(const std::string& path)
+      : path_(path),
+      line_comment_regex_("^#"),
+      key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
+      key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
+      value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
+      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
+  {}
+
+  std::string LoadConfigFile(const std::string& path) {
+    std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
+    CHECK(fin) << "Failed to open: " << path;
+    std::string content{std::istreambuf_iterator<char>(fin),
+                        std::istreambuf_iterator<char>()};
+    return content;
   }
   /*!
    * \brief get current value, called after Next returns true
@@ -38,13 +51,18 @@ class ConfigReaderBase {
    * \brief move iterator to next position
    * \return true if there is value in next position
    */
-  inline bool Next() {
-    while (!this->IsEnd()) {
-      GetNextToken(&s_name_);
-      if (s_name_ == "=") return false;
-      if (GetNextToken(&s_buf_) || s_buf_ != "=")  return false;
-      if (GetNextToken(&s_val_) || s_val_ == "=")  return false;
-      return true;
+  std::vector<std::pair<std::string, std::string>> Parse() {
+    std::string content { LoadConfigFile(path_) };
+    content = NormalizeConfigEOL(content);
+    std::stringstream ss { content };
+    std::vector<std::pair<std::string, std::string>> results;
+    std::string line;
+    std::string key, value;
+    // Loop over every line of the configuration file
+    while (std::getline(ss, line)) {
+      if (ParseKeyValuePair(line, &key, &value)) {
+        results.emplace_back(key, value);
+      }
     }
     return false;
   }

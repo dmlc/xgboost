@@ -10,17 +10,6 @@
 
 using xgboost::common::Span;
 
-struct Shard { int id; };
-
-TEST(DeviceHelpers, Basic) {
-  std::vector<Shard> shards (4);
-  for (int i = 0; i < 4; ++i) {
-    shards[i].id = i;
-  }
-  int sum = dh::ReduceShards<int>(&shards, [](Shard& s) { return s.id ; });
-  ASSERT_EQ(sum, 6);
-}
-
 void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
                     thrust::host_vector<int> *row_ptr,
                     thrust::host_vector<xgboost::bst_uint> *rows) {
@@ -95,3 +84,22 @@ void TestAllocator() {
 TEST(bulkAllocator, Test) {
   TestAllocator();
 }
+
+ // Test thread safe max reduction
+#if defined(XGBOOST_USE_NCCL)
+TEST(AllReducer, MGPU_HostMaxAllReduce) {
+  dh::AllReducer reducer;
+  size_t num_threads = 50;
+  std::vector<std::vector<size_t>> thread_data(num_threads);
+#pragma omp parallel num_threads(num_threads)
+  {
+    int tid = omp_get_thread_num();
+    thread_data[tid] = {size_t(tid)};
+    reducer.HostMaxAllReduce(&thread_data[tid]);
+  }
+
+  for (auto data : thread_data) {
+    ASSERT_EQ(data.front(), num_threads - 1);
+  }
+}
+#endif

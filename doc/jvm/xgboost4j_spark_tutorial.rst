@@ -1,5 +1,5 @@
 #######################################
-XGBoost4J-Spark Tutorial (version 0.8+)
+XGBoost4J-Spark Tutorial (version 0.9+)
 #######################################
 
 **XGBoost4J-Spark** is a project aiming to seamlessly integrate XGBoost and Apache Spark by fitting XGBoost to Apache Spark's MLLIB framework. With the integration, user can not only uses the high-performant algorithm implementation of XGBoost, but also leverages the powerful  data processing engine of Spark for:
@@ -139,7 +139,7 @@ we drop the column "class" and only keeps the feature columns and the transforme
 
 The ``fit`` and ``transform`` are two key operations in MLLIB. Basically, ``fit`` produces a "transformer", e.g. StringIndexer, and each transformer applies ``transform`` method on DataFrame to add new column(s) containing transformed features/labels or prediction results, etc. To understand more about ``fit`` and ``transform``, You can find more details in `here <http://spark.apache.org/docs/latest/ml-pipeline.html#pipeline-components>`_.
 
-Similarly, we can use another transformer, `VectorAssembler <https://spark.apache.org/docs/2.3.1/api/scala/index.html#org.apache.spark.ml.feature.VectorAssembler>`_, to assemble feature columns "sepal length", "sepal width", "petal length" and "petal width" as a vector.
+Similarly, we can use another transformer, `VectorAssembler <https://spark.apache.org/docs/2.4.0/api/java/org/apache/spark/ml/feature/VectorAssembler.html>`_, to assemble feature columns "sepal length", "sepal width", "petal length" and "petal width" as a vector.
 
 .. code-block:: scala
 
@@ -154,7 +154,7 @@ Now, we have a DataFrame containing only two columns, "features" which contains 
 labels. A DataFrame like this (containing vector-represented features and numeric labels) can be fed to XGBoost4J-Spark's training engine directly.
 
 Dealing with missing values
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Strategies to handle missing values (and therefore overcome issues as above):
 
@@ -244,7 +244,7 @@ When it comes to custom eval metrics, in additional to ``num_early_stopping_roun
 For example, we need to maximize the evaluation metrics (set ``maximize_evaluation_metrics`` with true), and set ``num_early_stopping_rounds`` with 5. The evaluation metric of 10th iteration is the maximum one until now. In the following iterations, if there is no evaluation metric greater than the 10th iteration's (best one), the traning would be early stopped at 15th iteration.  
 
 Training with Evaluation Sets
-----------------
+-----------------------------
 
 You can also monitor the performance of the model during training with multiple evaluation datasets. By specifying ``eval_sets`` or call ``setEvalSets`` over a XGBoostClassifier or XGBoostRegressor, you can pass in multiple evaluation datasets typed as a Map from String to DataFrame.
 

@@ -4,8 +4,9 @@
 #include "common.h"
 
 namespace xgboost {
+namespace common {
 
-int AllVisibleImpl::AllVisible() {
+int AllVisibleGPUs() {
   int n_visgpus = 0;
   try {
     // When compiled with CUDA but running on CPU only device,
@@ -23,4 +24,5 @@ int AllVisibleImpl::AllVisible() {
   return n_visgpus;
 }
 
+}  // namespace common
 }  // namespace xgboost

@@ -25,7 +25,7 @@ cols = 31
 # reduced to fit onto 1 gpu but still be large
 rows3 = 5000  # small
 rows2 = 4360032  # medium
-rows1 = 42360032  # large
+rows1 = 32360032  # large
 # rows1 = 152360032 # can do this for multi-gpu test (very large)
 rowslist = [rows1, rows2, rows3]
 
@@ -63,16 +63,7 @@ class TestGPU(unittest.TestCase):
                          'nthread': 0,
                          'eta': 1,
                          'verbosity': 3,
-                         'n_gpus': 1,
-                         'objective': 'binary:logistic',
-                         'max_bin': max_bin,
-                         'eval_metric': 'auc'}
-            ag_param3 = {'max_depth': max_depth,
-                         'tree_method': 'gpu_hist',
-                         'nthread': 0,
-                         'eta': 1,
-                         'verbosity': 3,
-                         'n_gpus': -1,
+                         'gpu_id': 0,
                          'objective': 'binary:logistic',
                          'max_bin': max_bin,
                          'eval_metric': 'auc'}
@@ -92,10 +83,4 @@ class TestGPU(unittest.TestCase):
             eprint("gpu_hist updater 1 gpu")
             xgb.train(ag_param2, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_res2)
-            print("Time to Train: %s seconds" % (str(time.time() - tmp)))
-
-            tmp = time.time()
-            eprint("gpu_hist updater all gpus")
-            xgb.train(ag_param3, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
-                      evals_result=ag_res3)
             print("Time to Train: %s seconds" % (str(time.time() - tmp)))

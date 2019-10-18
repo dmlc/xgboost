@@ -273,8 +273,9 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  const char *field,
                                  const unsigned *array,
                                  bst_ulong len);
+
 /*!
- * \brief set label of the training matrix
+ * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
  * \param handle a instance of data matrix
  * \param group pointer to group size
  * \param len length of array
@@ -283,8 +284,9 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
 XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               const unsigned *group,
                               bst_ulong len);
+
 /*!
- * \brief get float info vector from matrix
+ * \brief get float info vector from matrix.
  * \param handle a instance of data matrix
  * \param field field name
  * \param out_len used to set result length

@@ -33,6 +33,9 @@ class HistMaker: public BaseMaker {
     }
     param_.learning_rate = lr;
   }
+  char const* Name() const override {
+    return "grow_histmaker";
+  }
 
  protected:
     /*! \brief a single histogram */
@@ -83,7 +86,7 @@ class HistMaker: public BaseMaker {
     // per thread histset
     std::vector<HistSet> hset;
     // initialize the hist set
-    inline void Init(const TrainParam &param, int nthread) {
+    inline void Configure(const TrainParam &param, int nthread) {
       hset.resize(nthread);
       // cleanup statistics
       for (int tid = 0; tid < nthread; ++tid) {
@@ -91,16 +94,6 @@ class HistMaker: public BaseMaker {
         hset[tid].rptr = dmlc::BeginPtr(rptr);
         hset[tid].cut = dmlc::BeginPtr(cut);
         hset[tid].data.resize(cut.size(), GradStats());
-      }
-    }
-    // aggregate all statistics to hset[0]
-    inline void Aggregate() {
-      bst_omp_uint nsize = static_cast<bst_omp_uint>(cut.size());
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        for (size_t tid = 1; tid < hset.size(); ++tid) {
-          hset[0].data[i].Add(hset[tid].data[i]);
-        }
       }
     }
     /*! \brief clear the workspace */
@@ -274,6 +267,9 @@ class HistMaker: public BaseMaker {
 class CQHistMaker: public HistMaker {
  public:
   CQHistMaker()  = default;
+  char const* Name() const override {
+    return "grow_local_histmaker";
+  }
 
  protected:
   struct HistEntry {
@@ -339,13 +335,13 @@ class CQHistMaker: public HistMaker {
       feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Init(this->param_, 1);
+    this->wspace_.Configure(this->param_, 1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_hist = [&]() {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
 #pragma omp parallel for schedule(dynamic, 1)
@@ -419,7 +415,7 @@ class CQHistMaker: public HistMaker {
       work_set_.resize(std::unique(work_set_.begin(), work_set_.end()) - work_set_.begin());
 
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
 
@@ -637,6 +633,11 @@ class CQHistMaker: public HistMaker {
 
 // global proposal
 class GlobalProposalHistMaker: public CQHistMaker {
+ public:
+  char const* Name() const override {
+    return "grow_histmaker";
+  }
+
  protected:
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
@@ -682,7 +683,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Init(this->param_, 1);
+    this->wspace_.Configure(this->param_, 1);
     // to gain speedup in recovery
     {
       this->thread_hist_.resize(omp_get_max_threads());
@@ -696,7 +697,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
 
@@ -737,12 +738,6 @@ XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
 .describe("Tree constructor that uses approximate histogram construction.")
 .set_body([]() {
     return new CQHistMaker();
-  });
-
-XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_global_histmaker")
-.describe("Tree constructor that uses approximate global proposal of histogram construction.")
-.set_body([]() {
-    return new GlobalProposalHistMaker();
   });
 
 XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")

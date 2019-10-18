@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(xgboost LANGUAGES CXX C VERSION 0.90)
+project(xgboost LANGUAGES CXX C VERSION 1.0.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -9,6 +9,16 @@ if (MSVC)
   cmake_minimum_required(VERSION 3.11)
 endif (MSVC)
 
+if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+  message(FATAL_ERROR "GCC version must be at least 5.0!")
+endif()
+
+message(STATUS "xgboost VERSION: ${xgboost_VERSION}")
+set(XGBOOST_DEFINITIONS
+  ${XGBOOST_DEFINITIONS}
+  -DXGBOOST_VER_MAJOR=${xgboost_VERSION_MAJOR}
+  -DXGBOOST_VER_MINOR=${xgboost_VERSION_MINOR}
+  -DXGBOOST_VER_PATCH=${xgboost_VERSION_PATCH})
 set_default_configuration_release()
 
 #-- Options
@@ -19,12 +29,13 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule (EXPERIMENTAL)" OFF)
+option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
+option(RABIT_MOCK "Build rabit with mock" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
-option(USE_NCCL  "Build with NCCL to enable multi-GPU support." OFF)
+option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
@@ -78,17 +89,25 @@ list(APPEND LINKED_LIBRARIES_PRIVATE dmlc)
 
 # rabit
 # full rabit doesn't build on windows, so we can't import it as subdirectory
-if(MINGW OR R_LIB)
+if(MINGW OR R_LIB OR WIN32)
   set(RABIT_SOURCES
     rabit/src/engine_empty.cc
     rabit/src/c_api.cc)
 else ()
-  set(RABIT_SOURCES
-    rabit/src/allreduce_base.cc
-    rabit/src/allreduce_robust.cc
-    rabit/src/engine.cc
-    rabit/src/c_api.cc)
-endif (MINGW OR R_LIB)
+  if(RABIT_MOCK)
+    set(RABIT_SOURCES
+      rabit/src/allreduce_base.cc
+      rabit/src/allreduce_robust.cc
+      rabit/src/engine_mock.cc
+      rabit/src/c_api.cc)
+  else()
+    set(RABIT_SOURCES
+      rabit/src/allreduce_base.cc
+      rabit/src/allreduce_robust.cc
+      rabit/src/engine.cc
+      rabit/src/c_api.cc)
+  endif(RABIT_MOCK)
+endif (MINGW OR R_LIB OR WIN32)
 add_library(rabit STATIC ${RABIT_SOURCES})
 target_include_directories(rabit PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/dmlc-core/include>
@@ -106,11 +125,12 @@ if (R_LIB)
 endif (R_LIB)
 
 # core xgboost
-add_subdirectory(${PROJECT_SOURCE_DIR}/src)
+add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
+add_subdirectory(${xgboost_SOURCE_DIR}/src)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- Shared library
-add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES} ${PLUGINS_SOURCES})
+add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
@@ -167,11 +187,9 @@ if (BUILD_C_DOC)
 endif (BUILD_C_DOC)
 
 include(GNUInstallDirs)
-# Exposing only C APIs.
-install(FILES
-  "${PROJECT_SOURCE_DIR}/include/xgboost/c_api.h"
-  DESTINATION
-  include/xgboost/)
+# Install all headers.  Please note that currently the C++ headers does not form an "API".
+install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 install(TARGETS xgboost runxgboost
   EXPORT XGBoostTargets

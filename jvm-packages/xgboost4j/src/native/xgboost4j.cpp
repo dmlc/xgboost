@@ -247,6 +247,21 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
   return ret;
 }
 
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFromMatRef
+ * Signature: (JIIF)J
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromMatRef
+  (JNIEnv *jenv, jclass jcls, jlong jdataRef, jint jnrow, jint jncol, jfloat jmiss, jlongArray jout) {
+  DMatrixHandle result;
+  bst_ulong nrow = (bst_ulong)jnrow;
+  bst_ulong ncol = (bst_ulong)jncol;
+  jint ret = (jint) XGDMatrixCreateFromMat((float const *)jdataRef, nrow, ncol, jmiss, &result);
+  setHandle(jenv, jout, result);
+  return ret;
+}
+
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -349,22 +364,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetUIntIn
   if (field) jenv->ReleaseStringUTFChars(jfield, (const char *)field);
   jenv->ReleaseIntArrayElements(jarray, array, 0);
 
-  return ret;
-}
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixSetGroup
- * Signature: (J[I)V
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetGroup
-  (JNIEnv * jenv, jclass jcls, jlong jhandle, jintArray jarray) {
-  DMatrixHandle handle = (DMatrixHandle) jhandle;
-  jint* array = jenv->GetIntArrayElements(jarray, NULL);
-  bst_ulong len = (bst_ulong)jenv->GetArrayLength(jarray);
-  int ret = XGDMatrixSetGroup(handle, (unsigned int const *)array, len);
-  //release
-  jenv->ReleaseIntArrayElements(jarray, array, 0);
   return ret;
 }
 
@@ -818,8 +817,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
     argv.push_back(&args[i][0]);
   }
 
-  RabitInit(args.size(), dmlc::BeginPtr(argv));
-  return 0;
+  if (RabitInit(args.size(), dmlc::BeginPtr(argv))) {
+    return 0;
+  } else {
+    return 1;
+  }
 }
 
 /*
@@ -829,8 +831,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
   (JNIEnv *jenv, jclass jcls) {
-  RabitFinalize();
-  return 0;
+  if (RabitFinalize()) {
+    return 0;
+  } else {
+    return 1;
+  }
 }
 
 /*

@@ -1,4 +1,5 @@
 // Copyright by Contributors
+#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 #include <dmlc/filesystem.h>
 #include <cinttypes>
@@ -26,10 +27,13 @@ TEST(SparsePageDMatrix, MetaInfo) {
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(12, 64);
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<xgboost::DMatrix> dmat =
+      xgboost::CreateSparsePageDMatrix(12, 64, filename);
 
   // Test the data read into the first row
-  auto &batch = *dmat->GetRowBatches().begin();
+  auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
   auto first_row = batch[0];
   ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
@@ -47,14 +51,14 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_EQ(dmat->GetColDensity(1), 0.5);
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetSortedColumnBatches()) {
+  for (auto col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
   }
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetColumnBatches()) {
+  for (auto col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
@@ -66,4 +70,20 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache.sorted.col.page"));
 
   delete dmat;
+}
+
+// Multi-batches access
+TEST(SparsePageDMatrix, ColAccessBatches) {
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  // Create multiple sparse pages
+  std::unique_ptr<xgboost::DMatrix> dmat {
+    xgboost::CreateSparsePageDMatrix(1024, 1024, filename)
+  };
+  auto n_threads = omp_get_max_threads();
+  omp_set_num_threads(16);
+  for (auto const& page : dmat->GetBatches<xgboost::CSCPage>()) {
+    ASSERT_EQ(dmat->Info().num_col_, page.Size());
+  }
+  omp_set_num_threads(n_threads);
 }

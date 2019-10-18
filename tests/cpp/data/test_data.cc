@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <dmlc/filesystem.h>
 #include <vector>
 
 #include "xgboost/data.h"
@@ -55,11 +56,14 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
   const int n_entries = 9;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(n_entries, 64UL);
+  std::unique_ptr<DMatrix> dmat =
+      CreateSparsePageDMatrix(n_entries, 64UL, filename);
   const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
-  for (const auto &batch : dmat->GetRowBatches()) {
+  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
     // Transpose each batch and push
     SparsePage tmp = batch.GetTranspose(ncols);
     page.PushCSC(tmp);
@@ -70,9 +74,9 @@ TEST(SparsePage, PushCSCAfterTranspose) {
 
   // The feature value for a feature in each row should be identical, as that is
   // how the dmatrix has been created
-  for (int i = 0; i < page.Size(); ++i) {
+  for (size_t i = 0; i < page.Size(); ++i) {
     auto inst = page[i];
-    for (int j = 1; j < inst.size(); ++j) {
+    for (size_t j = 1; j < inst.size(); ++j) {
       ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
     }
   }

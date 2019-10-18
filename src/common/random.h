@@ -17,8 +17,8 @@
 #include <numeric>
 #include <random>
 
+#include "xgboost/host_device_vector.h"
 #include "io.h"
-#include "host_device_vector.h"
 
 namespace xgboost {
 namespace common {
@@ -113,7 +113,7 @@ class ColumnSampler {
   }
 
  public:
-  /** 
+  /**
    * \brief Column sampler constructor.
    * \note This constructor manually sets the rng seed
    */
@@ -127,7 +127,7 @@ class ColumnSampler {
   */
   ColumnSampler() {
     uint32_t seed = common::GlobalRandom()();
-    rabit::Broadcast(&seed, sizeof(seed), 0);
+    rabit::Broadcast(&seed, sizeof(seed), 0, "seed");
     rng_.seed(seed);
   }
 
@@ -169,7 +169,7 @@ class ColumnSampler {
 
   /**
    * \brief Samples a feature set.
-   * 
+   *
    * \param depth The tree depth of the node at which to sample.
    * \return The sampled feature set.
    * \note If colsample_bynode_ < 1.0, this method creates a new feature set each time it

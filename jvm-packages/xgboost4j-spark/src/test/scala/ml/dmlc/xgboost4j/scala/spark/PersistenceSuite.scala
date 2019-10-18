@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.{File, FileNotFoundException}
+import java.io.File
 import java.util.Arrays
 
 import scala.io.Source
@@ -26,40 +26,9 @@ import scala.util.Random
 
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.network.util.JavaUtils
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.FunSuite
 
-class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
-
-  private var tempDir: File = _
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-
-    tempDir = new File(System.getProperty("java.io.tmpdir"), this.getClass.getName)
-    if (tempDir.exists) {
-      tempDir.delete
-    }
-    tempDir.mkdirs
-  }
-
-  override def afterAll(): Unit = {
-    JavaUtils.deleteRecursively(tempDir)
-    super.afterAll()
-  }
-
-  private def delete(f: File) {
-    if (f.exists) {
-      if (f.isDirectory) {
-        for (c <- f.listFiles) {
-          delete(c)
-        }
-      }
-      if (!f.delete) {
-        throw new FileNotFoundException("Failed to delete file: " + f)
-      }
-    }
-  }
+class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel") {
     val eval = new EvalError()
@@ -69,7 +38,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "num_round" -> "10", "num_workers" -> numWorkers)
     val xgbc = new XGBoostClassifier(paramMap)
-    val xgbcPath = new File(tempDir, "xgbc").getPath
+    val xgbcPath = new File(tempDir.toFile, "xgbc").getPath
     xgbc.write.overwrite().save(xgbcPath)
     val xgbc2 = XGBoostClassifier.load(xgbcPath)
     val paramMap2 = xgbc2.MLlib2XGBoostParams
@@ -80,7 +49,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val model = xgbc.fit(trainingDF)
     val evalResults = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(evalResults < 0.1)
-    val xgbcModelPath = new File(tempDir, "xgbcModel").getPath
+    val xgbcModelPath = new File(tempDir.toFile, "xgbcModel").getPath
     model.write.overwrite.save(xgbcModelPath)
     val model2 = XGBoostClassificationModel.load(xgbcModelPath)
     assert(Arrays.equals(model._booster.toByteArray, model2._booster.toByteArray))
@@ -100,7 +69,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> "10", "num_workers" -> numWorkers)
     val xgbr = new XGBoostRegressor(paramMap)
-    val xgbrPath = new File(tempDir, "xgbr").getPath
+    val xgbrPath = new File(tempDir.toFile, "xgbr").getPath
     xgbr.write.overwrite().save(xgbrPath)
     val xgbr2 = XGBoostRegressor.load(xgbrPath)
     val paramMap2 = xgbr2.MLlib2XGBoostParams
@@ -111,7 +80,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
     val model = xgbr.fit(trainingDF)
     val evalResults = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(evalResults < 0.1)
-    val xgbrModelPath = new File(tempDir, "xgbrModel").getPath
+    val xgbrModelPath = new File(tempDir.toFile, "xgbrModel").getPath
     model.write.overwrite.save(xgbrModelPath)
     val model2 = XGBoostRegressionModel.load(xgbrModelPath)
     assert(Arrays.equals(model._booster.toByteArray, model2._booster.toByteArray))
@@ -140,7 +109,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
     // Construct MLlib pipeline, save and load
     val pipeline = new Pipeline().setStages(Array(assembler, xgb))
-    val pipePath = new File(tempDir, "pipeline").getPath
+    val pipePath = new File(tempDir.toFile, "pipeline").getPath
     pipeline.write.overwrite().save(pipePath)
     val pipeline2 = Pipeline.read.load(pipePath)
     val xgb2 = pipeline2.getStages(1).asInstanceOf[XGBoostClassifier]
@@ -151,7 +120,7 @@ class PersistenceSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
     // Model training, save and load
     val pipeModel = pipeline.fit(df)
-    val pipeModelPath = new File(tempDir, "pipelineModel").getPath
+    val pipeModelPath = new File(tempDir.toFile, "pipelineModel").getPath
     pipeModel.write.overwrite.save(pipeModelPath)
     val pipeModel2 = PipelineModel.load(pipeModelPath)
 

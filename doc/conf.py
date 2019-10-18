@@ -58,7 +58,7 @@ for mod_name in MOCK_MODULES:
 # General information about the project.
 project = u'xgboost'
 author = u'%s developers' % project
-copyright = u'2016, %s' % author
+copyright = u'2019, %s' % author
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
 os.environ['XGBOOST_BUILD_DOC'] = '1'

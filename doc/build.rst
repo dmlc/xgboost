@@ -13,7 +13,7 @@ Installation Guide
     #   * xgboost-{version}-py2.py3-none-win_amd64.whl
     pip3 install xgboost
 
-  * The binary wheel will support GPU algorithms (`gpu_exact`, `gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
+  * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
   * Currently, we provide binary wheels for 64-bit Linux and Windows.
 
 ****************************
@@ -57,6 +57,9 @@ to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 * `Python Package Installation`_
 * `R Package Installation`_
 * `Trouble Shooting`_
+* `Building the documentation`_
+
+.. _build_shared_lib:
 
 ***************************
 Building the Shared Library
@@ -185,9 +188,7 @@ Building with GPU support
 =========================
 XGBoost can be built with GPU support for both Linux and Windows using CMake. GPU support works with the Python package as well as the CLI version. See `Installing R package with GPU support`_ for special instructions for R.
 
-An up-to-date version of the CUDA toolkit is required.  Please note that we
-skipped the support for compiling XGBoost with NVCC 10.1 due a small bug in its
-spliter, see `#4264 <https://github.com/dmlc/xgboost/issues/4264>`_.
+An up-to-date version of the CUDA toolkit is required.
 
 From the command line on Linux starting from the XGBoost directory:
 
@@ -198,9 +199,9 @@ From the command line on Linux starting from the XGBoost directory:
   cmake .. -DUSE_CUDA=ON
   make -j4
 
-.. note:: Enabling multi-GPU training
+.. note:: Enabling distributed GPU training
 
-  By default, multi-GPU training is disabled and only a single GPU will be used. To enable multi-GPU training, set the option ``USE_NCCL=ON``. Multi-GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **multi-GPU training is available only for Linux**.
+  By default, distributed GPU training is disabled and only a single GPU will be used. To enable distributed GPU training, set the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 
@@ -225,7 +226,7 @@ On Windows, run CMake as follows:
 
   .. code-block:: bash
 
-    make .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
+    cmake .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
 
 To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``.
 The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
@@ -450,3 +451,23 @@ Trouble Shooting
    .. code-block:: bash
 
      git clone https://github.com/dmlc/xgboost --recursive
+
+
+Building the Documentation
+==========================
+XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To build it locally, you need a installed XGBoost with all its dependencies along with:
+
+* System dependencies
+
+  - git
+  - graphviz
+
+* Python dependencies
+
+  - sphinx
+  - breathe
+  - guzzle_sphinx_theme
+  - recommonmark
+  - mock
+
+Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.

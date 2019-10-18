@@ -119,3 +119,7 @@ if __name__ == "__main__":
         cp(file, "xgboost4j-spark/src/test/resources")
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "xgboost4j-spark/src/test/resources")
+
+    maybe_makedirs("xgboost4j/src/test/resources")
+    for file in glob.glob("../demo/data/agaricus.*"):
+        cp(file, "xgboost4j/src/test/resources")

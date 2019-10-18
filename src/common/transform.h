@@ -10,9 +10,10 @@
 #include <vector>
 #include <type_traits>  // enable_if
 
-#include "host_device_vector.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
 #include "common.h"
-#include "span.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
@@ -57,14 +58,10 @@ class Transform {
   template <typename Functor>
   struct Evaluator {
    public:
-    Evaluator(Functor func, Range range, GPUSet devices, bool shard) :
+    Evaluator(Functor func, Range range, int device, bool shard) :
         func_(func), range_{std::move(range)},
         shard_{shard},
-        distribution_{std::move(GPUDistribution::Block(devices))} {}
-    Evaluator(Functor func, Range range, GPUDistribution dist,
-              bool shard) :
-        func_(func), range_{std::move(range)}, shard_{shard},
-        distribution_{std::move(dist)} {}
+        device_{device} {}
 
     /*!
      * \brief Evaluate the functor with input pointers to HostDeviceVector.
@@ -74,7 +71,7 @@ class Transform {
      */
     template <typename... HDV>
     void Eval(HDV... vectors) const {
-      bool on_device = !distribution_.IsEmpty();
+      bool on_device = device_ >= 0;
 
       if (on_device) {
         LaunchCUDA(func_, vectors...);
@@ -86,13 +83,13 @@ class Transform {
    private:
     // CUDA UnpackHDV
     template <typename T>
-    Span<T> UnpackHDV(HostDeviceVector<T>* _vec, int _device) const {
-      auto span = _vec->DeviceSpan(_device);
+    Span<T> UnpackHDVOnDevice(HostDeviceVector<T>* _vec) const {
+      auto span = _vec->DeviceSpan();
       return span;
     }
     template <typename T>
-    Span<T const> UnpackHDV(const HostDeviceVector<T>* _vec, int _device) const {
-      auto span = _vec->ConstDeviceSpan(_device);
+    Span<T const> UnpackHDVOnDevice(const HostDeviceVector<T>* _vec) const {
+      auto span = _vec->ConstDeviceSpan();
       return span;
     }
     // CPU UnpackHDV
@@ -108,15 +105,15 @@ class Transform {
     }
     // Recursive unpack for Shard.
     template <typename T>
-    void UnpackShard(GPUDistribution dist, const HostDeviceVector<T> *vector) const {
-      vector->Shard(dist);
+    void UnpackShard(int device, const HostDeviceVector<T> *vector) const {
+      vector->SetDevice(device);
     }
     template <typename Head, typename... Rest>
-    void UnpackShard(GPUDistribution dist,
+    void UnpackShard(int device,
                      const HostDeviceVector<Head> *_vector,
                      const HostDeviceVector<Rest> *... _vectors) const {
-      _vector->Shard(dist);
-      UnpackShard(dist, _vectors...);
+      _vector->SetDevice(device);
+      UnpackShard(device, _vectors...);
     }
 
 #if defined(__CUDACC__)
@@ -124,28 +121,20 @@ class Transform {
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
       if (shard_)
-        UnpackShard(distribution_, _vectors...);
+        UnpackShard(device_, _vectors...);
 
-      GPUSet devices = distribution_.Devices();
       size_t range_size = *range_.end() - *range_.begin();
 
       // Extract index to deal with possible old OpenMP.
-      size_t device_beg = *(devices.begin());
-      size_t device_end = *(devices.end());
-#pragma omp parallel for schedule(static, 1) if (devices.Size() > 1)
-      for (omp_ulong device = device_beg; device < device_end; ++device) {  // NOLINT
-        // Ignore other attributes of GPUDistribution for spliting index.
-        // This deals with situation like multi-class setting where
-        // granularity is used in data vector.
-        size_t shard_size = GPUDistribution::Block(devices).ShardSize(
-            range_size, devices.Index(device));
-        Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
-        dh::safe_cuda(cudaSetDevice(device));
-        const int GRID_SIZE =
-            static_cast<int>(dh::DivRoundUp(*(range_.end()), kBlockThreads));
-        detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
-            _func, shard_range, UnpackHDV(_vectors, device)...);
-      }
+      // This deals with situation like multi-class setting where
+      // granularity is used in data vector.
+      size_t shard_size = range_size;
+      Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
+      dh::safe_cuda(cudaSetDevice(device_));
+      const int GRID_SIZE =
+          static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
+      detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
+          _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
     /*! \brief Dummy funtion defined when compiling for CPU.  */
@@ -172,7 +161,7 @@ class Transform {
     Range range_;
     /*! \brief Whether sharding for vectors is required. */
     bool shard_;
-    GPUDistribution distribution_;
+    int device_;
   };
 
  public:
@@ -191,15 +180,9 @@ class Transform {
    */
   template <typename Functor>
   static Evaluator<Functor> Init(Functor func, Range const range,
-                                 GPUSet const devices,
+                                 int device,
                                  bool const shard = true) {
-    return Evaluator<Functor> {func, std::move(range), std::move(devices), shard};
-  }
-  template <typename Functor>
-  static Evaluator<Functor> Init(Functor func, Range const range,
-                                 GPUDistribution const dist,
-                                 bool const shard = true) {
-    return Evaluator<Functor> {func, std::move(range), std::move(dist), shard};
+    return Evaluator<Functor> {func, std::move(range), device, shard};
   }
 };
 

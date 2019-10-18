@@ -4,7 +4,7 @@
 #include "../helpers.h"
 
 TEST(Metric, AMS) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   EXPECT_ANY_THROW(xgboost::Metric::Create("ams", &tparam));
   xgboost::Metric * metric = xgboost::Metric::Create("ams@0.5f", &tparam);
   ASSERT_STREQ(metric->Name(), "ams@0.5");
@@ -23,7 +23,7 @@ TEST(Metric, AMS) {
 }
 
 TEST(Metric, AUC) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("auc", &tparam);
   ASSERT_STREQ(metric->Name(), "auc");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
@@ -38,7 +38,7 @@ TEST(Metric, AUC) {
 }
 
 TEST(Metric, AUCPR) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
   ASSERT_STREQ(metric->Name(), "aucpr");
   EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
@@ -65,7 +65,7 @@ TEST(Metric, Precision) {
   // When the limit for precision is not given, it takes the limit at
   // std::numeric_limits<unsigned>::max(); hence all values are very small
   // NOTE(AbdealiJK): Maybe this should be fixed to be num_row by default.
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("pre", &tparam);
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-7);
@@ -89,7 +89,7 @@ TEST(Metric, Precision) {
 }
 
 TEST(Metric, NDCG) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("ndcg", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
@@ -113,7 +113,18 @@ TEST(Metric, NDCG) {
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@-", &tparam);
-  ASSERT_STREQ(metric->Name(), "ndcg@-");
+  ASSERT_STREQ(metric->Name(), "ndcg-");
+  EXPECT_NEAR(GetMetricEval(metric,
+                            xgboost::HostDeviceVector<xgboost::bst_float>{},
+                            {}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.1f, 0.9f, 0.1f, 0.9f},
+                            {  0,   0,   1,   1}),
+              0.6509f, 0.001f);
+  delete metric;
+  metric = xgboost::Metric::Create("ndcg-", &tparam);
+  ASSERT_STREQ(metric->Name(), "ndcg-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
                             {}), 0, 1e-10);
@@ -136,7 +147,7 @@ TEST(Metric, NDCG) {
 }
 
 TEST(Metric, MAP) {
-  auto tparam = xgboost::CreateEmptyGenericParam(0, 0);
+  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("map", &tparam);
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
@@ -150,7 +161,14 @@ TEST(Metric, MAP) {
 
   delete metric;
   metric = xgboost::Metric::Create("map@-", &tparam);
-  ASSERT_STREQ(metric->Name(), "map@-");
+  ASSERT_STREQ(metric->Name(), "map-");
+  EXPECT_NEAR(GetMetricEval(metric,
+                            xgboost::HostDeviceVector<xgboost::bst_float>{},
+                            {}), 0, 1e-10);
+
+  delete metric;
+  metric = xgboost::Metric::Create("map-", &tparam);
+  ASSERT_STREQ(metric->Name(), "map-");
   EXPECT_NEAR(GetMetricEval(metric,
                             xgboost::HostDeviceVector<xgboost::bst_float>{},
                             {}), 0, 1e-10);

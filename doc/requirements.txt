@@ -1,4 +1,4 @@
-sphinx
+sphinx>=2.1
 mock
 guzzle_sphinx_theme
 breathe

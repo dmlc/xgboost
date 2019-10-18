@@ -6,12 +6,13 @@
  */
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
+#include <xgboost/logging.h>
 #include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 
-#include "./param.h"
+#include "param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"
 #include "split_evaluator.h"
@@ -24,10 +25,14 @@ DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
+  }
+
+  char const* Name() const override {
+    return "grow_colmaker";
   }
 
   void Update(HostDeviceVector<GradientPair> *gpair,
@@ -603,7 +608,7 @@ class ColMaker: public TreeUpdater {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
       }
       if (poption == 0) {
-        #pragma omp parallel for schedule(dynamic, batch_size)
+#pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < num_features; ++i) {
           int fid = feat_set[i];
           const int tid = omp_get_thread_num();
@@ -632,7 +637,7 @@ class ColMaker: public TreeUpdater {
                           DMatrix *p_fmat,
                           RegTree *p_tree) {
       auto feat_set = column_sampler_.GetFeatureSet(depth);
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         this->UpdateSolution(batch, feat_set->HostVector(), gpair, p_fmat);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
@@ -711,7 +716,7 @@ class ColMaker: public TreeUpdater {
       }
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.size());
@@ -767,13 +772,18 @@ class ColMaker: public TreeUpdater {
 // distributed column maker
 class DistColMaker : public ColMaker {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
-    pruner_->Init(args);
+    pruner_->Configure(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
   }
+
+  char const* Name() const override {
+    return "distcol";
+  }
+
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
@@ -807,9 +817,6 @@ class DistColMaker : public ColMaker {
         this->position_[ridx] = nid;
       }
     }
-    inline const int* GetLeafPosition() const {
-      return dmlc::BeginPtr(this->position_);
-    }
 
    protected:
     void SetNonDefaultPosition(const std::vector<int> &qexpand, DMatrix *p_fmat,
@@ -836,7 +843,7 @@ class DistColMaker : public ColMaker {
             boolmap_[j] = 0;
         }
       }
-      for (const auto &batch : p_fmat->GetSortedColumnBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         for (auto fid : fsplits) {
           auto col = batch[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.size());

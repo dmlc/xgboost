@@ -13,13 +13,12 @@
 #include <xgboost/data.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 #include <functional>
 #include <vector>
 #include <utility>
 #include <string>
-
-#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
@@ -27,7 +26,7 @@ namespace xgboost {
  */
 class TreeUpdater {
  protected:
-  LearnerTrainParam const* tparam_;
+  GenericParameter const* tparam_;
 
  public:
   /*! \brief virtual destructor */
@@ -36,7 +35,7 @@ class TreeUpdater {
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
    */
-  virtual void Init(const std::vector<std::pair<std::string, std::string> >& args) = 0;
+  virtual void Configure(const Args& args) = 0;
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
@@ -65,11 +64,13 @@ class TreeUpdater {
     return false;
   }
 
+  virtual char const* Name() const = 0;
+
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
    */
-  static TreeUpdater* Create(const std::string& name, LearnerTrainParam const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
 };
 
 /*!

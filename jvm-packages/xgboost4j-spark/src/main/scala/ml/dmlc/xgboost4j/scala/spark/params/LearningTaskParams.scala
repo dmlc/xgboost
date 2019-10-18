@@ -24,12 +24,12 @@ private[spark] trait LearningTaskParams extends Params {
 
   /**
    * Specify the learning task and the corresponding learning objective.
-   * options: reg:squarederror, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
-   * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:squarederror
+   * options: reg:squarederror, reg:squaredlogerror, reg:logistic, binary:logistic, binary:logitraw,
+   * count:poisson, multi:softmax, multi:softprob, rank:pairwise, reg:gamma.
+   * default: reg:squarederror
    */
-  final val objective = new Param[String](this, "objective", "objective function used for " +
-    s"training, options: {${LearningTaskParams.supportedObjective.mkString(",")}",
-    (value: String) => LearningTaskParams.supportedObjective.contains(value))
+  final val objective = new Param[String](this, "objective",
+    "objective function used for training")
 
   final def getObjective: String = $(objective)
 
@@ -56,14 +56,12 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * evaluation metrics for validation data, a default metric will be assigned according to
    * objective(rmse for regression, and error for classification, mean average precision for
-   * ranking). options: rmse, mae, logloss, error, merror, mlogloss, auc, aucpr, ndcg, map,
+   * ranking). options: rmse, rmsle, mae, logloss, error, merror, mlogloss, auc, aucpr, ndcg, map,
    * gamma-deviance
    */
   final val evalMetric = new Param[String](this, "evalMetric", "evaluation metrics for " +
     "validation data, a default metric will be assigned according to objective " +
-    "(rmse for regression, and error for classification, mean average precision for ranking), " +
-    s"options: {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
-    (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
+    "(rmse for regression, and error for classification, mean average precision for ranking)")
 
   final def getEvalMetric: String = $(evalMetric)
 
@@ -81,6 +79,13 @@ private[spark] trait LearningTaskParams extends Params {
    */
   final val cacheTrainingSet = new BooleanParam(this, "cacheTrainingSet",
     "whether caching training data")
+
+  /**
+   * whether cleaning checkpoint, always cleaning by default, having this parameter majorly for
+   * testing
+   */
+  final val skipCleanCheckpoint = new BooleanParam(this, "skipCleanCheckpoint",
+    "whether cleaning checkpoint data")
 
   /**
    * If non-zero, the training will be stopped after a specified number
@@ -105,16 +110,11 @@ private[spark] trait LearningTaskParams extends Params {
 }
 
 private[spark] object LearningTaskParams {
-  val supportedObjective = HashSet("reg:linear", "reg:squarederror", "reg:logistic",
-    "binary:logistic", "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob",
-    "rank:pairwise", "rank:ndcg", "rank:map", "reg:gamma", "reg:tweedie")
 
   val supportedObjectiveType = HashSet("regression", "classification")
 
   val evalMetricsToMaximize = HashSet("auc", "aucpr", "ndcg", "map")
 
-  val evalMetricsToMinimize = HashSet("rmse", "mae", "logloss", "error", "merror",
+  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "logloss", "error", "merror",
     "mlogloss", "gamma-deviance")
-
-  val supportedEvalMetrics = evalMetricsToMaximize union evalMetricsToMinimize
 }

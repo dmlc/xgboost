@@ -137,12 +137,15 @@ EOF
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 
-# If enviornment variable DOCKER_CACHE_REPO is set, use an external Docker repo for build caching
-if [[ -n "${DOCKER_CACHE_REPO}" ]]
+# If enviornment variables DOCKER_CACHE_ECR_ID and DOCKER_CACHE_ECR_REGION are set, use AWS ECR for build caching
+if [[ -n "${DOCKER_CACHE_ECR_ID}" && -n "${DOCKER_CACHE_ECR_REGION}" ]]
 then
+    # Format Docker repo URL
+    DOCKER_CACHE_REPO="${DOCKER_CACHE_ECR_ID}.dkr.ecr.${DOCKER_CACHE_ECR_REGION}.amazonaws.com"
+    echo "Using AWS ECR; repo URL = ${DOCKER_CACHE_REPO}"
     # Login for Docker registry
-    echo '$(python3 -m awscli ecr get-login --no-include-email --region us-west-2)'
-    $(python3 -m awscli ecr get-login --no-include-email --region us-west-2)
+    echo "\$(python3 -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})"
+    $(python3 -m awscli ecr get-login --no-include-email --region ${DOCKER_CACHE_ECR_REGION} --registry-ids ${DOCKER_CACHE_ECR_ID})
     # Pull pre-build container from Docker build cache,
     # if one exists for the particular branch or pull request
     echo "docker pull ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"

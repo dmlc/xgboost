@@ -87,7 +87,6 @@ class TestSHAP(unittest.TestCase):
             r_exp = r"([0-9]+):\[f([0-9]+)<([0-9\.e-]+)\] yes=([0-9]+),no=([0-9]+).*cover=([0-9e\.]+)"
             r_exp_leaf = r"([0-9]+):leaf=([0-9\.e-]+),cover=([0-9e\.]+)"
             for tree in model.get_dump(with_stats=True):
-
                 lines = list(tree.splitlines())
                 trees.append([None for i in range(len(lines))])
                 for line in lines:
