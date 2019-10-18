@@ -636,7 +636,7 @@ class LambdaRankObj : public ObjFunction {
     }
   }
 
- void LoadConfig(Json const& in) override {
+  void LoadConfig(Json const& in) override {
     fromJson(in["lambda_rank_param"], &param_);
   }
 
