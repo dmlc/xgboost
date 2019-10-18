@@ -158,7 +158,7 @@ Dealing with missing values
 
 Strategies to handle missing values (and therefore overcome issues as above):
 
-In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it. 
+In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it.
 The choice of approach depends on the value representing 'missing' which fall into four different categories:
 
 1. 0
@@ -171,7 +171,7 @@ We introduce the following approaches dealing with missing value and their fitti
 1. Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
 2. Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
 3. Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
-4. Nothing to be done, used in (1). 
+4. Nothing to be done, used in (1).
 
 Then, XGBoost will automatically learn what's the ideal direction to go when a value is missing, based on that value and strategy.
 
@@ -241,7 +241,7 @@ Early stopping is a feature to prevent the unnecessary training iterations. By s
 
 When it comes to custom eval metrics, in additional to ``num_early_stopping_rounds``, you also need to define ``maximize_evaluation_metrics`` or call ``setMaximizeEvaluationMetrics`` to specify whether you want to maximize or minimize the metrics in training. For built-in eval metrics, XGBoost4J-Spark will automatically select the direction.
 
-For example, we need to maximize the evaluation metrics (set ``maximize_evaluation_metrics`` with true), and set ``num_early_stopping_rounds`` with 5. The evaluation metric of 10th iteration is the maximum one until now. In the following iterations, if there is no evaluation metric greater than the 10th iteration's (best one), the traning would be early stopped at 15th iteration.  
+For example, we need to maximize the evaluation metrics (set ``maximize_evaluation_metrics`` with true), and set ``num_early_stopping_rounds`` with 5. The evaluation metric of 10th iteration is the maximum one until now. In the following iterations, if there is no evaluation metric greater than the 10th iteration's (best one), the traning would be early stopped at 15th iteration.
 
 Training with Evaluation Sets
 -----------------------------
