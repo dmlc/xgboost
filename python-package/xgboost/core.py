@@ -214,6 +214,7 @@ def c_str(string):
 
 def c_array(ctype, values):
     """Convert a python string to c array."""
+    # pylint: disable=unsubscriptable-object
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
@@ -609,6 +610,7 @@ class DMatrix(object):
         return ctypes2numpy(ret, length.value, np.float32)
 
     def get_uint_info(self, field):
+        # pylint: disable=import-outside-toplevel
         """Get unsigned integer property from the DMatrix.
 
         Parameters
@@ -980,6 +982,7 @@ class DMatrix(object):
                 raise ValueError(msg)
 
             valid = ('int', 'float', 'i', 'q')
+            # pylint: disable=unnecessary-comprehension
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
                 raise ValueError('All feature_names must be {int, float, i, q}')
@@ -1136,6 +1139,7 @@ class Booster(object):
         """
         for key, value in kwargs.items():
             if value is not None:
+                # pylint: disable=unnecessary-comprehension
                 if not isinstance(value, STRING_TYPES):
                     raise ValueError("Set Attr only accepts string values")
                 value = c_str(str(value))

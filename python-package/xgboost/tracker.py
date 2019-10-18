@@ -153,8 +153,7 @@ class RabitTracker(object):
             except socket.error as e:
                 if e.errno in [98, 48]:
                     continue
-                else:
-                    raise
+                raise
         sock.listen(256)
         self.sock = sock
         self.hostIP = hostIP
