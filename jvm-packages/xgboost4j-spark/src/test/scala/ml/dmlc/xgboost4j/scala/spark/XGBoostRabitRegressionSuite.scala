@@ -85,12 +85,13 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
+      if (item._1.toString == "DMLC_WORKER_STOP_PROCESS_ON_ERROR") assert(item._2 == "false")
     })
     // check the equality of single instance prediction
     val prediction2 = model2.transform(testDF).select("prediction").collect()
     // check parity w/o rabit cache
     prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
-      assert(math.abs(p1 - p2) < 0.01f)
+      assert(math.abs(p1 - p2) < 0.00001f)
     }
   }
 

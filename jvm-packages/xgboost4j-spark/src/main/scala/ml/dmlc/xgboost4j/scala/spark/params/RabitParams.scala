@@ -58,5 +58,5 @@ private[spark] trait RabitParams extends Params {
 
   setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> false,
     rabitDebug -> false, connectRetry -> 5, rabitTimeout -> false, timeoutInterval -> 1800,
-    exitOnError -> true)
+    exitOnError -> false)
 }

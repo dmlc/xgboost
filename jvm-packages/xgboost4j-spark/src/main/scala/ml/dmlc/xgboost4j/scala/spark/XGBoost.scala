@@ -238,7 +238,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     "DMLC_WORKER_CONNECT_RETRY" ->
       overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
     "DMLC_WORKER_STOP_PROCESS_ON_ERROR" ->
-      overridedParams.getOrElse("dmlc_worker_stop_process_on_error", true).toString
+      overridedParams.getOrElse("dmlc_worker_stop_process_on_error", false).toString
   )
 }
 
@@ -340,7 +340,6 @@ object XGBoost extends Serializable {
     }
     val taskId = TaskContext.getPartitionId().toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
-    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
       Rabit.init(rabitEnv)
