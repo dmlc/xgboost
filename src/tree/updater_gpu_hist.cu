@@ -313,7 +313,7 @@ class DeviceHistogram {
  private:
   /*! \brief Map nidx to starting index of its histogram. */
   std::map<int, size_t> nidx_map_;
-  thrust::device_vector<typename GradientSumT::ValueT> data_;
+  dh::device_vector<typename GradientSumT::ValueT> data_;
   int n_bins_;
   int device_id_;
   static constexpr size_t kNumItemsInGradientSum =
@@ -340,7 +340,7 @@ class DeviceHistogram {
     return n_bins_ * kNumItemsInGradientSum;
   }
 
-  thrust::device_vector<typename GradientSumT::ValueT>& Data() {
+  dh::device_vector<typename GradientSumT::ValueT>& Data() {
     return data_;
   }
 
@@ -409,24 +409,31 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
                                     const GradientPair* d_gpair, size_t n_elements,
                                     bool use_shared_memory_histograms) {
   extern __shared__ char smem[];
-  GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem); // NOLINT
-  for (auto i :
-       dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
-    smem_arr[i] = GradientSumT();
+  GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
+  if (use_shared_memory_histograms) {
+    dh::BlockFill(smem_arr, matrix.BinCount(), GradientSumT());
+    __syncthreads();
   }
-  __syncthreads();
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
     int ridx = d_ridx[idx / matrix.row_stride ];
     int gidx =
         matrix.gidx_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
     if (gidx != matrix.null_gidx_value) {
-      AtomicAddGpair(smem_arr + gidx, d_gpair[ridx]);
+      // If we are not using shared memory, accumulate the values directly into
+      // global memory
+      GradientSumT* atomic_add_ptr =
+          use_shared_memory_histograms ? smem_arr : d_node_hist;
+      AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
     }
   }
-  __syncthreads();
-  for (auto i :
-       dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
-    AtomicAddGpair(d_node_hist + i, smem_arr[i]);
+
+  if (use_shared_memory_histograms) {
+    // Write shared memory back to global memory
+    __syncthreads();
+    for (auto i :
+         dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
+      AtomicAddGpair(d_node_hist + i, smem_arr[i]);
+    }
   }
 }
 
@@ -454,6 +461,7 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
   bool prediction_cache_initialised;
+  bool use_shared_memory_histograms {false};
 
   dh::CubMemory temp_memory;
   dh::PinnedMemory pinned_memory;
@@ -464,8 +472,6 @@ struct GPUHistMakerDevice {
   std::vector<ValueConstraint> node_value_constraints;
   common::ColumnSampler column_sampler;
   FeatureInteractionConstraint interaction_constraints;
-
-  std::unique_ptr<GPUHistBuilderBase<GradientSumT>> hist_builder;
 
   using ExpandQueue =
       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
@@ -808,7 +814,6 @@ struct GPUHistMakerDevice {
       this->AllReduceHist(subtraction_trick_nidx, reducer);
     }
   }
-
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
 
@@ -962,9 +967,7 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   auto histogram_size = sizeof(GradientSumT) * page->n_bins;
   auto max_smem = dh::MaxSharedMemory(device_id);
   if (histogram_size <= max_smem) {
-    hist_builder.reset(new SharedMemHistBuilder<GradientSumT>);
-  } else {
-    hist_builder.reset(new GlobalMemHistBuilder<GradientSumT>);
+    use_shared_memory_histograms = true;
   }
 
   // Init histogram
@@ -1046,9 +1049,6 @@ class GPUHistMakerSpecialised {
 
   void InitData(DMatrix* dmat) {
     if (!initialised_) {
-      if(PRECISE==0){
-        CheckGradientMax(gpair);
-      }
       monitor_.StartCuda("InitDataOnce");
       this->InitDataOnce(dmat);
       monitor_.StopCuda("InitDataOnce");
@@ -1075,6 +1075,9 @@ class GPUHistMakerSpecialised {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     monitor_.StartCuda("InitData");
+    if (!initialised_ && PRECISE==0)
+      CheckGradientMax(gpair);
+
     this->InitData(p_fmat);
     monitor_.StopCuda("InitData");
 
