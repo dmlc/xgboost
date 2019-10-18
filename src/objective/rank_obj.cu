@@ -31,7 +31,7 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(rank_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
+struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   int num_pairsample;
   float fix_list_weight;
   // declare parameters
@@ -92,6 +92,10 @@ struct PairwiseLambdaWeightComputer {
   // Stopgap method - will be removed when we support other type of ranking - ndcg, map etc.
   // on GPU later
   inline static bool SupportOnGPU() { return true; }
+
+  static char const* Name() {
+    return "rank:pairwise";
+  }
 };
 
 // beta version: NDCG lambda rank
@@ -134,6 +138,10 @@ struct NDCGLambdaWeightComputer {
         pair.weight *= delta;
       }
     }
+  }
+
+  static char const* Name() {
+    return "rank:ndcg";
   }
 
  private:
@@ -230,6 +238,10 @@ struct MAPLambdaWeightComputer {
   // Stopgap method - will be removed when we support other type of ranking - ndcg, map etc.
   // on GPU later
   inline static bool SupportOnGPU() { return false; }
+
+  static char const* Name() {
+    return "rank:map";
+  }
 
   static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                               std::vector<LambdaPair> *io_pairs) {
@@ -472,7 +484,7 @@ template <typename LambdaWeightComputerT>
 class LambdaRankObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -615,6 +627,19 @@ class LambdaRankObj : public ObjFunction {
     return "map";
   }
 
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(LambdaWeightComputerT::Name());
+    out["lambda_rank_param"] = Object();
+    for (auto const& kv : param_.__DICT__()) {
+      out["lambda_rank_param"][kv.first] = kv.second;
+    }
+  }
+
+ void LoadConfig(Json const& in) override {
+    fromJson(in["lambda_rank_param"], &param_);
+  }
+
  private:
   LambdaRankParam param_;
 #if defined(__CUDACC__)
@@ -625,15 +650,15 @@ class LambdaRankObj : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
-XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, "rank:pairwise")
+XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, PairwiseLambdaWeightComputer::Name())
 .describe("Pairwise rank objective.")
 .set_body([]() { return new LambdaRankObj<PairwiseLambdaWeightComputer>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, "rank:ndcg")
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, NDCGLambdaWeightComputer::Name())
 .describe("LambdaRank with NDCG as objective.")
 .set_body([]() { return new LambdaRankObj<NDCGLambdaWeightComputer>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, "rank:map")
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, MAPLambdaWeightComputer::Name())
 .describe("LambdaRank with MAP as objective.")
 .set_body([]() { return new LambdaRankObj<MAPLambdaWeightComputer>(); });
 
