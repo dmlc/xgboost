@@ -10,9 +10,10 @@
 #include <vector>
 #include <type_traits>  // enable_if
 
-#include "host_device_vector.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
 #include "common.h"
-#include "span.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"

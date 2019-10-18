@@ -6,7 +6,8 @@
 #define XGBOOST_GENERIC_PARAMETERS_H_
 
 #include <dmlc/parameter.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 
 #include <string>
 
@@ -21,10 +22,20 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int nthread;
   // primary device, -1 means no gpu.
   int gpu_id;
+
+  void CheckDeprecated() {
+    if (this->n_gpus != 0) {
+      LOG(WARNING)
+          << "\nn_gpus: "
+          << this->__MANAGER__()->Find("n_gpus")->GetFieldInfo().description;
+    }
+  }
+
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
         "Random number seed during training.");
+    DMLC_DECLARE_ALIAS(seed, random_state);
     DMLC_DECLARE_FIELD(seed_per_iteration)
         .set_default(false)
         .describe(
@@ -41,15 +52,16 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
         .describe("The primary GPU device ordinal.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
-        .set_range(0, 0)
-        .describe("Deprecated. Single process multi-GPU training is no longer supported. "
-                  "Please switch to distributed training with one process per GPU. "
-                  "This can be done using Dask or Spark.");
+        .set_range(0, 1)
+        .describe(
+"\n\tDeprecated. Single process multi-GPU training is no longer supported."
+"\n\tPlease switch to distributed training with one process per GPU."
+"\n\tThis can be done using Dask or Spark.  See documentation for details.");
   }
 
  private:
   // number of devices to use (deprecated).
-  int n_gpus;
+  int n_gpus {0};
 };
 }  // namespace xgboost
 

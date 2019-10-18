@@ -11,8 +11,10 @@
 #include <rabit/rabit.h>
 #include <cub/util_allocator.cuh>
 
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
 #include "common.h"
-#include "span.h"
 
 #include <algorithm>
 #include <omp.h>
@@ -249,7 +251,6 @@ public:
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
     stats_.RegisterAllocation(ptr, n);
-    CHECK_LE(stats_.peak_allocated_bytes, dh::TotalMemory(current_device));
   }
   void RegisterDeallocation(void *ptr, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
@@ -379,9 +380,7 @@ class DoubleBuffer {
 
   T *Current() { return buff.Current(); }
   xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{
-        buff.Current(),
-        static_cast<typename xgboost::common::Span<T>::index_type>(Size())};
+    return xgboost::common::Span<T>{buff.Current(), Size()};
   }
 
   T *other() { return buff.Alternate(); }
@@ -1119,17 +1118,37 @@ template <typename T,
 xgboost::common::Span<T> ToSpan(
     device_vector<T>& vec,
     IndexT offset = 0,
-    IndexT size = -1) {
-  size = size == -1 ? vec.size() : size;
+    IndexT size = std::numeric_limits<size_t>::max()) {
+  size = size == std::numeric_limits<size_t>::max() ? vec.size() : size;
   CHECK_LE(offset + size, vec.size());
-  return {vec.data().get() + offset, static_cast<IndexT>(size)};
+  return {vec.data().get() + offset, size};
 }
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
                                 size_t offset, size_t size) {
-  using IndexT = typename xgboost::common::Span<T>::index_type;
-  return ToSpan(vec, static_cast<IndexT>(offset), static_cast<IndexT>(size));
+  return ToSpan(vec, offset, size);
+}
+
+// thrust begin, similiar to std::begin
+template <typename T>
+thrust::device_ptr<T> tbegin(xgboost::HostDeviceVector<T>& vector) {  // NOLINT
+  return thrust::device_ptr<T>(vector.DevicePointer());
+}
+
+template <typename T>
+thrust::device_ptr<T> tend(xgboost::HostDeviceVector<T>& vector) {  // // NOLINT
+  return tbegin(vector) + vector.Size();
+}
+
+template <typename T>
+thrust::device_ptr<T const> tcbegin(xgboost::HostDeviceVector<T> const& vector) {
+  return thrust::device_ptr<T const>(vector.ConstDevicePointer());
+}
+
+template <typename T>
+thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const& vector) {
+  return tcbegin(vector) + vector.Size();
 }
 
 template <typename FunctionT>

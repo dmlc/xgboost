@@ -6,12 +6,18 @@
 #include "../../src/common/common.h"
 #include "../helpers.h"
 
+namespace xgboost {
+
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("multi:softmax", &lparam)
+  };
 
   obj->Configure(args);
+  CheckConfigReload(obj, "multi:softmax");
+
   CheckObjFunction(obj,
 		   {1.0f, 0.0f, 2.0f, 2.0f, 0.0f, 1.0f}, // preds
 		   {1.0f, 0.0f},	       // labels
@@ -20,21 +26,20 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
-
-  delete obj;
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args{
     std::pair<std::string, std::string>("num_class", "3")};
 
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softmax", &lparam);
+  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("multi:softmax", &lparam) };
   obj->Configure(args);
+  CheckConfigReload(obj, "multi:softmax");
 
-  xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
-							     1.0f, 0.0f, 2.0f};
-  std::vector<xgboost::bst_float> out_preds = {0.0f, 2.0f};
+  HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f,
+                                           1.0f, 0.0f, 2.0f};
+  std::vector<bst_float> out_preds = {0.0f, 2.0f};
   obj->PredTransform(&io_preds);
 
   auto& preds = io_preds.HostVector();
@@ -42,20 +47,21 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
-
-  delete obj;
 }
 
 TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("multi:softprob", &lparam);
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("multi:softprob", &lparam)
+  };
   obj->Configure(args);
+  CheckConfigReload(obj, "multi:softprob");
 
-  xgboost::HostDeviceVector<xgboost::bst_float>  io_preds = {2.0f, 0.0f, 1.0f};
-  std::vector<xgboost::bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
+  HostDeviceVector<bst_float>  io_preds = {2.0f, 0.0f, 1.0f};
+  std::vector<bst_float> out_preds = {0.66524096f, 0.09003057f, 0.24472847f};
 
   obj->PredTransform(&io_preds);
   auto& preds = io_preds.HostVector();
@@ -63,5 +69,5 @@ TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
-  delete obj;
 }
+}  // namespace xgboost

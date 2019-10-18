@@ -14,6 +14,7 @@
 #include <limits>
 #include <utility>
 
+#include "xgboost/json.h"
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
@@ -25,7 +26,7 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
+struct SoftmaxMultiClassParam : public XGBoostParameter<SoftmaxMultiClassParam> {
   int num_class;
   // declare parameters
   DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {
@@ -33,16 +34,14 @@ struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
         .describe("Number of output class in the multi-class classification.");
   }
 };
-// TODO(trivialfis): Currently the sharding in softmax is less than ideal
-// due to repeated copying data between CPU and GPUs.  Maybe we just use single
-// GPU?
+
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
   explicit SoftmaxMultiClassObj(bool output_prob)
-  : output_prob_(output_prob) {
-  }
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+  : output_prob_(output_prob) {}
+
+  void Configure(Args const& args) override {
+    param_.UpdateAllowUnknown(args);
   }
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
@@ -155,6 +154,20 @@ class SoftmaxMultiClassObj : public ObjFunction {
       io_preds->Resize(max_preds_.Size());
       io_preds->Copy(max_preds_);
     }
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    if (this->output_prob_) {
+      out["name"] = String("multi:softprob");
+    } else {
+      out["name"] = String("multi:softmax");
+    }
+    out["softmax_multiclass_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["softmax_multiclass_param"], &param_);
   }
 
  private:

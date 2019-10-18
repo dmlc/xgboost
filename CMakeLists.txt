@@ -29,7 +29,7 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(GOOGLE_TEST "Build google tests" OFF)
-option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule (EXPERIMENTAL)" OFF)
+option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 option(RABIT_MOCK "Build rabit with mock" OFF)
@@ -37,6 +37,12 @@ option(RABIT_MOCK "Build rabit with mock" OFF)
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
+
+## Copied From dmlc
+option(USE_HDFS "Build with HDFS support" OFF)
+option(USE_AZURE "Build with AZURE support" OFF)
+option(USE_S3 "Build with S3 support" OFF)
+
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
 if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
@@ -167,11 +173,9 @@ if (BUILD_C_DOC)
 endif (BUILD_C_DOC)
 
 include(GNUInstallDirs)
-# Exposing only C APIs.
-install(FILES
-  "${PROJECT_SOURCE_DIR}/include/xgboost/c_api.h"
-  DESTINATION
-  include/xgboost/)
+# Install all headers.  Please note that currently the C++ headers does not form an "API".
+install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 install(TARGETS xgboost runxgboost
   EXPORT XGBoostTargets

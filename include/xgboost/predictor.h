@@ -8,6 +8,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 #include <functional>
 #include <memory>
@@ -16,12 +17,12 @@
 #include <utility>
 #include <vector>
 
-#include "../../src/gbm/gbtree_model.h"
-#include "../../src/common/host_device_vector.h"
-
 // Forward declarations
 namespace xgboost {
 class TreeUpdater;
+namespace gbm {
+class GBTreeModel;
+}  // namespace gbm
 }
 
 namespace xgboost {

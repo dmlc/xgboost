@@ -14,13 +14,15 @@
 #include <queue>
 #include <utility>
 #include <vector>
+
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
 #include "../common/common.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
-#include "../common/host_device_vector.h"
 #include "../common/timer.h"
-#include "../common/span.h"
 #include "../data/ellpack_page.cuh"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -435,7 +437,7 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
 
 // Manage memory for a single GPU
 template <typename GradientSumT>
-struct DeviceShard {
+struct GPUHistMakerDevice {
   int device_id;
   EllpackPageImpl* page;
 
@@ -474,12 +476,12 @@ struct DeviceShard {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
-  DeviceShard(int _device_id,
-              EllpackPageImpl* _page,
-              bst_uint _n_rows,
-              TrainParam _param,
-              uint32_t column_sampler_seed,
-              uint32_t n_features)
+  GPUHistMakerDevice(int _device_id,
+                     EllpackPageImpl* _page,
+                     bst_uint _n_rows,
+                     TrainParam _param,
+                     uint32_t column_sampler_seed,
+                     uint32_t n_features)
       : device_id(_device_id),
         page(_page),
         n_rows(_n_rows),
@@ -487,12 +489,12 @@ struct DeviceShard {
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features) {
-    monitor.Init(std::string("DeviceShard") + std::to_string(device_id));
+    monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
   void InitHistogram();
 
-  ~DeviceShard() {  // NOLINT
+  ~GPUHistMakerDevice() {  // NOLINT
     dh::safe_cuda(cudaSetDevice(device_id));
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
@@ -774,21 +776,15 @@ struct DeviceShard {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right, dh::AllReducer* reducer) {
+  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left,
+        int nidx_right, dh::AllReducer* reducer) {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
-    auto left_node_rows = row_partitioner->GetRows(nidx_left).size();
-    auto right_node_rows = row_partitioner->GetRows(nidx_right).size();
+
     // Decide whether to build the left histogram or right histogram
-    // Find the largest number of training instances on any given Shard
-    // Assume this will be the bottleneck and avoid building this node if
-    // possible
-    std::vector<size_t> max_reduce;
-    max_reduce.push_back(left_node_rows);
-    max_reduce.push_back(right_node_rows);
-    reducer->HostMaxAllReduce(&max_reduce);
-    bool fewer_right = max_reduce[1] < max_reduce[0];
+    // Use sum of Hessian as a heuristic to select node with fewest training instances
+    bool fewer_right = candidate.split.right_sum.GetHess() < candidate.split.left_sum.GetHess();
     if (fewer_right) {
       std::swap(build_hist_nidx, subtraction_trick_nidx);
     }
@@ -798,11 +794,11 @@ struct DeviceShard {
 
     // Check whether we can use the subtraction trick to calculate the other
     bool do_subtraction_trick = this->CanDoSubtractionTrick(
-        nidx_parent, build_hist_nidx, subtraction_trick_nidx);
+         candidate.nid, build_hist_nidx, subtraction_trick_nidx);
 
     if (do_subtraction_trick) {
       // Calculate other histogram using subtraction trick
-      this->SubtractionTrick(nidx_parent, build_hist_nidx,
+      this->SubtractionTrick(candidate.nid, build_hist_nidx,
                              subtraction_trick_nidx);
     } else {
       // Calculate other histogram manually
@@ -915,7 +911,7 @@ struct DeviceShard {
         monitor.StopCuda("UpdatePosition");
 
         monitor.StartCuda("BuildHist");
-        this->BuildHistLeftRight(candidate.nid, left_child_nidx, right_child_nidx, reducer);
+        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
         monitor.StopCuda("BuildHist");
 
         monitor.StartCuda("EvaluateSplits");
@@ -939,7 +935,7 @@ struct DeviceShard {
 };
 
 template <typename GradientSumT>
-inline void DeviceShard<GradientSumT>::InitHistogram() {
+inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
       << "Max leaves and max depth cannot both be unconstrained for "
       "gpu_hist.";
@@ -1026,19 +1022,17 @@ class GPUHistMakerSpecialised {
       page->Init(device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows);
     }
 
-    // Create device shard
     dh::safe_cuda(cudaSetDevice(device_));
-    shard_.reset(new DeviceShard<GradientSumT>(device_,
-                                               page,
-                                               info_->num_row_,
-                                               param_,
-                                               column_sampling_seed,
-                                               info_->num_col_));
+    maker_.reset(new GPUHistMakerDevice<GradientSumT>(device_,
+                                                      page,
+                                                      info_->num_row_,
+                                                      param_,
+                                                      column_sampling_seed,
+                                                      info_->num_col_));
 
-    // Init global data for each shard
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
-    shard_->InitHistogram();
+    maker_->InitHistogram();
     monitor_.StopCuda("InitHistogram");
 
     p_last_fmat_ = dmat;
@@ -1059,12 +1053,12 @@ class GPUHistMakerSpecialised {
     common::MemoryBufferStream fs(&s_model);
     int rank = rabit::GetRank();
     if (rank == 0) {
-      local_trees.front().Save(&fs);
+      local_trees.front().SaveModel(&fs);
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
     RegTree reference_tree{};
-    reference_tree.Load(&fs);
+    reference_tree.LoadModel(&fs);
     for (const auto& tree : local_trees) {
       CHECK(tree == reference_tree);
     }
@@ -1077,18 +1071,17 @@ class GPUHistMakerSpecialised {
     monitor_.StopCuda("InitData");
 
     gpair->SetDevice(device_);
-    shard_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
+    maker_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
   }
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
-    if (shard_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
-    dh::safe_cuda(cudaSetDevice(shard_->device_id));
-    shard_->UpdatePredictionCache(p_out_preds->DevicePointer());
+    maker_->UpdatePredictionCache(p_out_preds->DevicePointer());
     monitor_.StopCuda("UpdatePredictionCache");
     return true;
   }
@@ -1096,7 +1089,7 @@ class GPUHistMakerSpecialised {
   TrainParam param_;           // NOLINT
   MetaInfo* info_{};             // NOLINT
 
-  std::unique_ptr<DeviceShard<GradientSumT>> shard_;  // NOLINT
+  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker_;  // NOLINT
 
  private:
   bool initialised_;

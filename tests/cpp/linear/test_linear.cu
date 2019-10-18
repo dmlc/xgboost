@@ -1,7 +1,9 @@
 // Copyright by Contributors
 #include <xgboost/linear_updater.h>
+#include <xgboost/gbm.h>
+
 #include "../helpers.h"
-#include "xgboost/gbm.h"
+#include "../../../src/gbm/gblinear_model.h"
 
 namespace xgboost {
 

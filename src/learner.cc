@@ -9,6 +9,7 @@
 #include <dmlc/any.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/learner.h>
+#include <xgboost/base.h>
 #include <xgboost/logging.h>
 #include <xgboost/generic_parameters.h>
 #include <algorithm>
@@ -19,11 +20,12 @@
 #include <ios>
 #include <utility>
 #include <vector>
-#include "./common/common.h"
-#include "./common/host_device_vector.h"
-#include "./common/io.h"
-#include "./common/random.h"
-#include "./common/timer.h"
+
+#include "xgboost/host_device_vector.h"
+#include "common/common.h"
+#include "common/io.h"
+#include "common/random.h"
+#include "common/timer.h"
 
 namespace {
 
@@ -154,7 +156,10 @@ class LearnerImpl : public Learner {
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
     tparam_.InitAllowUnknown(args);
+
     generic_param_.InitAllowUnknown(args);
+    generic_param_.CheckDeprecated();
+
     ConsoleLogger::Configure(args);
     if (generic_param_.nthread != 0) {
       omp_set_num_threads(generic_param_.nthread);
@@ -190,6 +195,16 @@ class LearnerImpl : public Learner {
         LOG(FATAL) << "Column-wise data split is currently not supported.";
       }
     }
+  }
+
+  void LoadModel(dmlc::Stream* fi) override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Load(fi);
+  }
+
+  void SaveModel(dmlc::Stream* fo) const override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Save(fo);
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -597,7 +612,7 @@ class LearnerImpl : public Learner {
     gbm_->Configure(args);
 
     if (this->gbm_->UseGPU()) {
-      if (cfg_.find("gpu_id") == cfg_.cend()) {
+      if (generic_param_.gpu_id == -1) {
         generic_param_.gpu_id = 0;
       }
     }

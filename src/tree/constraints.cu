@@ -6,17 +6,16 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include <xgboost/logging.h>
-
 #include <algorithm>
 #include <bitset>
 #include <string>
 #include <sstream>
 #include <set>
 
+#include "xgboost/logging.h"
+#include "xgboost/span.h"
 #include "constraints.cuh"
 #include "param.h"
-#include "../common/span.h"
 #include "../common/device_helpers.cuh"
 
 

@@ -26,12 +26,13 @@
  * THE SOFTWARE.
  */
 
-#ifndef XGBOOST_COMMON_SPAN_H_
-#define XGBOOST_COMMON_SPAN_H_
+#ifndef XGBOOST_SPAN_H_
+#define XGBOOST_SPAN_H_
 
 #include <xgboost/logging.h>  // CHECK
 
-#include <cinttypes>          // int64_t
+#include <cinttypes>          // size_t
+#include <numeric>            // numeric_limits
 #include <type_traits>
 
 /*!
@@ -97,18 +98,20 @@ namespace detail {
  *   represent ptrdiff_t, which is just int64_t. So we make it determinstic
  *   here.
  */
-using ptrdiff_t = int64_t;  // NOLINT
+using ptrdiff_t = typename std::conditional<std::is_same<std::ptrdiff_t, std::int64_t>::value,
+                                            std::ptrdiff_t, std::int64_t>::type;
 }  // namespace detail
 
 #if defined(_MSC_VER) && _MSC_VER < 1910
-constexpr const detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
+constexpr const std::size_t
+dynamic_extent = std::numeric_limits<std::size_t>::max();  // NOLINT
 #else
-constexpr detail::ptrdiff_t dynamic_extent = -1;  // NOLINT
+constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();  // NOLINT
 #endif  // defined(_MSC_VER) && _MSC_VER < 1910
 
 enum class byte : unsigned char {};  // NOLINT
 
-template <class ElementType, detail::ptrdiff_t Extent>
+template <class ElementType, std::size_t Extent>
 class Span;
 
 namespace detail {
@@ -119,8 +122,8 @@ class SpanIterator {
 
  public:
   using iterator_category = std::random_access_iterator_tag;      // NOLINT
-  using value_type = typename std::remove_cv<ElementType>::type;  // NOLINT
-  using difference_type = typename SpanType::index_type;          // NOLINT
+  using value_type = typename SpanType::value_type;  // NOLINT
+  using difference_type = detail::ptrdiff_t;             // NOLINT
 
   using reference = typename std::conditional<                    // NOLINT
     IsConst, const ElementType, ElementType>::type&;
@@ -153,7 +156,7 @@ class SpanIterator {
   }
 
   XGBOOST_DEVICE SpanIterator& operator++() {
-    SPAN_CHECK(0 <= index_ && index_ != span_->size());
+    SPAN_CHECK(index_ != span_->size());
     index_++;
     return *this;
   }
@@ -182,7 +185,7 @@ class SpanIterator {
   }
 
   XGBOOST_DEVICE SpanIterator& operator+=(difference_type n) {
-    SPAN_CHECK((index_ + n) >= 0 && (index_ + n) <= span_->size());
+    SPAN_CHECK((index_ + n) <= span_->size());
     index_ += n;
     return *this;
   }
@@ -234,7 +237,7 @@ class SpanIterator {
 
  protected:
   const SpanType *span_;
-  detail::ptrdiff_t index_;
+  typename SpanType::index_type index_;
 };
 
 
@@ -248,24 +251,22 @@ class SpanIterator {
  *   - Otherwise, if Extent is not dynamic_extent, Extent - Offset;
  *   - Otherwise, dynamic_extent.
  */
-template <detail::ptrdiff_t Extent,
-          detail::ptrdiff_t Offset,
-          detail::ptrdiff_t Count>
+template <std::size_t Extent, std::size_t Offset, std::size_t Count>
 struct ExtentValue : public std::integral_constant<
-  detail::ptrdiff_t, Count != dynamic_extent ?
+  std::size_t, Count != dynamic_extent ?
   Count : (Extent != dynamic_extent ? Extent - Offset : Extent)> {};
 
 /*!
  * If N is dynamic_extent, the extent of the returned span E is also
- * dynamic_extent; otherwise it is detail::ptrdiff_t(sizeof(T)) * N.
+ * dynamic_extent; otherwise it is std::size_t(sizeof(T)) * N.
  */
-template <typename T, detail::ptrdiff_t Extent>
+template <typename T, std::size_t Extent>
 struct ExtentAsBytesValue : public std::integral_constant<
-  detail::ptrdiff_t,
+  std::size_t,
   Extent == dynamic_extent ?
-  Extent : static_cast<detail::ptrdiff_t>(sizeof(T) * Extent)> {};
+  Extent : sizeof(T) * Extent> {};
 
-template <detail::ptrdiff_t From, detail::ptrdiff_t To>
+template <std::size_t From, std::size_t To>
 struct IsAllowedExtentConversion : public std::integral_constant<
   bool, From == To || From == dynamic_extent || To == dynamic_extent> {};
 
@@ -276,7 +277,7 @@ struct IsAllowedElementTypeConversion : public std::integral_constant<
 template <class T>
 struct IsSpanOracle : std::false_type {};
 
-template <class T, detail::ptrdiff_t Extent>
+template <class T, std::size_t Extent>
 struct IsSpanOracle<Span<T, Extent>> : std::true_type {};
 
 template <class T>
@@ -385,12 +386,12 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *       passing iterator.
  */
 template <typename T,
-          detail::ptrdiff_t Extent = dynamic_extent>
+          std::size_t Extent = dynamic_extent>
 class Span {
  public:
   using element_type = T;                               // NOLINT
   using value_type = typename std::remove_cv<T>::type;  // NOLINT
-  using index_type = detail::ptrdiff_t;                 // NOLINT
+  using index_type = std::size_t;                       // NOLINT
   using difference_type = detail::ptrdiff_t;            // NOLINT
   using pointer = T*;                                   // NOLINT
   using reference = T&;                                 // NOLINT
@@ -406,13 +407,12 @@ class Span {
 
   XGBOOST_DEVICE Span(pointer _ptr, index_type _count) :
       size_(_count), data_(_ptr) {
-    SPAN_CHECK(_count >= 0);
+    SPAN_CHECK(!(Extent != dynamic_extent && _count != Extent));
     SPAN_CHECK(_ptr || _count == 0);
   }
 
   XGBOOST_DEVICE Span(pointer _first, pointer _last) :
       size_(_last - _first), data_(_first) {
-    SPAN_CHECK(size_ >= 0);
     SPAN_CHECK(data_ || size_ == 0);
   }
 
@@ -441,7 +441,7 @@ class Span {
   XGBOOST_DEVICE Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
                                                 data_(_cont.data()) {}
 
-  template <class U, detail::ptrdiff_t OtherExtent,
+  template <class U, std::size_t OtherExtent,
             class = typename std::enable_if<
               detail::IsAllowedElementTypeConversion<U, T>::value &&
               detail::IsAllowedExtentConversion<OtherExtent, Extent>::value>>
@@ -491,8 +491,18 @@ class Span {
     return const_reverse_iterator{cbegin()};
   }
 
+  // element access
+
+  XGBOOST_DEVICE reference front() const {
+    return (*this)[0];
+  }
+
+  XGBOOST_DEVICE reference back() const {
+    return (*this)[size() - 1];
+  }
+
   XGBOOST_DEVICE reference operator[](index_type _idx) const {
-    SPAN_CHECK(_idx >= 0 && _idx < size());
+    SPAN_CHECK(_idx < size());
     return data()[_idx];
   }
 
@@ -517,27 +527,27 @@ class Span {
   }
 
   // Subviews
-  template <detail::ptrdiff_t Count >
+  template <std::size_t Count>
   XGBOOST_DEVICE Span<element_type, Count> first() const {  // NOLINT
-    SPAN_CHECK(Count >= 0 && Count <= size());
+    SPAN_CHECK(Count <= size());
     return {data(), Count};
   }
 
   XGBOOST_DEVICE Span<element_type, dynamic_extent> first(  // NOLINT
-      detail::ptrdiff_t _count) const {
-    SPAN_CHECK(_count >= 0 && _count <= size());
+      std::size_t _count) const {
+    SPAN_CHECK(_count <= size());
     return {data(), _count};
   }
 
-  template <detail::ptrdiff_t Count >
+  template <std::size_t Count>
   XGBOOST_DEVICE Span<element_type, Count> last() const {  // NOLINT
-    SPAN_CHECK(Count >=0 && size() - Count >= 0);
+    SPAN_CHECK(Count <= size());
     return {data() + size() - Count, Count};
   }
 
   XGBOOST_DEVICE Span<element_type, dynamic_extent> last(  // NOLINT
-      detail::ptrdiff_t _count) const {
-    SPAN_CHECK(_count >= 0 && _count <= size());
+      std::size_t _count) const {
+    SPAN_CHECK(_count <= size());
     return subspan(size() - _count, _count);
   }
 
@@ -545,24 +555,22 @@ class Span {
    * If Count is std::dynamic_extent, r.size() == this->size() - Offset;
    * Otherwise r.size() == Count.
    */
-  template <detail::ptrdiff_t Offset,
-            detail::ptrdiff_t Count = dynamic_extent>
+  template <std::size_t Offset,
+            std::size_t Count = dynamic_extent>
   XGBOOST_DEVICE auto subspan() const ->                   // NOLINT
       Span<element_type,
            detail::ExtentValue<Extent, Offset, Count>::value> {
-    SPAN_CHECK(Offset >= 0 && (Offset < size() || size() == 0));
-    SPAN_CHECK(Count == dynamic_extent ||
-               (Count >= 0 && Offset + Count <= size()));
+    SPAN_CHECK(Offset < size() || size() == 0);
+    SPAN_CHECK(Count == dynamic_extent || (Offset + Count <= size()));
 
     return {data() + Offset, Count == dynamic_extent ? size() - Offset : Count};
   }
 
   XGBOOST_DEVICE Span<element_type, dynamic_extent> subspan(  // NOLINT
-      detail::ptrdiff_t _offset,
-      detail::ptrdiff_t _count = dynamic_extent) const {
-    SPAN_CHECK(_offset >= 0 && (_offset < size() || size() == 0));
-    SPAN_CHECK((_count == dynamic_extent) ||
-               (_count >= 0 && _offset + _count <= size()));
+      index_type _offset,
+      index_type _count = dynamic_extent) const {
+    SPAN_CHECK(_offset < size() || size() == 0);
+    SPAN_CHECK((_count == dynamic_extent) || (_offset + _count <= size()));
 
     return {data() + _offset, _count ==
             dynamic_extent ? size() - _offset : _count};
@@ -573,7 +581,7 @@ class Span {
   pointer data_;
 };
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE bool operator==(Span<T, X> l, Span<U, Y> r) {
   if (l.size() != r.size()) {
     return false;
@@ -587,23 +595,23 @@ XGBOOST_DEVICE bool operator==(Span<T, X> l, Span<U, Y> r) {
   return true;
 }
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE constexpr bool operator!=(Span<T, X> l, Span<U, Y> r) {
   return !(l == r);
 }
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE constexpr bool operator<(Span<T, X> l, Span<U, Y> r) {
   return detail::LexicographicalCompare(l.begin(), l.end(),
                                          r.begin(), r.end());
 }
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE constexpr bool operator<=(Span<T, X> l, Span<U, Y> r) {
   return !(l > r);
 }
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE constexpr bool operator>(Span<T, X> l, Span<U, Y> r) {
   return detail::LexicographicalCompare<
     typename Span<T, X>::iterator, typename Span<U, Y>::iterator,
@@ -611,18 +619,18 @@ XGBOOST_DEVICE constexpr bool operator>(Span<T, X> l, Span<U, Y> r) {
                                                         r.begin(), r.end());
 }
 
-template <class T, detail::ptrdiff_t X, class U, detail::ptrdiff_t Y>
+template <class T, std::size_t X, class U, std::size_t Y>
 XGBOOST_DEVICE constexpr bool operator>=(Span<T, X> l, Span<U, Y> r) {
   return !(l < r);
 }
 
-template <class T, detail::ptrdiff_t E>
+template <class T, std::size_t E>
 XGBOOST_DEVICE auto as_bytes(Span<T, E> s) __span_noexcept ->           // NOLINT
     Span<const byte, detail::ExtentAsBytesValue<T, E>::value> {
   return {reinterpret_cast<const byte*>(s.data()), s.size_bytes()};
 }
 
-template <class T, detail::ptrdiff_t E>
+template <class T, std::size_t E>
 XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLINT
     Span<byte, detail::ExtentAsBytesValue<T, E>::value> {
   return {reinterpret_cast<byte*>(s.data()), s.size_bytes()};
@@ -637,4 +645,4 @@ XGBOOST_DEVICE auto as_writable_bytes(Span<T, E> s) __span_noexcept ->  // NOLIN
 #undef __span_noexcept
 #endif  // _MSC_VER < 1910
 
-#endif  // XGBOOST_COMMON_SPAN_H_
+#endif  // XGBOOST_SPAN_H_

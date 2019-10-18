@@ -16,6 +16,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/model.h>
 
 #include <utility>
 #include <map>
@@ -41,7 +42,7 @@ namespace xgboost {
  *
  *  \endcode
  */
-class Learner : public rabit::Serializable {
+class Learner : public Model, public rabit::Serializable {
  public:
   /*! \brief virtual destructor */
   ~Learner() override = default;

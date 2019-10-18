@@ -6,6 +6,7 @@
 #include <dmlc/parameter.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/model.h>
 #include <vector>
 #include <string>
 #include <cstring>
@@ -34,7 +35,7 @@ struct GBLinearModelParam : public dmlc::Parameter<GBLinearModelParam> {
 };
 
 // model for linear booster
-class GBLinearModel {
+class GBLinearModel : public Model {
  public:
   // parameter
   GBLinearModelParam param;
@@ -57,6 +58,17 @@ class GBLinearModel {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
     fi->Read(&weight);
   }
+
+  void LoadModel(dmlc::Stream* fi) override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Load(fi);
+  }
+
+  void SaveModel(dmlc::Stream* fo) const override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Save(fo);
+  }
+
   // model bias
   inline bst_float* bias() {
     return &weight[param.num_feature * param.num_output_group];

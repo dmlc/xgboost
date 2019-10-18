@@ -1,11 +1,13 @@
 /*!
  * Copyright by Contributors 2017
  */
-#include <xgboost/predictor.h>
-#include <xgboost/tree_model.h>
-#include <xgboost/tree_updater.h>
-#include "dmlc/logging.h"
-#include "../common/host_device_vector.h"
+#include "xgboost/predictor.h"
+#include "xgboost/tree_model.h"
+#include "xgboost/tree_updater.h"
+#include "xgboost/logging.h"
+#include "xgboost/host_device_vector.h"
+
+#include "../gbm/gbtree_model.h"
 
 namespace xgboost {
 namespace predictor {

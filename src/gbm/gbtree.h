@@ -14,7 +14,7 @@
 #include <xgboost/gbm.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 
 #include <vector>
 #include <map>
@@ -23,8 +23,9 @@
 #include <string>
 
 #include "gbtree_model.h"
+#include "xgboost/host_device_vector.h"
+
 #include "../common/common.h"
-#include "../common/host_device_vector.h"
 #include "../common/timer.h"
 
 namespace xgboost {

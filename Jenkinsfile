@@ -19,7 +19,7 @@ pipeline {
   options {
     ansiColor('xterm')
     timestamps()
-    timeout(time: 120, unit: 'MINUTES')
+    timeout(time: 240, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '10'))
     preserveStashes()
   }
@@ -116,7 +116,7 @@ def ClangTidy() {
     def docker_binary = "docker"
     def dockerArgs = "--build-arg CUDA_VERSION=9.2"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} tests/ci_build/clang_tidy.sh
+    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
     """
     deleteDir()
   }
@@ -291,6 +291,13 @@ def TestPythonGPU(args) {
       echo "Using a single GPU"
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
+      """
+    }
+    // For CUDA 10.0 target, run cuDF tests too
+    if (args.cuda_version == '10.0') {
+      echo "Running tests with cuDF..."
+      sh """
+      ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh cudf
       """
     }
     deleteDir()

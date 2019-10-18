@@ -14,8 +14,8 @@
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
  * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'Shard' method
- * to specify the devices.
+ * allocate/resize memory explicitly, and use the 'SetDevice' method
+ * to specify the device.
  *
  * Accessing underlying data:<br/>
  * Use 'HostVector' method to explicitly query for the underlying std::vector.
@@ -44,30 +44,15 @@
  * 'HostDeviceVector' with a special-case implementation in host_device_vector.cc
  *
  * @note: Size and Devices methods are thread-safe.
- * DevicePointer, DeviceStart, DeviceSize, tbegin and tend methods are thread-safe
- * if different threads call these methods with different values of the device argument.
- * All other methods are not thread safe.
  */
 
-#ifndef XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
-#define XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
+#ifndef XGBOOST_HOST_DEVICE_VECTOR_H_
+#define XGBOOST_HOST_DEVICE_VECTOR_H_
 
-#include <dmlc/logging.h>
-
-#include <algorithm>
-#include <cstdlib>
 #include <initializer_list>
-#include <utility>
 #include <vector>
 
-#include "common.h"
 #include "span.h"
-
-// only include thrust-related files if host_device_vector.h
-// is included from a .cu file
-#ifdef __CUDACC__
-#include <thrust/device_ptr.h>
-#endif  // __CUDACC__
 
 namespace xgboost {
 
@@ -118,19 +103,6 @@ class HostDeviceVector {
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
-  // only define functions returning device_ptr
-  // if HostDeviceVector.h is included from a .cu file
-#ifdef __CUDACC__
-  thrust::device_ptr<T> tbegin();  // NOLINT
-  thrust::device_ptr<T> tend();  // NOLINT
-  thrust::device_ptr<const T> tcbegin() const;  // NOLINT
-  thrust::device_ptr<const T> tcend() const;  // NOLINT
-  thrust::device_ptr<const T> tbegin() const {  // NOLINT
-    return tcbegin();
-  }
-  thrust::device_ptr<const T> tend() const { return tcend(); }  // NOLINT
-#endif  // __CUDACC__
-
   void Fill(T v);
   void Copy(const HostDeviceVector<T>& other);
   void Copy(const std::vector<T>& other);
@@ -155,4 +127,4 @@ class HostDeviceVector {
 
 }  // namespace xgboost
 
-#endif  // XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
+#endif  // XGBOOST_HOST_DEVICE_VECTOR_H_
