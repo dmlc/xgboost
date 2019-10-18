@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014 - 2019 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 import org.apache.spark.ml.param.shared.HasWeightCol
 
 private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
-  with BoosterParams with ParamMapFuncs with NonParamVariables {
+  with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables {
 
   def needDeterministicRepartitioning: Boolean = {
     getCheckpointPath.nonEmpty && getCheckpointInterval > 0
