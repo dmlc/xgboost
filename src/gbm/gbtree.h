@@ -233,6 +233,11 @@ class GBTree : public GradientBooster {
     return model_.DumpModel(fmap, with_stats, format);
   }
 
+  void Accept(ModelVisitor& v) override {
+    v.Visit(*this);
+    model_.Accept(v);
+  }
+
  protected:
   // initialize updater before using them
   void InitUpdater(Args const& cfg);

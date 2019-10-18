@@ -1107,10 +1107,10 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                             const char ***out_fi_array,
                                             int nthread) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  Learner* bst = static_cast<Learner*>(handle);
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  str_vecs = xgbfi::GetFeatureInteractions(*(bst->learner()),
+  str_vecs = xgbfi::GetFeatureInteractions(*bst,
                                            max_fi_depth,
                                            max_tree_depth,
                                            max_deepening,
@@ -1127,9 +1127,9 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
 const std::map<std::string, std::string>&
 QueryBoosterConfigurationArguments(BoosterHandle handle) {
   CHECK_HANDLE();
-  auto* bst = static_cast<Booster*>(handle);
-  bst->LazyInit();
-  return bst->learner()->GetConfigurationArguments();
+  auto* bst = static_cast<Learner*>(handle);
+//   bst->LazyInit();
+  return bst->GetConfigurationArguments();
 }
 
 // force link rabit

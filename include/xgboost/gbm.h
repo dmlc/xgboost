@@ -22,7 +22,6 @@
 #include <functional>
 #include <memory>
 #include "./model_visitor.h"
-#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
