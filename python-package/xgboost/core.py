@@ -108,7 +108,7 @@ def from_cstr_to_pystr(data, length):
 
 
 def _expect(expectations, got):
-    '''Translate input error into string.
+    """Translate input error into string.
 
     Parameters
     ----------
@@ -119,7 +119,8 @@ def _expect(expectations, got):
 
     Returns
     -------
-    msg: str'''
+    msg: str
+    """
     msg = 'Expecting '
     for t in range(len(expectations) - 1):
         msg += str(expectations[t])
@@ -202,8 +203,7 @@ def _check_call(ret):
 
 
 def ctypes2numpy(cptr, length, dtype):
-    """Convert a ctypes pointer array to a numpy array.
-    """
+    """Convert a ctypes pointer array to a numpy array."""
     NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
         np.uint32: ctypes.c_uint,
@@ -244,19 +244,19 @@ def c_array(ctype, values):
 
 
 def _use_columnar_initializer(data):
-    '''Whether should we use columnar format initializer (pass data in as json
+    """Whether should we use columnar format initializer (pass data in as json
     string).  Currently cudf is the only valid option.  For other dataframe
     types, use their sepcific API instead.
-
-    '''
+    """
     if CUDF_INSTALLED and (isinstance(data, (CUDF_DataFrame, CUDF_Series))):
         return True
     return False
 
 
 def _extract_interface_from_cudf_series(data):
-    """This returns the array interface from the cudf series. This function should
-       be upstreamed to cudf."""
+    """This returns the array interface from the cudf series. This function
+    should be upstreamed to cudf.
+    """
     interface = data.__cuda_array_interface__
     if data.has_null_mask:
         interface['mask'] = interface['mask'].__cuda_array_interface__
@@ -289,7 +289,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 
 
 def _maybe_pandas_data(data, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame for DMatrix data """
+    """Extract internal data from pd.DataFrame for DMatrix data"""
 
     if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
         return data, feature_names, feature_types
@@ -340,7 +340,7 @@ def _maybe_pandas_label(label):
 
 
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
-    '''Extract internal data from cudf.DataFrame for DMatrix data.'''
+    """Extract internal data from cudf.DataFrame for DMatrix data."""
     if not (CUDF_INSTALLED and isinstance(data,
                                           (CUDF_DataFrame, CUDF_Series))):
         return data, feature_names, feature_types
@@ -369,9 +369,7 @@ DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
 
 def _maybe_dt_data(data, feature_names, feature_types):
-    """
-    Validate feature names and types if data table
-    """
+    """Validate feature names and types if data table"""
     if not isinstance(data, DataTable):
         return data, feature_names, feature_types
 
@@ -396,7 +394,7 @@ def _maybe_dt_data(data, feature_names, feature_types):
 
 
 def _maybe_dt_array(array):
-    """ Extract numpy array from single column data table """
+    """Extract numpy array from single column data table"""
     if not isinstance(array, DataTable) or array is None:
         return array
 
@@ -473,7 +471,6 @@ class DMatrix(object):
         nthread : integer, optional
             Number of threads to use for loading data from numpy array. If -1,
             uses maximum threads available on the system.
-
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -539,9 +536,7 @@ class DMatrix(object):
         self.feature_types = feature_types
 
     def _init_from_csr(self, csr):
-        """
-        Initialize data from a CSR matrix.
-        """
+        """Initialize data from a CSR matrix."""
         if len(csr.indices) != len(csr.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csr.indices), len(csr.data)))
         handle = ctypes.c_void_p()
@@ -555,9 +550,7 @@ class DMatrix(object):
         self.handle = handle
 
     def _init_from_csc(self, csc):
-        """
-        Initialize data from a CSC matrix.
-        """
+        """Initialize data from a CSC matrix."""
         if len(csc.indices) != len(csc.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csc.indices), len(csc.data)))
         handle = ctypes.c_void_p()
@@ -571,8 +564,7 @@ class DMatrix(object):
         self.handle = handle
 
     def _init_from_npy2d(self, mat, missing, nthread):
-        """
-        Initialize data from a 2-D numpy matrix.
+        """Initialize data from a 2-D numpy matrix.
 
         If ``mat`` does not have ``order='C'`` (aka row-major) or is not contiguous,
         a temporary copy will be made.
@@ -609,9 +601,7 @@ class DMatrix(object):
         self.handle = handle
 
     def _init_from_dt(self, data, nthread):
-        """
-        Initialize data from a datatable Frame.
-        """
+        """Initialize data from a datatable Frame."""
         ptrs = (ctypes.c_void_p * data.ncols)()
         if hasattr(data, "internal") and hasattr(data.internal, "column"):
             # datatable>0.8.0
@@ -640,9 +630,7 @@ class DMatrix(object):
         self.handle = handle
 
     def _init_from_columnar(self, df, missing):
-        '''Initialize DMatrix from columnar memory format.
-
-        '''
+        """Initialize DMatrix from columnar memory format."""
         interfaces = _extract_interface_from_cudf(df)
         handle = ctypes.c_void_p()
         has_missing = missing is not None
@@ -721,7 +709,7 @@ class DMatrix(object):
                                                c_bst_ulong(len(data))))
 
     def set_interface_info(self, field, data):
-        '''Set info type peoperty into DMatrix.'''
+        """Set info type peoperty into DMatrix."""
         interfaces = _extract_interface_from_cudf(data)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
                                                        c_str(field),
@@ -1350,8 +1338,7 @@ class Booster(object):
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
                 pred_contribs=False, approx_contribs=False, pred_interactions=False,
                 validate_features=True):
-        """
-        Predict with data.
+        """Predict with data.
 
         .. note:: This function is not thread safe.
 
@@ -1461,8 +1448,7 @@ class Booster(object):
         return preds
 
     def save_model(self, fname):
-        """
-        Save the model to a file.
+        """Save the model to a file.
 
         The model is saved in an XGBoost internal binary format which is
         universal among the various XGBoost interfaces. Auxiliary attributes of
@@ -1480,8 +1466,7 @@ class Booster(object):
             raise TypeError("fname must be a string")
 
     def save_raw(self):
-        """
-        Save the model to a in memory buffer representation
+        """Save the model to a in memory buffer representation
 
         Returns
         -------
@@ -1495,8 +1480,7 @@ class Booster(object):
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
-        """
-        Load the model from a file.
+        """Load the model from a file.
 
         The model is loaded from an XGBoost internal binary format which is
         universal among the various XGBoost interfaces. Auxiliary attributes of
@@ -1518,8 +1502,7 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
-        """
-        Dump model into a text or JSON file.
+        """Dump model into a text or JSON file.
 
         Parameters
         ----------
@@ -1553,8 +1536,7 @@ class Booster(object):
             fout.close()
 
     def get_dump(self, fmap='', with_stats=False, dump_format="text"):
-        """
-        Returns the model dump as a list of strings.
+        """Returns the model dump as a list of strings.
 
         Parameters
         ----------
