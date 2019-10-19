@@ -214,6 +214,7 @@ def ctypes2numpy(cptr, length, dtype):
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError('expected {} pointer'.format(ctype))
     res = np.zeros(length, dtype=dtype)
+    # pylint: disable= unsubscriptable-object
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError('memmove failed')
     return res
@@ -610,9 +611,9 @@ class DMatrix(object):
                 ptr = col.data_pointer
                 ptrs[icol] = ctypes.c_void_p(ptr)
         else:
-            # datatable<=0.8.0
-            from datatable.internal import frame_column_data_r  # pylint: disable=no-name-in-module,import-error
+            import datatable.internal.frame_column_data_r # pylint: disable=unsubscriptable-object,no-name-in-module,import-error,unused-import,import-outside-toplevel
             for icol in range(data.ncols):
+                # pylint: disable=undefined-variable
                 ptrs[icol] = frame_column_data_r(data, icol)
 
         # always return stypes for dt ingestion
@@ -985,6 +986,7 @@ class DMatrix(object):
             # validate feature name
             try:
                 if not isinstance(feature_names, str):
+                    # pylint: disable=unnecessary-comprehension
                     feature_names = [n for n in iter(feature_names)]
                 else:
                     feature_names = [feature_names]
@@ -1029,6 +1031,7 @@ class DMatrix(object):
 
             try:
                 if not isinstance(feature_types, str):
+                     # pylint: disable=unnecessary-comprehension
                     feature_types = [n for n in iter(feature_types)]
                 else:
                     feature_types = [feature_types]
