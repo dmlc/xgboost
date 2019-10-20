@@ -225,7 +225,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
   private[spark] def buildRabitParams: java.util.Map[java.lang.String, java.lang.String] = Map(
     "rabit_reduce_ring_mincount" -> {
       if (overridedParams.getOrElse("rabit_ring_reduce", false).toString.toBoolean) {
-        "0"
+        "1"
       } else {
         Integer.MAX_VALUE.toString
       }
@@ -234,10 +234,20 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       overridedParams.getOrElse("rabit_reduce_buffer", "256MB").toString,
     "rabit_debug" ->
       overridedParams.getOrElse("rabit_debug", false).toString,
-    "rabit_timeout" ->
-      overridedParams.getOrElse("rabit_timeout", false).toString,
-    "rabit_timeout_sec" ->
-      overridedParams.getOrElse("rabit_timeout_sec", 1800).toString,
+    "rabit_timeout" -> {
+      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt > 0) {
+        "true"
+      } else {
+        "false"
+      }
+    },
+    "rabit_timeout_sec" -> {
+      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt > 0) {
+        overridedParams.get("rabit_timeout").toString
+      } else {
+        Integer.MAX_VALUE.toString
+      }
+    },
     "DMLC_WORKER_CONNECT_RETRY" ->
       overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
     "DMLC_WORKER_STOP_PROCESS_ON_ERROR" ->

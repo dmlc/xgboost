@@ -20,12 +20,11 @@ import org.apache.spark.ml.param._
 
 private[spark] trait RabitParams extends Params {
   /**
-   * Rabit worker configurations. These parameters were passed to Rabit.Init and decide
+   * Rabit parameters passed through Rabit.Init into native layer
    * rabit_ring_reduce - enable ring based allreduce/broadcast operations.
    * rabit_reduce_buffer - buffer size to recv and run reduction
    * rabit_debug - enable more verbose rabit logging to stdout
-   * rabit_timeout - enable sidecar thread after rabit observed failures
-   * rabit_timeout_sec - wait interval before exit after rabit observed failures
+   * rabit_timeout - wait interval before exit after rabit observed failures set -1 to disable
    * dmlc_worker_connect_retry - number of retrys to tracker
    * dmlc_worker_stop_process_on_error - exit process when rabit see assert/error
    */
@@ -39,11 +38,8 @@ private[spark] trait RabitParams extends Params {
   final def debug: BooleanParam = new BooleanParam(this, "rabitDebug",
     "enable more verbose rabit logging to stdout")
 
-  final def timeout: BooleanParam = new BooleanParam(this, "rabitTimeout",
-    "enable failure timeout sidecar threads")
-
-  final def timeoutInterval: IntParam = new IntParam(this, "rabitTimeoutSec",
-  "timeout threshold after rabit observed failures", (interval: Int) => interval > 0)
+  final def timeout: IntParam = new IntParam(this, "rabitTimeout",
+  "timeout threshold after rabit observed failures", (interval: Int) => interval > -2)
 
   final def connectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
@@ -52,5 +48,5 @@ private[spark] trait RabitParams extends Params {
   "exit process when rabit see assert error")
 
   setDefault(ringReduce -> false, reduceBuffer -> "256MB", debug -> false,
-    connectRetry -> 5, timeout -> false, timeoutInterval -> 1800, exitOnError -> false)
+    connectRetry -> 5, timeout -> -1, exitOnError -> false)
 }

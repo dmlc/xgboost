@@ -41,7 +41,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val model2 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
       "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB",
-      "DMLC_WORKER_CONNECT_RETRY" -> 1, "rabit_timeout" -> true, "rabit_timeout_sec" -> 5))
+      "DMLC_WORKER_CONNECT_RETRY" -> 1, "rabit_timeout" -> 5))
       .fit(training)
 
     assert(Rabit.rabitEnvs.asScala.size > 7)
@@ -73,7 +73,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val model2 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
       "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> true, "rabit_timeout_sec" -> 5)).fit(training)
+      "rabit_timeout" -> 5)).fit(training)
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "0")
@@ -99,8 +99,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     intercept[XGBoostError] {
       new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
         "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-        "rabit_timeout" -> true, "rabit_timeout_sec" -> 1,
-        "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> false)).fit(training)
+        "rabit_timeout" -> 1, "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> false)).fit(training)
     }
   }
 }
