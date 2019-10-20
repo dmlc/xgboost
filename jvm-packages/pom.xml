@@ -54,12 +54,6 @@
     </modules>
     <profiles>
         <profile>
-          <id>dev</id>
-          <properties>
-            <rabit.mock>ON</rabit.mock>
-          </properties>
-        </profile>
-        <profile>
             <id>release</id>
             <build>
                 <plugins>
