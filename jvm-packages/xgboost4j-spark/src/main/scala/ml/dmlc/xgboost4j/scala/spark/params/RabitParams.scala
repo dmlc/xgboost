@@ -21,30 +21,25 @@ import org.apache.spark.ml.param._
 private[spark] trait RabitParams extends Params {
   /**
    * Rabit worker configurations. These parameters were passed to Rabit.Init and decide
-   * rabit_reduce_ring_mincount - threshold of enable ring based allreduce/broadcast operations.
+   * rabit_ring_reduce - enable ring based allreduce/broadcast operations.
    * rabit_reduce_buffer - buffer size to recv and run reduction
-   * rabit_bootstrap_cache - enable save allreduce cache before loadcheckpoint
    * rabit_debug - enable more verbose rabit logging to stdout
    * rabit_timeout - enable sidecar thread after rabit observed failures
    * rabit_timeout_sec - wait interval before exit after rabit observed failures
    * dmlc_worker_connect_retry - number of retrys to tracker
    * dmlc_worker_stop_process_on_error - exit process when rabit see assert/error
    */
-  final val ringReduceMin = new IntParam(this, "rabitReduceRingMincount",
-    "minimal counts of enable allreduce/broadcast with ring based topology",
-    ParamValidators.gtEq(1))
+  final val ringReduce = new BooleanParam(this, "rabitRingReduce",
+    "enable allreduce/broadcast with ring based topology")
 
   final def reduceBuffer: Param[String] = new Param[String](this, "rabitReduceBuffer",
     "buffer size (MB/GB) allocated to each xgb trainner recv and run reduction",
     (buf: String) => buf.contains("MB") || buf.contains("GB"))
 
-  final def bootstrapCache: BooleanParam = new BooleanParam(this, "rabitBootstrapCache",
-    "enable save allreduce cache before loadcheckpoint, used to allow failed task retry")
-
-  final def rabitDebug: BooleanParam = new BooleanParam(this, "rabitDebug",
+  final def debug: BooleanParam = new BooleanParam(this, "rabitDebug",
     "enable more verbose rabit logging to stdout")
 
-  final def rabitTimeout: BooleanParam = new BooleanParam(this, "rabitTimeout",
+  final def timeout: BooleanParam = new BooleanParam(this, "rabitTimeout",
     "enable failure timeout sidecar threads")
 
   final def timeoutInterval: IntParam = new IntParam(this, "rabitTimeoutSec",
@@ -56,7 +51,6 @@ private[spark] trait RabitParams extends Params {
   final def exitOnError: BooleanParam = new BooleanParam(this, "dmlcWorkerStopProcessOnError",
   "exit process when rabit see assert error")
 
-  setDefault(ringReduceMin -> (32 << 10), reduceBuffer -> "256MB", bootstrapCache -> false,
-    rabitDebug -> false, connectRetry -> 5, rabitTimeout -> false, timeoutInterval -> 1800,
-    exitOnError -> false)
+  setDefault(ringReduce -> false, reduceBuffer -> "256MB", debug -> false,
+    connectRetry -> 5, timeout -> false, timeoutInterval -> 1800, exitOnError -> false)
 }

@@ -27,6 +27,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.kryo.classesToRegister", classOf[Booster].getName)
+  val predictionErrorMin = 0.00001f
 
   test("test parity classification prediction") {
     val training = buildDataFrame(Classification.train)
@@ -39,15 +40,13 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 100,
-      "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> true, "rabit_timeout_sec" -> 5)).fit(training)
+      "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB",
+      "DMLC_WORKER_CONNECT_RETRY" -> 1, "rabit_timeout" -> true, "rabit_timeout_sec" -> 5))
+      .fit(training)
 
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "true")
-      if (item._1.toString == "rabit_debug") assert(item._2 == "true")
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "100")
+      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "0")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "1")
       if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
@@ -73,14 +72,11 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_bootstrap_cache" -> true, "rabit_debug" -> true, "rabit_reduce_ring_mincount" -> 100,
-      "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
+      "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
       "rabit_timeout" -> true, "rabit_timeout_sec" -> 5)).fit(training)
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_bootstrap_cache") assert(item._2 == "true")
-      if (item._1.toString == "rabit_debug") assert(item._2 == "true")
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "100")
+      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "0")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
@@ -91,7 +87,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val prediction2 = model2.transform(testDF).select("prediction").collect()
     // check parity w/o rabit cache
     prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
-      assert(math.abs(p1 - p2) < 0.00001f)
+      assert(math.abs(p1 - p2) < predictionErrorMin)
     }
   }
 
