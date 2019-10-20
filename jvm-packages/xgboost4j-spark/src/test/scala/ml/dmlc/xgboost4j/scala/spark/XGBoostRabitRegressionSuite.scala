@@ -46,7 +46,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "0")
+      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "1")
       if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
@@ -76,7 +76,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
       "rabit_timeout" -> 5)).fit(training)
     assert(Rabit.rabitEnvs.asScala.size > 7)
     Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "0")
+      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
       if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
       if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "true")
       if (item._1.toString == "rabit_timeout") assert(item._2 == "true")

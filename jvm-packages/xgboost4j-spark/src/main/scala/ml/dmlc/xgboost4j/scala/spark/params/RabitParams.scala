@@ -39,7 +39,7 @@ private[spark] trait RabitParams extends Params {
     "enable more verbose rabit logging to stdout")
 
   final def timeout: IntParam = new IntParam(this, "rabitTimeout",
-  "timeout threshold after rabit observed failures", (interval: Int) => interval > -2)
+  "timeout threshold after rabit observed failures")
 
   final def connectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))

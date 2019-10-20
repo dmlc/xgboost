@@ -243,9 +243,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     },
     "rabit_timeout_sec" -> {
       if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt > 0) {
-        overridedParams.get("rabit_timeout").toString
+        overridedParams.getOrElse("rabit_timeout", -1).toString
       } else {
-        Integer.MAX_VALUE.toString
+        "1800"
       }
     },
     "DMLC_WORKER_CONNECT_RETRY" ->
