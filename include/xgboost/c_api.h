@@ -122,11 +122,16 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
  * \param out The created DMatrix
  * \return 0 when success, -1 when failure happens.
  */
-XGB_DLL int XGDMatrixCreateFromDataIter(
-    DataIterHandle data_handle,
-    XGBCallbackDataIterNext* callback,
-    const char* cache_info,
-    DMatrixHandle *out);
+XGB_DLL int XGDMatrixCreateFromDataIter(DataIterHandle data_handle,
+                                        XGBCallbackDataIterNext *callback,
+                                        const char *cache_info,
+                                        DMatrixHandle *out);
+
+XGB_DLL int XGDMatrixCreateFromDataIterEx(DataIterHandle data_handle,
+                                          float missing,
+                                          XGBCallbackDataIterNext *callback,
+                                          const char *cache_info,
+                                          DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from CSR format

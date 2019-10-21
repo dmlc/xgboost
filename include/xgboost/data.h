@@ -432,8 +432,9 @@ class DMatrix {
    * \return A created DMatrix.
    */
   static DMatrix* Create(dmlc::Parser<uint32_t>* parser,
-                         const std::string& cache_prefix = "",
-                         size_t page_size = kPageSize);
+                         std::string const& cache_prefix = "",
+                         float const missing = std::numeric_limits<float>::quiet_NaN(),
+                         size_t const page_size = kPageSize);
 
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;

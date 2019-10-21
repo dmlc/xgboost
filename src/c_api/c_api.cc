@@ -100,6 +100,9 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
         weight_.size() * sizeof(dmlc::real_t) +
         index_.size() * sizeof(uint32_t) +
         value_.size() * sizeof(dmlc::real_t);
+    LOG(WARNING)
+        << "batch.size + 1:" << batch.size + 1 << ", "
+        << "value_.size():" << value_.size();
   }
 
  private:
@@ -128,6 +131,7 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
 int XGBoostNativeDataIterSetData(
     void *handle, XGBoostBatchCSR batch) {
   API_BEGIN();
+  LOG(WARNING) << __func__;
   static_cast<xgboost::NativeDataIter*>(handle)->SetData(batch);
   API_END();
 }
@@ -173,20 +177,28 @@ int XGDMatrixCreateFromFile(const char *fname,
   API_END();
 }
 
-int XGDMatrixCreateFromDataIter(
-    void* data_handle,
-    XGBCallbackDataIterNext* callback,
-    const char *cache_info,
-    DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromDataIterEx(DataIterHandle data_handle,
+                                          bst_float missing,
+                                          XGBCallbackDataIterNext *callback,
+                                          const char *cache_info,
+                                          DMatrixHandle *out) {
   API_BEGIN();
+  LOG(WARNING) << __func__;
 
   std::string scache;
   if (cache_info != nullptr) {
     scache = cache_info;
   }
   NativeDataIter parser(data_handle, callback);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache, missing));
   API_END();
+}
+
+int XGDMatrixCreateFromDataIter(void* data_handle,
+                                XGBCallbackDataIterNext* callback,
+                                const char *cache_info,
+                                DMatrixHandle *out) {
+  return XGDMatrixCreateFromDataIterEx(data_handle, NAN, callback, cache_info, out);
 }
 
 XGB_DLL int XGDMatrixCreateFromArrayInterfaces(
@@ -320,7 +332,7 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       if (common::CheckNAN(data[j])) {
         CHECK(nan_missing)
-          << "There are NAN in the matrix, however, you did not set missing=NAN";
+            << "There are NAN in the matrix, however, but missing is set to: " << missing;
       } else {
         if (nan_missing || data[j] != missing) {
           ++nelem;
@@ -886,6 +898,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              const bst_float **out_result) {
   std::vector<bst_float>&preds =
     XGBAPIThreadLocalStore::Get()->ret_vec_float;
+  LOG(WARNING) << __func__;
   API_BEGIN();
   CHECK_HANDLE();
   auto *bst = static_cast<Learner*>(handle);
@@ -922,8 +935,8 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* fname) {
 }
 
 XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
-                                 const void* buf,
-                                 xgboost::bst_ulong len) {
+                                         const void* buf,
+                                         xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   common::MemoryFixSizeBuffer fs((void*)buf, len);  // NOLINT(*)

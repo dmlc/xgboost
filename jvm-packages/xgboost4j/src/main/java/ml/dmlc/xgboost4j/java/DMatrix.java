@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2019 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -40,10 +40,11 @@ public class DMatrix {
    * Create DMatrix from iterator.
    *
    * @param iter The data iterator of mini batch to provide the data.
+   * @param missing the specified value to represent the missing value
    * @param cacheInfo Cache path information, used for external memory setting, can be null.
    * @throws XGBoostError
    */
-  public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
+  public DMatrix(Iterator<LabeledPoint> iter, float missing, String cacheInfo) throws XGBoostError {
     if (iter == null) {
       throw new NullPointerException("iter: null");
     }
@@ -51,7 +52,8 @@ public class DMatrix {
     int batchSize = 32 << 10;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIterEx(
+            batchIter, missing, cacheInfo, out));
     handle = out[0];
   }
 

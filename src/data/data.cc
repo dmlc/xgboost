@@ -231,7 +231,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
   rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1, nullptr,
-    nullptr, fname.c_str());
+                                   nullptr, fname.c_str());
   // backward compatiblity code.
   if (!load_row_split) {
     MetaInfo& info = dmat->Info();
@@ -255,14 +255,18 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
 DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
                          const std::string& cache_prefix,
-                         const size_t page_size) {
+                         float const missing /* = quiet_NaN() */,
+                         size_t const page_size /* = kPageSize */) {
   if (cache_prefix.length() == 0) {
+    LOG(WARNING) << "cache_prefix.length() == 0";
     std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-    source->CopyFrom(parser);
+    source->CopyFrom(parser, missing);
     return DMatrix::Create(std::move(source), cache_prefix);
   } else {
+    LOG(WARNING) << "cache_prefix.length() != 0: " << cache_prefix.length();
 #if DMLC_ENABLE_STD_THREAD
     if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {
+      LOG(WARNING) << "No cache";
       data::SparsePageSource<SparsePage>::CreateRowPage(parser, cache_prefix, page_size);
     }
     std::unique_ptr<data::SparsePageSource<SparsePage>> source(

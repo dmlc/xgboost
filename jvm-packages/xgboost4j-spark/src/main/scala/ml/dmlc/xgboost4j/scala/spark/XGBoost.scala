@@ -916,4 +916,3 @@ private[spark] class LabeledPointGroupIterator(base: Iterator[XGBLabeledPoint])
     group
   }
 }
-

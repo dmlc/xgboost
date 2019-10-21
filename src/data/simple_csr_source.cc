@@ -3,12 +3,15 @@
  * \file simple_csr_source.cc
  */
 #include <dmlc/base.h>
+#include <dmlc/data.h>  // dmlc::RowBlock
+
 #include <xgboost/logging.h>
 #include <xgboost/json.h>
 
 #include <limits>
 #include "simple_csr_source.h"
 #include "columnar.h"
+#include "../common/math.h"
 
 namespace xgboost {
 namespace data {
@@ -26,14 +29,16 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
   }
 }
 
-void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
+// There is no validity mask here so we don't care if NaN is default value or is specifed
+// by user.
+void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser, float const missing) {
   // use qid to get group info
   const uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
   bst_uint group_size = 0;
-  std::vector<uint64_t> qids;
   this->Clear();
   while (parser->Next()) {
+    // Setup MetaInfo
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
     if (batch.label != nullptr) {
       auto& labels = info.labels_.HostVector();
@@ -44,7 +49,6 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       weights.insert(weights.end(), batch.weight, batch.weight + batch.size);
     }
     if (batch.qid != nullptr) {
-      qids.insert(qids.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
         const uint64_t cur_group_id = batch.qid[i];
@@ -62,31 +66,65 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     // See https://github.com/dmlc/xgboost/issues/1827 for complete detail.
     // CHECK(batch.index != nullptr);
 
+    bool const nan_missing = common::CheckNAN(missing);
     // update information
     this->info.num_row_ += batch.size;
     // copy the data over
     auto& data_vec = page_.data.HostVector();
     auto& offset_vec = page_.offset.HostVector();
+
+    // current row offset with missing value removed
+    size_t offset_without_missing { batch.offset[0] };
+
+    for (size_t row_id = 0; row_id  <= batch.size; ++row_id) {
+      for (size_t i = batch.offset[row_id]; i < batch.offset[row_id]; ++i) {
+        uint32_t const index = batch.index[i];
+        float const fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+
+        if (XGBOOST_EXPECT((!nan_missing && common::CheckNAN(fvalue)), false)) {
+          LOG(FATAL) << "There are NAN in the matrix, however, but missing is set to: " << missing;
+        }
+        if (common::CheckNAN(fvalue) || batch.value[i] == missing) {
+          // found a missing value
+          continue;
+        }
+
+        offset_without_missing += 1;
+        data_vec.emplace_back(index, fvalue);
+        this->info.num_col_ =
+            std::max(this->info.num_col_, static_cast<uint64_t>(index + 1));
+      }
+
+      offset_vec.push_back(offset_without_missing);
+    }
+
     for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-      uint32_t index = batch.index[i];
-      bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+      uint32_t const index = batch.index[i];
+      float const fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+      if ((nan_missing && common::CheckNAN(fvalue)) || batch.value[i] == missing) {
+        // found a missing value
+        continue;
+      }
+      offset_without_missing += 1;
       data_vec.emplace_back(index, fvalue);
       this->info.num_col_ = std::max(this->info.num_col_,
-                                    static_cast<uint64_t>(index + 1));
+                                     static_cast<uint64_t>(index + 1));
     }
     size_t top = page_.offset.Size();
     for (size_t i = 0; i < batch.size; ++i) {
       offset_vec.push_back(offset_vec[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
+
   if (last_group_id != default_max) {
     if (group_size > info.group_ptr_.back()) {
       info.group_ptr_.push_back(group_size);
     }
   }
+
+  auto& offset_vec = page_.offset.HostVector();
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.Size());
-  // Either every row has query ID or none at all
-  CHECK(qids.empty() || qids.size() == info.num_row_);
+  CHECK(info.group_ptr_.size() == 0 || info.group_ptr_.back() == offset_vec.back());
 }
 
 void SimpleCSRSource::LoadBinary(dmlc::Stream* fi) {
@@ -180,7 +218,8 @@ const SparsePage& SimpleCSRSource::Value() const {
  * ]
  */
 void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str,
-                               bool has_missing, float missing) {
+                               bool has_missing,
+                               float const missing) {
   Json interfaces = Json::Load({cuda_interfaces_str.c_str(),
                                 cuda_interfaces_str.size()});
   std::vector<Json> const& columns = get<Array>(interfaces);

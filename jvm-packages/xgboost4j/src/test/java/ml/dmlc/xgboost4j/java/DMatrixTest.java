@@ -1,10 +1,10 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-    
+
  http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
@@ -49,7 +49,7 @@ public class DMatrixTest {
       blist.add(p);
       labelall.add(p.label());
     }
-    DMatrix dmat = new DMatrix(blist.iterator(), null);
+    DMatrix dmat = new DMatrix(blist.iterator(), NaN, null);
     // get label
     float[] labels = dmat.getLabel();
     for (int i = 0; i < labels.length; ++i) {

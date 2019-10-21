@@ -48,6 +48,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
   test("handle Float.NaN as missing value correctly") {
     val spark = ss
     import spark.implicits._
+    println("handle Float.NaN as missing value correctly")
     val testDF = Seq(
       (1.0f, 0.0f, Float.NaN, 1.0),
       (1.0f, 0.0f, 1.0f, 1.0),
@@ -70,7 +71,10 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     val inputDF = vectorAssembler.transform(testDF).select("features", "label")
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> Float.NaN, "num_workers" -> 1).toMap
+    println("Start training")
     val model = new XGBoostClassifier(paramMap).fit(inputDF)
+    println("Start transform")
+
     model.transform(inputDF).collect()
   }
 

@@ -50,7 +50,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param src source data iter.
    * \param info The additional information reflected in the parser.
    */
-  void CopyFrom(dmlc::Parser<uint32_t>* src);
+  void CopyFrom(dmlc::Parser<uint32_t>* src, float const missing);
   /*!
    * \brief copy content of data from foreign **GPU** columnar buffer.
    * \param interfaces_str JSON representation of cuda array interfaces.
@@ -58,7 +58,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param missing The missing value set by users.
    */
   void CopyFrom(std::string const& cuda_interfaces_str, bool has_missing,
-                bst_float missing = std::numeric_limits<float>::quiet_NaN());
+                float const missing = std::numeric_limits<float>::quiet_NaN());
   /*!
    * \brief Load data from binary stream.
    * \param fi the pointer to load data from.

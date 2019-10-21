@@ -165,18 +165,18 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromDataIter
- * Signature: (Ljava/util/Iterator;Ljava/lang/String;[J)I
+ * Method:    XGDMatrixCreateFromDataIterEx
+ * Signature: (Ljava/util/Iterator;F;Ljava/lang/String;[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIter
-  (JNIEnv *jenv, jclass jcls, jobject jiter, jstring jcache_info, jlongArray jout) {
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIterEx
+  (JNIEnv *jenv, jclass jcls, jobject jiter, jfloat missing, jstring jcache_info, jlongArray jout) {
   DMatrixHandle result;
   const char* cache_info = nullptr;
   if (jcache_info != nullptr) {
     cache_info = jenv->GetStringUTFChars(jcache_info, 0);
   }
-  int ret = XGDMatrixCreateFromDataIter(
-      jiter, XGBoost4jCallbackDataIterNext, cache_info, &result);
+  int ret = XGDMatrixCreateFromDataIterEx(
+      jiter, missing, XGBoost4jCallbackDataIterNext, cache_info, &result);
   if (cache_info) {
     jenv->ReleaseStringUTFChars(jcache_info, cache_info);
   }
