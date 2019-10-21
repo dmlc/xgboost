@@ -75,6 +75,10 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser, float const missi
 
     // current row offset with missing value removed
     size_t offset_without_missing { batch.offset[0] };
+    if (offset_vec.size() == 0) {
+      offset_vec.emplace_back(0);
+    }
+    size_t const top = offset_vec.back();
 
     for (size_t row_id = 0; row_id  < batch.size; ++row_id) {
       for (size_t i = batch.offset[row_id]; i < batch.offset[row_id+1]; ++i) {
@@ -94,26 +98,8 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser, float const missi
         this->info.num_col_ =
             std::max(this->info.num_col_, static_cast<uint64_t>(index + 1));
       }
-
-      offset_vec.push_back(offset_without_missing);
+      offset_vec.push_back(top + offset_without_missing);
     }
-
-    // for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-    //   uint32_t const index = batch.index[i];
-    //   float const fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-    //   if ((nan_missing && common::CheckNAN(fvalue)) || batch.value[i] == missing) {
-    //     // found a missing value
-    //     continue;
-    //   }
-    //   offset_without_missing += 1;
-    //   data_vec.emplace_back(index, fvalue);
-    //   this->info.num_col_ = std::max(this->info.num_col_,
-    //                                  static_cast<uint64_t>(index + 1));
-    // }
-    // size_t top = page_.offset.Size();
-    // for (size_t i = 0; i < batch.size; ++i) {
-    //   offset_vec.push_back(offset_vec[top - 1] + batch.offset[i + 1] - batch.offset[0]);
-    // }
   }
 
   if (last_group_id != default_max) {
