@@ -49,7 +49,7 @@ public class DMatrixTest {
       blist.add(p);
       labelall.add(p.label());
     }
-    DMatrix dmat = new DMatrix(blist.iterator(), NaN, null);
+    DMatrix dmat = new DMatrix(blist.iterator(), Float.NaN, null);
     // get label
     float[] labels = dmat.getLabel();
     for (int i = 0; i < labels.length; ++i) {

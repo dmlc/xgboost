@@ -128,7 +128,7 @@ class NativeDataIter : public dmlc::Parser<uint32_t> {
   dmlc::RowBlock<uint32_t> block_;
 };
 
-int XGBoostNativeDataIterSetData(
+XGB_EXTERN_C int XGBoostNativeDataIterSetData(
     void *handle, XGBoostBatchCSR batch) {
   API_BEGIN();
   LOG(WARNING) << __func__;

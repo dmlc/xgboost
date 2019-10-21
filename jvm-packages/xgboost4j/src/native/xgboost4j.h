@@ -25,16 +25,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromDataIter
- * Signature: (Ljava/util/Iterator;Ljava/lang/String;[J)I
+ * Method:    XGDMatrixCreateFromDataIterEx
+ * Signature: (Ljava/util/Iterator;FLjava/lang/String;[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIter
-  (JNIEnv *, jclass, jobject, jstring, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIterEx
+  (JNIEnv *, jclass, jobject, jfloat, jstring, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixCreateFromCSREx
- * Signature: ([J[I[F[J)I
+ * Signature: ([J[I[FI[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSREx
   (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
@@ -42,7 +42,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixCreateFromCSCEx
- * Signature: ([J[I[F[J)I
+ * Signature: ([J[I[FI[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSCEx
   (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
@@ -61,7 +61,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
  * Signature: (JIIF[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromMatRef
-  (JNIEnv *jenv, jclass jcls, jlong jdataRef, jint jnrow, jint jncol, jfloat jmiss, jlongArray jout);
+  (JNIEnv *, jclass, jlong, jint, jint, jfloat, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -218,7 +218,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetModelR
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterDumpModelEx
- * Signature: (JLjava/lang/String;I[[Ljava/lang/String;)I
+ * Signature: (JLjava/lang/String;ILjava/lang/String;[[Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModelEx
   (JNIEnv *, jclass, jlong, jstring, jint, jstring, jobjectArray);
@@ -226,7 +226,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModel
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterDumpModelExWithFeatures
- * Signature: (JLjava/lang/String;I[[Ljava/lang/String;)I
+ * Signature: (J[Ljava/lang/String;ILjava/lang/String;[[Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModelExWithFeatures
   (JNIEnv *, jclass, jlong, jobjectArray, jint, jstring, jobjectArray);
@@ -234,7 +234,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModel
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterGetAttrNames
- * Signature: (I[[Ljava/lang/String;)I
+ * Signature: (J[[Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetAttrNames
   (JNIEnv *, jclass, jlong, jobjectArray);

@@ -4,6 +4,8 @@
 
 #include <xgboost/data.h>
 #include <xgboost/json.h>
+#include <xgboost/c_api.h>
+
 #include "../../../src/data/simple_csr_source.h"
 
 #include "../helpers.h"
@@ -38,4 +40,50 @@ TEST(SimpleCSRSource, SaveLoadBinary) {
   delete dmat;
   delete dmat_read;
 }
+
+TEST(SimpleCSRSource, DataIter) {
+  size_t constexpr kRows{16}, kCols{12}, kMissing {2};
+
+  std::vector<float> data(kRows * kCols);
+  std::vector<uint32_t> index(kRows * kCols);
+#if defined(__APPLE__)
+  std::vector<long> offset;
+#else
+  std::vector<int64_t> offset;
+#endif  // defined(__APPLE__)
+
+  for (size_t i = 0; i < kRows * kCols; ++i) {
+    data[i] = static_cast<float>(i);
+    index[i] = i % kRows;
+  }
+  for (int64_t i = 0; i < kRows; ++i) {
+    offset.push_back(i * static_cast<int64_t>(kRows));
+  }
+
+  std::vector<float> labels(kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    labels[i] = static_cast<float>(i);
+  }
+
+  // define first two rows each having a missing value
+  data[13] = std::numeric_limits<float>::quiet_NaN();
+  data[23] = std::numeric_limits<float>::quiet_NaN();
+
+  size_t constexpr kEntries = kRows * kCols - kMissing;
+
+  XGBoostBatchCSR block;
+
+  block.size = kRows;
+  block.offset = offset.data();
+  block.value = data.data();
+  block.label = labels.data();
+
+  block.weight = nullptr;
+
+  DataIterHandle iter;
+  // XGBoostNativeDataIterSetData;
+  // XGDMatrixCreateFromDataIterEx(iter, NAN, , nullptr, nullptr);
+  // XGDMatrixCreateFromDataIterEx()
+}
+
 }  // namespace xgboost
