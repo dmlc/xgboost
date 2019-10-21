@@ -11,7 +11,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:pairwise", &tparam)
+    xgboost::ObjFunction::Create("rank:pairwise", &lparam)
   };
   obj->Configure(args);
   CheckConfigReload(obj, "rank:pairwise");
@@ -61,7 +61,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
   xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:ndcg", &tparam)
+    xgboost::ObjFunction::Create("rank:ndcg", &lparam)
   };
   obj->Configure(args);
   // No computation of gradient/hessian, as there is no diversity in labels
@@ -74,7 +74,5 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
                           {0.0f, 0.0f, 0.0f, 0.0f});
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
-
-  delete obj;
 }
 }  // namespace xgboost

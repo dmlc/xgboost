@@ -257,7 +257,6 @@ class MemoryLogger {
       }
       num_deallocations++;
       CHECK_LE(num_deallocations, num_allocations);
-      CHECK_EQ(itr->second, n);
       currently_allocated_bytes -= itr->second;
       device_allocations.erase(itr);
     }
@@ -339,8 +338,8 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   };
    cub::CachingDeviceAllocator& GetGlobalCachingAllocator ()
    {
-    // Configure allocator with maximum cached bin size of ~1GB and no limit on
-    // maximum cached bytes
+     // Configure allocator with maximum cached bin size of ~1GB and no limit on
+     // maximum cached bytes
      static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
      return *allocator;
    }

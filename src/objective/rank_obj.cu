@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 XGBoost contributors
+ * Copyright 2015-2019 XGBoost contributors
  */
 #include <dmlc/omp.h>
 #include <dmlc/timer.h>
@@ -8,6 +8,10 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+
+#include "xgboost/json.h"
+#include "xgboost/parameter.h"
+
 #include "../common/math.h"
 #include "../common/random.h"
 
@@ -16,6 +20,8 @@
 #include <thrust/gather.h>
 #include <thrust/random/uniform_int_distribution.h>
 #include <thrust/random/linear_congruential_engine.h>
+
+#include <cub/util_allocator.cuh>
 
 #include "../common/device_helpers.cuh"
 #endif
@@ -27,7 +33,7 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(rank_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
-struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
+struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   int num_pairsample;
   float fix_list_weight;
   // declare parameters
@@ -85,6 +91,11 @@ struct PairwiseLambdaWeightComputer {
    */
   static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                               std::vector<LambdaPair> *io_pairs) {}
+
+  static char const* Name() {
+    return "rank:pairwise";
+  }
+
   // Stopgap method - will be removed when we support other type of ranking - ndcg, map etc.
   // on GPU later
   inline static bool SupportOnGPU() { return true; }
@@ -130,6 +141,10 @@ struct NDCGLambdaWeightComputer {
         pair.weight *= delta;
       }
     }
+  }
+
+  static char const* Name() {
+    return "rank:ndcg";
   }
 
  private:
@@ -227,6 +242,10 @@ struct MAPLambdaWeightComputer {
   // on GPU later
   inline static bool SupportOnGPU() { return false; }
 
+  static char const* Name() {
+    return "rank:map";
+  }
+
   static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
                               std::vector<LambdaPair> *io_pairs) {
     std::vector<LambdaPair> &pairs = *io_pairs;
@@ -294,6 +313,9 @@ class SortedLabelList {
   int device_id_{-1};                                 // GPU device ID
   const LambdaRankParam &param_;                      // Objective configuration
 
+  dh::XGBCachingDeviceAllocator<char> alloc_;         // Allocator to be used by sort for managing
+                                                      // space overhead while sorting
+
  public:
   SortedLabelList(int dev_id,
                   const LambdaRankParam &param)
@@ -343,7 +365,8 @@ class SortedLabelList {
   //       in kernel, sorting using predicates etc.
   void Sort(const HostDeviceVector<bst_float> &dlabels) {
     dsorted_labels_.assign(dh::tcbegin(dlabels), dh::tcend(dlabels));
-    thrust::stable_sort_by_key(dsorted_labels_.begin(), dsorted_labels_.end(),
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc_),
+                               dsorted_labels_.begin(), dsorted_labels_.end(),
                                doriginal_pos_.begin(), thrust::greater<float>());
 
     // Next, gather the segments based on the doriginal_pos_. This is to reflect the
@@ -358,7 +381,8 @@ class SortedLabelList {
     // in the process also noting the relative changes to the doriginal_pos_ while that happens
     // group_segments_c_:   0 0 0 1 1 2 2 2 3 3
     // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9
-    thrust::stable_sort_by_key(group_segments_c.begin(), group_segments_c.end(),
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc_),
+                               group_segments_c.begin(), group_segments_c.end(),
                                doriginal_pos_.begin(), thrust::less<int>());
 
     // Finally, gather the original labels based on doriginal_pos_ to sort the input and
@@ -468,7 +492,7 @@ template <typename LambdaWeightComputerT>
 class LambdaRankObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -481,57 +505,59 @@ class LambdaRankObj : public ObjFunction {
     std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels_.Size());
     const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
     CHECK(gptr.size() != 0 && gptr.back() == info.labels_.Size())
-        << "group structure not consistent with #rows";
-
-    const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
-    bst_float sum_weights = 0;
-    for (bst_omp_uint k = 0; k < ngroup; ++k) {
-      sum_weights += info.GetWeight(k);
-    }
-    bst_float weight_normalization_factor = ngroup / sum_weights;
+          << "group structure not consistent with #rows";
 
 #if defined(__CUDACC__)
     // For now, we only support pairwise ranking computation on GPU.
     // Check if we have a GPU assignment; else, revert back to CPU
     auto device = tparam_->gpu_id;
     if (device >= 0 && LambdaWeightComputerT::SupportOnGPU()) {
-      LOG(DEBUG) << "Computing pairwise gradients on GPU.";
-      dh::safe_cuda(cudaSetDevice(device));
-
-      // Set the device ID and copy them to the device
-      out_gpair->SetDevice(device);
-      info.labels_.SetDevice(device);
-      preds.SetDevice(device);
-      info.weights_.SetDevice(device);
-
-      out_gpair->Resize(preds.Size());
-
-      auto d_preds = preds.ConstDevicePointer();
-      auto d_gpair = out_gpair->DevicePointer();
-
-      if (!slist_) {
-        slist_.reset(new SortedLabelList(device, param_));
-      }
-
-      // Create segments based on group info
-      slist_->InitWithTrainingInfo(gptr);
-
-      // Sort the labels within the groups on the device
-      slist_->Sort(info.labels_);
-
-      // Initialize the gradients next
-      out_gpair->Fill(GradientPair(0.0f, 0.0f));
-
-      // Finally, compute the gradients
-      slist_->ComputeGradients(d_preds, d_gpair,
-                               info.weights_, weight_normalization_factor);
-
-      // Wait until the computations done by the kernel is complete
-      dh::safe_cuda(cudaStreamSynchronize(nullptr));
+      ComputeGradientsOnGPU(preds, info, out_gpair, gptr);
     } else {
       // Revert back to CPU
 #endif
+      ComputeGradientsOnCPU(preds, info, iter, out_gpair, gptr);
+#if defined(__CUDACC__)
+    }
+#endif
+  }
+
+  const char* DefaultEvalMetric() const override {
+    return "map";
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(LambdaWeightComputerT::Name());
+    out["lambda_rank_param"] = Object();
+    for (auto const& kv : param_.__DICT__()) {
+      out["lambda_rank_param"][kv.first] = kv.second;
+    }
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["lambda_rank_param"], &param_);
+  }
+
+ private:
+  bst_float ComputeWeightNormalizationFactor(const MetaInfo& info,
+                                             const std::vector<unsigned> &gptr) {
+    const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
+    bst_float sum_weights = 0;
+    for (bst_omp_uint k = 0; k < ngroup; ++k) {
+      sum_weights += info.GetWeight(k);
+    }
+    return ngroup / sum_weights;
+  }
+
+  void ComputeGradientsOnCPU(const HostDeviceVector<bst_float>& preds,
+                             const MetaInfo& info,
+                             int iter,
+                             HostDeviceVector<GradientPair>* out_gpair,
+                             const std::vector<unsigned> &gptr) {
     LOG(DEBUG) << "Computing pairwise gradients on CPU.";
+
+    bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);
     out_gpair->Resize(preds.Size());
     #pragma omp parallel
     {
@@ -545,6 +571,7 @@ class LambdaRankObj : public ObjFunction {
       const auto& preds_h = preds.HostVector();
       const auto& labels = info.labels_.HostVector();
       std::vector<GradientPair>& gpair = out_gpair->HostVector();
+      const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
 
       #pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
@@ -603,15 +630,52 @@ class LambdaRankObj : public ObjFunction {
         }
       }
     }
-#if defined(__CUDACC__)
-    }
-#endif
-  }
-  const char* DefaultEvalMetric() const override {
-    return "map";
   }
 
- private:
+#if defined(__CUDACC__)
+  void ComputeGradientsOnGPU(const HostDeviceVector<bst_float>& preds,
+                             const MetaInfo& info,
+                             HostDeviceVector<GradientPair>* out_gpair,
+                             const std::vector<unsigned> &gptr) {
+    LOG(DEBUG) << "Computing pairwise gradients on GPU.";
+
+    auto device = tparam_->gpu_id;
+    dh::safe_cuda(cudaSetDevice(device));
+
+    bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);
+
+    // Set the device ID and copy them to the device
+    out_gpair->SetDevice(device);
+    info.labels_.SetDevice(device);
+    preds.SetDevice(device);
+    info.weights_.SetDevice(device);
+
+    out_gpair->Resize(preds.Size());
+
+    auto d_preds = preds.ConstDevicePointer();
+    auto d_gpair = out_gpair->DevicePointer();
+
+    if (!slist_) {
+      slist_.reset(new SortedLabelList(device, param_));
+    }
+
+    // Create segments based on group info
+    slist_->InitWithTrainingInfo(gptr);
+
+    // Sort the labels within the groups on the device
+    slist_->Sort(info.labels_);
+
+    // Initialize the gradients next
+    out_gpair->Fill(GradientPair(0.0f, 0.0f));
+
+    // Finally, compute the gradients
+    slist_->ComputeGradients(d_preds, d_gpair, info.weights_, weight_normalization_factor);
+
+    // Wait until the computations done by the kernel is complete
+    dh::safe_cuda(cudaStreamSynchronize(nullptr));
+  }
+#endif
+
   LambdaRankParam param_;
 #if defined(__CUDACC__)
   std::unique_ptr<SortedLabelList> slist_;
@@ -621,15 +685,15 @@ class LambdaRankObj : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
-XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, "rank:pairwise")
+XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, PairwiseLambdaWeightComputer::Name())
 .describe("Pairwise rank objective.")
 .set_body([]() { return new LambdaRankObj<PairwiseLambdaWeightComputer>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, "rank:ndcg")
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, NDCGLambdaWeightComputer::Name())
 .describe("LambdaRank with NDCG as objective.")
 .set_body([]() { return new LambdaRankObj<NDCGLambdaWeightComputer>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, "rank:map")
+XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, MAPLambdaWeightComputer::Name())
 .describe("LambdaRank with MAP as objective.")
 .set_body([]() { return new LambdaRankObj<MAPLambdaWeightComputer>(); });
 
