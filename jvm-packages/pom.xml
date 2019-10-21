@@ -37,7 +37,6 @@
         <spark.version>2.4.3</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <rabit.mock>OFF</rabit.mock>
     </properties>
     <repositories>
         <repository>

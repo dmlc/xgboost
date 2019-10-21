@@ -68,7 +68,8 @@ def normpath(path):
 
 
 if __name__ == "__main__":
-    CONFIG["RABIT_MOCK"] = str(sys.argv[1])
+    if os.getenv("RABIT_MOCK", None) is not None:
+        CONFIG["RABIT_MOCK"] = str(os.getenv("RABIT_MOCK"))
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"

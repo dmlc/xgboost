@@ -15,8 +15,8 @@ spark_version=$1
 
 rm -rf build/
 cd jvm-packages
-
-mvn --no-transfer-progress package -Dspark.version=${spark_version} -Drabit.mock=ON
+export RABIT_MOCK=ON
+mvn --no-transfer-progress package -Dspark.version=${spark_version}
 
 set +x
 set +e

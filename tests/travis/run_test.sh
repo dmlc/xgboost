@@ -26,9 +26,10 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
+    export RABIT_MOCK=ON
     cd jvm-packages
-    mvn -q clean install -DskipTests -Dmaven.test.skip -Drabit.mock=ON
-    mvn -q test -Drabit.mock=ON
+    mvn -q clean install -DskipTests -Dmaven.test.skip
+    mvn -q test
 fi
 
 if [ ${TASK} == "cmake_test" ]; then
