@@ -617,6 +617,35 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
   return result;
 }
 
+void RegTree::LoadModel(dmlc::Stream* fi) {
+  CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
+  nodes_.resize(param.num_nodes);
+  stats_.resize(param.num_nodes);
+  CHECK_NE(param.num_nodes, 0);
+  CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
+           sizeof(Node) * nodes_.size());
+  CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
+           sizeof(RTreeNodeStat) * stats_.size());
+  // chg deleted nodes
+  deleted_nodes_.resize(0);
+  for (int i = param.num_roots; i < param.num_nodes; ++i) {
+    if (nodes_[i].IsDeleted()) deleted_nodes_.push_back(i);
+  }
+  CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
+}
+/*!
+   * \brief save model to stream
+   * \param fo output stream
+   */
+void RegTree::SaveModel(dmlc::Stream* fo) const {
+  CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
+  CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
+  fo->Write(&param, sizeof(TreeParam));
+  CHECK_NE(param.num_nodes, 0);
+  fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
+  fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
+}
+
 void RegTree::FillNodeMeanValues() {
   size_t num_nodes = this->param.num_nodes;
   if (this->node_mean_values_.size() == num_nodes) {
