@@ -375,7 +375,7 @@ Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make 
 
   mkdir build
   cd build
-  CC=gcc-7 CXX=g++-7 cmake .. -DR_LIB=ON
+  CC=gcc-8 CXX=g++-8 cmake .. -DR_LIB=ON
   make -j4
   make install
 
