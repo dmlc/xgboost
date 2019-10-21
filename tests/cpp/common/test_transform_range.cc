@@ -50,13 +50,26 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   out_vec.Fill(0);
 
   Transform<>::Init(TestTransformRange<bst_float>{},
-	                Range{0, static_cast<Range::DifferenceType>(size)},
-	                TRANSFORM_GPU)
+                    Range{0, static_cast<Range::DifferenceType>(size)},
+                    TRANSFORM_GPU)
       .Eval(&out_vec, &in_vec);
   std::vector<bst_float> res = out_vec.HostVector();
 
   ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
 }
+
+#if !defined(__CUDACC__)
+TEST(Transform, Exception) {
+  size_t const kSize {16};
+  std::vector<bst_float> h_in(kSize);
+  const HostDeviceVector<bst_float> in_vec{h_in, -1};
+  EXPECT_ANY_THROW({
+    Transform<>::Init([](size_t idx, common::Span<float const> _in) { _in[idx + 1]; },
+                      Range(0, static_cast<Range::DifferenceType>(kSize)), -1)
+        .Eval(&in_vec);
+  });
+}
+#endif
 
 } // namespace common
 } // namespace xgboost
