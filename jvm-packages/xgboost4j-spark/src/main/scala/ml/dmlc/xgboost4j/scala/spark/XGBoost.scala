@@ -222,37 +222,33 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam
   }
 
-  private[spark] def buildRabitParams: java.util.Map[java.lang.String, java.lang.String] = Map(
-    "rabit_reduce_ring_mincount" -> {
-      if (overridedParams.getOrElse("rabit_ring_reduce", false).toString.toBoolean) {
-        "1"
+  private[spark] def buildRabitParams : Map[String, String] = Map(
+    "rabit_reduce_ring_mincount" ->
+      overridedParams.getOrElse("rabit_ring_reduce_threshold", 32 << 10).toString,
+    "rabit_debug" -> {
+      if (overridedParams.getOrElse("verbosity", 0).toString.toInt == 3) {
+        "true"
       } else {
-        Integer.MAX_VALUE.toString
+        "false"
       }
     },
-    "rabit_reduce_buffer" ->
-      overridedParams.getOrElse("rabit_reduce_buffer", "256MB").toString,
-    "rabit_debug" ->
-      overridedParams.getOrElse("rabit_debug", false).toString,
     "rabit_timeout" -> {
-      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt > 0) {
+      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0) {
         "true"
       } else {
         "false"
       }
     },
     "rabit_timeout_sec" -> {
-      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt > 0) {
-        overridedParams.getOrElse("rabit_timeout", -1).toString
+      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0) {
+        overridedParams.get("rabit_timeout").toString
       } else {
         "1800"
       }
     },
     "DMLC_WORKER_CONNECT_RETRY" ->
-      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString,
-    "DMLC_WORKER_STOP_PROCESS_ON_ERROR" ->
-      overridedParams.getOrElse("dmlc_worker_stop_process_on_error", false).toString
-  ).asJava
+      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString
+  )
 }
 
 /**
@@ -352,7 +348,10 @@ object XGBoost extends Serializable {
           s" ${TaskContext.getPartitionId()}")
     }
     val taskId = TaskContext.getPartitionId().toString
+    val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
+    rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
+    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
       Rabit.init(rabitEnv)
@@ -364,7 +363,7 @@ object XGBoost extends Serializable {
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
     } catch {
       case xgbException: XGBoostError =>
-        logger.error(s"XGBooster worker $taskId has failed due to ", xgbException)
+        logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
         throw xgbException
     } finally {
       Rabit.shutdown()
@@ -523,7 +522,7 @@ object XGBoost extends Serializable {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val xgbRabitParams = xgbParamsFactory.buildRabitParams
+    val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)

@@ -18,18 +18,22 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.{Rabit, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-
+import org.apache.spark.TaskFailedListener
+import org.apache.spark.SparkException
 import scala.collection.JavaConverters._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
 class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
+  val predictionErrorMin = 0.00001f
+  val maxFailure = 2;
+
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.kryo.classesToRegister", classOf[Booster].getName)
-  val predictionErrorMin = 0.00001f
+    .master(s"local[${numWorkers},${maxFailure}]")
 
-  test("test parity classification prediction") {
+  test("test classification prediction parity w/o ring reduce") {
     val training = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
 
@@ -40,17 +44,12 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB",
-      "DMLC_WORKER_CONNECT_RETRY" -> 1, "rabit_timeout" -> 5))
+      "rabit_ring_reduce_threshold" -> 1))
       .fit(training)
 
-    assert(Rabit.rabitEnvs.asScala.size > 7)
+    assert(Rabit.rabitEnvs.asScala.size > 3)
     Rabit.rabitEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-      if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
-      if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "1")
-      if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
-      if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
     })
 
     val prediction2 = model2.transform(testDF).select("prediction").collect()
@@ -60,7 +59,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  test("test parity regression prediction") {
+  test("test regression prediction parity w/o ring reduce") {
     val training = buildDataFrame(Regression.train)
     val testDM = new DMatrix(Regression.test.iterator, null)
     val testDF = buildDataFrame(Classification.test)
@@ -72,16 +71,10 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
     val model2 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_ring_reduce" -> true, "rabit_reduce_buffer" -> "2MB", "DMLC_WORKER_CONNECT_RETRY" -> 1,
-      "rabit_timeout" -> 5)).fit(training)
-    assert(Rabit.rabitEnvs.asScala.size > 7)
+      "rabit_ring_reduce_threshold" -> 1)).fit(training)
+    assert(Rabit.rabitEnvs.asScala.size > 3)
     Rabit.rabitEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-      if (item._1.toString == "rabit_reduce_buffer") assert(item._2 == "2MB")
-      if (item._1.toString == "dmlc_worker_connect_retry") assert(item._2 == "true")
-      if (item._1.toString == "rabit_timeout") assert(item._2 == "true")
-      if (item._1.toString == "rabit_timeout_sec") assert(item._2 == "5")
-      if (item._1.toString == "DMLC_WORKER_STOP_PROCESS_ON_ERROR") assert(item._2 == "false")
     })
     // check the equality of single instance prediction
     val prediction2 = model2.transform(testDF).select("prediction").collect()
@@ -91,15 +84,38 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  test("test graceful failure handle") {
+  test("test rabit timeout failure graceful shutdown") {
+    // disable task fail listener
+    TaskFailedListener.killerStarted = true
+
+    val training = buildDataFrame(Classification.train)
+    // mock rank 0 failure during 4th allreduce synchronization
+    Rabit.mockList = Array("0,8,0,0").toList.asJava
+    intercept[SparkException] {
+      new XGBoostClassifier(Map(
+        "eta" -> "0.1",
+        "max_depth" -> "10",
+        "verbosity" -> "1",
+        "objective" -> "binary:logistic",
+        "num_round" -> 5,
+        "num_workers" -> numWorkers,
+        "rabit_timeout" -> 0))
+        .fit(training)
+    }
+  }
+
+  test("test graceful handle task multiple falures") {
+    // disable task fail listener
+    TaskFailedListener.killerStarted = true
+
     val training = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    // mock rank 0 failure during 4th allreduce synchronization
-    Rabit.mockList = Array("0,4,0,0").toList.asJava
-    intercept[XGBoostError] {
+    // mock rank 0 failure during 4th allreduce synchronization twice
+    Rabit.mockList = Array("0,4,0,0", "0,4,1,0").toList.asJava
+    intercept[SparkException] {
       new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-        "rabit_timeout" -> 1, "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> false)).fit(training)
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers))
+        .fit(training)
     }
   }
 }

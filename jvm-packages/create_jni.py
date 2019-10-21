@@ -18,7 +18,7 @@ CONFIG = {
     "USE_HDFS": "OFF",
     "USE_AZURE": "OFF",
     "USE_S3": "OFF",
-    "RABIT_MOCK": "OFF",
+
     "USE_CUDA": "OFF",
     "JVM_BINDINGS": "ON"
 }
@@ -68,8 +68,6 @@ def normpath(path):
 
 
 if __name__ == "__main__":
-    if os.getenv("RABIT_MOCK", None) is not None:
-        CONFIG["RABIT_MOCK"] = str(os.getenv("RABIT_MOCK"))
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"
@@ -91,6 +89,11 @@ if __name__ == "__main__":
                 maybe_parallel_build = ""
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+
+            # if enviorment set rabit_mock
+            if os.getenv("RABIT_MOCK", None) is not None:
+                args.append("-DRABIT_MOCK:BOOL=ON")
+
             run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 

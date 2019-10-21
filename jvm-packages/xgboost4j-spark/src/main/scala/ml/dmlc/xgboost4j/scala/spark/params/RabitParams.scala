@@ -21,32 +21,20 @@ import org.apache.spark.ml.param._
 private[spark] trait RabitParams extends Params {
   /**
    * Rabit parameters passed through Rabit.Init into native layer
-   * rabit_ring_reduce - enable ring based allreduce/broadcast operations.
-   * rabit_reduce_buffer - buffer size to recv and run reduction
-   * rabit_debug - enable more verbose rabit logging to stdout
+   * rabit_ring_reduce_threshold - minimal threshold to enable ring based allreduce operation
    * rabit_timeout - wait interval before exit after rabit observed failures set -1 to disable
    * dmlc_worker_connect_retry - number of retrys to tracker
    * dmlc_worker_stop_process_on_error - exit process when rabit see assert/error
    */
-  final val ringReduce = new BooleanParam(this, "rabitRingReduce",
-    "enable allreduce/broadcast with ring based topology")
+  final val rabitRingReduceThreshold = new IntParam(this, "rabitRingReduceThreshold",
+    "threshold count to enable allreduce/broadcast with ring based topology",
+          ParamValidators.gtEq(1))
 
-  final def reduceBuffer: Param[String] = new Param[String](this, "rabitReduceBuffer",
-    "buffer size (MB/GB) allocated to each xgb trainner recv and run reduction",
-    (buf: String) => buf.contains("MB") || buf.contains("GB"))
-
-  final def debug: BooleanParam = new BooleanParam(this, "rabitDebug",
-    "enable more verbose rabit logging to stdout")
-
-  final def timeout: IntParam = new IntParam(this, "rabitTimeout",
+  final def rabitTimeout: IntParam = new IntParam(this, "rabitTimeout",
   "timeout threshold after rabit observed failures")
 
-  final def connectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
+  final def rabitConnectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
     "number of retry worker do before fail", ParamValidators.gtEq(1))
 
-  final def exitOnError: BooleanParam = new BooleanParam(this, "dmlcWorkerStopProcessOnError",
-  "exit process when rabit see assert error")
-
-  setDefault(ringReduce -> false, reduceBuffer -> "256MB", debug -> false,
-    connectRetry -> 5, timeout -> -1, exitOnError -> false)
+  setDefault(rabitRingReduceThreshold -> (32 << 10), rabitConnectRetry -> 5, rabitTimeout -> -1)
 }
