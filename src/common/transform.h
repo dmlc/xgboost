@@ -5,6 +5,8 @@
 #define XGBOOST_COMMON_TRANSFORM_H_
 
 #include <dmlc/omp.h>
+#include <dmlc/common.h>
+
 #include <xgboost/data.h>
 #include <utility>
 #include <vector>
@@ -148,10 +150,12 @@ class Transform {
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
+      dmlc::OMPException omp_exc;
 #pragma omp parallel for schedule(static)
       for (omp_ulong idx = 0; idx < end; ++idx) {
-        func(idx, UnpackHDV(vectors)...);
+        omp_exc.Run(func, idx, UnpackHDV(vectors)...);
       }
+      omp_exc.Rethrow();
     }
 
    private:
