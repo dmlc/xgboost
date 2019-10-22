@@ -984,7 +984,7 @@ class DMatrix(object):
             # validate feature name
             try:
                 if not isinstance(feature_names, str):
-                    feature_names = [n for n in iter(feature_names)]
+                    feature_names = list(feature_names)
                 else:
                     feature_names = [feature_names]
             except TypeError:
@@ -1028,7 +1028,7 @@ class DMatrix(object):
 
             try:
                 if not isinstance(feature_types, str):
-                    feature_types = [n for n in iter(feature_types)]
+                    feature_types = list(feature_types)
                 else:
                     feature_types = [feature_types]
             except TypeError:
