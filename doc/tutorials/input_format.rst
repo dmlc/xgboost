@@ -7,6 +7,9 @@ Basic Input Format
 ******************
 XGBoost currently supports two text formats for ingesting data: LibSVM and CSV. The rest of this document will describe the LibSVM format. (See `this Wikipedia article <https://en.wikipedia.org/wiki/Comma-separated_values>`_ for a description of the CSV format.)
 
+.. note::
+   * XGBoost does **not** understand file extensions nor try to guess the file format.  Instead it employs uri format for specifying input file type.  For example if you provide a `csv` file ``./data.train.csv`` as input, XGBoost will use the default libsvm parser to digest it and generate a parser error.  Instead, users need to provide an uri in the form of ``train.csv?format=csv``.  For external memory input, the uri should of a form similar to ``train.csv?format=csv#dtrain.cache``.  See :ref:`python_data_interface` also.
+
 For training or predicting, XGBoost takes an instance file with the format as below:
 
 .. code-block:: none

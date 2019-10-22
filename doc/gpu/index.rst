@@ -46,6 +46,8 @@ Supported parameters
 +--------------------------------+--------------+
 | ``max_bin``                    | |tick|       |
 +--------------------------------+--------------+
+| ``gamma``                      | |tick|       |
++--------------------------------+--------------+
 | ``gpu_id``                     | |tick|       |
 +--------------------------------+--------------+
 | ``n_gpus`` (deprecated)        | |tick|       |
@@ -75,8 +77,12 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
   :caption: Python example
 
   param['gpu_id'] = 0
-  param['max_bin'] = 16
   param['tree_method'] = 'gpu_hist'
+
+.. code-block:: python
+  :caption: With Scikit-Learn interface
+
+  XGBRegressor(tree_method='gpu_hist', gpu_id=0)
 
 
 Single Node Multi-GPU
@@ -85,9 +91,10 @@ Single Node Multi-GPU
 
 Multi-node Multi-GPU Training
 =============================
-XGBoost supports fully distributed GPU training using `Dask
-<https://dask.org/>`_. See Python documentation :ref:`dask_api` and worked examples `here
-<https://github.com/dmlc/xgboost/tree/master/demo/dask>`_.
+XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_. For
+getting started see our tutorial :doc:`/tutorials/dask` and worked examples `here
+<https://github.com/dmlc/xgboost/tree/master/demo/dask>`_, also Python documentation
+:ref:`dask_api` for complete reference.
 
 
 Objective functions

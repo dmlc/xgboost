@@ -72,8 +72,10 @@ Our goal is to build the shared library:
 
 The minimal building requirement is
 
-- A recent C++ compiler supporting C++11 (g++-4.8 or higher)
-- CMake 3.2 or higher
+- A recent C++ compiler supporting C++11 (g++-5.0 or higher)
+- CMake 3.3 or higher (3.12 for building with CUDA)
+
+For a list of CMake options, see ``#-- Options`` in CMakeLists.txt on top of source tree.
 
 Building on Ubuntu/Debian
 =========================
@@ -373,7 +375,7 @@ Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make 
 
   mkdir build
   cd build
-  CC=gcc-7 CXX=g++-7 cmake .. -DR_LIB=ON
+  CC=gcc-8 CXX=g++-8 cmake .. -DR_LIB=ON
   make -j4
   make install
 

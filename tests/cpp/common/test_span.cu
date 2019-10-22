@@ -240,16 +240,16 @@ TEST(GPUSpan, ElementAccess) {
 }
 
 __global__ void TestFirstDynamicKernel(Span<float> _span) {
-  _span.first<-1>();
+  _span.first<static_cast<Span<float>::index_type>(-1)>();
 }
 __global__ void TestFirstStaticKernel(Span<float> _span) {
-  _span.first(-1);
+  _span.first(static_cast<Span<float>::index_type>(-1));
 }
 __global__ void TestLastDynamicKernel(Span<float> _span) {
-  _span.last<-1>();
+  _span.last<static_cast<Span<float>::index_type>(-1)>();
 }
 __global__ void TestLastStaticKernel(Span<float> _span) {
-  _span.last(-1);
+  _span.last(static_cast<Span<float>::index_type>(-1));
 }
 
 TEST(GPUSpan, FirstLast) {
@@ -312,6 +312,41 @@ TEST(GPUSpan, FirstLast) {
   output = testing::internal::GetCapturedStdout();
 }
 
+__global__ void TestFrontKernel(Span<float> _span)  {
+  _span.front();
+}
+
+__global__ void TestBackKernel(Span<float> _span)  {
+  _span.back();
+}
+
+TEST(GPUSpan, FrontBack) {
+  dh::safe_cuda(cudaSetDevice(0));
+
+  Span<float> s;
+  auto lambda_test_front = [=]() {
+    // make sure the termination happens inside this test.
+    try {
+      TestFrontKernel<<<1, 1>>>(s);
+      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaGetLastError());
+    } catch (dmlc::Error const& e) {
+      std::terminate();
+    }
+  };
+  EXPECT_DEATH(lambda_test_front(), "");
+
+  auto lambda_test_back = [=]() {
+    try {
+      TestBackKernel<<<1, 1>>>(s);
+      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaGetLastError());
+    } catch (dmlc::Error const& e) {
+      std::terminate();
+    }
+  };
+  EXPECT_DEATH(lambda_test_back(), "");
+}
 
 __global__ void TestSubspanDynamicKernel(Span<float> _span) {
   _span.subspan(16, 0);

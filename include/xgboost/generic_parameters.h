@@ -7,7 +7,7 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/logging.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 
 #include <string>
 
@@ -35,6 +35,7 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   DMLC_DECLARE_PARAMETER(GenericParameter) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
         "Random number seed during training.");
+    DMLC_DECLARE_ALIAS(seed, random_state);
     DMLC_DECLARE_FIELD(seed_per_iteration)
         .set_default(false)
         .describe(

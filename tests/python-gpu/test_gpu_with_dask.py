@@ -22,6 +22,7 @@ import testing as tm
 
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_dask_cudf())
 def test_dask_dataframe(client):
     X, y = generate_array()
 
@@ -39,3 +40,6 @@ def test_dask_dataframe(client):
 
     assert isinstance(out['booster'], dxgb.Booster)
     assert len(out['history']['X']['rmse']) == 2
+
+    predictions = dxgb.predict(out, dtrain)
+    predictions = predictions.compute()

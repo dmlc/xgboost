@@ -9,6 +9,7 @@
 #include <dmlc/any.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/learner.h>
+#include <xgboost/base.h>
 #include <xgboost/logging.h>
 #include <xgboost/generic_parameters.h>
 #include <algorithm>
@@ -194,6 +195,16 @@ class LearnerImpl : public Learner {
         LOG(FATAL) << "Column-wise data split is currently not supported.";
       }
     }
+  }
+
+  void LoadModel(dmlc::Stream* fi) override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Load(fi);
+  }
+
+  void SaveModel(dmlc::Stream* fo) const override {
+    // They are the same right now until we can split up the saved parameter from model.
+    this->Save(fo);
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -601,7 +612,7 @@ class LearnerImpl : public Learner {
     gbm_->Configure(args);
 
     if (this->gbm_->UseGPU()) {
-      if (cfg_.find("gpu_id") == cfg_.cend()) {
+      if (generic_param_.gpu_id == -1) {
         generic_param_.gpu_id = 0;
       }
     }

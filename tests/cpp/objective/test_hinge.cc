@@ -7,7 +7,9 @@
 
 TEST(Objective, DeclareUnifiedTest(HingeObj)) {
   xgboost::GenericParameter tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:hinge", &tparam);
+  std::unique_ptr<xgboost::ObjFunction> obj {
+    xgboost::ObjFunction::Create("binary:hinge", &tparam)
+  };
 
   xgboost::bst_float eps = std::numeric_limits<xgboost::bst_float>::min();
   CheckObjFunction(obj,
@@ -24,6 +26,4 @@ TEST(Objective, DeclareUnifiedTest(HingeObj)) {
                    {  eps,  1.0f, 1.0f, 1.0f,  1.0f,  1.0f,  1.0f, eps });
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
-
-  delete obj;
 }

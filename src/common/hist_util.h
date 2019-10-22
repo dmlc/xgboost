@@ -343,7 +343,7 @@ struct GHistIndexBlock {
 
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i], detail::ptrdiff_t(row_ptr[i + 1] - row_ptr[i])};
+    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
   }
 };
 
