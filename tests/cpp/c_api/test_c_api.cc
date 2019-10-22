@@ -63,3 +63,40 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     delete dmat;
   }
 }
+
+TEST(c_api, XGDMatrixCopyDataToCSR) {
+  auto origin_thread_num = omp_get_num_threads();
+  size_t constexpr kThreads { 16 };
+  omp_set_num_threads(kThreads);
+
+  std::vector<size_t> row_ptr = {0, 2, 5, 8, 10, 11, 15};
+  std::vector<unsigned> indices = {0, 2, 1, 3, 4, 0, 1, 2, 2, 4, 4, 1, 2, 3, 4};
+  std::vector<float> data (row_ptr.back());
+  for (int i = 0; i < row_ptr.back(); ++i) {
+    data[i] = static_cast<float>(i);
+  }
+  DMatrixHandle handle;
+  XGDMatrixCreateFromCSREx(row_ptr.data(), indices.data(), data.data(),
+                           7, 15, 5, &handle);
+  std::shared_ptr<xgboost::DMatrix> *dmat =
+      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+
+  std::vector<size_t> row_ptr_((*dmat)->Info().num_row_ + 1);
+  std::vector<unsigned> indices_((*dmat)->Info().num_nonzero_);
+  std::vector<float> data_((*dmat)->Info().num_nonzero_);
+  auto* row_ptr_impl = row_ptr_.data();
+  auto* indices_impl = indices_.data();
+  auto* data_impl = data_.data();
+  XGDMatrixCopyDataToCSR(handle, &row_ptr_impl, &indices_impl, &data_impl);
+
+  for (int i = 0; i < row_ptr.size(); ++i) {
+    ASSERT_EQ(row_ptr[i], row_ptr_[i]);
+  }
+  for (size_t i = 0; i < row_ptr.back(); ++i) {
+    ASSERT_EQ(indices[i], indices_[i]);
+    ASSERT_EQ(data[i], data_[i]);
+  }
+
+  delete dmat;
+  omp_set_num_threads(origin_thread_num);
+}

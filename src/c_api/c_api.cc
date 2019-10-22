@@ -774,6 +774,35 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCopyDataToCSR(const DMatrixHandle handle,
+                                   size_t **out_row_ptr,
+                                   unsigned **out_indices,
+                                   float **out_data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  const auto dmat = *static_cast<std::shared_ptr<DMatrix>*>(handle);
+
+  size_t row_offset = 0;
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
+    const auto &batch_offset = batch.offset.HostVector();
+    const auto &batch_data = batch.data.HostVector();
+    if (batch_offset.size() == 0) {
+      continue;
+    }
+    (*out_row_ptr)[row_offset] = batch_offset[0];
+#pragma omp parallel for schedule(static)
+    for (omp_ulong i = 1; i < static_cast<omp_ulong>(batch_offset.size()); ++i) {
+      (*out_row_ptr)[row_offset + i] = batch_offset[i];
+      for (bst_ulong j = batch_offset[i - 1]; j < batch_offset[i]; ++j) {
+        (*out_indices)[j] = batch_data[j].index;
+        (*out_data)[j] = batch_data[j].fvalue;
+      }
+    }
+    row_offset += batch_offset.size();
+  }
+  API_END();
+}
+
 XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
