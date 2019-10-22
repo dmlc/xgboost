@@ -18,7 +18,7 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with cuDF and dask
 RUN \
     conda create -n cudf_test -c rapidsai -c nvidia -c numba -c conda-forge -c anaconda \
-        cudf=0.9 python=3.7 anaconda::cudatoolkit=$CUDA_VERSION dask=2.6.0
+        cudf=0.9 python=3.7 anaconda::cudatoolkit=$CUDA_VERSION dask
 
 # Install other Python packages
 RUN \
