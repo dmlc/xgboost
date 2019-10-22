@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
+#include <fstream>
+#include <memory>
 #include <vector>
 
 #include "xgboost/data.h"
@@ -81,4 +83,44 @@ TEST(SparsePage, PushCSCAfterTranspose) {
     }
   }
 }
+
+TEST(DMatrix, Uri) {
+  size_t constexpr kRows {16};
+  size_t constexpr kCols {8};
+  std::vector<float> data (kRows * kCols);
+
+  for (size_t i = 0; i < kRows * kCols; ++i) {
+    data[i] = i;
+  }
+
+  dmlc::TemporaryDirectory tmpdir;
+  std::string path = tmpdir.path + "/small.csv";
+
+  std::ofstream fout(path);
+  ASSERT_TRUE(fout);
+  size_t i = 0;
+  for (size_t r = 0; r < kRows; ++r) {
+    for (size_t c = 0; c < kCols; ++c) {
+      fout << data[i];
+      i++;
+      if (c != kCols - 1) {
+        fout << ",";
+      }
+    }
+    fout << "\n";
+  }
+  fout.flush();
+  fout.close();
+
+  std::unique_ptr<DMatrix> dmat;
+  // FIXME(trivialfis): Enable the following test by restricting csv parser in dmlc-core.
+  // EXPECT_THROW(dmat.reset(DMatrix::Load(path, false, true)), dmlc::Error);
+
+  std::string uri = path + "?format=csv";
+  dmat.reset(DMatrix::Load(uri, false, true));
+
+  ASSERT_EQ(dmat->Info().num_col_, kCols);
+  ASSERT_EQ(dmat->Info().num_row_, kRows);
+}
+
 }  // namespace xgboost

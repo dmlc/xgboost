@@ -222,7 +222,35 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  DMatrix* dmat = DMatrix::Create(parser.get(), cache_file, page_size);
+  DMatrix* dmat;
+
+  try {
+    dmat = DMatrix::Create(parser.get(), cache_file, page_size);
+  } catch (dmlc::Error& e) {
+    std::vector<std::string> splited = common::Split(fname, '#');
+    std::vector<std::string> args = common::Split(splited.front(), '?');
+    std::string format {file_format};
+    if (args.size() == 1 && file_format == "auto") {
+      auto extension = common::Split(args.front(), '.').back();
+      if (extension == "csv" || extension == "libsvm") {
+        format = extension;
+      }
+      if (format == extension) {
+        LOG(WARNING)
+            << "No format parameter is provided in input uri, but found file extension: "
+            << format << " .  "
+            << "Consider providing a uri parameter: filename?format=" << format;
+      } else {
+        LOG(WARNING)
+            << "No format parameter is provided in input uri.  "
+            << "Choosing default parser in dmlc-core.  "
+            << "Consider providing a uri parameter like: filename?format=csv";
+      }
+
+      LOG(FATAL) << "Encountered parser error:\n" << e.what();
+    }
+  }
+
   if (!silent) {
     LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
                  << dmat->Info().num_nonzero_ << " entries loaded from " << uri;

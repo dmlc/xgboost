@@ -18,6 +18,8 @@ To verify your installation, run the following in Python:
 
   import xgboost as xgb
 
+.. _python_data_interface:
+
 Data Interface
 --------------
 The XGBoost python module is able to load data from:
@@ -50,7 +52,7 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
   .. note:: Categorical features not supported
 
-    Note that XGBoost does not support categorical features; if your data contains
+    Note that XGBoost does not provide specialization for categorical features; if your data contains
     categorical features, load it as a NumPy array first and then perform
     `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
 

@@ -28,5 +28,3 @@ Examples
 * We are super excited to hear about your story, if you have blogposts,
   tutorials code solutions using XGBoost, please tell us and we will add
   a link in the example pages.
-
-
