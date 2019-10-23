@@ -244,7 +244,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
     parser.add_argument('--cuda', type=int, default=1)
-    parser.add_argument('--use-dmlc-gtest', type=int, default=0,
+    parser.add_argument('--use-dmlc-gtest', type=int, default=1,
                         help='Whether to use gtest bundled in dmlc-core.')
     args = parser.parse_args()
 
