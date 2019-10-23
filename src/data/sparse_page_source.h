@@ -46,6 +46,47 @@ GetCacheShards(const std::string& cache_info) {
 
 namespace xgboost {
 namespace data {
+
+/*!
+ * \brief decide the format from cache prefix.
+ * \return pair of row format, column format type of the cache prefix.
+ */
+inline std::pair<std::string, std::string> DecideFormat(const std::string& cache_prefix) {
+  size_t pos = cache_prefix.rfind(".fmt-");
+
+  if (pos != std::string::npos) {
+    std::string fmt = cache_prefix.substr(pos + 5, cache_prefix.length());
+    size_t cpos = fmt.rfind('-');
+    if (cpos != std::string::npos) {
+      return std::make_pair(fmt.substr(0, cpos), fmt.substr(cpos + 1, fmt.length()));
+    } else {
+      return std::make_pair(fmt, fmt);
+    }
+  } else {
+    std::string raw = "raw";
+    return std::make_pair(raw, raw);
+  }
+}
+
+struct CacheInfo {
+  std::string name_info;
+  std::vector<std::string> format_shards;
+  std::vector<std::string> name_shards;
+};
+
+inline CacheInfo ParseCacheInfo(const std::string& cache_info, const std::string& page_type) {
+  CacheInfo info;
+  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
+  CHECK_NE(cache_shards.size(), 0U);
+  // read in the info files.
+  info.name_info = cache_shards[0];
+  for (const std::string& prefix : cache_shards) {
+    info.name_shards.push_back(prefix + page_type);
+    info.format_shards.push_back(DecideFormat(prefix).first);
+  }
+  return info;
+}
+
 /*!
  * \brief External memory data source.
  * \code
@@ -72,6 +113,7 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r"));
       int tmagic;
       CHECK_EQ(finfo->Read(&tmagic, sizeof(tmagic)), sizeof(tmagic));
+      CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
       this->info.LoadBinary(finfo.get());
     }
     files_.resize(cache_shards.size());
@@ -85,8 +127,8 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
       std::string format;
       CHECK(fi->Read(&format)) << "Invalid page format";
-      formats_[i].reset(SparsePageFormat::Create(format));
-      std::unique_ptr<SparsePageFormat>& fmt = formats_[i];
+      formats_[i].reset(CreatePageFormat<T>(format));
+      std::unique_ptr<SparsePageFormat<T>>& fmt = formats_[i];
       size_t fbegin = fi->Tell();
       prefetchers_[i].reset(new dmlc::ThreadedIter<T>(4));
       prefetchers_[i]->Init([&fi, &fmt] (T** dptr) {
@@ -111,7 +153,7 @@ class SparsePageSource : public DataSource<T> {
       prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
     }
     if (prefetchers_[clock_ptr_]->Next(&page_)) {
-      page_->base_rowid = base_rowid_;
+      page_->SetBaseRowId(base_rowid_);
       base_rowid_ += page_->Size();
       // advance clock
       clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
@@ -149,17 +191,9 @@ class SparsePageSource : public DataSource<T> {
                             const std::string& cache_info,
                             const size_t page_size = DMatrix::kPageSize) {
     const std::string page_type = ".row.page";
-    std::vector<std::string> cache_shards = GetCacheShards(cache_info);
-    CHECK_NE(cache_shards.size(), 0U);
-    // read in the info files.
-    std::string name_info = cache_shards[0];
-    std::vector<std::string> name_shards, format_shards;
-    for (const std::string& prefix : cache_shards) {
-      name_shards.push_back(prefix + page_type);
-      format_shards.push_back(SparsePageFormat::DecideFormat(prefix).first);
-    }
+    auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter writer(name_shards, format_shards, 6);
+      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards, 6);
       std::shared_ptr<SparsePage> page;
       writer.Alloc(&page); page->Clear();
 
@@ -230,30 +264,19 @@ class SparsePageSource : public DataSource<T> {
         writer.PushWrite(std::move(page));
       }
 
-      std::unique_ptr<dmlc::Stream> fo(
-          dmlc::Stream::Create(name_info.c_str(), "w"));
+      std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
       int tmagic = kMagic;
       fo->Write(&tmagic, sizeof(tmagic));
       // Either every row has query ID or none at all
       CHECK(qids.empty() || qids.size() == info.num_row_);
       info.SaveBinary(fo.get());
     }
-    LOG(INFO) << "SparsePageSource::CreateRowPage Finished writing to "
-              << name_info;
+    LOG(INFO) << "SparsePageSource::CreateRowPage Finished writing to " << cinfo.name_info;
   }
 
   /*!
    * \brief Create source cache by copy content from DMatrix.
-   * \param cache_info The cache_info of cache file location.
-   */
-  static void CreateRowPage(DMatrix* src,
-                            const std::string& cache_info) {
-    const std::string page_type = ".row.page";
-    CreatePageFromDMatrix(src, cache_info, page_type);
-  }
-
-  /*!
-   * \brief Create source cache by copy content from DMatrix. Creates transposed column page, may be sorted or not.
+   * Creates transposed column page, may be sorted or not.
    * \param cache_info The cache_info of cache file location.
    * \param sorted Whether columns should be pre-sorted
    */
@@ -293,17 +316,9 @@ class SparsePageSource : public DataSource<T> {
   static void CreatePageFromDMatrix(DMatrix* src, const std::string& cache_info,
                                     const std::string& page_type,
                                     const size_t page_size = DMatrix::kPageSize) {
-    std::vector<std::string> cache_shards = GetCacheShards(cache_info);
-    CHECK_NE(cache_shards.size(), 0U);
-    // read in the info files.
-    std::string name_info = cache_shards[0];
-    std::vector<std::string> name_shards, format_shards;
-    for (const std::string& prefix : cache_shards) {
-      name_shards.push_back(prefix + page_type);
-      format_shards.push_back(SparsePageFormat::DecideFormat(prefix).first);
-    }
+    auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter writer(name_shards, format_shards, 6);
+      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards, 6);
       std::shared_ptr<SparsePage> page;
       writer.Alloc(&page);
       page->Clear();
@@ -312,9 +327,7 @@ class SparsePageSource : public DataSource<T> {
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
       for (auto& batch : src->GetBatches<SparsePage>()) {
-        if (page_type == ".row.page") {
-          page->Push(batch);
-        } else if (page_type == ".col.page") {
+        if (page_type == ".col.page") {
           page->PushCSC(batch.GetTranspose(src->Info().num_col_));
         } else if (page_type == ".sorted.col.page") {
           SparsePage tmp = batch.GetTranspose(src->Info().num_col_);
@@ -338,28 +351,22 @@ class SparsePageSource : public DataSource<T> {
       if (page->data.Size() != 0) {
         writer.PushWrite(std::move(page));
       }
-
-      std::unique_ptr<dmlc::Stream> fo(
-          dmlc::Stream::Create(name_info.c_str(), "w"));
-      int tmagic = kMagic;
-      fo->Write(&tmagic, sizeof(tmagic));
-      info.SaveBinary(fo.get());
     }
-    LOG(INFO) << "SparsePageSource: Finished writing to " << name_info;
+    LOG(INFO) << "SparsePageSource: Finished writing to " << cinfo.name_info;
   }
 
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */
-  T *page_;
+  T* page_;
   /*! \brief internal clock ptr */
   size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */
-  std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
+  std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
   /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePageFormat> > formats_;
+  std::vector<std::unique_ptr<SparsePageFormat<T>>> formats_;
   /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<dmlc::ThreadedIter<T> > > prefetchers_;
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<T>>> prefetchers_;
 };
 }  // namespace data
 }  // namespace xgboost

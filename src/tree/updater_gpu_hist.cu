@@ -174,16 +174,15 @@ template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
           typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
     int fidx, common::Span<const GradientSumT> node_histogram,
-    const xgboost::ELLPackMatrix& matrix,
+    const xgboost::EllpackMatrix& matrix,
     DeviceSplitCandidate* best_split,  // shared memory storing best split
     const DeviceNodeStats& node, const GPUTrainingParam& param,
     TempStorageT* temp_storage,  // temp memory for cub operations
     int constraint,              // monotonic_constraints
     const ValueConstraint& value_constraint) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
-  uint32_t gidx_begin = matrix.feature_segments[fidx];  // begining bin
-  uint32_t gidx_end =
-      matrix.feature_segments[fidx + 1];  // end bin for i^th feature
+  uint32_t gidx_begin = matrix.info.feature_segments[fidx];  // begining bin
+  uint32_t gidx_end = matrix.info.feature_segments[fidx + 1];  // end bin for i^th feature
 
   // Sum histogram bins for current feature
   GradientSumT const feature_sum = ReduceFeature<BLOCK_THREADS, ReduceT>(
@@ -231,9 +230,9 @@ __device__ void EvaluateFeature(
       int split_gidx = (scan_begin + threadIdx.x) - 1;
       float fvalue;
       if (split_gidx < static_cast<int>(gidx_begin)) {
-        fvalue =  matrix.min_fvalue[fidx];
+        fvalue =  matrix.info.min_fvalue[fidx];
       } else {
-        fvalue = matrix.gidx_fvalue_map[split_gidx];
+        fvalue = matrix.info.gidx_fvalue_map[split_gidx];
       }
       GradientSumT left = missing_left ? bin + missing : bin;
       GradientSumT right = parent_sum - left;
@@ -249,7 +248,7 @@ __global__ void EvaluateSplitKernel(
     common::Span<const GradientSumT> node_histogram,  // histogram for gradients
     common::Span<const int> feature_set,              // Selected features
     DeviceNodeStats node,
-    xgboost::ELLPackMatrix matrix,
+    xgboost::EllpackMatrix matrix,
     GPUTrainingParam gpu_param,
     common::Span<DeviceSplitCandidate> split_candidates,  // resulting split
     ValueConstraint value_constraint,
@@ -401,7 +400,7 @@ struct CalcWeightTrainParam {
 };
 
 template <typename GradientSumT>
-__global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
+__global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* d_node_hist,
                                     const GradientPair* d_gpair, size_t n_elements,
@@ -413,10 +412,10 @@ __global__ void SharedMemHistKernel(xgboost::ELLPackMatrix matrix,
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.row_stride ];
+    int ridx = d_ridx[idx / matrix.info.row_stride ];
     int gidx =
-        matrix.gidx_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
-    if (gidx != matrix.null_gidx_value) {
+        matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
+    if (gidx != matrix.info.n_bins) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
@@ -606,7 +605,7 @@ struct GPUHistMakerDevice {
       int constexpr kBlockThreads = 256;
       EvaluateSplitKernel<kBlockThreads, GradientSumT>
           <<<uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]>>>(
-              hist.GetNodeHistogram(nidx), d_feature_set, node, page->ellpack_matrix,
+              hist.GetNodeHistogram(nidx), d_feature_set, node, page->matrix,
               gpu_param, d_split_candidates, node_value_constraints[nidx],
               monotone_constraints);
 
@@ -632,11 +631,11 @@ struct GPUHistMakerDevice {
     auto d_ridx = row_partitioner->GetRows(nidx);
     auto d_gpair = gpair.data();
 
-    auto n_elements = d_ridx.size() * page->ellpack_matrix.row_stride;
+    auto n_elements = d_ridx.size() * page->matrix.info.row_stride;
 
     const size_t smem_size =
         use_shared_memory_histograms
-            ? sizeof(GradientSumT) * page->ellpack_matrix.BinCount()
+            ? sizeof(GradientSumT) * page->matrix.BinCount()
             : 0;
     const int items_per_thread = 8;
     const int block_threads = 256;
@@ -646,7 +645,7 @@ struct GPUHistMakerDevice {
       return;
     }
     SharedMemHistKernel<<<grid_size, block_threads, smem_size>>>(
-        page->ellpack_matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
+        page->matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
         use_shared_memory_histograms);
   }
 
@@ -656,7 +655,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, page->n_bins, [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, page->matrix.info.n_bins, [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -671,7 +670,7 @@ struct GPUHistMakerDevice {
   }
 
   void UpdatePosition(int nidx, RegTree::Node split_node) {
-    auto d_matrix = page->ellpack_matrix;
+    auto d_matrix = page->matrix;
 
     row_partitioner->UpdatePosition(
         nidx, split_node.LeftChild(), split_node.RightChild(),
@@ -703,7 +702,7 @@ struct GPUHistMakerDevice {
     dh::safe_cuda(cudaMemcpy(d_nodes.data(), p_tree->GetNodes().data(),
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
-    auto d_matrix = page->ellpack_matrix;
+    auto d_matrix = page->matrix;
     row_partitioner->FinalisePosition(
         [=] __device__(bst_uint ridx, int position) {
           auto node = d_nodes[position];
@@ -766,8 +765,7 @@ struct GPUHistMakerDevice {
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->ellpack_matrix.BinCount() *
-            (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+        page->matrix.BinCount() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     reducer->Synchronize();
 
     monitor.StopCuda("AllReduce");
@@ -956,14 +954,14 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
   // hiding)
-  auto histogram_size = sizeof(GradientSumT) * page->n_bins;
+  auto histogram_size = sizeof(GradientSumT) * page->matrix.info.n_bins;
   auto max_smem = dh::MaxSharedMemory(device_id);
   if (histogram_size <= max_smem) {
     use_shared_memory_histograms = true;
   }
 
   // Init histogram
-  hist.Init(device_id, page->n_bins);
+  hist.Init(device_id, page->matrix.info.n_bins);
 }
 
 template <typename GradientSumT>
@@ -1017,22 +1015,23 @@ class GPUHistMakerSpecialised {
 
     // TODO(rongou): support multiple Ellpack pages.
     EllpackPageImpl* page{};
-    for (auto& batch : dmat->GetBatches<EllpackPage>()) {
+    for (auto& batch : dmat->GetBatches<EllpackPage>({device_,
+                                                      param_.max_bin,
+                                                      hist_maker_param_.gpu_batch_nrows})) {
       page = batch.Impl();
-      page->Init(device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows);
     }
 
     dh::safe_cuda(cudaSetDevice(device_));
-    maker_.reset(new GPUHistMakerDevice<GradientSumT>(device_,
-                                                      page,
-                                                      info_->num_row_,
-                                                      param_,
-                                                      column_sampling_seed,
-                                                      info_->num_col_));
+    maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
+                                                     page,
+                                                     info_->num_row_,
+                                                     param_,
+                                                     column_sampling_seed,
+                                                     info_->num_col_));
 
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
-    maker_->InitHistogram();
+    maker->InitHistogram();
     monitor_.StopCuda("InitHistogram");
 
     p_last_fmat_ = dmat;
@@ -1071,17 +1070,17 @@ class GPUHistMakerSpecialised {
     monitor_.StopCuda("InitData");
 
     gpair->SetDevice(device_);
-    maker_->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
+    maker->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
   }
 
   bool UpdatePredictionCache(
       const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) {
-    if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
+    if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
     monitor_.StartCuda("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
-    maker_->UpdatePredictionCache(p_out_preds->DevicePointer());
+    maker->UpdatePredictionCache(p_out_preds->DevicePointer());
     monitor_.StopCuda("UpdatePredictionCache");
     return true;
   }
@@ -1089,7 +1088,7 @@ class GPUHistMakerSpecialised {
   TrainParam param_;           // NOLINT
   MetaInfo* info_{};             // NOLINT
 
-  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker_;  // NOLINT
+  std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
  private:
   bool initialised_;

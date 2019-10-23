@@ -2,6 +2,7 @@
  * Copyright 2017-2019 XGBoost contributors
  */
 #include <thrust/device_vector.h>
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <random>
 #include <string>
@@ -207,14 +208,14 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Copy cut matrix to device.
   maker.ba.Allocate(0,
-                    &(page->ellpack_matrix.feature_segments), cmat.Ptrs().size(),
-                    &(page->ellpack_matrix.min_fvalue), cmat.MinValues().size(),
-                    &(page->ellpack_matrix.gidx_fvalue_map), 24,
+                    &(page->matrix.info.feature_segments), cmat.Ptrs().size(),
+                    &(page->matrix.info.min_fvalue), cmat.MinValues().size(),
+                    &(page->matrix.info.gidx_fvalue_map), 24,
                     &(maker.monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.feature_segments, cmat.Ptrs());
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.gidx_fvalue_map, cmat.Values());
+  dh::CopyVectorToDeviceSpan(page->matrix.info.feature_segments, cmat.Ptrs());
+  dh::CopyVectorToDeviceSpan(page->matrix.info.gidx_fvalue_map, cmat.Values());
   dh::CopyVectorToDeviceSpan(maker.monotone_constraints, param.monotone_constraints);
-  dh::CopyVectorToDeviceSpan(page->ellpack_matrix.min_fvalue, cmat.MinValues());
+  dh::CopyVectorToDeviceSpan(page->matrix.info.min_fvalue, cmat.MinValues());
 
   // Initialize GPUHistMakerDevice::hist
   maker.hist.Init(0, (max_bins - 1) * kNCols);
@@ -265,8 +266,10 @@ void TestHistogramIndexImpl() {
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker, hist_maker_ext;
   std::unique_ptr<DMatrix> hist_maker_dmat(
     CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
+
+  dmlc::TemporaryDirectory tempdir;
   std::unique_ptr<DMatrix> hist_maker_ext_dmat(
-    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true));
+    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true, tempdir));
 
   std::vector<std::pair<std::string, std::string>> training_params = {
     {"max_depth", "10"},
@@ -275,22 +278,21 @@ void TestHistogramIndexImpl() {
 
   GenericParameter generic_param(CreateEmptyGenericParam(0));
   hist_maker.Configure(training_params, &generic_param);
-
   hist_maker.InitDataOnce(hist_maker_dmat.get());
   hist_maker_ext.Configure(training_params, &generic_param);
   hist_maker_ext.InitDataOnce(hist_maker_ext_dmat.get());
 
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
-  const auto &maker = hist_maker.maker_;
+  const auto &maker = hist_maker.maker;
   std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, maker->page->gidx_buffer);
 
-  const auto &maker_ext = hist_maker_ext.maker_;
+  const auto &maker_ext = hist_maker_ext.maker;
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, maker_ext->page->gidx_buffer);
 
-  ASSERT_EQ(maker->page->n_bins, maker_ext->page->n_bins);
+  ASSERT_EQ(maker->page->matrix.info.n_bins, maker_ext->page->matrix.info.n_bins);
   ASSERT_EQ(maker->page->gidx_buffer.size(), maker_ext->page->gidx_buffer.size());
 
   ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);

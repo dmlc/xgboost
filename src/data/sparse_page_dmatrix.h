@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "ellpack_page_source.h"
 #include "sparse_page_source.h"
 
 namespace xgboost {
@@ -38,13 +39,15 @@ class SparsePageDMatrix : public DMatrix {
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-  BatchSet<EllpackPage> GetEllpackBatches() override;
+  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
   // source data pointers.
   std::unique_ptr<DataSource<SparsePage>> row_source_;
   std::unique_ptr<SparsePageSource<CSCPage>> column_source_;
   std::unique_ptr<SparsePageSource<SortedCSCPage>> sorted_column_source_;
-  std::unique_ptr<EllpackPage> ellpack_page_;
+  std::unique_ptr<EllpackPageSource> ellpack_source_;
+  // saved batch param
+  BatchParam batch_param_;
   // the cache prefix
   std::string cache_info_;
   // Store column densities to avoid recalculating

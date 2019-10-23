@@ -1,7 +1,5 @@
 /*!
  * Copyright 2019 by XGBoost Contributors
- *
- * \file ellpack_page.cuh
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_H_
@@ -42,56 +40,68 @@ __forceinline__ __device__ int BinarySearchRow(
   return -1;
 }
 
+/** \brief Meta information about the ELLPACK matrix. */
+struct EllpackInfo {
+  /*! \brief Whether or not if the matrix is dense. */
+  bool is_dense;
+  /*! \brief Row length for ELLPack, equal to number of features. */
+  size_t row_stride;
+  /*! \brief Total number of bins, also used as the null index value, . */
+  size_t n_bins;
+  /*! \brief Minimum value for each feature. Size equals to number of features. */
+  common::Span<bst_float> min_fvalue;
+  /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
+  common::Span<uint32_t> feature_segments;
+  /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
+  common::Span<bst_float> gidx_fvalue_map;
+
+  EllpackInfo() = default;
+
+  /*!
+   * \brief Constructor.
+   *
+   * @param device The GPU device to use.
+   * @param is_dense Whether the matrix is dense.
+   * @param row_stride The number of features between starts of consecutive rows.
+   * @param hmat The histogram cuts of all the features.
+   * @param ba The BulkAllocator that owns the GPU memory.
+   */
+  explicit EllpackInfo(int device,
+                       bool is_dense,
+                       size_t row_stride,
+                       const common::HistogramCuts& hmat,
+                       dh::BulkAllocator& ba);
+};
+
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
-struct ELLPackMatrix {
-  common::Span<uint32_t> feature_segments;
-  /*! \brief minimum value for each feature. */
-  common::Span<bst_float> min_fvalue;
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row length for ELLPack. */
-  size_t row_stride{0};
+struct EllpackMatrix {
+  EllpackInfo info;
   common::CompressedIterator<uint32_t> gidx_iter;
-  int null_gidx_value;
 
-  XGBOOST_DEVICE size_t BinCount() const { return gidx_fvalue_map.size(); }
+  XGBOOST_DEVICE size_t BinCount() const { return info.gidx_fvalue_map.size(); }
 
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
   __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
-    auto row_begin = row_stride * ridx;
-    auto row_end = row_begin + row_stride;
+    auto row_begin = info.row_stride * ridx;
+    auto row_end = row_begin + info.row_stride;
     auto gidx = -1;
-    if (is_dense) {
+    if (info.is_dense) {
       gidx = gidx_iter[row_begin + fidx];
     } else {
-      gidx =
-          BinarySearchRow(row_begin, row_end, gidx_iter, feature_segments[fidx],
-                          feature_segments[fidx + 1]);
+      gidx = BinarySearchRow(row_begin,
+                             row_end,
+                             gidx_iter,
+                             info.feature_segments[fidx],
+                             info.feature_segments[fidx + 1]);
     }
     if (gidx == -1) {
       return nan("");
     }
-    return gidx_fvalue_map[gidx];
+    return info.gidx_fvalue_map[gidx];
   }
-  void Init(common::Span<uint32_t> feature_segments,
-            common::Span<bst_float> min_fvalue,
-            common::Span<bst_float> gidx_fvalue_map, size_t row_stride,
-            common::CompressedIterator<uint32_t> gidx_iter, bool is_dense,
-            int null_gidx_value) {
-    this->feature_segments = feature_segments;
-    this->min_fvalue = min_fvalue;
-    this->gidx_fvalue_map = gidx_fvalue_map;
-    this->row_stride = row_stride;
-    this->gidx_iter = gidx_iter;
-    this->is_dense = is_dense;
-    this->null_gidx_value = null_gidx_value;
-  }
-
- private:
-  bool is_dense;
 };
 
 // Instances of this type are created while creating the histogram bins for the
@@ -171,31 +181,93 @@ class DeviceHistogramBuilderState {
 
 class EllpackPageImpl {
  public:
-  ELLPackMatrix ellpack_matrix;
-  int n_bins{};
+  EllpackMatrix matrix;
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
+  std::vector<common::CompressedByteT> idx_buffer;
+  size_t n_rows{};
 
-  explicit EllpackPageImpl(DMatrix* dmat);
-  void Init(int device, int max_bin, int gpu_batch_nrows);
-  void InitCompressedData(int device,
-                          const common::HistogramCuts& hmat,
-                          size_t row_stride,
-                          bool is_dense);
+  /*!
+   * \brief Default constructor.
+   *
+   * This is used in the external memory case. An empty ELLPACK page is constructed with its content
+   * set later by the reader.
+   */
+  EllpackPageImpl() = default;
+
+  /*!
+   * \brief Constructor from an existing DMatrix.
+   *
+   * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
+   * in CSR format.
+   */
+  explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
+
+  /*!
+   * \brief Initialize the EllpackInfo contained in the EllpackMatrix.
+   *
+   * This is used in the in-memory case. The current page owns the BulkAllocator, which in turn owns
+   * the GPU memory used by the EllpackInfo.
+   *
+   * @param device The GPU device to use.
+   * @param is_dense Whether the matrix is dense.
+   * @param row_stride The number of features between starts of consecutive rows.
+   * @param hmat The histogram cuts of all the features.
+   */
+  void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
+
+  /*!
+   * \brief Initialize the buffer to store compressed features.
+   *
+   * @param device The GPU device to use.
+   * @param num_rows The number of rows we are storing in the buffer.
+   */
+  void InitCompressedData(int device, size_t num_rows);
+
+  /*!
+   * \brief Compress a single page of CSR data into ELLPACK.
+   *
+   * @param device The GPU device to use.
+   * @param row_batch The CSR page.
+   * @param device_row_state On-device data for maintaining state.
+   */
   void CreateHistIndices(int device,
                          const SparsePage& row_batch,
                          const RowStateOnDevice& device_row_state);
 
- private:
-  bool initialised_{false};
-  DMatrix* dmat_;
-  common::Monitor monitor_;
-  dh::BulkAllocator ba;
+  /*! \return Number of instances in the page. */
+  size_t Size() const;
 
-  /*! \brief Cut. */
-  common::Span<bst_float> gidx_fvalue_map;
-  /*! \brief row_ptr form HistogramCuts. */
-  common::Span<uint32_t> feature_segments;
+  /*! \brief Set the base row id for this page. */
+  inline void SetBaseRowId(size_t row_id) {
+    base_rowid_ = row_id;
+  }
+
+  /*! \brief clear the page. */
+  void Clear();
+
+  /*!
+   * \brief Push a sparse page.
+   * \param batch The row page.
+   */
+  void Push(int device, const SparsePage& batch);
+
+  /*! \return Estimation of memory cost of this page. */
+  size_t MemCostBytes() const;
+
+  /*!
+   * \brief Copy the ELLPACK matrix to GPU.
+   *
+   * @param device The GPU device to use.
+   * @param info The EllpackInfo for the matrix.
+   */
+  void InitDevice(int device, EllpackInfo info);
+
+ private:
+  common::Monitor monitor_;
+  dh::BulkAllocator ba_;
+  size_t base_rowid_{};
+  bool device_initialized_{false};
 };
 
 }  // namespace xgboost

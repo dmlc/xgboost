@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
@@ -199,8 +200,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
  *
  * \return The new dmatrix.
  */
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
+    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
+    const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
 gbm::GBTreeModel CreateTestModel();
 
@@ -247,16 +249,15 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
           0.26f, 0.71f, 1.83f});
   cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
 
-  auto is_dense = (*dmat)->Info().num_nonzero_ ==
-                  (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
   size_t row_stride = 0;
   const auto &offset_vec = batch.offset.ConstHostVector();
   for (size_t i = 1; i < offset_vec.size(); ++i) {
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
 
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get()));
-  page->InitCompressedData(0, cmat, row_stride, is_dense);
+  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
+  page->InitInfo(0, (*dmat)->IsDense(), row_stride, cmat);
+  page->InitCompressedData(0, n_rows);
   page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
 
   delete dmat;

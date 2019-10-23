@@ -21,7 +21,10 @@
 #endif  // DMLC_ENABLE_STD_THREAD
 
 namespace dmlc {
-DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::CSCPage>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SortedCSCPage>);
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::EllpackPage>);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -329,31 +332,6 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 }  // namespace xgboost
 
 namespace xgboost {
-  data::SparsePageFormat* data::SparsePageFormat::Create(const std::string& name) {
-  auto *e = ::dmlc::Registry< ::xgboost::data::SparsePageFormatReg>::Get()->Find(name);
-  if (e == nullptr) {
-    LOG(FATAL) << "Unknown format type " << name;
-  }
-  return (e->body)();
-}
-
-std::pair<std::string, std::string>
-data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
-  size_t pos = cache_prefix.rfind(".fmt-");
-
-  if (pos != std::string::npos) {
-    std::string fmt = cache_prefix.substr(pos + 5, cache_prefix.length());
-    size_t cpos = fmt.rfind('-');
-    if (cpos != std::string::npos) {
-      return std::make_pair(fmt.substr(0, cpos), fmt.substr(cpos + 1, fmt.length()));
-    } else {
-      return std::make_pair(fmt, fmt);
-    }
-  } else {
-    std::string raw = "raw";
-    return std::make_pair(raw, raw);
-  }
-}
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry> builder(&transpose.offset.HostVector(),
@@ -474,18 +452,6 @@ void SparsePage::PushCSC(const SparsePage &batch) {
 
   self_data = std::move(data);
   self_offset = std::move(offset);
-}
-
-void SparsePage::Push(const Inst &inst) {
-  auto& data_vec = data.HostVector();
-  auto& offset_vec = offset.HostVector();
-  offset_vec.push_back(offset_vec.back() + inst.size());
-  size_t begin = data_vec.size();
-  data_vec.resize(begin + inst.size());
-  if (inst.size() != 0) {
-    std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data(),
-                sizeof(Entry) * inst.size());
-  }
 }
 
 namespace data {

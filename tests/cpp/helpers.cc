@@ -192,14 +192,14 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
   return dmat;
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic) {
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
+    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
+    const dmlc::TemporaryDirectory& tempdir) {
   if (!n_rows || !n_cols) {
     return nullptr;
   }
 
   // Create the svm file in a temp dir
-  dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
 
   std::ofstream fo(tmp_file.c_str());
