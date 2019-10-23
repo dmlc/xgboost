@@ -158,7 +158,6 @@ def Doxygen() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
     """
-    archiveArtifacts artifacts: "build/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
     echo 'Uploading doc...'
     s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
     deleteDir()
@@ -218,7 +217,7 @@ def BuildCUDA(args) {
     if (args.cuda_version == '9.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
-      archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+      //archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
@@ -252,7 +251,6 @@ def BuildJVMDoc() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
     """
-    archiveArtifacts artifacts: "jvm-packages/${BRANCH_NAME}.tar.bz2", allowEmptyArchive: true
     echo 'Uploading doc...'
     s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
     deleteDir()
