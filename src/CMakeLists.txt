@@ -64,6 +64,17 @@ target_compile_definitions(objxgboost
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>
   ${XGBOOST_DEFINITIONS})
 
+if (XGBOOST_MM_PREFETCH_PRESENT)
+  target_compile_definitions(objxgboost
+    PRIVATE
+    -DXGBOOST_MM_PREFETCH_PRESENT=1)
+endif(XGBOOST_MM_PREFETCH_PRESENT)
+if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+  target_compile_definitions(objxgboost
+    PRIVATE
+    -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
+endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
+
 if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
   if (OpenMP_CXX_FOUND OR OPENMP_FOUND)
