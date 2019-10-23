@@ -218,7 +218,7 @@ def BuildCUDA(args) {
     if (args.cuda_version == '9.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
-      //archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
+      s3Upload bucket: 'xgboost-nightly-builds', acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
