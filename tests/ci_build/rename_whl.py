@@ -27,6 +27,7 @@ dirname, basename = os.path.dirname(whl_path), os.path.basename(whl_path)
 
 with cd(dirname):
     tokens = basename.split('-')
+    assert len(tokens) == 5
     keywords = {'pkg_name': tokens[0],
                 'version': tokens[1],
                 'commit_id': commit_id,
