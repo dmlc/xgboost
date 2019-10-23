@@ -3,6 +3,8 @@
 
 /* Jenkins pipeline for Windows AMD64 target */
 
+import groovy.transform.Field
+
 @Field
 def commit_id   // necessary to pass a variable from one stage to another
 

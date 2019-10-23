@@ -6,6 +6,8 @@
 // Command to run command inside a docker container
 dockerRun = 'tests/ci_build/ci_build.sh'
 
+import groovy.transform.Field
+
 @Field
 def commit_id   // necessary to pass a variable from one stage to another
 
