@@ -2,9 +2,10 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "helpers.h"
+#include <dmlc/filesystem.h>
 
-#include "xgboost/learner.h"
-#include "dmlc/filesystem.h"
+#include <xgboost/learner.h>
+#include <xgboost/version_config.h>
 
 namespace xgboost {
 

@@ -2,14 +2,16 @@
  * Copyright 2017-2019 by Contributors
   * \file hist_util.cc
  */
-#include "./hist_util.h"
 #include <dmlc/timer.h>
-#include <rabit/rabit.h>
 #include <dmlc/omp.h>
+
+#include <rabit/rabit.h>
 #include <numeric>
 #include <vector>
 
+#include "xgboost/base.h"
 #include "../common/common.h"
+#include "./hist_util.h"
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./quantile.h"
