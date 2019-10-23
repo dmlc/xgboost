@@ -149,6 +149,18 @@ struct XGBAPIThreadLocalEntry {
   std::vector<GradientPair> tmp_gpair;
 };
 
+XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
+  if (major) {
+    *major = XGBOOST_VER_MAJOR;
+  }
+  if (minor) {
+    *minor = XGBOOST_VER_MINOR;
+  }
+  if (patch) {
+    *patch = XGBOOST_VER_PATCH;
+  }
+}
+
 // define the threadlocal store.
 using XGBAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 

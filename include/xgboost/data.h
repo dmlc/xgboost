@@ -66,10 +66,6 @@ class MetaInfo {
    * can be used to specify initial prediction to boost from.
    */
   HostDeviceVector<bst_float> base_margin_;
-  /*! \brief version flag, used to check version of this info */
-  static const int kVersion = 3;
-  /*! \brief version that contains qid field */
-  static const int kVersionWithQid = 2;
   /*! \brief default constructor */
   MetaInfo()  = default;
   /*!

@@ -1,0 +1,17 @@
+/*!
+ * Copyright 2019 by Contributors
+ * \file build_config.h
+ *
+ * Generated from `cmake/build_config.h.in` by cmake.
+ */
+#ifndef XGBOOST_BUILD_CONFIG_H_
+#define XGBOOST_BUILD_CONFIG_H_
+
+#cmakedefine XGBOOST_MM_PREFETCH_PRESENT
+#cmakedefine XGBOOST_BUILTIN_PREFETCH_PRESENT
+
+#define XGBOOST_VER_MAJOR @xgboost_VERSION_MAJOR@
+#define XGBOOST_VER_MINOR @xgboost_VERSION_MINOR@
+#define XGBOOST_VER_PATCH @xgboost_VERSION_PATCH@
+
+#endif  // XGBOOST_BUILD_CONFIG_H_
