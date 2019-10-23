@@ -6,13 +6,12 @@
 
 namespace xgboost {
 
-TEST(Objective, PairwiseRankingGPair) {
-  xgboost::GenericParameter tparam;
+TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   std::vector<std::pair<std::string, std::string>> args;
-  tparam.InitAllowUnknown(args);
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:pairwise", &tparam)
+    xgboost::ObjFunction::Create("rank:pairwise", &lparam)
   };
   obj->Configure(args);
   CheckConfigReload(obj, "rank:pairwise");
@@ -37,7 +36,7 @@ TEST(Objective, PairwiseRankingGPair) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Objective, NDCG_Json_IO) {
+TEST(Objective, DeclareUnifiedTest(NDCG_Json_IO)) {
   xgboost::GenericParameter tparam;
   tparam.InitAllowUnknown(Args{});
 
@@ -55,6 +54,26 @@ TEST(Objective, NDCG_Json_IO) {
 
   ASSERT_EQ(get<String>(j_param["num_pairsample"]), "1");
   ASSERT_EQ(get<String>(j_param["fix_list_weight"]), "0");
+}
+
+TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
+  std::vector<std::pair<std::string, std::string>> args;
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("rank:pairwise", &lparam)
+  };
+  obj->Configure(args);
+  // No computation of gradient/hessian, as there is no diversity in labels
+  CheckRankingObjFunction(obj,
+                          {0, 0.1f, 0, 0.1f},
+                          {1,   1, 1, 1},
+                          {2.0f, 0.0f},
+                          {0, 2, 4},
+                          {0.0f, 0.0f, 0.0f, 0.0f},
+                          {0.0f, 0.0f, 0.0f, 0.0f});
+
+  ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
 }  // namespace xgboost
