@@ -2,15 +2,16 @@
  * Copyright 2015-2019 by Contributors
  * \file data.cc
  */
-#include <xgboost/data.h>
-#include <xgboost/logging.h>
-#include <xgboost/build_config.h>
 #include <dmlc/registry.h>
 #include <cstring>
 
-#include "./sparse_page_writer.h"
-#include "./simple_dmatrix.h"
-#include "./simple_csr_source.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
+#include "xgboost/version_config.h"
+#include "sparse_page_writer.h"
+#include "simple_dmatrix.h"
+#include "simple_csr_source.h"
+
 #include "../common/io.h"
 #include "../common/version.h"
 #include "../common/group_data.h"

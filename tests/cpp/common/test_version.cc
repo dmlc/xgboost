@@ -6,6 +6,7 @@
 #include <dmlc/filesystem.h>
 #include <dmlc/io.h>
 
+#include <xgboost/version_config.h>
 #include <xgboost/json.h>
 #include <xgboost/base.h>
 

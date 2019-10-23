@@ -1,5 +1,6 @@
-// Copyright by Contributors
+// Copyright (c) 2019 by Contributors
 #include <gtest/gtest.h>
+#include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
 

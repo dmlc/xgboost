@@ -1,0 +1,11 @@
+/*!
+ * Copyright 2019 XGBoost contributors
+ */
+#ifndef XGBOOST_VERSION_CONFIG_H_
+#define XGBOOST_VERSION_CONFIG_H_
+
+#define XGBOOST_VER_MAJOR @xgboost_VERSION_MAJOR@
+#define XGBOOST_VER_MINOR @xgboost_VERSION_MINOR@
+#define XGBOOST_VER_PATCH @xgboost_VERSION_PATCH@
+
+#endif  // XGBOOST_VERSION_CONFIG_H_
