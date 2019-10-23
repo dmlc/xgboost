@@ -41,8 +41,9 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
             "Seed PRNG determnisticly via iterator number, "
             "this option will be switched on automatically on distributed "
             "mode.");
-    DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
-        "Number of threads to use.");
+    DMLC_DECLARE_FIELD(nthread).set_default(0)
+        .set_lower_bound(-1)
+        .describe("Number of threads to use.");
     DMLC_DECLARE_ALIAS(nthread, n_jobs);
 
     DMLC_DECLARE_FIELD(gpu_id)

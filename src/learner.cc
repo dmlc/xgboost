@@ -162,9 +162,9 @@ class LearnerImpl : public Learner {
     generic_param_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
-    if (generic_param_.nthread != 0) {
-      omp_set_num_threads(generic_param_.nthread);
-    }
+
+    auto threads = common::OmpDefaultThreads(generic_param_.nthread);
+    omp_set_num_threads(threads);
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.

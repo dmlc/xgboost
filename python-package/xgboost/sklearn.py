@@ -73,9 +73,11 @@ class XGBModel(XGBModelBase):
         available.  It's recommended to study this option from parameters
         document.
     n_jobs : int
-        Number of parallel threads used to run xgboost.
+        Number of parallel threads used to run xgboost.  Set to 0 or -1
+        uses half number of processors available on system.
     gamma : float
-        Minimum loss reduction required to make a further partition on a leaf node of the tree.
+        Minimum loss reduction required to make a further partition on a leaf
+        node of the tree.
     min_child_weight : int
         Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : int
@@ -934,9 +936,11 @@ class XGBRanker(XGBModel):
         booster: string
             Specify which booster to use: gbtree, gblinear or dart.
         n_jobs : int
-            Number of parallel threads used to run xgboost.
+            Number of parallel threads used to run xgboost.  Set to 0 or -1
+            uses half number of processors available on system.
         gamma : float
-            Minimum loss reduction required to make a further partition on a leaf node of the tree.
+            Minimum loss reduction required to make a further partition on a
+            leaf node of the tree.
         min_child_weight : int
             Minimum sum of instance weight(hessian) needed in a child.
         max_delta_step : int

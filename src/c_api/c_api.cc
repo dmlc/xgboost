@@ -18,6 +18,7 @@
 
 #include "c_api_error.h"
 #include "../data/simple_csr_source.h"
+#include "../common/common.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
@@ -404,9 +405,8 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   }
 
   API_BEGIN();
-  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
-  //  const int nthreadmax = omp_get_max_threads();
-  if (nthread <= 0) nthread=nthreadmax;
+  nthread = common::OmpDefaultThreads(nthread);
+
   int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
@@ -557,8 +557,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   }
 
   API_BEGIN();
-  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
-  if (nthread <= 0) nthread = nthreadmax;
+  nthread = common::OmpDefaultThreads(nthread);
   int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 

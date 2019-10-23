@@ -34,9 +34,11 @@ General Parameters
     configurations based on heuristics, which is displayed as warning message.
     If there's unexpected behaviour, please try to increase value of verbosity.
 
-* ``nthread`` [default to maximum number of threads available if not set]
+* ``nthread`` [default to half number of processors available if not set]
 
-  - Number of parallel threads used to run XGBoost
+  - Number of parallel threads used to run XGBoost, only used if XGBoost is compiled with
+    OpenMP (default).  Internally uses `omp_get_num_procs` to determine number of
+    processors online on current device.
 
 * ``disable_default_eval_metric`` [default=0]
 

@@ -1,11 +1,13 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
-#include <vector>
-#include "helpers.h"
 #include <dmlc/filesystem.h>
-
-#include <xgboost/learner.h>
 #include <xgboost/version_config.h>
+#include <xgboost/learner.h>
+
+#include <vector>
+
+#include "helpers.h"
+#include "../../src/common/common.h"
 
 namespace xgboost {
 
@@ -27,6 +29,31 @@ TEST(Learner, Basic) {
   static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
   static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
 }
+
+#if defined(_OPENMP)
+TEST(Learner, Threads) {
+  auto mat_ptr = CreateDMatrix(10, 10, 0);
+  std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
+  auto ori_threads = omp_get_max_threads();
+
+  auto test_set_threads =
+      [&](int threads) {
+        auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+        auto args = Args{{"nthread", std::to_string(threads)}};
+        learner->SetParams(args);
+        learner->Configure();
+        auto nthreads = omp_get_max_threads();
+        ASSERT_EQ(nthreads, common::OmpDefaultThreads(threads));
+      };
+
+  test_set_threads(0);
+  test_set_threads(-1);
+  test_set_threads(8);
+
+  omp_set_num_threads(ori_threads);
+  delete mat_ptr;
+}
+#endif
 
 TEST(Learner, CheckGroup) {
   using Arg = std::pair<std::string, std::string>;

@@ -6,15 +6,18 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
+#include <dmlc/omp.h>
 
+#include <algorithm>
 #include <exception>
 #include <limits>
 #include <type_traits>
 #include <vector>
 #include <string>
 #include <sstream>
+
+#include "xgboost/base.h"
+#include "xgboost/logging.h"
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
@@ -142,6 +145,15 @@ class Range {
 };
 
 int AllVisibleGPUs();
+
+inline int OmpDefaultThreads(int32_t threads) {
+  if (threads <= 0) {
+    threads = std::max(omp_get_num_procs() / 2, 1);
+  }
+  return threads;
+}
+
+// int
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_
