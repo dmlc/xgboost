@@ -2,17 +2,9 @@ import sys
 import os
 from contextlib import contextmanager
 
-def normpath(path):
-    """Normalize UNIX path to a native path."""
-    normalized = os.path.join(*path.split("/"))
-    if os.path.isabs(path):
-        return os.path.abspath("/") + normalized
-    else:
-        return normalized
-
 @contextmanager
 def cd(path):
-    path = normpath(path)
+    path = os.path.normpath(path)
     cwd = os.getcwd()
     os.chdir(path)
     print("cd " + path)
@@ -35,7 +27,6 @@ dirname, basename = os.path.dirname(whl_path), os.path.basename(whl_path)
 
 with cd(dirname):
     tokens = basename.split('-')
-    assert len(tokens) == 5
     keywords = {'pkg_name': tokens[0],
                 'version': tokens[1],
                 'commit_id': commit_id,
