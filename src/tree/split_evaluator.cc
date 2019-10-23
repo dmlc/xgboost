@@ -5,6 +5,7 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
+
 #include <algorithm>
 #include <unordered_set>
 #include <vector>
@@ -15,7 +16,8 @@
 #include <utility>
 
 #include "xgboost/logging.h"
-#include "xgboost/host_device_vector.h"
+#include "xgboost/parameter.h"
+
 #include "param.h"
 #include "split_evaluator.h"
 #include "../common/common.h"
@@ -67,7 +69,7 @@ bool SplitEvaluator::CheckFeatureConstraint(bst_uint nodeid, bst_uint featureid)
 }
 
 //! \brief Encapsulates the parameters for ElasticNet
-struct ElasticNetParams : public dmlc::Parameter<ElasticNetParams> {
+struct ElasticNetParams : public XGBoostParameter<ElasticNetParams> {
   bst_float reg_lambda;
   bst_float reg_alpha;
   // maximum delta update we can add in weight estimation
@@ -105,7 +107,7 @@ class ElasticNet final : public SplitEvaluator {
     }
   }
   void Init(const Args& args) override {
-    params_.InitAllowUnknown(args);
+    params_.UpdateAllowUnknown(args);
   }
 
   SplitEvaluator* GetHostClone() const override {
@@ -185,7 +187,7 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(ElasticNet, "elastic_net")
         split evaluator
 */
 struct MonotonicConstraintParams
-    : public dmlc::Parameter<MonotonicConstraintParams> {
+    : public XGBoostParameter<MonotonicConstraintParams> {
   std::vector<bst_int> monotone_constraints;
 
   DMLC_DECLARE_PARAMETER(MonotonicConstraintParams) {
@@ -212,7 +214,7 @@ class MonotonicConstraint final : public SplitEvaluator {
   void Init(const Args& args)
       override {
     inner_->Init(args);
-    params_.InitAllowUnknown(args);
+    params_.UpdateAllowUnknown(args);
     Reset();
   }
 
@@ -337,7 +339,7 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(MonotonicConstraint, "monotonic")
         split evaluator
 */
 struct InteractionConstraintParams
-    : public dmlc::Parameter<InteractionConstraintParams> {
+    : public XGBoostParameter<InteractionConstraintParams> {
   std::string interaction_constraints;
   bst_uint num_feature;
 
@@ -371,7 +373,7 @@ class InteractionConstraint final : public SplitEvaluator {
   void Init(const Args& args)
       override {
     inner_->Init(args);
-    params_.InitAllowUnknown(args);
+    params_.UpdateAllowUnknown(args);
     Reset();
   }
 

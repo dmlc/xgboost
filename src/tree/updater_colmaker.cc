@@ -26,7 +26,7 @@ DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 class ColMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     spliteval_->Init(args);
   }
@@ -773,7 +773,7 @@ class ColMaker: public TreeUpdater {
 class DistColMaker : public ColMaker {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
     pruner_->Configure(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));

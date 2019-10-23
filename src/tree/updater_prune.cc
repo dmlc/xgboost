@@ -30,7 +30,7 @@ class TreePruner: public TreeUpdater {
 
   // set training parameter
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     syncher_->Configure(args);
   }
   // update the tree, do pruning

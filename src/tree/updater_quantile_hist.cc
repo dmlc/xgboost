@@ -38,7 +38,7 @@ void QuantileHistMaker::Configure(const Args& args) {
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
   }
   pruner_->Configure(args);
-  param_.InitAllowUnknown(args);
+  param_.UpdateAllowUnknown(args);
   is_gmat_initialized_ = false;
 
   // initialize the split evaluator

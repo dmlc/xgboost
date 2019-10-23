@@ -225,7 +225,7 @@ using GradientPairInteger = detail::GradientPairInternal<int64_t>;
 using Args = std::vector<std::pair<std::string, std::string> >;
 
 /*! \brief small eps gap for minimum split decision. */
-const bst_float kRtEps = 1e-6f;
+constexpr bst_float kRtEps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 using omp_ulong = dmlc::omp_ulong;  // NOLINT

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "xgboost/host_device_vector.h"
+#include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
 #include "../common/common.h"
@@ -38,7 +39,7 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
 // training parameters specific to this algorithm
 struct GPUHistMakerTrainParam
-    : public dmlc::Parameter<GPUHistMakerTrainParam> {
+    : public XGBoostParameter<GPUHistMakerTrainParam> {
   bool single_precision_histogram;
   // number of rows in a single GPU batch
   int gpu_batch_nrows;
@@ -969,9 +970,9 @@ class GPUHistMakerSpecialised {
  public:
   GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
   void Configure(const Args& args, GenericParameter const* generic_param) {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     generic_param_ = generic_param;
-    hist_maker_param_.InitAllowUnknown(args);
+    hist_maker_param_.UpdateAllowUnknown(args);
     device_ = generic_param_->gpu_id;
     CHECK_GE(device_, 0) << "Must have at least one device";
 
@@ -1107,7 +1108,7 @@ class GPUHistMakerSpecialised {
 class GPUHistMaker : public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    hist_maker_param_.InitAllowUnknown(args);
+    hist_maker_param_.UpdateAllowUnknown(args);
     float_maker_.reset();
     double_maker_.reset();
     if (hist_maker_param_.single_precision_histogram) {

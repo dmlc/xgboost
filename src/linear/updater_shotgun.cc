@@ -15,7 +15,7 @@ class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
   void Configure(Args const& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     if (param_.feature_selector != kCyclic &&
         param_.feature_selector != kShuffle) {
       LOG(FATAL) << "Unsupported feature selector for shotgun updater.\n"

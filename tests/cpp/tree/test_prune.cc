@@ -33,7 +33,7 @@ TEST(Updater, Prune) {
 
   // prepare tree
   RegTree tree = RegTree();
-  tree.param.InitAllowUnknown(cfg);
+  tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));

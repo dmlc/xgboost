@@ -5,7 +5,7 @@
  *  This plugin defines the additional metric function.
  */
 #include <xgboost/base.h>
-#include <dmlc/parameter.h>
+#include <xgboost/parameter.h>
 #include <xgboost/objective.h>
 #include <xgboost/json.h>
 
@@ -16,7 +16,7 @@ namespace obj {
 // You do not have to use it.
 // see http://dmlc-core.readthedocs.org/en/latest/parameter.html
 // for introduction of this module.
-struct MyLogisticParam : public dmlc::Parameter<MyLogisticParam> {
+struct MyLogisticParam : public XGBoostParameter<MyLogisticParam> {
   float scale_neg_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(MyLogisticParam) {
@@ -32,7 +32,7 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 class MyLogistic : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,

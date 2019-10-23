@@ -25,7 +25,7 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
 // training parameters
-struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
+struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   std::string updater;
   float tolerance;
   size_t max_row_perbatch;
@@ -64,7 +64,7 @@ class GBLinear : public GradientBooster {
     if (model_.weight.size() == 0) {
       model_.param.InitAllowUnknown(cfg);
     }
-    param_.InitAllowUnknown(cfg);
+    param_.UpdateAllowUnknown(cfg);
     updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");

@@ -28,7 +28,7 @@ TEST(Updater, Refresh) {
 
   RegTree tree = RegTree();
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  tree.param.InitAllowUnknown(cfg);
+  tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam));
 

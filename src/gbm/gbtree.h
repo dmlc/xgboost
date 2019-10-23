@@ -48,7 +48,7 @@ namespace xgboost {
 namespace gbm {
 
 /*! \brief training parameters */
-struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
+struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   /*!
    * \brief number of parallel trees constructed each iteration
    *  use this option to support boosted random forest
@@ -95,7 +95,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
 };
 
 /*! \brief training parameters */
-struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
+struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
   /*! \brief type of sampling algorithm */
   int sample_type;
   /*! \brief type of normalization algorithm */

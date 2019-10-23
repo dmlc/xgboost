@@ -31,7 +31,7 @@ namespace tree {
 class BaseMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
 
  protected:

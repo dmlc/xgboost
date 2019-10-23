@@ -34,7 +34,7 @@ DMLC_REGISTRY_FILE_TAG(gbtree);
 
 void GBTree::Configure(const Args& cfg) {
   this->cfg_ = cfg;
-  tparam_.InitAllowUnknown(cfg);
+  tparam_.UpdateAllowUnknown(cfg);
 
   model_.Configure(cfg);
 
@@ -295,7 +295,7 @@ class Dart : public GBTree {
   void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
     if (model_.trees.size() == 0) {
-      dparam_.InitAllowUnknown(cfg);
+      dparam_.UpdateAllowUnknown(cfg);
     }
   }
 

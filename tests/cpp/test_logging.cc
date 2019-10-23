@@ -53,6 +53,7 @@ TEST(Logging, Basic) {
   output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Test Log Console"), std::string::npos);
 
+  args["silent"] = "False";
   args["verbosity"] = "1";  // restore
   ConsoleLogger::Configure({args.cbegin(), args.cend()});
 }

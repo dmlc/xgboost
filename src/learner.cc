@@ -5,13 +5,8 @@
  * \author Tianqi Chen
  */
 #include <dmlc/io.h>
-#include <dmlc/timer.h>
-#include <dmlc/any.h>
-#include <xgboost/feature_map.h>
-#include <xgboost/learner.h>
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
-#include <xgboost/generic_parameters.h>
+#include <dmlc/parameter.h>
+
 #include <algorithm>
 #include <iomanip>
 #include <limits>
@@ -21,6 +16,12 @@
 #include <utility>
 #include <vector>
 
+#include "xgboost/feature_map.h"
+#include "xgboost/learner.h"
+#include "xgboost/base.h"
+#include "xgboost/parameter.h"
+#include "xgboost/logging.h"
+#include "xgboost/generic_parameters.h"
 #include "xgboost/host_device_vector.h"
 #include "common/common.h"
 #include "common/io.h"
@@ -103,7 +104,7 @@ struct LearnerModelParam : public dmlc::Parameter<LearnerModelParam> {
   }
 };
 
-struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
+struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
   DataSplitMode dsplit;
   // flag to disable default metric
@@ -155,9 +156,9 @@ class LearnerImpl : public Learner {
     auto old_tparam = tparam_;
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
-    tparam_.InitAllowUnknown(args);
+    tparam_.UpdateAllowUnknown(args);
 
-    generic_param_.InitAllowUnknown(args);
+    generic_param_.UpdateAllowUnknown(args);
     generic_param_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
@@ -208,7 +209,7 @@ class LearnerImpl : public Learner {
   }
 
   void Load(dmlc::Stream* fi) override {
-    generic_param_.InitAllowUnknown(Args{});
+    generic_param_.UpdateAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
@@ -314,7 +315,7 @@ class LearnerImpl : public Learner {
     cfg_.insert(n.cbegin(), n.cend());
 
     Args args = {cfg_.cbegin(), cfg_.cend()};
-    generic_param_.InitAllowUnknown(args);
+    generic_param_.UpdateAllowUnknown(args);
     gbm_->Configure(args);
     obj_->Configure({cfg_.begin(), cfg_.end()});
 

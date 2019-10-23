@@ -10,6 +10,7 @@
 #include <limits>
 
 #include "xgboost/data.h"
+#include "xgboost/parameter.h"
 #include "./param.h"
 #include "../gbm/gblinear_model.h"
 #include "../common/random.h"
@@ -17,7 +18,7 @@
 namespace xgboost {
 namespace linear {
 
-struct CoordinateParam : public dmlc::Parameter<CoordinateParam> {
+struct CoordinateParam : public XGBoostParameter<CoordinateParam> {
   int top_k;
   DMLC_DECLARE_PARAMETER(CoordinateParam) {
     DMLC_DECLARE_FIELD(top_k)

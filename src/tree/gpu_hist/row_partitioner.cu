@@ -1,4 +1,3 @@
-
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */

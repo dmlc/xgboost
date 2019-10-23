@@ -1,13 +1,13 @@
 /*!
  * Copyright 2017-2018 by Contributors
  */
-#include <dmlc/parameter.h>
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 #include <memory>
 
+#include "xgboost/parameter.h"
 #include "xgboost/data.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
