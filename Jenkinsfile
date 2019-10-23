@@ -224,7 +224,8 @@ def BuildCUDA(args) {
     if (args.cuda_version == '9.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
-      s3Upload bucket: 'xgboost-nightly-builds', acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      path = ("${BRANCH_NAME}" == 'master') ? '/' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
