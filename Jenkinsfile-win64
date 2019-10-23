@@ -3,6 +3,9 @@
 
 /* Jenkins pipeline for Windows AMD64 target */
 
+@Field
+def commit_id   // necessary to pass a variable from one stage to another
+
 pipeline {
   agent none
   // Build stages
@@ -12,6 +15,7 @@ pipeline {
       steps {
         script {
           checkoutSrcs()
+          commit_id = "${GIT_COMMIT}"
         }
         stash name: 'srcs'
         milestone ordinal: 1
@@ -76,7 +80,7 @@ def BuildWin64() {
     """
     bat """
     cd python-package
-    conda activate && python setup.py bdist_wheel --universal && python ../tests/ci_build/rename_whl.py dist/*.whl ${env.GIT_COMMIT} win_amd64
+    conda activate && python setup.py bdist_wheel --universal && python ../tests/ci_build/rename_whl.py dist/*.whl ${commit_id} win_amd64
     """
     echo "Insert vcomp140.dll (OpenMP runtime) into the wheel..."
     bat """
