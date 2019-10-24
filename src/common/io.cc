@@ -76,18 +76,16 @@ std::string LoadSequentialFile(std::string fname) {
 
 // File lock
 void FileLock::lock() {  // NOLINT
-  std::ifstream fin(path_);
-  while (fin) {
-    sleep(10);
-    fin.open(path_);
+  while (!try_lock()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
   }
-  fin.close();
   std::ofstream fout { path_ };
   CHECK(fout) << "Failed to acquire file lock: " << path_;
 }
 
 bool FileLock::try_lock() const {  // NOLINT
   std::ifstream fin(path_);
+  // If file exists, then the lock is acquired by other.
   return !fin;
 }
 
