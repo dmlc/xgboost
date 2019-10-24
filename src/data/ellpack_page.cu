@@ -121,7 +121,7 @@ void EllpackPageImpl::InitInfo(int device,
 
 // Initialize the buffer to stored compressed features.
 void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
-  int num_symbols = matrix.info.n_bins + 1;
+  size_t num_symbols = matrix.info.n_bins + 1;
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
