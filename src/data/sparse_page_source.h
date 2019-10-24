@@ -8,6 +8,7 @@
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
 #include <dmlc/threadediter.h>
+#include <dmlc/timer.h>
 
 #include <algorithm>
 #include <limits>
