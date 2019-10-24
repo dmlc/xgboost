@@ -613,7 +613,6 @@ class DMatrix(object):
         else:
             import datatable.internal.frame_column_data_r # pylint: disable=unsubscriptable-object,no-name-in-module,import-error,unused-import,import-outside-toplevel
             for icol in range(data.ncols):
-                # pylint: disable=undefined-variable
                 ptrs[icol] = frame_column_data_r(data, icol)
 
         # always return stypes for dt ingestion

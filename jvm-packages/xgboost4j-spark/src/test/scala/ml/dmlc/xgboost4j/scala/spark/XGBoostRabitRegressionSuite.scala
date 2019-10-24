@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 - 2019 by Contributors
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -32,6 +32,15 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.kryo.classesToRegister", classOf[Booster].getName)
     .master(s"local[${numWorkers},${maxFailure}]")
+
+  private def waitAndCheckSparkShutdown(waitMiliSec: Int): Boolean = {
+    var totalWaitedTime = 0L
+    while (!ss.sparkContext.isStopped && totalWaitedTime <= waitMiliSec) {
+      Thread.sleep(10)
+      totalWaitedTime += 10
+    }
+    return ss.sparkContext.isStopped
+  }
 
   test("test classification prediction parity w/o ring reduce") {
     val training = buildDataFrame(Classification.train)
@@ -84,14 +93,12 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  test("test rabit timeout failure graceful shutdown") {
-    // disable task fail listener
-    TaskFailedListener.killerStarted = true
-
+  test("test rabit timeout fail handle") {
     val training = buildDataFrame(Classification.train)
     // mock rank 0 failure during 4th allreduce synchronization
     Rabit.mockList = Array("0,8,0,0").toList.asJava
-    intercept[SparkException] {
+
+    try {
       new XGBoostClassifier(Map(
         "eta" -> "0.1",
         "max_depth" -> "10",
@@ -101,21 +108,29 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
         "num_workers" -> numWorkers,
         "rabit_timeout" -> 0))
         .fit(training)
+    } catch {
+      case e: Throwable => // swallow anything
+    } finally {
+      // assume all tasks throw exception almost same time
+      // 100ms should be enough to exhaust all retries
+      assert(waitAndCheckSparkShutdown(100) == true)
     }
   }
 
   test("test graceful handle task multiple falures") {
-    // disable task fail listener
-    TaskFailedListener.killerStarted = true
-
     val training = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    // mock rank 0 failure during 4th allreduce synchronization twice
-    Rabit.mockList = Array("0,4,0,0", "0,4,1,0").toList.asJava
-    intercept[SparkException] {
+    // mock rank 0 failure during 8th allreduce synchronization twice
+    Rabit.mockList = Array("0,8,0,0", "0,8,1,0").toList.asJava
+    try {
       new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
         "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers))
         .fit(training)
+    } catch {
+      case e: Throwable => // swallow anything
+    } finally {
+      // assume all task retry
+      assert(waitAndCheckSparkShutdown(100) == false)
     }
   }
 }

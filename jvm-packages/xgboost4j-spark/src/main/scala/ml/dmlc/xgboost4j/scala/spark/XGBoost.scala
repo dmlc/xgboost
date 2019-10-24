@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 - 2019 by Contributors
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -225,20 +225,10 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
   private[spark] def buildRabitParams : Map[String, String] = Map(
     "rabit_reduce_ring_mincount" ->
       overridedParams.getOrElse("rabit_ring_reduce_threshold", 32 << 10).toString,
-    "rabit_debug" -> {
-      if (overridedParams.getOrElse("verbosity", 0).toString.toInt == 3) {
-        "true"
-      } else {
-        "false"
-      }
-    },
-    "rabit_timeout" -> {
-      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0) {
-        "true"
-      } else {
-        "false"
-      }
-    },
+    "rabit_debug" ->
+      (overridedParams.getOrElse("verbosity", 0).toString.toInt == 3).toString,
+    "rabit_timeout" ->
+      (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0).toString,
     "rabit_timeout_sec" -> {
       if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0) {
         overridedParams.get("rabit_timeout").toString
