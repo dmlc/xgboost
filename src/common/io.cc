@@ -8,8 +8,10 @@
 #endif  // defined(__unix__)
 #include <cstdio>
 #include <string>
+#include <fstream>
 
 #include "xgboost/logging.h"
+#include "io.h"
 
 namespace xgboost {
 namespace common {
@@ -61,6 +63,73 @@ std::string LoadSequentialFile(std::string fname) {
   fclose(f);
 #endif  // defined(__unix__)
   return buffer;
+}
+
+namespace {
+void LockFileImpl(std::string const& path) {
+  std::ifstream fin (path);
+  while (fin) {
+    sleep(10);
+    fin.open(path);
+  }
+  fin.close();
+  std::ofstream fout { path };
+  CHECK(fout) << "Failed to acquire file lock: " << path;
+  std::cout << "Acquired file lock:" << path << std::endl;
+}
+
+bool TryLockFileImpl(std::string const& path) {
+  std::ifstream fin(path);
+  return !fin;
+}
+
+void UnlockFileImpl(std::string const& path) noexcept(true) {
+  std::ifstream fin(path);
+  if (fin) {
+    std::remove(path.c_str());
+  }
+}
+}  // anonymous namespace
+
+// Read file lock
+void ReadFileLock::lock() {
+  LockFileImpl(path_);
+}
+
+bool ReadFileLock::try_lock() {
+  return TryLockFileImpl(path_);
+}
+
+void ReadFileLock::unlock() noexcept(true) {
+  UnlockFileImpl(path_);
+}
+
+// Write file lock
+void WriteFileLock::lock() {
+  LockFileImpl(path_);
+}
+
+bool WriteFileLock::try_lock() {
+  return TryLockFileImpl(path_);
+}
+
+void WriteFileLock::unlock() noexcept(true) {
+  UnlockFileImpl(path_);
+}
+
+// File lock
+void FileLock::lock() {
+  read_lock_.lock();
+  write_lock_.lock();
+}
+
+bool FileLock::try_lock() {
+  return read_lock_.try_lock() && write_lock_.try_lock();
+}
+
+void FileLock::unlock() noexcept(true) {
+  read_lock_.unlock();
+  write_lock_.unlock();
 }
 
 }  // namespace common

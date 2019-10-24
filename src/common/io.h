@@ -71,6 +71,49 @@ class PeekableInStream : public dmlc::Stream {
   std::string buffer_;
 };
 
+class ReadFileLock {
+  std::string path_;
+
+ public:
+  ReadFileLock(std::string const& path) {
+    path_ = path + ".xgboost.read.lock";
+  }
+  ~ReadFileLock() { this->unlock(); }
+
+  void lock();
+  bool try_lock();
+  void unlock() noexcept(true);
+};
+
+class WriteFileLock {
+  std::string path_;
+
+ public:
+  WriteFileLock(std::string const& path) {
+    path_ = path + ".xgboost.write.lock";;
+  }
+  ~WriteFileLock() { this->unlock(); }
+
+  void lock();
+  bool try_lock();
+  void unlock() noexcept(true);
+};
+
+/* \brief A file lock that can be used with `std::lock_guard'. */
+class FileLock {
+  ReadFileLock read_lock_;
+  WriteFileLock write_lock_;
+
+ public:
+  FileLock(std::string const& path) :
+      read_lock_{path}, write_lock_{path} {}
+  ~FileLock() { this->unlock(); }
+
+  void lock();  // NOLINT
+  bool try_lock();
+  void unlock() noexcept(true);  // NOLINT
+};
+
 // Optimized for consecutive file loading in unix like systime.
 std::string LoadSequentialFile(std::string fname);
 
