@@ -21,8 +21,6 @@
 #include <thread>
 #endif  // DMLC_ENABLE_STD_THREAD
 
-#include "../common/io.h"
-
 namespace xgboost {
 namespace data {
 

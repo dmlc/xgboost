@@ -6,10 +6,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #endif  // defined(__unix__)
-
 #include <cstdio>
 #include <string>
-#include <chrono>
 
 #include "xgboost/logging.h"
 #include "io.h"

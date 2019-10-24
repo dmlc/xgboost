@@ -10,7 +10,6 @@
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
-
 #include <string>
 #include <cstring>
 

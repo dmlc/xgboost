@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014 by Contributors
+ *  Copyright (c) 2014-2019 by Contributors
  * \file page_csr_source.h
  *  External memory data source, saved with sparse_batch_page binary format.
  * \author Tianqi Chen
@@ -8,8 +8,6 @@
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
 #include <dmlc/threadediter.h>
-#include <dmlc/timer.h>
-#include <dmlc/base.h>
 
 #include <algorithm>
 #include <limits>
@@ -18,9 +16,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#if DMLC_ENABLE_STD_THREAD
-#include <thread>
-#endif
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -128,7 +123,6 @@ class SparsePageSource : public DataSource<T> {
     // read in the cache files.
     for (size_t i = 0; i < cache_shards.size(); ++i) {
       std::string name_row = cache_shards[i] + page_type;
-
       files_[i].reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
       std::string format;
