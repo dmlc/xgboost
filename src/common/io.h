@@ -82,7 +82,7 @@ class FileLock {
   }
   ~FileLock() { this->unlock(); }
 
-  void lock();                  // NOLINT
+  void lock() const;            // NOLINT
   bool try_lock() const;        // NOLINT
   void unlock() noexcept(true); // NOLINT
 };

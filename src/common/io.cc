@@ -75,10 +75,8 @@ std::string LoadSequentialFile(std::string fname) {
 }
 
 // File lock
-void FileLock::lock() {  // NOLINT
-  while (!try_lock()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
-  }
+void FileLock::lock() const {  // NOLINT
+  WaitForLock(*this);
   std::ofstream fout { path_ };
   CHECK(fout) << "Failed to acquire file lock: " << path_;
 }
@@ -102,7 +100,7 @@ void WaitForLock(FileLock const& lock) {
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
   }
 #else
-      LOG(FATAL) << "External memory is not enabled in mingw";
+  LOG(FATAL) << "External memory is not enabled in mingw";
 #endif  //  DMLC_ENABLE_STD_THREAD
 }
 
