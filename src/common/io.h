@@ -87,7 +87,10 @@ class FileLock {
   void unlock() noexcept(true); // NOLINT
 };
 
-/* \brief block until the lock is released by other. */
+/* \brief block until the lock is released by other.
+ *
+ * FIXME(trivialfis): Idealy we should use c++14 `shared_lock' instead.
+ */
 void WaitForLock(FileLock const& lock);
 
 // Optimized for consecutive file loading in unix like systime.
