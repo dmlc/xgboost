@@ -72,27 +72,6 @@ class PeekableInStream : public dmlc::Stream {
   std::string buffer_;
 };
 
-/* \brief A file lock that can be used with `std::lock_guard'. */
-class FileLock {
-  std::string path_;
-
- public:
-  explicit FileLock(std::string const& path) {
-    path_ = path + ".xgboost.lock";;
-  }
-  ~FileLock() { this->unlock(); }
-
-  void lock() const;            // NOLINT
-  bool try_lock() const;        // NOLINT
-  void unlock() noexcept(true); // NOLINT
-};
-
-/* \brief block until the lock is released by other.
- *
- * FIXME(trivialfis): Idealy we should use c++14 `shared_lock' instead.
- */
-void WaitForLock(FileLock const& lock);
-
 // Optimized for consecutive file loading in unix like systime.
 std::string LoadSequentialFile(std::string fname);
 

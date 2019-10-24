@@ -27,7 +27,6 @@
 
 #include "sparse_page_writer.h"
 #include "../common/common.h"
-#include "../common/io.h"
 
 namespace {
 
@@ -116,9 +115,6 @@ class SparsePageSource : public DataSource<T> {
     CHECK_NE(cache_shards.size(), 0U);
     {
       std::string name_info = cache_shards[0];
-      common::FileLock lock {name_info};  // Wait for write to finish.
-      common::WaitForLock(lock);
-
       std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r"));
       int tmagic;
       CHECK_EQ(finfo->Read(&tmagic, sizeof(tmagic)), sizeof(tmagic));
@@ -132,8 +128,6 @@ class SparsePageSource : public DataSource<T> {
     // read in the cache files.
     for (size_t i = 0; i < cache_shards.size(); ++i) {
       std::string name_row = cache_shards[i] + page_type;
-      common::FileLock lock { name_row };
-      common::WaitForLock(lock);
 
       files_[i].reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];

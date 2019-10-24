@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2014 by Contributors
+ * Copyright (c) 2014-2019 by Contributors
  * \file sparse_page_writer.h
  * \author Tianqi Chen
  */
@@ -104,9 +104,6 @@ class SparsePageWriter {
       auto* wqueue = &qworkers_[i];
       workers_[i].reset(new std::thread(
           [this, name_shard, format_shard, wqueue]() {
-            common::FileLock lock { name_shard };
-            std::lock_guard<common::FileLock> guard { lock };
-
             std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_shard.c_str(), "w"));
             std::unique_ptr<SparsePageFormat<T>> fmt(CreatePageFormat<T>(format_shard));
             fo->Write(format_shard);

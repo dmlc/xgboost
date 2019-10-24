@@ -7,18 +7,10 @@
 #include <unistd.h>
 #endif  // defined(__unix__)
 
-#include <dmlc/base.h>
-
 #include <cstdio>
 #include <string>
-#include <fstream>
 #include <chrono>
 
-#if DMLC_ENABLE_STD_THREAD
-#include <thread>
-#endif  //  DMLC_ENABLE_STD_THREAD
-
-#include "xgboost/base.h"
 #include "xgboost/logging.h"
 #include "io.h"
 
@@ -72,36 +64,6 @@ std::string LoadSequentialFile(std::string fname) {
   fclose(f);
 #endif  // defined(__unix__)
   return buffer;
-}
-
-// File lock
-void FileLock::lock() const {  // NOLINT
-  WaitForLock(*this);
-  std::ofstream fout { path_ };
-  CHECK(fout) << "Failed to acquire file lock: " << path_;
-}
-
-bool FileLock::try_lock() const {  // NOLINT
-  std::ifstream fin(path_);
-  // If file exists, then the lock is acquired by other.
-  return !fin;
-}
-
-void FileLock::unlock() noexcept(true) {  // NOLINT
-  std::ifstream fin(path_);
-  if (fin) {
-    std::remove(path_.c_str());
-  }
-}
-
-void WaitForLock(FileLock const& lock) {
-#if DMLC_ENABLE_STD_THREAD
-  while (!lock.try_lock()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
-  }
-#else
-  LOG(FATAL) << "External memory is not enabled in mingw";
-#endif  //  DMLC_ENABLE_STD_THREAD
 }
 
 }  // namespace common
