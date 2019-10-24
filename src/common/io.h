@@ -10,6 +10,7 @@
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
+
 #include <string>
 #include <cstring>
 
@@ -19,8 +20,8 @@ using MemoryFixSizeBuffer = rabit::utils::MemoryFixSizeBuffer;
 using MemoryBufferStream = rabit::utils::MemoryBufferStream;
 
 /*!
- * \brief Input stream that support additional PeekRead
- *  operation, besides read.
+ * \brief Input stream that support additional PeekRead operation,
+ *  besides read.
  */
 class PeekableInStream : public dmlc::Stream {
  public:
@@ -71,48 +72,23 @@ class PeekableInStream : public dmlc::Stream {
   std::string buffer_;
 };
 
-class ReadFileLock {
-  std::string path_;
-
- public:
-  ReadFileLock(std::string const& path) {
-    path_ = path + ".xgboost.read.lock";
-  }
-  ~ReadFileLock() { this->unlock(); }
-
-  void lock();
-  bool try_lock();
-  void unlock() noexcept(true);
-};
-
-class WriteFileLock {
-  std::string path_;
-
- public:
-  WriteFileLock(std::string const& path) {
-    path_ = path + ".xgboost.write.lock";;
-  }
-  ~WriteFileLock() { this->unlock(); }
-
-  void lock();
-  bool try_lock();
-  void unlock() noexcept(true);
-};
-
 /* \brief A file lock that can be used with `std::lock_guard'. */
 class FileLock {
-  ReadFileLock read_lock_;
-  WriteFileLock write_lock_;
+  std::string path_;
 
  public:
-  FileLock(std::string const& path) :
-      read_lock_{path}, write_lock_{path} {}
+  explicit FileLock(std::string const& path) {
+    path_ = path + ".xgboost.lock";;
+  }
   ~FileLock() { this->unlock(); }
 
-  void lock();  // NOLINT
-  bool try_lock();
-  void unlock() noexcept(true);  // NOLINT
+  void lock();                  // NOLINT
+  bool try_lock() const;        // NOLINT
+  void unlock() noexcept(true); // NOLINT
 };
+
+/* \brief block until the lock is released by other. */
+void WaitForLock(FileLock const& lock);
 
 // Optimized for consecutive file loading in unix like systime.
 std::string LoadSequentialFile(std::string fname);

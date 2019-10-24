@@ -12,26 +12,21 @@
 namespace xgboost {
 namespace common {
 
-template <typename MutexT>
-void TestFileLock(std::string const& read_or_write) {
+TEST(IO, FileLock) {
   std::string lock_path {"test_file_lock"};
   {
-    MutexT lock {lock_path};
-    std::lock_guard<MutexT> guard(lock);
-    std::ifstream fin {lock_path + ".xgboost." + read_or_write + ".lock"};
+    FileLock lock {lock_path};
+    std::lock_guard<FileLock> guard(lock);
+    std::ifstream fin {lock_path + ".xgboost.lock"};
     ASSERT_TRUE(fin);
 
-    MutexT lock_new {lock_path};
+    FileLock lock_new {lock_path};
     ASSERT_FALSE(lock_new.try_lock());
   }
 
-  std::ifstream fin {lock_path + ".xgboost." + read_or_write + ".lock"};
+  std::ifstream fin {lock_path + ".xgboost.lock"};
   ASSERT_FALSE(fin);
 }
 
-TEST(IO, FileLock) {
-  TestFileLock<ReadFileLock>("read");
-  TestFileLock<WriteFileLock>("write");
-}
 }  // namespace common
 }  // namespace xgboost

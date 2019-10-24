@@ -6,10 +6,19 @@
 #include <fcntl.h>
 #include <unistd.h>
 #endif  // defined(__unix__)
+
+#include <dmlc/base.h>
+
 #include <cstdio>
 #include <string>
 #include <fstream>
+#include <chrono>
 
+#if DMLC_ENABLE_STD_THREAD
+#include <thread>
+#endif  //  DMLC_ENABLE_STD_THREAD
+
+#include "xgboost/base.h"
 #include "xgboost/logging.h"
 #include "io.h"
 
@@ -65,71 +74,39 @@ std::string LoadSequentialFile(std::string fname) {
   return buffer;
 }
 
-namespace {
-void LockFileImpl(std::string const& path) {
-  std::ifstream fin (path);
+// File lock
+void FileLock::lock() {
+  std::ifstream fin(path_);
   while (fin) {
     sleep(10);
-    fin.open(path);
+    fin.open(path_);
   }
   fin.close();
-  std::ofstream fout { path };
-  CHECK(fout) << "Failed to acquire file lock: " << path;
-  std::cout << "Acquired file lock:" << path << std::endl;
+  std::ofstream fout { path_ };
+  CHECK(fout) << "Failed to acquire file lock: " << path_;
+  LOG(DEBUG) << "Acquired file lock:" << path_;
 }
 
-bool TryLockFileImpl(std::string const& path) {
-  std::ifstream fin(path);
+bool FileLock::try_lock() const {
+  std::ifstream fin(path_);
   return !fin;
 }
 
-void UnlockFileImpl(std::string const& path) noexcept(true) {
-  std::ifstream fin(path);
+void FileLock::unlock() noexcept(true) {
+  std::ifstream fin(path_);
   if (fin) {
-    std::remove(path.c_str());
+    std::remove(path_.c_str());
   }
 }
-}  // anonymous namespace
 
-// Read file lock
-void ReadFileLock::lock() {
-  LockFileImpl(path_);
-}
-
-bool ReadFileLock::try_lock() {
-  return TryLockFileImpl(path_);
-}
-
-void ReadFileLock::unlock() noexcept(true) {
-  UnlockFileImpl(path_);
-}
-
-// Write file lock
-void WriteFileLock::lock() {
-  LockFileImpl(path_);
-}
-
-bool WriteFileLock::try_lock() {
-  return TryLockFileImpl(path_);
-}
-
-void WriteFileLock::unlock() noexcept(true) {
-  UnlockFileImpl(path_);
-}
-
-// File lock
-void FileLock::lock() {
-  read_lock_.lock();
-  write_lock_.lock();
-}
-
-bool FileLock::try_lock() {
-  return read_lock_.try_lock() && write_lock_.try_lock();
-}
-
-void FileLock::unlock() noexcept(true) {
-  read_lock_.unlock();
-  write_lock_.unlock();
+void WaitForLock(FileLock const& lock) {
+#if DMLC_ENABLE_STD_THREAD
+  while (!lock.try_lock()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  }
+#else
+      LOG(FATAL) << "External memory is not enabled in mingw";
+#endif  //  DMLC_ENABLE_STD_THREAD
 }
 
 }  // namespace common
