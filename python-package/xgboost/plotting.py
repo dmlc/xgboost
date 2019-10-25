@@ -53,7 +53,6 @@ def plot_importance(booster, ax=None, height=0.2,
     ax : matplotlib Axes
     """
     try:
-        # pylint: disable=import-outside-toplevel
         import matplotlib.pyplot as plt
     except ImportError:
         raise ImportError('You must install matplotlib to plot importance')
@@ -164,7 +163,6 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
 
     """
     try:
-        # pylint: disable=import-outside-toplevel
         from graphviz import Source
     except ImportError:
         raise ImportError('You must install graphviz to plot tree')
@@ -233,9 +231,7 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
 
     """
     try:
-        # pylint: disable=import-outside-toplevel
         from matplotlib import pyplot as plt
-        # pylint: disable=import-outside-toplevel
         from matplotlib import image
     except ImportError:
         raise ImportError('You must install matplotlib to plot tree')

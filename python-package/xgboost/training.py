@@ -525,7 +525,6 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             break
     if as_pandas:
         try:
-            # pylint: disable= import-outside-toplevel
             import pandas as pd
             results = pd.DataFrame.from_dict(results)
         except ImportError:

@@ -611,7 +611,8 @@ class DMatrix(object):
                 ptr = col.data_pointer
                 ptrs[icol] = ctypes.c_void_p(ptr)
         else:
-            import datatable.internal.frame_column_data_r # pylint: disable=unsubscriptable-object,no-name-in-module,import-error,unused-import,import-outside-toplevel
+            # datatable<=0.8.0
+            from datatable.internal import frame_column_data_r  # pylint: disable=no-name-in-module,import-error
             for icol in range(data.ncols):
                 ptrs[icol] = frame_column_data_r(data, icol)
 
@@ -668,7 +669,6 @@ class DMatrix(object):
         return ctypes2numpy(ret, length.value, np.float32)
 
     def get_uint_info(self, field):
-        # pylint: disable=import-outside-toplevel
         """Get unsigned integer property from the DMatrix.
 
         Parameters
@@ -1040,7 +1040,6 @@ class DMatrix(object):
                 raise ValueError(msg)
 
             valid = ('int', 'float', 'i', 'q')
-            # pylint: disable=unnecessary-comprehension
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
                 raise ValueError('All feature_names must be {int, float, i, q}')
@@ -1196,7 +1195,6 @@ class Booster(object):
         """
         for key, value in kwargs.items():
             if value is not None:
-                # pylint: disable=unnecessary-comprehension
                 if not isinstance(value, STRING_TYPES):
                     raise ValueError("Set Attr only accepts string values")
                 value = c_str(str(value))

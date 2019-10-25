@@ -564,7 +564,6 @@ class XGBModel(XGBModelBase):
         if n_classes is not None:
             if n_classes > 2:
                 assert len(coef.shape) == 1
-                # pylint: disable= unsubscriptable-object
                 assert coef.shape[0] % n_classes == 0
                 coef = coef.reshape((n_classes, -1))
         return coef
