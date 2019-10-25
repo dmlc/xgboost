@@ -140,7 +140,7 @@ struct RowStateOnDevice {
 // to begin processing on each device
 class DeviceHistogramBuilderState {
  public:
-  explicit DeviceHistogramBuilderState(int n_rows) : device_row_state_(n_rows) {}
+  explicit DeviceHistogramBuilderState(size_t n_rows) : device_row_state_(n_rows) {}
 
   const RowStateOnDevice& GetRowStateOnDevice() const {
     return device_row_state_;

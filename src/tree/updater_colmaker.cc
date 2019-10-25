@@ -339,7 +339,7 @@ class ColMaker: public TreeUpdater {
         }
       }
       // rescan, generate candidate split
-      #pragma omp parallel
+#pragma omp parallel
       {
         GradStats c, cright;
         const int tid = omp_get_thread_num();
@@ -608,17 +608,25 @@ class ColMaker: public TreeUpdater {
         poption = static_cast<int>(num_features) * 2 < this->nthread_ ? 1 : 0;
       }
       if (poption == 0) {
+        std::vector<float> densities(num_features);
+        CHECK_EQ(feat_set.size(), num_features);
+        for (bst_omp_uint i = 0; i < num_features; ++i) {
+          int32_t const fid = feat_set[i];
+          densities.at(i) = p_fmat->GetColDensity(fid);
+        }
+
 #pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < num_features; ++i) {
-          int fid = feat_set[i];
-          const int tid = omp_get_thread_num();
+          int32_t const fid = feat_set[i];
+          int32_t const tid = omp_get_thread_num();
           auto c = batch[fid];
           const bool ind = c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
-          if (param_.NeedForwardSearch(p_fmat->GetColDensity(fid), ind)) {
+          auto const density = densities[i];
+          if (param_.NeedForwardSearch(density, ind)) {
             this->EnumerateSplit(c.data(), c.data() + c.size(), +1,
                                  fid, gpair, info, stemp_[tid]);
           }
-          if (param_.NeedBackwardSearch(p_fmat->GetColDensity(fid), ind)) {
+          if (param_.NeedBackwardSearch(density, ind)) {
             this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
                                  fid, gpair, info, stemp_[tid]);
           }

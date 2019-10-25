@@ -41,6 +41,7 @@ class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
 
 BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
   auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
+  CHECK(cast);
   cast->BeforeFirst();
   cast->Next();
   auto begin_iter = BatchIterator<SparsePage>(

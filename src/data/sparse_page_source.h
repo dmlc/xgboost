@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014 by Contributors
+ *  Copyright (c) 2014-2019 by Contributors
  * \file page_csr_source.h
  *  External memory data source, saved with sparse_batch_page binary format.
  * \author Tianqi Chen
@@ -7,8 +7,6 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
-#include <xgboost/base.h>
-#include <xgboost/data.h>
 #include <dmlc/threadediter.h>
 #include <dmlc/timer.h>
 
@@ -19,6 +17,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 
 #include "sparse_page_writer.h"
 #include "../common/common.h"

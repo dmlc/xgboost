@@ -34,7 +34,7 @@ DMLC_REGISTRY_FILE_TAG(rank_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
 
 struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
-  int num_pairsample;
+  size_t num_pairsample;
   float fix_list_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LambdaRankParam) {
@@ -337,7 +337,7 @@ class SortedLabelList {
     // Launch a kernel that populates the segment information for the different groups
     uint32_t *gsegs = group_segments_.data().get();
     const unsigned *dgroups = dgroups_.data().get();
-    int ngroups = dgroups_.size();
+    size_t ngroups = dgroups_.size();
     dh::LaunchN(device_id_, num_elems, nullptr, [=] __device__(unsigned idx){
       // Find the group first
       int group_idx = dh::UpperBound(dgroups, ngroups, idx);
@@ -405,10 +405,10 @@ class SortedLabelList {
                         float weight_normalization_factor) {
     // Group info on device
     const unsigned *dgroups = dgroups_.data().get();
-    int ngroups = dgroups_.size();
+    size_t ngroups = dgroups_.size();
 
-    uint32_t total_items = group_segments_.size();
-    int niter = param_.num_pairsample * total_items;
+    auto total_items = group_segments_.size();
+    size_t niter = param_.num_pairsample * total_items;
 
     float fix_list_weight = param_.fix_list_weight;
 

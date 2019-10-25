@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2014 by Contributors
+ * Copyright (c) 2014-2019 by Contributors
  * \file sparse_page_writer.h
  * \author Tianqi Chen
  */

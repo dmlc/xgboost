@@ -19,8 +19,8 @@ using MemoryFixSizeBuffer = rabit::utils::MemoryFixSizeBuffer;
 using MemoryBufferStream = rabit::utils::MemoryBufferStream;
 
 /*!
- * \brief Input stream that support additional PeekRead
- *  operation, besides read.
+ * \brief Input stream that support additional PeekRead operation,
+ *  besides read.
  */
 class PeekableInStream : public dmlc::Stream {
  public:

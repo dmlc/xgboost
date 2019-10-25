@@ -10,6 +10,7 @@
 #include <string>
 
 #include "xgboost/logging.h"
+#include "io.h"
 
 namespace xgboost {
 namespace common {
