@@ -94,6 +94,9 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   }
 
   test("test rabit timeout fail handle") {
+    // disable spark kill listener to verify if rabit_timeout take effect and kill tasks
+    TaskFailedListener.killerStarted = true
+
     val training = buildDataFrame(Classification.train)
     // mock rank 0 failure during 4th allreduce synchronization
     Rabit.mockList = Array("0,8,0,0").toList.asJava
@@ -114,23 +117,6 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
       // assume all tasks throw exception almost same time
       // 100ms should be enough to exhaust all retries
       assert(waitAndCheckSparkShutdown(100) == true)
-    }
-  }
-
-  test("test graceful handle task multiple falures") {
-    val training = buildDataFrame(Classification.train)
-    val testDF = buildDataFrame(Classification.test)
-    // mock rank 0 failure during 8th allreduce synchronization twice
-    Rabit.mockList = Array("0,8,0,0", "0,8,1,0").toList.asJava
-    try {
-      new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers))
-        .fit(training)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      // assume all task retry
-      assert(waitAndCheckSparkShutdown(100) == false)
     }
   }
 }
