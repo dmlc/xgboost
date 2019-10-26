@@ -7,24 +7,25 @@
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
-#include <xgboost/logging.h>
+
+#include <omp.h>
 #include <rabit/rabit.h>
+#include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
 
-#include "xgboost/host_device_vector.h"
-#include "xgboost/span.h"
-
-#include "common.h"
-
 #include <algorithm>
-#include <omp.h>
 #include <chrono>
 #include <ctime>
-#include <cub/cub.cuh>
 #include <numeric>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "xgboost/logging.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
+#include "common.h"
 #include "timer.h"
 
 #ifdef XGBOOST_USE_NCCL
@@ -205,24 +206,53 @@ __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
 }
 template <typename L>
 __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
-                                L lambda) {
+                              L lambda) {
   for (auto i : GridStrideRange(begin, end)) {
     lambda(i, device_idx);
   }
 }
+
+/* \brief A wrapper around kernel launching syntax, used to guard against empty input.
+ *
+ * - nvcc fails to deduce template argument when kernel is a template accepting __device__
+ *   function as argument.  Hence functions like `LaunchN` cannot use this wrapper.
+ *
+ * - With c++ initialization list `{}` syntax, you are forced to comply with the CUDA type
+ *   spcification.
+ */
+class LaunchKernel {
+  size_t shmem_size_;
+  cudaStream_t stream_;
+
+  dim3 grids_;
+  dim3 blocks_;
+
+ public:
+  LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem=0, cudaStream_t _s=0) :
+      grids_{_grids, 1, 1}, blocks_{_blk, 1, 1}, shmem_size_{_shmem}, stream_{_s} {}
+  LaunchKernel(dim3 _grids, dim3 _blk, size_t _shmem=0, cudaStream_t _s=0) :
+      grids_{_grids}, blocks_{_blk}, shmem_size_{_shmem}, stream_{_s} {}
+
+  template <typename K, typename... Args>
+  void operator()(K kernel, Args... args) {
+    if (XGBOOST_EXPECT(grids_.x * grids_.y * grids_.z == 0, false)) {
+      LOG(DEBUG) << "Skipping empty CUDA kernel.";
+      return;
+    }
+    kernel<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
+  }
+};
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
 inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
-
   safe_cuda(cudaSetDevice(device_idx));
-
   const int GRID_SIZE =
       static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
-                                                         n, lambda);
+  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
+      static_cast<size_t>(0), n, lambda);
 }
 
 // Default stream version
@@ -299,6 +329,16 @@ public:
 inline detail::MemoryLogger &GlobalMemoryLogger() {
   static detail::MemoryLogger memory_logger;
   return memory_logger;
+}
+
+// dh::DebugSyncDevice(__FILE__, __LINE__);
+inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
+  if (file != "" && line != -1) {
+    auto rank = rabit::GetRank();
+    LOG(DEBUG) << "R:" << rank << ": " << file << ":" << line;
+  }
+  safe_cuda(cudaDeviceSynchronize());
+  safe_cuda(cudaGetLastError());
 }
 
 namespace detail{
@@ -763,7 +803,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                       BLOCK_THREADS, segments, num_segments, count);
 
   LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, OffsetT>
-      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates,
+      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates,  // NOLINT
                                                segments + 1, f, num_segments);
 }
 
@@ -963,7 +1003,6 @@ class SaveCudaContext {
  * streams. Must be initialised before use. If XGBoost is compiled without NCCL
  * this is a dummy class that will error if used with more than one GPU.
  */
-
 class AllReducer {
   bool initialised_;
   size_t allreduce_bytes_;  // Keep statistics of the number of bytes communicated
@@ -986,31 +1025,9 @@ class AllReducer {
    *
    * \param device_ordinal The device ordinal.
    */
+  void Init(int _device_ordinal);
 
-  void Init(int _device_ordinal) {
-#ifdef XGBOOST_USE_NCCL
-    /** \brief this >monitor . init. */
-    device_ordinal = _device_ordinal;
-    id = GetUniqueId();
-    dh::safe_cuda(cudaSetDevice(device_ordinal));
-    dh::safe_nccl(ncclCommInitRank(&comm, rabit::GetWorldSize(), id, rabit::GetRank()));
-    safe_cuda(cudaStreamCreate(&stream));
-    initialised_ = true;
-#endif
-  }
-  ~AllReducer() {
-#ifdef XGBOOST_USE_NCCL
-    if (initialised_) {
-      dh::safe_cuda(cudaStreamDestroy(stream));
-      ncclCommDestroy(comm);
-    }
-    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      LOG(CONSOLE) << "======== NCCL Statistics========";
-      LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
-      LOG(CONSOLE) << "AllReduce total MiB communicated: " << allreduce_bytes_/1048576;
-    }
-#endif
-  }
+  ~AllReducer();
 
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing

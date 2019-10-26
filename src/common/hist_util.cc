@@ -293,6 +293,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
 
 void DenseCuts::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
+  monitor_.Start(__func__);
   std::vector<WXQSketch>& sketchs = *in_sketchs;
   constexpr int kFactor = 8;
   // gather the histogram data
@@ -332,6 +333,7 @@ void DenseCuts::Init
     CHECK_GT(cut_size, p_cuts_->cut_ptrs_.back());
     p_cuts_->cut_ptrs_.push_back(cut_size);
   }
+  monitor_.Stop(__func__);
 }
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {

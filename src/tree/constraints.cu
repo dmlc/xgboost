@@ -165,10 +165,11 @@ __global__ void ClearBuffersKernel(
 void FeatureInteractionConstraint::ClearBuffers() {
   CHECK_EQ(output_buffer_bits_.Size(), input_buffer_bits_.Size());
   CHECK_LE(feature_buffer_.Size(), output_buffer_bits_.Size());
-  int constexpr kBlockThreads = 256;
-  const int n_grids = static_cast<int>(
+  uint32_t constexpr kBlockThreads = 256;
+  auto const n_grids = static_cast<uint32_t>(
       common::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
-  ClearBuffersKernel<<<n_grids, kBlockThreads>>>(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      ClearBuffersKernel,
       output_buffer_bits_, input_buffer_bits_);
 }
 
@@ -222,12 +223,14 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
   LBitField64 node_constraints = s_node_constraints_[nid];
   CHECK_EQ(input_buffer_bits_.Size(), output_buffer_bits_.Size());
 
-  int constexpr kBlockThreads = 256;
-  const int n_grids = static_cast<int>(
+  uint32_t constexpr kBlockThreads = 256;
+  auto n_grids = static_cast<uint32_t>(
       common::DivRoundUp(output_buffer_bits_.Size(), kBlockThreads));
-  SetInputBufferKernel<<<n_grids, kBlockThreads>>>(feature_list, input_buffer_bits_);
-
-  QueryFeatureListKernel<<<n_grids, kBlockThreads>>>(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      SetInputBufferKernel,
+      feature_list, input_buffer_bits_);
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      QueryFeatureListKernel,
       node_constraints, input_buffer_bits_, output_buffer_bits_);
 
   thrust::counting_iterator<int32_t> begin(0);
@@ -327,20 +330,20 @@ void FeatureInteractionConstraint::Split(
   dim3 const block3(16, 64, 1);
   dim3 const grid3(common::DivRoundUp(n_sets_, 16),
                    common::DivRoundUp(s_fconstraints_.size(), 64));
-  RestoreFeatureListFromSetsKernel<<<grid3, block3>>>
-      (feature_buffer_,
-       feature_id,
-       s_fconstraints_,
-       s_fconstraints_ptr_,
-       s_sets_,
-       s_sets_ptr_);
+  dh::LaunchKernel {grid3, block3} (
+      RestoreFeatureListFromSetsKernel,
+      feature_buffer_, feature_id,
+      s_fconstraints_, s_fconstraints_ptr_,
+      s_sets_, s_sets_ptr_);
 
-  int constexpr kBlockThreads = 256;
-  const int n_grids = static_cast<int>(common::DivRoundUp(node.Size(), kBlockThreads));
-  InteractionConstraintSplitKernel<<<n_grids, kBlockThreads>>>
-      (feature_buffer_,
-       feature_id,
-       node, left, right);
+  uint32_t constexpr kBlockThreads = 256;
+  auto n_grids = static_cast<uint32_t>(common::DivRoundUp(node.Size(), kBlockThreads));
+
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      InteractionConstraintSplitKernel,
+      feature_buffer_,
+      feature_id,
+      node, left, right);
 }
 
 }  // namespace xgboost
