@@ -80,8 +80,6 @@ struct EllpackMatrix {
   EllpackInfo info;
   common::CompressedIterator<uint32_t> gidx_iter;
 
-  XGBOOST_DEVICE size_t BinCount() const { return info.gidx_fvalue_map.size(); }
-
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
   __device__ bst_float GetElement(size_t ridx, size_t fidx) const {

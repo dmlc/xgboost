@@ -409,7 +409,7 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
   extern __shared__ char smem[];
   GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, matrix.BinCount(), GradientSumT());
+    dh::BlockFill(smem_arr, matrix.info.n_bins, GradientSumT());
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
@@ -428,8 +428,7 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
   if (use_shared_memory_histograms) {
     // Write shared memory back to global memory
     __syncthreads();
-    for (auto i :
-         dh::BlockStrideRange(static_cast<size_t>(0), matrix.BinCount())) {
+    for (auto i : dh::BlockStrideRange(static_cast<size_t>(0), matrix.info.n_bins)) {
       dh::AtomicAddGpair(d_node_hist + i, smem_arr[i]);
     }
   }
@@ -636,7 +635,7 @@ struct GPUHistMakerDevice {
 
     const size_t smem_size =
         use_shared_memory_histograms
-            ? sizeof(GradientSumT) * page->matrix.BinCount()
+            ? sizeof(GradientSumT) * page->matrix.info.n_bins
             : 0;
     const int items_per_thread = 8;
     const int block_threads = 256;
@@ -766,7 +765,7 @@ struct GPUHistMakerDevice {
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->matrix.BinCount() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+        page->matrix.info.n_bins * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     reducer->Synchronize();
 
     monitor.StopCuda("AllReduce");
