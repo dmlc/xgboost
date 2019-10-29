@@ -9,9 +9,11 @@
 
 #include <random>
 #include <cinttypes>
+#include <utility>
 #include "./helpers.h"
 #include "xgboost/c_api.h"
 
+#include "../../src/data/simple_batch_iterator.h"
 #include "../../src/data/simple_csr_source.h"
 #include "../../src/gbm/gbtree_model.h"
 
@@ -267,6 +269,44 @@ gbm::GBTreeModel CreateTestModel() {
   model.param.num_output_group = 1;
   model.base_margin = 0;
   return model;
+}
+
+EllpackPageDMatrix::EllpackPageDMatrix(std::shared_ptr<DMatrix> dmat,
+                                       std::unique_ptr<EllpackPage> page)
+    : dmat_(std::move(dmat)), page_(std::move(page)) {}
+
+MetaInfo& EllpackPageDMatrix::Info() {
+  return dmat_->Info();
+}
+
+const MetaInfo& EllpackPageDMatrix::Info() const {
+  return dmat_->Info();
+}
+
+bool EllpackPageDMatrix::SingleColBlock() const {
+  return dmat_->SingleColBlock();
+}
+
+float EllpackPageDMatrix::GetColDensity(size_t cidx) {
+  return dmat_->GetColDensity(cidx);
+}
+
+BatchSet<EllpackPage> EllpackPageDMatrix::GetEllpackBatches(const BatchParam& param) {
+  auto begin_iter = BatchIterator<EllpackPage>(
+      new ::xgboost::data::SimpleBatchIteratorImpl<EllpackPage>(page_.get()));
+  return BatchSet<EllpackPage>(begin_iter);
+}
+
+BatchSet<SparsePage> EllpackPageDMatrix::GetRowBatches() {
+  return dmat_->GetBatches<SparsePage>();
+}
+
+BatchSet<CSCPage> EllpackPageDMatrix::GetColumnBatches() {
+  return dmat_->GetBatches<CSCPage>();
+}
+
+BatchSet<SortedCSCPage> EllpackPageDMatrix::GetSortedColumnBatches() {
+  return dmat_->GetBatches<SortedCSCPage>();
 }
 
 }  // namespace xgboost

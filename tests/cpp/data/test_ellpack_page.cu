@@ -29,7 +29,8 @@ TEST(EllpackPage, EmptyDMatrix) {
 
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols);
+  auto dmat = BuildEllpackPageDMatrix(kNRows, kNCols);
+  auto page = dmat->GetEllpackPage()->Impl();
 
   std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
@@ -62,7 +63,8 @@ TEST(EllpackPage, BuildGidxDense) {
 
 TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
+  auto dmat = BuildEllpackPageDMatrix(kNRows, kNCols, 0.9f);
+  auto page = dmat->GetEllpackPage()->Impl();
 
   std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
