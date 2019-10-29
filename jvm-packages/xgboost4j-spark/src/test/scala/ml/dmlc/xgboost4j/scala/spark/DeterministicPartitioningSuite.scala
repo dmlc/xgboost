@@ -16,8 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import ml.dmlc.xgboost4j.scala.Classification
 import org.scalatest.FunSuite
-
 import org.apache.spark.sql.functions._
 
 class DeterministicPartitioningSuite extends FunSuite with TmpFolderPerSuite with PerTest {

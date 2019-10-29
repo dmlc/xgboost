@@ -14,11 +14,13 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark
+package ml.dmlc.xgboost4j.scala
 
 import scala.collection.mutable
 import scala.io.Source
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
+import ml.dmlc.xgboost4j.java.{Classification => JClassification}
 
 trait TrainTestData {
   protected def getResourceLines(resource: String): Iterator[String] = {
@@ -62,6 +64,9 @@ trait TrainTestData {
 }
 
 object Classification extends TrainTestData {
+  private[xgboost4j] val trainFile = JClassification.trainFile
+  private[xgboost4j] val testFile = JClassification.testFile
+
   val train: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
   val test: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
 }

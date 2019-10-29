@@ -16,13 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-
+import ml.dmlc.xgboost4j.scala.{Classification, DMatrix, MultiClassification, Synthetic, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg._
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
-
 import org.apache.spark.Partitioner
 
 class XGBoostClassifierSuite extends FunSuite with PerTest {
