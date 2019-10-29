@@ -538,7 +538,7 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
     row_partitioner.reset();  // Release the device memory first before reallocating
-    row_partitioner.reset(new RowPartitioner(device_id, n_rows));
+    row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
 
     dh::safe_cuda(cudaMemcpyAsync(
         gpair.data(), dh_gpair->ConstDevicePointer(),

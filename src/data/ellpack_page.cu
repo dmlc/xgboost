@@ -67,7 +67,8 @@ __global__ void CompressBinEllpackKernel(
 }
 
 // Construct an ELLPACK matrix in memory.
-EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
+EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
+    : n_rows(dmat->Info().num_row_) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
