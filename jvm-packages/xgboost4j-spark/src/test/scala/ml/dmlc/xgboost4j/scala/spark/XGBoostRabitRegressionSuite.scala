@@ -46,14 +46,13 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
 
-    val model1 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+    val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
-    ).fit(training)
+
+    val model1 = new XGBoostClassifier(xgbSettings).fit(training)
     val prediction1 = model1.transform(testDF).select("prediction").collect()
 
-    val model2 = new XGBoostClassifier(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_ring_reduce_threshold" -> 1))
+    val model2 = new XGBoostClassifier(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1))
       .fit(training)
 
     assert(Rabit.rabitEnvs.asScala.size > 3)
@@ -72,15 +71,14 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     val training = buildDataFrame(Regression.train)
     val testDM = new DMatrix(Regression.test.iterator, null)
     val testDF = buildDataFrame(Classification.test)
-
-    val model1 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+    val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
-    ).fit(training)
+    val model1 = new XGBoostRegressor(xgbSettings).fit(training)
+
     val prediction1 = model1.transform(testDF).select("prediction").collect()
 
-    val model2 = new XGBoostRegressor(Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers,
-      "rabit_ring_reduce_threshold" -> 1)).fit(training)
+    val model2 = new XGBoostRegressor(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1)
+    ).fit(training)
     assert(Rabit.rabitEnvs.asScala.size > 3)
     Rabit.rabitEnvs.asScala.foreach( item => {
       if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
@@ -98,7 +96,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     TaskFailedListener.killerStarted = true
 
     val training = buildDataFrame(Classification.train)
-    // mock rank 0 failure during 4th allreduce synchronization
+    // mock rank 0 failure during 8th allreduce synchronization
     Rabit.mockList = Array("0,8,0,0").toList.asJava
 
     try {
