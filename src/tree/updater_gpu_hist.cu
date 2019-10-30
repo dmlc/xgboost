@@ -1013,8 +1013,13 @@ class GPUHistMakerSpecialised {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
-    auto page = (*dmat->GetBatches<EllpackPage>({
-        device_, param_.max_bin, hist_maker_param_.gpu_batch_nrows}).begin()).Impl();
+    auto batch_param = BatchParam{
+      device_,
+      param_.max_bin,
+      hist_maker_param_.gpu_batch_nrows,
+      generic_param_->gpu_page_size
+    };
+    auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(device_));
     maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
                                                      page,

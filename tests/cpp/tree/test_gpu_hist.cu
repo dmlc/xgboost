@@ -350,29 +350,52 @@ TEST(GpuHist, MinSplitLoss) {
   }
   delete dmat;
 }
-/*
 
-TEST(GpuHist, ExternalMemory) {
-  constexpr int kRows = 1000, kCols = 10;
+RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, size_t gpu_page_size) {
+  if (gpu_page_size > 0) {
+    // Loop over the batches and count the records
+    int64_t batch_count = 0;
+    int64_t row_count = 0;
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 0, gpu_page_size})) {
+      EXPECT_LT(batch.Size(), dmat->Info().num_row_);
+      batch_count++;
+      row_count += batch.Size();
+    }
+    EXPECT_EQ(batch_count, 2);
+    EXPECT_EQ(row_count, dmat->Info().num_row_);
+  }
 
-  auto dmat = CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true);
-  dmlc::TemporaryDirectory tempdir;
-  auto dmat_ext = CreateSparsePageDMatrixWithRC(kRows, kCols, 128UL, true, tempdir);
-  auto gpair = GenerateRandomGradients(kRows);
-
-  Args args {
-//      {"max_depth", "2"}
+  Args args{
+      {"max_depth", "2"},
+      {"reg_alpha", "0"},
+      {"reg_lambda", "0"}
   };
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
   GenericParameter generic_param(CreateEmptyGenericParam(0));
+  generic_param.gpu_page_size = gpu_page_size;
   hist_maker.Configure(args, &generic_param);
 
   RegTree tree;
-  hist_maker.Update(&gpair, dmat.get(), {&tree});
-  ASSERT_EQ(tree.NumExtraNodes(), 6);
+  hist_maker.Update(gpair, dmat, {&tree});
+  return tree;
 }
-*/
+
+TEST(GpuHist, DISABLED_ExternalMemory) {
+  constexpr size_t kRows = 1024;
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  auto dmat = CreateSparsePageDMatrix(kRows * 3, 1024, filename);
+  auto gpair = GenerateRandomGradients(kRows);
+
+  RegTree tree = GetUpdatedTree(&gpair, dmat.get(), 0);
+  ASSERT_EQ(tree.NumExtraNodes(), 6);
+
+  RegTree tree_ext = GetUpdatedTree(&gpair, dmat.get(), 1024);
+  ASSERT_EQ(tree_ext.NumExtraNodes(), 6);
+
+  ASSERT_EQ(tree, tree_ext);
+}
 
 }  // namespace tree
 }  // namespace xgboost

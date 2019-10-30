@@ -32,6 +32,7 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
   int64_t batch_count = 0;
   int64_t row_count = 0;
   for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 0, 7UL})) {
+    EXPECT_LT(batch.Size(), dmat->Info().num_row_);
     batch_count++;
     row_count += batch.Size();
   }

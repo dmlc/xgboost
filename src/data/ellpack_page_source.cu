@@ -146,7 +146,7 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
       impl->matrix.info = ellpack_info_;
       impl->Clear();
       double tdiff = dmlc::GetTime() - tstart;
-      LOG(INFO) << "Writing to " << cache_info << " in "
+      LOG(INFO) << "Writing " << kPageType_ << " to " << cache_info << " in "
                 << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
                 << (bytes_write >> 20UL) << " written";
     }
