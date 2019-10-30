@@ -15,8 +15,6 @@ EllpackPage::EllpackPage() : impl_{new EllpackPageImpl()} {}
 EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param)
     : impl_{new EllpackPageImpl(dmat, param)} {}
 
-EllpackPage::EllpackPage(std::unique_ptr<EllpackPageImpl> impl) : impl_(std::move(impl)) {}
-
 EllpackPage::~EllpackPage() = default;
 
 size_t EllpackPage::Size() const {

@@ -297,13 +297,6 @@ class EllpackPage {
    */
   explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
 
-  /*!
-   * \brief Constructor from an existing EllpackPageImpl.
-   *
-   * This is used for testing only.
-   */
-  explicit EllpackPage(std::unique_ptr<EllpackPageImpl> impl);
-
   /*! \brief Destructor. */
   ~EllpackPage();
 

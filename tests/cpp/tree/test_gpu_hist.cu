@@ -56,6 +56,22 @@ TEST(GpuHist, DeviceHistogram) {
   };
 }
 
+namespace {
+class HistogramCutsWrapper : public common::HistogramCuts {
+ public:
+  using SuperT = common::HistogramCuts;
+  void SetValues(std::vector<float> cuts) {
+    SuperT::cut_values_ = cuts;
+  }
+  void SetPtrs(std::vector<uint32_t> ptrs) {
+    SuperT::cut_ptrs_ = ptrs;
+  }
+  void SetMins(std::vector<float> mins) {
+    SuperT::min_vals_ = mins;
+  }
+};
+}  //  anonymous namespace
+
 std::vector<GradientPairPrecise> GetHostHistGpair() {
   // 24 bins, 3 bins for each feature (column).
   std::vector<GradientPairPrecise> hist_gpair = {
@@ -81,9 +97,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
     {"max_leaves", "0"},
   };
   param.Init(args);
-  auto dmat = BuildEllpackPageDMatrix(kNRows, kNCols);
-  GPUHistMakerDevice<GradientSumT> maker(0, dmat.get(), param, kNCols, 0);
-  auto page = dmat->GetEllpackPage()->Impl();
+  auto page = BuildEllpackPage(kNRows, kNCols);
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols);
   maker.InitHistogram();
   
   xgboost::SimpleLCG gen;
@@ -183,9 +198,8 @@ TEST(GpuHist, EvaluateSplits) {
   int max_bins = 4;
 
   // Initialize GPUHistMakerDevice
-  auto dmat = BuildEllpackPageDMatrix(kNRows, kNCols);
-  GPUHistMakerDevice<GradientPairPrecise> maker(0, dmat.get(), param, kNCols, 0);
-  auto page = dmat->GetEllpackPage()->Impl();
+  auto page = BuildEllpackPage(kNRows, kNCols);
+  GPUHistMakerDevice<GradientPairPrecise> maker(0, page.get(), kNRows, param, kNCols, kNCols);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {{6.4f, 12.8f}};
 

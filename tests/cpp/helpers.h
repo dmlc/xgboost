@@ -176,7 +176,7 @@ class SimpleRealUniformDistribution {
  *
  * \return  The new d matrix.
  */
-std::shared_ptr<xgboost::DMatrix>* CreateDMatrix(int rows, int columns,
+std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
                                                  float sparsity, int seed = 0);
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
@@ -214,29 +214,6 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
-class EllpackPageDMatrix : public DMatrix {
- public:
-  EllpackPageDMatrix(std::shared_ptr<DMatrix> dmat, std::unique_ptr<EllpackPage> page);
-
-  MetaInfo& Info() override;
-  const MetaInfo& Info() const override;
-  bool SingleColBlock() const override;
-  float GetColDensity(size_t cidx) override;
-  EllpackPage* GetEllpackPage() {
-    return page_.get();
-  }
-
- protected:
-  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
-  BatchSet<SparsePage> GetRowBatches() override;
-  BatchSet<CSCPage> GetColumnBatches() override;
-  BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-
- private:
-  std::shared_ptr<DMatrix> dmat_;
-  std::unique_ptr<EllpackPage> page_;
-};
-
 #if defined(__CUDACC__)
 namespace {
 class HistogramCutsWrapper : public common::HistogramCuts {
@@ -254,8 +231,7 @@ class HistogramCutsWrapper : public common::HistogramCuts {
 };
 }  //  anonymous namespace
 
-
-inline std::unique_ptr<EllpackPageDMatrix> BuildEllpackPageDMatrix(
+inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     int n_rows, int n_cols, bst_float sparsity= 0) {
   auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
   const SparsePage& batch = *(*dmat)->GetBatches<xgboost::SparsePage>().begin();
@@ -284,10 +260,9 @@ inline std::unique_ptr<EllpackPageDMatrix> BuildEllpackPageDMatrix(
   page->InitCompressedData(0, n_rows);
   page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
 
-  auto ellpack_page = std::unique_ptr<EllpackPage>(new EllpackPage(std::move(page)));
-  auto ellpack_dmat = std::unique_ptr<EllpackPageDMatrix>(
-      new EllpackPageDMatrix(*dmat, std::move(ellpack_page)));
-  return ellpack_dmat;
+  delete dmat;
+
+  return page;
 }
 #endif
 

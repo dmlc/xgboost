@@ -438,8 +438,6 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
 template <typename GradientSumT>
 struct GPUHistMakerDevice {
   int device_id;
-  DMatrix* dmat;
-  int gpu_batch_nrows;
   EllpackPageImpl* page;
 
   dh::BulkAllocator ba;
@@ -478,20 +476,18 @@ struct GPUHistMakerDevice {
   std::unique_ptr<ExpandQueue> qexpand;
 
   GPUHistMakerDevice(int _device_id,
-                     DMatrix* _dmat,
+                     EllpackPageImpl* _page,
+                     bst_uint _n_rows,
                      TrainParam _param,
                      uint32_t column_sampler_seed,
-                     int _gpu_batch_nrows)
+                     uint32_t n_features)
       : device_id(_device_id),
-        dmat(_dmat),
-        n_rows(_dmat->Info().num_row_),
+        page(_page),
+        n_rows(_n_rows),
         param(std::move(_param)),
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
-        interaction_constraints(param, _dmat->Info().num_col_),
-        gpu_batch_nrows(_gpu_batch_nrows) {
-    page = (*dmat->GetBatches<EllpackPage>({device_id, param.max_bin,
-                                            gpu_batch_nrows}).begin()).Impl();
+        interaction_constraints(param, n_features) {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
@@ -783,6 +779,7 @@ struct GPUHistMakerDevice {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
+
     // Decide whether to build the left histogram or right histogram
     // Use sum of Hessian as a heuristic to select node with fewest training instances
     bool fewer_right = candidate.split.right_sum.GetHess() < candidate.split.left_sum.GetHess();
@@ -1016,12 +1013,21 @@ class GPUHistMakerSpecialised {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
+    // TODO(rongou): support multiple Ellpack pages.
+    EllpackPageImpl* page{};
+    for (auto& batch : dmat->GetBatches<EllpackPage>({device_,
+                                                      param_.max_bin,
+                                                      hist_maker_param_.gpu_batch_nrows})) {
+      page = batch.Impl();
+    }
+
     dh::safe_cuda(cudaSetDevice(device_));
     maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
-                                                     dmat,
+                                                     page,
+                                                     info_->num_row_,
                                                      param_,
                                                      column_sampling_seed,
-                                                     hist_maker_param_.gpu_batch_nrows));
+                                                     info_->num_col_));
 
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
