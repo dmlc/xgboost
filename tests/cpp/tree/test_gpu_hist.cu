@@ -316,21 +316,25 @@ int32_t TestMinSplitLoss(DMatrix* dmat, float gamma, HostDeviceVector<GradientPa
   return n_nodes;
 }
 
-TEST(GpuHist, MinSplitLoss) {
-  constexpr size_t kRows = 32;
-  constexpr size_t kCols = 16;
-  constexpr float kSparsity = 0.6;
-  auto dmat = CreateDMatrix(kRows, kCols, kSparsity, 3);
-
+HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(kRows);
+  std::vector<GradientPair> h_gpair(n_rows);
   for (auto &gpair : h_gpair) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
     gpair = GradientPair(grad, hess);
   }
   HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
+}
+
+TEST(GpuHist, MinSplitLoss) {
+  constexpr size_t kRows = 32;
+  constexpr size_t kCols = 16;
+  constexpr float kSparsity = 0.6;
+  auto dmat = CreateDMatrix(kRows, kCols, kSparsity, 3);
+  auto gpair = GenerateRandomGradients(kRows);
 
   {
     int32_t n_nodes = TestMinSplitLoss((*dmat).get(), 0.01, &gpair);
@@ -346,6 +350,29 @@ TEST(GpuHist, MinSplitLoss) {
   }
   delete dmat;
 }
+/*
+
+TEST(GpuHist, ExternalMemory) {
+  constexpr int kRows = 1000, kCols = 10;
+
+  auto dmat = CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true);
+  dmlc::TemporaryDirectory tempdir;
+  auto dmat_ext = CreateSparsePageDMatrixWithRC(kRows, kCols, 128UL, true, tempdir);
+  auto gpair = GenerateRandomGradients(kRows);
+
+  Args args {
+//      {"max_depth", "2"}
+  };
+
+  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  hist_maker.Configure(args, &generic_param);
+
+  RegTree tree;
+  hist_maker.Update(&gpair, dmat.get(), {&tree});
+  ASSERT_EQ(tree.NumExtraNodes(), 6);
+}
+*/
 
 }  // namespace tree
 }  // namespace xgboost

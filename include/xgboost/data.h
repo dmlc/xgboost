@@ -166,14 +166,14 @@ struct BatchParam {
   int max_bin;
   /*! \brief Number of rows in a GPU batch, used for finding quantiles on GPU. */
   int gpu_batch_nrows;
-  /*! \brief Desired size of each batch/page. */
-  size_t page_size;
+  /*! \brief Page size for external memory mode. */
+  size_t gpu_page_size;
 
   inline bool operator!=(const BatchParam& other) const {
     return gpu_id != other.gpu_id ||
         max_bin != other.max_bin ||
         gpu_batch_nrows != other.gpu_batch_nrows ||
-        page_size != other.page_size;
+        gpu_page_size != other.gpu_page_size;
   }
 };
 

@@ -40,6 +40,7 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   const std::string kPageType_{".ellpack.page"};
 
   int device_{-1};
+  size_t page_size_{DMatrix::kPageSize};
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
   /*! \brief The EllpackInfo, with the underlying GPU memory shared by all pages. */
@@ -72,8 +73,12 @@ const EllpackPage& EllpackPageSource::Value() const {
 // each CSR page, and write the accumulated ELLPACK pages to disk.
 EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
                                              const std::string& cache_info,
-                                             const BatchParam& param) noexcept(false) {
-  device_ = param.gpu_id;
+                                             const BatchParam& param) noexcept(false)
+    : device_(param.gpu_id) {
+
+  if (param.gpu_page_size > 0) {
+    page_size_ = param.gpu_page_size;
+  }
 
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(device_));
@@ -133,7 +138,7 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     impl->Push(device_, batch);
 
-    if (impl->MemCostBytes() >= DMatrix::kPageSize) {
+    if (impl->MemCostBytes() >= page_size_) {
       bytes_write += impl->MemCostBytes();
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);

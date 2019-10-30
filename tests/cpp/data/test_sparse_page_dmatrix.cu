@@ -23,4 +23,22 @@ TEST(GPUSparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
+TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
+
+  // Loop over the batches and count the records
+  int64_t batch_count = 0;
+  int64_t row_count = 0;
+  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 0, 7UL})) {
+    batch_count++;
+    row_count += batch.Size();
+  }
+  EXPECT_GE(batch_count, 2);
+  EXPECT_EQ(row_count, dmat->Info().num_row_);
+
+  EXPECT_TRUE(FileExists(filename + ".cache.ellpack.page"));
+}
+
 }  // namespace xgboost
