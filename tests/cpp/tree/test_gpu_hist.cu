@@ -56,22 +56,6 @@ TEST(GpuHist, DeviceHistogram) {
   };
 }
 
-namespace {
-class HistogramCutsWrapper : public common::HistogramCuts {
- public:
-  using SuperT = common::HistogramCuts;
-  void SetValues(std::vector<float> cuts) {
-    SuperT::cut_values_ = cuts;
-  }
-  void SetPtrs(std::vector<uint32_t> ptrs) {
-    SuperT::cut_ptrs_ = ptrs;
-  }
-  void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_ = mins;
-  }
-};
-}  //  anonymous namespace
-
 std::vector<GradientPairPrecise> GetHostHistGpair() {
   // 24 bins, 3 bins for each feature (column).
   std::vector<GradientPairPrecise> hist_gpair = {
