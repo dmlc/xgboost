@@ -712,33 +712,43 @@ struct GPUHistMakerDevice {
   // After tree update is finished, update the position of all training
   // instances to their final leaf This information is used later to update the
   // prediction cache
-  void FinalisePosition(RegTree* p_tree) {
+  void FinalisePosition(RegTree* p_tree, DMatrix* p_fmat) {
     const auto d_nodes =
         temp_memory.GetSpan<RegTree::Node>(p_tree->GetNodes().size());
     dh::safe_cuda(cudaMemcpy(d_nodes.data(), p_tree->GetNodes().data(),
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
-    auto d_matrix = page->matrix;
-    row_partitioner->FinalisePosition(
-        [=] __device__(bst_uint ridx, int position) {
-          auto node = d_nodes[position];
 
-          while (!node.IsLeaf()) {
-            bst_float element = d_matrix.GetElement(ridx, node.SplitIndex());
-            // Missing value
-            if (isnan(element)) {
-              position = node.DefaultChild();
-            } else {
-              if (element <= node.SplitCond()) {
-                position = node.LeftChild();
+    if (row_partitioner->GetRows().size() != n_rows) {
+      row_partitioner.reset();  // Release the device memory first before reallocating
+      row_partitioner.reset(new RowPartitioner(device_id, n_rows));
+    }
+
+    for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+      page = batch.Impl();
+      auto d_matrix = page->matrix;
+      auto base_rowid = page->base_rowid;
+      row_partitioner->FinalisePosition(
+          [=] __device__(bst_uint ridx, int position) {
+            auto node = d_nodes[position];
+
+            while (!node.IsLeaf()) {
+              bst_float element = d_matrix.GetElement(ridx - base_rowid, node.SplitIndex());
+              // Missing value
+              if (isnan(element)) {
+                position = node.DefaultChild();
               } else {
-                position = node.RightChild();
+                if (element <= node.SplitCond()) {
+                  position = node.LeftChild();
+                } else {
+                  position = node.RightChild();
+                }
               }
+              node = d_nodes[position];
             }
-            node = d_nodes[position];
-          }
-          return position;
-        });
+            return position;
+          });
+    }
   }
 
   void UpdatePredictionCache(bst_float* out_preds_d) {
@@ -790,11 +800,9 @@ struct GPUHistMakerDevice {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left,
-        int nidx_right, dh::AllReducer* reducer) {
+  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left, int nidx_right) {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
-
 
     // Decide whether to build the left histogram or right histogram
     // Use sum of Hessian as a heuristic to select node with fewest training instances
@@ -804,11 +812,39 @@ struct GPUHistMakerDevice {
     }
 
     this->BuildHist(build_hist_nidx);
-    this->AllReduceHist(build_hist_nidx, reducer);
 
     // Check whether we can use the subtraction trick to calculate the other
     bool do_subtraction_trick = this->CanDoSubtractionTrick(
          candidate.nid, build_hist_nidx, subtraction_trick_nidx);
+
+    if (!do_subtraction_trick) {
+      // Calculate other histogram manually
+      this->BuildHist(subtraction_trick_nidx);
+    }
+  }
+
+  /**
+   * \brief AllReduce GPU histograms for the left and right child of some parent node.
+   */
+  void ReduceHistLeftRight(const ExpandEntry& candidate,
+                           int nidx_left,
+                           int nidx_right,
+                           dh::AllReducer* reducer) {
+    auto build_hist_nidx = nidx_left;
+    auto subtraction_trick_nidx = nidx_right;
+
+    // Decide whether to build the left histogram or right histogram
+    // Use sum of Hessian as a heuristic to select node with fewest training instances
+    bool fewer_right = candidate.split.right_sum.GetHess() < candidate.split.left_sum.GetHess();
+    if (fewer_right) {
+      std::swap(build_hist_nidx, subtraction_trick_nidx);
+    }
+
+    this->AllReduceHist(build_hist_nidx, reducer);
+
+    // Check whether we can use the subtraction trick to calculate the other
+    bool do_subtraction_trick = this->CanDoSubtractionTrick(
+        candidate.nid, build_hist_nidx, subtraction_trick_nidx);
 
     if (do_subtraction_trick) {
       // Calculate other histogram using subtraction trick
@@ -816,10 +852,10 @@ struct GPUHistMakerDevice {
                              subtraction_trick_nidx);
     } else {
       // Calculate other histogram manually
-      this->BuildHist(subtraction_trick_nidx);
       this->AllReduceHist(subtraction_trick_nidx, reducer);
     }
   }
+
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
 
@@ -918,15 +954,25 @@ struct GPUHistMakerDevice {
       int left_child_nidx = tree[candidate.nid].LeftChild();
       int right_child_nidx = tree[candidate.nid].RightChild();
       // Only create child entries if needed
-      if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
-                                    num_leaves)) {
-        monitor.StartCuda("UpdatePosition");
-        this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
-        monitor.StopCuda("UpdatePosition");
+      if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx), num_leaves)) {
+        for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+          page = batch.Impl();
+          if (page->n_rows != row_partitioner->GetRows().size()) {
+            row_partitioner.reset();  // Release the device memory first before reallocating
+            row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
+          }
 
-        monitor.StartCuda("BuildHist");
-        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-        monitor.StopCuda("BuildHist");
+          monitor.StartCuda("UpdatePosition");
+          this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
+          monitor.StopCuda("UpdatePosition");
+
+          monitor.StartCuda("BuildHist");
+          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx);
+          monitor.StopCuda("BuildHist");
+        }
+        monitor.StartCuda("ReduceHist");
+        this->ReduceHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
+        monitor.StopCuda("ReduceHist");
 
         monitor.StartCuda("EvaluateSplits");
         auto splits = this->EvaluateSplits({left_child_nidx, right_child_nidx},
@@ -943,7 +989,7 @@ struct GPUHistMakerDevice {
     }
 
     monitor.StartCuda("FinalisePosition");
-    this->FinalisePosition(p_tree);
+    this->FinalisePosition(p_tree, p_fmat);
     monitor.StopCuda("FinalisePosition");
   }
 };
