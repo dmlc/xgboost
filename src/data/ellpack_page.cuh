@@ -183,6 +183,7 @@ class EllpackPageImpl {
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
+  size_t base_rowid{};
   size_t n_rows{};
 
   /*!
@@ -238,7 +239,7 @@ class EllpackPageImpl {
 
   /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) {
-    base_rowid_ = row_id;
+    base_rowid = row_id;
   }
 
   /*! \brief clear the page. */
@@ -264,7 +265,6 @@ class EllpackPageImpl {
  private:
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
-  size_t base_rowid_{};
   bool device_initialized_{false};
 };
 

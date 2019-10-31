@@ -82,7 +82,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   };
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols);
+  BatchParam batch_param{};
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols, batch_param);
   maker.InitHistogram();
   
   xgboost::SimpleLCG gen;
@@ -183,7 +184,9 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
-  GPUHistMakerDevice<GradientPairPrecise> maker(0, page.get(), kNRows, param, kNCols, kNCols);
+  BatchParam batch_param{};
+  GPUHistMakerDevice<GradientPairPrecise>
+      maker(0, page.get(), kNRows, param, kNCols, kNCols, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {{6.4f, 12.8f}};
 

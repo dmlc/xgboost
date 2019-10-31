@@ -402,6 +402,7 @@ struct CalcWeightTrainParam {
 
 template <typename GradientSumT>
 __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
+                                    size_t base_rowid,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* d_node_hist,
                                     const GradientPair* d_gpair, size_t n_elements,
@@ -421,7 +422,7 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx + base_rowid]);
     }
   }
 
@@ -439,6 +440,7 @@ template <typename GradientSumT>
 struct GPUHistMakerDevice {
   int device_id;
   EllpackPageImpl* page;
+  BatchParam batch_param;
 
   dh::BulkAllocator ba;
 
@@ -480,14 +482,16 @@ struct GPUHistMakerDevice {
                      bst_uint _n_rows,
                      TrainParam _param,
                      uint32_t column_sampler_seed,
-                     uint32_t n_features)
+                     uint32_t n_features,
+                     BatchParam _batch_param)
       : device_id(_device_id),
         page(_page),
         n_rows(_n_rows),
         param(std::move(_param)),
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
-        interaction_constraints(param, n_features) {
+        interaction_constraints(param, n_features),
+        batch_param(_batch_param) {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
@@ -625,6 +629,18 @@ struct GPUHistMakerDevice {
     return std::vector<DeviceSplitCandidate>(result_all.begin(), result_all.end());
   }
 
+  // Build gradient histograms for a given node across all the batches in the DMatrix.
+  void BuildHistBatches(int nidx, DMatrix* p_fmat) {
+    for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+      page = batch.Impl();
+      if (page->n_rows != row_partitioner->GetRows().size()) {
+        row_partitioner.reset();  // Release the device memory first before reallocating
+        row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
+      }
+      BuildHist(nidx);
+    }
+  }
+
   void BuildHist(int nidx) {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
@@ -645,7 +661,7 @@ struct GPUHistMakerDevice {
       return;
     }
     SharedMemHistKernel<<<grid_size, block_threads, smem_size>>>(
-        page->matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
+        page->matrix, page->base_rowid, d_ridx, d_node_hist.data(), d_gpair, n_elements,
         use_shared_memory_histograms);
   }
 
@@ -840,7 +856,7 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all,
+  void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
                 dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
@@ -856,7 +872,7 @@ struct GPUHistMakerDevice {
                              node_sum_gradients_d.data(), sizeof(GradientPair),
                              cudaMemcpyDeviceToHost));
 
-    this->BuildHist(kRootNIdx);
+    this->BuildHistBatches(kRootNIdx, p_fmat);
     this->AllReduceHist(kRootNIdx, reducer);
 
     // Remember root stats
@@ -883,7 +899,7 @@ struct GPUHistMakerDevice {
     monitor.StopCuda("Reset");
 
     monitor.StartCuda("InitRoot");
-    this->InitRoot(p_tree, gpair_all, reducer, p_fmat->Info().num_col_);
+    this->InitRoot(p_tree, gpair_all, p_fmat, reducer, p_fmat->Info().num_col_);
     monitor.StopCuda("InitRoot");
     auto timestamp = qexpand->size();
     auto num_leaves = 1;
@@ -1013,7 +1029,7 @@ class GPUHistMakerSpecialised {
     uint32_t column_sampling_seed = common::GlobalRandom()();
     rabit::Broadcast(&column_sampling_seed, sizeof(column_sampling_seed), 0);
 
-    auto batch_param = BatchParam{
+    BatchParam batch_param{
       device_,
       param_.max_bin,
       hist_maker_param_.gpu_batch_nrows,
@@ -1026,7 +1042,8 @@ class GPUHistMakerSpecialised {
                                                      info_->num_row_,
                                                      param_,
                                                      column_sampling_seed,
-                                                     info_->num_col_));
+                                                     info_->num_col_,
+                                                     batch_param));
 
     monitor_.StartCuda("InitHistogram");
     dh::safe_cuda(cudaSetDevice(device_));
