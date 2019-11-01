@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2014 by Contributors
+  Copyright (c) 2014-2019 by Contributors
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
   You may obtain a copy of the License at
@@ -161,6 +161,27 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError
     jresult = jenv->NewStringUTF(result);
   }
   return jresult;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFromDataIter
+ * Signature: (Ljava/util/Iterator;Ljava/lang/String;[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIter
+  (JNIEnv *jenv, jclass jcls, jobject jiter, jstring jcache_info, jlongArray jout) {
+  DMatrixHandle result;
+  const char* cache_info = nullptr;
+  if (jcache_info != nullptr) {
+    cache_info = jenv->GetStringUTFChars(jcache_info, 0);
+  }
+  int ret = XGDMatrixCreateFromDataIter(
+      jiter, XGBoost4jCallbackDataIterNext, cache_info, &result);
+  if (cache_info) {
+    jenv->ReleaseStringUTFChars(jcache_info, cache_info);
+  }
+  setHandle(jenv, jout, result);
+  return ret;
 }
 
 /*

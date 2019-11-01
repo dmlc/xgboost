@@ -240,8 +240,8 @@ class GBTree : public GradientBooster {
   void Check(DMatrix const *p_fmat) {
     CHECK(configured_);
     if (p_fmat) {
-      // CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
-      //     << "Model trained on different number of features than prediction input matrix";
+      CHECK_EQ(model_.param.num_feature, p_fmat->Info().num_col_)
+          << "Model trained on different number of features than prediction input matrix";
     }
   }
 

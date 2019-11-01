@@ -121,6 +121,8 @@ TEST(GBTree, PredictIncorrect) {
   std::string n_feat = std::to_string(kCols);
   gbtree.Configure(Args{{"tree_method", "exact"},
                         {"num_feature", n_feat}});
+
+  // Create DMatrix with columns != num_feature.
   auto incorrect_test_mat = CreateDMatrix(kRows, kCols - 1, 0);
   HostDeviceVector<float> tmp;
   ASSERT_ANY_THROW(

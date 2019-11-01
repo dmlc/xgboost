@@ -35,11 +35,22 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
     *  init DMatrix from Iterator of LabeledPoint
     *
     * @param dataIter An iterator of LabeledPoint
+    * @param cacheInfo  Cache path information, used for external memory setting, null by default.
+    * @throws XGBoostError native error
+    */
+  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String = null) {
+    this(new JDMatrix(dataIter.asJava, cacheInfo))
+  }
+
+  /**
+    *  init DMatrix from Iterator of LabeledPoint
+    *
+    * @param dataIter An iterator of LabeledPoint
     * @param missing the specified value to represent the missing value
     * @param cacheInfo  Cache path information, used for external memory setting, null by default.
     * @throws XGBoostError native error
     */
-  def this(dataIter: Iterator[LabeledPoint], missing: Float, cacheInfo: String = null) {
+  def this(dataIter: Iterator[LabeledPoint], missing: Float, cacheInfo: String) {
     this(new JDMatrix(dataIter.asJava, missing, cacheInfo))
   }
 
