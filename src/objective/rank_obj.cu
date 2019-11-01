@@ -317,7 +317,7 @@ struct NDCGLambdaWeightComputer {
     }
 
    private:
-    const float *dsorted_labels_{nullptr}; // Labels sorted within a group
+    const float *dsorted_labels_{nullptr};  // Labels sorted within a group
     const uint32_t *dgroups_{nullptr};  // The group indices - where each group begins and ends
   };
 
@@ -485,12 +485,12 @@ struct NDCGLambdaWeightComputer {
   }
 
 #if defined(__CUDACC__)
-  const float *dsorted_labels_{nullptr}; // Labels sorted within a group
-  const uint32_t *dorig_pos_{nullptr}; // Original indices of the labels before they are sorted
+  const float *dsorted_labels_{nullptr};  // Labels sorted within a group
+  const uint32_t *dorig_pos_{nullptr};  // Original indices of the labels before they are sorted
   const uint32_t *dgroups_{nullptr};  // The group indices
 
   dh::caching_device_vector<float> *dgroup_dcg_;
-  const float *dgroup_dcg_ptr_{nullptr}; // Start address of the group DCG values
+  const float *dgroup_dcg_ptr_{nullptr};  // Start address of the group DCG values
 
   // Where can a prediction for a label be found in the original array, when they are sorted
   dh::caching_device_vector<uint32_t> *dindexable_sorted_preds_pos_;
@@ -621,7 +621,7 @@ class SortedLabelList : SegmentSorter<float> {
   const LambdaRankParam &param_;                      // Objective configuration
 
  public:
-  SortedLabelList(const LambdaRankParam &param)
+  explicit SortedLabelList(const LambdaRankParam &param)
     : param_(param) {}
 
   // Sort the labels that are grouped by 'groups'
