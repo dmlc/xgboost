@@ -54,7 +54,7 @@ class XGBoostRegressor (
   def this(xgboostParams: Map[String, Any]) = this(
     Identifiable.randomUID("xgbr"), xgboostParams)
 
-  XGBoostToMLlibParams(xgboostParams)
+  XGBoost2MLlibParams(xgboostParams)
 
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
