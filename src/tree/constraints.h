@@ -14,6 +14,11 @@
 #include "param.h"
 
 namespace xgboost {
+/*!
+ * \brief Feature interaction constraint implementation for CPU tree updaters.
+ *
+ * The interface is similiar to the one for GPU Hist.
+ */
 class FeatureInteractionConstraintHost {
  protected:
   // interaction_constraints_[constraint_id] contains a single interaction

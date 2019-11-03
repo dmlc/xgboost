@@ -194,7 +194,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                   "indices of features that are allowed to interact with each other."
                   "See tutorial for more information");
     DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net,monotonic,interaction")
+        .set_default("elastic_net,monotonic")
         .describe("The criteria to use for ranking splits");
 
     // ------ From cpu quantile histogram -------.
