@@ -620,15 +620,15 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
   const bool default_left = (*p_tree)[nid].DefaultLeft();
   const bst_uint fid = (*p_tree)[nid].SplitIndex();
   const bst_float split_pt = (*p_tree)[nid].SplitCond();
-  const uint32_t lower_bound = gmat.cut.row_ptr[fid];
-  const uint32_t upper_bound = gmat.cut.row_ptr[fid + 1];
+  const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
+  const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
   int32_t split_cond = -1;
   // convert floating-point split_pt into corresponding bin_id
   // split_cond = -1 indicates that split_pt is less than all known cut points
   CHECK_LT(upper_bound,
            static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   for (uint32_t i = lower_bound; i < upper_bound; ++i) {
-    if (split_pt == gmat.cut.cut[i]) {
+    if (split_pt == gmat.cut.Values()[i]) {
       split_cond = static_cast<int32_t>(i);
     }
   }
@@ -795,7 +795,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
     GHistRow hist = hist_[nid];
     if (tree[nid].IsRoot()) {
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-        const std::vector<uint32_t>& row_ptr = gmat.cut.row_ptr;
+        const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
         const uint32_t ibegin = row_ptr[fid_least_bins_];
         const uint32_t iend = row_ptr[fid_least_bins_ + 1];
         auto begin = hist.data();
