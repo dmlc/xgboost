@@ -355,21 +355,25 @@ TEST(GpuHist, MinSplitLoss) {
 }
 
 RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, size_t gpu_page_size) {
+  constexpr size_t kMaxBin = 2;
+
   if (gpu_page_size > 0) {
     // Loop over the batches and count the records
     int64_t batch_count = 0;
     int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 0, gpu_page_size})) {
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, kMaxBin, 0, gpu_page_size})) {
       EXPECT_LT(batch.Size(), dmat->Info().num_row_);
       batch_count++;
       row_count += batch.Size();
     }
-    EXPECT_EQ(batch_count, 2);
+    EXPECT_GE(batch_count, 2);
     EXPECT_EQ(row_count, dmat->Info().num_row_);
   }
 
   Args args{
       {"max_depth", "2"},
+      {"max_bin", std::to_string(kMaxBin)},
+      {"min_child_weight", "0.0"},
       {"reg_alpha", "0"},
       {"reg_lambda", "0"}
   };
@@ -384,20 +388,40 @@ RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, siz
   return tree;
 }
 
-TEST(GpuHist, DISABLED_ExternalMemory) {
-  constexpr size_t kRows = 1024;
+TEST(GpuHist, ExternalMemory) {
+  constexpr size_t kRows = 4;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
-  auto dmat = CreateSparsePageDMatrix(kRows * 3, 1024, filename);
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
   auto gpair = GenerateRandomGradients(kRows);
+  std::cout << "gradients:\n";
+  for (auto& g : gpair.ConstHostVector()) {
+    std::cout << "\t" << g << "\n";
+  }
 
+  // Build a tree using the in-memory DMatrix.
   RegTree tree = GetUpdatedTree(&gpair, dmat.get(), 0);
-  ASSERT_EQ(tree.NumExtraNodes(), 6);
+//  ASSERT_EQ(tree.NumExtraNodes(), 6);
 
-  RegTree tree_ext = GetUpdatedTree(&gpair, dmat.get(), 1024);
-  ASSERT_EQ(tree_ext.NumExtraNodes(), 6);
+  // Build another tree using multiple ELLPACK pages.
+  RegTree tree_ext = GetUpdatedTree(&gpair, dmat_ext.get(), kPageSize);
+//  ASSERT_EQ(tree_ext.NumExtraNodes(), 6);
 
-  ASSERT_EQ(tree, tree_ext);
+  // Make sure the 2 trees are the same.
+  FeatureMap fmap;
+  auto str = tree.DumpModel(fmap, true, "text");
+  std::cout << str << "\n";
+  auto str_ext = tree_ext.DumpModel(fmap, true, "text");
+  std::cout << str_ext << "\n";
+  ASSERT_EQ(str, str_ext);
 }
 
 }  // namespace tree

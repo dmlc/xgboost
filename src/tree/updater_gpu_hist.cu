@@ -422,6 +422,9 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
+      printf("gidx=%d, ridx + base_rowid=%lu, grad=%f, hess=%f\n", gidx, ridx + base_rowid,
+          d_gpair[ridx + base_rowid].GetGrad(),
+          d_gpair[ridx + base_rowid].GetHess());
       dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx + base_rowid]);
     }
   }
@@ -638,6 +641,20 @@ struct GPUHistMakerDevice {
         row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
       }
       BuildHist(nidx);
+
+      auto d_ridx = row_partitioner->GetRows(nidx);
+      std::cout << "d_ridx.size()=" << d_ridx.size() << "\n";
+      std::cout << "page->base_rowid=" << page->base_rowid << "\n";
+
+      cudaDeviceSynchronize();
+      auto node_hist_d = hist.GetNodeHistogram(nidx);
+      std::vector<GradientSumT> node_hist(node_hist_d.size());
+      dh::CopyDeviceSpanToVector<GradientSumT>(&node_hist, node_hist_d);
+      std::cout << "histogram: ";
+      for (auto entry : node_hist) {
+        std::cout << entry << ", ";
+      }
+      std::cout << "\n";
     }
   }
 
@@ -911,7 +928,9 @@ struct GPUHistMakerDevice {
     this->BuildHistBatches(kRootNIdx, p_fmat);
     this->AllReduceHist(kRootNIdx, reducer);
 
+
     // Remember root stats
+    std::cout << "gradients: " << node_sum_gradients[kRootNIdx] << "\n";
     p_tree->Stat(kRootNIdx).sum_hess = node_sum_gradients[kRootNIdx].GetHess();
     auto weight = CalcWeight(param, node_sum_gradients[kRootNIdx]);
     p_tree->Stat(kRootNIdx).base_weight = weight;
