@@ -134,4 +134,49 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
   }
 }
 
+TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
+  constexpr size_t kRows = 4;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  BatchParam param{0, 2, 0, kPageSize};
+  auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+
+  size_t current_row = 0;
+  for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
+    auto impl_ext = page.Impl();
+    EXPECT_EQ(impl_ext->base_rowid, current_row);
+    EXPECT_EQ(impl_ext->n_rows, 1);
+    current_row++;
+  }
+
+  current_row = 0;
+  for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
+    auto impl_ext = page.Impl();
+    EXPECT_EQ(impl_ext->base_rowid, current_row);
+
+    thrust::device_vector<bst_float> row_d(kCols);
+    dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+    std::vector<bst_float> row(kCols);
+    thrust::copy(row_d.begin(), row_d.end(), row.begin());
+
+    thrust::device_vector<bst_float> row_ext_d(kCols);
+    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, 0, row_ext_d.data().get()));
+    std::vector<bst_float> row_ext(kCols);
+    thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
+
+    EXPECT_EQ(row, row_ext) << "for row " << current_row;
+
+    current_row++;
+  }
+}
+
 }  // namespace xgboost

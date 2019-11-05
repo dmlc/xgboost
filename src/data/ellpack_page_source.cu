@@ -46,6 +46,7 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   /*! \brief The EllpackInfo, with the underlying GPU memory shared by all pages. */
   EllpackInfo ellpack_info_;
   std::unique_ptr<SparsePageSource<EllpackPage>> source_;
+  std::string cache_info_;
 };
 
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
@@ -74,7 +75,7 @@ const EllpackPage& EllpackPageSource::Value() const {
 EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
                                              const std::string& cache_info,
                                              const BatchParam& param) noexcept(false)
-    : device_(param.gpu_id) {
+    : device_(param.gpu_id), cache_info_(cache_info) {
 
   if (param.gpu_page_size > 0) {
     page_size_ = param.gpu_page_size;
@@ -97,10 +98,11 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   WriteEllpackPages(dmat, cache_info);
   monitor_.StopCuda("WriteEllpackPages");
 
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info, kPageType_));
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
 }
 
 void EllpackPageSourceImpl::BeforeFirst() {
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
   source_->BeforeFirst();
 }
 

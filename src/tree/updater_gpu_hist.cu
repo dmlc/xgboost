@@ -417,13 +417,13 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
     int ridx = d_ridx[idx / matrix.info.row_stride];
     int gidx =
         matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
-    printf("gidx=%d, ridx=%d\n", gidx, ridx);
+    printf("gidx=%d, ridx=%lu\n", gidx, ridx+base_rowid);
     if (gidx != matrix.info.n_bins) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx + base_rowid]);
     }
   }
 
@@ -671,6 +671,7 @@ struct GPUHistMakerDevice {
     if (grid_size <= 0) {
       return;
     }
+    std::cout << "base_rowid: " << page->base_rowid << "\n";
     SharedMemHistKernel<<<grid_size, block_threads, smem_size>>>(
         page->matrix, page->base_rowid, d_ridx, d_node_hist.data(), d_gpair, n_elements,
         use_shared_memory_histograms);
