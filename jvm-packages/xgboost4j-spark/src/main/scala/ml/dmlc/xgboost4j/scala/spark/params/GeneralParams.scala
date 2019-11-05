@@ -241,7 +241,7 @@ trait HasNumClass extends Params {
 
 private[spark] trait ParamMapFuncs extends Params {
 
-  def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
+  def XGBoost2MLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
