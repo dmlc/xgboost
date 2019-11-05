@@ -75,9 +75,24 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   std::vector<common::CompressedByteT> buffer_ext(impl_ext->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&buffer, impl->gidx_buffer);
   dh::CopyDeviceSpanToVector(&buffer_ext, impl_ext->gidx_buffer);
-  EXPECT_EQ(buffer.size(), buffer_ext.size());
   EXPECT_EQ(buffer, buffer_ext);
 }
+
+struct ReadRowFunction {
+  EllpackMatrix matrix;
+  int row;
+  bst_float* row_data_d;
+  ReadRowFunction(EllpackMatrix matrix, int row, bst_float* row_data_d)
+      : matrix(matrix), row(row), row_data_d(row_data_d) {}
+
+  __device__ void operator()(size_t col) {
+    auto value = matrix.GetElement(row, col);
+    if (isnan(value)) {
+      value = -1;
+    }
+    row_data_d[col] = value;
+  }
+};
 
 TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
   constexpr size_t kRows = 4;
@@ -103,7 +118,17 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
     EXPECT_EQ(impl_ext->base_rowid, current_row);
     EXPECT_EQ(impl_ext->n_rows, 1);
 
-    // TODO(rongou): verify content.
+    thrust::device_vector<bst_float> row_d(kCols);
+    dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+    std::vector<bst_float> row(kCols);
+    thrust::copy(row_d.begin(), row_d.end(), row.begin());
+
+    thrust::device_vector<bst_float> row_ext_d(kCols);
+    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, 0, row_ext_d.data().get()));
+    std::vector<bst_float> row_ext(kCols);
+    thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
+
+    EXPECT_EQ(row, row_ext);
 
     current_row++;
   }
