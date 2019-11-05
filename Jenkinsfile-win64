@@ -72,6 +72,8 @@ def BuildWin64() {
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"
     bat """
+    bat "nvidia-smi"
+    bat """
     mkdir build
     cd build
     cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
