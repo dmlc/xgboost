@@ -20,7 +20,7 @@ RUN \
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
-    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` &&
+    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
     export NCCL_VERSION=2.4.8-1 && \
     if [ "${CUDA_SHORT}" != "10.0" ] && [ "${CUDA_SHORT}" != "10.1" ]; then \
     wget https://developer.download.nvidia.com/compute/redist/nccl/v2.4/nccl_${NCCL_VERSION}%2Bcuda9.0_x86_64.txz && \
