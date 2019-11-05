@@ -83,7 +83,7 @@ struct ReadRowFunction {
   int row;
   bst_float* row_data_d;
   ReadRowFunction(EllpackMatrix matrix, int row, bst_float* row_data_d)
-      : matrix(matrix), row(row), row_data_d(row_data_d) {}
+      : matrix(std::move(matrix)), row(row), row_data_d(row_data_d) {}
 
   __device__ void operator()(size_t col) {
     auto value = matrix.GetElement(row, col);
