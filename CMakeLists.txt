@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.3)
 
 project(rabit VERSION 0.3.0 LANGUAGES CXX)
 
+if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
+  # This allows user to specify `RABIT_BUILD_DMLC` and others as CMake variable.
+  cmake_policy(SET CMP0077 NEW)
+endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
+
 option(RABIT_BUILD_TESTS "Build rabit tests" OFF)
 option(RABIT_BUILD_MPI "Build MPI" OFF)
 option(RABIT_BUILD_DMLC "Include DMLC_CORE in build" OFF)
@@ -73,7 +78,7 @@ endif(DMLC_ROOT)
 
 foreach(lib ${rabit_libs})
   target_include_directories(${lib} PUBLIC
-          "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
+          "$<BUILD_INTERFACE:${rabit_SOURCE_DIR}/include>"
           "$<BUILD_INTERFACE:${DMLC_ROOT}/include>")
 endforeach()
 
