@@ -413,7 +413,7 @@ class ColMaker: public TreeUpdater {
               if ( proposed_split == fvalue ) {
                 e.best.Update(loss_chg, fid, e.last_fvalue,
                             d_step == -1, c, e.stats);
-              } else { 
+              } else {
                 e.best.Update(loss_chg, fid, proposed_split,
                             d_step == -1, c, e.stats);
               }
@@ -425,7 +425,7 @@ class ColMaker: public TreeUpdater {
               if ( proposed_split == fvalue ) {
                 e.best.Update(loss_chg, fid, e.last_fvalue,
                             d_step == -1, e.stats, c);
-              } else { 
+              } else {
                 e.best.Update(loss_chg, fid, proposed_split,
                             d_step == -1, e.stats, c);
               }
