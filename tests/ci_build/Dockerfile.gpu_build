@@ -26,7 +26,7 @@ RUN \
     rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     yum -y update && \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm; fi
+    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
 
 ENV PATH=/opt/python/bin:$PATH
 ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
