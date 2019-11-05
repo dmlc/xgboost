@@ -64,9 +64,6 @@ class SegmentSorter {
   // Need this on the device as it is used in the kernels
   dh::caching_device_vector<uint32_t> dgroups_;       // Group information on device
 
-  dh::XGBCachingDeviceAllocator<char> alloc_;         // Allocator to be used by sort for managing
-                                                      // space overhead while sorting
-
   // Initialize everything but the segments
   void Init(uint32_t num_elems) {
     ditems_.resize(num_elems);
@@ -155,7 +152,11 @@ class SegmentSorter {
 
     ditems_.assign(thrust::device_ptr<const T>(ditems),
                    thrust::device_ptr<const T>(ditems) + item_size);
-    thrust::stable_sort_by_key(thrust::cuda::par(alloc_),
+
+    // Allocator to be used by sort for managing space overhead while sorting
+    dh::XGBCachingDeviceAllocator<char> alloc;
+
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
                                ditems_.begin(), ditems_.end(),
                                doriginal_pos_.begin(), comp);
 
@@ -171,7 +172,7 @@ class SegmentSorter {
     // in the process also noting the relative changes to the doriginal_pos_ while that happens
     // group_segments_c_:   0 0 0 1 1 2 2 2 3 3
     // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9
-    thrust::stable_sort_by_key(thrust::cuda::par(alloc_),
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
                                group_segments_c.begin(), group_segments_c.end(),
                                doriginal_pos_.begin(), thrust::less<uint32_t>());
 
@@ -222,6 +223,65 @@ __device__ __forceinline__ uint32_t
 CountNumItemsToTheRightOf(const T * __restrict__ items, uint32_t n, T v) {
   return CountNumItemsImpl(false, items, n, v);
 }
+
+// Types that needs to be reference counted should derive from this. This provides a
+// means by which types can be shallow copied (on host and/or kernel). The derived type
+// should check the number of outstanding references via 'NumReferences' API in its
+// destructor, and should release the resources it manages, if there is a *single*
+// outstanding instance of that type.
+// TODO(sriramch): If an instance of a type is copied/assigned concurrently across multiple
+// threads, then we need to make the reference count atomic
+class RefCountable {
+ public:
+  RefCountable() {
+    dh::safe_cuda(cudaMallocManaged(&ref_cnt_, sizeof(int)));
+    *ref_cnt_ = 1;
+  }
+
+  XGBOOST_DEVICE RefCountable(const RefCountable &rhs) {
+    this->CopyFrom(rhs);
+  }
+
+  RefCountable(RefCountable &&rhs) {
+    this->CopyFrom(rhs);
+    rhs.Release();
+  }
+
+  RefCountable & operator=(const RefCountable &rhs) {
+    this->Release();
+    this->CopyFrom(rhs);
+    return *this;
+  }
+
+  RefCountable & operator=(RefCountable &&rhs) {
+    *this = rhs;
+    rhs.Release();
+    return *this;
+  }
+
+  XGBOOST_DEVICE int NumReferences() {
+    return (ref_cnt_) ? *ref_cnt_ : 0;
+  }
+
+  ~RefCountable() {
+    this->Release();
+  }
+
+ private:
+  XGBOOST_DEVICE void CopyFrom(const RefCountable &rhs) {
+    ref_cnt_ = rhs.ref_cnt_;
+    if (ref_cnt_) (*ref_cnt_)++;
+  }
+
+  void Release() {
+    if (ref_cnt_ && --*ref_cnt_ == 0) {
+      dh::safe_cuda(cudaFree(ref_cnt_));
+    }
+    ref_cnt_ = nullptr;
+  }
+
+  int *ref_cnt_{nullptr};
+};
 #endif
 
 /*! \brief helper information in a list */
@@ -283,12 +343,6 @@ struct PairwiseLambdaWeightComputer {
                                uint32_t pred_size,
                                const SegmentSorter<float> &segment_label_sorter) {}
 
-  // Cleanup resources, if any
-  // This is required, as objects of this type are copied on the device to be used
-  // within a kernel. The ~ has to be trivial, for the resources to not be released
-  // more than once
-  void ReleaseResources() {}
-
   // Adjust the items weight by this value
   __device__ __forceinline__ bst_float GetWeightMultiplier(uint32_t gidx,
                                                            int pidx, int nidx) const {
@@ -298,7 +352,12 @@ struct PairwiseLambdaWeightComputer {
 };
 
 // beta version: NDCG lambda rank
-struct NDCGLambdaWeightComputer {
+struct NDCGLambdaWeightComputer
+#if defined(__CUDACC__)
+  : RefCountable {
+#else
+  {
+#endif
  public:
 #if defined(__CUDACC__)
   // This function object computes the group's DCG for a given group
@@ -378,23 +437,18 @@ struct NDCGLambdaWeightComputer {
   // Basically, swap the previous 2 arrays, sort the indices and reorder positions
   // for an O(1) lookup using the position where the sorted label exists
   void CreateIndexableSortedPredictionPositions(const uint32_t *dsorted_preds_pos) {
-    int device_id = -1;
-    dh::safe_cuda(cudaGetDevice(&device_id));
-    uint32_t *dindexable_sorted_preds_pos_ptr = dindexable_sorted_preds_pos_ptr_;
-    // Sort the positions (as indices), and group its indices as sorted prediction positions
-    dh::LaunchN(device_id, dindexable_sorted_preds_pos_->size(),
-                nullptr, [=] __device__(uint32_t idx) {
-      dindexable_sorted_preds_pos_ptr[dsorted_preds_pos[idx]] = idx;
-    });
+    dh::caching_device_vector<uint32_t> indices(dindexable_sorted_preds_pos_->size());
+    thrust::sequence(indices.begin(), indices.end());
+    thrust::scatter(indices.begin(), indices.end(),  // Rearrange indices...
+                    thrust::device_ptr<const uint32_t>(dsorted_preds_pos),  // ...based on this map
+                    dindexable_sorted_preds_pos_->begin());  // Write results into this
   }
 
-  // Cleanup resources, if any
-  // This is required, as objects of this type are copied on the device to be used
-  // within a kernel. The ~ has to be trivial, for the resources to not be released
-  // more than once
-  void ReleaseResources() {
-    delete dgroup_dcg_;
-    delete dindexable_sorted_preds_pos_;
+  ~NDCGLambdaWeightComputer() {
+    if (NumReferences() == 1) {
+      delete dgroup_dcg_;
+      delete dindexable_sorted_preds_pos_;
+    }
   }
 
   // Adjust the items weight by this value
@@ -601,12 +655,6 @@ struct MAPLambdaWeightComputer {
                           uint32_t pred_size,
                           const SegmentSorter<float> &segment_label_sorter) {}
 
-  // Cleanup resources, if any
-  // This is required, as objects of this type are copied on the device to be used
-  // within a kernel. The ~ has to be trivial, for the resources to not be released
-  // more than once
-  void ReleaseResources() {}
-
   // Adjust the items weight by this value
   __device__ __forceinline__ bst_float GetWeightMultiplier(uint32_t gidx,
                                                            int pidx, int nidx) const {
@@ -726,8 +774,6 @@ class SortedLabelList : SegmentSorter<float> {
 
     // Wait until the computations done by the kernel is complete
     dh::safe_cuda(cudaStreamSynchronize(nullptr));
-
-    weight_computer.ReleaseResources();
   }
 };
 #endif
