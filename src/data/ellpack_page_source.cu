@@ -138,8 +138,10 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     impl->Push(device_, batch);
 
-    if (impl->MemCostBytes() >= page_size_) {
-      bytes_write += impl->MemCostBytes();
+    size_t mem_cost_bytes = impl->MemCostBytes();
+    if (mem_cost_bytes >= page_size_) {
+      bytes_write += mem_cost_bytes;
+      impl->CompressSparsePage(device_);
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);
       impl = page->Impl();
@@ -152,6 +154,7 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
     }
   }
   if (impl->Size() != 0) {
+    impl->CompressSparsePage(device_);
     writer.PushWrite(std::move(page));
   }
 }

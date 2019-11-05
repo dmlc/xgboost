@@ -388,6 +388,21 @@ RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, siz
   return tree;
 }
 
+void PrintDMatrix(DMatrix* dmat) {
+  size_t row = 0;
+  for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    for (auto i = 0; i < batch.Size(); i++) {
+      auto inst = batch[i];
+      std::cout << "row " << row << ": ";
+      for (auto& entry : inst) {
+        std::cout << "f" << entry.index << "=" << entry.fvalue << ", ";
+      }
+      std::cout << "\n";
+      row++;
+    }
+  }
+}
+
 TEST(GpuHist, ExternalMemory) {
   constexpr size_t kRows = 4;
   constexpr size_t kCols = 2;
@@ -395,17 +410,15 @@ TEST(GpuHist, ExternalMemory) {
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+  PrintDMatrix(dmat.get());
 
   // Create a DMatrix with multiple batches.
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  PrintDMatrix(dmat_ext.get());
 
   auto gpair = GenerateRandomGradients(kRows);
-  std::cout << "gradients:\n";
-  for (auto& g : gpair.ConstHostVector()) {
-    std::cout << "\t" << g << "\n";
-  }
 
   // Build a tree using the in-memory DMatrix.
   RegTree tree = GetUpdatedTree(&gpair, dmat.get(), 0);

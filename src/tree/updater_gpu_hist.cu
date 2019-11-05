@@ -414,18 +414,16 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.info.row_stride ];
+    int ridx = d_ridx[idx / matrix.info.row_stride];
     int gidx =
         matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
+    printf("gidx=%d, ridx=%d\n", gidx, ridx);
     if (gidx != matrix.info.n_bins) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
-      printf("gidx=%d, ridx + base_rowid=%lu, grad=%f, hess=%f\n", gidx, ridx + base_rowid,
-          d_gpair[ridx + base_rowid].GetGrad(),
-          d_gpair[ridx + base_rowid].GetHess());
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx + base_rowid]);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
     }
   }
 
@@ -641,10 +639,6 @@ struct GPUHistMakerDevice {
         row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
       }
       BuildHist(nidx);
-
-      auto d_ridx = row_partitioner->GetRows(nidx);
-      std::cout << "d_ridx.size()=" << d_ridx.size() << "\n";
-      std::cout << "page->base_rowid=" << page->base_rowid << "\n";
 
       cudaDeviceSynchronize();
       auto node_hist_d = hist.GetNodeHistogram(nidx);
@@ -930,7 +924,6 @@ struct GPUHistMakerDevice {
 
 
     // Remember root stats
-    std::cout << "gradients: " << node_sum_gradients[kRootNIdx] << "\n";
     p_tree->Stat(kRootNIdx).sum_hess = node_sum_gradients[kRootNIdx].GetHess();
     auto weight = CalcWeight(param, node_sum_gradients[kRootNIdx]);
     p_tree->Stat(kRootNIdx).base_weight = weight;

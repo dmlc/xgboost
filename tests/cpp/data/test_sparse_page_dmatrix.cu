@@ -2,10 +2,11 @@
 
 #include <dmlc/filesystem.h>
 #include "../helpers.h"
+#include "../../../src/common/compressed_iterator.h"
 
 namespace xgboost {
 
-TEST(GPUSparsePageDMatrix, EllpackPage) {
+TEST(SparsePageDMatrix, EllpackPage) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
@@ -23,7 +24,7 @@ TEST(GPUSparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
-TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
+TEST(SparsePageDMatrix, MultipleEllpackPages) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
@@ -40,6 +41,72 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   EXPECT_TRUE(FileExists(filename + ".cache.ellpack.page"));
+}
+
+TEST(SparsePageDMatrix, EllpackPageContent) {
+  constexpr size_t kRows = 4;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  BatchParam param{0, 2, 0, 0};
+  auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  EXPECT_EQ(impl->base_rowid, 0);
+  EXPECT_EQ(impl->n_rows, kRows);
+  EXPECT_FALSE(impl->matrix.info.is_dense);
+  EXPECT_EQ(impl->matrix.info.row_stride, 2);
+  EXPECT_EQ(impl->matrix.info.n_bins, 4);
+
+  auto impl_ext = (*dmat_ext->GetBatches<EllpackPage>(param).begin()).Impl();
+  EXPECT_EQ(impl_ext->base_rowid, 0);
+  EXPECT_EQ(impl_ext->n_rows, kRows);
+  EXPECT_FALSE(impl_ext->matrix.info.is_dense);
+  EXPECT_EQ(impl_ext->matrix.info.row_stride, 2);
+  EXPECT_EQ(impl_ext->matrix.info.n_bins, 4);
+
+  std::vector<common::CompressedByteT> buffer(impl->gidx_buffer.size());
+  std::vector<common::CompressedByteT> buffer_ext(impl_ext->gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&buffer, impl->gidx_buffer);
+  dh::CopyDeviceSpanToVector(&buffer_ext, impl_ext->gidx_buffer);
+  EXPECT_EQ(buffer.size(), buffer_ext.size());
+  EXPECT_EQ(buffer, buffer_ext);
+}
+
+TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
+  constexpr size_t kRows = 4;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  BatchParam param{0, 2, 0, kPageSize};
+  auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  EXPECT_EQ(impl->base_rowid, 0);
+  EXPECT_EQ(impl->n_rows, kRows);
+
+  size_t current_row = 0;
+  for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
+    auto impl_ext = page.Impl();
+    EXPECT_EQ(impl_ext->base_rowid, current_row);
+    EXPECT_EQ(impl_ext->n_rows, 1);
+
+    // TODO(rongou): verify content.
+
+    current_row++;
+  }
 }
 
 }  // namespace xgboost

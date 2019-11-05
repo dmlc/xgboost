@@ -262,10 +262,17 @@ class EllpackPageImpl {
    */
   void InitDevice(int device, EllpackInfo info);
 
+  /*! \brief Compress the accumulated SparsePage into ELLPACK format.
+   *
+   * @param device The GPU device to use.
+   */
+  void CompressSparsePage(int device);
+
  private:
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
   bool device_initialized_{false};
+  SparsePage sparse_page_{};
 };
 
 }  // namespace xgboost
