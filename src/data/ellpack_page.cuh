@@ -78,6 +78,7 @@ struct EllpackInfo {
  * kernels.*/
 struct EllpackMatrix {
   EllpackInfo info;
+  size_t base_rowid{};
   common::CompressedIterator<uint32_t> gidx_iter;
 
   // Get a matrix element, uses binary search for look up Return NaN if missing
@@ -99,6 +100,16 @@ struct EllpackMatrix {
       return nan("");
     }
     return info.gidx_fvalue_map[gidx];
+  }
+
+  // Get the absolute row id given the relative row index within the batch.
+  __device__ size_t GetRowId(size_t ridx) const {
+    return base_rowid + ridx;
+  }
+
+  // Get the row index within the batch given the absolute row id.
+  __device__ size_t GetRowIndex(size_t row_id) const {
+    return row_id - base_rowid;
   }
 };
 
@@ -183,7 +194,6 @@ class EllpackPageImpl {
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
-  size_t base_rowid{};
   size_t n_rows{};
 
   /*!
@@ -239,7 +249,7 @@ class EllpackPageImpl {
 
   /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) {
-    base_rowid = row_id;
+    matrix.base_rowid = row_id;
   }
 
   /*! \brief clear the page. */

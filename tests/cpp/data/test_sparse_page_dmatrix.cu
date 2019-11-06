@@ -58,14 +58,14 @@ TEST(GPUSparsePageDMatrix, EllpackPageContent) {
 
   BatchParam param{0, 2, 0, 0};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-  EXPECT_EQ(impl->base_rowid, 0);
+  EXPECT_EQ(impl->matrix.base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
   EXPECT_FALSE(impl->matrix.info.is_dense);
   EXPECT_EQ(impl->matrix.info.row_stride, 2);
   EXPECT_EQ(impl->matrix.info.n_bins, 4);
 
   auto impl_ext = (*dmat_ext->GetBatches<EllpackPage>(param).begin()).Impl();
-  EXPECT_EQ(impl_ext->base_rowid, 0);
+  EXPECT_EQ(impl_ext->matrix.base_rowid, 0);
   EXPECT_EQ(impl_ext->n_rows, kRows);
   EXPECT_FALSE(impl_ext->matrix.info.is_dense);
   EXPECT_EQ(impl_ext->matrix.info.row_stride, 2);
@@ -110,13 +110,13 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
 
   BatchParam param{0, kMaxBins, 0, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-  EXPECT_EQ(impl->base_rowid, 0);
+  EXPECT_EQ(impl->matrix.base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
-    EXPECT_EQ(impl_ext->base_rowid, current_row);
+    EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
 
     thrust::device_vector<bst_float> row_d(kCols);
     dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
@@ -154,14 +154,14 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
-    EXPECT_EQ(impl_ext->base_rowid, current_row);
+    EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
     current_row += impl_ext->n_rows;
   }
 
   current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
-    EXPECT_EQ(impl_ext->base_rowid, current_row);
+    EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
 
     thrust::device_vector<bst_float> row_d(kCols);
     dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));

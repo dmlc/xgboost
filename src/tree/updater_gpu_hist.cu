@@ -402,7 +402,6 @@ struct CalcWeightTrainParam {
 
 template <typename GradientSumT>
 __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
-                                    size_t base_rowid,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* d_node_hist,
                                     const GradientPair* d_gpair, size_t n_elements,
@@ -422,7 +421,7 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx + base_rowid]);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[matrix.GetRowId(ridx)]);
     }
   }
 
@@ -659,7 +658,7 @@ struct GPUHistMakerDevice {
         common::DivRoundUp(n_elements, items_per_thread * block_threads));
     dh::LaunchKernel {grid_size, block_threads, smem_size} (
         SharedMemHistKernel<GradientSumT>,
-        page->matrix, page->base_rowid, d_ridx, d_node_hist.data(), d_gpair, n_elements,
+        page->matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
         use_shared_memory_histograms);
   }
 
@@ -725,13 +724,13 @@ struct GPUHistMakerDevice {
     for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
       page = batch.Impl();
       auto d_matrix = page->matrix;
-      auto base_rowid = page->base_rowid;
       row_partitioner->FinalisePosition(
-          [=] __device__(bst_uint ridx, int position) {
+          [=] __device__(size_t row_id, int position) {
             auto node = d_nodes[position];
 
             while (!node.IsLeaf()) {
-              bst_float element = d_matrix.GetElement(ridx - base_rowid, node.SplitIndex());
+              bst_float
+                  element = d_matrix.GetElement(d_matrix.GetRowIndex(row_id), node.SplitIndex());
               // Missing value
               if (isnan(element)) {
                 position = node.DefaultChild();
