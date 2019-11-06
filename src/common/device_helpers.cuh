@@ -219,6 +219,14 @@ __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
  *
  * - With c++ initialization list `{}` syntax, you are forced to comply with the CUDA type
  *   spcification.
+ *
+ * Usage:
+ *
+ * The syntax is modelled after normal execution configuration syntax, only different in
+ * used parentheses and blackets.
+ *
+ * dh::LaunchKernel{grid_size, block_size, shared_memroy_size(optional), stream(optional)} (
+ *   kernel_name)(kernel arguments ...)
  */
 class LaunchKernel {
   size_t shmem_size_;
@@ -227,19 +235,40 @@ class LaunchKernel {
   dim3 grids_;
   dim3 blocks_;
 
+  template <typename Functor>
+  class Evaluator {
+    Functor kernel_;
+
+    size_t shmem_size_;
+    cudaStream_t stream_;
+
+    dim3 grids_;
+    dim3 blocks_;
+
+   public:
+    Evaluator(Functor kernel, dim3 grids, dim3 blocks, size_t shmem, cudaStream_t s)
+        : kernel_(kernel), grids_{grids}, blocks_{blocks}, shmem_size_{shmem}, stream_{s}
+    {}
+
+    template <typename... Args>
+    void operator()(Args... args) const {
+      if (XGBOOST_EXPECT(grids_.x * grids_.y * grids_.z == 0, false)) {
+        LOG(DEBUG) << "Skipping empty CUDA kernel.";
+        return;
+      }
+      kernel_<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
+    }
+  };
+
  public:
   LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem=0, cudaStream_t _s=0) :
       grids_{_grids, 1, 1}, blocks_{_blk, 1, 1}, shmem_size_{_shmem}, stream_{_s} {}
   LaunchKernel(dim3 _grids, dim3 _blk, size_t _shmem=0, cudaStream_t _s=0) :
       grids_{_grids}, blocks_{_blk}, shmem_size_{_shmem}, stream_{_s} {}
 
-  template <typename K, typename... Args>
-  void operator()(K kernel, Args... args) {
-    if (XGBOOST_EXPECT(grids_.x * grids_.y * grids_.z == 0, false)) {
-      LOG(DEBUG) << "Skipping empty CUDA kernel.";
-      return;
-    }
-    kernel<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
+  template <typename Functor>
+  Evaluator<Functor> operator()(Functor kernel) {
+    return Evaluator<Functor>(kernel, grids_, blocks_, shmem_size_, stream_);
   }
 };
 
@@ -249,8 +278,8 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
     return;
   }
   safe_cuda(cudaSetDevice(device_idx));
-  const int GRID_SIZE =
-      static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
+  auto const GRID_SIZE =
+      static_cast<uint32_t>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
       static_cast<size_t>(0), n, lambda);
 }

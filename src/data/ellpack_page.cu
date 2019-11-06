@@ -189,8 +189,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                      common::DivRoundUp(row_stride, block3.y),
                      1);
-    dh::LaunchKernel {grid3, block3} (
-        CompressBinEllpackKernel,
+    dh::LaunchKernel {grid3, block3}(CompressBinEllpackKernel)(
         common::CompressedBufferWriter(num_symbols),
         gidx_buffer.data(),
         row_ptrs.data().get(),

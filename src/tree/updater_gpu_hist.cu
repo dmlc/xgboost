@@ -605,10 +605,10 @@ struct GPUHistMakerDevice {
       // One block for each feature
       uint32_t constexpr kBlockThreads = 256;
       dh::LaunchKernel {uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]} (
-          EvaluateSplitKernel<kBlockThreads, GradientSumT>,
-          hist.GetNodeHistogram(nidx), d_feature_set, node, page->matrix,
-          gpu_param, d_split_candidates, node_value_constraints[nidx],
-          monotone_constraints);
+          EvaluateSplitKernel<kBlockThreads, GradientSumT>)(
+              hist.GetNodeHistogram(nidx), d_feature_set, node, page->matrix,
+              gpu_param, d_split_candidates, node_value_constraints[nidx],
+              monotone_constraints);
 
       // Reduce over features to find best feature
       auto d_cub_memory =
@@ -643,9 +643,9 @@ struct GPUHistMakerDevice {
     auto grid_size = static_cast<uint32_t>(
         common::DivRoundUp(n_elements, items_per_thread * block_threads));
     dh::LaunchKernel {grid_size, block_threads, smem_size} (
-        SharedMemHistKernel<GradientSumT>,
-        page->matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
-        use_shared_memory_histograms);
+        SharedMemHistKernel<GradientSumT>)(
+            page->matrix, d_ridx, d_node_hist.data(), d_gpair, n_elements,
+            use_shared_memory_histograms);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
