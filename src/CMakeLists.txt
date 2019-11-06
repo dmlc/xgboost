@@ -1,5 +1,5 @@
 file(GLOB_RECURSE CPU_SOURCES *.cc *.h)
-list(REMOVE_ITEM CPU_SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
+list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared
@@ -9,7 +9,7 @@ if (USE_CUDA)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${CUDA_SOURCES} ${PLUGINS_SOURCES})
   target_compile_definitions(objxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
-  target_include_directories(objxgboost PRIVATE ${PROJECT_SOURCE_DIR}/cub/)
+  target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
   target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
@@ -43,9 +43,9 @@ endif (USE_CUDA)
 
 target_include_directories(objxgboost
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
+  ${xgboost_SOURCE_DIR}/include
+  ${xgboost_SOURCE_DIR}/dmlc-core/include
+  ${xgboost_SOURCE_DIR}/rabit/include)
 target_compile_options(objxgboost
   PRIVATE
   $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:/MP>

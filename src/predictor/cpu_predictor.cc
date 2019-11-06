@@ -60,6 +60,9 @@ class CPUPredictor : public Predictor {
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
+      // Pull to host before entering omp block, as this is not thread safe.
+      batch.data.HostVector();
+      batch.offset.HostVector();
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
         const int tid = omp_get_thread_num();

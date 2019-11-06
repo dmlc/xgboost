@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.3)
 project(xgboost LANGUAGES CXX C VERSION 1.0.0)
 include(cmake/Utils.cmake)
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
+list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+
+if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
+  cmake_policy(SET CMP0077 NEW)
+endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 if (MSVC)
@@ -84,7 +88,7 @@ endif (USE_CUDA)
 
 # dmlc-core
 msvc_use_static_runtime()
-add_subdirectory(${PROJECT_SOURCE_DIR}/dmlc-core)
+add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 set_target_properties(dmlc PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON
@@ -105,7 +109,7 @@ endif(RABIT_MOCK)
 
 # Exports some R specific definitions and objects
 if (R_LIB)
-  add_subdirectory(${PROJECT_SOURCE_DIR}/R-package)
+  add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
 endif (R_LIB)
 
 # core xgboost
@@ -123,22 +127,23 @@ target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
-  add_subdirectory(${PROJECT_SOURCE_DIR}/jvm-packages)
+  add_subdirectory(${xgboost_SOURCE_DIR}/jvm-packages)
 endif (JVM_BINDINGS)
 #-- End shared library
 
 #-- CLI for xgboost
-add_executable(runxgboost ${PROJECT_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
+add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 # For cli_main.cc only
 if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
   target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
 endif (USE_OPENMP)
+
 target_include_directories(runxgboost
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
+  ${xgboost_SOURCE_DIR}/include
+  ${xgboost_SOURCE_DIR}/dmlc-core/include
+  ${xgboost_SOURCE_DIR}/rabit/include)
 target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 set_target_properties(
   runxgboost PROPERTIES
@@ -147,8 +152,8 @@ set_target_properties(
   CXX_STANDARD_REQUIRED ON)
 #-- End CLI for xgboost
 
-set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
-set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
+set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
 # Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
 add_dependencies(xgboost runxgboost)
 
@@ -205,21 +210,21 @@ install(
 if (GOOGLE_TEST)
   enable_testing()
   # Unittests.
-  add_subdirectory(${PROJECT_SOURCE_DIR}/tests/cpp)
+  add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp)
   add_test(
     NAME TestXGBoostLib
     COMMAND testxgboost
-    WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
 
   # CLI tests
   configure_file(
-    ${PROJECT_SOURCE_DIR}/tests/cli/machine.conf.in
-    ${PROJECT_BINARY_DIR}/tests/cli/machine.conf
+    ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
+    ${xgboost_BINARY_DIR}/tests/cli/machine.conf
     @ONLY)
   add_test(
     NAME TestXGBoostCLI
-    COMMAND runxgboost ${PROJECT_BINARY_DIR}/tests/cli/machine.conf
-    WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+    COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
+    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
   set_tests_properties(TestXGBoostCLI
     PROPERTIES
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")

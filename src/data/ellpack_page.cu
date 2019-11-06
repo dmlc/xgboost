@@ -99,13 +99,13 @@ EllpackInfo::EllpackInfo(int device,
                          bool is_dense,
                          size_t row_stride,
                          const common::HistogramCuts& hmat,
-                         dh::BulkAllocator& ba)
+                         dh::BulkAllocator* ba)
     : is_dense(is_dense), row_stride(row_stride), n_bins(hmat.Ptrs().back()) {
 
-  ba.Allocate(device,
-              &feature_segments, hmat.Ptrs().size(),
-              &gidx_fvalue_map, hmat.Values().size(),
-              &min_fvalue, hmat.MinValues().size());
+  ba->Allocate(device,
+               &feature_segments, hmat.Ptrs().size(),
+               &gidx_fvalue_map, hmat.Values().size(),
+               &min_fvalue, hmat.MinValues().size());
   dh::CopyVectorToDeviceSpan(gidx_fvalue_map, hmat.Values());
   dh::CopyVectorToDeviceSpan(min_fvalue, hmat.MinValues());
   dh::CopyVectorToDeviceSpan(feature_segments, hmat.Ptrs());
@@ -116,7 +116,7 @@ void EllpackPageImpl::InitInfo(int device,
                                bool is_dense,
                                size_t row_stride,
                                const common::HistogramCuts& hmat) {
-  matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, ba_);
+  matrix.info = EllpackInfo(device, is_dense, row_stride, hmat, &ba_);
 }
 
 // Initialize the buffer to stored compressed features.
@@ -189,7 +189,8 @@ void EllpackPageImpl::CreateHistIndices(int device,
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                      common::DivRoundUp(row_stride, block3.y),
                      1);
-    CompressBinEllpackKernel<<<grid3, block3>>>(
+    dh::LaunchKernel {grid3, block3} (
+        CompressBinEllpackKernel,
         common::CompressedBufferWriter(num_symbols),
         gidx_buffer.data(),
         row_ptrs.data().get(),

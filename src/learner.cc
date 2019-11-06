@@ -630,7 +630,7 @@ class LearnerImpl : public Learner {
       CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
           << "Unfortunately, XGBoost does not support data matrices with "
           << std::numeric_limits<unsigned>::max() << " features or greater";
-      num_feature = std::max(num_feature, static_cast<unsigned>(num_col));
+      num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
     }
     // run allreduce on num_feature to find the maximum value
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr, "num_feature");
