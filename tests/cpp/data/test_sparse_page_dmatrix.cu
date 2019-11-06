@@ -95,9 +95,10 @@ struct ReadRowFunction {
 };
 
 TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
-  constexpr size_t kRows = 4;
-  constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
+  constexpr size_t kRows = 1024;
+  constexpr size_t kCols = 16;
+  constexpr int kMaxBins = 256;
+  constexpr size_t kPageSize = 4096;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -107,7 +108,7 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, 2, 0, kPageSize};
+  BatchParam param{0, kMaxBins, 0, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
@@ -116,7 +117,6 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
     EXPECT_EQ(impl_ext->base_rowid, current_row);
-    EXPECT_EQ(impl_ext->n_rows, 1);
 
     thrust::device_vector<bst_float> row_d(kCols);
     dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
@@ -130,14 +130,15 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
 
     EXPECT_EQ(row, row_ext);
 
-    current_row++;
+    current_row += impl_ext->n_rows;
   }
 }
 
 TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
-  constexpr size_t kRows = 4;
-  constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
+  constexpr size_t kRows = 1024;
+  constexpr size_t kCols = 16;
+  constexpr int kMaxBins = 256;
+  constexpr size_t kPageSize = 4096;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -147,15 +148,14 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, 2, 0, kPageSize};
+  BatchParam param{0, kMaxBins, 0, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
     EXPECT_EQ(impl_ext->base_rowid, current_row);
-    EXPECT_EQ(impl_ext->n_rows, 1);
-    current_row++;
+    current_row += impl_ext->n_rows;
   }
 
   current_row = 0;
@@ -175,7 +175,7 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
 
     EXPECT_EQ(row, row_ext) << "for row " << current_row;
 
-    current_row++;
+    current_row += impl_ext->n_rows;
   }
 }
 
