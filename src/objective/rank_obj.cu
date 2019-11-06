@@ -292,7 +292,7 @@ struct PairwiseLambdaWeightComputer {
   };
 
   inline PairwiseLambdaWeightMultiplier GetWeightMultiplier() const {
-    return PairwiseLambdaWeightMultiplier();
+    return {};
   }
 #endif
 };
@@ -615,7 +615,7 @@ struct MAPLambdaWeightComputer {
   };
 
   inline MAPLambdaWeightMultiplier GetWeightMultiplier() const {
-    return MAPLambdaWeightMultiplier();
+    return {};
   }
 #endif
 };
