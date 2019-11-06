@@ -87,7 +87,7 @@ TEST(Objective, RankSegmentSorterAscendingTest) {
                                                      5, 4, 6});
 }
 
-typedef uint32_t (*CountFunctor)(const int *, uint32_t, int);
+using CountFunctor = uint32_t (*)(const int *, uint32_t, int);
 void RankItemCountImpl(const std::vector<int> &sorted_items, CountFunctor f,
                        int find_val, uint32_t exp_val) {
   EXPECT_NE(std::find(sorted_items.begin(), sorted_items.end(), find_val), sorted_items.end());

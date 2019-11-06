@@ -435,6 +435,36 @@ struct NDCGLambdaWeightComputer {
   }
 
  private:
+  XGBOOST_DEVICE inline static bst_float ComputeGroupDCGWeight(const float *sorted_labels,
+                                                               uint32_t size) {
+    double sumdcg = 0.0;
+    for (uint32_t i = 0; i < size; ++i) {
+      const auto rel = static_cast<unsigned>(sorted_labels[i]);
+      if (rel != 0) {
+        sumdcg += ((1 << rel) - 1) / std::log2(static_cast<bst_float>(i + 2));
+      }
+    }
+    return static_cast<bst_float>(sumdcg);
+  }
+
+  // Compute the weight adjustment for an item within a group:
+  // ppred_idx => Where does the positive label live, had the list been sorted by prediction
+  // npred_idx => Where does the negative label live, had the list been sorted by prediction
+  // pos_label => positive label value from sorted label list
+  // neg_label => negative label value from sorted label list
+  XGBOOST_DEVICE inline static bst_float ComputeDeltaWeight(uint32_t ppred_idx, uint32_t npred_idx,
+                                                            int pos_label, int neg_label,
+                                                            float idcg) {
+    float pos_loginv = 1.0f / std::log2(ppred_idx + 2.0f);
+    float neg_loginv = 1.0f / std::log2(npred_idx + 2.0f);
+    bst_float original = ((1 << pos_label) - 1) * pos_loginv + ((1 << neg_label) - 1) * neg_loginv;
+    float changed = ((1 << neg_label) - 1) * pos_loginv + ((1 << pos_label) - 1) * neg_loginv;
+    bst_float delta = (original - changed) * (1.0f / idcg);
+    if (delta < 0.0f) delta = - delta;
+    return delta;
+  }
+
+#if defined(__CUDACC__)
   // While computing the weight that needs to be adjusted by this ranking objective, we need
   // to figure out where positive and negative labels chosen earlier exists, if the group
   // were to be sorted by its predictions. To accommodate this, we employ the following algorithm.
@@ -471,36 +501,6 @@ struct NDCGLambdaWeightComputer {
                     dindexable_sorted_preds_pos_.begin());  // Write results into this
   }
 
-  XGBOOST_DEVICE inline static bst_float ComputeGroupDCGWeight(const float *sorted_labels,
-                                                               uint32_t size) {
-    double sumdcg = 0.0;
-    for (uint32_t i = 0; i < size; ++i) {
-      const auto rel = static_cast<unsigned>(sorted_labels[i]);
-      if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / std::log2(static_cast<bst_float>(i + 2));
-      }
-    }
-    return static_cast<bst_float>(sumdcg);
-  }
-
-  // Compute the weight adjustment for an item within a group:
-  // ppred_idx => Where does the positive label live, had the list been sorted by prediction
-  // npred_idx => Where does the negative label live, had the list been sorted by prediction
-  // pos_label => positive label value from sorted label list
-  // neg_label => negative label value from sorted label list
-  XGBOOST_DEVICE inline static bst_float ComputeDeltaWeight(uint32_t ppred_idx, uint32_t npred_idx,
-                                                            int pos_label, int neg_label,
-                                                            float idcg) {
-    float pos_loginv = 1.0f / std::log2(ppred_idx + 2.0f);
-    float neg_loginv = 1.0f / std::log2(npred_idx + 2.0f);
-    bst_float original = ((1 << pos_label) - 1) * pos_loginv + ((1 << neg_label) - 1) * neg_loginv;
-    float changed = ((1 << neg_label) - 1) * pos_loginv + ((1 << pos_label) - 1) * neg_loginv;
-    bst_float delta = (original - changed) * (1.0f / idcg);
-    if (delta < 0.0f) delta = - delta;
-    return delta;
-  }
-
-#if defined(__CUDACC__)
   dh::caching_device_vector<float> dgroup_dcg_;
   // Where can a prediction for a label be found in the original array, when they are sorted
   dh::caching_device_vector<uint32_t> dindexable_sorted_preds_pos_;
