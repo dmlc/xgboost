@@ -246,6 +246,14 @@ class GBTree : public GradientBooster {
   std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
                                                  DMatrix* f_dmat = nullptr) const {
     CHECK(configured_);
+    auto on_device = f_dmat && (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
+#if defined(XGBOOST_USE_CUDA)
+    // Use GPU Predictor if data is already on device.
+    if (!specified_predictor_ && on_device) {
+      CHECK(gpu_predictor_);
+      return gpu_predictor_;
+    }
+#endif  // defined(XGBOOST_USE_CUDA)
     // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
     // Predictor is not used for training dataset.  But when XGBoost performs continue
     // training with an existing model, the prediction cache is not availbale and number
@@ -256,7 +264,7 @@ class GBTree : public GradientBooster {
         (model_.param.num_trees != 0) &&
         // FIXME(trivialfis): Implement a better method for testing whether data is on
         // device after DMatrix refactoring is done.
-        (f_dmat && !((*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead()))) {
+        !on_device) {
       return cpu_predictor_;
     }
     if (tparam_.predictor == "cpu_predictor") {

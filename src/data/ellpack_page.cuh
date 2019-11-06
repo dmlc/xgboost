@@ -70,7 +70,7 @@ struct EllpackInfo {
                        bool is_dense,
                        size_t row_stride,
                        const common::HistogramCuts& hmat,
-                       dh::BulkAllocator& ba);
+                       dh::BulkAllocator* ba);
 };
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the

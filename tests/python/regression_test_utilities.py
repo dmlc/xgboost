@@ -67,7 +67,8 @@ def get_weights_regression(min_weight, max_weight):
     n = 10000
     sparsity = 0.25
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x
+                   for x in x_row] for x_row in X])
     w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
     return X, y, w
 

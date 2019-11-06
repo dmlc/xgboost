@@ -225,12 +225,12 @@ class GPUPredictor : public xgboost::Predictor {
                        HostDeviceVector<bst_float>* predictions,
                        size_t batch_offset) {
     dh::safe_cuda(cudaSetDevice(device_));
-    const int BLOCK_THREADS = 128;
+    const uint32_t BLOCK_THREADS = 128;
     size_t num_rows = batch.Size();
-    const int GRID_SIZE = static_cast<int>(common::DivRoundUp(num_rows, BLOCK_THREADS));
+    auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
 
-    int shared_memory_bytes = static_cast<int>
-      (sizeof(float) * num_features * BLOCK_THREADS);
+    auto shared_memory_bytes =
+        static_cast<size_t>(sizeof(float) * num_features * BLOCK_THREADS);
     bool use_shared = true;
     if (shared_memory_bytes > max_shared_memory_bytes_) {
       shared_memory_bytes = 0;
@@ -238,11 +238,12 @@ class GPUPredictor : public xgboost::Predictor {
     }
     size_t entry_start = 0;
 
-    PredictKernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS, shared_memory_bytes>>>
-        (dh::ToSpan(nodes_), predictions->DeviceSpan().subspan(batch_offset),
-         dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
-         batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features, num_rows,
-         entry_start, use_shared, this->num_group_);
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
+        PredictKernel<BLOCK_THREADS>,
+        dh::ToSpan(nodes_), predictions->DeviceSpan().subspan(batch_offset),
+        dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
+        batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features, num_rows,
+        entry_start, use_shared, this->num_group_);
   }
 
   void InitModel(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
