@@ -43,12 +43,6 @@ if (USE_CUDA)
     target_include_directories(testxgboost PRIVATE "${NVTX_HEADER_DIR}")
     target_compile_definitions(testxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
   endif (USE_NVTX)
-
-  if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    target_link_libraries(testxgboost PRIVATE nvml)
-  elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    target_link_libraries(testxgboost PRIVATE nvidia-ml)
-  endif()
 endif (USE_CUDA)
 
 target_include_directories(testxgboost

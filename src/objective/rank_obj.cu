@@ -223,65 +223,6 @@ __device__ __forceinline__ uint32_t
 CountNumItemsToTheRightOf(const T * __restrict__ items, uint32_t n, T v) {
   return CountNumItemsImpl(false, items, n, v);
 }
-
-// Types that needs to be reference counted should derive from this. This provides a
-// means by which types can be shallow copied (on host and/or kernel). The derived type
-// should check the number of outstanding references via 'NumReferences' API in its
-// destructor, and should release the resources it manages, if there is a *single*
-// outstanding instance of that type.
-// TODO(sriramch): If an instance of a type is copied/assigned concurrently across multiple
-// threads, then we need to make the reference count atomic
-class RefCountable {
- public:
-  RefCountable() {
-    dh::safe_cuda(cudaMallocManaged(&ref_cnt_, sizeof(int)));
-    *ref_cnt_ = 1;
-  }
-
-  XGBOOST_DEVICE RefCountable(const RefCountable &rhs) {
-    this->CopyFrom(rhs);
-  }
-
-  RefCountable(RefCountable &&rhs) {
-    this->CopyFrom(rhs);
-    rhs.Release();
-  }
-
-  RefCountable & operator=(const RefCountable &rhs) {
-    this->Release();
-    this->CopyFrom(rhs);
-    return *this;
-  }
-
-  RefCountable & operator=(RefCountable &&rhs) {
-    *this = rhs;
-    rhs.Release();
-    return *this;
-  }
-
-  XGBOOST_DEVICE int NumReferences() {
-    return (ref_cnt_) ? *ref_cnt_ : 0;
-  }
-
-  ~RefCountable() {
-    this->Release();
-  }
-
- private:
-  XGBOOST_DEVICE void CopyFrom(const RefCountable &rhs) {
-    ref_cnt_ = rhs.ref_cnt_;
-    if (ref_cnt_) (*ref_cnt_)++;
-  }
-
-  void Release() {
-    if (ref_cnt_ && --*ref_cnt_ == 0) {
-      dh::safe_cuda(cudaFree(ref_cnt_));
-    }
-    ref_cnt_ = nullptr;
-  }
-
-  int *ref_cnt_{nullptr};
-};
 #endif
 
 /*! \brief helper information in a list */
@@ -343,21 +284,21 @@ struct PairwiseLambdaWeightComputer {
                                uint32_t pred_size,
                                const SegmentSorter<float> &segment_label_sorter) {}
 
-  // Adjust the items weight by this value
-  __device__ __forceinline__ bst_float GetWeightMultiplier(uint32_t gidx,
-                                                           int pidx, int nidx) const {
-    return 1.0f;
+  struct PairwiseLambdaWeightMultiplier {
+    // Adjust the items weight by this value
+    __device__ __forceinline__ bst_float GetWeight(uint32_t gidx, int pidx, int nidx) const {
+      return 1.0f;
+    }
+  };
+
+  inline PairwiseLambdaWeightMultiplier GetWeightMultiplier() const {
+    return PairwiseLambdaWeightMultiplier();
   }
 #endif
 };
 
 // beta version: NDCG lambda rank
-struct NDCGLambdaWeightComputer
-#if defined(__CUDACC__)
-  : RefCountable {
-#else
-  {
-#endif
+struct NDCGLambdaWeightComputer {
  public:
 #if defined(__CUDACC__)
   // This function object computes the group's DCG for a given group
@@ -383,13 +324,13 @@ struct NDCGLambdaWeightComputer
   NDCGLambdaWeightComputer(const bst_float *dpreds,
                            uint32_t pred_size,
                            const SegmentSorter<float> &segment_label_sorter)
-    : dsorted_labels_(segment_label_sorter.Items()),
-      dorig_pos_(segment_label_sorter.OriginalPositions()),
-      dgroups_(segment_label_sorter.GroupIndices()),
-      dgroup_dcg_(new dh::caching_device_vector<float>(segment_label_sorter.NumGroups())),
-      dgroup_dcg_ptr_(dgroup_dcg_->data().get()),
-      dindexable_sorted_preds_pos_(new dh::caching_device_vector<uint32_t>(pred_size)),
-      dindexable_sorted_preds_pos_ptr_(dindexable_sorted_preds_pos_->data().get()) {
+    : dgroup_dcg_(segment_label_sorter.NumGroups()),
+      dindexable_sorted_preds_pos_(pred_size),
+      weight_multiplier_(segment_label_sorter.Items(),
+                         segment_label_sorter.OriginalPositions(),
+                         segment_label_sorter.GroupIndices(),
+                         dgroup_dcg_.data().get(),
+                         dindexable_sorted_preds_pos_.data().get()) {
     // Sort the predictions first and get the sorted position
     SegmentSorter<float> segment_prediction_sorter;
     segment_prediction_sorter.SortItems(dpreds, pred_size, segment_label_sorter.GroupSegments());
@@ -399,13 +340,14 @@ struct NDCGLambdaWeightComputer
     // Compute each group's DCG concurrently
     // Set the values to be the group indices first so that the predicate knows which
     // group it is dealing with
-    thrust::sequence(dgroup_dcg_->begin(), dgroup_dcg_->end());
+    thrust::sequence(dgroup_dcg_.begin(), dgroup_dcg_.end());
 
     // TODO(sriramch): parallelize across all elements, if possible
     // Transform each group - the predictate computes the group's DCG
-    thrust::transform(dgroup_dcg_->begin(), dgroup_dcg_->end(),
-                      dgroup_dcg_->begin(),
-                      ComputeGroupDCG(dsorted_labels_, dgroups_));
+    thrust::transform(dgroup_dcg_.begin(), dgroup_dcg_.end(),
+                      dgroup_dcg_.begin(),
+                      ComputeGroupDCG(segment_label_sorter.Items(),
+                                      segment_label_sorter.GroupIndices()));
   }
 
   // While computing the weight that needs to be adjusted by this ranking objective, we need
@@ -437,40 +379,56 @@ struct NDCGLambdaWeightComputer
   // Basically, swap the previous 2 arrays, sort the indices and reorder positions
   // for an O(1) lookup using the position where the sorted label exists
   void CreateIndexableSortedPredictionPositions(const uint32_t *dsorted_preds_pos) {
-    dh::caching_device_vector<uint32_t> indices(dindexable_sorted_preds_pos_->size());
+    dh::caching_device_vector<uint32_t> indices(dindexable_sorted_preds_pos_.size());
     thrust::sequence(indices.begin(), indices.end());
     thrust::scatter(indices.begin(), indices.end(),  // Rearrange indices...
                     thrust::device_ptr<const uint32_t>(dsorted_preds_pos),  // ...based on this map
-                    dindexable_sorted_preds_pos_->begin());  // Write results into this
+                    dindexable_sorted_preds_pos_.begin());  // Write results into this
   }
 
-  ~NDCGLambdaWeightComputer() {
-    if (NumReferences() == 1) {
-      delete dgroup_dcg_;
-      delete dindexable_sorted_preds_pos_;
+  class NDCGLambdaWeightMultiplier {
+   public:
+    NDCGLambdaWeightMultiplier(const float *dsorted_labels,
+                               const uint32_t *dorig_pos,
+                               const uint32_t *dgroups,
+                               const float *dgroup_dcg_ptr,
+                               uint32_t *dindexable_sorted_preds_pos_ptr)
+      : dsorted_labels_(dsorted_labels),
+        dorig_pos_(dorig_pos),
+        dgroups_(dgroups),
+        dgroup_dcg_ptr_(dgroup_dcg_ptr),
+        dindexable_sorted_preds_pos_ptr_(dindexable_sorted_preds_pos_ptr) {}
+
+    // Adjust the items weight by this value
+    __device__ __forceinline__ bst_float GetWeight(uint32_t gidx, int pidx, int nidx) const {
+      if (dgroup_dcg_ptr_[gidx] == 0.0) return 0.0f;
+
+      uint32_t group_begin = dgroups_[gidx];
+
+      auto ppred_idx = dorig_pos_[pidx];
+      auto npred_idx = dorig_pos_[nidx];
+      KERNEL_CHECK(ppred_idx != npred_idx);
+
+      // Note: the label positive and negative indices are relative to the entire dataset.
+      // Hence, scale them back to an index within the group
+      ppred_idx = dindexable_sorted_preds_pos_ptr_[ppred_idx] - group_begin;
+      npred_idx = dindexable_sorted_preds_pos_ptr_[npred_idx] - group_begin;
+      return NDCGLambdaWeightComputer::ComputeDeltaWeight(
+        ppred_idx, npred_idx,
+        static_cast<int>(dsorted_labels_[pidx]), static_cast<int>(dsorted_labels_[nidx]),
+        dgroup_dcg_ptr_[gidx]);
     }
-  }
 
-  // Adjust the items weight by this value
-  __device__ __forceinline__ bst_float GetWeightMultiplier(uint32_t gidx,
-                                                           int pidx, int nidx) const {
-    if (dgroup_dcg_ptr_[gidx] == 0.0) return 0.0f;
+   private:
+     const float *dsorted_labels_{nullptr};  // Labels sorted within a group
+     const uint32_t *dorig_pos_{nullptr};  // Original indices of the labels before they are sorted
+     const uint32_t *dgroups_{nullptr};  // The group indices
+     const float *dgroup_dcg_ptr_{nullptr};  // Start address of the group DCG values
+     // Where can a prediction for a label be found in the original array, when they are sorted
+     uint32_t *dindexable_sorted_preds_pos_ptr_{nullptr};
+  };
 
-    uint32_t group_begin = dgroups_[gidx];
-
-    auto ppred_idx = dorig_pos_[pidx];
-    auto npred_idx = dorig_pos_[nidx];
-    KERNEL_CHECK(ppred_idx != npred_idx);
-
-    // Note: the label positive and negative indices are relative to the entire dataset.
-    // Hence, scale them back to an index within the group
-    ppred_idx = dindexable_sorted_preds_pos_ptr_[ppred_idx] - group_begin;
-    npred_idx = dindexable_sorted_preds_pos_ptr_[npred_idx] - group_begin;
-    return ComputeDeltaWeight(ppred_idx, npred_idx,
-                              static_cast<int>(dsorted_labels_[pidx]),
-                              static_cast<int>(dsorted_labels_[nidx]),
-                              dgroup_dcg_ptr_[gidx]);
-  }
+  inline NDCGLambdaWeightMultiplier GetWeightMultiplier() const { return weight_multiplier_; }
 #endif
 
   // Stopgap method - will be removed when we support other type of ranking - map
@@ -539,16 +497,10 @@ struct NDCGLambdaWeightComputer
   }
 
 #if defined(__CUDACC__)
-  const float *dsorted_labels_{nullptr};  // Labels sorted within a group
-  const uint32_t *dorig_pos_{nullptr};  // Original indices of the labels before they are sorted
-  const uint32_t *dgroups_{nullptr};  // The group indices
-
-  dh::caching_device_vector<float> *dgroup_dcg_;
-  const float *dgroup_dcg_ptr_{nullptr};  // Start address of the group DCG values
-
+  dh::caching_device_vector<float> dgroup_dcg_;
   // Where can a prediction for a label be found in the original array, when they are sorted
-  dh::caching_device_vector<uint32_t> *dindexable_sorted_preds_pos_;
-  uint32_t *dindexable_sorted_preds_pos_ptr_{nullptr};
+  dh::caching_device_vector<uint32_t> dindexable_sorted_preds_pos_;
+  NDCGLambdaWeightMultiplier weight_multiplier_;   // This computes the adjustment to the weight
 #endif
 };
 
@@ -655,10 +607,15 @@ struct MAPLambdaWeightComputer {
                           uint32_t pred_size,
                           const SegmentSorter<float> &segment_label_sorter) {}
 
-  // Adjust the items weight by this value
-  __device__ __forceinline__ bst_float GetWeightMultiplier(uint32_t gidx,
-                                                           int pidx, int nidx) const {
-    return 1.0f;
+  struct MAPLambdaWeightMultiplier {
+    // Adjust the items weight by this value
+    __device__ __forceinline__ bst_float GetWeight(uint32_t gidx, int pidx, int nidx) const {
+      return 1.0f;
+    }
+  };
+
+  inline MAPLambdaWeightMultiplier GetWeightMultiplier() const {
+    return MAPLambdaWeightMultiplier();
   }
 #endif
 };
@@ -703,6 +660,7 @@ class SortedLabelList : SegmentSorter<float> {
     // This is used to adjust the weight of different elements based on the different ranking
     // objective function policies
     LambdaWeightComputerT weight_computer(dpreds, total_items, *this);
+    auto wmultiplier = weight_computer.GetWeightMultiplier();
 
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
@@ -762,7 +720,7 @@ class SortedLabelList : SegmentSorter<float> {
 
       float weight = num_weights ? dweights[group_idx - 1] : 1.0f;
       weight *= weight_normalization_factor;
-      weight *= weight_computer.GetWeightMultiplier(group_idx - 1, pos_idx, neg_idx);
+      weight *= wmultiplier.GetWeight(group_idx - 1, pos_idx, neg_idx);
       weight *= scale;
       // Accumulate gradient and hessian in both positive and negative indices
       const GradientPair in_pos_gpair(g * weight, 2.0f * weight * h);
