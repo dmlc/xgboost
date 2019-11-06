@@ -10,10 +10,6 @@
 #include <utility>
 #include <vector>
 
-#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-#include <nvToolsExt.h>
-#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-
 namespace xgboost {
 namespace common {
 
@@ -84,37 +80,10 @@ struct Monitor {
   void Print() const;
 
   void Init(std::string label) { this->label = label; }
-  void Start(const std::string &name) {
-    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-      statistics_map[name].timer.Start();
-    }
-  }
-  void Stop(const std::string &name) {
-    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-      auto &stats = statistics_map[name];
-      stats.timer.Stop();
-      stats.count++;
-    }
-  }
-  void StartCuda(const std::string &name) {
-    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-      auto &stats = statistics_map[name];
-      stats.timer.Start();
-#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-      stats.nvtx_id = nvtxRangeStartA(name.c_str());
-#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-    }
-  }
-  void StopCuda(const std::string &name) {
-    if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-      auto &stats = statistics_map[name];
-      stats.timer.Stop();
-      stats.count++;
-#if defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-      nvtxRangeEnd(stats.nvtx_id);
-#endif  // defined(XGBOOST_USE_NVTX) && defined(__CUDACC__)
-    }
-  }
+  void Start(const std::string &name);
+  void Stop(const std::string &name);
+  void StartCuda(const std::string &name);
+  void StopCuda(const std::string &name);
 };
 }  // namespace common
 }  // namespace xgboost

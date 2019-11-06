@@ -2,6 +2,7 @@
 import sys
 import time
 import xgboost as xgb
+import os
 
 
 def run_test(name, params_fun):
@@ -48,6 +49,9 @@ def run_test(name, params_fun):
 
     xgb.rabit.finalize()
 
+    if os.path.exists(model_name):
+        os.remove(model_name)
+
 
 base_params = {
     'tree_method': 'gpu_hist',
@@ -80,8 +84,6 @@ def wrap_rf(params_fun):
 
 
 params_rf_1x4 = wrap_rf(params_basic_1x4)
-
-
 
 test_name = sys.argv[1]
 run_test(test_name, globals()['params_%s' % test_name])

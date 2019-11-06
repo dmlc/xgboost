@@ -13,6 +13,20 @@
 namespace xgboost {
 namespace common {
 
+void Monitor::Start(std::string const &name) {
+  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+    statistics_map[name].timer.Start();
+  }
+}
+
+void Monitor::Stop(const std::string &name) {
+  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+    auto &stats = statistics_map[name];
+    stats.timer.Stop();
+    stats.count++;
+  }
+}
+
 std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
   // Since other nodes might have started timers that this one haven't, so
   // we can't simply call all reduce.

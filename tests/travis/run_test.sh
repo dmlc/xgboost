@@ -34,6 +34,13 @@ fi
 
 if [ ${TASK} == "cmake_test" ]; then
     set -e
+
+    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
+        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
+             'try `dh::LaunchKernel`'
+        exit -1
+    fi
+
     # Build/test
     rm -rf build
     mkdir build && cd build
