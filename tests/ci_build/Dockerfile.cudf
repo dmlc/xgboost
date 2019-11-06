@@ -18,15 +18,12 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with cuDF and dask
 RUN \
     conda create -n cudf_test -c rapidsai -c nvidia -c numba -c conda-forge -c anaconda \
-        cudf=0.9 python=3.7 anaconda::cudatoolkit=$CUDA_VERSION dask
+        cudf=0.9 python=3.7 anaconda::cudatoolkit=$CUDA_VERSION dask dask-cuda
 
 # Install other Python packages
 RUN \
     source activate cudf_test && \
-    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
-    wget https://github.com/rapidsai/dask-cuda/archive/v0.10.0.tar.gz -O ./dask-cuda-v0.10.0.tar.gz && \
-    pip install ./dask-cuda-v0.10.0.tar.gz && \
-    rm ./dask-cuda-v0.10.0.tar.gz
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz
 
 ENV GOSU_VERSION 1.10
 

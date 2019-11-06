@@ -79,7 +79,6 @@ AllReducer::~AllReducer() {
   if (initialised_) {
     dh::safe_cuda(cudaStreamDestroy(stream));
     ncclCommDestroy(comm);
-    // SafeNVML(nvmlShutdown());
   }
   if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
     LOG(CONSOLE) << "======== NCCL Statistics========";
