@@ -83,7 +83,6 @@ pipeline {
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
-            'test-cpp-rabit': {TestCppRabit()},
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },

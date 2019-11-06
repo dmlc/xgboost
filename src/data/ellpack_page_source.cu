@@ -91,7 +91,7 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("CreateEllpackInfo");
-  ellpack_info_ = EllpackInfo(device_, dmat->IsDense(), row_stride, hmat, ba_);
+  ellpack_info_ = EllpackInfo(device_, dmat->IsDense(), row_stride, hmat, &ba_);
   monitor_.StopCuda("CreateEllpackInfo");
 
   monitor_.StartCuda("WriteEllpackPages");

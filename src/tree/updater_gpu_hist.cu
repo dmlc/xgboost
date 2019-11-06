@@ -606,12 +606,12 @@ struct GPUHistMakerDevice {
       }
 
       // One block for each feature
-      int constexpr kBlockThreads = 256;
-      EvaluateSplitKernel<kBlockThreads, GradientSumT>
-          <<<uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]>>>(
-              hist.GetNodeHistogram(nidx), d_feature_set, node, page->matrix,
-              gpu_param, d_split_candidates, node_value_constraints[nidx],
-              monotone_constraints);
+      uint32_t constexpr kBlockThreads = 256;
+      dh::LaunchKernel {uint32_t(d_feature_set.size()), kBlockThreads, 0, streams[i]} (
+          EvaluateSplitKernel<kBlockThreads, GradientSumT>,
+          hist.GetNodeHistogram(nidx), d_feature_set, node, page->matrix,
+          gpu_param, d_split_candidates, node_value_constraints[nidx],
+          monotone_constraints);
 
       // Reduce over features to find best feature
       auto d_cub_memory =
@@ -653,14 +653,12 @@ struct GPUHistMakerDevice {
         use_shared_memory_histograms
             ? sizeof(GradientSumT) * page->matrix.info.n_bins
             : 0;
-    const int items_per_thread = 8;
-    const int block_threads = 256;
-    const int grid_size = static_cast<int>(
+    uint32_t items_per_thread = 8;
+    uint32_t block_threads = 256;
+    auto grid_size = static_cast<uint32_t>(
         common::DivRoundUp(n_elements, items_per_thread * block_threads));
-    if (grid_size <= 0) {
-      return;
-    }
-    SharedMemHistKernel<<<grid_size, block_threads, smem_size>>>(
+    dh::LaunchKernel {grid_size, block_threads, smem_size} (
+        SharedMemHistKernel<GradientSumT>,
         page->matrix, page->base_rowid, d_ridx, d_node_hist.data(), d_gpair, n_elements,
         use_shared_memory_histograms);
   }
@@ -937,6 +935,7 @@ struct GPUHistMakerDevice {
     monitor.StartCuda("InitRoot");
     this->InitRoot(p_tree, gpair_all, p_fmat, reducer, p_fmat->Info().num_col_);
     monitor.StopCuda("InitRoot");
+
     auto timestamp = qexpand->size();
     auto num_leaves = 1;
 
@@ -946,7 +945,6 @@ struct GPUHistMakerDevice {
       if (!candidate.IsValid(param, num_leaves)) {
         continue;
       }
-
       this->ApplySplit(candidate, p_tree);
 
       num_leaves++;
@@ -1057,18 +1055,22 @@ class GPUHistMakerSpecialised {
     try {
       for (xgboost::RegTree* tree : trees) {
         this->UpdateTree(gpair, dmat, tree);
+
+        if (hist_maker_param_.debug_synchronize) {
+          this->CheckTreesSynchronized(tree);
+        }
       }
       dh::safe_cuda(cudaGetLastError());
     } catch (const std::exception& e) {
       LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
     }
+
     param_.learning_rate = lr;
     monitor_.StopCuda("Update");
   }
 
   void InitDataOnce(DMatrix* dmat) {
     info_ = &dmat->Info();
-
     reducer_.Init({device_});
 
     // Synchronise the column sampling seed
@@ -1109,20 +1111,18 @@ class GPUHistMakerSpecialised {
   }
 
   // Only call this method for testing
-  void CheckTreesSynchronized(const std::vector<RegTree>& local_trees) const {
+  void CheckTreesSynchronized(RegTree* local_tree) const {
     std::string s_model;
     common::MemoryBufferStream fs(&s_model);
     int rank = rabit::GetRank();
     if (rank == 0) {
-      local_trees.front().SaveModel(&fs);
+      local_tree->SaveModel(&fs);
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
-    RegTree reference_tree{};
+    RegTree reference_tree {};  // rank 0 tree
     reference_tree.LoadModel(&fs);
-    for (const auto& tree : local_trees) {
-      CHECK(tree == reference_tree);
-    }
+    CHECK(*local_tree == reference_tree);
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,

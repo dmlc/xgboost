@@ -55,10 +55,14 @@ def _start_tracker(host, n_workers):
     return env
 
 
-def _assert_dask_installed():
+def _assert_dask_support():
     if not DASK_INSTALLED:
         raise ImportError(
             'Dask needs to be installed in order to use this module')
+    if platform.system() == 'Windows':
+        msg = 'Windows is not officially supported for dask/xgboost,'
+        msg += ' contribution are welcomed.'
+        logging.warning(msg)
 
 
 class RabitContext:
@@ -94,6 +98,11 @@ def _xgb_get_client(client):
     '''Simple wrapper around testing None.'''
     ret = get_client() if client is None else client
     return ret
+
+
+def _get_client_workers(client):
+    workers = client.scheduler_info()['workers']
+    return workers
 
 
 class DaskDMatrix:
@@ -132,7 +141,7 @@ class DaskDMatrix:
                  weight=None,
                  feature_names=None,
                  feature_types=None):
-        _assert_dask_installed()
+        _assert_dask_support()
 
         self._feature_names = feature_names
         self._feature_types = feature_types
@@ -263,6 +272,17 @@ class DaskDMatrix:
           A DMatrix object.
 
         '''
+        if worker.address not in set(self.worker_map.keys()):
+            msg = 'worker {address} has an empty DMatrix.  ' \
+                'All workers associated with this DMatrix: {workers}'.format(
+                    address=worker.address,
+                    workers=set(self.worker_map.keys()))
+            logging.warning(msg)
+            d = DMatrix(numpy.empty((0, 0)),
+                        feature_names=self._feature_names,
+                        feature_types=self._feature_types)
+            return d
+
         data, labels, weights = self.get_worker_parts(worker)
 
         data = concat(data)
@@ -275,7 +295,6 @@ class DaskDMatrix:
             weights = concat(weights)
         else:
             weights = None
-
         dmatrix = DMatrix(data,
                           labels,
                           weight=weights,
@@ -342,35 +361,33 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
                      'eval': {'logloss': ['0.480385', '0.357756']}}}
 
     '''
-    _assert_dask_installed()
-    if platform.system() == 'Windows':
-        msg = 'Windows is not officially supported for dask/xgboost,'
-        msg += ' contribution are welcomed.'
-        logging.warning(msg)
+    _assert_dask_support()
 
     if 'evals_result' in kwargs.keys():
         raise ValueError(
             'evals_result is not supported in dask interface.',
             'The evaluation history is returned as result of training.')
-
     client = _xgb_get_client(client)
+    workers = list(_get_client_workers(client).keys())
 
-    worker_map = dtrain.worker_map
-    rabit_args = _get_rabit_args(worker_map, client)
+    rabit_args = _get_rabit_args(workers, client)
 
-    def dispatched_train(worker_id):
-        '''Perform training on worker.'''
-        logging.info('Training on %d', worker_id)
+    def dispatched_train(worker_addr):
+        '''Perform training on a single worker.'''
+        logging.info('Training on %s', str(worker_addr))
         worker = distributed_get_worker()
-        local_dtrain = dtrain.get_worker_data(worker)
-
-        local_evals = []
-        if evals:
-            for mat, name in evals:
-                local_mat = mat.get_worker_data(worker)
-                local_evals.append((local_mat, name))
-
         with RabitContext(rabit_args):
+            local_dtrain = dtrain.get_worker_data(worker)
+
+            local_evals = []
+            if evals:
+                for mat, name in evals:
+                    if mat is dtrain:
+                        local_evals.append((local_dtrain, name))
+                        continue
+                    local_mat = mat.get_worker_data(worker)
+                    local_evals.append((local_mat, name))
+
             local_history = {}
             local_param = params.copy()  # just to be consistent
             bst = worker_train(params=local_param,
@@ -380,14 +397,14 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
                                evals=local_evals,
                                **kwargs)
             ret = {'booster': bst, 'history': local_history}
-            if rabit.get_rank() != 0:
+            if local_dtrain.num_row() == 0:
                 ret = None
             return ret
 
     futures = client.map(dispatched_train,
-                         range(len(worker_map)),
+                         workers,
                          pure=False,
-                         workers=list(worker_map.keys()))
+                         workers=workers)
     results = client.gather(futures)
     return list(filter(lambda ret: ret is not None, results))[0]
 
@@ -414,7 +431,7 @@ def predict(client, model, data, *args):
     prediction: dask.array.Array
 
     '''
-    _assert_dask_installed()
+    _assert_dask_support()
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -437,7 +454,8 @@ def predict(client, model, data, *args):
         local_x = data.get_worker_data(worker)
 
         with RabitContext(rabit_args):
-            local_predictions = booster.predict(data=local_x, *args)
+            local_predictions = booster.predict(
+                data=local_x, validate_features=local_x.num_row() != 0, *args)
         return local_predictions
 
     futures = client.map(dispatched_predict,
@@ -563,7 +581,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
             sample_weights=None,
             eval_set=None,
             sample_weight_eval_set=None):
-        _assert_dask_installed()
+        _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
@@ -579,7 +597,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
-        _assert_dask_installed()
+        _assert_dask_support()
         test_dmatrix = DaskDMatrix(client=self.client, data=data)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)
@@ -599,7 +617,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             sample_weights=None,
             eval_set=None,
             sample_weight_eval_set=None):
-        _assert_dask_installed()
+        _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
         params = self.get_xgb_params()
@@ -626,7 +644,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return self
 
     def predict(self, data):  # pylint: disable=arguments-differ
-        _assert_dask_installed()
+        _assert_dask_support()
         test_dmatrix = DaskDMatrix(client=self.client, data=data)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)

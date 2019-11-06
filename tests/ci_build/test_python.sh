@@ -33,11 +33,13 @@ case "$suite" in
     pytest -v -s --fulltrace -m "(not slow) and mgpu" tests/python-gpu
     cd tests/distributed
     ./runtests-gpu.sh
+    cd -
+    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
     ;;
 
   cudf)
     source activate cudf_test
-    python -m pytest -v -s --fulltrace tests/python-gpu/test_from_columnar.py tests/python-gpu/test_gpu_with_dask.py
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_columnar.py
     ;;
 
   cpu)
