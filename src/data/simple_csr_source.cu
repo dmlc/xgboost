@@ -124,7 +124,8 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
   common::Span<size_t> s_offsets = out_offset->DeviceSpan();
 
   uint32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
-  dh::LaunchKernel {kBlocks, kThreads}(CountValidKernel<T>)(
+  dh::LaunchKernel {kBlocks, kThreads} (
+      CountValidKernel<T>,
       foreign_column,
       has_missing, missing,
       out_d_flag->data().get(), s_offsets);
@@ -140,7 +141,8 @@ void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t 
   auto const& column_obj = get<Object const>(j_column);
   Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
   uint32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
-  dh::LaunchKernel {kBlocks, kThreads}(CreateCSRKernel<T>)(
+  dh::LaunchKernel {kBlocks, kThreads} (
+      CreateCSRKernel<T>,
       foreign_column, column_id, has_missing, missing,
       dh::ToSpan(*tmp_offset), s_data);
 }

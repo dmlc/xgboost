@@ -168,7 +168,8 @@ void FeatureInteractionConstraint::ClearBuffers() {
   uint32_t constexpr kBlockThreads = 256;
   auto const n_grids = static_cast<uint32_t>(
       common::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
-  dh::LaunchKernel {n_grids, kBlockThreads} (ClearBuffersKernel)(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      ClearBuffersKernel,
       output_buffer_bits_, input_buffer_bits_);
 }
 
@@ -225,9 +226,11 @@ common::Span<int32_t> FeatureInteractionConstraint::Query(
   uint32_t constexpr kBlockThreads = 256;
   auto n_grids = static_cast<uint32_t>(
       common::DivRoundUp(output_buffer_bits_.Size(), kBlockThreads));
-  dh::LaunchKernel {n_grids, kBlockThreads} (SetInputBufferKernel)(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      SetInputBufferKernel,
       feature_list, input_buffer_bits_);
-  dh::LaunchKernel {n_grids, kBlockThreads} (QueryFeatureListKernel)(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      QueryFeatureListKernel,
       node_constraints, input_buffer_bits_, output_buffer_bits_);
 
   thrust::counting_iterator<int32_t> begin(0);
@@ -327,7 +330,8 @@ void FeatureInteractionConstraint::Split(
   dim3 const block3(16, 64, 1);
   dim3 const grid3(common::DivRoundUp(n_sets_, 16),
                    common::DivRoundUp(s_fconstraints_.size(), 64));
-  dh::LaunchKernel {grid3, block3} (RestoreFeatureListFromSetsKernel)(
+  dh::LaunchKernel {grid3, block3} (
+      RestoreFeatureListFromSetsKernel,
       feature_buffer_, feature_id,
       s_fconstraints_, s_fconstraints_ptr_,
       s_sets_, s_sets_ptr_);
@@ -335,7 +339,8 @@ void FeatureInteractionConstraint::Split(
   uint32_t constexpr kBlockThreads = 256;
   auto n_grids = static_cast<uint32_t>(common::DivRoundUp(node.Size(), kBlockThreads));
 
-  dh::LaunchKernel {n_grids, kBlockThreads} (InteractionConstraintSplitKernel)(
+  dh::LaunchKernel {n_grids, kBlockThreads} (
+      InteractionConstraintSplitKernel,
       feature_buffer_,
       feature_id,
       node, left, right);

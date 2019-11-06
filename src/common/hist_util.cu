@@ -254,7 +254,8 @@ class GPUSketcher {
       // if more elements than cuts: use binary search on cumulative weights
       uint32_t constexpr kBlockThreads = 256;
       uint32_t const kGrids = common::DivRoundUp(n_cuts_cur_[icol], kBlockThreads);
-      dh::LaunchKernel {kGrids, kBlockThreads} (FindCutsK)(
+      dh::LaunchKernel {kGrids, kBlockThreads} (
+          FindCutsK,
           cuts_d_.data().get() + icol * n_cuts_,
           fvalues_cur_.data().get(),
           weights2_.data().get(),
@@ -404,7 +405,8 @@ class GPUSketcher {
     // NOTE: This will typically support ~ 4M features - 64K*64
     dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                common::DivRoundUp(num_cols_, block3.y), 1);
-    dh::LaunchKernel {grid3, block3} (UnpackFeaturesK)(
+    dh::LaunchKernel {grid3, block3} (
+        UnpackFeaturesK,
         fvalues_.data().get(),
         has_weights_ ? feature_weights_.data().get() : nullptr,
         row_ptrs_.data().get() + batch_row_begin,

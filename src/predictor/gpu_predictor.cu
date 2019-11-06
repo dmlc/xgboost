@@ -239,11 +239,11 @@ class GPUPredictor : public xgboost::Predictor {
     size_t entry_start = 0;
 
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
-        PredictKernel<BLOCK_THREADS>) (
-            dh::ToSpan(nodes_), predictions->DeviceSpan().subspan(batch_offset),
-            dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
-            batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features, num_rows,
-            entry_start, use_shared, this->num_group_);
+        PredictKernel<BLOCK_THREADS>,
+        dh::ToSpan(nodes_), predictions->DeviceSpan().subspan(batch_offset),
+        dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_), batch.offset.DeviceSpan(),
+        batch.data.DeviceSpan(), this->tree_begin_, this->tree_end_, num_features, num_rows,
+        entry_start, use_shared, this->num_group_);
   }
 
   void InitModel(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
