@@ -65,10 +65,11 @@ __global__ void CompressBinEllpackKernel(
 }
 
 // Construct an ELLPACK matrix in memory.
-EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
-    : n_rows(dmat->Info().num_row_) {
+EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
+
+  matrix.n_rows = dmat->Info().num_row_;
 
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
@@ -207,7 +208,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
 
 // Return the number of rows contained in this page.
 size_t EllpackPageImpl::Size() const {
-  return n_rows;
+  return matrix.n_rows;
 }
 
 // Clear the current page.
@@ -216,7 +217,8 @@ void EllpackPageImpl::Clear() {
   gidx_buffer = {};
   idx_buffer.clear();
   sparse_page_.Clear();
-  n_rows = 0;
+  matrix.base_rowid = 0;
+  matrix.n_rows = 0;
 }
 
 // Push a CSR page to the current page.
@@ -225,17 +227,17 @@ void EllpackPageImpl::Clear() {
 // compressed ELLPACK.
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
   sparse_page_.Push(batch);
-  n_rows += batch.Size();
+  matrix.n_rows += batch.Size();
 }
 
 // Compress the accumulated SparsePage.
 void EllpackPageImpl::CompressSparsePage(int device) {
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(device, n_rows);
+  InitCompressedData(device, matrix.n_rows);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
-  DeviceHistogramBuilderState hist_builder_row_state(n_rows);
+  DeviceHistogramBuilderState hist_builder_row_state(matrix.n_rows);
   hist_builder_row_state.BeginBatch(sparse_page_);
   CreateHistIndices(device, sparse_page_, hist_builder_row_state.GetRowStateOnDevice());
   hist_builder_row_state.EndBatch();
@@ -255,7 +257,7 @@ size_t EllpackPageImpl::MemCostBytes() const {
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      matrix.info.row_stride * n_rows, num_symbols);
+      matrix.info.row_stride * matrix.n_rows, num_symbols);
   return compressed_size_bytes;
 }
 

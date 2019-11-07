@@ -59,14 +59,14 @@ TEST(GPUSparsePageDMatrix, EllpackPageContent) {
   BatchParam param{0, 2, 0, 0};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->matrix.base_rowid, 0);
-  EXPECT_EQ(impl->n_rows, kRows);
+  EXPECT_EQ(impl->matrix.n_rows, kRows);
   EXPECT_FALSE(impl->matrix.info.is_dense);
   EXPECT_EQ(impl->matrix.info.row_stride, 2);
   EXPECT_EQ(impl->matrix.info.n_bins, 4);
 
   auto impl_ext = (*dmat_ext->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl_ext->matrix.base_rowid, 0);
-  EXPECT_EQ(impl_ext->n_rows, kRows);
+  EXPECT_EQ(impl_ext->matrix.n_rows, kRows);
   EXPECT_FALSE(impl_ext->matrix.info.is_dense);
   EXPECT_EQ(impl_ext->matrix.info.row_stride, 2);
   EXPECT_EQ(impl_ext->matrix.info.n_bins, 4);
@@ -111,7 +111,7 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
   BatchParam param{0, kMaxBins, 0, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->matrix.base_rowid, 0);
-  EXPECT_EQ(impl->n_rows, kRows);
+  EXPECT_EQ(impl->matrix.n_rows, kRows);
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
@@ -124,13 +124,13 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
     thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
     thrust::device_vector<bst_float> row_ext_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, 0, row_ext_d.data().get()));
+    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
     std::vector<bst_float> row_ext(kCols);
     thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 
     EXPECT_EQ(row, row_ext);
 
-    current_row += impl_ext->n_rows;
+    current_row += impl_ext->matrix.n_rows;
   }
 }
 
@@ -155,7 +155,7 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
     EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
-    current_row += impl_ext->n_rows;
+    current_row += impl_ext->matrix.n_rows;
   }
 
   current_row = 0;
@@ -169,13 +169,13 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
     thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
     thrust::device_vector<bst_float> row_ext_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, 0, row_ext_d.data().get()));
+    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
     std::vector<bst_float> row_ext(kCols);
     thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 
     EXPECT_EQ(row, row_ext) << "for row " << current_row;
 
-    current_row += impl_ext->n_rows;
+    current_row += impl_ext->matrix.n_rows;
   }
 }
 

@@ -414,14 +414,17 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
     int ridx = d_ridx[idx / matrix.info.row_stride];
-    int gidx =
-        matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
+    if (!matrix.IsInRange(ridx)) {
+      continue;
+    }
+    int gidx = matrix.gidx_iter[(ridx - matrix.base_rowid) * matrix.info.row_stride
+        + idx % matrix.info.row_stride];
     if (gidx != matrix.info.n_bins) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
           use_shared_memory_histograms ? smem_arr : d_node_hist;
-      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[matrix.GetRowId(ridx)]);
+      dh::AtomicAddGpair(atomic_add_ptr + gidx, d_gpair[ridx]);
     }
   }
 
@@ -537,7 +540,7 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
     row_partitioner.reset();  // Release the device memory first before reallocating
-    row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
+    row_partitioner.reset(new RowPartitioner(device_id, n_rows));
 
     dh::safe_cuda(cudaMemcpyAsync(
         gpair.data(), dh_gpair->ConstDevicePointer(),
@@ -632,10 +635,6 @@ struct GPUHistMakerDevice {
   void BuildHistBatches(int nidx, DMatrix* p_fmat) {
     for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
       page = batch.Impl();
-      if (page->n_rows != row_partitioner->GetRows().size()) {
-        row_partitioner.reset();  // Release the device memory first before reallocating
-        row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
-      }
       BuildHist(nidx);
     }
   }
@@ -687,7 +686,10 @@ struct GPUHistMakerDevice {
 
     row_partitioner->UpdatePosition(
         nidx, split_node.LeftChild(), split_node.RightChild(),
-        [=] __device__(bst_uint ridx) {
+        [=] __device__(size_t ridx) {
+          if (!d_matrix.IsInRange(ridx)) {
+            return RowPartitioner::kIgnoredTreePosition;
+          }
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
               d_matrix.GetElement(ridx, split_node.SplitIndex());
@@ -716,21 +718,19 @@ struct GPUHistMakerDevice {
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
 
-    if (row_partitioner->GetRows().size() != n_rows) {
-      row_partitioner.reset();  // Release the device memory first before reallocating
-      row_partitioner.reset(new RowPartitioner(device_id, n_rows));
-    }
-
     for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
       page = batch.Impl();
       auto d_matrix = page->matrix;
       row_partitioner->FinalisePosition(
           [=] __device__(size_t row_id, int position) {
+            if (!d_matrix.IsInRange(row_id)) {
+              return RowPartitioner::kIgnoredTreePosition;
+            }
             auto node = d_nodes[position];
 
             while (!node.IsLeaf()) {
               bst_float
-                  element = d_matrix.GetElement(d_matrix.GetRowIndex(row_id), node.SplitIndex());
+                  element = d_matrix.GetElement(row_id, node.SplitIndex());
               // Missing value
               if (isnan(element)) {
                 position = node.DefaultChild();
@@ -954,10 +954,6 @@ struct GPUHistMakerDevice {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx), num_leaves)) {
         for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
           page = batch.Impl();
-          if (page->n_rows != row_partitioner->GetRows().size()) {
-            row_partitioner.reset();  // Release the device memory first before reallocating
-            row_partitioner.reset(new RowPartitioner(device_id, page->n_rows));
-          }
 
           monitor.StartCuda("UpdatePosition");
           this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);

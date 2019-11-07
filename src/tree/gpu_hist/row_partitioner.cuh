@@ -33,6 +33,7 @@ class RowPartitioner {
   using TreePositionT = int32_t;
   using RowIndexT = bst_uint;
   struct Segment;
+  static constexpr TreePositionT kIgnoredTreePosition = -1;
 
  private:
   int device_idx;
@@ -124,6 +125,7 @@ class RowPartitioner {
       idx += segment.begin;
       RowIndexT ridx = d_ridx[idx];
       TreePositionT new_position = op(ridx);  // new node id
+      if (new_position == kIgnoredTreePosition) return;
       KERNEL_CHECK(new_position == left_nidx || new_position == right_nidx);
       AtomicIncrement(d_left_count, new_position == left_nidx);
       d_position[idx] = new_position;
@@ -163,7 +165,9 @@ class RowPartitioner {
     dh::LaunchN(device_idx, position.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
-      d_position[idx] = op(ridx, position);
+      TreePositionT new_position = op(ridx, position);
+      if (new_position == kIgnoredTreePosition) return;
+      d_position[idx] = new_position;
     });
   }
 
