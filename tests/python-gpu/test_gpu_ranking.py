@@ -72,7 +72,7 @@ class TestRanking(unittest.TestCase):
         shutil.rmtree(cls.dpath + "MQ2008")
 
     @classmethod
-    def __test_training_with_rank_objective(cls, rank_objective, metric_name, tolerance=1e-02):
+    def __test_training_with_rank_objective(cls, rank_objective, metric_name, tolerance=2e-02):
         """
         Internal method that trains the dataset using the rank objective on GPU and CPU, evaluates
         the metric and determines if the delta between the metric is within the tolerance level
@@ -128,16 +128,16 @@ class TestRanking(unittest.TestCase):
         """
         Train an XGBoost ranking model with ndcg objective function and compare map metric
         """
-        self.__test_training_with_rank_objective('rank:ndcg', 'map', 2e-02)
+        self.__test_training_with_rank_objective('rank:ndcg', 'map')
 
     def test_training_rank_ndcg_auc(self):
         """
         Train an XGBoost ranking model with ndcg objective function and compare auc metric
         """
-        self.__test_training_with_rank_objective('rank:ndcg', 'auc', 2e-02)
+        self.__test_training_with_rank_objective('rank:ndcg', 'auc')
 
     def test_training_rank_ndcg_rmse(self):
         """
         Train an XGBoost ranking model with ndcg objective function and compare rmse metric
         """
-        self.__test_training_with_rank_objective('rank:ndcg', 'rmse', 2e-02)
+        self.__test_training_with_rank_objective('rank:ndcg', 'rmse')
