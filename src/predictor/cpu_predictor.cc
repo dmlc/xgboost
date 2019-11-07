@@ -63,7 +63,7 @@ class CPUPredictor : public Predictor {
       // Pull to host before entering omp block, as this is not thread safe.
       batch.data.HostVector();
       batch.offset.HostVector();
-      if (nsize >= kUnroll) { 
+      if (nsize >= kUnroll) {
 #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
           const int tid = omp_get_thread_num();
