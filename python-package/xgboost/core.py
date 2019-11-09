@@ -999,7 +999,7 @@ class DMatrix(object):
             if not all(isinstance(f, STRING_TYPES) and
                        not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
-                raise ValueError('feature_names may not contain [, ] or <')
+                raise ValueError('feature_names must be string, and may not contain [, ] or <')
         else:
             # reset feature_types also
             self.feature_types = None
