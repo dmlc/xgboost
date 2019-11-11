@@ -114,23 +114,24 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
   EXPECT_EQ(impl->matrix.n_rows, kRows);
 
   size_t current_row = 0;
+  thrust::device_vector<bst_float> row_d(kCols);
+  thrust::device_vector<bst_float> row_ext_d(kCols);
+  std::vector<bst_float> row(kCols);
+  std::vector<bst_float> row_ext(kCols);
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
     EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
 
-    thrust::device_vector<bst_float> row_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
-    std::vector<bst_float> row(kCols);
-    thrust::copy(row_d.begin(), row_d.end(), row.begin());
+    for (size_t i = 0; i < impl_ext->Size(); i++) {
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-    thrust::device_vector<bst_float> row_ext_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
-    std::vector<bst_float> row_ext(kCols);
-    thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
+      dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
+      thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 
-    EXPECT_EQ(row, row_ext);
-
-    current_row += impl_ext->matrix.n_rows;
+      EXPECT_EQ(row, row_ext);
+      current_row++;
+    }
   }
 }
 
@@ -159,23 +160,25 @@ TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
   }
 
   current_row = 0;
+  thrust::device_vector<bst_float> row_d(kCols);
+  thrust::device_vector<bst_float> row_ext_d(kCols);
+  std::vector<bst_float> row(kCols);
+  std::vector<bst_float> row_ext(kCols);
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
     auto impl_ext = page.Impl();
     EXPECT_EQ(impl_ext->matrix.base_rowid, current_row);
 
-    thrust::device_vector<bst_float> row_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
-    std::vector<bst_float> row(kCols);
-    thrust::copy(row_d.begin(), row_d.end(), row.begin());
+    for (size_t i = 0; i < impl_ext->Size(); i++) {
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-    thrust::device_vector<bst_float> row_ext_d(kCols);
-    dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
-    std::vector<bst_float> row_ext(kCols);
-    thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
+      dh::LaunchN(0, kCols, ReadRowFunction(impl_ext->matrix, current_row, row_ext_d.data().get()));
+      thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 
-    EXPECT_EQ(row, row_ext) << "for row " << current_row;
+      EXPECT_EQ(row, row_ext) << "for row " << current_row;
 
-    current_row += impl_ext->matrix.n_rows;
+      current_row++;
+    }
   }
 }
 

@@ -224,7 +224,6 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     // Make sure that all cols are slotted in the first few rows; randomly distribute the
     // rest
     std::stringstream row_data;
-    fo << i;
     size_t j = 0;
     if (rem_cols > 0) {
        for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
