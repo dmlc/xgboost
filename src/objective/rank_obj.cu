@@ -412,7 +412,7 @@ struct NDCGLambdaWeightComputer {
       for (size_t i = 0; i < sorted_list.size(); ++i) {
         labels[i] = sorted_list[i].label;
       }
-      std::sort(labels.begin(), labels.end(), std::greater<bst_float>());
+      std::stable_sort(labels.begin(), labels.end(), std::greater<bst_float>());
       IDCG = ComputeGroupDCGWeight(&labels[0], labels.size());
     }
     if (IDCG == 0.0) {
@@ -642,8 +642,9 @@ class SortedLabelList : SegmentSorter<float> {
   // use the default stream
   template <typename LambdaWeightComputerT>
   void ComputeGradients(const bst_float *dpreds,
-                        GradientPair *out_gpair,
                         const HostDeviceVector<bst_float> &weights,
+                        int iter,
+                        GradientPair *out_gpair,
                         float weight_normalization_factor) {
     // Group info on device
     const uint32_t *dgroups = this->GroupIndices();
@@ -690,8 +691,8 @@ class SortedLabelList : SegmentSorter<float> {
         sorted_labels + item_idx, group_end - item_idx, sorted_labels[item_idx]);
 
       // Create a minstd_rand object to act as our source of randomness
-      thrust::minstd_rand rng;
-      rng.discard(idx);
+      thrust::minstd_rand rng((iter + 1) * 1111);
+      rng.discard(((idx / total_items) * total_group_items) + item_idx - group_begin);
       // Create a uniform_int_distribution to produce a sample from outside of the
       // present label group
       thrust::uniform_int_distribution<int> dist(0, nleft + nright - 1);
@@ -765,7 +766,7 @@ class LambdaRankObj : public ObjFunction {
     // Check if we have a GPU assignment; else, revert back to CPU
     auto device = tparam_->gpu_id;
     if (device >= 0 && LambdaWeightComputerT::SupportOnGPU()) {
-      ComputeGradientsOnGPU(preds, info, out_gpair, gptr);
+      ComputeGradientsOnGPU(preds, info, iter, out_gpair, gptr);
     } else {
       // Revert back to CPU
 #endif
@@ -822,8 +823,7 @@ class LambdaRankObj : public ObjFunction {
     {
       // parallel construct, declare random number generator here, so that each
       // thread use its own random number generator, seed by thread id and current iteration
-      common::RandomEngine rnd(iter * 1111 + omp_get_thread_num());
-
+      std::minstd_rand rnd((iter + 1) * 1111);
       std::vector<LambdaPair> pairs;
       std::vector<ListEntry>  lst;
       std::vector< std::pair<bst_float, unsigned> > rec;
@@ -835,12 +835,12 @@ class LambdaRankObj : public ObjFunction {
           lst.emplace_back(preds_h[j], labels[j], j);
           gpair[j] = GradientPair(0.0f, 0.0f);
         }
-        std::sort(lst.begin(), lst.end(), ListEntry::CmpPred);
+        std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
         rec.resize(lst.size());
         for (unsigned i = 0; i < lst.size(); ++i) {
           rec[i] = std::make_pair(lst[i].label, i);
         }
-        std::sort(rec.begin(), rec.end(), common::CmpFirst);
+        std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
         // enumerate buckets with same label, for each item in the lst, grab another sample randomly
         for (unsigned i = 0; i < rec.size(); ) {
           unsigned j = i + 1;
@@ -890,6 +890,7 @@ class LambdaRankObj : public ObjFunction {
 #if defined(__CUDACC__)
   void ComputeGradientsOnGPU(const HostDeviceVector<bst_float>& preds,
                              const MetaInfo& info,
+                             int iter,
                              HostDeviceVector<GradientPair>* out_gpair,
                              const std::vector<unsigned> &gptr) {
     LOG(DEBUG) << "Computing pairwise gradients on GPU.";
@@ -920,7 +921,7 @@ class LambdaRankObj : public ObjFunction {
 
     // Finally, compute the gradients
     slist.ComputeGradients<LambdaWeightComputerT>
-      (d_preds, d_gpair, info.weights_, weight_normalization_factor);
+      (d_preds, info.weights_, iter, d_gpair, weight_normalization_factor);
   }
 #endif
 

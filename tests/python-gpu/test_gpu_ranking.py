@@ -72,7 +72,7 @@ class TestRanking(unittest.TestCase):
         shutil.rmtree(cls.dpath + "MQ2008")
 
     @classmethod
-    def __test_training_with_rank_objective(cls, rank_objective, metric_name, tolerance=2e-02):
+    def __test_training_with_rank_objective(cls, rank_objective, metric_name, tolerance=1e-02):
         """
         Internal method that trains the dataset using the rank objective on GPU and CPU, evaluates
         the metric and determines if the delta between the metric is within the tolerance level
@@ -118,11 +118,11 @@ class TestRanking(unittest.TestCase):
         """
         self.__test_training_with_rank_objective('rank:pairwise', 'auc')
 
-    def test_training_rank_pairwise_rmse_metric(self):
+    def test_training_rank_pairwise_ndcg_metric(self):
         """
-        Train an XGBoost ranking model with pairwise objective function and compare rmse metric
+        Train an XGBoost ranking model with pairwise objective function and compare ndcg metric
         """
-        self.__test_training_with_rank_objective('rank:pairwise', 'rmse')
+        self.__test_training_with_rank_objective('rank:pairwise', 'ndcg')
 
     def test_training_rank_ndcg_map(self):
         """
@@ -136,8 +136,8 @@ class TestRanking(unittest.TestCase):
         """
         self.__test_training_with_rank_objective('rank:ndcg', 'auc')
 
-    def test_training_rank_ndcg_rmse(self):
+    def test_training_rank_ndcg_ndcg(self):
         """
-        Train an XGBoost ranking model with ndcg objective function and compare rmse metric
+        Train an XGBoost ranking model with ndcg objective function and compare ndcg metric
         """
-        self.__test_training_with_rank_objective('rank:ndcg', 'rmse')
+        self.__test_training_with_rank_objective('rank:ndcg', 'ndcg')
