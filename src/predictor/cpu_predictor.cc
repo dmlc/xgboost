@@ -63,24 +63,26 @@ class CPUPredictor : public Predictor {
       // Pull to host before entering omp block, as this is not thread safe.
       batch.data.HostVector();
       batch.offset.HostVector();
+      if (nsize >= kUnroll) {
 #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
-        const int tid = omp_get_thread_num();
-        RegTree::FVec& feats = thread_temp[tid];
-        int64_t ridx[kUnroll];
-        SparsePage::Inst inst[kUnroll];
-        for (int k = 0; k < kUnroll; ++k) {
-          ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          inst[k] = batch[i + k];
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          for (int gid = 0; gid < num_group; ++gid) {
-            const size_t offset = ridx[k] * num_group + gid;
-            preds[offset] += this->PredValue(
-                inst[k], model.trees, model.tree_info, gid,
-                info.GetRoot(ridx[k]), &feats, tree_begin, tree_end);
+        for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
+          const int tid = omp_get_thread_num();
+          RegTree::FVec& feats = thread_temp[tid];
+          int64_t ridx[kUnroll];
+          SparsePage::Inst inst[kUnroll];
+          for (int k = 0; k < kUnroll; ++k) {
+            ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
+          }
+          for (int k = 0; k < kUnroll; ++k) {
+            inst[k] = batch[i + k];
+          }
+          for (int k = 0; k < kUnroll; ++k) {
+            for (int gid = 0; gid < num_group; ++gid) {
+              const size_t offset = ridx[k] * num_group + gid;
+              preds[offset] += this->PredValue(
+                  inst[k], model.trees, model.tree_info, gid,
+                  info.GetRoot(ridx[k]), &feats, tree_begin, tree_end);
+            }
           }
         }
       }
