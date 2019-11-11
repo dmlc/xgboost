@@ -423,6 +423,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
       for (size_t tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
+        hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
       }
     }
 
