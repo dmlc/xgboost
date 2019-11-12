@@ -44,6 +44,12 @@ RABIT_DLL bool RabitInit(int argc, char *argv[]);
 RABIT_DLL bool RabitFinalize(void);
 
 /*!
+ * \brief get rank of previous process in ring topology
+ * \return rank number of worker
+ * */
+RABIT_DLL int RabitGetRingPrevRank(void);
+
+/*!
  * \brief get rank of current process
  * \return rank number of worker
  * */
@@ -87,6 +93,30 @@ RABIT_DLL void RabitGetProcessorName(char *out_name,
  */
 RABIT_DLL void RabitBroadcast(void *sendrecv_data,
                               rbt_ulong size, int root);
+
+/*!
+ * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+ *  the data provided by current node k is [slice_begin, slice_end),
+ *  the next node's segment must start with slice_end
+ *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
+ *  use a ring based algorithm
+ *
+ * \param sendrecvbuf buffer for both sending and receiving data, it is a ring conceptually
+ * \param total_size total size of data to be gathered
+ * \param beginIndex beginning of the current slice in sendrecvbuf of type enum_dtype
+ * \param size_node_slice size of the current node slice
+ * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
+ * \param enum_dtype the enumeration of data type, see rabit::engine::mpi::DataType in engine.h of rabit include
+ * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+ * \sa ReturnType
+ */
+RABIT_DLL void RabitAllgather(void *sendrecvbuf,
+                                  size_t total_size,
+                                  size_t beginIndex,
+                                  size_t size_node_slice,
+                                  size_t size_prev_slice,
+                                  int enum_dtype);
+
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf
  *        this function is NOT thread-safe

@@ -110,6 +110,10 @@ inline bool Init(int argc, char *argv[]) {
 inline bool Finalize(void) {
   return engine::Finalize();
 }
+// get the rank of the previous worker in ring topology
+inline int GetRingPrevRank(void) {
+  return engine::GetEngine()->GetRingPrevRank();
+}
 // get the rank of current process
 inline int GetRank(void) {
   return engine::GetEngine()->GetRank();
@@ -193,6 +197,16 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
                      _file, _line, _caller);
 }
 #endif  // C++11
+
+// Performs inplace Allgather
+template<typename DType>
+inline void Allgather(DType *sendrecvbuf, size_t totalSize,
+                      size_t beginIndex, size_t sizeNodeSlice,
+                      size_t sizePrevSlice) {
+  engine::Allgather(sendrecvbuf, totalSize * sizeof(DType), beginIndex * sizeof(DType),
+                        (beginIndex + sizeNodeSlice) * sizeof(DType),
+                        sizePrevSlice * sizeof(DType));
+}
 
 // print message to the tracker
 inline void TrackerPrint(const std::string &msg) {

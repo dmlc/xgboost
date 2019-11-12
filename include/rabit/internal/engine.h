@@ -54,6 +54,29 @@ class IEngine {
   /*! \brief virtual destructor */
   virtual ~IEngine() {}
   /*!
+   * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+   *  the data provided by current node k is [slice_begin, slice_end),
+   *  the next node's segment must start with slice_end
+   *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
+   *  use a ring based algorithm
+   *
+   * \param sendrecvbuf_ buffer for both sending and receiving data, it is a ring conceptually
+   * \param total_size total size of data to be gathered
+   * \param slice_begin beginning of the current slice
+   * \param slice_end end of the current slice
+   * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
+   * \param _file caller file name used to generate unique cache key
+   * \param _line caller line number used to generate unique cache key
+   * \param _caller caller function name used to generate unique cache key
+   */ 
+  virtual void Allgather(void *sendrecvbuf, size_t total_size,
+                             size_t slice_begin,
+                             size_t slice_end,
+                             size_t size_prev_slice,
+                             const char* _file = _FILE,
+                             const int _line = _LINE,
+                             const char* _caller = _CALLER) = 0;
+  /*!
    * \brief performs in-place Allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and receiving data
@@ -165,6 +188,8 @@ class IEngine {
    * \sa LoadCheckPoint, CheckPoint
    */
   virtual int VersionNumber(void) const = 0;
+  /*! \brief gets rank of previous node in ring topology */
+  virtual int GetRingPrevRank(void) const = 0;
   /*! \brief gets rank of current node */
   virtual int GetRank(void) const = 0;
   /*! \brief gets total number of nodes */
@@ -212,6 +237,26 @@ enum DataType {
   kULongLong = 9
 };
 }  // namespace mpi
+/*!
+ * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+ *  the data provided by current node k is [slice_begin, slice_end),
+ *  the next node's segment must start with slice_end
+ *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
+ *  use a ring based algorithm
+ *
+ * \param sendrecvbuf buffer for both sending and receiving data, it is a ring conceptually
+ * \param total_size total size of data to be gathered
+ * \param slice_begin beginning of the current slice
+ * \param slice_end end of the current slice
+ * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
+ * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+ * \sa ReturnType
+ */
+void Allgather(void* sendrecvbuf,
+                   size_t total_size,
+                   size_t slice_begin,
+                   size_t slice_end,
+                   size_t size_prev_slice);
 /*!
  * \brief perform in-place Allreduce, on sendrecvbuf
  *   this is an internal function used by rabit to be able to compile with MPI

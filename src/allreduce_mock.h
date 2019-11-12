@@ -25,6 +25,7 @@ class AllreduceMock : public AllreduceRobust {
     force_local = 0;
     report_stats = 0;
     tsum_allreduce = 0.0;
+    tsum_allgather = 0.0;
   }
   // destructor
   virtual ~AllreduceMock(void) {}
@@ -59,6 +60,20 @@ class AllreduceMock : public AllreduceRobust {
                                _file, _line, _caller);
     tsum_allreduce += utils::GetTime() - tstart;
   }
+  virtual void Allgather(void *sendrecvbuf,
+                             size_t total_size,
+                             size_t slice_begin,
+                             size_t slice_end,
+                             size_t size_prev_slice,
+                             const char* _file = _FILE,
+                             const int _line = _LINE,
+                             const char* _caller = _CALLER) {
+    this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "Allgather");
+    double tstart = utils::GetTime();
+    AllreduceRobust::Allgather(sendrecvbuf, total_size,
+                                   slice_begin, slice_end, size_prev_slice);
+    tsum_allgather += utils::GetTime() - tstart;
+  }
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
                          const char* _file = _FILE,
                          const int _line = _LINE,
@@ -69,6 +84,7 @@ class AllreduceMock : public AllreduceRobust {
   virtual int LoadCheckPoint(Serializable *global_model,
                              Serializable *local_model) {
     tsum_allreduce = 0.0;
+    tsum_allgather = 0.0;
     time_checkpoint = utils::GetTime();
     if (force_local == 0) {
       return AllreduceRobust::LoadCheckPoint(global_model, local_model);
@@ -98,10 +114,12 @@ class AllreduceMock : public AllreduceRobust {
          << ",local_size=" << (local_chkpt[0].length() + local_chkpt[1].length())
          << ",check_tcost="<< tcost <<" sec"
          << ",allreduce_tcost=" << tsum_allreduce << " sec"
+         << ",allgather_tcost=" << tsum_allgather << " sec"
          << ",between_chpt=" << tbet_chkpt << "sec\n";
       this->TrackerPrint(ss.str());
     }
     tsum_allreduce = 0.0;
+    tsum_allgather = 0.0;
   }
 
   virtual void LazyCheckPoint(const Serializable *global_model) {
@@ -116,6 +134,8 @@ class AllreduceMock : public AllreduceRobust {
   int report_stats;
   // sum of allreduce
   double tsum_allreduce;
+  // sum of allgather
+  double tsum_allgather;
   double time_checkpoint;
 
  private:

@@ -61,6 +61,10 @@ class AllreduceBase : public IEngine {
    */
   virtual void TrackerPrint(const std::string &msg);
 
+  /*! \brief get rank of previous node in ring topology*/
+  virtual int GetRingPrevRank(void) const {
+    return ring_prev->rank;
+  }
   /*! \brief get rank */
   virtual int GetRank(void) const {
     return rank;
@@ -77,6 +81,35 @@ class AllreduceBase : public IEngine {
   /*! \brief get rank */
   virtual std::string GetHost(void) const {
     return host_uri;
+  }
+
+  /*!
+  * \brief internal Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+  *  the data provided by current node k is [slice_begin, slice_end),
+  *  the next node's segment must start with slice_end
+  *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
+  *  use a ring based algorithm
+  *
+  * \param sendrecvbuf_ buffer for both sending and receiving data, it is a ring conceptually
+  * \param total_size total size of data to be gathered
+  * \param slice_begin beginning of the current slice
+  * \param slice_end end of the current slice
+  * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
+  * \param _file caller file name used to generate unique cache key
+  * \param _line caller line number used to generate unique cache key
+  * \param _caller caller function name used to generate unique cache key
+  */
+  virtual void Allgather(void *sendrecvbuf_, size_t total_size,
+                             size_t slice_begin,
+                             size_t slice_end,
+                             size_t size_prev_slice,
+                             const char* _file = _FILE,
+                             const int _line = _LINE,
+                             const char* _caller = _CALLER) {
+    if (world_size == 1 || world_size == -1) return;
+    utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size,
+                                   slice_begin, slice_end, size_prev_slice) == kSuccess,
+                  "AllgatherRing failed");
   }
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
@@ -550,6 +583,8 @@ class AllreduceBase : public IEngine {
   int timeout_sec = 1800;
   // flag to enable rabit_timeout
   bool rabit_timeout = false;
+  // Enable TCP node delay
+  bool rabit_enable_tcp_no_delay = false;
 };
 }  // namespace engine
 }  // namespace rabit

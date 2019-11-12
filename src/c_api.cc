@@ -13,7 +13,7 @@ namespace c_api {
 // helper use to avoid BitOR operator
 template<typename OP, typename DType>
 struct FHelper {
-  inline static void
+  static void
   Allreduce(DType *senrecvbuf_,
             size_t count,
             void (*prepare_fun)(void *arg),
@@ -25,7 +25,7 @@ struct FHelper {
 
 template<typename DType>
 struct FHelper<op::BitOR, DType> {
-  inline static void
+  static void
   Allreduce(DType *senrecvbuf_,
             size_t count,
             void (*prepare_fun)(void *arg),
@@ -35,11 +35,11 @@ struct FHelper<op::BitOR, DType> {
 };
 
 template<typename OP>
-inline void Allreduce_(void *sendrecvbuf_,
-                       size_t count,
-                       engine::mpi::DataType enum_dtype,
-                       void (*prepare_fun)(void *arg),
-                       void *prepare_arg) {
+void Allreduce_(void *sendrecvbuf_,
+                size_t count,
+                engine::mpi::DataType enum_dtype,
+                void (*prepare_fun)(void *arg),
+                void *prepare_arg) {
   using namespace engine::mpi;
   switch (enum_dtype) {
     case kChar:
@@ -85,12 +85,12 @@ inline void Allreduce_(void *sendrecvbuf_,
     default: utils::Error("unknown data_type");
   }
 }
-inline void Allreduce(void *sendrecvbuf,
-                      size_t count,
-                      engine::mpi::DataType enum_dtype,
-                      engine::mpi::OpType enum_op,
-                      void (*prepare_fun)(void *arg),
-                      void *prepare_arg) {
+void Allreduce(void *sendrecvbuf,
+               size_t count,
+               engine::mpi::DataType enum_dtype,
+               engine::mpi::OpType enum_op,
+               void (*prepare_fun)(void *arg),
+               void *prepare_arg) {
   using namespace engine::mpi;
   switch (enum_op) {
     case kMax:
@@ -120,8 +120,45 @@ inline void Allreduce(void *sendrecvbuf,
     default: utils::Error("unknown enum_op");
   }
 }
-
-
+void Allgather(void *sendrecvbuf_,
+               size_t total_size,
+               size_t beginIndex,
+               size_t size_node_slice,
+               size_t size_prev_slice,
+               int enum_dtype) {
+  using namespace engine::mpi;
+  size_t type_size = 0;
+  switch (enum_dtype) {
+  case kChar:
+    type_size = sizeof(char);
+    break;
+  case kUChar:
+    type_size = sizeof(unsigned char);
+    break;
+  case kInt:
+    type_size = sizeof(int);
+    break;
+  case kUInt:
+    type_size = sizeof(unsigned);
+    break;
+  case kLong:
+    type_size = sizeof(int64_t);
+    break;
+  case kULong:
+    type_size = sizeof(uint64_t);
+    break;
+  case kFloat:
+    type_size = sizeof(float);
+    break;
+  case kDouble:
+    type_size = sizeof(double);
+    break;
+  default: utils::Error("unknown data_type");
+  }
+  engine::Allgather
+    (sendrecvbuf_, total_size * type_size, beginIndex * type_size,
+    (beginIndex + size_node_slice) * type_size, size_prev_slice * type_size);
+}
 
 // wrapper for serialization
 struct ReadWrapper : public Serializable {
@@ -170,6 +207,10 @@ bool RabitFinalize() {
   return rabit::Finalize();
 }
 
+int RabitGetRingPrevRank() {
+  return rabit::GetRingPrevRank();
+}
+
 int RabitGetRank() {
   return rabit::GetRank();
 }
@@ -202,6 +243,21 @@ void RabitBroadcast(void *sendrecv_data,
                     rbt_ulong size, int root) {
   rabit::Broadcast(sendrecv_data, size, root);
 }
+
+void RabitAllgather(void *sendrecvbuf_,
+                        size_t total_size,
+                        size_t beginIndex,
+                        size_t size_node_slice,
+                        size_t size_prev_slice,
+                        int enum_dtype) {
+  rabit::c_api::Allgather(sendrecvbuf_,
+                              total_size,
+                              beginIndex,
+                              size_node_slice,
+                              size_prev_slice,
+                              enum_dtype);
+}
+
 
 void RabitAllreduce(void *sendrecvbuf,
                     size_t count,

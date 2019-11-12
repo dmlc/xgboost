@@ -8,8 +8,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
-#include <map>
+#include <netinet/tcp.h>
 #include <cstring>
+#include <map>
 #include "allreduce_base.h"
 
 namespace rabit {
@@ -221,6 +222,12 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     timeout_sec = atoi(val);
     utils::Assert(timeout_sec >= 0, "rabit_timeout_sec should be non negative second");
   }
+  if (!strcmp(name, "rabit_enable_tcp_no_delay")) {
+    if (!strcmp(val, "true"))
+      rabit_enable_tcp_no_delay = true;
+    else
+      rabit_enable_tcp_no_delay = false;
+  }
 }
 /*!
  * \brief initialize connection to the tracker
@@ -420,11 +427,16 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
     this->parent_index = -1;
     // setup tree links and ring structure
     tree_links.plinks.clear();
+    int tcpNoDelay = 1;
     for (size_t i = 0; i < all_links.size(); ++i) {
       utils::Assert(!all_links[i].sock.BadSocket(), "ReConnectLink: bad socket");
       // set the socket to non-blocking mode, enable TCP keepalive
       all_links[i].sock.SetNonBlock(true);
       all_links[i].sock.SetKeepAlive(true);
+      if (rabit_enable_tcp_no_delay) {
+        setsockopt(all_links[i].sock, IPPROTO_TCP,
+                   TCP_NODELAY, reinterpret_cast<void *>(&tcpNoDelay), sizeof(tcpNoDelay));
+      }
       if (tree_neighbors.count(all_links[i].rank) != 0) {
         if (all_links[i].rank == parent_rank) {
           parent_index = static_cast<int>(tree_links.plinks.size());

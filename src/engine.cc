@@ -84,6 +84,15 @@ IEngine *GetEngine() {
   }
 }
 
+// perform in-place allgather, on sendrecvbuf
+void Allgather(void *sendrecvbuf_, size_t total_size,
+                   size_t slice_begin,
+                   size_t slice_end,
+                   size_t size_prev_slice) {
+  GetEngine()->Allgather(sendrecvbuf_, total_size, slice_begin, slice_end, size_prev_slice);
+}
+
+
 // perform in-place allreduce, on sendrecvbuf
 void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
