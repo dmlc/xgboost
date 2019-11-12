@@ -409,14 +409,26 @@ class ColMaker: public TreeUpdater {
               loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, c, e.stats) -
                   snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+              bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
+              if ( proposed_split == fvalue ) {
+                e.best.Update(loss_chg, fid, e.last_fvalue,
                             d_step == -1, c, e.stats);
+              } else {
+                e.best.Update(loss_chg, fid, proposed_split,
+                            d_step == -1, c, e.stats);
+              }
             } else {
               loss_chg = static_cast<bst_float>(
                   spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
                   snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+              bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
+              if ( proposed_split == fvalue ) {
+                e.best.Update(loss_chg, fid, e.last_fvalue,
                             d_step == -1, e.stats, c);
+              } else {
+                e.best.Update(loss_chg, fid, proposed_split,
+                            d_step == -1, e.stats, c);
+              }
             }
           }
         }

@@ -101,7 +101,7 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
                 HostDeviceVector<size_t>* out_offset,
                 dh::caching_device_vector<int32_t>* out_d_flag,
                 uint32_t* out_n_rows) {
-  int32_t constexpr kThreads = 256;
+  uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);
   Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
@@ -123,8 +123,9 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 
   common::Span<size_t> s_offsets = out_offset->DeviceSpan();
 
-  int32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
-  CountValidKernel<T><<<kBlocks, kThreads>>>(
+  uint32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
+  dh::LaunchKernel {kBlocks, kThreads} (
+      CountValidKernel<T>,
       foreign_column,
       has_missing, missing,
       out_d_flag->data().get(), s_offsets);
@@ -135,13 +136,15 @@ template <typename T>
 void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t n_rows,
                bool has_missing, float missing,
                dh::device_vector<size_t>* tmp_offset, common::Span<Entry> s_data) {
-  int32_t constexpr kThreads = 256;
+  uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);
   Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
-  int32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
-  CreateCSRKernel<T><<<kBlocks, kThreads>>>(foreign_column, column_id, has_missing, missing,
-                                            dh::ToSpan(*tmp_offset), s_data);
+  uint32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
+  dh::LaunchKernel {kBlocks, kThreads} (
+      CreateCSRKernel<T>,
+      foreign_column, column_id, has_missing, missing,
+      dh::ToSpan(*tmp_offset), s_data);
 }
 
 void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,

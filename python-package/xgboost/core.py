@@ -513,7 +513,7 @@ class DMatrix(object):
             try:
                 csr = scipy.sparse.csr_matrix(data)
                 self._init_from_csr(csr)
-            except:
+            except Exception:
                 raise TypeError('can not initialize DMatrix from'
                                 ' {}'.format(type(data).__name__))
 
@@ -577,9 +577,9 @@ class DMatrix(object):
         if len(mat.shape) != 2:
             raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
                              mat.shape)
-        # flatten the array by rows and ensure it is float32.
-        # we try to avoid data copies if possible (reshape returns a view when possible
-        # and we explicitly tell np.array to try and avoid copying)
+        # flatten the array by rows and ensure it is float32.  we try to avoid
+        # data copies if possible (reshape returns a view when possible and we
+        # explicitly tell np.array to try and avoid copying)
         data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
@@ -999,7 +999,7 @@ class DMatrix(object):
             if not all(isinstance(f, STRING_TYPES) and
                        not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
-                raise ValueError('feature_names may not contain [, ] or <')
+                raise ValueError('feature_names must be string, and may not contain [, ] or <')
         else:
             # reset feature_types also
             self.feature_types = None
@@ -1391,8 +1391,9 @@ class Booster(object):
             value of the prediction. Note the last row and column correspond to the bias term.
 
         validate_features : bool
-            When this is True, validate that the Booster's and data's feature_names are identical.
-            Otherwise, it is assumed that the feature_names are the same.
+            When this is True, validate that the Booster's and data's
+            feature_names are identical.  Otherwise, it is assumed that the
+            feature_names are the same.
 
         Returns
         -------
@@ -1811,8 +1812,8 @@ class Booster(object):
                 msg = 'feature_names mismatch: {0} {1}'
 
                 if dat_missing:
-                    msg += ('\nexpected ' + ', '.join(str(s) for s in dat_missing) +
-                            ' in input data')
+                    msg += ('\nexpected ' + ', '.join(
+                        str(s) for s in dat_missing) + ' in input data')
 
                 if my_missing:
                     msg += ('\ntraining data did not have the following fields: ' +
@@ -1821,7 +1822,8 @@ class Booster(object):
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
 
-    def get_split_value_histogram(self, feature, fmap='', bins=None, as_pandas=True):
+    def get_split_value_histogram(self, feature, fmap='', bins=None,
+                                  as_pandas=True):
         """Get split value histogram of a feature
 
         Parameters

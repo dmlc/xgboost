@@ -133,9 +133,12 @@ class Transform {
       size_t shard_size = range_size;
       Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
       dh::safe_cuda(cudaSetDevice(device_));
-      const int GRID_SIZE =
+      const int kGrids =
           static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
-      detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
+      if (kGrids == 0) {
+        return;
+      }
+      detail::LaunchCUDAKernel<<<kGrids, kBlockThreads>>>(  // NOLINT
           _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else

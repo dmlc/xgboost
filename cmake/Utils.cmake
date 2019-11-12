@@ -111,7 +111,7 @@ DESTINATION \"${build_dir}/bak\")")
 
   install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
   install(
-    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DIRECTORY "${xgboost_SOURCE_DIR}/R-package"
     DESTINATION "${build_dir}"
     REGEX "src/*" EXCLUDE
     REGEX "R-package/configure" EXCLUDE
