@@ -444,11 +444,21 @@ def test_split_value_histograms():
 
 
 def test_sklearn_random_state():
+    from sklearn.datasets import load_iris
+
     clf = xgb.XGBClassifier(random_state=402)
     assert clf.get_xgb_params()['random_state'] == 402
 
     clf = xgb.XGBClassifier(random_state=401)
     assert clf.get_xgb_params()['random_state'] == 401
+
+    random_state = np.random.RandomState(seed = 403)
+    iris = load_iris()
+    clf = xgb.XGBClassifier(booster='gblinear', n_estimators=100, random_state=random_state)
+    clf.fit(iris.data, iris.target)
+    random_state = np.random.RandomState(seed = 403)
+    assert isinstance(clf.get_xgb_params()['random_state'], int)
+
 
 
 def test_sklearn_n_jobs():

@@ -230,6 +230,8 @@ class XGBModel(XGBModelBase):
             params['missing'] = None  # sklearn doesn't handle nan. see #4725
         if not params.get('eval_metric', True):
             del params['eval_metric']  # don't give as None param to Booster
+        if isinstance(params['random_state'], np.random.RandomState):
+            params['random_state'] = params['random_state'].randint(np.iinfo(np.int32).max)
         return params
 
     def get_xgb_params(self):
