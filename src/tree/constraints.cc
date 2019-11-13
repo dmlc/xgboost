@@ -14,15 +14,18 @@ void FeatureInteractionConstraintHost::Configure(tree::TrainParam const& param,
                                                  bst_feature_t const n_features) {
   if (param.interaction_constraints.empty() ||
       param.interaction_constraints == this->interaction_constraint_str_) {
+    enabled_ = !param.interaction_constraints.empty();
     return;  // short-circuit if no constraint is specified
   }
+  enabled_ = true;
+
   this->interaction_constraint_str_ = param.interaction_constraints;
   this->n_features_ = n_features;
   this->Reset();
 }
 
 void FeatureInteractionConstraintHost::Reset() {
-  if (this->interaction_constraint_str_.empty()) {
+  if (!enabled_) {
     return;
   }
   // Parse interaction constraints
@@ -55,10 +58,8 @@ void FeatureInteractionConstraintHost::Reset() {
   splits_.resize(1, std::unordered_set<bst_uint>());
 }
 
-void FeatureInteractionConstraintHost::Split(
+void FeatureInteractionConstraintHost::SplitImpl(
     bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id) {
-  if (this->interaction_constraint_str_.size() == 0) { return; }
-
   bst_node_t newsize = std::max(left_id, right_id) + 1;
 
   // Record previous splits for child nodes

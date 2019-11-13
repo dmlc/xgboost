@@ -37,15 +37,23 @@ class FeatureInteractionConstraintHost {
   std::string interaction_constraint_str_;
   // number of features in DMatrix/Booster
   bst_feature_t n_features_;
+  bool enabled_{false};
+
+  void SplitImpl(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
 
  public:
   FeatureInteractionConstraintHost() = default;
-  void Split(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
+  void Split(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id,
+             bst_node_t right_id) {
+    if (!enabled_) {
+      return;
+    } else {
+      this->SplitImpl(node_id, feature_id, left_id, right_id);
+    }
+  }
 
   bool Query(bst_node_t nid, bst_feature_t fid) const {
-    if (this->interaction_constraint_str_.size() == 0) {
-      return true;
-    }
+    if (!enabled_) { return true; }
     return node_constraints_.at(nid).find(fid) != node_constraints_.at(nid).cend();
   }
 

@@ -370,7 +370,6 @@ class CQHistMaker: public HistMaker {
       }
     };
     // sync the histogram
-    // if it is C++11, use lazy evaluation for Allreduce
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                              this->wspace_.hset[0].data.size(), lazy_get_hist);
   }
@@ -709,7 +708,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
-        #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int fid = this->work_set_[i];
           int offset = this->feat2workindex_[fid];
