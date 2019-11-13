@@ -208,9 +208,9 @@ class HistMaker: public BaseMaker {
   void FindSplit(int depth,
                  const std::vector<GradientPair> &gpair,
                  DMatrix *p_fmat,
-                 const std::vector <bst_feature_t> &selected_features_,
+                 const std::vector <bst_feature_t> &feature_set,
                  RegTree *p_tree) {
-    const size_t num_feature = selected_features_.size();
+    const size_t num_feature = feature_set.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
     std::vector<GradStats> left_sum(qexpand_.size());
@@ -221,14 +221,14 @@ class HistMaker: public BaseMaker {
       CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
       GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
-      for (size_t i = 0; i < selected_features_.size(); ++i) {
+      for (size_t i = 0; i < feature_set.size(); ++i) {
         // Query is thread safe as it's a const function.
-        if (!this->interaction_constraints_.Query(nid, selected_features_[i])) {
+        if (!this->interaction_constraints_.Query(nid, feature_set[i])) {
           continue;
         }
 
         EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
-                       node_sum, selected_features_[i], &best, &left_sum[wid]);
+                       node_sum, feature_set[i], &best, &left_sum[wid]);
       }
     }
     // get the best result, we can synchronize the solution
@@ -253,8 +253,12 @@ class HistMaker: public BaseMaker {
                            best.DefaultLeft(), base_weight, left_leaf_weight,
                            right_leaf_weight, best.loss_chg,
                            node_sum.sum_hess);
+        GradStats right_sum;
+        right_sum.SetSubstract(node_sum, left_sum[wid]);
         auto left_child = (*p_tree)[nid].LeftChild();
         auto right_child = (*p_tree)[nid].RightChild();
+        this->SetStats(p_tree, left_child, left_sum[wid]);
+        this->SetStats(p_tree, right_child, right_sum);
         this->interaction_constraints_.Split(nid, best.SplitIndex(), left_child, right_child);
       } else {
         (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
