@@ -63,7 +63,7 @@ def write_line(f, x, y, sparsity):
 
 def write_feature(line, index, feature):
     line.write(' ')
-    line.write(str(index + 1))
+    line.write(str(index))
     line.write(':')
     line.write(str(feature))
 
