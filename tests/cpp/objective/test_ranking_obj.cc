@@ -76,4 +76,33 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
+TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
+  std::vector<std::pair<std::string, std::string>> args;
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<xgboost::ObjFunction> obj {
+    xgboost::ObjFunction::Create("rank:ndcg", &lparam)
+  };
+  obj->Configure(args);
+  CheckConfigReload(obj, "rank:ndcg");
+
+  // Test with setting sample weight to second query group
+  CheckRankingObjFunction(obj,
+                          {0, 0.1f, 0, 0.1f},
+                          {0,   1, 0, 1},
+                          {2.0f, 0.0f},
+                          {0, 2, 4},
+                          {0.7f, -0.7f, 0.0f, 0.0f},
+                          {0.74f, 0.74f, 0.0f, 0.0f});
+
+  CheckRankingObjFunction(obj,
+                          {0, 0.1f, 0, 0.1f},
+                          {0,   1, 0, 1},
+                          {1.0f, 1.0f},
+                          {0, 2, 4},
+                          {0.35f, -0.35f,  0.35f, -0.35f},
+                          {0.368f, 0.368f, 0.368f, 0.368f});
+  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+}
+
 }  // namespace xgboost

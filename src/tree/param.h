@@ -281,7 +281,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     }
   } else {
     T w = CalcWeight(p, sum_grad, sum_hess);
-    T ret = CalcGainGivenWeight<TrainingParams, T>(p, sum_grad, sum_hess, w);
+    T ret = CalcGainGivenWeight(p, sum_grad, sum_hess, w);
     if (p.reg_alpha == 0.0f) {
       return ret;
     } else {
@@ -301,7 +301,7 @@ template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
                                  T test_grad, T test_hess) {
   T w = CalcWeight(sum_grad, sum_hess);
-  T ret = CalcGainGivenWeight<TrainingParams, T>(p, test_grad, test_hess);
+  T ret = CalcGainGivenWeight(p, test_grad, test_hess);
   if (p.reg_alpha == 0.0f) {
     return ret;
   } else {
@@ -340,16 +340,15 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 }
 
 /*! \brief core statistics used for tree construction */
-struct  GradStats {
-  typedef double GradType;
+struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
-  GradType sum_grad;
+  double sum_grad;
   /*! \brief sum hessian statistics */
-  GradType sum_hess;
+  double sum_hess;
 
  public:
-  XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
-  XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
+  XGBOOST_DEVICE double GetGrad() const { return sum_grad; }
+  XGBOOST_DEVICE double GetHess() const { return sum_hess; }
 
   XGBOOST_DEVICE GradStats() : sum_grad{0}, sum_hess{0} {
     static_assert(sizeof(GradStats) == 16,
@@ -359,7 +358,7 @@ struct  GradStats {
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const GradType grad, const GradType hess)
+  explicit GradStats(const double grad, const double hess)
       : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
@@ -384,7 +383,7 @@ struct  GradStats {
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief add statistics to the data */
-  inline void Add(GradType grad, GradType hess) {
+  inline void Add(double grad, double hess) {
     sum_grad += grad;
     sum_hess += hess;
   }
@@ -402,7 +401,6 @@ struct SplitEntry {
   bst_float split_value{0.0f};
   GradStats left_sum;
   GradStats right_sum;
-  bool default_left{true};
 
   /*! \brief constructor */
   SplitEntry()  = default;
@@ -417,11 +415,7 @@ struct SplitEntry {
    * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
-    if (!std::isfinite(new_loss_chg)) {  // in some cases new_loss_chg can be NaN or Inf,
-                                         // for example when lambda = 0 & min_child_weight = 0
-                                         // skip value in this case
-      return false;
-    } else if (this->SplitIndex() <= split_index) {
+    if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
       return !(this->loss_chg > new_loss_chg);
@@ -439,7 +433,6 @@ struct SplitEntry {
       this->split_value = e.split_value;
       this->left_sum = e.left_sum;
       this->right_sum = e.right_sum;
-      this->default_left = e.default_left;
       return true;
     } else {
       return false;
@@ -454,11 +447,13 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     bst_float new_split_value, bool new_default_left,
+                     bst_float new_split_value, bool default_left,
                      const GradStats &left_sum, const GradStats &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
-      this->default_left = new_default_left;
+      if (default_left) {
+        split_index |= (1U << 31);
+      }
       this->sindex = split_index;
       this->split_value = new_split_value;
       this->left_sum = left_sum;
@@ -474,9 +469,9 @@ struct SplitEntry {
     dst.Update(src);
   }
   /*!\return feature index to split on */
-  inline unsigned SplitIndex() const { return sindex; }
+  inline unsigned SplitIndex() const { return sindex & ((1U << 31) - 1U); }
   /*!\return whether missing value goes to left branch */
-  inline bool DefaultLeft() const { return default_left; }
+  inline bool DefaultLeft() const { return (sindex >> 31) != 0; }
 };
 
 }  // namespace tree
