@@ -24,8 +24,8 @@ TEST(CPUFeatureInteractionConstraint, Empty) {
   std::vector<bst_feature_t> h_input_feature_list {0, 1, 2, 3, 4, 5};
   common::Span<bst_feature_t> s_input_feature_list = common::Span<bst_feature_t>{h_input_feature_list};
 
-  for (size_t i = 0; i < h_input_feature_list.size(); i++) {
-    constraints.Query(h_input_feature_list[i], 1);
+  for (auto f : h_input_feature_list) {
+    constraints.Query(f, 1);
   }
 
   // no-op
