@@ -12,8 +12,7 @@
 namespace xgboost {
 void FeatureInteractionConstraintHost::Configure(tree::TrainParam const& param,
                                                  bst_feature_t const n_features) {
-  if (param.interaction_constraints.empty() ||
-      param.interaction_constraints == this->interaction_constraint_str_) {
+  if (param.interaction_constraints.empty()) {
     enabled_ = !param.interaction_constraints.empty();
     return;  // short-circuit if no constraint is specified
   }
