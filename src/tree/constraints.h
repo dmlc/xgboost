@@ -39,7 +39,8 @@ class FeatureInteractionConstraintHost {
   bst_feature_t n_features_;
   bool enabled_{false};
 
-  void SplitImpl(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
+  void SplitImpl(int32_t node_id, bst_feature_t feature_id, bst_node_t left_id,
+                 bst_node_t right_id);
 
  public:
   FeatureInteractionConstraintHost() = default;
