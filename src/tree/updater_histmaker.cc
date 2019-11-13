@@ -110,7 +110,7 @@ class HistMaker: public BaseMaker {
   // reducer for histogram
   rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   // set of working features
-  std::vector<bst_uint> selected_features_;
+  std::vector<bst_feature_t> selected_features_;
   // update function implementation
   virtual void UpdateTree(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
@@ -146,12 +146,12 @@ class HistMaker: public BaseMaker {
   // (2) propose a set of candidate cuts and set wspace.rptr wspace.cut correctly
   virtual void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                                   DMatrix *p_fmat,
-                                  const std::vector <bst_uint> &fset,
+                                  const std::vector <bst_feature_t> &fset,
                                   const RegTree &tree) = 0;
   // initialize the current working set of features in this round
   virtual void InitWorkSet(DMatrix *p_fmat,
                            const RegTree &tree,
-                           std::vector<bst_uint> *p_fset) {
+                           std::vector<bst_feature_t> *p_fset) {
     p_fset->resize(tree.param.num_feature);
     for (size_t i = 0; i < p_fset->size(); ++i) {
       (*p_fset)[i] = static_cast<unsigned>(i);
@@ -163,7 +163,7 @@ class HistMaker: public BaseMaker {
   }
   virtual void CreateHist(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector <bst_uint> &fset,
+                          const std::vector <bst_feature_t> &fset,
                           const RegTree &tree)  = 0;
 
  private:
@@ -323,7 +323,7 @@ class CQHistMaker: public HistMaker {
   // initialize the work set of tree
   void InitWorkSet(DMatrix *p_fmat,
                    const RegTree &tree,
-                   std::vector<bst_uint> *p_fset) override {
+                   std::vector<bst_feature_t> *p_fset) override {
     if (p_fmat != cache_dmatrix_) {
       feat_helper_.InitByCol(p_fmat, tree);
       cache_dmatrix_ = p_fmat;
@@ -334,7 +334,7 @@ class CQHistMaker: public HistMaker {
   // code to create histogram
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
-                  const std::vector<bst_uint> &fset,
+                  const std::vector<bst_feature_t> &fset,
                   const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
@@ -384,7 +384,7 @@ class CQHistMaker: public HistMaker {
   }
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector<bst_uint> &fset,
+                          const std::vector<bst_feature_t> &fset,
                           const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
@@ -493,7 +493,7 @@ class CQHistMaker: public HistMaker {
                             const SparsePage::Inst &col,
                             const MetaInfo &info,
                             const RegTree &tree,
-                            const std::vector<bst_uint> &fset,
+                            const std::vector<bst_feature_t> &fset,
                             bst_uint fid_offset,
                             std::vector<HistEntry> *p_temp) {
     if (col.size() == 0) return;
@@ -620,7 +620,7 @@ class CQHistMaker: public HistMaker {
   // temp space to map feature id to working index
   std::vector<int> feat2workindex_;
   // set of index from fset that are current work set
-  std::vector<bst_uint> work_set_;
+  std::vector<bst_feature_t> work_set_;
   // set of index from that are split candidates.
   std::vector<bst_uint> fsplit_set_;
   // thread temp data
@@ -649,7 +649,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
  protected:
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector<bst_uint> &fset,
+                          const std::vector<bst_feature_t> &fset,
                           const RegTree &tree) override {
     if (this->qexpand_.size() == 1) {
       cached_rptr_.clear();
@@ -680,7 +680,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
   // code to create histogram
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
-                  const std::vector<bst_uint> &fset,
+                  const std::vector<bst_feature_t> &fset,
                   const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map

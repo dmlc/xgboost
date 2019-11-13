@@ -82,8 +82,8 @@ class BaseMaker: public TreeUpdater {
       return fminmax_[fid *2 + 1];
     }
 
-    void SampleCol(float p, std::vector<bst_uint> *p_findex) const {
-      std::vector<bst_uint> &findex = *p_findex;
+    void SampleCol(float p, std::vector<bst_feature_t> *p_findex) const {
+      std::vector<bst_feature_t> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax_.size(); i += 2) {
         const auto fid = static_cast<bst_uint>(i / 2);

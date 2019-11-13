@@ -60,7 +60,7 @@ class FeatureInteractionConstraintHost {
 
   void Reset();
 
-  void Configure(tree::TrainParam const& param, uint32_t const n_features);
+  void Configure(tree::TrainParam const& param, bst_feature_t const n_features);
 };
 }  // namespace xgboost
 

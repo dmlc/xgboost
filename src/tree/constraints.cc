@@ -47,15 +47,15 @@ void FeatureInteractionConstraintHost::Reset() {
 
   // Initialise interaction constraints record with all variables permitted for the first node
   node_constraints_.clear();
-  node_constraints_.resize(1, std::unordered_set<bst_uint>());
+  node_constraints_.resize(1, std::unordered_set<bst_feature_t>());
   node_constraints_[0].reserve(n_features_);
-  for (bst_uint i = 0; i < n_features_; ++i) {
+  for (bst_feature_t i = 0; i < n_features_; ++i) {
     node_constraints_[0].insert(i);
   }
 
   // Initialise splits record
   splits_.clear();
-  splits_.resize(1, std::unordered_set<bst_uint>());
+  splits_.resize(1, std::unordered_set<bst_feature_t>());
 }
 
 void FeatureInteractionConstraintHost::SplitImpl(
@@ -71,7 +71,7 @@ void FeatureInteractionConstraintHost::SplitImpl(
 
   // Resize constraints record, initialise all features to be not permitted for new nodes
   CHECK_NE(newsize, 0);
-  node_constraints_.resize(newsize, std::unordered_set<bst_uint>());
+  node_constraints_.resize(newsize, std::unordered_set<bst_feature_t>());
 
   // Permit features used in previous splits
   for (bst_feature_t fid : feature_splits) {
