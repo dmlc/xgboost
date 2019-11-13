@@ -108,7 +108,9 @@ int AllreduceRobust::SetBootstrapCache(const std::string &key, const void *buf,
       break;
     }
   }
-  _assert(index == -1, "immutable cache key already exists");
+  // we should consider way to support duplicated signatures
+  // https://github.com/dmlc/xgboost/issues/5012
+  // _assert(index == -1, "immutable cache key already exists");
   _assert(type_nbytes*count > 0, "can't set empty cache");
   void* temp = cachebuf.AllocTemp(type_nbytes, count);
   cachebuf.PushTemp(cur_cache_seq, type_nbytes, count);
