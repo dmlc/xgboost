@@ -33,7 +33,7 @@ class RowPartitioner {
  public:
   using RowIndexT = bst_uint;
   struct Segment;
-  static constexpr TreePositionT kIgnoredTreePosition = -1;
+  static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
   int device_idx;
@@ -165,7 +165,7 @@ class RowPartitioner {
     dh::LaunchN(device_idx, position.Size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
-      TreePositionT new_position = op(ridx, position);
+      bst_node_t new_position = op(ridx, position);
       if (new_position == kIgnoredTreePosition) return;
       d_position[idx] = new_position;
     });
