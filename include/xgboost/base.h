@@ -113,7 +113,7 @@ using bst_float = float;  // NOLINT
 /*! \brief Type for data column (feature) index. */
 using bst_feature_t = uint32_t;  // NOLINT
 /*! \breif Type for data row index. */
-using bst_row_t = uint64_t;      // NOLINT
+using bst_row_t = std::size_t; // NOLINT
 /*! \brief Type for tree node index. */
 using bst_node_t = int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */

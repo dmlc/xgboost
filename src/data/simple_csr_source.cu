@@ -180,7 +180,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   thrust::inclusive_scan(p_offsets, p_offsets + n_rows + 1, p_offsets);
   // Created for building csr matrix, where we need to change index after processing each
   // column.
-  dh::device_vector<size_t> tmp_offset(this->page_.offset.Size());
+  dh::device_vector<bst_row_t> tmp_offset(this->page_.offset.Size());
   dh::safe_cuda(cudaMemcpy(tmp_offset.data().get(), s_offsets.data(),
                            s_offsets.size_bytes(), cudaMemcpyDeviceToDevice));
 
