@@ -29,7 +29,7 @@ namespace data {
 template <typename T>
 __global__ void CountValidKernel(Columnar<T> const column,
                                  bool has_missing, float missing,
-                                 int32_t* flag, common::Span<size_t> offsets) {
+                                 int32_t* flag, common::Span<bst_row_t> offsets) {
   auto const tid =  threadIdx.x + blockDim.x * blockIdx.x;
   bool const missing_is_nan = common::CheckNAN(missing);
 
@@ -98,7 +98,7 @@ __global__ void CreateCSRKernel(Columnar<T> const column,
 template <typename T>
 void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
                 bool has_missing, float missing,
-                HostDeviceVector<size_t>* out_offset,
+                HostDeviceVector<bst_row_t>* out_offset,
                 dh::caching_device_vector<int32_t>* out_d_flag,
                 uint32_t* out_n_rows) {
   uint32_t constexpr kThreads = 256;
@@ -121,7 +121,7 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
   CHECK_EQ(out_offset->Size(), n_rows + 1)
       << "All columns should have same number of rows.";
 
-  common::Span<size_t> s_offsets = out_offset->DeviceSpan();
+  common::Span<bst_row_t> s_offsets = out_offset->DeviceSpan();
 
   uint32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
   dh::LaunchKernel {kBlocks, kThreads} (
@@ -174,7 +174,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   info.num_row_ = n_rows;
 
   auto s_offsets = this->page_.offset.DeviceSpan();
-  thrust::device_ptr<size_t> p_offsets(s_offsets.data());
+  thrust::device_ptr<bst_row_t> p_offsets(s_offsets.data());
   CHECK_GE(s_offsets.size(), n_rows + 1);
 
   thrust::inclusive_scan(p_offsets, p_offsets + n_rows + 1, p_offsets);
