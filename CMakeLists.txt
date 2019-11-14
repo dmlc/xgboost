@@ -30,6 +30,8 @@ option(USE_OPENMP "Build with OpenMP support." ON)
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
 ## Dev
+option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
+Should only be used for debugging." OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -39,17 +41,12 @@ option(RABIT_MOCK "Build rabit with mock" OFF)
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
-
+set(GPU_COMPUTE_VER "" CACHE STRING
+  "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
 ## Copied From dmlc
 option(USE_HDFS "Build with HDFS support" OFF)
 option(USE_AZURE "Build with AZURE support" OFF)
 option(USE_S3 "Build with S3 support" OFF)
-
-set(GPU_COMPUTE_VER "" CACHE STRING
-  "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
-if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
-  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
-endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
@@ -60,12 +57,28 @@ address, leak and thread.")
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 
-## Deprecation warning
+#-- Checks for building XGBoost
+if (USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
+  message(SEND_ERROR "Do not enable `USE_DEBUG_OUTPUT' with release build.")
+endif (USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
+if (USE_NCCL AND NOT (USE_CUDA))
+  message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
+endif (USE_NCCL AND NOT (USE_CUDA))
+if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+  message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
+endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
+if (JVM_BINDINGS AND R_LIB)
+  message(SEND_ERROR "`R_LIB' is not compatible with `JVM_BINDINGS' as they both have customized configurations.")
+endif (JVM_BINDINGS AND R_LIB)
+if (R_LIB AND GOOGLE_TEST)
+  message(WARNING "Some C++ unittests will fail with `R_LIB` enabled,
+ as R package redirects some functions to R runtime implementation.")
+endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
-  message(WARNING "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from xgboost.")
+  message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
 
-# Sanitizer
+#-- Sanitizer
 if (USE_SANITIZER)
   # Older CMake versions have had troubles with Sanitizer
   cmake_minimum_required(VERSION 3.12)

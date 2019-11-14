@@ -63,6 +63,9 @@ target_compile_definitions(objxgboost
   -DDMLC_LOG_CUSTOMIZE=1  # enable custom logging
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>
   ${XGBOOST_DEFINITIONS})
+if (USE_DEBUG_OUTPUT)
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
+endif (USE_DEBUG_OUTPUT)
 
 if (XGBOOST_MM_PREFETCH_PRESENT)
   target_compile_definitions(objxgboost
