@@ -1,18 +1,21 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file updater_histmaker.cc
  * \brief use histogram counting to construct a tree
  * \author Tianqi Chen
  */
 #include <rabit/rabit.h>
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
 #include <vector>
 #include <algorithm>
+
+#include "xgboost/tree_updater.h"
+#include "xgboost/base.h"
+#include "xgboost/logging.h"
 
 #include "../common/quantile.h"
 #include "../common/group_data.h"
 #include "./updater_basemaker-inl.h"
+#include "constraints.h"
 
 namespace xgboost {
 namespace tree {
@@ -24,12 +27,13 @@ class HistMaker: public BaseMaker {
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
+    interaction_constraints_.Configure(param_, p_fmat->Info().num_col_);
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
     // build tree
     for (auto tree : trees) {
-      this->Update(gpair->ConstHostVector(), p_fmat, tree);
+      this->UpdateTree(gpair->ConstHostVector(), p_fmat, tree);
     }
     param_.learning_rate = lr;
   }
@@ -38,43 +42,39 @@ class HistMaker: public BaseMaker {
   }
 
  protected:
-    /*! \brief a single histogram */
+    /*! \brief a single column of histogram cuts */
   struct HistUnit {
     /*! \brief cutting point of histogram, contains maximum point */
-    const bst_float *cut;
+    const float *cut;
     /*! \brief content of statistics data */
     GradStats *data;
     /*! \brief size of histogram */
-    unsigned size;
+    uint32_t size;
     // default constructor
     HistUnit() = default;
     // constructor
-    HistUnit(const bst_float *cut, GradStats *data, unsigned size)
-        : cut(cut), data(data), size(size) {}
+    HistUnit(const float *cut, GradStats *data, uint32_t size)
+        : cut{cut}, data{data}, size{size} {}
     /*! \brief add a histogram to data */
-    inline void Add(bst_float fv,
-                    const std::vector<GradientPair> &gpair,
-                    const MetaInfo &info,
-                    const bst_uint ridx) {
-      unsigned i = std::upper_bound(cut, cut + size, fv) - cut;
+    void Add(float fv, const std::vector<GradientPair> &gpair,
+             const MetaInfo &info, const size_t ridx) {
+      unsigned bin = std::upper_bound(cut, cut + size, fv) - cut;
       CHECK_NE(size, 0U) << "try insert into size=0";
-      CHECK_LT(i, size);
-      data[i].Add(gpair[ridx]);
+      CHECK_LT(bin, size);
+      data[bin].Add(gpair[ridx]);
     }
   };
   /*! \brief a set of histograms from different index */
   struct HistSet {
     /*! \brief the index pointer of each histunit */
-    const unsigned *rptr;
+    const uint32_t *rptr;
     /*! \brief cutting points in each histunit */
     const bst_float *cut;
     /*! \brief data in different hist unit */
     std::vector<GradStats> data;
-    /*! \brief */
+    /*! \brief return a column of histogram cuts */
     inline HistUnit operator[](size_t fid) {
-      return {cut + rptr[fid],
-              &data[0] + rptr[fid],
-              rptr[fid+1] - rptr[fid]};
+      return {cut + rptr[fid], &data[0] + rptr[fid], rptr[fid+1] - rptr[fid]};
     }
   };
   // thread workspace
@@ -110,26 +110,27 @@ class HistMaker: public BaseMaker {
   // reducer for histogram
   rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   // set of working features
-  std::vector<bst_uint> fwork_set_;
+  std::vector<bst_feature_t> selected_features_;
   // update function implementation
-  virtual void Update(const std::vector<GradientPair> &gpair,
-                      DMatrix *p_fmat,
-                      RegTree *p_tree) {
+  virtual void UpdateTree(const std::vector<GradientPair> &gpair,
+                          DMatrix *p_fmat,
+                          RegTree *p_tree) {
     CHECK(param_.max_depth > 0) << "max_depth must be larger than 0";
     this->InitData(gpair, *p_fmat, *p_tree);
-    this->InitWorkSet(p_fmat, *p_tree, &fwork_set_);
+    this->InitWorkSet(p_fmat, *p_tree, &selected_features_);
     // mark root node as fresh.
     for (int i = 0; i < p_tree->param.num_roots; ++i) {
       (*p_tree)[i].SetLeaf(0.0f, 0);
     }
+    CHECK_EQ(p_tree->param.num_roots, 1) << "Support for num roots is removed.";
 
     for (int depth = 0; depth < param_.max_depth; ++depth) {
       // reset and propose candidate split
-      this->ResetPosAndPropose(gpair, p_fmat, fwork_set_, *p_tree);
+      this->ResetPosAndPropose(gpair, p_fmat, selected_features_, *p_tree);
       // create histogram
-      this->CreateHist(gpair, p_fmat, fwork_set_, *p_tree);
+      this->CreateHist(gpair, p_fmat, selected_features_, *p_tree);
       // find split based on histogram statistics
-      this->FindSplit(depth, gpair, p_fmat, fwork_set_, p_tree);
+      this->FindSplit(depth, gpair, p_fmat, selected_features_, p_tree);
       // reset position after split
       this->ResetPositionAfterSplit(p_fmat, *p_tree);
       this->UpdateQueueExpand(*p_tree);
@@ -145,12 +146,12 @@ class HistMaker: public BaseMaker {
   // (2) propose a set of candidate cuts and set wspace.rptr wspace.cut correctly
   virtual void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                                   DMatrix *p_fmat,
-                                  const std::vector <bst_uint> &fset,
+                                  const std::vector <bst_feature_t> &fset,
                                   const RegTree &tree) = 0;
   // initialize the current working set of features in this round
   virtual void InitWorkSet(DMatrix *p_fmat,
                            const RegTree &tree,
-                           std::vector<bst_uint> *p_fset) {
+                           std::vector<bst_feature_t> *p_fset) {
     p_fset->resize(tree.param.num_feature);
     for (size_t i = 0; i < p_fset->size(); ++i) {
       (*p_fset)[i] = static_cast<unsigned>(i);
@@ -162,15 +163,15 @@ class HistMaker: public BaseMaker {
   }
   virtual void CreateHist(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector <bst_uint> &fset,
+                          const std::vector <bst_feature_t> &fset,
                           const RegTree &tree)  = 0;
 
  private:
-  inline void EnumerateSplit(const HistUnit &hist,
-                             const GradStats &node_sum,
-                             bst_uint fid,
-                             SplitEntry *best,
-                             GradStats *left_sum) {
+  void EnumerateSplit(const HistUnit &hist,
+                      const GradStats &node_sum,
+                      bst_uint fid,
+                      SplitEntry *best,
+                      GradStats *left_sum) const {
     if (hist.size == 0) return;
 
     double root_gain = CalcGain(param_, node_sum.GetGrad(), node_sum.GetHess());
@@ -203,31 +204,37 @@ class HistMaker: public BaseMaker {
       }
     }
   }
-  inline void FindSplit(int depth,
-                        const std::vector<GradientPair> &gpair,
-                        DMatrix *p_fmat,
-                        const std::vector <bst_uint> &fset,
-                        RegTree *p_tree) {
-    const size_t num_feature = fset.size();
+
+  void FindSplit(int depth,
+                 const std::vector<GradientPair> &gpair,
+                 DMatrix *p_fmat,
+                 const std::vector <bst_feature_t> &feature_set,
+                 RegTree *p_tree) {
+    const size_t num_feature = feature_set.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand_.size());
     std::vector<GradStats> left_sum(qexpand_.size());
     auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
-    #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand_[wid];
       CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
       GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
-      for (size_t i = 0; i < fset.size(); ++i) {
+      for (size_t i = 0; i < feature_set.size(); ++i) {
+        // Query is thread safe as it's a const function.
+        if (!this->interaction_constraints_.Query(nid, feature_set[i])) {
+          continue;
+        }
+
         EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
-                       node_sum, fset[i], &best, &left_sum[wid]);
+                       node_sum, feature_set[i], &best, &left_sum[wid]);
       }
     }
     // get the best result, we can synchronize the solution
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand_[wid];
-      const SplitEntry &best = sol[wid];
+      const bst_node_t nid = qexpand_[wid];
+      SplitEntry const& best = sol[wid];
       const GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
       this->SetStats(p_tree, nid, node_sum);
       // set up the values
@@ -246,11 +253,13 @@ class HistMaker: public BaseMaker {
                            best.DefaultLeft(), base_weight, left_leaf_weight,
                            right_leaf_weight, best.loss_chg,
                            node_sum.sum_hess);
-        // right side sum
         GradStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].LeftChild(), left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].RightChild(), right_sum);
+        auto left_child = (*p_tree)[nid].LeftChild();
+        auto right_child = (*p_tree)[nid].RightChild();
+        this->SetStats(p_tree, left_child, left_sum[wid]);
+        this->SetStats(p_tree, right_child, right_sum);
+        this->interaction_constraints_.Split(nid, best.SplitIndex(), left_child, right_child);
       } else {
         (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }
@@ -314,7 +323,7 @@ class CQHistMaker: public HistMaker {
   // initialize the work set of tree
   void InitWorkSet(DMatrix *p_fmat,
                    const RegTree &tree,
-                   std::vector<bst_uint> *p_fset) override {
+                   std::vector<bst_feature_t> *p_fset) override {
     if (p_fmat != cache_dmatrix_) {
       feat_helper_.InitByCol(p_fmat, tree);
       cache_dmatrix_ = p_fmat;
@@ -325,7 +334,7 @@ class CQHistMaker: public HistMaker {
   // code to create histogram
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
-                  const std::vector<bst_uint> &fset,
+                  const std::vector<bst_feature_t> &fset,
                   const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
@@ -365,7 +374,6 @@ class CQHistMaker: public HistMaker {
       }
     };
     // sync the histogram
-    // if it is C++11, use lazy evaluation for Allreduce
     this->histred_.Allreduce(dmlc::BeginPtr(this->wspace_.hset[0].data),
                              this->wspace_.hset[0].data.size(), lazy_get_hist);
   }
@@ -376,7 +384,7 @@ class CQHistMaker: public HistMaker {
   }
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector<bst_uint> &fset,
+                          const std::vector<bst_feature_t> &fset,
                           const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
@@ -485,7 +493,7 @@ class CQHistMaker: public HistMaker {
                             const SparsePage::Inst &col,
                             const MetaInfo &info,
                             const RegTree &tree,
-                            const std::vector<bst_uint> &fset,
+                            const std::vector<bst_feature_t> &fset,
                             bst_uint fid_offset,
                             std::vector<HistEntry> *p_temp) {
     if (col.size() == 0) return;
@@ -612,7 +620,7 @@ class CQHistMaker: public HistMaker {
   // temp space to map feature id to working index
   std::vector<int> feat2workindex_;
   // set of index from fset that are current work set
-  std::vector<bst_uint> work_set_;
+  std::vector<bst_feature_t> work_set_;
   // set of index from that are split candidates.
   std::vector<bst_uint> fsplit_set_;
   // thread temp data
@@ -641,7 +649,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
  protected:
   void ResetPosAndPropose(const std::vector<GradientPair> &gpair,
                           DMatrix *p_fmat,
-                          const std::vector<bst_uint> &fset,
+                          const std::vector<bst_feature_t> &fset,
                           const RegTree &tree) override {
     if (this->qexpand_.size() == 1) {
       cached_rptr_.clear();
@@ -672,7 +680,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
   // code to create histogram
   void CreateHist(const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat,
-                  const std::vector<bst_uint> &fset,
+                  const std::vector<bst_feature_t> &fset,
                   const RegTree &tree) override {
     const MetaInfo &info = p_fmat->Info();
     // fill in reverse map
@@ -692,7 +700,8 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->SetDefaultPostion(p_fmat, tree);
       this->work_set_.insert(this->work_set_.end(), this->fsplit_set_.begin(),
                              this->fsplit_set_.end());
-      std::sort(this->work_set_.begin(), this->work_set_.end());
+      XGBOOST_PARALLEL_SORT(this->work_set_.begin(), this->work_set_.end(),
+                            std::less<decltype(this->work_set_)::value_type>{});
       this->work_set_.resize(
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
@@ -703,7 +712,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
-        #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int fid = this->work_set_[i];
           int offset = this->feat2workindex_[fid];
@@ -740,6 +749,7 @@ XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
     return new CQHistMaker();
   });
 
+// The updater for approx tree method.
 XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
 .describe("Tree constructor that uses approximate global of histogram construction.")
 .set_body([]() {

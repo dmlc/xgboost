@@ -56,7 +56,7 @@ void TestDeviceSketch(bool use_external_memory) {
   size_t row_stride = DeviceSketch(device, max_bin, gpu_batch_nrows, dmat->get(), &hmat_gpu);
 
   // compare the row stride with the one obtained from the dmatrix
-  size_t expected_row_stride = 0;
+  bst_row_t expected_row_stride = 0;
   for (const auto &batch : dmat->get()->GetBatches<xgboost::SparsePage>()) {
     const auto &offset_vec = batch.offset.ConstHostVector();
     for (int i = 1; i <= offset_vec.size() -1; ++i) {

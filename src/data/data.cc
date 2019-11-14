@@ -229,7 +229,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  DMatrix* dmat;
+  DMatrix* dmat {nullptr};
 
   try {
     dmat = DMatrix::Create(parser.get(), cache_file, page_size);
@@ -253,9 +253,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
             << "Choosing default parser in dmlc-core.  "
             << "Consider providing a uri parameter like: filename?format=csv";
       }
-
-      LOG(FATAL) << "Encountered parser error:\n" << e.what();
     }
+    LOG(FATAL) << "Encountered parser error:\n" << e.what();
   }
 
   if (!silent) {
@@ -361,8 +360,8 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 namespace xgboost {
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
-  common::ParallelGroupBuilder<Entry> builder(&transpose.offset.HostVector(),
-                                              &transpose.data.HostVector());
+  common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
+                                                         &transpose.data.HostVector());
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
@@ -424,7 +423,7 @@ void SparsePage::Push(const dmlc::RowBlock<uint32_t>& batch) {
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
-  std::vector<size_t>& self_offset = offset.HostVector();
+  std::vector<bst_row_t>& self_offset = offset.HostVector();
 
   auto const& other_data = batch.data.ConstHostVector();
   auto const& other_offset = batch.offset.ConstHostVector();
@@ -442,7 +441,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
     return;
   }
 
-  std::vector<size_t> offset(other_offset.size());
+  std::vector<bst_row_t> offset(other_offset.size());
   offset[0] = 0;
 
   std::vector<xgboost::Entry> data(self_data.size() + other_data.size());

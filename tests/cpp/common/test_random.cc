@@ -55,7 +55,7 @@ TEST(ColumnSampler, ThreadSynchronisation) {
   int n = 128;
   size_t iterations = 10;
   size_t levels = 5;
-  std::vector<int> reference_result;
+  std::vector<bst_feature_t> reference_result;
   bool success =
       true;  // Cannot use google test asserts in multithreaded region
 #pragma omp parallel num_threads(num_threads)

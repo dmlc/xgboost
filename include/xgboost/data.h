@@ -57,7 +57,7 @@ class MetaInfo {
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
    */
-  std::vector<bst_uint> group_ptr_;
+  std::vector<bst_group_t> group_ptr_;
   /*! \brief weights of each instance, optional */
   HostDeviceVector<bst_float> weights_;
   /*!
@@ -136,7 +136,7 @@ class MetaInfo {
 /*! \brief Element from a sparse vector */
 struct Entry {
   /*! \brief feature index */
-  bst_uint index;
+  bst_feature_t index;
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
@@ -146,7 +146,7 @@ struct Entry {
    * \param index The feature or row index.
    * \param fvalue The feature value.
    */
-  Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+  Entry(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
   /*! \brief reversely compare feature values */
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
@@ -174,7 +174,7 @@ struct BatchParam {
 class SparsePage {
  public:
   // Offset for each row.
-  HostDeviceVector<size_t> offset;
+  HostDeviceVector<bst_row_t> offset;
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 

@@ -247,7 +247,7 @@ __device__ void EvaluateFeature(
 template <int BLOCK_THREADS, typename GradientSumT>
 __global__ void EvaluateSplitKernel(
     common::Span<const GradientSumT> node_histogram,  // histogram for gradients
-    common::Span<const int> feature_set,              // Selected features
+    common::Span<const bst_feature_t> feature_set,    // Selected features
     DeviceNodeStats node,
     xgboost::EllpackMatrix matrix,
     GPUTrainingParam gpu_param,
@@ -582,8 +582,8 @@ struct GPUHistMakerDevice {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
       p_feature_set->SetDevice(device_id);
-      auto d_sampled_features = p_feature_set->DeviceSpan();
-      common::Span<int32_t> d_feature_set =
+      common::Span<bst_feature_t> d_sampled_features = p_feature_set->DeviceSpan();
+      common::Span<bst_feature_t> d_feature_set =
           interaction_constraints.Query(d_sampled_features, nidx);
       auto d_split_candidates =
           d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());

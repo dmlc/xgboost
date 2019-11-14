@@ -100,16 +100,29 @@
 
 /*! \brief namespace of xgboost*/
 namespace xgboost {
-/*!
- * \brief unsigned integer type used in boost,
- *  used for feature index and row index.
- */
+
+/*! \brief unsigned integer type used for feature index. */
 using bst_uint = uint32_t;  // NOLINT
+/*! \brief integer type. */
 using bst_int = int32_t;    // NOLINT
-/*! \brief long integers */
-typedef uint64_t bst_ulong;  // NOLINT(*)
+/*! \brief unsigned long integers */
+using bst_ulong = uint64_t;
 /*! \brief float type, used for storing statistics */
 using bst_float = float;  // NOLINT
+
+/*! \brief Type for data column (feature) index. */
+using bst_feature_t = uint32_t;  // NOLINT
+/*! \breif Type for data row index.
+ *
+ * Be careful `std::size_t' is implementation-defined.  Meaning that the binary
+ * representation of DMatrix might not be portable across platform.  Booster model should
+ * be portable as parameters are floating points.
+ */
+using bst_row_t = std::size_t;   // NOLINT
+/*! \brief Type for tree node index. */
+using bst_node_t = int32_t;      // NOLINT
+/*! \brief Type for ranking group index. */
+using bst_group_t = uint32_t;    // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation

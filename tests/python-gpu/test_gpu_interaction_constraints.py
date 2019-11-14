@@ -11,7 +11,7 @@ class TestGPUInteractionConstraints(unittest.TestCase):
     cputest = test_ic.TestInteractionConstraints()
 
     def test_interaction_constraints(self):
-        self.cputest.test_interaction_constraints(tree_method='gpu_hist')
+        self.cputest.run_interaction_constraints(tree_method='gpu_hist')
 
     def test_training_accuracy(self):
-        self.cputest.test_training_accuracy(tree_method='gpu_hist')
+        self.cputest.training_accuracy(tree_method='gpu_hist')
