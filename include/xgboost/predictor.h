@@ -21,7 +21,7 @@
 namespace xgboost {
 class TreeUpdater;
 namespace gbm {
-class GBTreeModel;
+struct GBTreeModel;
 }  // namespace gbm
 }
 
