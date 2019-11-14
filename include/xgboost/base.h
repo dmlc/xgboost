@@ -119,9 +119,6 @@ using bst_node_t = int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */
 using bst_group_t = uint32_t;    // NOLINT
 
-static_assert(sizeof(bst_row_t) == sizeof(size_t),
-              "`size_t' should of 64 bits.");
-
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
  * may be used to overload different gradients types e.g. low precision, high
