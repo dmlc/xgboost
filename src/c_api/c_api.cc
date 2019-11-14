@@ -329,9 +329,6 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
     if (src_base_margin.size() != 0) {
       ret_base_margin.push_back(src_base_margin[ridx]);
     }
-    if (src.info.root_index_.size() != 0) {
-      ret.info.root_index_.push_back(src.info.root_index_[ridx]);
-    }
   }
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
@@ -426,9 +423,7 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   CHECK_HANDLE();
   const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<unsigned>* vec = nullptr;
-  if (!std::strcmp(field, "root_index")) {
-    vec = &info.root_index_;
-  } else if (!std::strcmp(field, "group_ptr")) {
+  if (!std::strcmp(field, "group_ptr")) {
     vec = &info.group_ptr_;
   } else {
     LOG(FATAL) << "Unknown comp uint field name " << field

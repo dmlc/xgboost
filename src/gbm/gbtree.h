@@ -201,7 +201,7 @@ class GBTree : public GradientBooster {
                unsigned root_index) override {
     CHECK(configured_);
     cpu_predictor_->PredictInstance(inst, out_preds, model_,
-                                    ntree_limit, root_index);
+                                    ntree_limit);
   }
 
   void PredictLeaf(DMatrix* p_fmat,

@@ -90,9 +90,7 @@ class TreeRefresher: public TreeUpdater {
     param_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
-      for (int rid = 0; rid < tree->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, tree);
-      }
+      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
       offset += tree->param.num_nodes;
     }
     // set learning rate back
@@ -107,7 +105,7 @@ class TreeRefresher: public TreeUpdater {
                               const bst_uint ridx,
                               GradStats *gstats) {
     // start from groups that belongs to current data
-    auto pid = static_cast<int>(info.GetRoot(ridx));
+    auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
     // tranverse tree
     while (!tree[pid].IsLeaf()) {

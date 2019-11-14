@@ -18,8 +18,8 @@ namespace gbm {
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   /*! \brief number of trees */
   int num_trees;
-  /*! \brief number of roots */
-  int num_roots;
+  /*! \brief (Deprecated) number of roots */
+  int deprecated_num_roots;
   /*! \brief number of features to be used by trees */
   int num_feature;
   /*! \brief pad this space, for backward compatibility reason.*/
@@ -50,8 +50,6 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .describe(
             "Number of output groups to be predicted,"
             " used for multi-class classification.");
-    DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1).describe(
-        "Tree updater sequence.");
     DMLC_DECLARE_FIELD(num_feature)
         .set_lower_bound(0)
         .describe("Number of features used for training and prediction.");

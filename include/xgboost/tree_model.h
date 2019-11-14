@@ -29,8 +29,8 @@ struct PathElement;  // forward declaration
 
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
-  /*! \brief number of start root */
-  int num_roots;
+  /*! \brief (Deprecated) number of start root */
+  int deprecated_num_roots;
   /*! \brief total number of nodes */
   int num_nodes;
   /*!\brief number of deleted nodes */
@@ -52,14 +52,12 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     static_assert(sizeof(TreeParam) == (31 + 6) * sizeof(int),
                   "TreeParam: 64 bit align");
     std::memset(this, 0, sizeof(TreeParam));
-    num_nodes = num_roots = 1;
+    num_nodes = 1;
   }
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
     // only declare the parameters that can be set by the user.
     // other arguments are set by the algorithm.
-    DMLC_DECLARE_FIELD(num_roots).set_lower_bound(1).set_default(1)
-        .describe("Number of start root of trees.");
     DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
@@ -68,7 +66,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
   }
 
   bool operator==(const TreeParam& b) const {
-    return num_roots == b.num_roots && num_nodes == b.num_nodes &&
+    return num_nodes == b.num_nodes &&
            num_deleted == b.num_deleted && max_depth == b.max_depth &&
            num_feature == b.num_feature &&
            size_leaf_vector == b.size_leaf_vector;
@@ -269,7 +267,6 @@ class RegTree : public Model {
   /*! \brief constructor */
   RegTree() {
     param.num_nodes = 1;
-    param.num_roots = 1;
     param.num_deleted = 0;
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
@@ -377,16 +374,12 @@ class RegTree : public Model {
    * \brief get maximum depth
    */
   int MaxDepth() {
-    int maxd = 0;
-    for (int i = 0; i < param.num_roots; ++i) {
-      maxd = std::max(maxd, MaxDepth(i));
-    }
-    return maxd;
+    return MaxDepth(0);
   }
 
   /*! \brief number of extra nodes besides the root */
   int NumExtraNodes() const {
-    return param.num_nodes - param.num_roots - param.num_deleted;
+    return param.num_nodes - 1 - param.num_deleted;
   }
 
   /*!
@@ -444,16 +437,15 @@ class RegTree : public Model {
    * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */
-  int GetLeafIndex(const FVec& feat, unsigned root_id = 0) const;
+  int GetLeafIndex(const FVec& feat) const;
   /*!
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    */
-  void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+  void CalculateContributions(const RegTree::FVec& feat,
                               bst_float* out_contribs, int condition = 0,
                               unsigned condition_feature = 0) const;
   /*!
@@ -479,10 +471,9 @@ class RegTree : public Model {
   /*!
    * \brief calculate the approximate feature contributions for the given root
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    */
-  void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+  void CalculateContributionsApprox(const RegTree::FVec& feat,
                                     bst_float* out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
@@ -533,7 +524,7 @@ class RegTree : public Model {
   }
   // delete a tree node, keep the parent field to allow trace back
   void DeleteNode(int nid) {
-    CHECK_GE(nid, param.num_roots);
+    CHECK_GE(nid, 1);
     deleted_nodes_.push_back(nid);
     nodes_[nid].MarkDelete();
     ++param.num_deleted;
@@ -573,14 +564,13 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
   return data_[i].flag == -1;
 }
 
-inline int RegTree::GetLeafIndex(const RegTree::FVec& feat,
-                                 unsigned root_id) const {
-  auto pid = static_cast<int>(root_id);
-  while (!(*this)[pid].IsLeaf()) {
-    unsigned split_index = (*this)[pid].SplitIndex();
-    pid = this->GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+inline int RegTree::GetLeafIndex(const RegTree::FVec& feat) const {
+  bst_node_t nid = 0;
+  while (!(*this)[nid].IsLeaf()) {
+    unsigned split_index = (*this)[nid].SplitIndex();
+    nid = this->GetNext(nid, feat.Fvalue(split_index), feat.IsMissing(split_index));
   }
-  return pid;
+  return nid;
 }
 
 /*! \brief get next position of the tree given current pid */

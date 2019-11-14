@@ -255,18 +255,15 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   unsigned timestamp = 0;
   int num_leaves = 0;
 
-  for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
-    hist_.AddHistRow(nid);
-    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], true);
+  hist_.AddHistRow(0);
+  BuildHist(gpair_h, row_set_collection_[0], gmat, gmatb, hist_[0], true);
 
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
+  this->InitNewNode(0, gmat, gpair_h, *p_fmat, *p_tree);
 
-    this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree);
-    qexpand_loss_guided_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
-                               snode_[nid].best.loss_chg,
-                               timestamp++));
-    ++num_leaves;
-  }
+  this->EvaluateSplit(0, gmat, hist_, *p_fmat, *p_tree);
+  qexpand_loss_guided_->push(ExpandEntry(0, p_tree->GetDepth(0),
+                                         snode_[0].best.loss_chg, timestamp++));
+  ++num_leaves;
 
   while (!qexpand_loss_guided_->empty()) {
     const ExpandEntry candidate = qexpand_loss_guided_->top();
@@ -397,8 +394,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
                                           const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
                                           const RegTree& tree) {
-  CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
-      << "ColMakerHist: can only grow new tree";
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
       << "max_depth or max_leaves cannot be both 0 (unlimited); "
       << "at least one should be a positive quantity.";
@@ -425,7 +420,6 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     }
     hist_builder_.Init(this->nthread_, nbins);
 
-    CHECK_EQ(info.root_index_.size(), 0U);
     std::vector<size_t>& row_indices = row_set_collection_.row_indices_;
     row_indices.resize(info.num_row_);
     auto* p_row_indices = row_indices.data();
