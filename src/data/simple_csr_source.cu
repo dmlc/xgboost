@@ -59,7 +59,7 @@ __global__ void CountValidKernel(Columnar<T> const column,
 
 template <typename T>
 __device__ void AssignValue(T fvalue, int32_t colid,
-                            common::Span<size_t> out_offsets, common::Span<Entry> out_data) {
+                            common::Span<bst_row_t> out_offsets, common::Span<Entry> out_data) {
   auto const tid = threadIdx.x + blockDim.x * blockIdx.x;
   int32_t oid = out_offsets[tid];
   out_data[oid].fvalue = fvalue;
@@ -70,7 +70,7 @@ __device__ void AssignValue(T fvalue, int32_t colid,
 template <typename T>
 __global__ void CreateCSRKernel(Columnar<T> const column,
                                 int32_t colid, bool has_missing, float missing,
-                                common::Span<size_t> offsets, common::Span<Entry> out_data) {
+                                common::Span<bst_row_t> offsets, common::Span<Entry> out_data) {
   auto const tid = threadIdx.x + blockDim.x * blockIdx.x;
   if (column.size <= tid) {
     return;
@@ -135,7 +135,7 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 template <typename T>
 void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t n_rows,
                bool has_missing, float missing,
-               dh::device_vector<size_t>* tmp_offset, common::Span<Entry> s_data) {
+               dh::device_vector<bst_row_t>* tmp_offset, common::Span<Entry> s_data) {
   uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);

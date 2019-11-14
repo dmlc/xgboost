@@ -351,9 +351,9 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-template class HostDeviceVector<int>;
+template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
-template class HostDeviceVector<bst_feature_t>;
+template class HostDeviceVector<uint64_t>;  // bst_row_t
+template class HostDeviceVector<uint32_t>;  // bst_feature_t
 
 }  // namespace xgboost
