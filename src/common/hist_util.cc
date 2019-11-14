@@ -44,11 +44,15 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
   float constexpr kSparsityThreshold = 0.0005;
   // FIXME(trivialfis): Distributed environment is not supported.
   if (sparsity < kSparsityThreshold && (!rabit::IsDistributed())) {
-    LOG(INFO) << "Building quantile cut on a sparse dataset.";
     SparseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   } else {
-    LOG(INFO) << "Building quantile cut on a dense dataset or distributed environment.";
+    if (rabit::IsDistributed() && sparsity < kSparsityThreshold) {
+      LOG(WARNING) << "Building quantile cuts with a sparse dataset on distributed "
+                   << "environment, which may incur higher memory usage and longer "
+                   << "build time.";
+    }
+
     DenseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   }
