@@ -267,7 +267,9 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   data::SimpleCSRSource& mat = *source;
   auto& offset_vec = mat.page_.offset.HostVector();
   auto& data_vec = mat.page_.data.HostVector();
-  common::ParallelGroupBuilder<Entry> builder(&offset_vec, &data_vec);
+  common::ParallelGroupBuilder<
+      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
+      builder(&offset_vec, &data_vec);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
@@ -362,19 +364,20 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
   API_END();
 }
 
-void PrefixSum(size_t *x, size_t N) {
-  size_t *suma;
+template <typename T>
+void PrefixSum(T *x, size_t N) {
+  std::vector<T> suma;
 #pragma omp parallel
   {
     const int ithread = omp_get_thread_num();
     const int nthreads = omp_get_num_threads();
 #pragma omp single
     {
-      suma = new size_t[nthreads+1];
+      suma.resize(nthreads+1);
       suma[0] = 0;
     }
-    size_t sum = 0;
-    size_t offset = 0;
+    T sum = 0;
+    T offset = 0;
 #pragma omp for schedule(static)
     for (omp_ulong i = 0; i < N; i++) {
       sum += x[i];
@@ -390,7 +393,6 @@ void PrefixSum(size_t *x, size_t N) {
       x[i] += offset;
     }
   }
-  delete[] suma;
 }
 
 XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT

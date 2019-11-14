@@ -194,7 +194,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
                   "indices of features that are allowed to interact with each other."
                   "See tutorial for more information");
     DMLC_DECLARE_FIELD(split_evaluator)
-        .set_default("elastic_net,monotonic,interaction")
+        .set_default("elastic_net,monotonic")
         .describe("The criteria to use for ranking splits");
 
     // ------ From cpu quantile histogram -------.
@@ -395,7 +395,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
  */
 struct SplitEntry {
   /*! \brief loss change after split this node */
-  bst_float loss_chg{0.0f};
+  bst_float loss_chg {0.0f};
   /*! \brief split index */
   unsigned sindex{0};
   bst_float split_value{0.0f};

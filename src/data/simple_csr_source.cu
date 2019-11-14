@@ -29,7 +29,7 @@ namespace data {
 template <typename T>
 __global__ void CountValidKernel(Columnar<T> const column,
                                  bool has_missing, float missing,
-                                 int32_t* flag, common::Span<size_t> offsets) {
+                                 int32_t* flag, common::Span<bst_row_t> offsets) {
   auto const tid =  threadIdx.x + blockDim.x * blockIdx.x;
   bool const missing_is_nan = common::CheckNAN(missing);
 
@@ -59,7 +59,7 @@ __global__ void CountValidKernel(Columnar<T> const column,
 
 template <typename T>
 __device__ void AssignValue(T fvalue, int32_t colid,
-                            common::Span<size_t> out_offsets, common::Span<Entry> out_data) {
+                            common::Span<bst_row_t> out_offsets, common::Span<Entry> out_data) {
   auto const tid = threadIdx.x + blockDim.x * blockIdx.x;
   int32_t oid = out_offsets[tid];
   out_data[oid].fvalue = fvalue;
@@ -70,7 +70,7 @@ __device__ void AssignValue(T fvalue, int32_t colid,
 template <typename T>
 __global__ void CreateCSRKernel(Columnar<T> const column,
                                 int32_t colid, bool has_missing, float missing,
-                                common::Span<size_t> offsets, common::Span<Entry> out_data) {
+                                common::Span<bst_row_t> offsets, common::Span<Entry> out_data) {
   auto const tid = threadIdx.x + blockDim.x * blockIdx.x;
   if (column.size <= tid) {
     return;
@@ -98,7 +98,7 @@ __global__ void CreateCSRKernel(Columnar<T> const column,
 template <typename T>
 void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
                 bool has_missing, float missing,
-                HostDeviceVector<size_t>* out_offset,
+                HostDeviceVector<bst_row_t>* out_offset,
                 dh::caching_device_vector<int32_t>* out_d_flag,
                 uint32_t* out_n_rows) {
   uint32_t constexpr kThreads = 256;
@@ -121,7 +121,7 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
   CHECK_EQ(out_offset->Size(), n_rows + 1)
       << "All columns should have same number of rows.";
 
-  common::Span<size_t> s_offsets = out_offset->DeviceSpan();
+  common::Span<bst_row_t> s_offsets = out_offset->DeviceSpan();
 
   uint32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
   dh::LaunchKernel {kBlocks, kThreads} (
@@ -135,7 +135,7 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 template <typename T>
 void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t n_rows,
                bool has_missing, float missing,
-               dh::device_vector<size_t>* tmp_offset, common::Span<Entry> s_data) {
+               dh::device_vector<bst_row_t>* tmp_offset, common::Span<Entry> s_data) {
   uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);
@@ -174,13 +174,13 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   info.num_row_ = n_rows;
 
   auto s_offsets = this->page_.offset.DeviceSpan();
-  thrust::device_ptr<size_t> p_offsets(s_offsets.data());
+  thrust::device_ptr<bst_row_t> p_offsets(s_offsets.data());
   CHECK_GE(s_offsets.size(), n_rows + 1);
 
   thrust::inclusive_scan(p_offsets, p_offsets + n_rows + 1, p_offsets);
   // Created for building csr matrix, where we need to change index after processing each
   // column.
-  dh::device_vector<size_t> tmp_offset(this->page_.offset.Size());
+  dh::device_vector<bst_row_t> tmp_offset(this->page_.offset.Size());
   dh::safe_cuda(cudaMemcpy(tmp_offset.data().get(), s_offsets.data(),
                            s_offsets.size_bytes(), cudaMemcpyDeviceToDevice));
 

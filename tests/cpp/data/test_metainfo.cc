@@ -99,7 +99,7 @@ TEST(MetaInfo, LoadQid) {
   const std::vector<xgboost::bst_uint> expected_group_ptr{0, 4, 8, 12};
   CHECK(info.group_ptr_ == expected_group_ptr);
 
-  const std::vector<size_t> expected_offset{
+  const std::vector<xgboost::bst_row_t> expected_offset{
     0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60
   };
   const std::vector<xgboost::Entry> expected_data{

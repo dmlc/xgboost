@@ -91,7 +91,7 @@ void TestUpdatePosition() {
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
   // Check position is as expected
-  EXPECT_EQ(rp.GetPositionHost(), std::vector<RowPartitioner::TreePositionT>({3,3,4,4,4,2,2,2,2,2}));
+  EXPECT_EQ(rp.GetPositionHost(), std::vector<bst_node_t>({3,3,4,4,4,2,2,2,2,2}));
 }
 
 TEST(RowPartitioner, Basic) { TestUpdatePosition(); }

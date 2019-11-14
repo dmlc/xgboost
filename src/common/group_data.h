@@ -16,6 +16,8 @@
 
 #include <vector>
 
+#include "xgboost/base.h"
+
 namespace xgboost {
 namespace common {
 /*!
@@ -23,7 +25,7 @@ namespace common {
  * \tparam ValueType type of entries in the sparse matrix
  * \tparam SizeType type of the index range holder
  */
-template<typename ValueType, typename SizeType = std::size_t>
+template<typename ValueType, typename SizeType = bst_ulong>
 struct ParallelGroupBuilder {
  public:
   // parallel group builder of data

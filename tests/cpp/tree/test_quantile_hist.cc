@@ -25,8 +25,9 @@ class QuantileHistMock : public QuantileHistMaker {
 
     BuilderMock(const TrainParam& param,
                 std::unique_ptr<TreeUpdater> pruner,
-                std::unique_ptr<SplitEvaluator> spliteval)
-        : RealImpl(param, std::move(pruner), std::move(spliteval)) {}
+                std::unique_ptr<SplitEvaluator> spliteval,
+                FeatureInteractionConstraintHost int_constraint)
+        : RealImpl(param, std::move(pruner), std::move(spliteval), std::move(int_constraint)) {}
 
    public:
     void TestInitData(const GHistIndexMatrix& gmat,
@@ -238,7 +239,8 @@ class QuantileHistMock : public QuantileHistMaker {
         new BuilderMock(
             param_,
             std::move(pruner_),
-            std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone())));
+            std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
+            int_constraint_));
     dmat_ = CreateDMatrix(kNRows, kNCols, 0.8, 3);
   }
   ~QuantileHistMock() override { delete dmat_; }

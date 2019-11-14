@@ -80,13 +80,13 @@ struct DevicePredictionNode {
 
 struct ElementLoader {
   bool use_shared;
-  common::Span<const size_t> d_row_ptr;
+  common::Span<const bst_row_t> d_row_ptr;
   common::Span<const Entry> d_data;
   int num_features;
   float* smem;
   size_t entry_start;
 
-  __device__ ElementLoader(bool use_shared, common::Span<const size_t> row_ptr,
+  __device__ ElementLoader(bool use_shared, common::Span<const bst_row_t> row_ptr,
                            common::Span<const Entry> entry, int num_features,
                            float* smem, int num_rows, size_t entry_start)
       : use_shared(use_shared),
@@ -166,7 +166,7 @@ __global__ void PredictKernel(common::Span<const DevicePredictionNode> d_nodes,
                               common::Span<float> d_out_predictions,
                               common::Span<size_t> d_tree_segments,
                               common::Span<int> d_tree_group,
-                              common::Span<const size_t> d_row_ptr,
+                              common::Span<const bst_row_t> d_row_ptr,
                               common::Span<const Entry> d_data, size_t tree_begin,
                               size_t tree_end, size_t num_features,
                               size_t num_rows, size_t entry_start,
