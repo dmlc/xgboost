@@ -362,19 +362,20 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
   API_END();
 }
 
-void PrefixSum(size_t *x, size_t N) {
-  size_t *suma;
+template <typename T>
+void PrefixSum(T *x, size_t N) {
+  std::vector<T> suma;
 #pragma omp parallel
   {
     const int ithread = omp_get_thread_num();
     const int nthreads = omp_get_num_threads();
 #pragma omp single
     {
-      suma = new size_t[nthreads+1];
+      suma.resize(nthreads+1);
       suma[0] = 0;
     }
-    size_t sum = 0;
-    size_t offset = 0;
+    T sum = 0;
+    T offset = 0;
 #pragma omp for schedule(static)
     for (omp_ulong i = 0; i < N; i++) {
       sum += x[i];
@@ -390,7 +391,6 @@ void PrefixSum(size_t *x, size_t N) {
       x[i] += offset;
     }
   }
-  delete[] suma;
 }
 
 XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
