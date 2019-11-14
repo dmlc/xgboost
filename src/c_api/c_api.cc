@@ -267,7 +267,9 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   data::SimpleCSRSource& mat = *source;
   auto& offset_vec = mat.page_.offset.HostVector();
   auto& data_vec = mat.page_.data.HostVector();
-  common::ParallelGroupBuilder<Entry> builder(&offset_vec, &data_vec);
+  common::ParallelGroupBuilder<
+      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
+      builder(&offset_vec, &data_vec);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
