@@ -62,7 +62,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   }
 };
 
-struct GBTreeModel : public Model {
+class GBTreeModel : public Model {
   explicit GBTreeModel(bst_float base_margin) : base_margin(base_margin) {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
