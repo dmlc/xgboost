@@ -729,8 +729,7 @@ struct GPUHistMakerDevice {
             auto node = d_nodes[position];
 
             while (!node.IsLeaf()) {
-              bst_float
-                  element = d_matrix.GetElement(row_id, node.SplitIndex());
+              bst_float element = d_matrix.GetElement(row_id, node.SplitIndex());
               // Missing value
               if (isnan(element)) {
                 position = node.DefaultChild();
