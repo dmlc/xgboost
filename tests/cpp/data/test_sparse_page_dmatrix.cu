@@ -6,7 +6,7 @@
 
 namespace xgboost {
 
-TEST(GPUSparsePageDMatrix, EllpackPage) {
+TEST(SparsePageDMatrix, EllpackPage) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
@@ -24,7 +24,7 @@ TEST(GPUSparsePageDMatrix, EllpackPage) {
   delete dmat;
 }
 
-TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
+TEST(SparsePageDMatrix, MultipleEllpackPages) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
@@ -43,8 +43,8 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPages) {
   EXPECT_TRUE(FileExists(filename + ".cache.ellpack.page"));
 }
 
-TEST(GPUSparsePageDMatrix, EllpackPageContent) {
-  constexpr size_t kRows = 4;
+TEST(SparsePageDMatrix, EllpackPageContent) {
+  constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1;
 
@@ -94,11 +94,11 @@ struct ReadRowFunction {
   }
 };
 
-TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
-  constexpr size_t kRows = 1024;
-  constexpr size_t kCols = 16;
+TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
+  constexpr size_t kRows = 6;
+  constexpr size_t kCols = 2;
   constexpr int kMaxBins = 256;
-  constexpr size_t kPageSize = 4096;
+  constexpr size_t kPageSize = 1;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -135,7 +135,7 @@ TEST(GPUSparsePageDMatrix, MultipleEllpackPageContent) {
   }
 }
 
-TEST(GPUSparsePageDMatrix, EllpackPageMultipleLoops) {
+TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 16;
   constexpr int kMaxBins = 256;

@@ -709,7 +709,7 @@ struct GPUHistMakerDevice {
   }
 
   // After tree update is finished, update the position of all training
-  // instances to their final leaf This information is used later to update the
+  // instances to their final leaf. This information is used later to update the
   // prediction cache
   void FinalisePosition(RegTree* p_tree, DMatrix* p_fmat) {
     const auto d_nodes =

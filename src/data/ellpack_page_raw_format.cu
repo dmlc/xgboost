@@ -17,6 +17,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
  public:
   bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
     auto* impl = page->Impl();
+    impl->Clear();
     if (!fi->Read(&impl->matrix.n_rows))  return false;
     return fi->Read(&impl->idx_buffer);
   }
@@ -25,6 +26,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
             dmlc::SeekStream* fi,
             const std::vector<bst_uint>& sorted_index_set) override {
     auto* impl = page->Impl();
+    impl->Clear();
     if (!fi->Read(&impl->matrix.n_rows))  return false;
     return fi->Read(&page->Impl()->idx_buffer);
   }

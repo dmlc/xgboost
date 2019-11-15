@@ -219,6 +219,7 @@ void EllpackPageImpl::Clear() {
   sparse_page_.Clear();
   matrix.base_rowid = 0;
   matrix.n_rows = 0;
+  device_initialized_ = false;
 }
 
 // Push a CSR page to the current page.

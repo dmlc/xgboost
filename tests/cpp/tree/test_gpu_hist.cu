@@ -354,8 +354,12 @@ TEST(GpuHist, MinSplitLoss) {
   delete dmat;
 }
 
-RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, size_t gpu_page_size) {
-  constexpr size_t kMaxBin = 256;
+void UpdateTree(HostDeviceVector<GradientPair>* gpair,
+                DMatrix* dmat,
+                size_t gpu_page_size,
+                RegTree* tree,
+                HostDeviceVector<bst_float>* preds) {
+  constexpr size_t kMaxBin = 2;
 
   if (gpu_page_size > 0) {
     // Loop over the batches and count the records
@@ -383,15 +387,14 @@ RegTree GetUpdatedTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, siz
   generic_param.gpu_page_size = gpu_page_size;
   hist_maker.Configure(args, &generic_param);
 
-  RegTree tree;
-  hist_maker.Update(gpair, dmat, {&tree});
-  return tree;
+  hist_maker.Update(gpair, dmat, {tree});
+  hist_maker.UpdatePredictionCache(dmat, preds);
 }
 
 TEST(GpuHist, ExternalMemory) {
-  constexpr size_t kRows = 1024;
-  constexpr size_t kCols = 16;
-  constexpr size_t kPageSize = 4096;
+  constexpr size_t kRows = 6;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -404,18 +407,21 @@ TEST(GpuHist, ExternalMemory) {
   auto gpair = GenerateRandomGradients(kRows);
 
   // Build a tree using the in-memory DMatrix.
-  RegTree tree = GetUpdatedTree(&gpair, dmat.get(), 0);
-  ASSERT_EQ(tree.NumExtraNodes(), 6);
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds);
 
   // Build another tree using multiple ELLPACK pages.
-  RegTree tree_ext = GetUpdatedTree(&gpair, dmat_ext.get(), kPageSize);
-  ASSERT_EQ(tree_ext.NumExtraNodes(), 6);
+  RegTree tree_ext;
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext);
 
-  // Make sure the 2 trees are the same.
-  FeatureMap fmap;
-  auto str = tree.DumpModel(fmap, true, "text");
-  auto str_ext = tree_ext.DumpModel(fmap, true, "text");
-  ASSERT_EQ(str, str_ext);
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_ext_h = preds_ext.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    ASSERT_FLOAT_EQ(preds_h[i], preds_ext_h[i]);
+  }
 }
 
 }  // namespace tree

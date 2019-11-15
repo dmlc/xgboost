@@ -164,8 +164,9 @@ class GPUSketcher {
     auto counting = thrust::make_counting_iterator(size_t(0));
     using TransformT = thrust::transform_iterator<decltype(get_size), decltype(counting), size_t>;
     TransformT row_size_iter = TransformT(counting, get_size);
-    row_stride_ =
+    size_t batch_row_stride =
         thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0, thrust::maximum<size_t>());
+    row_stride_ = std::max(row_stride_, batch_row_stride);
   }
 
   // This needs to be public because of the __device__ lambda.
