@@ -21,6 +21,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   int nthread;
   // primary device, -1 means no gpu.
   int gpu_id;
+  // gpu page size in external memory mode, 0 means using the default.
+  size_t gpu_page_size;
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -49,6 +51,10 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_default(-1)
         .set_lower_bound(-1)
         .describe("The primary GPU device ordinal.");
+    DMLC_DECLARE_FIELD(gpu_page_size)
+        .set_default(0)
+        .set_lower_bound(0)
+        .describe("GPU page size when running in external memory mode.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)

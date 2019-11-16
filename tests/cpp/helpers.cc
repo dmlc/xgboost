@@ -217,17 +217,17 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   } else {
      gen.reset(new std::mt19937(rdev()));
   }
+  std::uniform_int_distribution<size_t> label(0, 1);
   std::uniform_int_distribution<size_t> dis(1, n_cols);
 
   for (size_t i = 0; i < n_rows; ++i) {
     // Make sure that all cols are slotted in the first few rows; randomly distribute the
     // rest
     std::stringstream row_data;
-    fo << i;
     size_t j = 0;
     if (rem_cols > 0) {
        for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
-         row_data << " " << (col_idx+j) << ":" << (col_idx+j+1)*10;
+         row_data << label(*gen) << " " << (col_idx+j) << ":" << (col_idx+j+1)*10*i;
        }
        rem_cols -= cols_per_row;
     } else {
@@ -235,7 +235,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
        size_t ncols = dis(*gen);
        for (; j < ncols; ++j) {
          size_t fid = (col_idx+j) % n_cols;
-         row_data << " " << fid << ":" << (fid+1)*10;
+         row_data << label(*gen) << " " << fid << ":" << (fid+1)*10*i;
        }
     }
     col_idx += j;
