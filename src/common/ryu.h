@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019 by XGBoost Contributors
+ */
 /*
  * \brief An implemenation of Ryu algorithm:
  *
@@ -200,7 +203,7 @@ struct RyuPowLogUtils {
   /*
    * \brief floor(e * log_10(2)).
    */
-  static uint32_t log10Pow2(const int32_t e) noexcept(true) {
+  static uint32_t Log10Pow2(const int32_t e) noexcept(true) {
     // The first value this approximation fails for is 2^1651 which is just
     // greater than 10^297.
     assert(e >= 0);
@@ -228,7 +231,7 @@ class PowerBaseComputer {
                              bool *vrIsTrailingZeros) noexcept(true) {
      uint8_t last_removed_digit = 0;
      if (base2.exponent >= 0) {
-       const uint32_t q = RyuPowLogUtils::log10Pow2(base2.exponent);
+       const uint32_t q = RyuPowLogUtils::Log10Pow2(base2.exponent);
        base10->exponent = static_cast<int32_t>(q);
        const int32_t k = RyuPowLogUtils::kFloatPow5InvBitcount +
                          RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q)) - 1;
