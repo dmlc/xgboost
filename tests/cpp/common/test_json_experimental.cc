@@ -62,7 +62,13 @@ TEST(Json_Experimental, ObjectGeneral) {
     level_1_1.SetInteger(1);
   }
 
-  ASSERT_EQ(doc.Dump<JsonWriter>(), R"s({"0-0":{"1-0":1.23E1},"0-1":{"1-1":1}})s");
+  {
+    // Create a scope and split up parameters from macro to work around msvc parser bug:
+    // error C2039: 'GetObjectA': is not a member of 'xgboost::experimental::Document'
+    auto str = doc.Dump<JsonWriter>();
+    auto sol = R"json({"0-0":{"1-0":1.23E1},"0-1":{"1-1":1}})json";
+    ASSERT_EQ(str, sol);
+  }
 
   auto it = doc.GetObject().FindMemberByKey("0-0");
   ASSERT_NE(it, doc.GetObject().cend());
@@ -297,6 +303,12 @@ TEST(Json_Experimental, RoundTrip) {
     std::uniform_int_distribution<int64_t> dist(i_min, i_max);
     TestRoundTrip(dist);
   }
+}
+
+TEST(Json_Experimental, EmptyInput) {
+  std::string str;
+  auto doc = Document::Load<JsonRecursiveReader>(StringRef {str});
+  ASSERT_EQ(doc.Errc(), experimental::jError::kEmptyInput);
 }
 
 }  // namespace experimental

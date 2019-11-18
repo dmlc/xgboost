@@ -14,8 +14,10 @@
 #include <limits>
 #include <algorithm>
 #include <utility>
+#include <map>
 
 #include "xgboost/span.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace experimental {
@@ -81,8 +83,8 @@ class StringRefImpl {
 
  public:
   StringRefImpl() : chars_{nullptr}, size_{0} {}
-  explicit StringRefImpl(std::string& str) : chars_{&str[0]}, size_{str.size()} {}
-  explicit StringRefImpl(std::string const& str) : chars_{str.data()}, size_{str.size()} {}
+  StringRefImpl(std::string& str) : chars_{&str[0]}, size_{str.size()} {} // NOLINT
+  StringRefImpl(std::string const& str) : chars_{str.data()}, size_{str.size()} {} // NOLINT
   StringRefImpl(CharT* chars, size_t size) : chars_{chars}, size_{size} {}
   StringRefImpl(CharT* chars) : chars_{chars}, size_{traits_type::length(chars)} {}  // NOLINT
 
@@ -95,12 +97,26 @@ class StringRefImpl {
   pointer data() const { return chars_; }     // NOLINT
 
   size_t size() const { return size_; };      // NOLINT
-  CharT operator[](size_t i) const { return chars_[i]; }
-
-  bool operator==(StringRefImpl const &that) {
-    return common::Span<CharT>{this, size_} == common::Span<CharT> {that.data(), that.size()};
+  CharT const& operator[](size_t i) const { return chars_[i]; }
+  CharT const& at(size_t i) const {  // NOLINT
+    CHECK_LT(i, size_); return (*this)[i];
   }
-  bool operator!=(StringRefImpl const &that) {
+
+  CharT front() const { CHECK_NE(size_, 0); return chars_[0]; }
+  CharT back() const { CHECK_NE(size_, 0); return chars_[size_ - 1]; }
+
+  std::string Copy() const {
+    std::string str;
+    str.resize(this->size());
+    std::memcpy(&str[0], chars_, this->size());
+    return str;
+  }
+
+  bool operator==(StringRefImpl<CharT> that) const {
+    return common::Span<CharT const>{chars_, size_} ==
+           common::Span<CharT const> {that.data(), that.size()};
+  }
+  bool operator!=(StringRefImpl<CharT> const& that) const {
     return !(that == *this);
   }
   bool operator<(StringRefImpl const &that) {
@@ -115,7 +131,17 @@ class StringRefImpl {
   bool operator>=(StringRefImpl const &that) {
     return common::Span<CharT>{chars_, size_} >= common::Span<CharT> {that.data(), that.size()};
   }
+
+  friend std::ostream& operator<<(std::ostream& os, StringRefImpl str) {
+    for (auto v : str) {
+      os << v;
+    }
+    return os;
+  }
 };
+
+using StringRef = StringRefImpl<std::string::value_type>;
+using ConstStringRef = StringRefImpl<std::string::value_type const>;
 
 /*\brief An iterator for looping through Object members.  Inspired by rapidjson. */
 template <typename ValueType, bool IsConst>
@@ -146,11 +172,17 @@ class ElemIterator {
     return ret;
   }
 
-  value_type operator*() {
+  value_type operator*() const {
     CHECK(ptr_);
     auto v = ptr_->GetMemberByIndex(index_);
     return v;
   }
+
+  ConstStringRef Key() const {
+    CHECK(ptr_);
+    return ptr_->GetKeyByIndex(index_);
+  }
+
   value_type operator[](difference_type i) const {
     CHECK(ptr_);
     CHECK_LT(i + index_, ptr_->Length());
@@ -164,9 +196,6 @@ class ElemIterator {
     return !(that == *this);
   }
 };
-
-using StringRef = StringRefImpl<std::string::value_type>;
-using ConstStringRef = StringRefImpl<std::string::value_type const>;
 
 /*! \brief Commom utilitis for handling compact JSON type.  The type implementation is
  *  inspired by sajson. */
@@ -208,7 +237,9 @@ class StorageView {
  public:
   explicit StorageView(std::vector<T> *storage_ref) : storage_ref_{storage_ref} {}
   size_t Top() const { return storage_ref_->size(); }
-  common::Span<T> Access() const { return common::Span<T>{*storage_ref_}; }
+  common::Span<T> Access() const {
+    return common::Span<T>{storage_ref_->data(), storage_ref_->size()};
+  }
   void Expand(size_t n) { this->Resize(storage_ref_->size() + n); }
 
   template <typename V>
@@ -233,16 +264,16 @@ class Document;
  *   itself to index its data, depending on the value type.
  *
  *     - Numeric inlcuding integer and float:
- *         `self_` points to data memory holding the actual integer or float.
+ *         `tree[self_]` points to data memory holding the actual integer or float.
  *     - Null, True, False
- *         Only first 3 bits of `self_` is used, the information is directly encoded in
- *         it's type.
+ *         Only first 3 bits of `tree[self_]` is used, the information is directly encoded
+ *         in it's type.
  *     - Array
- *         `self_` points to a table stored in tree, which stores the indices of `self_`
- *         for each array element.
+ *         `tree[self_]` points to a table stored in tree, which stores the indices of
+ *         `self_` for each array element.
  *     - Object
- *          `self_` points to a table stored in tree, which stores the key begin and end,
- *          also the offsets of `self_` for its members.
+ *          `tree[self_]` points to a table stored in tree, which stores the key begin and
+ *          end, also the offsets of `self_` for its members.
  *     - String
  *          Points to a struct containing the offsets of begin and end in data memory block.
  *
@@ -284,14 +315,16 @@ class ValueImpl {
 
  protected:
   void InitializeType(ValueKind kind) {
-    CHECK_EQ(static_cast<uint8_t>(this->kind_),
-                  static_cast<uint8_t>(ValueKind::kNull));
+    CHECK(
+        static_cast<uint8_t>(this->kind_) == static_cast<uint8_t>(ValueKind::kNull) ||
+        static_cast<uint8_t>(this->kind_) == static_cast<uint8_t>(kind));
     CHECK(!finalised_) << "You can not change an existing value.";
     this->kind_ = kind;
   }
 
   void CheckType(ValueKind type) const {
-    CHECK_EQ(static_cast<std::uint8_t>(type), static_cast<std::uint8_t>(this->kind_));
+    CHECK_EQ(static_cast<std::uint8_t>(type), static_cast<std::uint8_t>(this->kind_))
+        << "kind: " << KindStr(type) << " self.kind: " << KindStr(this->kind_);
   }
   void CheckType(ValueKind a, ValueKind b) const {
     CHECK(static_cast<std::uint8_t>(a) == static_cast<std::uint8_t>(this->kind_) ||
@@ -325,6 +358,12 @@ class ValueImpl {
       size_ = tree_[offset];
     }
     size_t& operator[](size_t i) {
+      if (is_view_) {
+        return tree_[offset_ + i];
+      }
+      return table_[i];
+    }
+    size_t const& operator[](size_t i) const {
       if (is_view_) {
         return tree_[offset_ + i];
       }
@@ -615,6 +654,16 @@ class ValueImpl {
     return *this;
   }
 
+  ValueImpl& operator=(ConstStringRef str) {
+    return this->SetString(str);
+  }
+  void operator=(int64_t i) {
+    this->SetInteger(i);
+  }
+  ValueImpl& operator=(float f) {
+    this->SetFloat(f);
+  }
+
   ConstStringRef GetString() const {
     CheckType(ValueKind::kString);
     auto data = handler_->Data().Access();
@@ -669,6 +718,15 @@ class ValueImpl {
       ValueImpl value(handler_, kind, array_table_[index]);
       return value;
     }
+  }
+  ValueImpl GetArrayElem(size_t index) const {
+    CheckType(ValueKind::kArray);
+    CHECK_LT(index, array_table_.size());
+    StorageView<size_t> tree_storage = handler_->Tree();
+    auto tree = tree_storage.Access();
+    ValueKind kind = JsonTypeHandler::GetType(tree[array_table_[index]]);
+    ValueImpl value(handler_, kind, array_table_[index]);
+    return value;
   }
   /*\brief Set this value to be an array without providing the length of array. */
   ValueImpl& SetArray() {
@@ -762,6 +820,15 @@ class ValueImpl {
         table_begin, ValueKind::kArray);
     finalised_ = true;
   }
+  ConstStringRef GetKeyByIndex(size_t index) const {
+    CheckType(ValueKind::kObject);
+    CHECK_LT(index, object_table_.size());
+    StorageView<size_t> tree_storage = handler_->Tree();
+    auto tree = tree_storage.Access();
+    auto elem = object_table_[index];
+    auto data = handler_->Data().Access();
+    return ConstStringRef(&data[elem.key_begin], elem.key_end - elem.key_begin);
+  }
   /*\brief Get an object member by its index, similar to std::map::at. Used by iterator.*/
   ValueImplT GetMemberByIndex(size_t index) const {
     CheckType(ValueKind::kObject);
@@ -769,10 +836,7 @@ class ValueImpl {
     StorageView<size_t> tree_storage = handler_->Tree();
     auto tree = tree_storage.Access();
     auto elem = object_table_[index];
-    ValueKind kind;
-    size_t offset_in_tree;
-    std::tie(kind, offset_in_tree) =
-        JsonTypeHandler::GetTypeOffset(tree[elem.value]);
+    ValueKind kind = JsonTypeHandler::GetType(tree[elem.value]);
     ValueImpl value{handler_, kind, elem.value};
     return value;
   }
@@ -808,6 +872,20 @@ class ValueImpl {
     CheckType(ValueKind::kObject);
     return const_iterator {this, object_table_.size()};
   }
+  iterator begin() {
+    CheckType(ValueKind::kObject);
+    return iterator {this, 0};
+  }
+  iterator end() {
+    CheckType(ValueKind::kObject);
+    return iterator {this, object_table_.size()};
+  }
+  const_iterator begin() const {
+    return this->cbegin();
+  }
+  const_iterator end() const {
+    return this->cend();
+  }
 
   ValueKind GetType() const {
     return this->kind_;
@@ -821,8 +899,10 @@ enum class jError : std::uint8_t {
   kInvalidObject,
   kUnexpectedEnd,
   kInvalidString,
-  kErrorTrue,
-  kErrorFalse,
+  kInvalidTrue,
+  kInvalidFalse,
+  kInvalidNull,
+  kEmptyInput,
   kUnknownConstruct
 };
 
@@ -893,6 +973,25 @@ class Document {
     this->_tree_storage.resize(1);
     this->value.SetObject();
   }
+  explicit Document(ValueKind kind) :
+      n_alive_values_ {0},
+      value(this),
+      last_character {0} {
+    this->_tree_storage.resize(1);
+    switch (kind) {
+      case ValueKind::kArray: {
+        this->value.SetArray();
+        break;
+      }
+      case ValueKind::kObject: {
+        this->value.SetObject();
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Invalid value type for document root.";
+      }
+    }
+  }
   Document(Document const& that) = delete;
   Document(Document&& that) :
       err_code_{that.err_code_},
@@ -909,8 +1008,12 @@ class Document {
       }
 
   ~Document() {
-    if (!value.finalised_) {
-      value.EndObject();
+    if (!value.finalised_ && err_code_ == jError::kSuccess) {
+      if (value.IsObject()) {
+        value.EndObject();
+      } else {
+        value.EndArray();
+      }
     }
     AssertValidExit();
   }
@@ -923,6 +1026,12 @@ class Document {
     return value;
   }
   Value const &GetObject() const {
+    return value;
+  }
+  Value& GetValue() {
+    return value;
+  }
+  Value const& GetValue() const {
     return value;
   }
 
@@ -955,11 +1064,17 @@ class Document {
       case jError::kUnexpectedEnd:
         msg = "Unexpected end.";
         break;
-      case jError::kErrorTrue:
-        msg = "Error occurred while parsing `true'";
+      case jError::kInvalidTrue:
+        msg = "Error occurred while parsing `true'.";
         break;
-      case jError::kErrorFalse:
-        msg = "Error occurred while parsing `false'";
+      case jError::kInvalidFalse:
+        msg = "Error occurred while parsing `false'.";
+        break;
+      case jError::kInvalidNull:
+        msg = "Found invalid `null'.";
+        break;
+      case jError::kEmptyInput:
+        msg = "Empty input string is not allowed.";
         break;
       case jError::kUnknownConstruct:
         msg = "Unknown construct.";
@@ -979,9 +1094,17 @@ class Document {
     Document doc(false);
     doc._tree_storage.reserve(json_str.size() * 2);
     doc._data_storage.reserve(json_str.size() * 2);
+
+    if (json_str.size() == 0) {
+      doc.err_code_ = jError::kEmptyInput;
+      doc.value.finalised_ = true;
+      return doc;
+    }
+
     Reader reader(json_str, &(doc.value));
     std::tie(doc.err_code_, doc.last_character) = reader.Parse();
-    CHECK(doc.value.IsObject());
+    CHECK(doc.value.GetType() == ValueKind::kObject ||
+          doc.value.GetType() == ValueKind::kArray);
 
     return doc;
   }
@@ -989,7 +1112,19 @@ class Document {
   std::string Dump() {
     CHECK(err_code_ == jError::kSuccess);
     if (!value.finalised_) {
-      value.EndObject();
+      switch (value.kind_) {
+        case ValueKind::kObject: {
+          value.EndObject();
+          break;
+        }
+        case ValueKind::kArray: {
+          value.EndArray();
+          break;
+        }
+        default: {
+          LOG(FATAL) << "Invalid value type for document root.";
+        }
+      }
     }
     AssertValidExit();
     std::string result;
@@ -1003,6 +1138,24 @@ class Document {
 };
 
 using Json = ValueImpl<Document>;
+
+template <typename P>
+void toJson(Json* p_out, P const& parameter) {
+  p_out->SetObject();
+  for (auto const& kv : parameter.__DICT__()) {
+    auto key = p_out->CreateMember(kv.first);
+    key.SetString(kv.second);
+  }
+}
+
+template <typename P>
+void fromJson(P *parameter,  Json const& in) {
+  std::map<std::string, std::string> m;
+  for (auto it = in.cbegin(); it != in.cend(); ++it) {
+    m[it.Key().data()] = (*it).GetString().data();
+  }
+  parameter->UpdateAllowUnknown(m);
+}
 }  // namespace experimental
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_JSON_EXPERIMENTAL_H_

@@ -4,11 +4,12 @@
  */
 #include <dmlc/base.h>
 #include <xgboost/logging.h>
-#include <xgboost/json.h>
 
 #include <limits>
 #include "simple_csr_source.h"
 #include "columnar.h"
+#include "../common/json_experimental.h"
+#include "../common/json_reader_experimental.h"
 
 namespace xgboost {
 namespace data {
@@ -181,21 +182,24 @@ const SparsePage& SimpleCSRSource::Value() const {
  */
 void SimpleCSRSource::CopyFrom(std::string const& cuda_interfaces_str,
                                bool has_missing, float missing) {
-  Json interfaces = Json::Load({cuda_interfaces_str.c_str(),
-                                cuda_interfaces_str.size()});
-  std::vector<Json> const& columns = get<Array>(interfaces);
-  size_t n_columns = columns.size();
+  std::string copied = cuda_interfaces_str;
+  experimental::Document interfaces =
+      experimental::Document::Load<experimental::JsonRecursiveReader>(copied);
+  CHECK(interfaces.Errc() == experimental::jError::kSuccess) << interfaces.ErrStr();
+  size_t n_columns = interfaces.Length();
   CHECK_GT(n_columns, 0) << "Number of columns must not eqaul to 0.";
 
-  auto const& typestr = get<String const>(columns[0]["typestr"]);
+  auto const& values = interfaces.GetValue();
+  auto const& typestr = (*values.GetArrayElem(0).FindMemberByKey("typestr")).GetString();
+  // auto const& typestr = get<String const>(columns[0]["typestr"]);
   CHECK_EQ(typestr.size(),    3)  << ColumnarErrors::TypestrFormat();
   CHECK_NE(typestr.front(), '>')  << ColumnarErrors::BigEndian();
 
-  this->FromDeviceColumnar(columns, has_missing, missing);
+  this->FromDeviceColumnar(values, has_missing, missing);
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
+void SimpleCSRSource::FromDeviceColumnar(experimental::Json const& columns,
                                          bool has_missing, float missing) {
   LOG(FATAL) << "XGBoost version is not compiled with GPU support";
 }

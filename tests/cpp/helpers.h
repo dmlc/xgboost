@@ -18,12 +18,12 @@
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
-#include <xgboost/json.h>
 #include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 
 #include "../../src/common/common.h"
 #include "../../src/common/hist_util.h"
+#include "../../src/common/json_experimental.h"
 #if defined(__CUDACC__)
 #include "../../src/data/ellpack_page.cuh"
 #endif
@@ -55,12 +55,12 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
 
-xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
-                                    std::string name);
+xgboost::experimental::Document CheckConfigReloadImpl(xgboost::Configurable* const configurable,
+                                                      std::string name);
 
 template <typename T>
-xgboost::Json CheckConfigReload(std::unique_ptr<T> const& configurable,
-                                std::string name = "") {
+xgboost::experimental::Document CheckConfigReload(std::unique_ptr<T> const& configurable,
+                                                  std::string name = "") {
   return CheckConfigReloadImpl(dynamic_cast<xgboost::Configurable*>(configurable.get()),
                                name);
 }

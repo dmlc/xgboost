@@ -13,12 +13,12 @@
 #include <vector>
 
 #include "xgboost/host_device_vector.h"
-#include "xgboost/json.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 
 #include "../common/transform.h"
 #include "../common/common.h"
+#include "../common/json_experimental.h"
 #include "./regression_loss.h"
 
 
@@ -118,14 +118,17 @@ class RegLossObj : public ObjFunction {
     return Loss::ProbToMargin(base_score);
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String(Loss::Name());
-    out["reg_loss_param"] = toJson(param_);
+    out.CreateMember("name") = Loss::Name();
+
+    auto reg_loss_param = out.CreateMember("reg_loss_param");
+    experimental::toJson(&reg_loss_param, param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    fromJson(in["reg_loss_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto reg_loss_param = (*in.FindMemberByKey("reg_loss_param"));
+    experimental::fromJson(&param_, reg_loss_param);
   }
 
  protected:
@@ -241,14 +244,16 @@ class PoissonRegression : public ObjFunction {
     return "poisson-nloglik";
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = toJson(param_);
+    out.CreateMember("name") = "count:poisson";
+    auto jparam = out.CreateMember("poisson_regression_param");
+    experimental::toJson(&jparam, param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    fromJson(in["poisson_regression_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto jparam = (*in.FindMemberByKey("poisson_regression_param"));
+    fromJson(&param_, jparam);
   }
 
  private:
@@ -346,11 +351,11 @@ class CoxRegression : public ObjFunction {
     return "cox-nloglik";
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("survival:cox");
+    out.CreateMember("name") = "survival:cox";
   }
-  void LoadConfig(Json const&) override {}
+  void LoadConfig(experimental::Json const&) override {}
 };
 
 // register the objective function
@@ -421,11 +426,11 @@ class GammaRegression : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "gamma-nloglik";
   }
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("reg:gamma");
+    out.CreateMember("name") = "reg:gamma";
   }
-  void LoadConfig(Json const&) override {}
+  void LoadConfig(experimental::Json const&) override {}
 
  private:
   HostDeviceVector<int> label_correct_;
@@ -520,13 +525,15 @@ class TweedieRegression : public ObjFunction {
     return metric_.c_str();
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("reg:tweedie");
-    out["tweedie_regression_param"] = toJson(param_);
+    out.CreateMember("name").SetString("reg:tweedie");
+    auto jparam = out.CreateMember("tweedie_regression_param");
+    toJson(&jparam, param_);
   }
-  void LoadConfig(Json const& in) override {
-    fromJson(in["tweedie_regression_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto jparam = *in.FindMemberByKey("tweedie_regression_param");
+    fromJson(&param_, jparam);
   }
 
  private:

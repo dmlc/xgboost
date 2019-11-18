@@ -397,7 +397,8 @@ class PowerBaseComputer {
     if (f.exponent == 0) {
       // We subtract 2 so that the bounds computation has 2 additional bits.
       base2_range.exponent =
-          1 - IEEE754::kFloatBias - IEEE754::kFloatMantissaBits - 2;
+          1 - static_cast<int32_t>(IEEE754::kFloatBias) -
+          static_cast<int32_t>(IEEE754::kFloatMantissaBits) - 2;
       mantissa_base2 = f.mantissa;
     } else {
       base2_range.exponent = static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias -
@@ -496,8 +497,8 @@ class RyuPrinter {
     while (output >= Tens(4)) {
       const uint32_t c = output % Tens(4);
       output /= Tens(4);
-      const uint32_t c0 = (c % 100) << 1;
-      const uint32_t c1 = (c / 100) << 1;
+      const uint32_t c0 = (c % 100U) << 1;
+      const uint32_t c1 = (c / 100U) << 1;
       // This is used to speed up decimal digit generation by copying
       // pairs of digits into the final output.
       std::memcpy(result + index + out_length - i - 1, kItoaLut + c0, 2);

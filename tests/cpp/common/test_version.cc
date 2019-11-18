@@ -7,18 +7,18 @@
 #include <dmlc/io.h>
 
 #include <xgboost/version_config.h>
-#include <xgboost/json.h>
 #include <xgboost/base.h>
 
 #include <string>
 
 #include "../../../src/common/version.h"
+#include "../../../src/common/json_experimental.h"
 
 namespace xgboost {
 TEST(Version, Basic) {
-  Json j_ver { Object() };
-  Version::Save(&j_ver);
-  auto triplet { Version::Load(j_ver) };
+  experimental::Document j_ver;
+  Version::Save(&(j_ver.GetObject()));
+  auto triplet { Version::Load(j_ver.GetObject()) };
   ASSERT_TRUE(Version::Same(triplet));
 
   dmlc::TemporaryDirectory tempdir;

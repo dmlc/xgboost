@@ -7,7 +7,7 @@
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
 #include <xgboost/objective.h>
-#include <xgboost/json.h>
+#include "../../src/common/json_experimental.h"  // FIXME(trivialfis): Put json in public header.
 
 namespace xgboost {
 namespace obj {
@@ -70,14 +70,16 @@ class MyLogistic : public ObjFunction {
     return -std::log(1.0f / base_score - 1.0f);
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("my_logistic");
-    out["my_logistic_param"] = toJson(param_);
+    out.CreateMember("name") = "my_logistic";
+    auto jparam = out.CreateMember("my_logistic_param");
+    toJson(&jparam, param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    fromJson(in["my_logistic_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto jparam = *in.FindMemberByKey("my_logistic_param");
+    fromJson(&param_, jparam);
   }
 
  private:

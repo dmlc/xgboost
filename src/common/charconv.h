@@ -86,7 +86,7 @@ template <> struct NumericLimits<float> {
   static constexpr size_t kDigit10 = 16;
 };
 
-to_chars_result to_chars(char *first, char *last, int64_t value) {
+inline to_chars_result to_chars(char *first, char *last, int64_t value) {
   if (XGBOOST_EXPECT(first == last, false)) {
     return {first, std::errc::value_too_large};
   }
@@ -104,9 +104,9 @@ to_chars_result to_chars(char *first, char *last, int64_t value) {
   return toCharsUnsignedImpl(first, last, unsigned_value);
 }
 
-to_chars_result to_chars(char  *first, char *last, float value) {
+inline to_chars_result to_chars(char  *first, char *last, float value) {
   if (XGBOOST_EXPECT(!(last - first >= static_cast<std::ptrdiff_t>(
-                                           NumericLimits<float>::kDigit10)),
+                                       NumericLimits<float>::kDigit10)),
                      false)) {
     return {first, std::errc::value_too_large};
   }

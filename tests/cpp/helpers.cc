@@ -3,7 +3,6 @@
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>
-#include <xgboost/json.h>
 
 #include <gtest/gtest.h>
 
@@ -14,6 +13,8 @@
 
 #include "../../src/data/simple_csr_source.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "../../src/common/json_experimental.h"
+#include "../../src/common/json_writer_experimental.h"
 
 bool FileExists(const std::string& filename) {
   struct stat st;
@@ -77,22 +78,23 @@ void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
 
-xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
-                                    std::string name) {
-  xgboost::Json config_0 { xgboost::Object() };
-  configurable->SaveConfig(&config_0);
-  configurable->LoadConfig(config_0);
+xgboost::experimental::Document CheckConfigReloadImpl(xgboost::Configurable* const configurable,
+                                                      std::string name) {
+  xgboost::experimental::Document config_0;
 
-  xgboost::Json config_1 { xgboost::Object() };
-  configurable->SaveConfig(&config_1);
+  configurable->SaveConfig(&(config_0.GetObject()));
+  configurable->LoadConfig(config_0.GetObject());
+
+  xgboost::experimental::Document config_1;
+  configurable->SaveConfig(&(config_1.GetObject()));
 
   std::string str_0, str_1;
-  xgboost::Json::Dump(config_0, &str_0);
-  xgboost::Json::Dump(config_1, &str_1);
+  str_0 = config_0.Dump<xgboost::experimental::JsonWriter>();
+  str_1 = config_1.Dump<xgboost::experimental::JsonWriter>();
   EXPECT_EQ(str_0, str_1);
 
   if (name != "") {
-    EXPECT_EQ(xgboost::get<xgboost::String>(config_1["name"]), name);
+    EXPECT_EQ((*config_1.GetObject().FindMemberByKey("name")).GetString(), name);
   }
   return config_1;
 }

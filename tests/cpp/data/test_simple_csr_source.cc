@@ -3,7 +3,6 @@
 #include <dmlc/filesystem.h>
 
 #include <xgboost/data.h>
-#include <xgboost/json.h>
 #include "../../../src/data/simple_csr_source.h"
 
 #include "../helpers.h"

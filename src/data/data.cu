@@ -6,14 +6,16 @@
  */
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
-#include "xgboost/json.h"
+
 #include "columnar.h"
 #include "../common/device_helpers.cuh"
+#include "../common/json_experimental.h"
+#include "../common/json_reader_experimental.h"
 
 namespace xgboost {
 
 template <typename T>
-void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<float>* out) {
+void CopyInfoImpl(experimental::Json const& column, HostDeviceVector<float>* out) {
   auto SetDeviceToPtr = [](void* ptr) {
     cudaPointerAttributes attr;
     dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
@@ -35,16 +37,19 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
 }
 
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
-  Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
-  auto const& j_arr = get<Array>(j_interface);
-  CHECK_EQ(j_arr.size(), 1) << "MetaInfo: " << c_key << ". " << ColumnarErrors::Dimension(1);;
-  auto const& j_arr_obj = get<Object const>(j_arr[0]);
+  std::string copied = interface_str;
+  experimental::Document j_interface =
+      experimental::Document::Load<experimental::JsonRecursiveReader>(
+          experimental::StringRef{copied});
+  auto const& j_arr = j_interface.GetValue();
+  CHECK_EQ(j_arr.Length(), 1) << "MetaInfo: " << c_key << ". " << ColumnarErrors::Dimension(1);;
+  auto const& j_arr_obj = j_arr.GetArrayElem(0);
   std::string key {c_key};
   ArrayInterfaceHandler::Validate(j_arr_obj);
-  if (j_arr_obj.find("mask") != j_arr_obj.cend()) {
+  if (j_arr_obj.FindMemberByKey("mask") != j_arr_obj.cend()) {
     LOG(FATAL) << "Meta info " << key << " should be dense, found validity mask";
   }
-  auto const& typestr = get<String const>(j_arr_obj.at("typestr"));
+  auto const& typestr = (*j_arr_obj.FindMemberByKey("typestr")).GetString();
 
   if (key == "root_index") {
     LOG(FATAL) << "root index for columnar data is not supported.";

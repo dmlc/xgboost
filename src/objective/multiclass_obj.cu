@@ -15,11 +15,11 @@
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
-#include "xgboost/json.h"
 
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
+#include "../common/json_experimental.h"
 
 namespace xgboost {
 namespace obj {
@@ -158,18 +158,20 @@ class SoftmaxMultiClassObj : public ObjFunction {
     }
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
     if (this->output_prob_) {
-      out["name"] = String("multi:softprob");
+      out.CreateMember("name") = "multi:softprob";
     } else {
-      out["name"] = String("multi:softmax");
+      out.CreateMember("name") = "multi:softmax";
     }
-    out["softmax_multiclass_param"] = toJson(param_);
+    auto jparam = out.CreateMember("softmax_multiclass_param");
+    toJson(&jparam, param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    fromJson(in["softmax_multiclass_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto jparam = *in.FindMemberByKey("softmax_multiclass_param");
+    fromJson(&param_, jparam);
   }
 
  private:

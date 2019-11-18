@@ -8,27 +8,26 @@
 #include <vector>
 
 #include "xgboost/logging.h"
-#include "xgboost/json.h"
 #include "xgboost/version_config.h"
 #include "version.h"
+#include "json_experimental.h"
 
 namespace xgboost {
 
 const Version::TripletT Version::kInvalid {-1, -1, -1};
 
-Version::TripletT Version::Load(Json const& in, bool check) {
-  if (get<Object const>(in).find("version") == get<Object const>(in).cend()) {
+Version::TripletT Version::Load(experimental::Json const& in, bool check) {
+  if (in.FindMemberByKey("version") == in.cend()) {
     return kInvalid;
   }
-  Integer::Int major {0}, minor {0}, patch {0};
+  int64_t major {0}, minor {0}, patch {0};
   try {
-    auto const& j_version = get<Array const>(in["version"]);
-    std::tie(major, minor, patch) = std::make_tuple(
-        get<Integer const>(j_version.at(0)),
-        get<Integer const>(j_version.at(1)),
-        get<Integer const>(j_version.at(2)));
+    auto j_version = *in.FindMemberByKey("version");
+    major = j_version.GetArrayElem(0).GetInt();
+    minor = j_version.GetArrayElem(1).GetInt();
+    patch = j_version.GetArrayElem(2).GetInt();
   } catch (dmlc::Error const& e) {
-    LOG(FATAL) << "Invaid version format in loaded JSON object: " << in;
+    LOG(FATAL) << "Invaid version format in loaded JSON object: ";
   }
 
   return std::make_tuple(major, minor, patch);
@@ -56,12 +55,14 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
   return std::make_tuple(major, minor, patch);
 }
 
-void Version::Save(Json* out) {
-  Integer::Int major, minor, patch;
+void Version::Save(experimental::Json* out) {
+  int64_t major, minor, patch;
   std::tie(major, minor, patch)= Self();
-  (*out)["version"] = std::vector<Json>{Json(Integer{major}),
-                                        Json(Integer{minor}),
-                                        Json(Integer{patch})};
+  auto j_version = out->CreateMember("version");
+  j_version.SetArray(3);
+  j_version.GetArrayElem(0).SetInteger(major);
+  j_version.GetArrayElem(1).SetInteger(minor);
+  j_version.GetArrayElem(2).SetInteger(patch);
 }
 
 void Version::Save(dmlc::Stream* fo) {
@@ -76,7 +77,7 @@ void Version::Save(dmlc::Stream* fo) {
 
 std::string Version::String(TripletT const& version) {
   std::stringstream ss;
-  ss << std::get<0>(version) << "." << get<1>(version) << "." << get<2>(version);
+  ss << std::get<0>(version) << "." << std::get<1>(version) << "." << std::get<2>(version);
   return ss.str();
 }
 

@@ -96,14 +96,14 @@ __global__ void CreateCSRKernel(Columnar<T> const column,
 }
 
 template <typename T>
-void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
+void CountValid(experimental::Json const& j_columns, uint32_t column_id,
                 bool has_missing, float missing,
                 HostDeviceVector<bst_row_t>* out_offset,
                 dh::caching_device_vector<int32_t>* out_d_flag,
                 uint32_t* out_n_rows) {
   uint32_t constexpr kThreads = 256;
-  auto const& j_column = j_columns[column_id];
-  auto const& column_obj = get<Object const>(j_column);
+  auto const& column_obj = j_columns.GetArrayElem(column_id);
+  // auto const& column_obj = get<Object const>(j_column);
   Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
   uint32_t const n_rows = foreign_column.size;
 
@@ -133,12 +133,11 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 }
 
 template <typename T>
-void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t n_rows,
+void CreateCSR(experimental::Json const& j_columns, uint32_t column_id, uint32_t n_rows,
                bool has_missing, float missing,
                dh::device_vector<bst_row_t>* tmp_offset, common::Span<Entry> s_data) {
   uint32_t constexpr kThreads = 256;
-  auto const& j_column = j_columns[column_id];
-  auto const& column_obj = get<Object const>(j_column);
+  auto const& column_obj = j_columns.GetArrayElem(column_id);
   Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
   uint32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
   dh::LaunchKernel {kBlocks, kThreads} (
@@ -147,9 +146,9 @@ void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t 
       dh::ToSpan(*tmp_offset), s_data);
 }
 
-void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
+void SimpleCSRSource::FromDeviceColumnar(experimental::Json const& columns,
                                          bool has_missing, float missing) {
-  auto const n_cols = columns.size();
+  auto const n_cols = columns.Length();
   int32_t constexpr kThreads = 256;
 
   dh::caching_device_vector<int32_t> d_flag;
@@ -159,7 +158,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   }
   uint32_t n_rows {0};
   for (size_t i = 0; i < n_cols; ++i) {
-    auto const& typestr = get<String const>(columns[i]["typestr"]);
+    auto const& typestr = (*columns.GetArrayElem(i).FindMemberByKey("typestr")).GetString();
     DISPATCH_TYPE(CountValid, typestr,
                   columns, i, has_missing, missing, &(this->page_.offset), &d_flag, &n_rows);
   }
@@ -197,7 +196,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
 
   int32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
   for (size_t i = 0; i < n_cols; ++i) {
-    auto const& typestr = get<String const>(columns[i]["typestr"]);
+    auto const& typestr = (*columns.GetArrayElem(i).FindMemberByKey("typestr")).GetString();
     DISPATCH_TYPE(CreateCSR, typestr, columns, i, n_rows,
                   has_missing, missing, &tmp_offset, s_data);
   }

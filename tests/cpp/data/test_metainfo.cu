@@ -1,10 +1,13 @@
 /*! Copyright 2019 by Contributors */
 
 #include <gtest/gtest.h>
-#include <xgboost/data.h>
-#include <xgboost/json.h>
 #include <thrust/device_vector.h>
+#include <xgboost/data.h>
+
 #include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/json_experimental.h"
+#include "../../../src/common/json_reader_experimental.h"
+#include "../../../src/common/json_writer_experimental.h"
 
 namespace xgboost {
 
@@ -18,25 +21,29 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out) {
     d_data[i] = i * 2.0;
   }
 
-  Json column { Object() };
+  experimental::Document doc(experimental::ValueKind::kArray);
 
-  std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
-  column["shape"] = Array(j_shape);
-  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(4)))});
-  column["version"] = Integer(static_cast<Integer::Int>(1));
-  column["typestr"] = String(typestr);
+  {
+    auto column = doc.GetValue().CreateArrayElem();
+    column.SetObject();
 
-  auto p_d_data = dh::Raw(d_data);
-  std::vector<Json> j_data {
-        Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
-        Json(Boolean(false))};
-  column["data"] = j_data;
-  Json array(std::vector<Json>{column});
+    auto j_shape = column.CreateMember("shape");
+    j_shape.SetArray().CreateArrayElem().SetInteger(kRows);
 
-  std::stringstream ss;
-  Json::Dump(array, &ss);
-  std::string str = ss.str();
+    auto j_strides = column.CreateMember("strides");
+    j_strides.SetArray().CreateArrayElem().SetInteger(4);
 
+    column.CreateMember("version").SetInteger(1);
+    column.CreateMember("typestr").SetString(typestr);
+
+    auto p_d_data = dh::Raw(d_data);
+    auto j_data = column.CreateMember("data");
+    j_data.SetArray();
+    j_data.CreateArrayElem() = reinterpret_cast<int64_t>(p_d_data);
+    j_data.CreateArrayElem().SetFalse();
+  }
+
+  std::string str = doc.Dump<experimental::JsonWriter>();
   return str;
 }
 

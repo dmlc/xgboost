@@ -9,17 +9,17 @@
 #include <tuple>
 
 #include "xgboost/base.h"
+#include "json_experimental.h"
 
 namespace xgboost {
-class Json;
 // a static class for handling version info
 struct Version {
   using TripletT = std::tuple<XGBoostVersionT, XGBoostVersionT, XGBoostVersionT>;
   static const TripletT kInvalid;
 
   // Save/Load version info to Json document
-  static TripletT Load(Json const& in, bool check = false);
-  static void Save(Json* out);
+  static TripletT Load(experimental::Json const& in, bool check = false);
+  static void Save(experimental::Json* out);
 
   // Save/Load version info to dmlc::Stream
   static Version::TripletT Load(dmlc::Stream* fi);

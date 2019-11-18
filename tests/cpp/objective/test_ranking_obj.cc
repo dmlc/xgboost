@@ -2,7 +2,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
 #include "../helpers.h"
-#include <xgboost/json.h>
+#include "../../src/common/json_experimental.h"
 
 namespace xgboost {
 
@@ -45,15 +45,15 @@ TEST(Objective, DeclareUnifiedTest(NDCG_Json_IO)) {
   };
 
   obj->Configure(Args{});
-  Json j_obj {Object()};
-  obj->SaveConfig(&j_obj);
+  xgboost::experimental::Document j_obj;
+  obj->SaveConfig(&(j_obj.GetObject()));
 
-  ASSERT_EQ(get<String>(j_obj["name"]), "rank:ndcg");;
+  ASSERT_EQ((*j_obj.GetObject().FindMemberByKey("name")).GetString(), "rank:ndcg");;
 
-  auto const& j_param = j_obj["lambda_rank_param"];
-
-  ASSERT_EQ(get<String>(j_param["num_pairsample"]), "1");
-  ASSERT_EQ(get<String>(j_param["fix_list_weight"]), "0");
+  auto j_param = *(j_obj.GetObject().FindMemberByKey("lambda_rank_param"));
+  ASSERT_TRUE(j_param.IsObject());
+  ASSERT_EQ((*j_param.FindMemberByKey("num_pairsample")).GetString(), "1");
+  ASSERT_EQ((*j_param.FindMemberByKey("fix_list_weight")).GetString(), "0");
 }
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {

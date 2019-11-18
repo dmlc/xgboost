@@ -85,9 +85,40 @@ class JsonRecursiveReader {
     }
   }
 
-  void HandleNull(Json* number) { number->SetNull(); }
-  void HandleTrue(Json* t) { t->SetTrue(); }
-  void HandleFalse(Json* f) { f->SetFalse(); }
+  void HandleNull(Json* null) {
+    bool ret = true;
+    ret &= this->Skip(&cursor_, 'n');
+    ret &= this->Skip(&cursor_, 'u');
+    ret &= this->Skip(&cursor_, 'l');
+    ret &= this->Skip(&cursor_, 'l');
+    if (XGBOOST_EXPECT(!ret, false)) {
+      errno_ = jError::kInvalidNull;
+    }
+    null->SetNull();
+  }
+  void HandleTrue(Json* t) {
+    bool ret = true;
+    ret &= this->Skip(&cursor_, 't');
+    ret &= this->Skip(&cursor_, 'r');
+    ret &= this->Skip(&cursor_, 'u');
+    ret &= this->Skip(&cursor_, 'e');
+    if (XGBOOST_EXPECT(!ret, false)) {
+      errno_ = jError::kInvalidTrue;
+    }
+    t->SetTrue();
+  }
+  void HandleFalse(Json* f) {
+    bool ret = true;
+    ret &= this->Skip(&cursor_, 'f');
+    ret &= this->Skip(&cursor_, 'a');
+    ret &= this->Skip(&cursor_, 'l');
+    ret &= this->Skip(&cursor_, 's');
+    ret &= this->Skip(&cursor_, 'e');
+    if (XGBOOST_EXPECT(!ret, false)) {
+      errno_ = jError::kInvalidFalse;
+    }
+    f->SetFalse();
+  }
 
   /*\brief Guess whether parsed value is floating point or integer.  For value
    * produced by nih json this should always be correct as ryu produces `E` in
@@ -236,11 +267,9 @@ class JsonRecursiveReader {
         }
         case 't': {
           *cursor_ = '\t'; break;
-          break;
         }
         case 'n': {
           *cursor_ = '\n'; break;
-          break;
         }
         case 'b': {
           *cursor_ = '\b'; break;
@@ -250,15 +279,12 @@ class JsonRecursiveReader {
         }
         case '\\': {
           *cursor_ = '\\'; break;
-          break;
         }
         case '\"': {
           *cursor_ = '\"'; break;
-          break;
         }
         case '/': {
-          *cursor_ = '/';
-          break;
+          *cursor_ = '/'; break;
         }
         }
         cursor_++;
@@ -445,6 +471,8 @@ class JsonRecursiveReader {
 
   JsonRecursiveReader(StringRef str, Json* handler)
       : handler_{handler}, input_{str}, cursor_{input_.begin()} {
+    CHECK_NE(input_.size(), 0) << "Empty JSON string.";
+    CHECK(str.data());
   }
 };
 

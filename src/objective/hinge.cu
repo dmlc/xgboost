@@ -5,13 +5,13 @@
  * \author Henry Gouk
  */
 #include "xgboost/objective.h"
-#include "xgboost/json.h"
 #include "xgboost/span.h"
 #include "xgboost/host_device_vector.h"
 
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
+#include "../common/json_experimental.h"
 
 namespace xgboost {
 namespace obj {
@@ -78,11 +78,11 @@ class HingeObj : public ObjFunction {
     return "error";
   }
 
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("binary:hinge");
+  void SaveConfig(experimental::Json* p_out) const override {
+    auto name = p_out->CreateMember("name");
+    name.SetString("binary:hinge");
   }
-  void LoadConfig(Json const& in) override {}
+  void LoadConfig(experimental::Json const& in) override {}
 };
 
 // register the objective functions

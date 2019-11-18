@@ -1,62 +1,104 @@
 // Copyright (c) 2019 by Contributors
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
-#include <xgboost/json.h>
 #include <thrust/device_vector.h>
 
 #include <memory>
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/json_experimental.h"
+#include "../../../src/common/json_reader_experimental.h"
+#include "../../../src/common/json_writer_experimental.h"
+
 #include "../../../src/data/simple_csr_source.h"
 #include "../../../src/data/columnar.h"
 
 namespace xgboost {
 
-TEST(ArrayInterfaceHandler, Error) {
+void TestInvalidArrayInterface(experimental::Document* p_doc) {
   constexpr size_t kRows {16};
-  Json column { Object() };
-  std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
-  column["shape"] = Array(j_shape);
-  std::vector<Json> j_data {
-    Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
-        Json(Boolean(false))};
+  auto& column_doc = *p_doc;
 
-  auto const& column_obj = get<Object>(column);
+  experimental::Json& column = column_doc.GetValue();
+
+  auto j_shape = column.CreateMember("shape");
+  j_shape.SetArray();
+  j_shape.CreateArrayElem().SetInteger(kRows);
+  j_shape.EndArray();
+
   // missing version
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
-  column["version"] = Integer(static_cast<Integer::Int>(1));
-  // missing data
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
-  column["data"] = j_data;
-  // missing typestr
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
-  column["typestr"] = String("<f4");
-  // nullptr is not valid
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
-  thrust::device_vector<float> d_data(kRows);
-  j_data = {Json(Integer(reinterpret_cast<Integer::Int>(d_data.data().get()))),
-            Json(Boolean(false))};
-  column["data"] = j_data;
-  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj));
+  try {
+    ArrayInterfaceHandler::ExtractArray<float>(column);
+  } catch (dmlc::Error const& e) {
+    ASSERT_NE(std::string{e.what()}.find("version"), std::string::npos);
+  }
+  column.CreateMember("version").SetInteger(1);
+  try {
+    ArrayInterfaceHandler::ExtractArray<float>(column);
+  } catch (dmlc::Error const& e) {
+    ASSERT_EQ(std::string{e.what()}.find("version"), std::string::npos);
+  }
 
-  std::vector<Json> j_mask_shape {Json(Integer(static_cast<Integer::Int>(kRows - 1)))};
-  column["mask"] = Object();
-  column["mask"]["shape"] = j_mask_shape;
-  column["mask"]["data"] = j_data;
-  column["mask"]["typestr"] = String("<i1");
-  column["mask"]["version"] = Integer(static_cast<Integer::Int>(1));
-  // shape of mask and data doesn't match.
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column_obj), dmlc::Error);
+  // missing typestr
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column), dmlc::Error);
+  column.CreateMember("typestr").SetString("<f4");
+
+  // missing data
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column), dmlc::Error);
+  auto j_data = column.CreateMember("data");
+  j_data.SetArray(2);
+  j_data.GetArrayElem(0).SetInteger(reinterpret_cast<int64_t>(nullptr));
+  j_data.GetArrayElem(1).SetFalse();
+  j_data.EndArray();
+
+  // nullptr is not valid
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column), dmlc::Error);
+  thrust::device_vector<float> d_data(kRows);
+  j_data.GetArrayElem(0).SetInteger(reinterpret_cast<int64_t>(d_data.data().get()));
+  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractArray<float>(column));
+
+  // Create mask with wrong shape.
+  auto j_mask = column.CreateMember("mask");
+  j_mask.SetObject();
+
+  auto j_mask_shape = j_mask.CreateMember("shape");
+  j_mask_shape.SetArray();
+  j_mask_shape.CreateArrayElem().SetInteger(kRows - 1);
+  j_mask_shape.EndArray();
+
+  auto j_mask_data = j_mask.CreateMember("data");
+  j_mask_data.SetArray();
+  ASSERT_TRUE(j_mask_data.IsArray());
+  j_mask_data.CreateArrayElem().SetInteger(reinterpret_cast<int64_t>(d_data.data().get()));
+  ASSERT_TRUE(j_mask_data.IsArray());
+  j_mask_data.EndArray();
+
+  j_mask.CreateMember("version").SetInteger(1);
+  j_mask.CreateMember("typestr") = "<i1";
+  j_mask.EndObject();
+
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractArray<float>(column), dmlc::Error);
+}
+
+TEST(ArrayInterfaceHandler, Error) {
+  experimental::Document column_doc;
+  TestInvalidArrayInterface(&column_doc);
 }
 
 template <typename T>
-Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
+void GenerateDenseColumn(experimental::Json* columns_arr,
+                         std::string const& typestr, size_t kRows,
                          thrust::device_vector<T>* out_d_data) {
   auto& d_data = *out_d_data;
-  Json column { Object() };
-  std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
-  column["shape"] = Array(j_shape);
-  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(sizeof(T))))});
+  auto column = columns_arr->CreateArrayElem();
+  column.SetObject();
+  auto j_shape = column.CreateMember("shape");
+  j_shape.SetArray();
+  j_shape.CreateArrayElem().SetInteger(kRows);
+
+  auto j_strides = column.CreateMember("strides");
+  j_strides.SetArray();
+  j_strides.CreateArrayElem() = static_cast<int64_t>(sizeof(T));
 
   d_data.resize(kRows);
   for (size_t i = 0; i < d_data.size(); ++i) {
@@ -65,14 +107,13 @@ Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
 
   auto p_d_data = dh::Raw(d_data);
 
-  std::vector<Json> j_data {
-    Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
-        Json(Boolean(false))};
-  column["data"] = j_data;
+  auto j_data = column.CreateMember("data");
+  j_data.SetArray(2);
+  j_data.GetArrayElem(0).SetInteger(reinterpret_cast<int64_t>(p_d_data));
+  j_data.GetArrayElem(1).SetFalse();
 
-  column["version"] = Integer(static_cast<Integer::Int>(1));
-  column["typestr"] = String(typestr);
-  return column;
+  column.CreateMember("version") = static_cast<int64_t>(1);
+  column.CreateMember("typestr") = typestr;
 }
 
 void TestDenseColumn(std::unique_ptr<data::SimpleCSRSource> const& source,
@@ -101,17 +142,14 @@ void TestDenseColumn(std::unique_ptr<data::SimpleCSRSource> const& source,
 TEST(SimpleCSRSource, FromColumnarDense) {
   constexpr size_t kRows {16};
   constexpr size_t kCols {2};
-  std::vector<Json> columns;
+  experimental::Document column_arr(experimental::ValueKind::kArray);
+
   thrust::device_vector<float> d_data_0(kRows);
   thrust::device_vector<int32_t> d_data_1(kRows);
-  columns.emplace_back(GenerateDenseColumn<float>("<f4", kRows, &d_data_0));
-  columns.emplace_back(GenerateDenseColumn<int32_t>("<i4", kRows, &d_data_1));
+  GenerateDenseColumn<float>(&(column_arr.GetValue()), "<f4", kRows, &d_data_0);
+  GenerateDenseColumn<int32_t>(&(column_arr.GetValue()), "<i4", kRows, &d_data_1);
 
-  Json column_arr {columns};
-
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str = column_arr.Dump<experimental::JsonWriter>();
 
   // no missing value
   {
@@ -157,15 +195,15 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
   constexpr size_t kRows = 102;
   constexpr size_t kCols = 24;
 
-  std::vector<Json> v_columns (kCols);
+  experimental::Document column_arr(experimental::ValueKind::kArray);
   std::vector<dh::device_vector<float>> columns_data(kCols);
   std::vector<dh::device_vector<RBitField8::value_type>> column_bitfields(kCols);
 
   RBitField8::value_type constexpr kUCOne = 1;
 
   for (size_t i = 0; i < kCols; ++i) {
-    auto& col = v_columns[i];
-    col = Object();
+    auto col = column_arr.GetValue().CreateArrayElem();
+    col.SetObject();
     auto& data = columns_data[i];
     data.resize(kRows);
     thrust::sequence(data.begin(), data.end(), 0);
@@ -175,19 +213,22 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
     ASSERT_EQ(data.size(), kRows);
 
     auto p_d_data = raw_pointer_cast(data.data());
-    std::vector<Json> j_data {
-      Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
-          Json(Boolean(false))};
-    col["data"] = j_data;
-    std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
-    col["shape"] = Array(j_shape);
-    col["version"] = Integer(static_cast<Integer::Int>(1));
-    col["typestr"] = String("<f4");
+    auto j_data = col.CreateMember("data");
+    j_data.SetArray();
+    j_data.CreateArrayElem().SetInteger(reinterpret_cast<int64_t>(p_d_data));
+    j_data.CreateArrayElem().SetFalse();
+
+    auto j_shape = col.CreateMember("shape");
+    j_shape.SetArray();
+    j_shape.CreateArrayElem().SetInteger((static_cast<int64_t>(kRows)));
+
+    col.CreateMember("version") = static_cast<int64_t>(1);
+    col.CreateMember("typestr") = "<f4";
 
     // Construct the mask object.
-    col["mask"] = Object();
-    auto& j_mask = col["mask"];
-    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
+    auto j_mask = col.CreateMember("mask");
+    j_mask.SetObject();
+    j_mask.CreateMember("version") = static_cast<int64_t>(1);
     auto& mask_storage = column_bitfields[i];
     mask_storage.resize(16);  // 16 bytes
 
@@ -204,17 +245,19 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
       }
     }
 
-    j_mask["data"] = std::vector<Json>{
-      Json(Integer(reinterpret_cast<Integer::Int>(mask_storage.data().get()))),
-      Json(Boolean(false))};
-    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(kRows)))});
-    j_mask["typestr"] = String("|i1");
+    auto j_mask_data = j_mask.CreateMember("data");
+    j_mask_data.SetArray();
+    j_mask_data.CreateArrayElem() = reinterpret_cast<int64_t>(mask_storage.data().get());
+    j_mask_data.CreateArrayElem().SetFalse();
+
+    auto j_mask_shape = j_mask.CreateMember("shape");
+    j_mask_shape.SetArray();
+    j_mask_shape.CreateArrayElem() = static_cast<int64_t>(kRows);
+
+    j_mask.CreateMember("typestr") = "|i1";
   }
 
-  Json column_arr {Array(v_columns)};
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str = column_arr.Dump<experimental::JsonWriter>();
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
   source->CopyFrom(str.c_str(), false);
 
@@ -269,38 +312,43 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     thrust::sequence(columns_data[c].begin(), columns_data[c].end(), 0);
   }
 
-  std::vector<Json> j_columns(kCols);
+  experimental::Document column_arr(experimental::ValueKind::kArray);
+  auto& j_columns = column_arr.GetValue();
 
   for (size_t c = 0; c < kCols; ++c) {
-    auto& column = j_columns[c];
-    column = Object();
-    column["version"] = Integer(static_cast<Integer::Int>(1));
-    column["typestr"] = String("<f4");
+    auto column = j_columns.CreateArrayElem();
+    column.SetObject();
+    column.CreateMember("version") = static_cast<int64_t>(1);
+    column.CreateMember("typestr") = "<f4";
     auto p_d_data = raw_pointer_cast(columns_data[c].data());
-    std::vector<Json> j_data {
-      Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
-          Json(Boolean(false))};
-    column["data"] = j_data;
-    std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
-    column["shape"] = Array(j_shape);
-    column["version"] = Integer(static_cast<Integer::Int>(1));
-    column["typestr"] = String("<f4");
+    auto j_data = column.CreateMember("data");
+    j_data.SetArray();
+    j_data.CreateArrayElem() = reinterpret_cast<int64_t>(p_d_data);
+    j_data.CreateArrayElem().SetFalse();
 
-    column["mask"] = Object();
-    auto& j_mask = column["mask"];
-    j_mask["version"] = Integer(static_cast<Integer::Int>(1));
-    j_mask["data"] = std::vector<Json>{
-      Json(Integer(reinterpret_cast<Integer::Int>(column_bitfields[c].data().get()))),
-      Json(Boolean(false))};
-    j_mask["shape"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(kRows)))});
-    j_mask["typestr"] = String("|i1");
+    auto j_shape = column.CreateMember("shape");
+    j_shape.SetArray().CreateArrayElem().SetInteger(static_cast<int64_t>(kRows));
+
+    column.CreateMember("version") = static_cast<int64_t>(1);
+    column.CreateMember("typestr") = "<f4";
+
+    // mask
+    auto j_mask = column.CreateMember("mask");
+    j_mask.SetObject();
+    j_mask.CreateMember("version") = static_cast<int64_t>(1);
+    auto j_mask_data = j_mask.CreateMember("data");
+    j_mask_data.SetArray();
+    j_mask_data.CreateArrayElem() =
+        reinterpret_cast<int64_t>(column_bitfields[c].data().get());
+    j_mask_data.CreateArrayElem().SetFalse();
+
+    auto j_mask_shape = j_mask.CreateMember("shape");
+    j_mask_shape.SetArray();
+    j_mask_shape.CreateArrayElem() = static_cast<int64_t>(kRows);
+    j_mask.CreateMember("typestr") = "|i1";
   }
 
-  Json column_arr {Array(j_columns)};
-
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str = column_arr.Dump<experimental::JsonWriter>();
 
   {
     std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
@@ -366,22 +414,18 @@ TEST(SimpleCSRSource, Types) {
   // Test with different types of different size
   constexpr size_t kRows {16};
   constexpr size_t kCols {2};
-  std::vector<Json> columns;
+
   thrust::device_vector<double> d_data_0(kRows);
   thrust::device_vector<uint32_t> d_data_1(kRows);
 
-  columns.emplace_back(GenerateDenseColumn<double>("<f8", kRows, &d_data_0));
-  columns.emplace_back(GenerateDenseColumn<uint32_t>("<u4", kRows, &d_data_1));
+  experimental::Document columns(experimental::ValueKind::kArray);
+  GenerateDenseColumn<double>(&(columns.GetValue()), "<f8", kRows, &d_data_0);
+  GenerateDenseColumn<uint32_t>(&(columns.GetValue()), "<u4", kRows, &d_data_1);
 
-  Json column_arr {columns};
-
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str = columns.Dump<experimental::JsonWriter>();
 
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
   source->CopyFrom(str.c_str(), false);
   TestDenseColumn(source, kRows, kCols);
 }
-
 }  // namespace xgboost

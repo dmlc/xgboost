@@ -3,7 +3,9 @@
  */
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
+
 #include "../../src/common/common.h"
+#include "../../src/common/json_experimental.h"
 #include "../helpers.h"
 
 namespace xgboost {

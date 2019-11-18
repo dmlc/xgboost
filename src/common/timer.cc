@@ -7,8 +7,11 @@
 #include <utility>
 #include <vector>
 #include <sstream>
+
 #include "timer.h"
-#include "xgboost/json.h"
+#include "json_experimental.h"
+#include "json_reader_experimental.h"
+#include "json_writer_experimental.h"
 
 namespace xgboost {
 namespace common {
@@ -35,22 +38,22 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
 
   // It's much easier to work with rabit if we have a string serialization.  So we go with
   // json.
-  Json j_statistic { Object() };
-  j_statistic["rank"] = Integer(rank);
-  j_statistic["statistic"] = Object();
+  experimental::Document j_statistic;
+  j_statistic.GetValue().CreateMember("rank") = static_cast<int64_t>(rank);
+  auto statistic = j_statistic.CreateMember("statistic");
+  statistic.SetObject();
 
-  auto& statistic = j_statistic["statistic"];
   for (auto const& kv : statistics_map) {
-    statistic[kv.first] = Object();
-    auto& j_pair = statistic[kv.first];
-    j_pair["count"] = Integer(kv.second.count);
-    j_pair["elapsed"] = Integer(std::chrono::duration_cast<std::chrono::microseconds>(
-        kv.second.timer.elapsed).count());
+    // statistic[kv.first] = Object();
+    auto prop = statistic.CreateMember(kv.first);
+    prop.SetObject();
+    prop.CreateMember("count").SetInteger(kv.second.count);
+    prop.CreateMember("elapsed").SetInteger(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            kv.second.timer.elapsed).count());
   }
 
-  std::stringstream ss;
-  Json::Dump(j_statistic, &ss);
-  std::string const str { ss.str() };
+  std::string str = j_statistic.Dump<experimental::JsonWriter>();
 
   size_t str_size = str.size();
   rabit::Allreduce<rabit::op::Max>(&str_size, 1);
@@ -64,17 +67,19 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
   for (size_t i = 0; i < world_size; ++i) {
     std::copy(str.cbegin(), str.cend(), buffer.begin());
     rabit::Broadcast(&buffer, i);
-    auto j_other = Json::Load(StringView{buffer.c_str(), buffer.size()});
+    auto j_other =
+        experimental::Document::Load<experimental::JsonRecursiveReader>(
+            experimental::StringRef{buffer});
     auto& other = world[i];
 
-    auto const& j_statistic = get<Object>(j_other["statistic"]);
+    auto const& j_statistic = *j_other.GetValue().FindMemberByKey("statistic");
 
-    for (auto const& kv : j_statistic) {
-      std::string const& timer_name = kv.first;
-      auto const& pair = kv.second;
-      other[timer_name] = {get<Integer>(pair["count"]), get<Integer>(pair["elapsed"])};
+    for (auto it = j_statistic.cbegin(); it != j_statistic.cend(); ++it) {
+      auto const& timer_name = it.Key();
+      auto pair = *it;
+      other[timer_name.Copy()] = {(*pair.FindMemberByKey("count")).GetInt(),
+                                  (*pair.FindMemberByKey("elapsed")).GetInt()};
     }
-
     // FIXME(trivialfis): How to ask rabit to block here?
   }
 

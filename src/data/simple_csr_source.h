@@ -16,10 +16,9 @@
 #include <vector>
 #include <limits>
 
+#include "../common/json_experimental.h"
+
 namespace xgboost {
-
-class Json;
-
 namespace data {
 /*!
  * \brief The simplest form of data holder, can be used to create DMatrix.
@@ -84,7 +83,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param columns JSON representation of array interfaces.
    * \param missing specifed missing value
    */
-  void FromDeviceColumnar(std::vector<Json> const& columns,
+  void FromDeviceColumnar(experimental::Json const& columns,
                           bool has_missing = false,
                           float missing = std::numeric_limits<float>::quiet_NaN());
   /*! \brief internal variable, used to support iterator interface */

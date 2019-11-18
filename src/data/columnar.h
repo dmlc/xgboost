@@ -11,11 +11,11 @@
 #include <string>
 
 #include "xgboost/data.h"
-#include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
 
 #include "../common/bitfield.h"
+#include "../common/json_experimental.h"
 
 namespace xgboost {
 // A view over __array_interface__
@@ -97,7 +97,7 @@ struct ColumnarErrors {
     }
   }
 
-  static std::string UnSupportedType(std::string const& typestr) {
+  static std::string UnSupportedType(experimental::ConstStringRef typestr) {
     return TypeStr(typestr.at(1)) + " is not supported.";
   }
 };
@@ -115,54 +115,54 @@ class ArrayInterfaceHandler {
   }
 
   template <typename PtrType>
-  static PtrType GetPtrFromArrayData(std::map<std::string, Json> const& obj) {
-    if (obj.find("data") == obj.cend()) {
+  static PtrType GetPtrFromArrayData(experimental::Json const& obj) {
+    if (obj.FindMemberByKey("data") == obj.cend()) {
       LOG(FATAL) << "Empty data passed in.";
     }
-    auto p_data = reinterpret_cast<PtrType>(static_cast<size_t>(
-        get<Integer const>(
-            get<Array const>(
-                obj.at("data"))
-            .at(0))));
+    auto p_data = reinterpret_cast<PtrType>(
+        static_cast<size_t>(
+            (*obj.FindMemberByKey("data"))
+              .GetArrayElem(0)  // first element is pointer, second is flag for read-only
+                .GetInt()));    // pointer as signed integer
     return p_data;
   }
 
-  static void Validate(std::map<std::string, Json> const& array) {
-    if (array.find("version") == array.cend()) {
+  static void Validate(experimental::Json const& array) {
+    if (array.FindMemberByKey("version") == array.cend()) {
       LOG(FATAL) << "Missing `version' field for array interface";
     }
-    auto version = get<Integer const>(array.at("version"));
+    auto version = (*array.FindMemberByKey("version")).GetInt();
     CHECK_EQ(version, 1) << ColumnarErrors::Version();
 
-    if (array.find("typestr") == array.cend()) {
+    if (array.FindMemberByKey("typestr") == array.cend()) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
-    auto typestr = get<String const>(array.at("typestr"));
+    auto typestr = (*array.FindMemberByKey("typestr")).GetString();
     CHECK_EQ(typestr.size(),    3) << ColumnarErrors::TypestrFormat();
     CHECK_NE(typestr.front(), '>') << ColumnarErrors::BigEndian();
 
-    if (array.find("shape") == array.cend()) {
+    if (array.FindMemberByKey("shape") == array.cend()) {
       LOG(FATAL) << "Missing `shape' field for array interface";
     }
-    if (array.find("data") == array.cend()) {
+    if (array.FindMemberByKey("data") == array.cend()) {
       LOG(FATAL) << "Missing `data' field for array interface";
     }
   }
 
   // Find null mask (validity mask) field
   // Mask object is also an array interface, but with different requirements.
-  static size_t ExtractMask(std::map<std::string, Json> const &column,
+  static size_t ExtractMask(experimental::Json const &column,
                             common::Span<RBitField8::value_type> *p_out) {
     auto& s_mask = *p_out;
-    if (column.find("mask") != column.cend()) {
-      auto const& j_mask = get<Object const>(column.at("mask"));
+    if (column.FindMemberByKey("mask") != column.cend()) {
+      auto j_mask = *column.FindMemberByKey("mask");
       Validate(j_mask);
 
       auto p_mask = GetPtrFromArrayData<RBitField8::value_type*>(j_mask);
 
-      auto j_shape = get<Array const>(j_mask.at("shape"));
-      CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
-      auto typestr = get<String const>(j_mask.at("typestr"));
+      auto j_shape = *j_mask.FindMemberByKey("shape");
+      CHECK_EQ(j_shape.Length(), 1) << ColumnarErrors::Dimension(1);
+      auto typestr = (*j_mask.FindMemberByKey("typestr")).GetString();
       // For now this is just 1, we can support different size of interger in mask.
       int64_t const type_length = typestr.at(2) - 48;
 
@@ -183,15 +183,15 @@ class ArrayInterfaceHandler {
        *
        * And that's the only requirement.
        */
-      size_t const n_bits = static_cast<size_t>(get<Integer>(j_shape.at(0)));
+      size_t const n_bits = static_cast<size_t>(j_shape.GetArrayElem(0).GetInt());
       // The size of span required to cover all bits.  Here with 8 bits bitfield, we
       // assume 1 byte alignment.
       size_t const span_size = RBitField8::ComputeStorageSize(n_bits);
 
-      if (j_mask.find("strides") != j_mask.cend()) {
-        auto strides = get<Array const>(column.at("strides"));
-        CHECK_EQ(strides.size(),                        1) << ColumnarErrors::Dimension(1);
-        CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ColumnarErrors::Contigious();
+      if (j_mask.FindMemberByKey("strides") != j_mask.cend()) {
+        auto strides = *column.FindMemberByKey("strides");
+        CHECK_EQ(strides.Length(),                           1) << ColumnarErrors::Dimension(1);
+        CHECK_EQ(strides.GetArrayElem(0).GetInt(), type_length) << ColumnarErrors::Contigious();
       }
 
       s_mask = {p_mask, span_size};
@@ -200,33 +200,38 @@ class ArrayInterfaceHandler {
     return 0;
   }
 
+  /*
+   * \param column A JSON object representing a column.
+   */
   template <typename T>
-  static common::Span<T> ExtractData(std::map<std::string, Json> const& column) {
+  static common::Span<T> ExtractData(experimental::Json const& column) {
     Validate(column);
-
-    auto typestr = get<String const>(column.at("typestr"));
+    auto typestr = (*column.FindMemberByKey("typestr")).GetString();
     CHECK_EQ(typestr.at(1),   TypeChar<T>())
         << "Input data type and typestr mismatch. typestr: " << typestr;
     CHECK_EQ(typestr.at(2),   static_cast<char>(sizeof(T) + 48))
         << "Input data type and typestr mismatch. typestr: " << typestr;
 
-    auto j_shape = get<Array const>(column.at("shape"));
-    CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
+    auto j_shape = *column.FindMemberByKey("shape");
+    CHECK_EQ(j_shape.Length(), 1) << ColumnarErrors::Dimension(1);
 
-    if (column.find("strides") != column.cend()) {
-      auto strides = get<Array const>(column.at("strides"));
-      CHECK_EQ(strides.size(),         1)              << ColumnarErrors::Dimension(1);
-      CHECK_EQ(get<Integer>(strides.at(0)), sizeof(T)) << ColumnarErrors::Contigious();
+    if (column.FindMemberByKey("strides") != column.cend()) {
+      auto strides = *column.FindMemberByKey("strides");
+      CHECK_EQ(strides.Length(),                         1) << ColumnarErrors::Dimension(1);
+      CHECK_EQ(strides.GetArrayElem(0).GetInt(), sizeof(T)) << ColumnarErrors::Contigious();
     }
 
-    auto length = static_cast<size_t>(get<Integer const>(j_shape.at(0)));
+    auto length = static_cast<size_t>(j_shape.GetArrayElem(0).GetInt());
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
     return common::Span<T>{p_data, length};
   }
 
+  /*
+   * \param column A JSON object representing a column.
+   */
   template <typename T>
-  static Columnar<T> ExtractArray(std::map<std::string, Json> const& column) {
+  static Columnar<T> ExtractArray(experimental::Json const& column) {
     common::Span<T> s_data { ArrayInterfaceHandler::ExtractData<T>(column) };
 
     Columnar<T> foreign_col;

@@ -4,8 +4,10 @@
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
-#include <xgboost/json.h>
+
+#include "../../src/common/json_experimental.h"
 #include "../helpers.h"
+
 namespace xgboost {
 
 TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {

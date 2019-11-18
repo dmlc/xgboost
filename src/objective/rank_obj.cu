@@ -9,11 +9,11 @@
 #include <algorithm>
 #include <utility>
 
-#include "xgboost/json.h"
 #include "xgboost/parameter.h"
 
 #include "../common/math.h"
 #include "../common/random.h"
+#include "../common/json_experimental.h"
 
 #if defined(__CUDACC__)
 #include <thrust/sort.h>
@@ -780,17 +780,16 @@ class LambdaRankObj : public ObjFunction {
     return "map";
   }
 
-  void SaveConfig(Json* p_out) const override {
+  void SaveConfig(experimental::Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String(LambdaWeightComputerT::Name());
-    out["lambda_rank_param"] = Object();
-    for (auto const& kv : param_.__DICT__()) {
-      out["lambda_rank_param"][kv.first] = kv.second;
-    }
+    out.CreateMember("name") = LambdaWeightComputerT::Name();
+    auto jparam = out.CreateMember("lambda_rank_param");
+    toJson(&jparam, param_);
   }
 
-  void LoadConfig(Json const& in) override {
-    fromJson(in["lambda_rank_param"], &param_);
+  void LoadConfig(experimental::Json const& in) override {
+    auto jparam = *in.FindMemberByKey("lambda_rank_param");
+    fromJson(&param_, jparam);
   }
 
  private:
