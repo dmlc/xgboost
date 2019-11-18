@@ -21,6 +21,8 @@
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
+#include "adapter.h"
+#include "../data/simple_dmatrix.h"
 
 
 namespace xgboost {
@@ -310,13 +312,23 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCreateFromMatAdapter(const bst_float* data,
+                                          xgboost::bst_ulong nrow,
+                                          xgboost::bst_ulong ncol,
+                                          bst_float missing, DMatrixHandle* out,
+                                          int nthread) {
+  API_BEGIN();
+  DenseAdapter adapter(data, nrow, ncol*nrow, ncol);
+  *out = new std::shared_ptr<DMatrix>(new data::SimpleDMatrix(&adapter,nthread));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
                                    xgboost::bst_ulong nrow,
                                    xgboost::bst_ulong ncol,
                                    bst_float missing,
                                    DMatrixHandle* out) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
   auto& offset_vec = mat.page_.offset.HostVector();

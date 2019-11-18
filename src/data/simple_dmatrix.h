@@ -26,6 +26,8 @@ class SimpleDMatrix : public DMatrix {
   explicit SimpleDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source)
       : source_(std::move(source)) {}
 
+  explicit SimpleDMatrix(const ExternalDataAdapter* adapter, int nthread);
+
   MetaInfo& Info() override;
 
   const MetaInfo& Info() const override;
