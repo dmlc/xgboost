@@ -72,6 +72,7 @@ build_plugin
 recommonmark/
 tags
 *.class
+*.classpath
 target
 *.swp
 
@@ -101,3 +102,7 @@ R-package/src/Makevars
 .idea
 *.iml
 /cmake-build-debug/
+
+# test dataset
+demo/regression/*.txt
+
