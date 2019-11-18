@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import org.apache.spark.sql.types._
+
 // based on org.apache.spark.util copy /paste
 private[spark] object Utils {
 
@@ -29,5 +31,24 @@ private[spark] object Utils {
   def classForName(className: String): Class[_] = {
     Class.forName(className, true, getContextOrSparkClassLoader)
     // scalastyle:on classforname
+  }
+}
+
+// based on org.apache.spark.ml.util copy /paste
+private[spark] object SchemaUtils {
+
+  /**
+    * Check whether the given schema contains a column of the numeric data type.
+    * @param colName  column name
+    */
+  def checkNumericType(
+      schema: StructType,
+      colName: String,
+      msg: String = ""): Unit = {
+    val actualDataType = schema(colName).dataType
+    val message = if (msg != null && msg.trim.length > 0) " " + msg else ""
+    require(actualDataType.isInstanceOf[NumericType],
+      s"Column $colName must be of type numeric but was actually of type " +
+        s"${actualDataType.catalogString}.$message")
   }
 }

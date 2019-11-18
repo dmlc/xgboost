@@ -180,4 +180,43 @@ object DataUtils extends Serializable {
     repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
   }
 
+  private[spark] def convertDataFrameToXGBLabeledPointRDDs(
+      labelCol: Column,
+      featuresCols: Array[Column],
+      weight: Column,
+      baseMargin: Column,
+      group: Option[Column],
+      numWorkers: Int,
+      deterministicPartition: Boolean,
+      dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
+    // Order is [label, weight, margin, features, group]
+    val hasGroup = group.nonEmpty
+    val commonColumns = Seq(
+      labelCol.cast(FloatType),
+      weight.cast(FloatType),
+      baseMargin.cast(FloatType)) ++ featuresCols.map(_.cast(FloatType))
+    val selectedColumns = if (hasGroup) {
+      commonColumns :+ group.get.cast(IntegerType)
+    } else {
+      commonColumns
+    }
+    val featureSize = featuresCols.length
+    val fStartPos = 3
+    val arrayOfRDDs = dataFrames.toArray.map {
+      df => df.select(selectedColumns: _*).rdd.map (row => {
+        val (label, weight, baseMargin) = (row.getFloat(0), row.getFloat(1), row.getFloat(2))
+        val values = (fStartPos until fStartPos + featureSize).map(row.getAs[Float](_)).toArray
+        val xgbLp = hasGroup match {
+          // All are treated as Dense Data
+          case true => val group = row.getInt(row.size - 1)
+            XGBLabeledPoint(label, null, values, weight, group, baseMargin)
+          case false =>
+            XGBLabeledPoint(label, null, values, weight, baseMargin = baseMargin)
+        }
+        attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+      })
+    }
+    repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
+  }
+
 }

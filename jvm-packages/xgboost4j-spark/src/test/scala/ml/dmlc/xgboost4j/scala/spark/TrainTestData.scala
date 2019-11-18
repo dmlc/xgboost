@@ -59,6 +59,8 @@ trait TrainTestData {
       XGBLabeledPoint(label, null, values, 1f, group, Float.NaN)
     }.toList
   }
+
+  def featureColNames: Array[String] = (1 to 126).map(i => s"feature$i").toArray
 }
 
 object Classification extends TrainTestData {

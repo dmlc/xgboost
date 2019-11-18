@@ -56,6 +56,20 @@ class XGBoostRegressor (
 
   XGBoost2MLlibParams(xgboostParams)
 
+  protected override def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      featuresDataType: DataType): StructType = {
+    if ($(featuresCols).nonEmpty) {
+      super.validateAndTransformSchema(schema, fitting, $(labelCol))
+    } else {
+      super.validateAndTransformSchema(schema, fitting, featuresDataType)
+    }
+  }
+
+  // An overloaded version to support multiple columns for features.
+  def setFeaturesCol(value: Array[String]): this.type = set(featuresCols, value)
+
   def setWeightCol(value: String): this.type = set(weightCol, value)
 
   def setBaseMarginCol(value: String): this.type = set(baseMarginCol, value)
@@ -172,14 +186,28 @@ class XGBoostRegressor (
       col($(baseMarginCol))
     }
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
-    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
+    val trainingSet: RDD[XGBLabeledPoint] = if ($(featuresCols).nonEmpty) {
+      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), $(featuresCols).map(col(_)),
+        weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
+        dataset.asInstanceOf[DataFrame]).head
+    } else {
+      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
+        weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
+        dataset.asInstanceOf[DataFrame]).head
+    }
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
-          dataFrame).head)
+        if ($(featuresCols).nonEmpty) {
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
+            $(featuresCols).map(col(_)),
+            weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
+            dataFrame).head
+        } else {
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
+            col($(featuresCol)),
+            weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
+            dataFrame).head
+        })
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
@@ -233,6 +261,20 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  protected override def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      featuresDataType: DataType): StructType = {
+    if ($(featuresCols).nonEmpty) {
+      super.validateAndTransformSchema(schema, fitting, $(labelCol))
+    } else {
+      super.validateAndTransformSchema(schema, fitting, featuresDataType)
+    }
+  }
+
+  // An overloaded version to support multiple columns for features.
+  def setFeaturesCol(value: Array[String]): this.type = set(featuresCols, value)
+
   def setLeafPredictionCol(value: String): this.type = set(leafPredictionCol, value)
 
   def setContribPredictionCol(value: String): this.type = set(contribPredictionCol, value)
@@ -274,9 +316,18 @@ class XGBoostRegressionModel private[ml] (
             Rabit.init(rabitEnv.asJava)
           }
 
-          val features = batchRow.iterator.map(row => row.getAs[Vector]($(featuresCol)))
-
           import DataUtils._
+          val features = batchRow.iterator.map(row =>
+            if ($(featuresCols).nonEmpty) {
+              // Prefer multiple columns for features
+              val values = row.schema.filter(f => $(featuresCols).contains(f.name))
+                .map(f => row.get(row.schema.fieldIndex(f.name)).toString.toFloat).toArray
+              // All are treated as dense data
+              XGBLabeledPoint(0.0f, null, values)
+            } else {
+              row.getAs[Vector]($(featuresCol)).asXGB
+            })
+
           val cacheInfo = {
             if ($(useExternalMemory)) {
               s"$appName-${TaskContext.get().stageId()}-dtest_cache-" +
@@ -287,7 +338,7 @@ class XGBoostRegressionModel private[ml] (
           }
 
           val dm = new DMatrix(
-            XGBoost.processMissingValues(features.map(_.asXGB), $(missing)),
+            XGBoost.processMissingValues(features, $(missing)),
             cacheInfo)
           try {
             val Array(rawPredictionItr, predLeafItr, predContribItr) =

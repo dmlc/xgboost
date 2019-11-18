@@ -239,6 +239,27 @@ trait HasNumClass extends Params {
   final def getNumClass: Int = $(numClass)
 }
 
+/**
+ * Trait for param featuresCols. (default: Array.empty[String]) This trait may be changed or
+ * removed between minor versions.
+ *
+ * This is to support multiple columns for features.
+ */
+trait HasFeaturesCols extends Params {
+
+  /**
+   * Param for names of the multiple columns for features
+   * @group param
+   */
+  final val featuresCols: StringArrayParam = new StringArrayParam(this, "featuresCols",
+    "names of the multiple columns for features")
+
+  setDefault(featuresCols, Array.empty[String])
+
+  /** @group getParam */
+  final def getFeaturesCols: Array[String] = $(featuresCols)
+}
+
 private[spark] trait ParamMapFuncs extends Params {
 
   def XGBoost2MLlibParams(xgboostParams: Map[String, Any]): Unit = {
