@@ -28,6 +28,7 @@ The XGBoost python module is able to load data from:
 - Comma-separated values (CSV) file
 - NumPy 2D array
 - SciPy 2D sparse array
+- cuDF DataFrame
 - Pandas data frame, and
 - XGBoost binary buffer file.
 
