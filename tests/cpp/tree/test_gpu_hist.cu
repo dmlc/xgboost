@@ -319,19 +319,6 @@ int32_t TestMinSplitLoss(DMatrix* dmat, float gamma, HostDeviceVector<GradientPa
   return n_nodes;
 }
 
-HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(n_rows);
-  for (auto &gpair : h_gpair) {
-    bst_float grad = dist(&gen);
-    bst_float hess = dist(&gen);
-    gpair = GradientPair(grad, hess);
-  }
-  HostDeviceVector<GradientPair> gpair(h_gpair);
-  return gpair;
-}
-
 TEST(GpuHist, MinSplitLoss) {
   constexpr size_t kRows = 32;
   constexpr size_t kCols = 16;
