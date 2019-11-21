@@ -123,4 +123,21 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
     )
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions), schema)
   }
+
+  protected def buildDataFrameWithMultiGroup(
+      labeledPoints: Seq[XGBLabeledPoint],
+      featureNames: Array[String],
+      numPartitions: Int = numWorkers): DataFrame = {
+    val it: Iterator[Row] = labeledPoints.iterator.zipWithIndex.map {
+      case (lp: XGBLabeledPoint, id: Int) =>
+        Row.merge(Row(id, lp.group), Row(lp.label), Row(lp.values: _*))
+    }
+    val schema = StructType(
+      StructField("id", IntegerType)::
+        StructField("group", IntegerType)::
+        StructField("label", FloatType)::
+        featureNames.map(StructField(_, FloatType)).toList
+    )
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions), schema)
+  }
 }

@@ -239,4 +239,27 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
       i => assert(math.abs(mPrediction(i) - sPrediction(i)) <= 0.01f)
     }
   }
+
+  test("ranking: using multiple columns should output the same predictions with" +
+    " that of single column") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
+      "group_col" -> "group")
+
+    // multiple feature columns version
+    val mTrainingDF = buildDataFrameWithMultiGroup(Ranking.train, Ranking.featureColNames)
+    val mTestDF = buildDataFrameWithMulti(Ranking.test, Ranking.featureColNames)
+    val mModel = new XGBoostRegressor(paramMap)
+      .setFeaturesCol(Ranking.featureColNames).fit(mTrainingDF)
+    val mPrediction = mModel.transform(mTestDF).collect()
+
+    // single feature column
+    val sTrainingDF = buildDataFrameWithGroup(Ranking.train)
+    val sTestDF = buildDataFrame(Ranking.test)
+    val sModel = new XGBoostRegressor(paramMap).fit(sTrainingDF)
+    val sPrediction = sModel.transform(sTestDF).collect()
+
+    assert(sTestDF.count() === sPrediction.length)
+    assert(mPrediction.length === sPrediction.length)
+  }
 }
