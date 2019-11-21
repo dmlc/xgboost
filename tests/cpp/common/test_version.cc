@@ -17,8 +17,8 @@
 namespace xgboost {
 TEST(Version, Basic) {
   experimental::Document j_ver;
-  Version::Save(&(j_ver.GetObject()));
-  auto triplet { Version::Load(j_ver.GetObject()) };
+  Version::Save(&(j_ver.GetValue()));
+  auto triplet { Version::Load(j_ver.GetValue()) };
   ASSERT_TRUE(Version::Same(triplet));
 
   dmlc::TemporaryDirectory tempdir;

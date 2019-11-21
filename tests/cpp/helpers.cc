@@ -82,11 +82,11 @@ xgboost::experimental::Document CheckConfigReloadImpl(xgboost::Configurable* con
                                                       std::string name) {
   xgboost::experimental::Document config_0;
 
-  configurable->SaveConfig(&(config_0.GetObject()));
-  configurable->LoadConfig(config_0.GetObject());
+  configurable->SaveConfig(&(config_0.GetValue()));
+  configurable->LoadConfig(config_0.GetValue());
 
   xgboost::experimental::Document config_1;
-  configurable->SaveConfig(&(config_1.GetObject()));
+  configurable->SaveConfig(&(config_1.GetValue()));
 
   std::string str_0, str_1;
   str_0 = config_0.Dump<xgboost::experimental::JsonWriter>();
@@ -94,7 +94,7 @@ xgboost::experimental::Document CheckConfigReloadImpl(xgboost::Configurable* con
   EXPECT_EQ(str_0, str_1);
 
   if (name != "") {
-    EXPECT_EQ((*config_1.GetObject().FindMemberByKey("name")).GetString(), name);
+    EXPECT_EQ((*config_1.GetValue().FindMemberByKey("name")).GetString(), name);
   }
   return config_1;
 }

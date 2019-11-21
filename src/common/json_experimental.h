@@ -296,7 +296,7 @@ class ValueImpl {
   size_t self_ {0};
   // Storing the type information for this node.
   ValueKind kind_ { ValueKind::kNull };
-  bool is_view_ {false};
+  // whether an object or array is stored into tree storage.
   bool finalised_ {false};
 
  public:
@@ -318,7 +318,7 @@ class ValueImpl {
     CHECK(
         static_cast<uint8_t>(this->kind_) == static_cast<uint8_t>(ValueKind::kNull) ||
         static_cast<uint8_t>(this->kind_) == static_cast<uint8_t>(kind));
-    CHECK(!finalised_) << "You can not change an existing value.";
+    CHECK(!finalised_) << "Changing an existing value is not supported.";
     this->kind_ = kind;
   }
 
@@ -332,7 +332,7 @@ class ValueImpl {
   }
 
   bool NeedFinalise() const {
-    return !is_view_ && !finalised_ && (this->IsArray() || this->IsObject());
+    return !finalised_ && (this->IsArray() || this->IsObject());
   }
 
  protected :
@@ -341,6 +341,7 @@ class ValueImpl {
     size_t beg;
     size_t end;
   };
+  static_assert(sizeof(StringStorage) == sizeof(size_t) * 2, "");
 
   // A simple wrapper for `std::vector<size_t>`, used when we are only viewing the object
   // (Dump).
@@ -413,7 +414,7 @@ class ValueImpl {
 
   // ValueImpl knows how to construct itself from data kind and a pointer to its storage
   ValueImpl(Container *doc, ValueKind kind, size_t self)
-      : handler_{doc}, self_{self}, kind_{kind}, is_view_{true} {
+      : handler_{doc}, self_{self}, kind_{kind}, finalised_{true} {
     handler_->Incref();
     switch (kind_) {
     case ValueKind::kInteger: {
@@ -567,7 +568,7 @@ class ValueImpl {
   ValueImpl(ValueImpl const &that) = delete;
   ValueImpl(ValueImpl &&that)
       : handler_{that.handler_}, self_{that.self_}, kind_{that.kind_},
-        is_view_{that.is_view_}, finalised_{that.finalised_},
+        finalised_{that.finalised_},
         object_table_{std::move(that.object_table_)},
         array_table_{std::move(that.array_table_)} {
     that.finalised_ = true;
@@ -636,9 +637,6 @@ class ValueImpl {
     tree[this->self_] = JsonTypeHandler::MakeTypedOffset(
         current_tree_pointer, ValueKind::kString);
 
-    tree_storage.Expand(2);
-    tree = tree_storage.Access();
-
     StorageView<char> data_storage = handler_->Data();
     auto current_data_pointer = data_storage.Top();
 
@@ -648,12 +646,10 @@ class ValueImpl {
 
     string_storage.beg = current_data_pointer;
     string_storage.end = current_data_pointer + string.size();
-
-    tree[current_tree_pointer] = string_storage.beg;
-    tree[current_tree_pointer + 1] = string_storage.end;
+    tree_storage.Push(&string_storage, 1);
     return *this;
   }
-
+  // Shorthands for corresponding setter.
   ValueImpl& operator=(ConstStringRef str) {
     return this->SetString(str);
   }
@@ -691,7 +687,7 @@ class ValueImpl {
     InitializeType(ValueKind::kArray);
     common::Span<size_t> tree = handler_->Tree().Access();
     tree[self_] = JsonTypeHandler::MakeTypedOffset(kElementEnd,
-                                                         ValueKind::kArray);
+                                                   ValueKind::kArray);
     array_table_.resize(length, kElementEnd);
     finalised_ = false;
     return *this;
@@ -719,6 +715,7 @@ class ValueImpl {
       return value;
     }
   }
+  /*\brief Get array element when current value is const.*/
   ValueImpl GetArrayElem(size_t index) const {
     CheckType(ValueKind::kArray);
     CHECK_LT(index, array_table_.size());
@@ -948,7 +945,8 @@ class Document {
       try {
         std::locale::global(std::locale(name.c_str()));
       } catch (std::runtime_error const &e) {
-        LOG(FATAL) << "Failed to set locale: " << name;
+        LOG(FATAL) << "Failed to set locale: " << name
+                   << "\n Error from std: " << e.what();
       }
     }
     ~GlobalCLocale() { std::locale::global(ori_); }
@@ -969,7 +967,6 @@ class Document {
 
  public:
   Document() : n_alive_values_ {0}, value(this), last_character{0} {
-    // right now document root must be an object.
     this->_tree_storage.resize(1);
     this->value.SetObject();
   }
@@ -993,19 +990,17 @@ class Document {
     }
   }
   Document(Document const& that) = delete;
-  Document(Document&& that) :
-      err_code_{that.err_code_},
-      _tree_storage{std::move(that._tree_storage)},
-      _data_storage{std::move(that._data_storage)},
-      n_alive_values_ {0},
-      value{ValueImpl<Document>{this}},
-      last_character{that.last_character} {
-        that.value.finalised_ = {true};
-        value.object_table_ = std::move(that.value.object_table_);
-        value.array_table_ = std::move(that.value.array_table_);
-        value.kind_ = that.value.kind_;
-        CHECK(value.IsObject());
-      }
+  Document(Document &&that)
+      : err_code_{that.err_code_},
+        _tree_storage{std::move(that._tree_storage)},
+        _data_storage{std::move(that._data_storage)},
+        n_alive_values_{that.n_alive_values_},
+        value{ValueImpl<Document>{this}},
+        last_character{that.last_character} {
+    that.value.finalised_ = {true};
+    that.n_alive_values_ = 1;
+    CHECK(value.IsObject() || value.IsArray());
+  }
 
   ~Document() {
     if (!value.finalised_ && err_code_ == jError::kSuccess) {
@@ -1022,12 +1017,6 @@ class Document {
     return this->value.CreateMember(key);
   }
 
-  Value& GetObject() {
-    return value;
-  }
-  Value const &GetObject() const {
-    return value;
-  }
   Value& GetValue() {
     return value;
   }

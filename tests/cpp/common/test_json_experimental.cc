@@ -33,7 +33,7 @@ TEST(Json_Experimental, Basic) {
     Document doc;
     {
       auto value{doc.CreateMember("ok")};
-      value.SetFloat(12);
+      value.SetFloat(12.0f);
     }
 
     std::string str = doc.Dump<JsonWriter>();
@@ -52,7 +52,7 @@ TEST(Json_Experimental, ObjectGeneral) {
     auto level_0_0 = doc.CreateMember("0-0");
     level_0_0.SetObject();
     auto level_1_0 = level_0_0.CreateMember("1-0");
-    level_1_0.SetFloat(12.3);
+    level_1_0.SetFloat(12.3f);
   }
 
   {
@@ -62,18 +62,21 @@ TEST(Json_Experimental, ObjectGeneral) {
     level_1_1.SetInteger(1);
   }
 
-  {
-    // Create a scope and split up parameters from macro to work around msvc parser bug:
-    // error C2039: 'GetObjectA': is not a member of 'xgboost::experimental::Document'
-    auto str = doc.Dump<JsonWriter>();
-    auto sol = R"json({"0-0":{"1-0":1.23E1},"0-1":{"1-1":1}})json";
-    ASSERT_EQ(str, sol);
-  }
+  // MSVC Failed to parse the following code:
+  // error C2039: 'GetObjectA': is not a member of 'xgboost::experimental::Document'
+  //
+  // Not sure what's GetObjectA, probably they implement raw string with some form of
+  // macro.
+#ifndef _MSC_VER
+  auto str = doc.Dump<JsonWriter>();
+  std::string sol{R"json({"0-0":{"1-0":1.23E1},"0-1":{"1-1":1}})json"};
+  ASSERT_EQ(str, sol);
 
-  auto it = doc.GetObject().FindMemberByKey("0-0");
-  ASSERT_NE(it, doc.GetObject().cend());
+  auto it = doc.GetValue().FindMemberByKey("0-0");
+  ASSERT_NE(it, doc.GetValue().cend());
   Json v = *it;
   ASSERT_TRUE(v.IsObject());
+#endif
 }
 
 TEST(Json_Experimental, NestedObjects) {
@@ -83,7 +86,7 @@ TEST(Json_Experimental, NestedObjects) {
     value.SetObject();
 
     auto mem_value = value.CreateMember("member-key");
-    mem_value.SetFloat(12.3);
+    mem_value.SetFloat(12.3f);
   }
   auto str = doc.Dump<JsonWriter>();
 
@@ -100,7 +103,7 @@ TEST(Json_Experimental, MultipleObjects) {
 
   {
     auto a_1{doc.CreateMember("a_1")};
-    a_1.SetFloat(3.14);
+    a_1.SetFloat(3.14f);
   }
   auto str = doc.Dump<JsonWriter>();
 }
@@ -111,7 +114,7 @@ TEST(Json_Experimental, Array) {
     auto value = doc.CreateMember("array");
     value.SetArray(16);
     auto a = value.GetArrayElem(0);
-    a.SetFloat(3.14159);
+    a.SetFloat(3.14159f);
 
     Json b = value.GetArrayElem(15);
     b.SetInteger(4);
@@ -137,10 +140,10 @@ TEST(Json_Experimental, NestedArray) {
 
     r_0.SetArray(2);
     r_1.SetArray(2);
-    r_0.GetArrayElem(0).SetFloat(12.3);
-    r_0.GetArrayElem(1).SetFloat(13.3);
-    r_1.GetArrayElem(0).SetFloat(70);
-    r_1.GetArrayElem(1).SetFloat(3);
+    r_0.GetArrayElem(0).SetFloat(12.3f);
+    r_0.GetArrayElem(1).SetFloat(13.3f);
+    r_1.GetArrayElem(0).SetFloat(70.0f);
+    r_1.GetArrayElem(1).SetFloat(3.0f);
   }
 
   auto str = doc.Dump<JsonWriter>();
@@ -274,12 +277,12 @@ void TestRoundTrip(D dist) {
     }
 
     j_numbers.EndArray();
-    doc.GetObject().EndObject();
+    doc.GetValue().EndObject();
   }
   str = doc.Dump<JsonWriter>();
   {
     auto loaded = Document::Load<JsonRecursiveReader>(StringRef {str});
-    auto j_numbers = *loaded.GetObject().FindMemberByKey("numbers");
+    auto j_numbers = *loaded.GetValue().FindMemberByKey("numbers");
     ASSERT_TRUE(j_numbers.IsArray());
 
     for (size_t i = 0; i < j_numbers.Length(); ++i) {

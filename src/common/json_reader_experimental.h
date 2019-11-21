@@ -220,7 +220,7 @@ class JsonRecursiveReader {
     }
     if (is_float) {
       f = Strtod(i, exp + exp_frac, beg, cursor_);
-      number->SetFloat(f);
+      number->SetFloat(static_cast<float>(f));
     } else {
       number->SetInteger(i);
     }
@@ -325,8 +325,10 @@ class JsonRecursiveReader {
 
   bool Skip(Cursor* p_cursor, char c) {
     auto cursor = *p_cursor;
-    auto o = *cursor;
-    (*p_cursor)++;
+    // clang-tidy somehow believes this is null pointer.  There's a test for empty string
+    // so disabling the lint error.
+    auto o = *cursor;  // NOLINT
+    (*p_cursor)++;     // NOLINT
     return c == o;
   }
 

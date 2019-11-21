@@ -54,7 +54,7 @@ inline void itoaUnsignedImpl(char* first, uint32_t length, uint64_t value) {
     first[0] = kItoaLut[num];
     first[1] = kItoaLut[num + 1];
   } else {
-    first[0]= '0' + value;
+    first[0]= '0' + static_cast<char>(value);
   }
 }
 

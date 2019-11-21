@@ -46,11 +46,11 @@ TEST(Objective, DeclareUnifiedTest(NDCG_Json_IO)) {
 
   obj->Configure(Args{});
   xgboost::experimental::Document j_obj;
-  obj->SaveConfig(&(j_obj.GetObject()));
+  obj->SaveConfig(&(j_obj.GetValue()));
 
-  ASSERT_EQ((*j_obj.GetObject().FindMemberByKey("name")).GetString(), "rank:ndcg");;
+  ASSERT_EQ((*j_obj.GetValue().FindMemberByKey("name")).GetString(), "rank:ndcg");;
 
-  auto j_param = *(j_obj.GetObject().FindMemberByKey("lambda_rank_param"));
+  auto j_param = *(j_obj.GetValue().FindMemberByKey("lambda_rank_param"));
   ASSERT_TRUE(j_param.IsObject());
   ASSERT_EQ((*j_param.FindMemberByKey("num_pairsample")).GetString(), "1");
   ASSERT_EQ((*j_param.FindMemberByKey("fix_list_weight")).GetString(), "0");
