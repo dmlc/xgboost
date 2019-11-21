@@ -386,37 +386,6 @@ class DataSource : public dmlc::DataIter<T> {
   MetaInfo info;
 };
 
-class ExternalDataAdapter {
- public:
-  ExternalDataAdapter(size_t num_features,
-  size_t num_rows, size_t num_elements)
-      : num_features(num_features),
-        num_rows(num_rows),
-        num_elements(num_elements) {}
-  struct COOTuple {
-    size_t row_idx{0};
-    size_t column_idx{0};
-    float value{0};
-  };
-  class Batch {
-   public:
-    virtual ~Batch() = default;
-    virtual size_t Size() const = 0;
-    virtual COOTuple GetElement(size_t idx) const = 0;
-  };
-  virtual ~ExternalDataAdapter() = default;
-  virtual size_t Size() const = 0;
-  virtual std::unique_ptr<const Batch> operator[](size_t idx) const = 0;
-  size_t GetNumFeatures() const { return num_features; }
-  size_t GetNumRows() const { return num_rows; }
-  size_t GetNumElements() const { return num_elements; }
-
-protected:
-  size_t num_features;
-  size_t num_rows;
-  size_t num_elements;
-};
-
 /*!
  * \brief Internal data structured used by XGBoost during training.
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
@@ -487,6 +456,20 @@ class DMatrix {
    */
   static DMatrix* Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix = "");
+
+  /**
+   * \brief Creates a new DMatrix from an external data adapter.
+   *
+   * \tparam  AdapterT  Type of the adapter.
+   * \param adapter View onto an external data.
+   * \param missing Values to count as missing.
+   * \param nthread Number of threads for construction.
+   *
+   * \return  a Created DMatrix.
+   */
+  template <typename AdapterT>
+  static DMatrix* Create(const AdapterT& adapter, float missing, int nthread);
+
   /*!
    * \brief Create a DMatrix by loading data from parser.
    *  Parser can later be deleted after the DMatrix i created.

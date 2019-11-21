@@ -15,6 +15,7 @@
 #include "../common/io.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
+#include "../c_api/adapter.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -355,9 +356,21 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 #endif  // DMLC_ENABLE_STD_THREAD
   }
 }
-}  // namespace xgboost
 
-namespace xgboost {
+template <typename AdapterT>
+DMatrix* DMatrix::Create(const AdapterT& adapter, float missing, int nthread) {
+  return new data::SimpleDMatrix(adapter, missing, nthread);
+}
+
+template DMatrix* DMatrix::Create<DenseAdapter>(const DenseAdapter& adapter,
+                                                float missing, int nthread);
+template DMatrix* DMatrix::Create<CSRAdapter>(const CSRAdapter& adapter,
+                                              float missing, int nthread);
+template DMatrix* DMatrix::Create<CSCAdapter>(const CSCAdapter& adapter,
+                                              float missing, int nthread);
+template DMatrix* DMatrix::Create<DataTableAdapter>(
+    const DataTableAdapter& adapter, float missing, int nthread);
+
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),

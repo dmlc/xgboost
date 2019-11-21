@@ -4,6 +4,9 @@
 #include "../../../src/data/simple_dmatrix.h"
 
 #include "../helpers.h"
+#include "../../../src/c_api/adapter.h"
+
+using namespace xgboost;
 
 TEST(SimpleDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
@@ -62,4 +65,28 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
   delete dmat;
+}
+
+TEST(SimpleDMatrix, Empty) {
+  std::vector<float> data{};
+  std::vector<unsigned> feature_idx = {};
+  std::vector<size_t> row_ptr = {};
+
+  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
+  data::SimpleDMatrix dmat(adapter, std::nanf(""), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+}
+
+TEST(SimpleDMatrix, MissingData) {
+  std::vector<float> data{0.0, std::nanf(""), 1.0};
+  std::vector<unsigned> feature_idx = {0, 1, 0};
+  std::vector<size_t> row_ptr = {0, 2, 3};
+
+  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 3, 2);
+  data::SimpleDMatrix dmat(adapter, std::nanf(""), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 2);
+  dmat = data::SimpleDMatrix(adapter, 1.0, 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 1);
 }
