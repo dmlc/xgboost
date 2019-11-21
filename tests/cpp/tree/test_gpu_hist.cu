@@ -378,7 +378,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
   hist_maker.UpdatePredictionCache(dmat, preds);
 }
 
-TEST(GpuHist, DISABLED_ExternalMemory) {
+TEST(GpuHist, ExternalMemory) {
   constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1;

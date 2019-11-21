@@ -30,9 +30,8 @@ class GradientBasedSampler {
  public:
   GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair,
                              DMatrix* dmat,
-                             BatchParam batch_param);
-
-  void Sample(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, size_t sample_rows);
+                             BatchParam batch_param,
+                             size_t sample_rows = 0);
 };
 };  // namespace tree
 };  // namespace xgboost
