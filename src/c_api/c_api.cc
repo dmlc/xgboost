@@ -218,7 +218,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      size_t num_col,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  CSRAdapter adapter(indptr, indices, data, nindptr, nelem, num_col);
+  CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(adapter, std::nan(""), 1));
   API_END();
 }
@@ -231,7 +231,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      size_t num_row,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  CSCAdapter adapter(col_ptr, indices, data, nindptr, nelem, num_row);
+  CSCAdapter adapter(col_ptr, indices, data, num_row, nelem, nindptr - 1);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(adapter, std::nan(""), 1));
   API_END();
 }

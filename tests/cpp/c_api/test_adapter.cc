@@ -6,7 +6,7 @@
 #include "../../../src/c_api/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/common/timer.h"
-using namespace xgboost;
+using namespace xgboost;  // NOLINT
 TEST(c_api, CSRAdapter) {
   int m = 3;
   int n = 2;
