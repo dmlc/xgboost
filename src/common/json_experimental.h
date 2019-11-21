@@ -106,9 +106,7 @@ class StringRefImpl {
   CharT back() const { CHECK_NE(size_, 0); return chars_[size_ - 1]; }
 
   std::string Copy() const {
-    std::string str;
-    str.resize(this->size());
-    std::memcpy(&str[0], chars_, this->size());
+    std::string str {chars_, size()};
     return str;
   }
 
@@ -1140,8 +1138,9 @@ void toJson(Json* p_out, P const& parameter) {
 template <typename P>
 void fromJson(P *parameter,  Json const& in) {
   std::map<std::string, std::string> m;
-  for (auto it = in.cbegin(); it != in.cend(); ++it) {
-    m[it.Key().data()] = (*it).GetString().data();
+  for (size_t i = 0; i < in.Length(); ++i) {
+    auto it = in.GetMemberByIndex(i);
+    m[in.GetKeyByIndex(i).Copy()] = it.GetString().Copy();
   }
   parameter->UpdateAllowUnknown(m);
 }
