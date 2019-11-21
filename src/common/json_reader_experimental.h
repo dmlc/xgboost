@@ -20,7 +20,7 @@
 namespace xgboost {
 namespace experimental {
 
-inline double FastPath(double significand, int exp) {
+inline double FastPath(double significand, int exp) noexcept(true) {
   if (exp < -308) {
     return 0.0;
   } else if (exp >= 0) {
@@ -69,11 +69,11 @@ class JsonRecursiveReader {
   Cursor cursor_;
   jError errno_{jError::kSuccess};
 
-  bool IsSpace(char c) {
+  bool IsSpace(char c) noexcept(true) {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
   }
 
-  Cursor SkipWhitespaces(Cursor p) {
+  Cursor SkipWhitespaces(Cursor p) noexcept(true) {
     for (;;) {
       if (XGBOOST_EXPECT(p == input_.cend(), false)) {
         return 0;
@@ -85,7 +85,7 @@ class JsonRecursiveReader {
     }
   }
 
-  void HandleNull(Json* null) {
+  void HandleNull(Json* null) noexcept(true) {
     bool ret = true;
     ret &= this->Skip(&cursor_, 'n');
     ret &= this->Skip(&cursor_, 'u');
@@ -96,7 +96,7 @@ class JsonRecursiveReader {
     }
     null->SetNull();
   }
-  void HandleTrue(Json* t) {
+  void HandleTrue(Json* t) noexcept(true) {
     bool ret = true;
     ret &= this->Skip(&cursor_, 't');
     ret &= this->Skip(&cursor_, 'r');
@@ -107,7 +107,7 @@ class JsonRecursiveReader {
     }
     t->SetTrue();
   }
-  void HandleFalse(Json* f) {
+  void HandleFalse(Json* f) noexcept(true) {
     bool ret = true;
     ret &= this->Skip(&cursor_, 'f');
     ret &= this->Skip(&cursor_, 'a');
@@ -123,7 +123,7 @@ class JsonRecursiveReader {
   /*\brief Guess whether parsed value is floating point or integer.  For value
    * produced by nih json this should always be correct as ryu produces `E` in
    * all floating points. */
-  void HandleNumber(Json* number) {
+  void HandleNumber(Json* number) noexcept(true) {
     Cursor const beg = cursor_;  // keep track of current pointer
 
     bool negative = false;
@@ -226,7 +226,7 @@ class JsonRecursiveReader {
     }
   }
 
-  ConstStringRef HandleString() {
+  ConstStringRef HandleString() noexcept(true) {
     auto ret = this->Skip(&cursor_, '\"');
     if (XGBOOST_EXPECT(!ret, false)) {
       errno_ = jError::kInvalidString;
@@ -323,7 +323,7 @@ class JsonRecursiveReader {
     return ConstStringRef {beg, static_cast<size_t>(length)};
   }
 
-  bool Skip(Cursor* p_cursor, char c) {
+  bool Skip(Cursor* p_cursor, char c) noexcept(true) {
     auto cursor = *p_cursor;
     // clang-tidy somehow believes this is null pointer.  There's a test for empty string
     // so disabling the lint error.
@@ -332,7 +332,7 @@ class JsonRecursiveReader {
     return c == o;
   }
 
-  void HandleArray(Json* value) {
+  void HandleArray(Json* value) noexcept(true) {
     if (XGBOOST_EXPECT(!this->Skip(&cursor_, '['), false)) {
       errno_ = jError::kInvalidArray;
       return;
@@ -369,7 +369,7 @@ class JsonRecursiveReader {
     }
   }
 
-  void HandleObject(Json* object) {
+  void HandleObject(Json* object) noexcept(true) {
     this->Skip(&cursor_, '{');
     cursor_ = SkipWhitespaces(cursor_);
     char ch = *cursor_;
@@ -404,15 +404,21 @@ class JsonRecursiveReader {
       if (ch == '}') {
         break;
       }
-      CHECK(this->Skip(&cursor_, ',')) << *cursor_;
+      if (XGBOOST_EXPECT(!this->Skip(&cursor_, ','), false)) {
+        errno_  = jError::kInvalidObject;;
+        return;
+      }
     }
 
-    CHECK(this->Skip(&cursor_, '}'));
+    if (XGBOOST_EXPECT(!this->Skip(&cursor_, '}'), false)) {
+      errno_  = jError::kInvalidObject;;
+      return;
+    }
     return;
   }
 
  public:
-  void ParseImpl(Json *value) {
+  void ParseImpl(Json *value) noexcept(true) {
     cursor_ = this->SkipWhitespaces(cursor_);
     if (cursor_ == input_.data() + input_.size()) {
       return;

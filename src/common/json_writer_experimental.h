@@ -106,15 +106,13 @@ class JsonWriter {
     std::memcpy(buffer_.data() + s, buffer.data(), buffer.size());
   }
   void HandleFloat(float f) {
-    {
-      auto ret = to_chars(f2s_buffer_, f2s_buffer_ + NumericLimits<float>::kDigit10, f);
-      auto end = ret.ptr;
-      CHECK(ret.ec == std::errc());
-      auto out_size = end - f2s_buffer_;
-      auto ori_size = buffer_.size();
-      buffer_.resize(buffer_.size() + out_size);
-      std::memcpy(buffer_.data() + ori_size, f2s_buffer_, end - f2s_buffer_);
-    }
+    auto ret = to_chars(f2s_buffer_, f2s_buffer_ + NumericLimits<float>::kDigit10, f);
+    auto end = ret.ptr;
+    CHECK(ret.ec == std::errc());
+    auto out_size = end - f2s_buffer_;
+    auto ori_size = buffer_.size();
+    buffer_.resize(buffer_.size() + out_size);
+    std::memcpy(buffer_.data() + ori_size, f2s_buffer_, end - f2s_buffer_);
   }
   void HandleInteger(int64_t i) {
     auto ret = to_chars(i2s_buffer_, i2s_buffer_ + NumericLimits<int64_t>::kDigit10, i);
