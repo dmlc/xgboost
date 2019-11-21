@@ -257,6 +257,7 @@ class CPUPredictor : public Predictor {
 
   void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
+                           std::vector<bst_float>* tree_weights,
                            bool approximate,
                            int condition,
                            unsigned condition_feature) override {
@@ -296,16 +297,23 @@ class CPUPredictor : public Predictor {
           bst_float* p_contribs =
               &contribs[(row_idx * ngroup + gid) * ncolumns];
           feats.Fill(batch[i]);
+          std::vector<bst_float> this_tree_contribs;
+          this_tree_contribs.resize(ncolumns);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
+            std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
             if (model.tree_info[j] != gid) {
               continue;
             }
             if (!approximate) {
-              model.trees[j]->CalculateContributions(feats, root_id, p_contribs,
+              model.trees[j]->CalculateContributions(feats, root_id, &this_tree_contribs[0],
                                                      condition, condition_feature);
             } else {
-              model.trees[j]->CalculateContributionsApprox(feats, root_id, p_contribs);
+              model.trees[j]->CalculateContributionsApprox(feats, root_id, &this_tree_contribs[0]);
+            }
+            for (int ci = 0 ; ci < ncolumns ; ++ci) {
+                p_contribs[ci] += this_tree_contribs[ci] *
+                    (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
           }
           feats.Drop(batch[i]);
@@ -340,10 +348,10 @@ class CPUPredictor : public Predictor {
     // Compute the difference in effects when conditioning on each of the features on and off
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
-    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, approximate, 0, 0);
+    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, nullptr, approximate, 0, 0);
     for (size_t i = 0; i < ncolumns + 1; ++i) {
-      PredictContribution(p_fmat, &contribs_off, model, ntree_limit, approximate, -1, i);
-      PredictContribution(p_fmat, &contribs_on, model, ntree_limit, approximate, 1, i);
+      PredictContribution(p_fmat, &contribs_off, model, ntree_limit, nullptr, approximate, -1, i);
+      PredictContribution(p_fmat, &contribs_on, model, ntree_limit, nullptr, approximate, 1, i);
 
       for (size_t j = 0; j < info.num_row_; ++j) {
         for (int l = 0; l < ngroup; ++l) {
