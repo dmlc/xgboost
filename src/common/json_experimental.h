@@ -293,9 +293,9 @@ class ValueImpl {
   // A `this` pointer pointing to JSON tree, with type information written in first 3 bits.
   size_t self_ {0};
   // Storing the type information for this node.
-  ValueKind kind_ { ValueKind::kNull };
+  ValueKind kind_;
   // whether an object or array is stored into tree storage.
-  bool finalised_ {false};
+  bool finalised_;
 
  public:
   // This is a node in the singly linked list
@@ -401,12 +401,8 @@ class ValueImpl {
   StringStorage  string_storage;
 
  protected:
-  explicit ValueImpl(Container *doc) : handler_{doc}, self_{0} {
-    handler_->Incref();
-  }
-
   ValueImpl(Container *doc, size_t tree_beg)
-      : handler_{doc}, self_{tree_beg}, kind_{ValueKind::kNull} {
+      : handler_{doc}, self_{tree_beg}, kind_{ValueKind::kNull}, finalised_{false} {
     handler_->Incref();
   }
 
@@ -824,7 +820,7 @@ class ValueImpl {
     auto data = handler_->Data().Access();
     return ConstStringRef(&data[elem.key_begin], elem.key_end - elem.key_begin);
   }
-  /*\brief Get an object member by its index, similar to std::map::at. Used by iterator.*/
+  /*\brief Get an object member by its index. Used by iterator.*/
   ValueImplT GetMemberByIndex(size_t index) const {
     CheckType(ValueKind::kObject);
     CHECK_LT(index, object_table_.size());
@@ -958,19 +954,15 @@ class Document {
  private:
   explicit Document(bool empty) :
       n_alive_values_ {0},
-      value(this),
+      value(this, 0),
       last_character{0} {
     this->_tree_storage.resize(1);
   }
 
  public:
-  Document() : n_alive_values_ {0}, value(this), last_character{0} {
-    this->_tree_storage.resize(1);
-    this->value.SetObject();
-  }
-  explicit Document(ValueKind kind) :
+  explicit Document(ValueKind kind = ValueKind::kObject) :
       n_alive_values_ {0},
-      value(this),
+      value(this, 0),
       last_character {0} {
     this->_tree_storage.resize(1);
     switch (kind) {
@@ -993,10 +985,10 @@ class Document {
         _tree_storage{std::move(that._tree_storage)},
         _data_storage{std::move(that._data_storage)},
         n_alive_values_{that.n_alive_values_},
-        value{ValueImpl<Document>{this}},
+        value{std::move(that.value)},
         last_character{that.last_character} {
-    that.value.finalised_ = {true};
-    that.n_alive_values_ = 1;
+    that.value.finalised_ = true;
+    that.n_alive_values_ = 1;  // all values in tree is moved into this Document.
     CHECK(value.IsObject() || value.IsArray());
   }
 

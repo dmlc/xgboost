@@ -67,7 +67,6 @@
 #include "../src/common/timer.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
-#include "../src/common/json.cc"
 #include "../src/common/io.cc"
 #include "../src/common/version.cc"
 

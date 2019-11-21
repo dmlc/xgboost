@@ -256,13 +256,14 @@ TEST(Json_Experimental, Parse_NestedArray) {
 
 template <typename D>
 void TestRoundTrip(D dist) {
-  size_t constexpr kElems = 1024;
+  size_t constexpr kElems = 8192;
 
   std::random_device dev;
+  std::default_random_engine engine(dev());
   std::vector<float> numbers(kElems);
 
   for (auto &v : numbers) {
-    v = dist(dev);
+    v = dist(engine);
   }
 
   std::string str;
@@ -282,6 +283,7 @@ void TestRoundTrip(D dist) {
   str = doc.Dump<JsonWriter>();
   {
     auto loaded = Document::Load<JsonRecursiveReader>(StringRef {str});
+    ASSERT_EQ(loaded.Errc(), jError::kSuccess);;
     auto j_numbers = *loaded.GetValue().FindMemberByKey("numbers");
     ASSERT_TRUE(j_numbers.IsArray());
 
@@ -313,6 +315,5 @@ TEST(Json_Experimental, EmptyInput) {
   auto doc = Document::Load<JsonRecursiveReader>(StringRef {str});
   ASSERT_EQ(doc.Errc(), experimental::jError::kEmptyInput);
 }
-
 }  // namespace experimental
 }  // namespace xgboost
