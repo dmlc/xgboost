@@ -48,7 +48,7 @@ TEST(c_api, DenseAdapter) {
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
   DenseAdapter adapter(data.data(), m, m*n, n);
-  data::SimpleDMatrix dmat(adapter,-1,std::nan(""));
+  data::SimpleDMatrix dmat(adapter,-1,std::numeric_limits<float>::quiet_NaN());
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
@@ -70,7 +70,7 @@ TEST(c_api, CSCAdapter) {
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
   std::vector<size_t> col_ptr = {0, 2, 5};
   CSCAdapter adapter(col_ptr.data(),row_idx.data(),data.data(),3,5,2);
-  data::SimpleDMatrix dmat(adapter,-1,std::nan(""));
+  data::SimpleDMatrix dmat(adapter,-1,std::numeric_limits<float>::quiet_NaN());
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);

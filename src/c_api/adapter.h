@@ -12,7 +12,12 @@ namespace xgboost {
  * adapter provides a uniform access to data outside xgboost, allowing
  * construction of DMatrix objects from a range of sources without duplicating
  * code. The adapter should translate external data into batches of COO tuples
- * containing the floating point value, row index and column index.*/
+ * containing the floating point value, row index and column index.
+ * 
+ * Why return batches? Sparse matrix formats such as CSR and CSC do not provide
+ * efficient random access to matrix elements, allowing these formats to provide
+ * data by rows or columns allows us to efficiently read data.
+ *  */
 class ExternalDataAdapter {
  public:
   ExternalDataAdapter(size_t num_features, size_t num_rows, size_t num_elements)
