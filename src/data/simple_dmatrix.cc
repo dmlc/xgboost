@@ -75,6 +75,5 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
 }
 
 bool SimpleDMatrix::SingleColBlock() const { return true; }
-
 }  // namespace data
 }  // namespace xgboost

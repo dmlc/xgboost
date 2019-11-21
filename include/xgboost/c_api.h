@@ -175,9 +175,6 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      size_t num_row,
                                      DMatrixHandle* out);
 
-XGB_DLL int XGDMatrixCreateFromMatAdapter(const float *data, bst_ulong nrow,
-                                          bst_ulong ncol, float missing,
-                                          DMatrixHandle *out, int nthread);
 /*!
  * \brief create matrix content from dense matrix
  * \param data pointer to the data space

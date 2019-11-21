@@ -18,11 +18,8 @@
 
 #include "c_api_error.h"
 #include "../data/simple_csr_source.h"
-#include "../common/math.h"
 #include "../common/io.h"
-#include "../common/group_data.h"
 #include "adapter.h"
-#include "../data/simple_dmatrix.h"
 
 
 namespace xgboost {

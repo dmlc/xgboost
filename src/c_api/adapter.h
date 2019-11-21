@@ -20,6 +20,9 @@ class ExternalDataAdapter {
         num_rows(num_rows),
         num_elements(num_elements) {}
   struct COOTuple {
+    COOTuple(size_t row_idx, size_t column_idx, float value)
+        : row_idx(row_idx), column_idx(column_idx), value(value) {}
+
     size_t row_idx{0};
     size_t column_idx{0};
     float value{0};
@@ -56,7 +59,7 @@ class CSRAdapter : public ExternalDataAdapter {
 
     size_t Size() const { return size; }
     COOTuple GetElement(size_t idx) const {
-      return {row_idx, feature_idx[idx], values[idx]};
+      return COOTuple(row_idx, feature_idx[idx], values[idx]);
     }
 
    private:
@@ -96,7 +99,7 @@ class DenseAdapter : public ExternalDataAdapter {
 
     size_t Size() const { return size; }
     COOTuple GetElement(size_t idx) const {
-      return {row_idx, idx, values[idx]};
+      return COOTuple(row_idx, idx, values[idx]);
     }
 
    private:
@@ -134,7 +137,7 @@ class CSCAdapter : public ExternalDataAdapter {
 
     size_t Size() const { return size; }
     COOTuple GetElement(size_t idx) const {
-      return {row_idx[idx], col_idx, values[idx]};
+      return COOTuple(row_idx[idx], col_idx, values[idx]);
     }
 
    private:
@@ -247,7 +250,7 @@ class DataTableAdapter : public ExternalDataAdapter {
 
     size_t Size() const { return size; }
     COOTuple GetElement(size_t idx) const {
-      return {idx, column_idx, DTGetValue(column, type, idx)};
+      return COOTuple(idx, column_idx, DTGetValue(column, type, idx));
     }
 
    private:
