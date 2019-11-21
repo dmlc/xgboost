@@ -18,6 +18,7 @@ TEST(GradientBasedSampler, Sample) {
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
   auto gpair = GenerateRandomGradients(kRows);
+  gpair.SetDevice(0);
 
   GradientBasedSampler sampler;
   BatchParam param{0, 256, 0, kPageSize};

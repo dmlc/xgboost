@@ -871,14 +871,10 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all,
-                dh::AllReducer* reducer, int64_t num_columns) {
+  void InitRoot(RegTree* p_tree, dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
-    const auto &gpair = gpair_all->DeviceSpan();
-
-    dh::SumReduction(temp_memory, gpair, node_sum_gradients_d,
-                     gpair.size());
+    dh::SumReduction(temp_memory, gpair, node_sum_gradients_d, gpair.size());
     reducer->AllReduceSum(
         reinterpret_cast<float*>(node_sum_gradients_d.data()),
         reinterpret_cast<float*>(node_sum_gradients_d.data()), 2);
@@ -914,7 +910,7 @@ struct GPUHistMakerDevice {
     monitor.StopCuda("Reset");
 
     monitor.StartCuda("InitRoot");
-    this->InitRoot(p_tree, gpair_all, reducer, p_fmat->Info().num_col_);
+    this->InitRoot(p_tree, reducer, p_fmat->Info().num_col_);
     monitor.StopCuda("InitRoot");
 
     auto timestamp = qexpand->size();
