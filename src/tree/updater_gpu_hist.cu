@@ -28,6 +28,7 @@
 #include "param.h"
 #include "updater_gpu_common.cuh"
 #include "constraints.cuh"
+#include "gpu_hist/gradient_based_sampler.cuh"
 #include "gpu_hist/row_partitioner.cuh"
 
 namespace xgboost {
@@ -479,6 +480,9 @@ struct GPUHistMakerDevice {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
+  bool use_gradient_based_sampling {false};
+  std::unique_ptr<GradientBasedSampler> gradient_based_sampler;
+
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
                      bst_uint _n_rows,
@@ -493,7 +497,11 @@ struct GPUHistMakerDevice {
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
-        batch_param(_batch_param) {
+        batch_param(_batch_param),
+        use_gradient_based_sampling(_page->matrix.n_rows != _n_rows) {
+    if (use_gradient_based_sampling) {
+      gradient_based_sampler.reset(new GradientBasedSampler());
+    }
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
@@ -527,7 +535,7 @@ struct GPUHistMakerDevice {
   // Reset values for each update iteration
   // Note that the column sampler must be passed by value because it is not
   // thread safe
-  void Reset(HostDeviceVector<GradientPair>* dh_gpair, int64_t num_columns) {
+  void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
     if (param.grow_policy == TrainParam::kLossGuide) {
       qexpand.reset(new ExpandQueue(LossGuide));
     } else {
@@ -539,13 +547,21 @@ struct GPUHistMakerDevice {
     this->interaction_constraints.Reset();
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
+
+    if (use_gradient_based_sampling) {
+      auto sample = gradient_based_sampler->Sample(dh_gpair, dmat, batch_param);
+      page = sample.page;
+      gpair = sample.gpair->DeviceSpan();
+      n_rows = page->matrix.n_rows;
+    } else {
+      dh::safe_cuda(cudaMemcpyAsync(
+          gpair.data(), dh_gpair->ConstDevicePointer(),
+          gpair.size() * sizeof(GradientPair), cudaMemcpyHostToHost));
+      SubsampleGradientPair(device_id, gpair, param.subsample);
+    }
+
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(device_id, n_rows));
-
-    dh::safe_cuda(cudaMemcpyAsync(
-        gpair.data(), dh_gpair->ConstDevicePointer(),
-        gpair.size() * sizeof(GradientPair), cudaMemcpyHostToHost));
-    SubsampleGradientPair(device_id, gpair, param.subsample);
     hist.Reset();
   }
 
@@ -631,14 +647,6 @@ struct GPUHistMakerDevice {
     return std::vector<DeviceSplitCandidate>(result_all.begin(), result_all.end());
   }
 
-  // Build gradient histograms for a given node across all the batches in the DMatrix.
-  void BuildHistBatches(int nidx, DMatrix* p_fmat) {
-    for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-      page = batch.Impl();
-      BuildHist(nidx);
-    }
-  }
-
   void BuildHist(int nidx) {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
@@ -686,10 +694,7 @@ struct GPUHistMakerDevice {
 
     row_partitioner->UpdatePosition(
         nidx, split_node.LeftChild(), split_node.RightChild(),
-        [=] __device__(size_t ridx) {
-          if (!d_matrix.IsInRange(ridx)) {
-            return RowPartitioner::kIgnoredTreePosition;
-          }
+        [=] __device__(bst_uint ridx) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
               d_matrix.GetElement(ridx, split_node.SplitIndex());
@@ -718,6 +723,10 @@ struct GPUHistMakerDevice {
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
 
+    if (row_partitioner->GetRows().size() != n_rows) {
+      row_partitioner.reset();  // Release the device memory first before reallocating
+      row_partitioner.reset(new RowPartitioner(device_id, p_fmat->Info().num_row_));
+    }
     for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
       page = batch.Impl();
       auto d_matrix = page->matrix;
@@ -796,7 +805,8 @@ struct GPUHistMakerDevice {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left, int nidx_right) {
+  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left,
+        int nidx_right, dh::AllReducer* reducer) {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
@@ -808,34 +818,6 @@ struct GPUHistMakerDevice {
     }
 
     this->BuildHist(build_hist_nidx);
-
-    // Check whether we can use the subtraction trick to calculate the other
-    bool do_subtraction_trick = this->CanDoSubtractionTrick(
-         candidate.nid, build_hist_nidx, subtraction_trick_nidx);
-
-    if (!do_subtraction_trick) {
-      // Calculate other histogram manually
-      this->BuildHist(subtraction_trick_nidx);
-    }
-  }
-
-  /**
-   * \brief AllReduce GPU histograms for the left and right child of some parent node.
-   */
-  void ReduceHistLeftRight(const ExpandEntry& candidate,
-                           int nidx_left,
-                           int nidx_right,
-                           dh::AllReducer* reducer) {
-    auto build_hist_nidx = nidx_left;
-    auto subtraction_trick_nidx = nidx_right;
-
-    // Decide whether to build the left histogram or right histogram
-    // Use sum of Hessian as a heuristic to select node with fewest training instances
-    bool fewer_right = candidate.split.right_sum.GetHess() < candidate.split.left_sum.GetHess();
-    if (fewer_right) {
-      std::swap(build_hist_nidx, subtraction_trick_nidx);
-    }
-
     this->AllReduceHist(build_hist_nidx, reducer);
 
     // Check whether we can use the subtraction trick to calculate the other
@@ -848,6 +830,7 @@ struct GPUHistMakerDevice {
                              subtraction_trick_nidx);
     } else {
       // Calculate other histogram manually
+      this->BuildHist(subtraction_trick_nidx);
       this->AllReduceHist(subtraction_trick_nidx, reducer);
     }
   }
@@ -888,7 +871,7 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
+  void InitRoot(RegTree* p_tree, HostDeviceVector<GradientPair>* gpair_all,
                 dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
@@ -904,7 +887,7 @@ struct GPUHistMakerDevice {
                              node_sum_gradients_d.data(), sizeof(GradientPair),
                              cudaMemcpyDeviceToHost));
 
-    this->BuildHistBatches(kRootNIdx, p_fmat);
+    this->BuildHist(kRootNIdx);
     this->AllReduceHist(kRootNIdx, reducer);
 
     // Remember root stats
@@ -927,11 +910,11 @@ struct GPUHistMakerDevice {
     auto& tree = *p_tree;
 
     monitor.StartCuda("Reset");
-    this->Reset(gpair_all, p_fmat->Info().num_col_);
+    this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
     monitor.StopCuda("Reset");
 
     monitor.StartCuda("InitRoot");
-    this->InitRoot(p_tree, gpair_all, p_fmat, reducer, p_fmat->Info().num_col_);
+    this->InitRoot(p_tree, gpair_all, reducer, p_fmat->Info().num_col_);
     monitor.StopCuda("InitRoot");
 
     auto timestamp = qexpand->size();
@@ -950,21 +933,15 @@ struct GPUHistMakerDevice {
       int left_child_nidx = tree[candidate.nid].LeftChild();
       int right_child_nidx = tree[candidate.nid].RightChild();
       // Only create child entries if needed
-      if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx), num_leaves)) {
-        for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-          page = batch.Impl();
+      if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
+                                    num_leaves)) {
+        monitor.StartCuda("UpdatePosition");
+        this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
+        monitor.StopCuda("UpdatePosition");
 
-          monitor.StartCuda("UpdatePosition");
-          this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
-          monitor.StopCuda("UpdatePosition");
-
-          monitor.StartCuda("BuildHist");
-          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx);
-          monitor.StopCuda("BuildHist");
-        }
-        monitor.StartCuda("ReduceHist");
-        this->ReduceHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-        monitor.StopCuda("ReduceHist");
+        monitor.StartCuda("BuildHist");
+        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
+        monitor.StopCuda("BuildHist");
 
         monitor.StartCuda("EvaluateSplits");
         auto splits = this->EvaluateSplits({left_child_nidx, right_child_nidx},

@@ -7,6 +7,13 @@
 namespace xgboost {
 namespace tree {
 
+struct GradientBasedSample {
+  /*!\brief The sample rows in ELLPACK format. */
+  EllpackPageImpl* page;
+  /*!\brief Rescaled gradient pairs for the sampled rows. */
+  HostDeviceVector<GradientPair>* gpair;
+};
+
 /*! \brief Draw a sample of rows from a DMatrix.
  *
  * Use Poisson sampling to draw a probability proportional to size (pps) sample of rows from a
@@ -21,6 +28,10 @@ namespace tree {
  */
 class GradientBasedSampler {
  public:
+  GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair,
+                             DMatrix* dmat,
+                             BatchParam batch_param);
+
   void Sample(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat, size_t sample_rows);
 };
 };  // namespace tree
