@@ -182,7 +182,7 @@ object DataUtils extends Serializable {
 
   private[spark] def convertDataFrameToXGBLabeledPointRDDs(
       labelCol: Column,
-      featuresCols: Array[Column],
+      featuresCols: Seq[Column],
       weight: Column,
       baseMargin: Column,
       group: Option[Column],

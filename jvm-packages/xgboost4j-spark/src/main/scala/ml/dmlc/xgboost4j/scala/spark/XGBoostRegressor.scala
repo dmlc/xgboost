@@ -187,7 +187,9 @@ class XGBoostRegressor (
     }
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
     val trainingSet: RDD[XGBLabeledPoint] = if ($(featuresCols).nonEmpty) {
-      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), $(featuresCols).map(col(_)),
+      val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
+        .map(sf => col(sf.name))
+      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
         weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
         dataset.asInstanceOf[DataFrame]).head
     } else {
@@ -198,13 +200,13 @@ class XGBoostRegressor (
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         if ($(featuresCols).nonEmpty) {
-          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
-            $(featuresCols).map(col(_)),
+          val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
+            .map(sf => col(sf.name))
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
             weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
             dataFrame).head
         } else {
-          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
-            col($(featuresCol)),
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
             weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
             dataFrame).head
         })

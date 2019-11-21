@@ -192,7 +192,9 @@ class XGBoostClassifier (
 
     val trainingSet: RDD[XGBLabeledPoint] = if ($(featuresCols).nonEmpty) {
       // Prefer multiple columns for features
-      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), $(featuresCols).map(col(_)),
+      val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
+        .map(sf => col(sf.name))
+      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
         weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning,
         dataset.asInstanceOf[DataFrame]).head
     } else {
@@ -203,13 +205,13 @@ class XGBoostClassifier (
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         if ($(featuresCols).nonEmpty) {
-          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
-            $(featuresCols).map(col(_)),
+          val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
+            .map(sf => col(sf.name))
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
             weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning,
             dataFrame).head
         } else {
-          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)),
-            col($(featuresCol)),
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
             weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning,
             dataFrame).head
         })
