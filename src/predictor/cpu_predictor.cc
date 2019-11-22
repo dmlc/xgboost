@@ -330,6 +330,7 @@ class CPUPredictor : public Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
+                                       std::vector<bst_float>* tree_weights,
                                        bool approximate) override {
     const MetaInfo& info = p_fmat->Info();
     const int ngroup = model.param.num_output_group;
@@ -348,10 +349,10 @@ class CPUPredictor : public Predictor {
     // Compute the difference in effects when conditioning on each of the features on and off
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
-    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, nullptr, approximate, 0, 0);
+    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, tree_weights, approximate, 0, 0);
     for (size_t i = 0; i < ncolumns + 1; ++i) {
-      PredictContribution(p_fmat, &contribs_off, model, ntree_limit, nullptr, approximate, -1, i);
-      PredictContribution(p_fmat, &contribs_on, model, ntree_limit, nullptr, approximate, 1, i);
+      PredictContribution(p_fmat, &contribs_off, model, ntree_limit, tree_weights, approximate, -1, i);
+      PredictContribution(p_fmat, &contribs_on, model, ntree_limit, tree_weights, approximate, 1, i);
 
       for (size_t j = 0; j < info.num_row_; ++j) {
         for (int l = 0; l < ngroup; ++l) {

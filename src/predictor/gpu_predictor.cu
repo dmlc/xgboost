@@ -408,6 +408,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        std::vector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model,
                                        unsigned ntree_limit,
+                                       std::vector<bst_float>* tree_weights,
                                        bool approximate) override {
     LOG(FATAL) << "Internal error: " << __func__
                << " is not implemented in GPU Predictor.";

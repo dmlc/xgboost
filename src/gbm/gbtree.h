@@ -224,7 +224,7 @@ class GBTree : public GradientBooster {
                                        unsigned ntree_limit, bool approximate) override {
     CHECK(configured_);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    ntree_limit, approximate);
+                                                    ntree_limit, nullptr, approximate);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

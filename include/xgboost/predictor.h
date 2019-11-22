@@ -168,6 +168,7 @@ class Predictor {
                                    std::vector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
                                    unsigned ntree_limit = 0,
+                                   std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false) = 0;
 
   /**
