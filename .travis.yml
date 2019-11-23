@@ -23,6 +23,7 @@ addons:
       - graphviz
       - openssl
       - libgit2
+      - cmake
       - wget
       - r
     update: true
