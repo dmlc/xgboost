@@ -17,7 +17,7 @@ env:
     # cmake test
     - TASK=cmake_test
 
-# dependent apt packages
+# dependent brew packages
 addons:
   homebrew:
     packages:
@@ -25,6 +25,7 @@ addons:
       - graphviz
       - openssl
       - libgit2
+      - wget
       - r
     update: true
 
