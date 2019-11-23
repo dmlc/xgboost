@@ -13,7 +13,7 @@ fi
 if [ ${TASK} == "python_test" ]; then
     make all || exit -1
     echo "-------------------------------"
-    source activate python3
+    conda activate python3
     python --version
     conda install numpy scipy pandas matplotlib scikit-learn
 
