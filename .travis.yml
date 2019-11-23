@@ -5,6 +5,8 @@ sudo: required
 os:
   - osx
 
+osx_image: xcode10.3
+
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
@@ -29,7 +31,6 @@ addons:
     update: true
 
 before_install:
-  - sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3";
   - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
   - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
