@@ -1,13 +1,15 @@
 /*!
  * Copyright 2019 by XGBoost Contributors
  */
-#include <curand_kernel.h>
 #include <thrust/functional.h>
+#include <thrust/random.h>
+#include <thrust/transform.h>
 #include <thrust/transform_reduce.h>
 
 #include <xgboost/host_device_vector.h>
 
 #include "../../common/device_helpers.cuh"
+#include "../../common/random.h"
 #include "gradient_based_sampler.cuh"
 
 namespace xgboost {
@@ -15,22 +17,44 @@ namespace tree {
 
 /*! \brief A functor that returns the absolute value of gradient from a gradient pair. */
 struct abs_grad : public thrust::unary_function<GradientPair, float> {
-  __device__
-  float operator()(const GradientPair& gpair) const {
+  XGBOOST_DEVICE float operator()(const GradientPair& gpair) const {
     return fabsf(gpair.GetGrad());
   }
 };
 
-struct sample_and_scale : public thrust::unary_function<GradientPair, GradientPair> {
-  const size_t expected_sample_rows;
+/*! \brief A functor that samples and scales a gradient pair.
+ *
+ * Sampling probability is proportional to the absolute value of the gradient. If selected, the
+ * gradient pair is re-scaled proportional to (1 / probability).
+ */
+struct sample_and_scale : public thrust::binary_function<GradientPair, size_t, GradientPair> {
+  const size_t sample_rows;
   const float sum_abs_gradient;
+  const uint32_t seed;
 
-  sample_and_scale(size_t _expected_sample_rows, float _sum_abs_gradient)
-      : expected_sample_rows(_expected_sample_rows), sum_abs_gradient(_sum_abs_gradient) {}
+  XGBOOST_DEVICE sample_and_scale(size_t _sample_rows, float _sum_abs_gradient, size_t _seed)
+      : sample_rows(_sample_rows), sum_abs_gradient(_sum_abs_gradient), seed(_seed) {}
 
-  __device__
-  GradientPair operator()(const GradientPair& gpair) {
-    return GradientPair();
+  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t i) {
+    thrust::default_random_engine rng(seed);
+    thrust::uniform_real_distribution<float> dist;
+    rng.discard(i);
+    float p = sample_rows * fabsf(gpair.GetGrad()) / sum_abs_gradient;
+    if (p > 1.0f) {
+      p = 1.0f;
+    }
+    if (dist(rng) <= p) {
+      return gpair / p;
+    } else {
+      return GradientPair();
+    }
+  }
+};
+
+/*! \brief A functor that returns true if the gradient pair is non-zero. */
+struct is_non_zero : public thrust::unary_function<GradientPair, bool> {
+  XGBOOST_DEVICE bool operator()(const GradientPair& gpair) const {
+    return gpair.GetGrad() != 0 || gpair.GetHess() != 0;
   }
 };
 
@@ -41,13 +65,18 @@ GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>*
   float sum_abs_gradient = thrust::transform_reduce(
       dh::tbegin(*gpair), dh::tend(*gpair), abs_grad(), 0.0f, thrust::plus<float>());
 
-  HostDeviceVector<GradientPair> scaled_gpair(gpair->Size());
-  scaled_gpair.SetDevice(batch_param.gpu_id);
-  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(scaled_gpair),
-      sample_and_scale(sample_rows, sum_abs_gradient));
+  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
+                    thrust::counting_iterator<size_t>(0),
+                    dh::tbegin(*gpair),
+                    sample_and_scale(sample_rows, sum_abs_gradient, common::GlobalRandom()()));
+
+  size_t out_size = thrust::count_if(dh::tbegin(*gpair), dh::tend(*gpair), is_non_zero());
+
+  HostDeviceVector<GradientPair> out_gpair(out_size, GradientPair(), batch_param.gpu_id);
+  thrust::copy_if(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(out_gpair), is_non_zero());
 
   auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
-  return {page, gpair};
+  return {page, out_gpair};
 }
 
 };  // namespace tree

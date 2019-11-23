@@ -24,19 +24,20 @@ TEST(GradientBasedSampler, Sample) {
   BatchParam param{0, 256, 0, kPageSize};
   auto sample = sampler.Sample(&gpair, dmat.get(), param, kSampleRows);
   auto page = sample.page;
-  auto scaled_gpair = sample.gpair;
-  EXPECT_NEAR(page->matrix.n_rows, kSampleRows, 5);
-  EXPECT_EQ(page->matrix.n_rows, scaled_gpair->Size());
+  auto sampled_gpair = sample.gpair;
+  EXPECT_NEAR(sampled_gpair.Size(), kSampleRows, 12);
+  EXPECT_NEAR(page->matrix.n_rows, kSampleRows, 12);
+  EXPECT_EQ(page->matrix.n_rows, sampled_gpair.Size());
 
-  float gradients = 0;
+  float sum_gradients = 0;
   for (auto gp : gpair.ConstHostVector()) {
-    gradients += gp.GetGrad();
+    sum_gradients += gp.GetGrad();
   }
-  float scaled_gradients = 0;
-  for (auto gp : scaled_gpair->ConstHostVector()) {
-    scaled_gradients += gp.GetGrad();
+  float sum_sampled_gradients = 0;
+  for (auto gp : sampled_gpair.ConstHostVector()) {
+    sum_sampled_gradients += gp.GetGrad();
   }
-  EXPECT_FLOAT_EQ(gradients, scaled_gradients);
+  EXPECT_FLOAT_EQ(sum_gradients, sum_sampled_gradients);
 }
 };  // namespace tree
 };  // namespace xgboost

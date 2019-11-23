@@ -548,15 +548,16 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
+    dh::safe_cuda(cudaMemcpyAsync(
+        gpair.data(), dh_gpair->ConstDevicePointer(),
+        gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
+
     if (use_gradient_based_sampling) {
       auto sample = gradient_based_sampler->Sample(dh_gpair, dmat, batch_param);
       page = sample.page;
-      gpair = sample.gpair->DeviceSpan();
+      gpair = sample.gpair.DeviceSpan();
       n_rows = page->matrix.n_rows;
     } else {
-      dh::safe_cuda(cudaMemcpyAsync(
-          gpair.data(), dh_gpair->ConstDevicePointer(),
-          gpair.size() * sizeof(GradientPair), cudaMemcpyHostToHost));
       SubsampleGradientPair(device_id, gpair, param.subsample);
     }
 

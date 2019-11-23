@@ -8,10 +8,10 @@ namespace xgboost {
 namespace tree {
 
 struct GradientBasedSample {
-  /*!\brief The sample rows in ELLPACK format. */
+  /*!\brief Sampled rows in ELLPACK format. */
   EllpackPageImpl* page;
   /*!\brief Rescaled gradient pairs for the sampled rows. */
-  HostDeviceVector<GradientPair>* gpair;
+  HostDeviceVector<GradientPair> gpair;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.
