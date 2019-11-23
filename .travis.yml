@@ -19,7 +19,7 @@ env:
 addons:
   homebrew:
     packages:
-      - gcc@7
+      - gcc@9
       - graphviz
       - openssl
       - libgit2
