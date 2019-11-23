@@ -5,9 +5,6 @@ make -f dmlc-core/scripts/packages.mk lz4
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     echo 'USE_OPENMP=0' >> config.mk
-else
-    # use g++-4.8 for linux
-    export CXX=g++-4.8
 fi
 
 if [ ${TASK} == "python_test" ]; then
@@ -45,7 +42,7 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf build
     mkdir build && cd build
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    CC=gcc-7 CXX=g++-7 cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
+    CC=gcc-9 CXX=g++-9 cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
     make
     ./testxgboost
     cd ..
