@@ -27,6 +27,7 @@ fi
 if [ ${TASK} == "java_test" ]; then
     set -e
     export RABIT_MOCK=ON
+    conda activate python3
     cd jvm-packages
     mvn -q clean install -DskipTests -Dmaven.test.skip
     mvn -q test
