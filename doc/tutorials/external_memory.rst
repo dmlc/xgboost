@@ -49,5 +49,6 @@ Usage Note
 **********
 * This is a experimental version
 * Currently only importing from libsvm format is supported
+* OSX is not tested.
 
   - Contribution of ingestion from other common external memory data source is welcomed
