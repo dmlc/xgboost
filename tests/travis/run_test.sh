@@ -42,7 +42,7 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf build
     mkdir build && cd build
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    CC=gcc-9 CXX=g++-9 cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
+    CC=gcc-9 CXX=g++-9 cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
     make
     ./testxgboost
     cd ..
