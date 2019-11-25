@@ -54,7 +54,7 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
   .. note:: Categorical features not supported
 
     Note that XGBoost does not provide specialization for categorical features; if your data contains
-    categorical features, load it as a NumPy array first and then perform
+    categorical features, load it as a NumPy array first and then perform corresponding preprocessing steps like
     `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
 
   .. note:: Use Pandas to load CSV files with headers
