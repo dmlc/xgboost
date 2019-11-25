@@ -468,7 +468,7 @@ class DMatrix {
    * \return  a Created DMatrix.
    */
   template <typename AdapterT>
-  static DMatrix* Create(const AdapterT& adapter, float missing, int nthread);
+  static DMatrix* Create(AdapterT* adapter, float missing, int nthread);
 
   /*!
    * \brief Create a DMatrix by loading data from parser.

@@ -6,57 +6,85 @@
 #define XGBOOST_C_API_ADAPTER_H_
 #include <string>
 #include <limits>
+#include <memory>
 namespace xgboost {
 
-/** \brief External data formats should implement an adapter as below. The
+/**  External data formats should implement an adapter as below. The
  * adapter provides a uniform access to data outside xgboost, allowing
  * construction of DMatrix objects from a range of sources without duplicating
- * code. The adapter should translate external data into batches of COO tuples
- * containing the floating point value, row index and column index.
- * 
- * Why return batches? Sparse matrix formats such as CSR and CSC do not provide
- * efficient random access to matrix elements, allowing these formats to provide
- * data by rows or columns allows us to efficiently read data.
+ * code.
+ *
+ * The adapter object is an iterator that returns batches of data. Each batch
+ * contains a number of "lines". A line represents a set of elements from a
+ * sparse input matrix, normally a row in the case of a CSR matrix or a column
+ * for a CSC matrix. Typically in sparse matrix formats we can efficiently
+ * access subsets of elements at a time, but cannot efficiently lookups elements
+ * by random access, hence the "line" abstraction, allowing the sparse matrix to
+ * return subsets of elements efficiently. Individual elements are described by
+ * a COO tuple (row index, column index, value).
+ *
+ * This abstraction allows us to read through different sparse matrix formats
+ * using the same interface. In particular we can write a DMatrix constructor
+ * that uses the same code to construct itself from a CSR matrix, CSC matrix,
+ * dense matrix or libsvm file. To see why this is necessary, imagine we have 5
+ * external matrix formats and 5 internal DMatrix types where each DMatrix needs
+ * a custom constructor for each possible input. The number of constructors is
+ * 5*5=25. Using an abstraction over the input data types the number of
+ * constructors is reduced to 5, as each DMatrix is oblivious to the external
+ * data format. Adding a new input source is simply a case of implementing an
+ * adapter.
+ *
+ * Most of the below adapters do not need more than one batch as the data
+ * originates from an in memory source. The file adapter does require batches to
+ * avoid loading the entire file in memory.
  *  */
-class ExternalDataAdapter {
- public:
-  ExternalDataAdapter(size_t num_features, size_t num_rows, size_t num_elements)
-      : num_features(num_features),
-        num_rows(num_rows),
-        num_elements(num_elements) {}
-  struct COOTuple {
-    COOTuple(size_t row_idx, size_t column_idx, float value)
-        : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
-    size_t row_idx{0};
-    size_t column_idx{0};
-    float value{0};
-  };
-  size_t GetNumFeatures() const { return num_features; }
-  size_t GetNumRows() const { return num_rows; }
-  size_t GetNumElements() const { return num_elements; }
+struct COOTuple {
+  COOTuple(size_t row_idx, size_t column_idx, float value)
+      : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
- protected:
-  size_t num_features;
-  size_t num_rows;
-  size_t num_elements;
+  size_t row_idx{0};
+  size_t column_idx{0};
+  float value{0};
 };
 
-class CSRAdapter : public ExternalDataAdapter {
+namespace detail {
+
+/**
+ * \brief Simplifies the use of DataIter when there is only one batch.
+ */
+template <typename DType>
+class SingleBatchDataIter : dmlc::DataIter<DType> {
  public:
-  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx,
-             const float* values, size_t num_rows, size_t num_elements,
-             size_t num_features)
-      : ExternalDataAdapter(num_features, num_rows, num_elements),
-        row_ptr(row_ptr),
-        feature_idx(feature_idx),
-        values(values) {}
+  void BeforeFirst() override { counter = 0; }
+  bool Next() override {
+    if (counter == 0) {
+      counter++;
+      return true;
+    }
+    return false;
+  }
 
  private:
-  class CSRAdapterBatch {
+  int counter{0};
+};
+
+/** \brief Indicates this data source cannot contain meta-info such as labels,
+ * weights or qid. */
+class NoInfo {
+ public:
+  const float* Labels() const { return nullptr; }
+  const float* Weights() const { return nullptr; }
+  const uint64_t* Qid() const { return nullptr; }
+};
+};  // namespace detail
+
+class CSRAdapterBatch : public detail::NoInfo {
+ public:
+  class Line {
    public:
-    CSRAdapterBatch(size_t row_idx, size_t size, const unsigned* feature_idx,
-                    const float* values)
+    Line(size_t row_idx, size_t size, const unsigned* feature_idx,
+         const float* values)
         : row_idx(row_idx),
           size(size),
           feature_idx(feature_idx),
@@ -73,33 +101,58 @@ class CSRAdapter : public ExternalDataAdapter {
     const unsigned* feature_idx;
     const float* values;
   };
-
- public:
-  size_t Size() const { return num_rows; }
-  const CSRAdapterBatch operator[](size_t idx) const {
+  CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
+                  const float* values, size_t num_rows, size_t num_elements,
+                  size_t num_features)
+      : row_ptr(row_ptr),
+        feature_idx(feature_idx),
+        values(values),
+        num_rows(num_rows),
+        num_elements(num_elements),
+        num_features(num_features) {}
+  const Line GetLine(size_t idx) const {
     size_t begin_offset = row_ptr[idx];
     size_t end_offset = row_ptr[idx + 1];
-    return CSRAdapterBatch(idx, end_offset - begin_offset,
-                           &feature_idx[begin_offset], &values[begin_offset]);
+    return Line(idx, end_offset - begin_offset, &feature_idx[begin_offset],
+                &values[begin_offset]);
   }
+  size_t Size() const { return num_rows; }
 
  private:
   const size_t* row_ptr;
   const unsigned* feature_idx;
   const float* values;
+  size_t num_elements;
+  size_t num_rows;
+  size_t num_features;
 };
 
-class DenseAdapter : public ExternalDataAdapter {
+class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
  public:
-  DenseAdapter(const float* values, size_t num_rows, size_t num_elements,
-               size_t num_features)
-      : ExternalDataAdapter(num_features, num_rows, num_elements),
+  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx,
+             const float* values, size_t num_rows, size_t num_elements,
+             size_t num_features)
+      : batch(row_ptr, feature_idx, values, num_rows, num_elements,
+              num_features) {}
+  const CSRAdapterBatch& Value() const override { return batch; }
+
+ private:
+  CSRAdapterBatch batch;
+};
+
+class DenseAdapterBatch : public detail::NoInfo {
+ public:
+  DenseAdapterBatch(const float* values, size_t num_rows, size_t num_elements,
+                    size_t num_features)
+      : num_features(num_features),
+        num_rows(num_rows),
+        num_elements(num_elements),
         values(values) {}
 
  private:
-  class DenseAdapterBatch {
+  class Line {
    public:
-    DenseAdapterBatch(const float* values, size_t size, size_t row_idx)
+    Line(const float* values, size_t size, size_t row_idx)
         : row_idx(row_idx), size(size), values(values) {}
 
     size_t Size() const { return size; }
@@ -115,29 +168,42 @@ class DenseAdapter : public ExternalDataAdapter {
 
  public:
   size_t Size() const { return num_rows; }
-  const DenseAdapterBatch operator[](size_t idx) const {
-    return DenseAdapterBatch(values + idx * num_features, num_features, idx);
+  const Line GetLine(size_t idx) const {
+    return Line(values + idx * num_features, num_features, idx);
   }
 
  private:
   const float* values;
+  size_t num_elements;
+  size_t num_rows;
+  size_t num_features;
 };
 
-class CSCAdapter : public ExternalDataAdapter {
+class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
  public:
-  CSCAdapter(const size_t* col_ptr, const unsigned* row_idx,
-             const float* values, size_t num_rows, size_t num_elements,
-             size_t num_features)
-      : ExternalDataAdapter(num_features, num_rows, num_elements),
-        col_ptr(col_ptr),
-        row_idx(row_idx),
-        values(values) {}
+  DenseAdapter(const float* values, size_t num_rows, size_t num_elements,
+               size_t num_features)
+      : batch(values, num_rows, num_elements, num_features) {}
+  const DenseAdapterBatch& Value() const override { return batch; }
 
  private:
-  class CSCAdapterBatch {
+  DenseAdapterBatch batch;
+};
+
+class CSCAdapterBatch : public detail::NoInfo {
+ public:
+  CSCAdapterBatch(const size_t* col_ptr, const unsigned* row_idx,
+                  const float* values, size_t num_features)
+      : col_ptr(col_ptr),
+        row_idx(row_idx),
+        values(values),
+        num_features(num_features) {}
+
+ private:
+  class Line {
    public:
-    CSCAdapterBatch(size_t col_idx, size_t size, const unsigned* row_idx,
-                    const float* values)
+    Line(size_t col_idx, size_t size, const unsigned* row_idx,
+         const float* values)
         : col_idx(col_idx), size(size), row_idx(row_idx), values(values) {}
 
     size_t Size() const { return size; }
@@ -154,26 +220,39 @@ class CSCAdapter : public ExternalDataAdapter {
 
  public:
   size_t Size() const { return num_features; }
-  const CSCAdapterBatch operator[](size_t idx) const {
+  const Line GetLine(size_t idx) const {
     size_t begin_offset = col_ptr[idx];
     size_t end_offset = col_ptr[idx + 1];
-    return CSCAdapterBatch(idx, end_offset - begin_offset,
-                           &row_idx[begin_offset], &values[begin_offset]);
+    return Line(idx, end_offset - begin_offset, &row_idx[begin_offset],
+                &values[begin_offset]);
   }
 
  private:
   const size_t* col_ptr;
   const unsigned* row_idx;
   const float* values;
+  size_t num_features;
 };
 
-class DataTableAdapter : public ExternalDataAdapter {
+class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
  public:
-  DataTableAdapter(void** data, const char** feature_stypes, size_t num_rows,
-                   size_t num_elements, size_t num_features)
-      : ExternalDataAdapter(num_features, num_rows, num_elements),
-        data(data),
-        feature_stypes(feature_stypes) {}
+  CSCAdapter(const size_t* col_ptr, const unsigned* row_idx,
+             const float* values, size_t num_features)
+      : batch(col_ptr, row_idx, values, num_features) {}
+  const CSCAdapterBatch& Value() const override { return batch; }
+
+ private:
+  CSCAdapterBatch batch;
+};
+
+class DataTableAdapterBatch : public detail::NoInfo {
+ public:
+  DataTableAdapterBatch(void** data, const char** feature_stypes,
+                        size_t num_rows, size_t num_features)
+      : data(data),
+        feature_stypes(feature_stypes),
+        num_features(num_features),
+        num_rows(num_rows) {}
 
  private:
   enum class DTType : uint8_t {
@@ -208,7 +287,7 @@ class DataTableAdapter : public ExternalDataAdapter {
     }
   }
 
-  class DataTableAdapterBatch {
+  class Line {
     float DTGetValue(const void* column, DTType dt_type, size_t ridx) const {
       float missing = std::numeric_limits<float>::quiet_NaN();
       switch (dt_type) {
@@ -249,8 +328,7 @@ class DataTableAdapter : public ExternalDataAdapter {
     }
 
    public:
-    DataTableAdapterBatch(DTType type, size_t size, size_t column_idx,
-                          const void* column)
+    Line(DTType type, size_t size, size_t column_idx, const void* column)
         : type(type), size(size), column_idx(column_idx), column(column) {}
 
     size_t Size() const { return size; }
@@ -267,14 +345,94 @@ class DataTableAdapter : public ExternalDataAdapter {
 
  public:
   size_t Size() const { return num_features; }
-  const DataTableAdapterBatch operator[](size_t idx) const {
-    return DataTableAdapterBatch(DTGetType(feature_stypes[idx]), num_rows, idx,
-                                 data[idx]);
+  const Line GetLine(size_t idx) const {
+    return Line(DTGetType(feature_stypes[idx]), num_rows, idx, data[idx]);
   }
 
  private:
   void** data;
   const char** feature_stypes;
+  size_t num_features;
+  size_t num_rows;
+};
+
+class DataTableAdapter
+    : public detail::SingleBatchDataIter<DataTableAdapterBatch> {
+ public:
+  DataTableAdapter(void** data, const char** feature_stypes, size_t num_rows,
+                   size_t num_features)
+      : batch(data, feature_stypes, num_rows, num_features) {}
+  const DataTableAdapterBatch& Value() const override { return batch; }
+
+ private:
+  DataTableAdapterBatch batch;
+};
+
+class FileAdapterBatch {
+ public:
+  class Line {
+   public:
+    Line(size_t row_idx, const uint32_t* feature_idx, const float* value,
+         size_t size)
+        : row_idx(row_idx),
+          feature_idx(feature_idx),
+          value(value),
+          size(size) {}
+
+    size_t Size() { return size; }
+    COOTuple GetElement(size_t idx) {
+      float fvalue = value == nullptr ? 1.0f : value[idx];
+      return COOTuple(row_idx, feature_idx[idx], fvalue);
+    }
+
+   private:
+    size_t row_idx;
+    const uint32_t* feature_idx;
+    const float* value;
+    size_t size;
+  };
+  FileAdapterBatch(const dmlc::RowBlock<uint32_t>* block, size_t row_offset)
+      : block(block), row_offset(row_offset) {}
+  Line GetLine(size_t idx) const {
+    auto begin = block->offset[idx];
+    auto end = block->offset[idx + 1];
+    return Line(idx + row_offset, &block->index[begin], &block->value[begin],
+                end - begin);
+  }
+  const float* Labels() const { return block->label; }
+  const float* Weights() const { return block->weight; }
+  const uint64_t* Qid() const { return block->qid; }
+
+  size_t Size() const { return block->size; }
+
+ private:
+  const dmlc::RowBlock<uint32_t>* block;
+  size_t row_offset;
+};
+
+/** \brief FileAdapter wraps dmlc::parser to read files and provide access in a
+ * common interface. */
+class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
+ public:
+  explicit FileAdapter(dmlc::Parser<uint32_t>* parser) : parser(parser) {}
+
+  const FileAdapterBatch& Value() const override { return *batch.get(); }
+  void BeforeFirst() override {
+    batch.reset();
+    parser->BeforeFirst();
+    row_offset = 0;
+  }
+  bool Next() override {
+    bool next = parser->Next();
+    batch.reset(new FileAdapterBatch(&parser->Value(), row_offset));
+    row_offset += parser->Value().size;
+    return next;
+  }
+
+ private:
+  size_t row_offset{0};
+  std::unique_ptr<FileAdapterBatch> batch;
+  dmlc::Parser<uint32_t>* parser;
 };
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_ADAPTER_H_
