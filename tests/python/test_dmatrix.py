@@ -3,6 +3,9 @@ import numpy as np
 import xgboost as xgb
 import unittest
 import scipy.sparse
+from scipy.sparse import rand
+
+rng = np.random.RandomState(1)
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
@@ -140,3 +143,29 @@ class TestDMatrix(unittest.TestCase):
         dtrain.get_float_info('weight')
         dtrain.get_float_info('base_margin')
         dtrain.get_uint_info('root_index')
+
+    def test_sparse_dmatrix_csr(self):
+        nrow = 100
+        ncol = 1000
+        x = rand(nrow, ncol, density=0.0005, format='csr', random_state=rng)
+        assert x.indices.max() < ncol - 1
+        x.data[:] = 1
+        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
+        watchlist = [(dtrain, 'train')]
+        param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
+        bst = xgb.train(param, dtrain, 5, watchlist)
+        bst.predict(dtrain)
+
+    def test_sparse_dmatrix_csc(self):
+        nrow = 1000
+        ncol = 100
+        x = rand(nrow, ncol, density=0.0005, format='csc', random_state=rng)
+        assert x.indices.max() < nrow - 1
+        x.data[:] = 1
+        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
+        watchlist = [(dtrain, 'train')]
+        param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
+        bst = xgb.train(param, dtrain, 5, watchlist)
+        bst.predict(dtrain)
