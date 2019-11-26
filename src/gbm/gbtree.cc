@@ -353,7 +353,8 @@ class Dart : public GBTree {
                            unsigned ntree_limit, bool approximate, int condition,
                            unsigned condition_feature) override {
     CHECK(configured_);
-    cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_, ntree_limit, &weight_drop_, approximate);
+    cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
+                                        ntree_limit, &weight_drop_, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,

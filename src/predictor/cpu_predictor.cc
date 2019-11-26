@@ -349,10 +349,13 @@ class CPUPredictor : public Predictor {
     // Compute the difference in effects when conditioning on each of the features on and off
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
-    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, tree_weights, approximate, 0, 0);
+    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit,
+                        tree_weights, approximate, 0, 0);
     for (size_t i = 0; i < ncolumns + 1; ++i) {
-      PredictContribution(p_fmat, &contribs_off, model, ntree_limit, tree_weights, approximate, -1, i);
-      PredictContribution(p_fmat, &contribs_on, model, ntree_limit, tree_weights, approximate, 1, i);
+      PredictContribution(p_fmat, &contribs_off, model, ntree_limit,
+                          tree_weights, approximate, -1, i);
+      PredictContribution(p_fmat, &contribs_on, model, ntree_limit,
+                          tree_weights, approximate, 1, i);
 
       for (size_t j = 0; j < info.num_row_; ++j) {
         for (int l = 0; l < ngroup; ++l) {
