@@ -209,6 +209,26 @@ DMatrix* DMatrix::Load(const std::string& uri,
                  << " of " << npart << " parts";
   }
 
+  // legacy handling of binary data loading
+  if (file_format == "auto" && npart == 1) {
+    int magic;
+    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
+    if (fi != nullptr) {
+      common::PeekableInStream is(fi.get());
+      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
+        magic == data::SimpleCSRSource::kMagic) {
+        std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+        source->LoadBinary(&is);
+        DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+        if (!silent) {
+          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+            << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+        }
+        return dmat;
+      }
+    }
+  }
+
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat {nullptr};

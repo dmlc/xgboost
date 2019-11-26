@@ -397,7 +397,7 @@ class DataTableAdapter
         num_columns(num_features) {}
   const DataTableAdapterBatch& Value() const override { return batch; }
   size_t NumRows() const { return num_rows; }
-  size_t NumColumns() const { return num_rows; }
+  size_t NumColumns() const { return num_columns; }
 
  private:
   DataTableAdapterBatch batch;
