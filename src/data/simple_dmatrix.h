@@ -112,6 +112,12 @@ class SimpleDMatrix : public DMatrix {
       }
     }
 
+    if (last_group_id != default_max) {
+      if (group_size > mat.info.group_ptr_.back()) {
+        mat.info.group_ptr_.push_back(group_size);
+      }
+    }
+
     // Deal with empty rows/columns if necessary
     if (adapter->NumColumns() == 0) {
       mat.info.num_col_ = inferred_num_columns;
