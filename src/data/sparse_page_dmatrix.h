@@ -41,6 +41,20 @@ class SparsePageDMatrix : public DMatrix {
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
+  int32_t DeviceIdx() const override {
+    if (!!ellpack_source_) {
+      return ellpack_source_->DeviceIdx();
+    }
+    return -1;
+  }
+
+  bool DeviceCanRead() const override {
+    if (!!ellpack_source_) {
+      return true;
+    }
+    return false;
+  }
+
   // source data pointers.
   std::unique_ptr<DataSource<SparsePage>> row_source_;
   std::unique_ptr<SparsePageSource<CSCPage>> column_source_;

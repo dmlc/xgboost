@@ -49,6 +49,7 @@ TEST(GBTree, SelectTreeMethod) {
 
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
+  // This test ensures data doesn't get copied into GPU.
   size_t constexpr kNumRows = 17;
   size_t constexpr kCols = 15;
   auto pp_mat = CreateDMatrix(kNumRows, kCols, 0);
@@ -67,6 +68,7 @@ TEST(GBTree, ChoosePredictor) {
   generic_param.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
 
   auto& data = (*(p_mat->GetBatches<SparsePage>().begin())).data;
+  auto& offset = (*(p_mat->GetBatches<SparsePage>().begin())).offset;
 
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"tree_method", "gpu_hist"}});
@@ -96,6 +98,7 @@ TEST(GBTree, ChoosePredictor) {
 
   // pull data into device.
   data = HostDeviceVector<Entry>(data.HostVector(), 0);
+  offset = HostDeviceVector<bst_row_t>(offset.HostVector(), 0);
   data.DeviceSpan();
   ASSERT_FALSE(data.HostCanWrite());
 

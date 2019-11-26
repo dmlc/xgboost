@@ -41,6 +41,7 @@ class EllpackPageSource : public DataSource<EllpackPage> {
   EllpackPage& Value();
   const EllpackPage& Value() const override;
 
+  int32_t DeviceIdx() const;
   const EllpackPageSourceImpl* Impl() const { return impl_.get(); }
   EllpackPageSourceImpl* Impl() { return impl_.get(); }
 

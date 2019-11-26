@@ -32,6 +32,8 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   EllpackPage& Value();
   const EllpackPage& Value() const override;
 
+  int32_t DeviceIdx() const { return device_; }
+
  private:
   /*! \brief Write Ellpack pages after accumulating them in memory. */
   void WriteEllpackPages(DMatrix* dmat, const std::string& cache_info) const;
@@ -68,6 +70,10 @@ EllpackPage& EllpackPageSource::Value() {
 
 const EllpackPage& EllpackPageSource::Value() const {
   return impl_->Value();
+}
+
+int32_t EllpackPageSource::DeviceIdx() const {
+  return impl_->DeviceIdx();
 }
 
 // Build the quantile sketch across the whole input data, then use the histogram cuts to compress

@@ -117,6 +117,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
   {
     std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
     source->CopyFrom(str.c_str(), false);
+    ASSERT_EQ(source->page_.DeviceIdx(), 0);
     TestDenseColumn(source, kRows, kCols);
   }
 
@@ -124,6 +125,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
   {
     std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
     source->CopyFrom(str.c_str(), true, 4.0);
+    ASSERT_EQ(source->page_.DeviceIdx(), 0);
 
     auto const& data = source->page_.data.HostVector();
     auto const& offset = source->page_.offset.HostVector();
@@ -143,6 +145,7 @@ TEST(SimpleCSRSource, FromColumnarDense) {
     d_data_0[3] = std::numeric_limits<float>::quiet_NaN();
     ASSERT_TRUE(std::isnan(d_data_0[3]));  // removes 6.0
     source->CopyFrom(str.c_str(), false);
+    ASSERT_EQ(source->page_.DeviceIdx(), 0);
 
     auto const& data = source->page_.data.HostVector();
     auto const& offset = source->page_.offset.HostVector();
@@ -217,6 +220,7 @@ TEST(SimpleCSRSource, FromColumnarWithEmptyRows) {
   std::string str = ss.str();
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
   source->CopyFrom(str.c_str(), false);
+  ASSERT_EQ(source->page_.DeviceIdx(), 0);
 
   auto const& data = source->page_.data.HostVector();
   auto const& offset = source->page_.offset.HostVector();
@@ -356,6 +360,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     source->CopyFrom(str.c_str(), true,
                      /*missing=*/std::numeric_limits<float>::quiet_NaN());
 
+    ASSERT_EQ(source->page_.DeviceIdx(), 0);
+
     auto const& data = source->page_.data.HostVector();
     ASSERT_EQ(data.size(), kRows * kCols - 1);
     ASSERT_EQ(data[8].fvalue, 4.0);
@@ -381,6 +387,8 @@ TEST(SimpleCSRSource, Types) {
 
   std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
   source->CopyFrom(str.c_str(), false);
+  ASSERT_EQ(source->page_.DeviceIdx(), 0);
+
   TestDenseColumn(source, kRows, kCols);
 }
 

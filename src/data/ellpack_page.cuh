@@ -54,6 +54,8 @@ struct EllpackInfo {
   common::Span<uint32_t> feature_segments;
   /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
   common::Span<bst_float> gidx_fvalue_map;
+  /*! \brief The GPU ID of stored data. */
+  int32_t device;
 
   EllpackInfo() = default;
 
@@ -220,6 +222,12 @@ class EllpackPageImpl {
    * @param hmat The histogram cuts of all the features.
    */
   void InitInfo(int device, bool is_dense, size_t row_stride, const common::HistogramCuts& hmat);
+  /*!
+   * \brief Return EllpackInfo of current Ellpack matrix.
+   */
+  EllpackInfo Info() const {
+    return matrix.info;
+  }
 
   /*!
    * \brief Initialize the buffer to store compressed features.

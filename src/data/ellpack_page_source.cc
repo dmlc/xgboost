@@ -29,15 +29,19 @@ bool EllpackPageSource::Next() {
 EllpackPage& EllpackPageSource::Value() {
   LOG(FATAL) << "Internal Error: "
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-  EllpackPage* page;
+  EllpackPage* page {nullptr};
   return *page;
 }
 
 const EllpackPage& EllpackPageSource::Value() const {
   LOG(FATAL) << "Internal Error: "
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-  EllpackPage* page;
+  EllpackPage* page {nullptr};
   return *page;
+}
+
+int32_t EllpackPageSource::DeviceIdx() const {
+  return -1;
 }
 
 }  // namespace data

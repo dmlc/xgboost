@@ -192,6 +192,15 @@ class SparsePage {
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
 
+  virtual int32_t DeviceIdx() const {
+    CHECK_EQ(data.DeviceIdx(), offset.DeviceIdx());
+    return data.DeviceIdx();
+  }
+  virtual bool DeviceCanRead() const {
+    CHECK_EQ(data.DeviceCanRead(), offset.DeviceCanRead());
+    return data.DeviceCanRead();
+  }
+
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
     const auto& data_vec = data.HostVector();
@@ -212,6 +221,7 @@ class SparsePage {
   SparsePage() {
     this->Clear();
   }
+  virtual ~SparsePage() = default;
 
   /*! \return Number of instances in the page. */
   inline size_t Size() const {
@@ -297,6 +307,7 @@ class EllpackPage {
    * set later by the reader.
    */
   EllpackPage();
+  int32_t DeviceIdx() const;
 
   /*!
    * \brief Constructor from an existing DMatrix.
@@ -416,9 +427,38 @@ class DMatrix {
   virtual const MetaInfo& Info() const = 0;
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
+   * \tparam T Batch type.
+   *
+   *    Valid Batch types are:
+   *      - `EllpackPage`
+   *      - `SparsePage`
+   *      - `CSCPage`
+   *      - `SortedCSCPage`
+   *
+   * \param Parameter used to help generating batches.  Use default value if not set.
+   * \return An iteratable `BatchSet`.
    */
   template<typename T>
   BatchSet<T> GetBatches(const BatchParam& param = {});
+
+  /*!
+   * \brief Return the device id of current DMatrix.
+   *
+   *  Similiar to HostDeviceVector, this doesn't mean the data is actually stored in GPU
+   *  at the moment as data copying is lazy.  It could be in host while this function
+   *  returns a valid device ID.  What implementation needs to ensure, is that when device
+   *  data is accessed, it will be on the device returned by this function.
+   *
+   * \return The device id, -1 means host.
+   */
+  virtual int32_t DeviceIdx() const = 0;
+  /*!
+   * \brief Whether device has read access to the data.
+   *
+   *  Similiar to `HostDeviceVector::DeviceCanRead()`.
+   */
+  virtual bool DeviceCanRead() const = 0;
+
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
