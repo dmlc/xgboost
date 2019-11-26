@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <fstream>
@@ -124,6 +127,31 @@ TEST(DMatrix, Uri) {
 
   ASSERT_EQ(dmat->Info().num_col_, kCols);
   ASSERT_EQ(dmat->Info().num_row_, kRows);
+}
+
+TEST(DMatrix, DeviceIdx) {
+  size_t constexpr kRows {16};
+  size_t constexpr kCols {8};
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  auto& p_dmat = *pp_dmat;
+  ASSERT_EQ(p_dmat->DeviceIdx(), -1);
+  auto& data = (*p_dmat->GetBatches<SparsePage>().begin()).data;
+  data.SetDevice(0);
+  auto& offset = (*p_dmat->GetBatches<SparsePage>().begin()).offset;
+  offset.SetDevice(0);
+
+  // pull data to device
+  data.DeviceSpan();
+  offset.DeviceSpan();
+
+  ASSERT_EQ(p_dmat->DeviceIdx(), 0);
+
+  // pull all data to host
+  data.HostVector();
+  offset.HostVector();
+  ASSERT_FALSE(p_dmat->DeviceCanRead());
+
+  delete pp_dmat;
 }
 
 }  // namespace xgboost

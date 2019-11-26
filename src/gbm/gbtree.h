@@ -247,7 +247,7 @@ class GBTree : public GradientBooster {
   std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
                                                  DMatrix* f_dmat = nullptr) const {
     CHECK(configured_);
-    auto on_device = f_dmat && (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
+    auto on_device = f_dmat && (*(f_dmat->GetBatches<SparsePage>().begin())).DeviceCanRead();
 #if defined(XGBOOST_USE_CUDA)
     // Use GPU Predictor if data is already on device.
     if (!specified_predictor_ && on_device) {

@@ -152,6 +152,31 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
+  int32_t DeviceIdx() const override {
+    CHECK(source_);
+    if (!!ellpack_page_) {
+      return ellpack_page_->DeviceIdx();
+    } else if (!!column_page_) {
+      return column_page_->DeviceIdx();
+    } else if (!!sorted_column_page_) {
+      return sorted_column_page_->DeviceIdx();
+    } else  {
+      return dynamic_cast<SimpleCSRSource*>(source_.get())->page_.DeviceIdx();
+    }
+  }
+
+  bool DeviceCanRead() const override {
+    if (!!ellpack_page_) {
+      return true;
+    } else if (!!column_page_) {
+      return column_page_->DeviceCanRead();
+    } else if (!!sorted_column_page_) {
+      return sorted_column_page_->DeviceCanRead();
+    } else {
+      return dynamic_cast<SimpleCSRSource*>(source_.get())->page_.DeviceCanRead();
+    }
+  }
+
  private:
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;

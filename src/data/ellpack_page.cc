@@ -12,6 +12,10 @@ class EllpackPageImpl {};
 
 EllpackPage::EllpackPage() = default;
 
+int32_t EllpackPage::DeviceIdx() const {
+  return -1;
+}
+
 EllpackPage::EllpackPage(DMatrix* dmat, const BatchParam& param) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but EllpackPage is required";
 }

@@ -2,7 +2,8 @@
  * Copyright 2019 XGBoost contributors
  */
 
-#include <xgboost/data.h>
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
 
 #include "./ellpack_page.cuh"
 #include "../common/hist_util.h"
@@ -19,6 +20,12 @@ EllpackPage::~EllpackPage() = default;
 
 size_t EllpackPage::Size() const {
   return impl_->Size();
+}
+
+int32_t EllpackPage::DeviceIdx() const {
+  CHECK(impl_);
+  auto info = impl_->Info();
+  return info.device;
 }
 
 void EllpackPage::SetBaseRowId(size_t row_id) {
@@ -102,7 +109,7 @@ EllpackInfo::EllpackInfo(int device,
                          size_t row_stride,
                          const common::HistogramCuts& hmat,
                          dh::BulkAllocator* ba)
-    : is_dense(is_dense), row_stride(row_stride), n_bins(hmat.Ptrs().back()) {
+    : is_dense(is_dense), row_stride(row_stride), n_bins(hmat.Ptrs().back()), device{device} {
 
   ba->Allocate(device,
                &feature_segments, hmat.Ptrs().size(),

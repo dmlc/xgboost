@@ -124,8 +124,8 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
       : row_ptr(row_ptr),
         feature_idx(feature_idx),
         values(values),
-        num_rows(num_rows),
         num_elements(num_elements),
+        num_rows(num_rows),
         num_features(num_features) {}
   const Line GetLine(size_t idx) const {
     size_t begin_offset = row_ptr[idx];
@@ -167,10 +167,11 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
   DenseAdapterBatch(const float* values, size_t num_rows, size_t num_elements,
                     size_t num_features)
-      : num_features(num_features),
-        num_rows(num_rows),
+
+      : values(values),
         num_elements(num_elements),
-        values(values) {}
+        num_rows(num_rows),
+        num_features(num_features) {}
 
  private:
   class Line {
