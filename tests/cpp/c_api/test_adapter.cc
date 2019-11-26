@@ -72,7 +72,7 @@ TEST(c_api, CSCAdapter) {
   std::vector<float> data = {1, 3, 2, 4, 5};
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
   std::vector<size_t> col_ptr = {0, 2, 5};
-  CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2);
+  CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
   data::SimpleDMatrix dmat(&adapter,-1,std::numeric_limits<float>::quiet_NaN());
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);

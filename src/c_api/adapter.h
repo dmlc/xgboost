@@ -4,9 +4,9 @@
  */
 #ifndef XGBOOST_C_API_ADAPTER_H_
 #define XGBOOST_C_API_ADAPTER_H_
-#include <string>
 #include <limits>
 #include <memory>
+#include <string>
 namespace xgboost {
 
 /**  External data formats should implement an adapter as below. The
@@ -37,6 +37,16 @@ namespace xgboost {
  * Most of the below adapters do not need more than one batch as the data
  * originates from an in memory source. The file adapter does require batches to
  * avoid loading the entire file in memory.
+ *
+ * An important detail is empty row/column handling. Files loaded from disk do
+ * not provide meta information about the number of rows/columns to expect, this
+ * needs to be inferred during construction. Other sparse formats may specify a
+ * number of rows/columns, but we can encounter entirely sparse rows or columns,
+ * leading to disagreement between the inferred number and the meta-info
+ * provided. To resolve this, adapters have methods specifying the number of
+ * rows/columns expected, these methods may return zero where these values must
+ * be inferred from data. A constructed DMatrix should agree with the input
+ * source on numbers of rows/columns, appending empty rows if necessary.
  *  */
 
 struct COOTuple {
@@ -71,15 +81,16 @@ class SingleBatchDataIter : dmlc::DataIter<DType> {
 
 /** \brief Indicates this data source cannot contain meta-info such as labels,
  * weights or qid. */
-class NoInfo {
+class NoMetaInfo {
  public:
   const float* Labels() const { return nullptr; }
   const float* Weights() const { return nullptr; }
   const uint64_t* Qid() const { return nullptr; }
 };
+
 };  // namespace detail
 
-class CSRAdapterBatch : public detail::NoInfo {
+class CSRAdapterBatch : public detail::NoMetaInfo {
  public:
   class Line {
    public:
@@ -133,14 +144,20 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
              const float* values, size_t num_rows, size_t num_elements,
              size_t num_features)
       : batch(row_ptr, feature_idx, values, num_rows, num_elements,
-              num_features) {}
+              num_features),
+        num_rows(num_rows),
+        num_columns(num_features) {}
   const CSRAdapterBatch& Value() const override { return batch; }
+  size_t NumRows() const { return num_rows; }
+  size_t NumColumns() const { return num_columns; }
 
  private:
   CSRAdapterBatch batch;
+  size_t num_rows;
+  size_t num_columns;
 };
 
-class DenseAdapterBatch : public detail::NoInfo {
+class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
   DenseAdapterBatch(const float* values, size_t num_rows, size_t num_elements,
                     size_t num_features)
@@ -183,14 +200,21 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
  public:
   DenseAdapter(const float* values, size_t num_rows, size_t num_elements,
                size_t num_features)
-      : batch(values, num_rows, num_elements, num_features) {}
+      : batch(values, num_rows, num_elements, num_features),
+        num_rows(num_rows),
+        num_columns(num_features) {}
   const DenseAdapterBatch& Value() const override { return batch; }
+
+  size_t NumRows() const { return num_rows; }
+  size_t NumColumns() const { return num_columns; }
 
  private:
   DenseAdapterBatch batch;
+  size_t num_rows;
+  size_t num_columns;
 };
 
-class CSCAdapterBatch : public detail::NoInfo {
+class CSCAdapterBatch : public detail::NoMetaInfo {
  public:
   CSCAdapterBatch(const size_t* col_ptr, const unsigned* row_idx,
                   const float* values, size_t num_features)
@@ -237,15 +261,22 @@ class CSCAdapterBatch : public detail::NoInfo {
 class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
  public:
   CSCAdapter(const size_t* col_ptr, const unsigned* row_idx,
-             const float* values, size_t num_features)
-      : batch(col_ptr, row_idx, values, num_features) {}
+             const float* values, size_t num_features, size_t num_rows)
+      : batch(col_ptr, row_idx, values, num_features),
+        num_rows(num_rows),
+        num_columns(num_features) {}
   const CSCAdapterBatch& Value() const override { return batch; }
+
+  size_t NumRows() const { return num_rows; }
+  size_t NumColumns() const { return num_columns; }
 
  private:
   CSCAdapterBatch batch;
+  size_t num_rows;
+  size_t num_columns;
 };
 
-class DataTableAdapterBatch : public detail::NoInfo {
+class DataTableAdapterBatch : public detail::NoMetaInfo {
  public:
   DataTableAdapterBatch(void** data, const char** feature_stypes,
                         size_t num_rows, size_t num_features)
@@ -361,11 +392,17 @@ class DataTableAdapter
  public:
   DataTableAdapter(void** data, const char** feature_stypes, size_t num_rows,
                    size_t num_features)
-      : batch(data, feature_stypes, num_rows, num_features) {}
+      : batch(data, feature_stypes, num_rows, num_features),
+        num_rows(num_rows),
+        num_columns(num_features) {}
   const DataTableAdapterBatch& Value() const override { return batch; }
+  size_t NumRows() const { return num_rows; }
+  size_t NumColumns() const { return num_rows; }
 
  private:
   DataTableAdapterBatch batch;
+  size_t num_rows;
+  size_t num_columns;
 };
 
 class FileAdapterBatch {
@@ -428,6 +465,9 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     row_offset += parser->Value().size;
     return next;
   }
+  // Indicates a number of rows/columns must be inferred
+  size_t NumRows() const { return 0; }
+  size_t NumColumns() const { return 0; }
 
  private:
   size_t row_offset{0};

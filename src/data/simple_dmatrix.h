@@ -44,6 +44,7 @@ class SimpleDMatrix : public DMatrix {
     bst_uint group_size = 0;
     auto& offset_vec = mat.page_.offset.HostVector();
     auto& data_vec = mat.page_.data.HostVector();
+    uint64_t inferred_num_columns = 0;
 
     adapter->BeforeFirst();
     // Iterate over batches of input data
@@ -63,8 +64,9 @@ class SimpleDMatrix : public DMatrix {
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
           auto element = line.GetElement(j);
-          mat.info.num_col_ =
-              std::max(mat.info.num_col_, static_cast<uint64_t>(element.column_idx+ 1));
+          inferred_num_columns =
+              std::max(inferred_num_columns,
+                       static_cast<uint64_t>(element.column_idx + 1));
           if (!common::CheckNAN(element.value) && element.value != missing) {
             builder.AddBudget(element.row_idx, tid);
           }
@@ -109,7 +111,23 @@ class SimpleDMatrix : public DMatrix {
         }
       }
     }
-    mat.info.num_row_ = mat.page_.offset.Size() - 1;
+
+    // Deal with empty rows/columns if necessary
+    if (adapter->NumColumns() == 0) {
+      mat.info.num_col_ = inferred_num_columns;
+    } else {
+      mat.info.num_col_ = adapter->NumColumns();
+    }
+
+    if (offset_vec.size() - 1 < adapter->NumRows() && adapter->NumRows() > 0) {
+      while (offset_vec.size() - 1 < adapter->NumRows()) {
+        offset_vec.emplace_back(offset_vec.back());
+      }
+      mat.info.num_row_ = adapter->NumRows();
+    } else {
+      mat.info.num_row_ = offset_vec.size() - 1;
+    }
+
     mat.info.num_nonzero_ = offset_vec.back();
     omp_set_num_threads(nthread_original);
   }

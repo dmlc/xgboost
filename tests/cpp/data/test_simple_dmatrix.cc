@@ -90,3 +90,15 @@ TEST(SimpleDMatrix, MissingData) {
   dmat = data::SimpleDMatrix(&adapter, 1.0, 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 1);
 }
+
+TEST(SimpleDMatrix, EmptyRow) {
+  std::vector<float> data{0.0, 1.0};
+  std::vector<unsigned> feature_idx = {0, 1};
+  std::vector<size_t> row_ptr = {0, 2, 2};
+
+  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 2, 2);
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 2);
+  CHECK_EQ(dmat.Info().num_row_, 2);
+  CHECK_EQ(dmat.Info().num_col_, 2);
+}

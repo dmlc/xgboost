@@ -231,7 +231,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      size_t num_row,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  CSCAdapter adapter(col_ptr, indices, data, nindptr - 1);
+  CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
