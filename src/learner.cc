@@ -138,6 +138,33 @@ DMLC_REGISTER_PARAMETER(LearnerModelParam);
 DMLC_REGISTER_PARAMETER(LearnerTrainParam);
 DMLC_REGISTER_PARAMETER(GenericParameter);
 
+int constexpr GenericParameter::kCpuId;
+
+void GenericParameter::ConfigureGpuId(bool require_gpu) {
+#if defined(XGBOOST_USE_CUDA)
+  CHECK(this->initialised_)
+      << "Internal Error: Configure GPU ID before it's initialised.";
+  if (gpu_id == kCpuId) {  // 0. User didn't specify the `gpu_id'
+    if (require_gpu) {     // 1. `tree_method' or `predictor' or both are using GPU.
+      gpu_id = 0;          // 2. Use device 0 as default.
+    }
+  }
+
+  // 3. When booster is loaded from a memory image (Python pickle or R
+  // raw model), number of available GPUs could be different.  Wrap around it.
+  int32_t n_gpus = common::AllVisibleGPUs();
+  if (gpu_id != kCpuId && gpu_id >= n_gpus) {
+    gpu_id %= n_gpus;
+  }
+  // 4. Check whether the `gpu_id` is matched with the one in DMatrix,
+  // this is done in `ValidateDMatrix` where information DMatrix is
+  // available.
+#else
+  // Just set it to CPU, don't think about it.
+  gpu_id = kCpuId;
+#endif  // defined(XGBOOST_USE_CUDA)
+}
+
 /*!
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
@@ -181,6 +208,8 @@ class LearnerImpl : public Learner {
     this->ConfigureObjective(old_tparam, &args);
     this->ConfigureGBM(old_tparam, args);
     this->ConfigureMetrics(args);
+
+    generic_param_.ConfigureGpuId(this->gbm_->UseGPU());
 
     this->configured_ = true;
     monitor_.Stop("Configure");
@@ -263,6 +292,7 @@ class LearnerImpl : public Learner {
 #ifdef XGBOOST_USE_CUDA
           if (saved_param == "predictor" || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
+            LOG(WARNING) << saved_param << " value: " << kv.second;
             LOG(INFO)
               << "Parameter '" << saved_param << "' has been recovered from "
               << "the saved model. It will be set to "
@@ -287,6 +317,8 @@ class LearnerImpl : public Learner {
             cfg_["predictor"] = "cpu_predictor";
             kv.second = "cpu_predictor";
             LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
+          } else {
+            cfg_["predictor"] = "gpu_predictor";
           }
           if (saved_configs_.find(saved_param) != saved_configs_.end()) {
             cfg_[saved_param] = kv.second;
@@ -371,6 +403,15 @@ class LearnerImpl : public Learner {
           mparam.contain_extra_attrs = 1;
           extra_attr.emplace_back("SAVED_PARAM_" + key, it->second);
         }
+      }
+    }
+    {
+      if (std::none_of(extra_attr.cbegin(), extra_attr.cend(),
+                   [](std::pair<std::string, std::string> const& it) {
+                     return it.first == "SAVED_PARAM_gpu_id";
+                   })) {
+        mparam.contain_extra_attrs = 1;
+        extra_attr.emplace_back("SAVED_PARAM_gpu_id", std::to_string(generic_param_.gpu_id));
       }
     }
     fo->Write(&mparam, sizeof(LearnerModelParam));
@@ -611,9 +652,8 @@ class LearnerImpl : public Learner {
                                          cache_, mparam_.base_score));
     }
     gbm_->Configure(args);
-
-    if (this->gbm_->UseGPU()) {
-      if (generic_param_.gpu_id == -1) {
+    if (generic_param_.gpu_id == -1) {
+      if (this->gbm_->UseGPU()) {
         generic_param_.gpu_id = 0;
       }
     }
@@ -655,6 +695,11 @@ class LearnerImpl : public Learner {
           << "num rows: "     << p_fmat->Info().num_row_   << "\n"
           << "Number of weights should be equal to number of groups in ranking task.";
     }
+    CHECK(generic_param_.gpu_id == -1 || p_fmat->DeviceIdx() == -1 ||
+          generic_param_.gpu_id == p_fmat->DeviceIdx())
+        << "Input data to XGBoost is stored on GPU ID: " << p_fmat->DeviceIdx() << ", "
+        << "Parameter `gpu_id` is set to: " << generic_param_.gpu_id << ". "
+        << "Parameter `gpu_id` must be set to same with input data.";;
   }
 
   // model parameter
