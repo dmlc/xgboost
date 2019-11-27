@@ -136,6 +136,8 @@ TEST(DMatrix, DeviceIdx) {
   auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
   auto& p_dmat = *pp_dmat;
   ASSERT_EQ(p_dmat->DeviceIdx(), -1);
+
+#if defined(XGBOOST_USE_CUDA)
   auto& data = (*p_dmat->GetBatches<SparsePage>().begin()).data;
   data.SetDevice(0);
   auto& offset = (*p_dmat->GetBatches<SparsePage>().begin()).offset;
@@ -151,6 +153,7 @@ TEST(DMatrix, DeviceIdx) {
   data.HostVector();
   offset.HostVector();
   ASSERT_FALSE(p_dmat->DeviceCanRead());
+#endif  // defined(XGBOOST_USE_CUDA)
 
   delete pp_dmat;
 }
