@@ -134,7 +134,7 @@ class SimpleDMatrix : public DMatrix {
       mat.info.num_row_ = offset_vec.size() - 1;
     }
 
-    mat.info.num_nonzero_ = offset_vec.back();
+    mat.info.num_nonzero_ = data_vec.size();
     omp_set_num_threads(nthread_original);
   }
 

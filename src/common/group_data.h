@@ -69,9 +69,10 @@ struct ParallelGroupBuilder {
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
     // set rptr to correct size
+    SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
     for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
       if (rptr_.size() <= thread_rptr_[tid].size()) {
-        rptr_.resize(thread_rptr_[tid].size() + 1, rptr_.back());  // key + 1
+        rptr_.resize(thread_rptr_[tid].size() + 1, rptr_fill_value);  // key + 1
       }
     }
     // initialize rptr to be beginning of each segment

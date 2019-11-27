@@ -26,13 +26,13 @@ namespace xgboost {
  * This abstraction allows us to read through different sparse matrix formats
  * using the same interface. In particular we can write a DMatrix constructor
  * that uses the same code to construct itself from a CSR matrix, CSC matrix,
- * dense matrix or libsvm file. To see why this is necessary, imagine we have 5
- * external matrix formats and 5 internal DMatrix types where each DMatrix needs
- * a custom constructor for each possible input. The number of constructors is
- * 5*5=25. Using an abstraction over the input data types the number of
- * constructors is reduced to 5, as each DMatrix is oblivious to the external
- * data format. Adding a new input source is simply a case of implementing an
- * adapter.
+ * dense matrix, csv, libsvm file, or potentially other formats. To see why this
+ * is necessary, imagine we have 5 external matrix formats and 5 internal
+ * DMatrix types where each DMatrix needs a custom constructor for each possible
+ * input. The number of constructors is 5*5=25. Using an abstraction over the
+ * input data types the number of constructors is reduced to 5, as each DMatrix
+ * is oblivious to the external data format. Adding a new input source is simply
+ * a case of implementing an adapter.
  *
  * Most of the below adapters do not need more than one batch as the data
  * originates from an in memory source. The file adapter does require batches to
