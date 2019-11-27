@@ -42,9 +42,9 @@ TEST(group_data, ParallelGroupBuilder) {
   builder2.Push(2, Entry(0, 4), 0);
   builder2.Push(2, Entry(1, 5), 0);
 
-  expected_data.push_back(Entry(0, 4));
-  expected_data.push_back(Entry(1, 5));
-  expected_offsets.push_back(6);
+  expected_data.emplace_back(Entry(0, 4));
+  expected_data.emplace_back(Entry(1, 5));
+  expected_offsets.emplace_back(6);
 
   EXPECT_EQ(data, expected_data);
   EXPECT_EQ(offsets, expected_offsets);

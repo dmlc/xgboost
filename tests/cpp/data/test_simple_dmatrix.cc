@@ -72,8 +72,23 @@ TEST(SimpleDMatrix, Empty) {
   std::vector<unsigned> feature_idx = {};
   std::vector<size_t> row_ptr = {};
 
-  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
+  CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
+  data::SimpleDMatrix dmat(&csr_adapter,
+                           std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+
+  DenseAdapter dense_adapter(nullptr, 0, 0, 0);
+  dmat = data::SimpleDMatrix(&dense_adapter,
+                             std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+
+  CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
+  dmat = data::SimpleDMatrix(&csc_adapter,
+                             std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
   CHECK_EQ(dmat.Info().num_row_, 0);
   CHECK_EQ(dmat.Info().num_col_, 0);
