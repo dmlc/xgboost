@@ -115,7 +115,7 @@ You might need to run the command with ``--user`` flag if you run into permissio
 Build from the source code - advanced method
 --------------------------------------------
 
-Obtain ``gcc-9`` and ``openMP`` from Homebrew:
+Obtain ``gcc-9`` and ``OpenMP`` from Homebrew:
 
 .. code-block:: bash
 
