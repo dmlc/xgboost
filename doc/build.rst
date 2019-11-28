@@ -115,11 +115,12 @@ You might need to run the command with ``--user`` flag if you run into permissio
 Build from the source code - advanced method
 --------------------------------------------
 
-Obtain ``gcc-8`` from Homebrew:
+Obtain ``gcc-9`` and ``openMP`` from Homebrew:
 
 .. code-block:: bash
 
-  brew install gcc@8
+  brew install gcc@9 libomp
+
 
 Now clone the repository:
 
@@ -133,7 +134,7 @@ Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-8 CX
 
   mkdir build
   cd build
-  CC=gcc-8 CXX=g++-8 cmake ..
+  CC=gcc-9 CXX=g++-9 cmake ..
   make -j4
 
 You may now continue to `Python Package Installation`_.
