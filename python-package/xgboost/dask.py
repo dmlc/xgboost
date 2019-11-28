@@ -635,7 +635,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         if isinstance(y, (da.Array)):
             self.classes_ = da.unique(y).compute()
         else:
-            self.classes_ = y.drop_duplicates().compute();
+            self.classes_ = y.drop_duplicates().compute()
         self.n_classes_ = len(self.classes_)
 
         if self.n_classes_ > 2:
