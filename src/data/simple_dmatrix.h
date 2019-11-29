@@ -124,6 +124,8 @@ class SimpleDMatrix : public DMatrix {
     } else {
       mat.info.num_col_ = adapter->NumColumns();
     }
+    // Synchronise worker columns
+    rabit::Allreduce<rabit::op::Max>(&mat.info.num_col_, 1);
 
     if (offset_vec.size() - 1 < adapter->NumRows() && adapter->NumRows() > 0) {
       while (offset_vec.size() - 1 < adapter->NumRows()) {

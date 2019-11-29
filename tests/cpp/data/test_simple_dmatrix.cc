@@ -78,6 +78,9 @@ TEST(SimpleDMatrix, Empty) {
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
   CHECK_EQ(dmat.Info().num_row_, 0);
   CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
 
   DenseAdapter dense_adapter(nullptr, 0, 0, 0);
   dmat = data::SimpleDMatrix(&dense_adapter,
@@ -85,6 +88,9 @@ TEST(SimpleDMatrix, Empty) {
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
   CHECK_EQ(dmat.Info().num_row_, 0);
   CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
 
   CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
   dmat = data::SimpleDMatrix(&csc_adapter,
@@ -92,6 +98,9 @@ TEST(SimpleDMatrix, Empty) {
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
   CHECK_EQ(dmat.Info().num_row_, 0);
   CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
 }
 
 TEST(SimpleDMatrix, MissingData) {
