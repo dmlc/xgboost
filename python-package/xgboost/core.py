@@ -18,7 +18,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (
-    STRING_TYPES, DataFrame, MultiIndex, py_str,
+    STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
     PANDAS_INSTALLED, DataTable,
     CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
     os_fspath, os_PathLike)
@@ -296,6 +296,8 @@ def _maybe_pandas_data(data, feature_names, feature_types):
                 ' '.join([str(x) for x in i])
                 for i in data.columns
             ]
+        elif isinstance(data.columns, Int64Index):
+            feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
 
