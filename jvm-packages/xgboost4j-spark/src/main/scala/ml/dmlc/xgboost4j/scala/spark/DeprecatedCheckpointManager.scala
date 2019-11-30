@@ -34,7 +34,7 @@ import org.apache.spark.SparkContext
   * @param sc the sparkContext object
   * @param checkpointPath the hdfs path to store checkpoints
   */
-private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String) {
+private[spark] class DeprecatedCheckpointManager(sc: SparkContext, checkpointPath: String) {
   private val logger = LogFactory.getLog("XGBoostSpark")
   private val modelSuffix = ".model"
 
@@ -115,23 +115,23 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
     * and the method returns Seq(round)
     *
     * @param checkpointInterval Period (in iterations) between checkpoints.
-    * @param round the total number of rounds for the training
+    * @param numOfRounds the total number of rounds for the training
     * @return a seq of integers, each represent the index of round to save the checkpoints
     */
-  private[spark] def getCheckpointRounds(checkpointInterval: Int, round: Int): Seq[Int] = {
+  private[spark] def getCheckpointRounds(checkpointInterval: Int, numOfRounds: Int): Seq[Int] = {
     if (checkpointPath.nonEmpty && checkpointInterval > 0) {
       val prevRounds = getExistingVersions.map(_ / 2)
       val firstCheckpointRound = (0 +: prevRounds).max + checkpointInterval
-      (firstCheckpointRound until round by checkpointInterval) :+ round
+      (firstCheckpointRound until numOfRounds by checkpointInterval) :+ numOfRounds
     } else if (checkpointInterval <= 0) {
-      Seq(round)
+      Seq(numOfRounds)
     } else {
       throw new IllegalArgumentException("parameters \"checkpoint_path\" should also be set.")
     }
   }
 }
 
-object CheckpointManager {
+object DeprecatedCheckpointManager {
 
   case class CheckpointParam(
       checkpointPath: String,

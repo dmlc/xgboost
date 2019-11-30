@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class DeprecatedCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   private lazy val (model4, model8) = {
     val training = buildDataFrame(Classification.train)
@@ -34,7 +34,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
 
   test("test update/load models") {
     val tmpPath = createTmpFolder("test").toAbsolutePath.toString
-    val manager = new CheckpointManager(sc, tmpPath)
+    val manager = new DeprecatedCheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model4._booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
@@ -50,7 +50,7 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
 
   test("test cleanUpHigherVersions") {
     val tmpPath = createTmpFolder("test").toAbsolutePath.toString
-    val manager = new CheckpointManager(sc, tmpPath)
+    val manager = new DeprecatedCheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model8._booster)
     manager.cleanUpHigherVersions(round = 8)
     assert(new File(s"$tmpPath/8.model").exists())
@@ -61,9 +61,9 @@ class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTes
 
   test("test checkpoint rounds") {
     val tmpPath = createTmpFolder("test").toAbsolutePath.toString
-    val manager = new CheckpointManager(sc, tmpPath)
-    assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, round = 7))
-    assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, round = 7))
+    val manager = new DeprecatedCheckpointManager(sc, tmpPath)
+    assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, numOfRounds = 7))
+    assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, numOfRounds = 7))
     manager.updateCheckpoint(model4._booster)
     assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7))
   }
