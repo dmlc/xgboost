@@ -47,9 +47,7 @@ object XGBoost {
       prevBooster.booster
     }
     val xgboostInJava = checkpointParams.
-      map(
-        cp => {
-          val p = new Path(cp.checkpointPath)
+      map(cp => {
           JXGBoost.trainAndSaveCheckpoint(
             dtrain.jDMatrix,
             // we have to filter null value for customized obj and eval
@@ -57,7 +55,7 @@ object XGBoost {
             numRounds, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster,
             cp.checkpointInterval,
             cp.checkpointPath,
-            p.getFileSystem(new Configuration()))
+            new Path(cp.checkpointPath).getFileSystem(new Configuration()))
         }).
       getOrElse(
         JXGBoost.train(
@@ -168,10 +166,10 @@ private[scala] case class ExternalCheckpointParams(
 private[scala] object ExternalCheckpointParams {
   def extractParams(params: Map[String, Any]): ExternalCheckpointParams = {
     val checkpointPath: String = params.get("checkpoint_path") match {
-      case None => ""
+      case None | Some(null) | Some("") => null
       case Some(path: String) => path
       case _ => throw new IllegalArgumentException("parameter \"checkpoint_path\" must be" +
-        " an instance of String.")
+        s" an instance of String, but current value is ${params("checkpoint_path")}")
     }
 
     val checkpointInterval: Int = params.get("checkpoint_interval") match {

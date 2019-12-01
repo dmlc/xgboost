@@ -27,6 +27,11 @@ class ExternalCheckpointManager(checkpointPath: String, fs: FileSystem)
   }
 
   def loadCheckpointAsScalaBooster(): Booster = {
-    new Booster(super.loadCheckpointAsBooster())
+    val loadedBooster = super.loadCheckpointAsBooster()
+    if (loadedBooster == null) {
+      null
+    } else {
+      new Booster(loadedBooster)
+    }
   }
 }

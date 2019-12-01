@@ -149,7 +149,10 @@ public class XGBoost {
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
     Set<Integer> checkpointIterations = new HashSet<>();
-    ExternalCheckpointManager ecm = new ExternalCheckpointManager(checkpointPath, fs);
+    ExternalCheckpointManager ecm = null;
+    if (checkpointPath != null) {
+      ecm = new ExternalCheckpointManager(checkpointPath, fs);
+    }
 
     for (Map.Entry<String, DMatrix> evalEntry : watches.entrySet()) {
       names.add(evalEntry.getKey());
@@ -187,7 +190,7 @@ public class XGBoost {
       booster.setParams(params);
     }
 
-    if (checkpointPath != null && checkpointInterval > 0 && fs != null) {
+    if (ecm != null) {
       checkpointIterations = new HashSet<>(ecm.getCheckpointRounds(checkpointInterval, numRounds));
     }
 
@@ -199,8 +202,8 @@ public class XGBoost {
         } else {
           booster.update(dtrain, iter);
         }
-        booster.saveRabitCheckpoint();
         saveCheckpoint(booster, iter, checkpointIterations, ecm);
+        booster.saveRabitCheckpoint();
       }
 
       //evaluation

@@ -355,7 +355,9 @@ object XGBoost extends Serializable {
     rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
     val numRounds = xgbExecutionParam.numRounds
-    val makeCheckpoint = taskId.toInt == 0
+    val makeCheckpoint = xgbExecutionParam.checkpointParam.checkpointPath != null &&
+      xgbExecutionParam.checkpointParam.checkpointPath.nonEmpty &&
+      taskId.toInt == 0
     try {
       Rabit.init(rabitEnv)
       val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds

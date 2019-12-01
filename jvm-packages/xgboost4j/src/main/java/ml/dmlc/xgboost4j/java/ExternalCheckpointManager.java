@@ -28,7 +28,8 @@ public class ExternalCheckpointManager {
   }
 
   private List<Integer> getExistingVersions() throws IOException {
-    if (checkpointPath == null || !fs.exists(new Path(checkpointPath))) {
+    if (checkpointPath == null || checkpointPath.isEmpty() ||
+            !fs.exists(new Path(checkpointPath))) {
       return new ArrayList<>();
     } else {
       return Arrays.stream(fs.listStatus(new Path(checkpointPath)))
@@ -90,7 +91,7 @@ public class ExternalCheckpointManager {
     });
   }
 
-  List<Integer> getCheckpointRounds(int checkpointInterval, int numOfRounds)
+  public List<Integer> getCheckpointRounds(int checkpointInterval, int numOfRounds)
       throws IOException {
     if (checkpointPath != null && checkpointInterval > 0) {
       List<Integer> prevRounds =
