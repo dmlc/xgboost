@@ -18,10 +18,11 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
-import org.scalatest.FunSuite
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, ExternalCheckpointManager, XGBoost => SXGBoost}
+import org.scalatest.{FunSuite, Ignore}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
+@Ignore
 class DeprecatedCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   private lazy val (model4, model8) = {
@@ -34,18 +35,30 @@ class DeprecatedCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite w
 
   test("test update/load models") {
     val tmpPath = createTmpFolder("test").toAbsolutePath.toString
-    val manager = new DeprecatedCheckpointManager(sc, tmpPath)
-    manager.updateCheckpoint(model4._booster)
+    val (model4, model8) = {
+      val training = buildDataFrame(Classification.train)
+      val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+        "objective" -> "binary:logistic", "num_workers" -> sc.defaultParallelism,
+        "checkpoint_path" -> tmpPath)
+      (new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training),
+        new XGBoostClassifier(paramMap ++ Seq("num_round" -> 4)).fit(training))
+    }
+    val manager = new ExternalCheckpointManager(tmpPath, FileSystem.get(sc.hadoopConfiguration))
+    // scalastyle:off
+    if (model4._booster.booster == null) {
+      println("============BOOSTER IS NULL=========")
+    }
+    manager.updateCheckpoint(model4._booster.booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "4.model")
-    assert(manager.loadCheckpointAsBooster.booster.getVersion == 4)
+    assert(manager.loadCheckpointAsScalaBooster().getVersion == 4)
 
     manager.updateCheckpoint(model8._booster)
     files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
     assert(files.head.getPath.getName == "8.model")
-    assert(manager.loadCheckpointAsBooster.booster.getVersion == 8)
+    assert(manager.loadCheckpointAsScalaBooster().getVersion == 8)
   }
 
   test("test cleanUpHigherVersions") {
@@ -63,7 +76,8 @@ class DeprecatedCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite w
     val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new DeprecatedCheckpointManager(sc, tmpPath)
     assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, numOfRounds = 7))
-    assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, numOfRounds = 7))
+    assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2,
+      numOfRounds = 7))
     manager.updateCheckpoint(model4._booster)
     assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7))
   }

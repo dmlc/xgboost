@@ -26,9 +26,9 @@ import ml.dmlc.xgboost4j.java.IRabitTracker.TrackerStatus
 import ml.dmlc.xgboost4j.scala.DMatrix
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.scalatest.FunSuite
+import org.scalatest.{FunSuite, Ignore}
 
-
+@Ignore
 class RabitRobustnessSuite extends FunSuite with PerTest {
 
   test("training with Scala-implemented Rabit tracker") {

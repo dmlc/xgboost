@@ -538,7 +538,7 @@ object XGBoost extends Serializable {
     checkpointManager.cleanUpHigherVersions(xgbExecParams.numRounds)
     val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
       hasGroup, xgbExecParams.numWorkers)
-    var prevBooster = checkpointManager.loadCheckpointAsBooster
+    val prevBooster = checkpointManager.loadCheckpointAsScalaBooster()
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)

@@ -22,7 +22,11 @@ import org.apache.hadoop.fs.FileSystem
 class ExternalCheckpointManager(checkpointPath: String, fs: FileSystem)
   extends JavaECM(checkpointPath, fs) {
 
-  override def loadCheckpointAsBooster(): Booster = {
+  def updateCheckpoint(booster: Booster): Unit = {
+    super.updateCheckpoint(booster.booster)
+  }
+
+  def loadCheckpointAsScalaBooster(): Booster = {
     new Booster(super.loadCheckpointAsBooster())
   }
 }

@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.java.{XGBoostError, Booster => JBooster, XGBoost => JXG
 import scala.collection.JavaConverters._
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 /**
   * XGBoost Scala Training function.
@@ -38,17 +38,18 @@ object XGBoost {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       earlyStoppingRound: Int = 0,
-      booster: Booster,
+      prevBooster: Booster,
       checkpointParams: Option[ExternalCheckpointParams]): Booster = {
     val jWatches = watches.mapValues(_.jDMatrix).asJava
-    val jBooster = if (booster == null) {
+    val jBooster = if (prevBooster == null) {
       null
     } else {
-      booster.booster
+      prevBooster.booster
     }
     val xgboostInJava = checkpointParams.
       map(
-        cp =>
+        cp => {
+          val p = new Path(cp.checkpointPath)
           JXGBoost.trainAndSaveCheckpoint(
             dtrain.jDMatrix,
             // we have to filter null value for customized obj and eval
@@ -56,7 +57,8 @@ object XGBoost {
             numRounds, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster,
             cp.checkpointInterval,
             cp.checkpointPath,
-            cp.fs)).
+            p.getFileSystem(new Configuration()))
+        }).
       getOrElse(
         JXGBoost.train(
           dtrain.jDMatrix,
@@ -64,11 +66,11 @@ object XGBoost {
           params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
           numRounds, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster)
       )
-    if (booster == null) {
+    if (prevBooster == null) {
       new Booster(xgboostInJava)
     } else {
       // Avoid creating a new SBooster with the same JBooster
-      booster
+      prevBooster
     }
   }
 
@@ -161,11 +163,10 @@ object XGBoost {
 private[scala] case class ExternalCheckpointParams(
     checkpointInterval: Int,
     checkpointPath: String,
-    skipCleanCheckpoint: Boolean,
-    fs: FileSystem)
+    skipCleanCheckpoint: Boolean)
 
 private[scala] object ExternalCheckpointParams {
-  private[spark] def extractParams(params: Map[String, Any]): ExternalCheckpointParams = {
+  def extractParams(params: Map[String, Any]): ExternalCheckpointParams = {
     val checkpointPath: String = params.get("checkpoint_path") match {
       case None => ""
       case Some(path: String) => path
@@ -186,8 +187,7 @@ private[scala] object ExternalCheckpointParams {
       case _ => throw new IllegalArgumentException("parameter \"skip_clean_checkpoint\" must be" +
         " an instance of Boolean")
     }
-    ExternalCheckpointParams(checkpointInterval, checkpointPath,
-      skipCleanCheckpointFile, FileSystem.get(new Configuration()))
+    ExternalCheckpointParams(checkpointInterval, checkpointPath, skipCleanCheckpointFile)
   }
 }
 
