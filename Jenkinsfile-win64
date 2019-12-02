@@ -41,8 +41,8 @@ pipeline {
           parallel ([
             'test-win64-cpu': { TestWin64CPU() },
             'test-win64-gpu-cuda9.0': { TestWin64GPU(cuda_target: 'cuda9') },
-            'test-win64-gpu-cuda10.0': { TestWin64GPU(cuda_target: 'cuda10_0') },
-            'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
+            'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') },
+            'test-win64-gpu-cuda10.2': { TestWin64GPU(cuda_target: 'cuda10_2') }
           ])
         }
         milestone ordinal: 3
