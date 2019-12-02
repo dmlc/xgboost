@@ -19,7 +19,7 @@
 #include "c_api_error.h"
 #include "../data/simple_csr_source.h"
 #include "../common/io.h"
-#include "adapter.h"
+#include "../data/adapter.h"
 
 
 namespace xgboost {
@@ -218,7 +218,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      size_t num_col,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
+  data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
@@ -231,7 +231,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      size_t num_row,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
+  data::CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
@@ -241,7 +241,7 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
                                    xgboost::bst_ulong ncol, bst_float missing,
                                    DMatrixHandle* out) {
   API_BEGIN();
-  DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
+  data::DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, 1));
   API_END();
 }
@@ -252,7 +252,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
                                        bst_float missing, DMatrixHandle* out,
                                        int nthread) {
   API_BEGIN();
-  DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
+  data::DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
@@ -262,7 +262,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
                                   xgboost::bst_ulong ncol, DMatrixHandle* out,
                                   int nthread) {
   API_BEGIN();
-  DataTableAdapter adapter(data, feature_stypes, nrow, ncol);
+  data::DataTableAdapter adapter(data, feature_stypes, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(
       DMatrix::Create(&adapter, std::nan(""), nthread));
   API_END();

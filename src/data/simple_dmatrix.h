@@ -19,6 +19,7 @@
 #include "simple_csr_source.h"
 #include "../common/group_data.h"
 #include "../common/math.h"
+#include "adapter.h"
 
 namespace xgboost {
 namespace data {
@@ -119,7 +120,7 @@ class SimpleDMatrix : public DMatrix {
     }
 
     // Deal with empty rows/columns if necessary
-    if (adapter->NumColumns() == 0) {
+    if (adapter->NumColumns() == kAdapterUnknownSize) {
       mat.info.num_col_ = inferred_num_columns;
     } else {
       mat.info.num_col_ = adapter->NumColumns();
@@ -127,15 +128,18 @@ class SimpleDMatrix : public DMatrix {
     // Synchronise worker columns
     rabit::Allreduce<rabit::op::Max>(&mat.info.num_col_, 1);
 
-    if (offset_vec.size() - 1 < adapter->NumRows() && adapter->NumRows() > 0) {
+    if (adapter->NumRows() == kAdapterUnknownSize) {
+      mat.info.num_row_ = offset_vec.size() - 1;
+    } else {
+      if (offset_vec.empty()) {
+        offset_vec.emplace_back(0);
+      }
+
       while (offset_vec.size() - 1 < adapter->NumRows()) {
         offset_vec.emplace_back(offset_vec.back());
       }
       mat.info.num_row_ = adapter->NumRows();
-    } else {
-      mat.info.num_row_ = offset_vec.size() - 1;
     }
-
     mat.info.num_nonzero_ = data_vec.size();
     omp_set_num_threads(nthread_original);
   }

@@ -15,7 +15,7 @@
 #include "../common/io.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
-#include "../c_api/adapter.h"
+#include "../data/adapter.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -293,7 +293,7 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
                          const std::string& cache_prefix,
                          const size_t page_size) {
   if (cache_prefix.length() == 0) {
-    FileAdapter adapter(parser);
+    data::FileAdapter adapter(parser);
     return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            1);
   } else {
@@ -363,15 +363,15 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread) {
   return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
-template DMatrix* DMatrix::Create<DenseAdapter>(DenseAdapter* adapter,
+template DMatrix* DMatrix::Create<data::DenseAdapter>(data::DenseAdapter* adapter,
                                                 float missing, int nthread);
-template DMatrix* DMatrix::Create<CSRAdapter>(CSRAdapter* adapter,
+template DMatrix* DMatrix::Create<data::CSRAdapter>(data::CSRAdapter* adapter,
                                               float missing, int nthread);
-template DMatrix* DMatrix::Create<CSCAdapter>(CSCAdapter* adapter,
+template DMatrix* DMatrix::Create<data::CSCAdapter>(data::CSCAdapter* adapter,
                                               float missing, int nthread);
-template DMatrix* DMatrix::Create<DataTableAdapter>(
-    DataTableAdapter* adapter, float missing, int nthread);
-template DMatrix* DMatrix::Create<FileAdapter>(FileAdapter* adapter,
+template DMatrix* DMatrix::Create<data::DataTableAdapter>(
+    data::DataTableAdapter* adapter, float missing, int nthread);
+template DMatrix* DMatrix::Create<data::FileAdapter>(data::FileAdapter* adapter,
                                                float missing, int nthread);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {

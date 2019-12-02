@@ -2,12 +2,13 @@
  *  Copyright (c) 2019 by Contributors
  * \file adapter.h
  */
-#ifndef XGBOOST_C_API_ADAPTER_H_
-#define XGBOOST_C_API_ADAPTER_H_
+#ifndef XGBOOST_DATA_ADAPTER_H_
+#define XGBOOST_DATA_ADAPTER_H_
 #include <limits>
 #include <memory>
 #include <string>
 namespace xgboost {
+namespace data {
 
 /**  External data formats should implement an adapter as below. The
  * adapter provides a uniform access to data outside xgboost, allowing
@@ -48,6 +49,11 @@ namespace xgboost {
  * be inferred from data. A constructed DMatrix should agree with the input
  * source on numbers of rows/columns, appending empty rows if necessary.
  *  */
+
+/** \brief An adapter can return this value for number of rows or columns
+ * indicating that this value is currently unknown and should be inferred while
+ * passing over the data. */
+constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
 struct COOTuple {
   COOTuple(size_t row_idx, size_t column_idx, float value)
@@ -267,7 +273,10 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
         num_columns(num_features) {}
   const CSCAdapterBatch& Value() const override { return batch; }
 
-  size_t NumRows() const { return num_rows; }
+  // JVM package sends 0 as unknown
+  size_t NumRows() const {
+    return num_rows == 0 ? kAdapterUnknownSize : num_rows;
+  }
   size_t NumColumns() const { return num_columns; }
 
  private:
@@ -466,13 +475,14 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     return next;
   }
   // Indicates a number of rows/columns must be inferred
-  size_t NumRows() const { return 0; }
-  size_t NumColumns() const { return 0; }
+  size_t NumRows() const { return kAdapterUnknownSize; }
+  size_t NumColumns() const { return kAdapterUnknownSize; }
 
  private:
   size_t row_offset{0};
   std::unique_ptr<FileAdapterBatch> batch;
   dmlc::Parser<uint32_t>* parser;
 };
+};  // namespace data
 }  // namespace xgboost
-#endif  // XGBOOST_C_API_ADAPTER_H_
+#endif  // XGBOOST_DATA_ADAPTER_H_

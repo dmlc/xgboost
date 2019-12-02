@@ -4,7 +4,7 @@
 #include "../../../src/data/simple_dmatrix.h"
 
 #include "../helpers.h"
-#include "../../../src/c_api/adapter.h"
+#include "../../../src/data/adapter.h"
 
 using namespace xgboost;  // NOLINT
 
@@ -72,7 +72,7 @@ TEST(SimpleDMatrix, Empty) {
   std::vector<unsigned> feature_idx = {};
   std::vector<size_t> row_ptr = {};
 
-  CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
+  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
   data::SimpleDMatrix dmat(&csr_adapter,
                            std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
@@ -82,7 +82,7 @@ TEST(SimpleDMatrix, Empty) {
     CHECK_EQ(batch.Size(), 0);
   }
 
-  DenseAdapter dense_adapter(nullptr, 0, 0, 0);
+  data::DenseAdapter dense_adapter(nullptr, 0, 0, 0);
   dmat = data::SimpleDMatrix(&dense_adapter,
                              std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
@@ -92,7 +92,7 @@ TEST(SimpleDMatrix, Empty) {
     CHECK_EQ(batch.Size(), 0);
   }
 
-  CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
+  data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
   dmat = data::SimpleDMatrix(&csc_adapter,
                              std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
@@ -108,7 +108,7 @@ TEST(SimpleDMatrix, MissingData) {
   std::vector<unsigned> feature_idx = {0, 1, 0};
   std::vector<size_t> row_ptr = {0, 2, 3};
 
-  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 3, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 3, 2);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
   dmat = data::SimpleDMatrix(&adapter, 1.0, 1);
@@ -120,7 +120,7 @@ TEST(SimpleDMatrix, EmptyRow) {
   std::vector<unsigned> feature_idx = {0, 1};
   std::vector<size_t> row_ptr = {0, 2, 2};
 
-  CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 2, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 2, 2);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
   CHECK_EQ(dmat.Info().num_row_, 2);
