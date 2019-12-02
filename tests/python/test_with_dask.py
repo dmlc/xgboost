@@ -109,3 +109,16 @@ def test_classifier(client):
     assert list(history['validation_0'].keys())[0] == 'merror'
     assert len(list(history['validation_0'])) == 1
     assert len(history['validation_0']['merror']) == 2
+
+    assert classifier.n_classes_ == 10
+
+    # Test with dataframe.
+    X_d = dd.from_dask_array(X)
+    y_d = dd.from_dask_array(y)
+    classifier.fit(X_d, y_d)
+
+    assert classifier.n_classes_ == 10
+    prediction = classifier.predict(X_d)
+
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == kRows
