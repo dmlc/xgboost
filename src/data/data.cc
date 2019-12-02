@@ -200,14 +200,14 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     // Store extra information
     if (dtype == kFloat32) {
       if (extra_float_info_.count(key) == 0) {
-        extra_float_info_[key] = HostDeviceVector<bst_float>();
+        extra_float_info_[key] = HostDeviceVector<bst_float>(num);
       }
       auto& extra_info = extra_float_info_.at(key).HostVector();
       DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                          std::copy(cast_dptr, cast_dptr + num, extra_info.begin()));
     } else if (dtype == kUInt32) {
       if (extra_uint_info_.count(key) == 0) {
-        extra_uint_info_[key] = HostDeviceVector<bst_uint>();
+        extra_uint_info_[key] = HostDeviceVector<bst_uint>(num);
       }
       auto& extra_info = extra_uint_info_.at(key).HostVector();
       DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
