@@ -101,7 +101,6 @@ TEST(DMatrix, Uri) {
   std::string path = tmpdir.path + "/small.csv";
 
   std::ofstream fout(path);
-  ASSERT_TRUE(fout);
   size_t i = 0;
   for (size_t r = 0; r < kRows; ++r) {
     for (size_t c = 0; c < kCols; ++c) {

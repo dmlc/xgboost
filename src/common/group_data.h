@@ -69,25 +69,26 @@ struct ParallelGroupBuilder {
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
     // set rptr to correct size
+    SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
     for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
       if (rptr_.size() <= thread_rptr_[tid].size()) {
-        rptr_.resize(thread_rptr_[tid].size() + 1);  // key + 1
+        rptr_.resize(thread_rptr_[tid].size() + 1, rptr_fill_value);  // key + 1
       }
     }
     // initialize rptr to be beginning of each segment
-    std::size_t start = 0;
+    std::size_t count = 0;
     for (std::size_t i = 0; i + 1 < rptr_.size(); ++i) {
       for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
         std::vector<SizeType> &trptr = thread_rptr_[tid];
         if (i < trptr.size()) {         // i^th row is assigned for this thread
-          std::size_t ncnt = trptr[i];  // how many entries in this row
-          trptr[i] = start;
-          start += ncnt;
+          std::size_t thread_count = trptr[i];  // how many entries in this row
+          trptr[i] = count + rptr_.back();
+          count += thread_count;
         }
       }
-      rptr_[i + 1] = start;  // pointer accumulated from all thread
+      rptr_[i + 1] += count;  // pointer accumulated from all thread
     }
-    data_.resize(start);
+    data_.resize(rptr_.back());
   }
   /*!
    * \brief step 4: add data to the allocated space,

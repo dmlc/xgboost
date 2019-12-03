@@ -465,6 +465,20 @@ class DMatrix {
    */
   static DMatrix* Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix = "");
+
+  /**
+   * \brief Creates a new DMatrix from an external data adapter.
+   *
+   * \tparam  AdapterT  Type of the adapter.
+   * \param adapter View onto an external data.
+   * \param missing Values to count as missing.
+   * \param nthread Number of threads for construction.
+   *
+   * \return  a Created DMatrix.
+   */
+  template <typename AdapterT>
+  static DMatrix* Create(AdapterT* adapter, float missing, int nthread);
+
   /*!
    * \brief Create a DMatrix by loading data from parser.
    *  Parser can later be deleted after the DMatrix i created.

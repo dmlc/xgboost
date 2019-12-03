@@ -4,6 +4,9 @@
 #include "../../../src/data/simple_dmatrix.h"
 
 #include "../helpers.h"
+#include "../../../src/data/adapter.h"
+
+using namespace xgboost;  // NOLINT
 
 TEST(SimpleDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
@@ -62,4 +65,64 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   }
   EXPECT_EQ(num_col_batch, 1) << "Expected number of batches to be 1";
   delete dmat;
+}
+
+TEST(SimpleDMatrix, Empty) {
+  std::vector<float> data{};
+  std::vector<unsigned> feature_idx = {};
+  std::vector<size_t> row_ptr = {};
+
+  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(), 0, 0, 0);
+  data::SimpleDMatrix dmat(&csr_adapter,
+                           std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
+
+  data::DenseAdapter dense_adapter(nullptr, 0, 0, 0);
+  dmat = data::SimpleDMatrix(&dense_adapter,
+                             std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
+
+  data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
+  dmat = data::SimpleDMatrix(&csc_adapter,
+                             std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 0);
+  CHECK_EQ(dmat.Info().num_row_, 0);
+  CHECK_EQ(dmat.Info().num_col_, 0);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
+}
+
+TEST(SimpleDMatrix, MissingData) {
+  std::vector<float> data{0.0, std::nanf(""), 1.0};
+  std::vector<unsigned> feature_idx = {0, 1, 0};
+  std::vector<size_t> row_ptr = {0, 2, 3};
+
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 3, 2);
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 2);
+  dmat = data::SimpleDMatrix(&adapter, 1.0, 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 1);
+}
+
+TEST(SimpleDMatrix, EmptyRow) {
+  std::vector<float> data{0.0, 1.0};
+  std::vector<unsigned> feature_idx = {0, 1};
+  std::vector<size_t> row_ptr = {0, 2, 2};
+
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2, 2, 2);
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
+  CHECK_EQ(dmat.Info().num_nonzero_, 2);
+  CHECK_EQ(dmat.Info().num_row_, 2);
+  CHECK_EQ(dmat.Info().num_col_, 2);
 }

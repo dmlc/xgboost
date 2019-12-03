@@ -15,6 +15,7 @@
 #include "../common/io.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
+#include "../data/adapter.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -207,6 +208,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
     LOG(CONSOLE) << "Load part of data " << partid
                  << " of " << npart << " parts";
   }
+
   // legacy handling of binary data loading
   if (file_format == "auto" && npart == 1) {
     int magic;
@@ -214,13 +216,13 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-          magic == data::SimpleCSRSource::kMagic) {
+        magic == data::SimpleCSRSource::kMagic) {
         std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
         source->LoadBinary(&is);
         DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
         if (!silent) {
           LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
-                       << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+            << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
         }
         return dmat;
       }
@@ -291,9 +293,9 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
                          const std::string& cache_prefix,
                          const size_t page_size) {
   if (cache_prefix.length() == 0) {
-    std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-    source->CopyFrom(parser);
-    return DMatrix::Create(std::move(source), cache_prefix);
+    data::FileAdapter adapter(parser);
+    return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
+                           1);
   } else {
 #if DMLC_ENABLE_STD_THREAD
     if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {
@@ -355,9 +357,23 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 #endif  // DMLC_ENABLE_STD_THREAD
   }
 }
-}  // namespace xgboost
 
-namespace xgboost {
+template <typename AdapterT>
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread) {
+  return new data::SimpleDMatrix(adapter, missing, nthread);
+}
+
+template DMatrix* DMatrix::Create<data::DenseAdapter>(data::DenseAdapter* adapter,
+                                                float missing, int nthread);
+template DMatrix* DMatrix::Create<data::CSRAdapter>(data::CSRAdapter* adapter,
+                                              float missing, int nthread);
+template DMatrix* DMatrix::Create<data::CSCAdapter>(data::CSCAdapter* adapter,
+                                              float missing, int nthread);
+template DMatrix* DMatrix::Create<data::DataTableAdapter>(
+    data::DataTableAdapter* adapter, float missing, int nthread);
+template DMatrix* DMatrix::Create<data::FileAdapter>(data::FileAdapter* adapter,
+                                               float missing, int nthread);
+
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
   common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
