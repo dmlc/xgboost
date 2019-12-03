@@ -216,7 +216,8 @@ class GBTree : public GradientBooster {
                            unsigned ntree_limit, bool approximate, int condition,
                            unsigned condition_feature) override {
     CHECK(configured_);
-    cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_, ntree_limit, approximate);
+    cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
+                                        ntree_limit, nullptr, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
@@ -224,7 +225,7 @@ class GBTree : public GradientBooster {
                                        unsigned ntree_limit, bool approximate) override {
     CHECK(configured_);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    ntree_limit, approximate);
+                                                    ntree_limit, nullptr, approximate);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

@@ -25,6 +25,3 @@ USE_AZURE = 0
 # - librabit.a Normal distributed version.
 # - librabit_empty.a Non distributed mock version,
 LIB_RABIT = librabit_empty.a
-
-DMLC_CFLAGS = -DDMLC_ENABLE_STD_THREAD=0
-ADD_CFLAGS = -DDMLC_ENABLE_STD_THREAD=0

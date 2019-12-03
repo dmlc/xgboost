@@ -149,6 +149,7 @@ class Predictor {
    * \param [in,out]  out_contribs       The output feature contribs.
    * \param           model              Model to make predictions from.
    * \param           ntree_limit        (Optional) The ntree limit.
+   * \param           tree_weights       (Optional) Weights to multiply each tree by.
    * \param           approximate        Use fast approximate algorithm.
    * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
    * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
@@ -158,6 +159,7 @@ class Predictor {
                                    std::vector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
                                    unsigned ntree_limit = 0,
+                                   std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false,
                                    int condition = 0,
                                    unsigned condition_feature = 0) = 0;
@@ -166,6 +168,7 @@ class Predictor {
                                    std::vector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
                                    unsigned ntree_limit = 0,
+                                   std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false) = 0;
 
   /**

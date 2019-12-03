@@ -142,6 +142,44 @@ test_that("predict feature contributions works", {
   }
 })
 
+test_that("SHAPs sum to predictions, with or without DART", {
+  d <- cbind(
+    x1 = rnorm(100),
+    x2 = rnorm(100),
+    x3 = rnorm(100))
+  y <- d[,"x1"] + d[,"x2"]^2 +
+    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+    rnorm(100)
+  nrounds <- 30
+
+  for (booster in list("gbtree", "dart")) {
+    fit <- xgboost(
+      params = c(
+        list(
+          booster = booster,
+          objective = "reg:linear",
+          eval_metric = "rmse"),
+        if (booster == "dart")
+          list(rate_drop = .01, one_drop = T)),
+      data = d,
+      label = y,
+      nrounds = nrounds)
+
+    pr <- function(...)
+      predict(fit, newdata = d, ntreelimit = nrounds, ...)
+    pred <- pr()
+    shap <- pr(predcontrib = T)
+    shapi <- pr(predinteraction = T)
+    tol = 1e-5
+
+    expect_equal(rowSums(shap), pred, tol = tol)
+    expect_equal(apply(shapi, 1, sum), pred, tol = tol)
+    for (i in 1 : nrow(d))
+      for (f in list(rowSums, colSums))
+        expect_equal(f(shapi[i,,]), shap[i,], tol = tol)
+  }
+})
+
 test_that("xgb-attribute functionality", {
   val <- "my attribute value"
   list.val <- list(my_attr=val, a=123, b='ok')

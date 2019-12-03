@@ -1,14 +1,14 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
-
-#include "ellpack_page_source.h"
-
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "../common/hist_util.h"
+
+#include "ellpack_page_source.h"
+#include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 
 namespace xgboost {
