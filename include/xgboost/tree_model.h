@@ -327,11 +327,14 @@ class RegTree : public Model {
    * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
    * \param loss_change       The loss change.
    * \param sum_hess          The sum hess.
+   * \param leaf_right_child The right child index of leaf, by default kInvalidNodeId,
+   *                         some updaters use the right child index of leaf as a marker
    */
   void ExpandNode(int nid, unsigned split_index, bst_float split_value,
                   bool default_left, bst_float base_weight,
                   bst_float left_leaf_weight, bst_float right_leaf_weight,
-                  bst_float loss_change, float sum_hess) {
+                  bst_float loss_change, float sum_hess,
+                  bst_node_t leaf_right_child = kInvalidNodeId) {
     int pleft = this->AllocNode();
     int pright = this->AllocNode();
     auto &node = nodes_[nid];
@@ -343,8 +346,8 @@ class RegTree : public Model {
     node.SetSplit(split_index, split_value,
                   default_left);
 
-    nodes_[pleft].SetLeaf(left_leaf_weight);
-    nodes_[pright].SetLeaf(right_leaf_weight);
+    nodes_[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
+    nodes_[pright].SetLeaf(right_leaf_weight, leaf_right_child);
 
     this->Stat(nid).loss_chg = loss_change;
     this->Stat(nid).base_weight = base_weight;
