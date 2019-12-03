@@ -123,7 +123,7 @@ void EllpackPageImpl::InitInfo(int device,
 
 // Initialize the buffer to stored compressed features.
 void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
-  size_t num_symbols = matrix.info.n_bins + 1;
+  size_t num_symbols = matrix.info.NumSymbols();
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
@@ -149,7 +149,6 @@ void EllpackPageImpl::CreateHistIndices(int device,
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 
-  int num_symbols = matrix.info.n_bins + 1;
   // bin and compress entries in batches of rows
   size_t gpu_batch_nrows = std::min(
       dh::TotalMemory(device) / (16 * row_stride * sizeof(Entry)),
@@ -193,7 +192,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
                      1);
     dh::LaunchKernel {grid3, block3} (
         CompressBinEllpackKernel,
-        common::CompressedBufferWriter(num_symbols),
+        common::CompressedBufferWriter(matrix.info.NumSymbols()),
         gidx_buffer.data(),
         row_ptrs.data().get(),
         entries_d.data().get(),
@@ -254,11 +253,9 @@ void EllpackPageImpl::CompressSparsePage(int device) {
 
 // Return the memory cost for storing the compressed features.
 size_t EllpackPageImpl::MemCostBytes() const {
-  size_t num_symbols = matrix.info.n_bins + 1;
-
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      matrix.info.row_stride * matrix.n_rows, num_symbols);
+      matrix.info.row_stride * matrix.n_rows, matrix.info.NumSymbols());
   return compressed_size_bytes;
 }
 

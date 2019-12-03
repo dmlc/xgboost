@@ -8,12 +8,21 @@
 
 #include <xgboost/host_device_vector.h>
 
+#include "../../common/compressed_iterator.h"
 #include "../../common/device_helpers.cuh"
 #include "../../common/random.h"
 #include "gradient_based_sampler.cuh"
 
 namespace xgboost {
 namespace tree {
+
+size_t GradientBasedSampler::MaxSampleRows(int device, const EllpackInfo& info) {
+  size_t available_memory = dh::AvailableMemory(device);
+  size_t usable_memory = available_memory * 0.95;
+  size_t max_rows = common::CompressedBufferWriter::CalculateMaxRows(
+      usable_memory, info.NumSymbols(), info.row_stride, 2 * sizeof(float));
+  return max_rows;
+}
 
 /*! \brief A functor that returns the absolute value of gradient from a gradient pair. */
 struct abs_grad : public thrust::unary_function<GradientPair, float> {

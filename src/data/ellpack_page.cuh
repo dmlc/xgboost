@@ -71,6 +71,10 @@ struct EllpackInfo {
                        size_t row_stride,
                        const common::HistogramCuts& hmat,
                        dh::BulkAllocator* ba);
+
+  inline size_t NumSymbols() const {
+    return n_bins + 1;
+  }
 };
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the

@@ -4,6 +4,8 @@
 #pragma once
 #include <xgboost/data.h>
 
+#include "../../data/ellpack_page.cuh"
+
 namespace xgboost {
 namespace tree {
 
@@ -28,6 +30,8 @@ struct GradientBasedSample {
  */
 class GradientBasedSampler {
  public:
+  size_t MaxSampleRows(int device, const EllpackInfo& info);
+
   GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair,
                              DMatrix* dmat,
                              BatchParam batch_param,

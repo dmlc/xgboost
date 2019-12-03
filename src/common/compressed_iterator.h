@@ -63,7 +63,7 @@ class CompressedBufferWriter {
    * \fn  static size_t CompressedBufferWriter::CalculateBufferSize(int
    * num_elements, int num_symbols)
    *
-   * \brief Calculates number of bytes requiredm for a given number of elements
+   * \brief Calculates number of bytes required for a given number of elements
    * and a symbol range.
    *
    * \author  Rory
@@ -74,13 +74,32 @@ class CompressedBufferWriter {
    *
    * \return  The calculated buffer size.
    */
-
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
     const int bits_per_byte = 8;
     size_t compressed_size = static_cast<size_t>(std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
         bits_per_byte));
     return compressed_size + detail::kPadding;
+  }
+
+  /**
+   * \brief Calculates maximum number of rows that can fit in a given number of bytes.
+   * \param num_bytes Number of bytes.
+   * \param num_symbols Max number of symbols (alphabet size).
+   * \param row_stride Number of features per row.
+   * \param extra_bytes_per_row Extra number of bytes needed per row.
+   * \return  The calculated number of rows.
+   */
+  static size_t CalculateMaxRows(size_t num_bytes,
+                                 size_t num_symbols,
+                                 size_t row_stride,
+                                 size_t extra_bytes_per_row) {
+    const int bits_per_byte = 8;
+    size_t usable_bits = (num_bytes - detail::kPadding) * bits_per_byte;
+    size_t extra_bits = extra_bytes_per_row * bits_per_byte;
+    size_t symbol_bits = row_stride * detail::SymbolBits(num_symbols);
+    size_t num_rows = static_cast<size_t>(std::floor(usable_bits / (extra_bits + symbol_bits)));
+    return num_rows;
   }
 
   template <typename T>
