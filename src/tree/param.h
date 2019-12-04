@@ -2,7 +2,7 @@
  * Copyright 2014 by Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
- * \author Tianqi Chen
+n * \author Tianqi Chen
  */
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
@@ -495,63 +495,7 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<int> &t) {
   return os;
 }
 
-inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
-  // get (
-  while (true) {
-    char ch = is.peek();
-    if (isdigit(ch)) {
-      int idx;
-      if (is >> idx) {
-        t.assign(&idx, &idx + 1);
-      }
-      return is;
-    }
-    is.get();
-    if (ch == '(') {
-      break;
-    }
-    if (!isspace(ch)) {
-      is.setstate(std::ios::failbit);
-      return is;
-    }
-  }
-  int idx;
-  std::vector<int> tmp;
-  while (is >> idx) {
-    tmp.push_back(idx);
-    char ch;
-    do {
-      ch = is.get();
-    } while (isspace(ch));
-    if (ch == 'L') {
-      ch = is.get();
-    }
-    if (ch == ',') {
-      while (true) {
-        ch = is.peek();
-        if (isspace(ch)) {
-          is.get();
-          continue;
-        }
-        if (ch == ')') {
-          is.get();
-          break;
-        }
-        break;
-      }
-      if (ch == ')') {
-        break;
-      }
-    } else if (ch == ')') {
-      break;
-    } else {
-      is.setstate(std::ios::failbit);
-      return is;
-    }
-  }
-  t.assign(tmp.begin(), tmp.end());
-  return is;
-}
+std::istream &operator>>(std::istream &is, std::vector<int> &t);
 }  // namespace std
 
 #endif  // XGBOOST_TREE_PARAM_H_
