@@ -64,6 +64,20 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
+// Construct an empty ELLPACK matrix.
+EllpackPageImpl::EllpackPageImpl(int device, EllpackInfo info, size_t n_rows) {
+  monitor_.Init("ellpack_page");
+  dh::safe_cuda(cudaSetDevice(device));
+
+  matrix.info = info;
+  matrix.base_rowid = 0;
+  matrix.n_rows = n_rows;
+
+  monitor_.StartCuda("InitCompressedData");
+  InitCompressedData(device, n_rows);
+  monitor_.StopCuda("InitCompressedData");
+}
+
 // Construct an ELLPACK matrix in memory.
 EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
@@ -277,5 +291,4 @@ void EllpackPageImpl::InitDevice(int device, EllpackInfo info) {
 
   device_initialized_ = true;
 }
-
 }  // namespace xgboost

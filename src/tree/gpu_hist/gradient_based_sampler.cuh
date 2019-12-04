@@ -2,18 +2,23 @@
  * Copyright 2019 by XGBoost Contributors
  */
 #pragma once
+#include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <xgboost/span.h>
 
+#include "../../common/device_helpers.cuh"
 #include "../../data/ellpack_page.cuh"
 
 namespace xgboost {
 namespace tree {
 
 struct GradientBasedSample {
+  /*!\brief Number of sampled rows. */
+  size_t sample_rows;
   /*!\brief Sampled rows in ELLPACK format. */
   EllpackPageImpl* page;
   /*!\brief Rescaled gradient pairs for the sampled rows. */
-  HostDeviceVector<GradientPair> gpair;
+  common::Span<GradientPair> gpair;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.
@@ -30,12 +35,25 @@ struct GradientBasedSample {
  */
 class GradientBasedSampler {
  public:
-  size_t MaxSampleRows(int device, const EllpackInfo& info);
+  explicit GradientBasedSampler(BatchParam batch_param,
+                                EllpackInfo info,
+                                size_t n_rows,
+                                size_t sample_rows = 0);
 
-  GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair,
-                             DMatrix* dmat,
-                             BatchParam batch_param,
-                             size_t sample_rows = 0);
+  /*! \brief Returns the max number of rows that can fit in available GPU memory. */
+  size_t MaxSampleRows();
+
+  GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat);
+
+ private:
+  common::Monitor monitor_;
+  dh::BulkAllocator ba_;
+  BatchParam batch_param_;
+  EllpackInfo info_;
+  bool is_sampling_;
+  size_t sample_rows_;
+  std::unique_ptr<EllpackPageImpl> page_;
+  common::Span<GradientPair> gpair_;
 };
 };  // namespace tree
 };  // namespace xgboost

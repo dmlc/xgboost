@@ -53,23 +53,23 @@ TEST(CompressedIterator, Test) {
 
 TEST(CompressedIterator, CalculateMaxRows) {
   const size_t num_bytes = 12652838912;
-  const size_t num_symbols = 256 * 100 + 1;
   const size_t row_stride = 100;
+  const size_t num_symbols = 256 * row_stride + 1;
   const size_t extra_bytes = 8;
   size_t num_rows =
       CompressedBufferWriter::CalculateMaxRows(num_bytes, num_symbols, row_stride, extra_bytes);
   EXPECT_EQ(num_rows, 64720403);
 
   // The calculated # rows should fit within the given number of bytes.
-  size_t buffer_size = CompressedBufferWriter::CalculateBufferSize(num_rows * 100, num_symbols);
+  size_t buffer = CompressedBufferWriter::CalculateBufferSize(num_rows * row_stride, num_symbols);
   size_t extras = extra_bytes * num_rows;
-  EXPECT_LE(buffer_size + extras, num_bytes);
+  EXPECT_LE(buffer + extras, num_bytes);
 
   // An extra row wouldn't fit.
   num_rows++;
-  buffer_size = CompressedBufferWriter::CalculateBufferSize(num_rows * 100, num_symbols);
+  buffer = CompressedBufferWriter::CalculateBufferSize(num_rows * row_stride, num_symbols);
   extras = extra_bytes * num_rows;
-  EXPECT_GT(buffer_size + extras, num_bytes);
+  EXPECT_GT(buffer + extras, num_bytes);
 }
 
 }  // namespace common

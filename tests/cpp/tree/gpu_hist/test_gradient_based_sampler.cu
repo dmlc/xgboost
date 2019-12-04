@@ -20,24 +20,30 @@ TEST(GradientBasedSampler, Sample) {
   auto gpair = GenerateRandomGradients(kRows);
   gpair.SetDevice(0);
 
-  GradientBasedSampler sampler;
   BatchParam param{0, 256, 0, kPageSize};
-  auto sample = sampler.Sample(&gpair, dmat.get(), param, kSampleRows);
-  auto page = sample.page;
+  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+
+  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSampleRows);
+  auto sample = sampler.Sample(&gpair, dmat.get());
+  page = sample.page;
   auto sampled_gpair = sample.gpair;
-  EXPECT_NEAR(sampled_gpair.Size(), kSampleRows, 12);
-  EXPECT_NEAR(page->matrix.n_rows, kSampleRows, 12);
-  EXPECT_EQ(page->matrix.n_rows, sampled_gpair.Size());
+  EXPECT_EQ(sampled_gpair.size(), kSampleRows);
+  EXPECT_EQ(page->matrix.n_rows, kSampleRows);
+  EXPECT_EQ(page->matrix.n_rows, sampled_gpair.size());
 
   float sum_gradients = 0;
   for (auto gp : gpair.ConstHostVector()) {
     sum_gradients += gp.GetGrad();
   }
+
   float sum_sampled_gradients = 0;
-  for (auto gp : sampled_gpair.ConstHostVector()) {
+  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
+  thrust::copy(sampled_gpair.begin(), sampled_gpair.end(), sampled_gpair_h.begin());
+  for (auto gp : sampled_gpair_h) {
     sum_sampled_gradients += gp.GetGrad();
   }
   EXPECT_FLOAT_EQ(sum_gradients, sum_sampled_gradients);
 }
+
 };  // namespace tree
 };  // namespace xgboost

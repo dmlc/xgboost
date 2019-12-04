@@ -481,7 +481,7 @@ struct GPUHistMakerDevice {
   std::unique_ptr<ExpandQueue> qexpand;
 
   bool use_gradient_based_sampling {false};
-  std::unique_ptr<GradientBasedSampler> gradient_based_sampler;
+  std::unique_ptr<GradientBasedSampler> sampler;
 
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
@@ -500,7 +500,7 @@ struct GPUHistMakerDevice {
         batch_param(_batch_param),
         use_gradient_based_sampling(_page->matrix.n_rows != _n_rows) {
     if (use_gradient_based_sampling) {
-      gradient_based_sampler.reset(new GradientBasedSampler());
+      sampler.reset(new GradientBasedSampler(batch_param, page->matrix.info, n_rows));
     }
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
@@ -548,16 +548,15 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
-    dh::safe_cuda(cudaMemcpyAsync(
-        gpair.data(), dh_gpair->ConstDevicePointer(),
-        gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
-
     if (use_gradient_based_sampling) {
-      auto sample = gradient_based_sampler->Sample(dh_gpair, dmat, batch_param);
+      auto sample = sampler->Sample(dh_gpair, dmat);
+      n_rows = sample.sample_rows;
       page = sample.page;
-      gpair = sample.gpair.DeviceSpan();
-      n_rows = page->matrix.n_rows;
+      gpair = sample.gpair;
     } else {
+      dh::safe_cuda(cudaMemcpyAsync(
+          gpair.data(), dh_gpair->ConstDevicePointer(),
+          gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
       SubsampleGradientPair(device_id, gpair, param.subsample);
     }
 

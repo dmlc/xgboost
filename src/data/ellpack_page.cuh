@@ -205,6 +205,14 @@ class EllpackPageImpl {
   EllpackPageImpl() = default;
 
   /*!
+   * \brief Constructor from an existing EllpackInfo.
+   *
+   * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
+   * and the given number of rows.
+   */
+  explicit EllpackPageImpl(int device, EllpackInfo info, size_t n_rows);
+
+  /*!
    * \brief Constructor from an existing DMatrix.
    *
    * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix

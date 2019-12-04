@@ -9,18 +9,41 @@
 #include <xgboost/host_device_vector.h>
 
 #include "../../common/compressed_iterator.h"
-#include "../../common/device_helpers.cuh"
 #include "../../common/random.h"
 #include "gradient_based_sampler.cuh"
 
 namespace xgboost {
 namespace tree {
 
-size_t GradientBasedSampler::MaxSampleRows(int device, const EllpackInfo& info) {
-  size_t available_memory = dh::AvailableMemory(device);
+GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
+                                           EllpackInfo info,
+                                           size_t n_rows,
+                                           size_t sample_rows)
+    : batch_param_(batch_param), info_(info), sample_rows_(sample_rows) {
+  monitor_.Init("gradient_based_sampler");
+
+  if (sample_rows_ == 0) {
+    sample_rows_ = MaxSampleRows();
+  }
+  if (sample_rows_ >= n_rows) {
+    is_sampling_ = false;
+    sample_rows_ = n_rows;
+  } else {
+    is_sampling_ = true;
+  }
+
+  page_.reset(new EllpackPageImpl(batch_param.gpu_id, info, sample_rows_));
+  if (is_sampling_) {
+    ba_.Allocate(batch_param.gpu_id, &gpair_, sample_rows_);
+  }
+}
+
+size_t GradientBasedSampler::MaxSampleRows() {
+  size_t available_memory = dh::AvailableMemory(batch_param_.gpu_id);
   size_t usable_memory = available_memory * 0.95;
+  size_t gpair_bytes = sizeof(GradientPair);
   size_t max_rows = common::CompressedBufferWriter::CalculateMaxRows(
-      usable_memory, info.NumSymbols(), info.row_stride, 2 * sizeof(float));
+      usable_memory, info_.NumSymbols(), info_.row_stride, gpair_bytes);
   return max_rows;
 }
 
@@ -68,24 +91,29 @@ struct is_non_zero : public thrust::unary_function<GradientPair, bool> {
 };
 
 GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>* gpair,
-                                                 DMatrix* dmat,
-                                                 BatchParam batch_param,
-                                                 size_t sample_rows) {
+                                                 DMatrix* dmat) {
+  if (!is_sampling_) {
+    auto page = (*dmat->GetBatches<EllpackPage>(batch_param_).begin()).Impl();
+    auto out_gpair = gpair->DeviceSpan();
+    return {sample_rows_, page, out_gpair};
+  }
+
   float sum_abs_gradient = thrust::transform_reduce(
       dh::tbegin(*gpair), dh::tend(*gpair), abs_grad(), 0.0f, thrust::plus<float>());
 
   thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
                     thrust::counting_iterator<size_t>(0),
                     dh::tbegin(*gpair),
-                    sample_and_scale(sample_rows, sum_abs_gradient, common::GlobalRandom()()));
+                    sample_and_scale(sample_rows_, sum_abs_gradient, common::GlobalRandom()()));
 
-  size_t out_size = thrust::count_if(dh::tbegin(*gpair), dh::tend(*gpair), is_non_zero());
+  thrust::copy_if(thrust::device,
+                  dh::tbegin(*gpair),
+                  dh::tend(*gpair),
+                  gpair_.begin(),
+                  is_non_zero());
 
-  HostDeviceVector<GradientPair> out_gpair(out_size, GradientPair(), batch_param.gpu_id);
-  thrust::copy_if(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(out_gpair), is_non_zero());
-
-  auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
-  return {page, out_gpair};
+  auto page = (*dmat->GetBatches<EllpackPage>(batch_param_).begin()).Impl();
+  return {sample_rows_, page, gpair_};
 }
 
 };  // namespace tree
