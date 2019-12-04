@@ -207,7 +207,7 @@ class CompressedIterator {
 
  public:
   CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
-  CompressedIterator(CompressedByteT *buffer, int num_symbols)
+  CompressedIterator(CompressedByteT *buffer, size_t num_symbols)
       : buffer_(buffer), offset_(0) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }

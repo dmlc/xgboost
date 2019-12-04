@@ -220,6 +220,16 @@ class EllpackPageImpl {
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
+
+  /*! \brief Copy the elements of the given ELLPACK page into this page.
+   *
+   * @param device The GPU device to use.
+   * @param page The ELLPACK page to copy from.
+   * @param offset The number of elements to skip before copying.
+   * @returns The number of elements copied.
+   */
+  size_t Copy(int device, EllpackPageImpl* page, size_t offset);
+
   /*!
    * \brief Initialize the EllpackInfo contained in the EllpackMatrix.
    *

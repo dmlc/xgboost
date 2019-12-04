@@ -43,7 +43,11 @@ class GradientBasedSampler {
   /*! \brief Returns the max number of rows that can fit in available GPU memory. */
   size_t MaxSampleRows();
 
+  /*! \brief Sample from a DMatrix based on the given gradients. */
   GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat);
+
+  /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
+  void CollectPages(DMatrix* dmat);
 
  private:
   common::Monitor monitor_;
@@ -54,6 +58,7 @@ class GradientBasedSampler {
   size_t sample_rows_;
   std::unique_ptr<EllpackPageImpl> page_;
   common::Span<GradientPair> gpair_;
+  bool page_collected_{false};
 };
 };  // namespace tree
 };  // namespace xgboost

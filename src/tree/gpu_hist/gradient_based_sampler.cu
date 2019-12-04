@@ -93,9 +93,9 @@ struct is_non_zero : public thrust::unary_function<GradientPair, bool> {
 GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>* gpair,
                                                  DMatrix* dmat) {
   if (!is_sampling_) {
-    auto page = (*dmat->GetBatches<EllpackPage>(batch_param_).begin()).Impl();
+    CollectPages(dmat);
     auto out_gpair = gpair->DeviceSpan();
-    return {sample_rows_, page, out_gpair};
+    return {sample_rows_, page_.get(), out_gpair};
   }
 
   float sum_abs_gradient = thrust::transform_reduce(
@@ -114,6 +114,20 @@ GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>*
 
   auto page = (*dmat->GetBatches<EllpackPage>(batch_param_).begin()).Impl();
   return {sample_rows_, page, gpair_};
+}
+
+void GradientBasedSampler::CollectPages(DMatrix* dmat) {
+  if (page_collected_) {
+    return;
+  }
+
+  size_t offset = 0;
+  for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
+    auto page = batch.Impl();
+    size_t num_elements = page_->Copy(batch_param_.gpu_id, page, offset);
+    offset += num_elements;
+  }
+  page_collected_ = true;
 }
 
 };  // namespace tree

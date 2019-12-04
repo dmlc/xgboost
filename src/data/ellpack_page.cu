@@ -110,6 +110,34 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("BinningCompression");
 }
 
+struct CopyPageFunction {
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
+  size_t offset;
+
+  CopyPageFunction(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
+      : cbw{dst->matrix.info.NumSymbols()},
+        dst_data_d{dst->gidx_buffer.data()},
+        src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
+        offset(offset) {}
+
+  __device__ void operator()(size_t i) {
+    cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[i], i + offset);
+  }
+};
+
+size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
+  monitor_.StartCuda("Copy");
+  size_t num_elements = page->matrix.n_rows * page->matrix.info.row_stride;
+  CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
+  CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
+  CHECK_GE(matrix.n_rows * matrix.info.row_stride, offset + num_elements);
+  dh::LaunchN(device, num_elements, CopyPageFunction(this, page, offset));
+  monitor_.StopCuda("Copy");
+  return num_elements;
+}
+
 // Construct an EllpackInfo based on histogram cuts of features.
 EllpackInfo::EllpackInfo(int device,
                          bool is_dense,
