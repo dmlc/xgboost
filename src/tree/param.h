@@ -2,7 +2,7 @@
  * Copyright 2014 by Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
-n * \author Tianqi Chen
+ * \author Tianqi Chen
  */
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_

@@ -3,18 +3,20 @@
  */
 #include <iostream>
 #include <vector>
+#include <utility>
 
 #include "param.h"
 
 namespace std {
 std::istream &operator>>(std::istream &is, std::vector<int> &t) {
+  t.clear();
   // get (
   while (true) {
     char ch = is.peek();
     if (isdigit(ch)) {
       int idx;
       if (is >> idx) {
-        t.assign(&idx, &idx + 1);
+        t.emplace_back(idx);
       }
       return is;
     }
@@ -73,7 +75,7 @@ std::istream &operator>>(std::istream &is, std::vector<int> &t) {
       return is;
     }
   }
-  t.assign(tmp.begin(), tmp.end());
+  t = std::move(tmp);
   return is;
 }
 }  // namespace std
