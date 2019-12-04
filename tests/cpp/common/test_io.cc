@@ -15,7 +15,7 @@ TEST(IO, FileExtension) {
 TEST(IO, FixedSizeStream) {
   std::string buffer {"This is the content of stream"};
   {
-    MemoryFixSizeBuffer stream((void *)buffer.c_str(), buffer.size());
+    MemoryFixSizeBuffer stream(static_cast<void *>(&buffer[0]), buffer.size());
     PeekableInStream peekable(&stream);
     FixedSizeStream fixed(&peekable);
 
@@ -30,7 +30,7 @@ TEST(IO, FixedSizeStream) {
       huge_buffer += buffer;
     }
 
-    MemoryFixSizeBuffer stream((void *)huge_buffer.c_str(), huge_buffer.size());
+    MemoryFixSizeBuffer stream(static_cast<void*>(&huge_buffer[0]), huge_buffer.size());
     PeekableInStream peekable(&stream);
     FixedSizeStream fixed(&peekable);
 
@@ -39,5 +39,5 @@ TEST(IO, FixedSizeStream) {
     ASSERT_EQ(huge_buffer, out_buffer);
   }
 }
-}
+}  // namespace common
 }  // namespace xgboost
