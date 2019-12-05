@@ -362,7 +362,9 @@ class LearnerImpl : public Learner {
     if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
-    this->configured_ = false;
+
+    this->generic_param_.ConfigureGpuId(gbm_->UseGPU());
+    this->configured_ = true;
   }
 
   // rabit save model to rabit checkpoint
