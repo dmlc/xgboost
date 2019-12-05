@@ -267,7 +267,6 @@ class GBTree : public GradientBooster {
         return gpu_predictor_;
 #else
         this->AssertGPUSupport();
-        return cpu_predictor_;
 #endif  // defined(XGBOOST_USE_CUDA)
       }
       CHECK(cpu_predictor_);
@@ -292,12 +291,13 @@ class GBTree : public GradientBooster {
     // training with an existing model, the prediction cache is not availbale and number
     // of trees doesn't equal zero, the whole training dataset got copied into GPU for
     // precise prediction.  This condition tries to avoid such copy by calling CPU
-    // Predictor.
+    // Predictor instead.
     if ((out_pred && out_pred->Size() == 0) &&
         (model_.param.num_trees != 0) &&
         // FIXME(trivialfis): Implement a better method for testing whether data is on
         // device after DMatrix refactoring is done.
         !on_device) {
+      CHECK(cpu_predictor_);
       return cpu_predictor_;
     }
 
@@ -316,8 +316,7 @@ class GBTree : public GradientBooster {
   }
 
   // commit new trees all at once
-  virtual void CommitModel(
-      std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
+  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
 
   // --- data structure ---
   GBTreeModel model_;
@@ -326,18 +325,17 @@ class GBTree : public GradientBooster {
   // ----training fields----
   bool showed_updater_warning_ {false};
   bool specified_updater_   {false};
-  bool specified_predictor_ {false};
   bool configured_ {false};
   // configurations for tree
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  // Cached matrices
   /**
    * \brief Map of matrices and associated cached predictions to facilitate
    * storing and looking up predictions.
    */
   std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache_;
+  // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<Predictor> gpu_predictor_;
