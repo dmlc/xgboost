@@ -45,6 +45,7 @@
 
 // tress
 #include "../src/tree/split_evaluator.cc"
+#include "../src/tree/param.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
 #include "../src/tree/updater_colmaker.cc"
