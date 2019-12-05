@@ -46,43 +46,42 @@ void GBTree::Configure(const Args& cfg) {
   // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("cpu_predictor", this->learner_param_));
+        Predictor::Create("cpu_predictor", this->generic_param_, cache_));
   }
-  cpu_predictor_->Configure(cfg, cache_);
-  auto n_gpus = common::AllVisibleGPUs();
+  cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
-  if (!gpu_predictor_) {
+  auto n_gpus = common::AllVisibleGPUs();
+  if (!gpu_predictor_ && n_gpus != 0) {
     gpu_predictor_ = std::unique_ptr<Predictor>(
-        Predictor::Create("gpu_predictor", this->learner_param_));
+        Predictor::Create("gpu_predictor", this->generic_param_, cache_));
   }
   if (n_gpus != 0) {
-    gpu_predictor_->Configure(cfg, cache_);
+    gpu_predictor_->Configure(cfg);
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 
   monitor_.Init("GBTree");
 
-  specified_predictor_ = std::any_of(cfg.cbegin(), cfg.cend(),
-                   [](std::pair<std::string, std::string> const& arg) {
-                     return arg.first == "predictor";
-                   });
-  if (!specified_predictor_ && tparam_.tree_method == TreeMethod::kGPUHist && n_gpus != 0) {
-    tparam_.predictor = "gpu_predictor";
-  }
-
   specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
                    [](std::pair<std::string, std::string> const& arg) {
                      return arg.first == "updater";
                    });
-  if (specified_updater_) {
+
+  if (specified_updater_ && !showed_updater_warning_) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
         "parameter. The `tree_method` parameter will be ignored. "
         "Incorrect sequence of updaters will produce undefined "
         "behavior. For common uses, we recommend using "
         "`tree_method` parameter instead.";
+    // Don't drive users to silent XGBOost.
+    showed_updater_warning_ = true;
   } else {
     this->ConfigureUpdaters();
     LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
+  }
+
+  for (auto& up : updaters_) {
+    up->Configure(cfg);
   }
 
   configured_ = true;
@@ -165,9 +164,6 @@ void GBTree::ConfigureUpdaters() {
     case TreeMethod::kGPUHist:
       this->AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
-      if (!specified_predictor_) {
-        tparam_.predictor = "gpu_predictor";
-      }
       break;
     default:
       LOG(FATAL) << "Unknown tree_method ("
@@ -242,7 +238,7 @@ void GBTree::InitUpdater(Args const& cfg) {
   }
 
   for (const std::string& pstr : ups) {
-    std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), learner_param_));
+    std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str(), generic_param_));
     up->Configure(cfg);
     updaters_.push_back(std::move(up));
   }
