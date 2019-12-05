@@ -594,7 +594,7 @@ class ColMaker: public TreeUpdater {
           p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                              e.best.DefaultLeft(), e.weight, left_leaf_weight,
                              right_leaf_weight, e.best.loss_chg,
-                             e.stats.sum_hess);
+                             e.stats.sum_hess, 0);
         } else {
           (*p_tree)[nid].SetLeaf(e.weight * param_.learning_rate);
         }
