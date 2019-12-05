@@ -26,15 +26,6 @@ struct GBTreeModel;
 }
 
 namespace xgboost {
-/**
- * \struct  PredictionCacheEntry
- *
- * \brief Contains pointer to input matrix and associated cached predictions.
- */
-struct PredictionCacheEntry {
-  std::shared_ptr<DMatrix> data;
-  HostDeviceVector<bst_float> predictions;
-};
 
 /**
  * \class Predictor
@@ -50,37 +41,23 @@ struct PredictionCacheEntry {
 
 class Predictor {
  protected:
-  /*
-   * \brief Runtime parameters.
-   */
-  GenericParameter const* generic_param_;
-  /**
-   * \brief Map of matrices and associated cached predictions to facilitate
-   * storing and looking up predictions.
-   */
-  std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache_;
-
-  std::unordered_map<DMatrix*, PredictionCacheEntry>::iterator FindCache(DMatrix const* dmat) {
-    auto cache_emtry = std::find_if(
-        cache_->begin(), cache_->end(),
-        [dmat](std::pair<DMatrix *, PredictionCacheEntry const &> const &kv) {
-          return kv.second.data.get() == dmat;
-        });
-    return cache_emtry;
-  }
+  GenericParameter const* learner_param_;
 
  public:
-  Predictor(GenericParameter const* generic_param,
-            std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) :
-      generic_param_{generic_param}, cache_{cache} {}
   virtual ~Predictor() = default;
 
   /**
+   * \fn  virtual void Predictor::Init(const std::vector<std::pair<std::string,
+   * std::string> >&cfg ,const std::vector<std::shared_ptr<DMatrix> > &cache);
+   *
    * \brief Configure and register input matrices in prediction cache.
    *
    * \param cfg   The configuration.
+   * \param cache Vector of DMatrix's to be used in prediction.
    */
-  virtual void Configure(const std::vector<std::pair<std::string, std::string>>& cfg);
+
+  virtual void Configure(const std::vector<std::pair<std::string, std::string>>& cfg,
+                         const std::vector<std::shared_ptr<DMatrix>>& cache);
 
   /**
    * \brief Generate batch predictions for a given feature matrix. May use
@@ -185,33 +162,45 @@ class Predictor {
                                    unsigned condition_feature = 0) = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               std::vector<bst_float>* out_contribs,
-                                               const gbm::GBTreeModel& model,
-                                               unsigned ntree_limit = 0,
-                                               std::vector<bst_float>* tree_weights = nullptr,
-                                               bool approximate = false) = 0;
-
+                                   std::vector<bst_float>* out_contribs,
+                                   const gbm::GBTreeModel& model,
+                                   unsigned ntree_limit = 0,
+                                   std::vector<bst_float>* tree_weights = nullptr,
+                                   bool approximate = false) = 0;
 
   /**
+   * \fn  static Predictor* Predictor::Create(std::string name);
+   *
    * \brief Creates a new Predictor*.
    *
-   * \param name           Name of the predictor.
-   * \param generic_param  Pointer to runtime parameters.
-   * \param cache          Pointer to prediction cache.
    */
-  static Predictor* Create(
-      std::string const& name, GenericParameter const* generic_param,
-      std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache);
+
+  static Predictor* Create(std::string const& name, GenericParameter const*);
+
+ protected:
+  /**
+   * \struct  PredictionCacheEntry
+   *
+   * \brief Contains pointer to input matrix and associated cached predictions.
+   */
+  struct PredictionCacheEntry {
+    std::shared_ptr<DMatrix> data;
+    HostDeviceVector<bst_float> predictions;
+  };
+
+  /**
+   * \brief Map of matrices and associated cached predictions to facilitate
+   * storing and looking up predictions.
+   */
+  std::unordered_map<DMatrix*, PredictionCacheEntry> cache_;
 };
 
 /*!
  * \brief Registry entry for predictor.
  */
 struct PredictorReg
-    : public dmlc::FunctionRegEntryBase<
-  PredictorReg, std::function<Predictor*(
-      GenericParameter const*,
-      std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>>)>> {};
+    : public dmlc::FunctionRegEntryBase<PredictorReg,
+                                        std::function<Predictor*()>> {};
 
 #define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
   static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \

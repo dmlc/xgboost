@@ -28,7 +28,7 @@ namespace xgboost {
  */
 class GradientBooster {
  protected:
-  GenericParameter const* generic_param_;
+  GenericParameter const* learner_param_;
 
  public:
   /*! \brief virtual destructor */

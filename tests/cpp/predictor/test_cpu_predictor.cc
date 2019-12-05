@@ -9,9 +9,8 @@
 namespace xgboost {
 TEST(cpu_predictor, Test) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   gbm::GBTreeModel model = CreateTestModel();
 
@@ -63,10 +62,8 @@ TEST(cpu_predictor, ExternalMemoryTest) {
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
-
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   gbm::GBTreeModel model = CreateTestModel();
 
