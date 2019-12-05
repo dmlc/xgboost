@@ -1,8 +1,6 @@
 // Copyright (c) 2019 by Contributors
 #include <gtest/gtest.h>
-#include <xgboost/c_api.h>
 #include <xgboost/data.h>
-#include <xgboost/version_config.h>
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/common/timer.h"
@@ -29,71 +27,6 @@ TEST(c_api, CSRAdapter) {
   EXPECT_EQ(line2 .GetElement(0).value, 5);
   EXPECT_EQ(line2 .GetElement(0).row_idx, 2);
   EXPECT_EQ(line2 .GetElement(0).column_idx, 1);
-
-  data::SimpleDMatrix dmat(&adapter, std::nan(""), -1);
-  EXPECT_EQ(dmat.Info().num_col_, 2);
-  EXPECT_EQ(dmat.Info().num_row_, 3);
-  EXPECT_EQ(dmat.Info().num_nonzero_, 5);
-
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
-    for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
-      for(auto j = 0ull; j < inst.size(); j++)
-      {
-        EXPECT_EQ(inst[j].fvalue, data[row_ptr[i] + j]);
-        EXPECT_EQ(inst[j].index, feature_idx[row_ptr[i] + j]);
-      }
-    }
-  }
-}
-TEST(c_api, DenseAdapter) {
-  int m = 3;
-  int n = 2;
-  std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, m*n, n);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
-  EXPECT_EQ(dmat.Info().num_col_, 2);
-  EXPECT_EQ(dmat.Info().num_row_, 3);
-  EXPECT_EQ(dmat.Info().num_nonzero_, 6);
-
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
-    for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
-      for(auto j = 0ull; j < inst.size(); j++)
-      {
-        EXPECT_EQ(inst[j].fvalue, data[i*n+j]);
-        EXPECT_EQ(inst[j].index, j);
-      }
-    }
-  }
-}
-
-TEST(c_api, CSCAdapter) {
-  std::vector<float> data = {1, 3, 2, 4, 5};
-  std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
-  std::vector<size_t> col_ptr = {0, 2, 5};
-  data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
-  EXPECT_EQ(dmat.Info().num_col_, 2);
-  EXPECT_EQ(dmat.Info().num_row_, 3);
-  EXPECT_EQ(dmat.Info().num_nonzero_, 5);
-
-  auto &batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst = batch[0];
-  EXPECT_EQ(inst[0].fvalue, 1);
-  EXPECT_EQ(inst[0].index, 0);
-  EXPECT_EQ(inst[1].fvalue, 2);
-  EXPECT_EQ(inst[1].index, 1);
-
-  inst = batch[1];
-  EXPECT_EQ(inst[0].fvalue, 3);
-  EXPECT_EQ(inst[0].index, 0);
-  EXPECT_EQ(inst[1].fvalue, 4);
-  EXPECT_EQ(inst[1].index, 1);
-
-  inst = batch[2];
-  EXPECT_EQ(inst[0].fvalue, 5);
-  EXPECT_EQ(inst[0].index, 1);
 }
 
 TEST(c_api, CSCAdapterColsMoreThanRows) {
@@ -127,11 +60,4 @@ TEST(c_api, CSCAdapterColsMoreThanRows) {
   EXPECT_EQ(inst[2].index, 2);
   EXPECT_EQ(inst[3].fvalue, 8);
   EXPECT_EQ(inst[3].index, 3);
-}
-
-TEST(c_api, FileAdapter) {
-  std::string filename = "test.libsvm";
-  CreateBigTestData(filename, 10);
-  std::unique_ptr<dmlc::Parser<uint32_t>> parser(dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1,"auto"));
-  data::FileAdapter adapter(parser.get());
 }

@@ -244,6 +244,20 @@ class SparsePage {
    * \param batch the row batch.
    */
   void Push(const dmlc::RowBlock<uint32_t>& batch);
+
+  /**
+   * \brief Pushes external data batch onto this page
+   *
+   * \tparam  AdapterBatchT 
+   * \param batch 
+   * \param missing 
+   * \param nthread 
+   *
+   * \return  The maximum number of columns encountered in this input batch. Useful when pushing many adapter batches to work out the total number of columns.
+   */
+  template <typename AdapterBatchT>
+  uint64_t Push(const AdapterBatchT& batch, float missing, int nthread);
+
   /*!
    * \brief Push a sparse page
    * \param batch the row page
@@ -457,31 +471,19 @@ class DMatrix {
    * \brief Creates a new DMatrix from an external data adapter.
    *
    * \tparam  AdapterT  Type of the adapter.
-   * \param adapter View onto an external data.
-   * \param missing Values to count as missing.
-   * \param nthread Number of threads for construction.
+   * \param [in,out]  adapter       View onto an external data.
+   * \param           missing       Values to count as missing.
+   * \param           nthread       Number of threads for construction.
+   * \param           cache_prefix  (Optional) The cache prefix for external memory.
+   * \param           page_size     (Optional) Size of the page.
    *
    * \return  a Created DMatrix.
    */
   template <typename AdapterT>
-  static DMatrix* Create(AdapterT* adapter, float missing, int nthread);
-
-  /*!
-   * \brief Create a DMatrix by loading data from parser.
-   *  Parser can later be deleted after the DMatrix i created.
-   * \param parser The input data parser
-   * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.
-   *     This can be nullptr for common cases, and in-memory mode will be used.
-   * \param page_size Page size for external memory.
-   * \sa dmlc::Parser
-   * \note dmlc-core provides efficient distributed data parser for libsvm format.
-   *  User can create and register customized parser to load their own format using DMLC_REGISTER_DATA_PARSER.
-   *  See "dmlc-core/include/dmlc/data.h" for detail.
-   * \return A created DMatrix.
-   */
-  static DMatrix* Create(dmlc::Parser<uint32_t>* parser,
+  static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
+
 
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;

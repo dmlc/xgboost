@@ -196,7 +196,9 @@ int XGDMatrixCreateFromDataIter(
     scache = cache_info;
   }
   NativeDataIter parser(data_handle, callback);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&parser, scache));
+  data::FileAdapter adapter(&parser);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1, scache));
   API_END();
 }
 
