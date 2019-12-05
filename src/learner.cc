@@ -142,7 +142,14 @@ int constexpr GenericParameter::kCpuId;
 
 void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #if defined(XGBOOST_USE_CUDA)
-  if (gpu_id == kCpuId) {  // 0. User didn't specify the `gpu_id'
+  int32_t n_visible = common::AllVisibleGPUs();
+  if (n_visible == 0) {
+    // Running XGBoost compiled with CUDA on CPU only machine.
+    this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
+    return;
+  }
+
+  if (this->gpu_id == kCpuId) {  // 0. User didn't specify the `gpu_id'
     if (require_gpu) {     // 1. `tree_method' or `predictor' or both are using
                            // GPU.
       // 2. Use device 0 as default.
@@ -152,10 +159,7 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 
   // 3. When booster is loaded from a memory image (Python pickle or R
   // raw model), number of available GPUs could be different.  Wrap around it.
-  int32_t n_gpus = common::AllVisibleGPUs();
-  if (n_gpus == 0) {
-    this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
-  } else if (gpu_id != kCpuId && gpu_id >= n_gpus) {
+  if (this->gpu_id != kCpuId && this->gpu_id >= n_visible) {
     this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(gpu_id % n_gpus)}});
   }
 #else
@@ -358,7 +362,7 @@ class LearnerImpl : public Learner {
     if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
       tparam_.dsplit = DataSplitMode::kRow;
     }
-    this->configured_ = true;
+    this->configured_ = false;
   }
 
   // rabit save model to rabit checkpoint
