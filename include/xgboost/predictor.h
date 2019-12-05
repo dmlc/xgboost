@@ -108,7 +108,6 @@ class Predictor {
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from
    * \param           ntree_limit (Optional) The ntree limit.
-   * \param           root_index  (Optional) Zero-based index of the root.
    */
 
   virtual void PredictInstance(const SparsePage::Inst& inst,

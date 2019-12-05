@@ -434,7 +434,6 @@ class RegTree : public Model {
   /*!
    * \brief get the leaf index
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */
   int GetLeafIndex(const FVec& feat) const;

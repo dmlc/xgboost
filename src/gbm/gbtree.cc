@@ -323,8 +323,7 @@ class Dart : public GBTree {
   }
 
   void PredictInstance(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds, unsigned ntree_limit,
-                       unsigned root_index) override {
+                       std::vector<bst_float> *out_preds, unsigned ntree_limit) override {
     DropTrees(1);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
