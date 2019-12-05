@@ -161,8 +161,6 @@ class TestRanking(unittest.TestCase):
         """
         Retrieve the group number from the dmatrix
         """
-        # control that should work
-        self.dtrain.get_uint_info('root_index')
         # test the new getter
         self.dtrain.get_uint_info('group_ptr')
 

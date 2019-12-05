@@ -12,10 +12,6 @@ TEST(MetaInfo, GetSet) {
   xgboost::MetaInfo info;
 
   double double2[2] = {1.0, 2.0};
-  EXPECT_EQ(info.GetRoot(1), 0)
-    << "When no root_index is given, was expecting default value 0";
-  info.SetInfo("root_index", double2, xgboost::kDouble, 2);
-  EXPECT_EQ(info.GetRoot(1), 2.0f);
 
   EXPECT_EQ(info.labels_.Size(), 0);
   info.SetInfo("label", double2, xgboost::kFloat32, 2);
@@ -58,7 +54,7 @@ TEST(MetaInfo, SaveLoadBinary) {
     info.SaveBinary(fs.get());
   }
 
-  ASSERT_EQ(GetFileSize(tmp_file), 92)
+  ASSERT_EQ(GetFileSize(tmp_file), 84)
       << "Expected saved binary file size to be same as object size";
 
   std::unique_ptr<dmlc::Stream> fs {

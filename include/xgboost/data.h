@@ -49,11 +49,6 @@ class MetaInfo {
   /*! \brief label of each instance */
   HostDeviceVector<bst_float> labels_;
   /*!
-   * \brief specified root index of each instance,
-   *  can be used for multi task setting
-   */
-  std::vector<bst_uint> root_index_;
-  /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
    */
@@ -75,14 +70,6 @@ class MetaInfo {
    */
   inline bst_float GetWeight(size_t i) const {
     return weights_.Size() != 0 ?  weights_.HostVector()[i] : 1.0f;
-  }
-  /*!
-   * \brief Get the root index of i-th instance.
-   * \param i Instance index.
-   * \return The pre-defined root index of i-th instance.
-   */
-  inline unsigned GetRoot(size_t i) const {
-    return !root_index_.empty() ? root_index_[i] : 0U;
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
   inline const std::vector<size_t>& LabelAbsSort() const {

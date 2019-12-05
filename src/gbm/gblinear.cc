@@ -117,8 +117,7 @@ class GBLinear : public GradientBooster {
   // add base margin
   void PredictInstance(const SparsePage::Inst &inst,
                std::vector<bst_float> *out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
+               unsigned ntree_limit) override {
     const int ngroup = model_.param.num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
       this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);

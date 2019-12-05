@@ -75,7 +75,7 @@ class TreePruner: public TreeUpdater {
         npruned = this->TryPruneLeaf(tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    LOG(INFO) << "tree pruning end, " << tree.param.num_roots << " roots, "
+    LOG(INFO) << "tree pruning end, "
               << tree.NumExtraNodes() << " extra nodes, " << npruned
               << " pruned nodes, max_depth=" << tree.MaxDepth();
   }

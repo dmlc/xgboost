@@ -34,7 +34,6 @@ namespace xgboost {
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
   labels_.HostVector().clear();
-  root_index_.clear();
   group_ptr_.clear();
   weights_.HostVector().clear();
   base_margin_.HostVector().clear();
@@ -48,7 +47,6 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
   fo->Write(weights_.HostVector());
-  fo->Write(root_index_);
   fo->Write(base_margin_.HostVector());
 }
 
@@ -69,7 +67,6 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
 
   CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&base_margin_.HostVector())) << "MetaInfo: invalid format";
 }
 
@@ -121,11 +118,7 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
   }                                                                     \
 
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
-  if (!std::strcmp(key, "root_index")) {
-    root_index_.resize(num);
-    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
-                       std::copy(cast_dptr, cast_dptr + num, root_index_.begin()));
-  } else if (!std::strcmp(key, "label")) {
+  if (!std::strcmp(key, "label")) {
     auto& labels = labels_.HostVector();
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,

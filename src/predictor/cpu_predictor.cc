@@ -19,13 +19,13 @@ class CPUPredictor : public Predictor {
   static bst_float PredValue(const  SparsePage::Inst& inst,
                              const std::vector<std::unique_ptr<RegTree>>& trees,
                              const std::vector<int>& tree_info, int bst_group,
-                             unsigned root_index, RegTree::FVec* p_feats,
+                             RegTree::FVec* p_feats,
                              unsigned tree_begin, unsigned tree_end) {
     bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
       if (tree_info[i] == bst_group) {
-        int tid = trees[i]->GetLeafIndex(*p_feats, root_index);
+        int tid = trees[i]->GetLeafIndex(*p_feats);
         psum += (*trees[i])[tid].LeafValue();
       }
     }
@@ -47,7 +47,6 @@ class CPUPredictor : public Predictor {
                                 std::vector<bst_float>* out_preds,
                                 const gbm::GBTreeModel& model, int num_group,
                                 unsigned tree_begin, unsigned tree_end) {
-    const MetaInfo& info = p_fmat->Info();
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread, model.param.num_feature);
     std::vector<bst_float>& preds = *out_preds;
@@ -81,7 +80,7 @@ class CPUPredictor : public Predictor {
               const size_t offset = ridx[k] * num_group + gid;
               preds[offset] += this->PredValue(
                   inst[k], model.trees, model.tree_info, gid,
-                  info.GetRoot(ridx[k]), &feats, tree_begin, tree_end);
+                  &feats, tree_begin, tree_end);
             }
           }
         }
@@ -94,7 +93,7 @@ class CPUPredictor : public Predictor {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
               this->PredValue(inst, model.trees, model.tree_info, gid,
-                              info.GetRoot(ridx), &feats, tree_begin, tree_end);
+                              &feats, tree_begin, tree_end);
         }
       }
     }
@@ -204,8 +203,7 @@ class CPUPredictor : public Predictor {
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit,
-                       unsigned root_index) override {
+                       const gbm::GBTreeModel& model, unsigned ntree_limit) override {
     if (thread_temp.size() == 0) {
       thread_temp.resize(1, RegTree::FVec());
       thread_temp[0].Init(model.param.num_feature);
@@ -219,7 +217,7 @@ class CPUPredictor : public Predictor {
     // loop over output groups
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       (*out_preds)[gid] =
-          PredValue(inst, model.trees, model.tree_info, gid, root_index,
+          PredValue(inst, model.trees, model.tree_info, gid,
                     &thread_temp[0], 0, ntree_limit) +
           model.base_margin;
     }
@@ -247,7 +245,7 @@ class CPUPredictor : public Predictor {
         RegTree::FVec& feats = thread_temp[tid];
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
-          int tid = model.trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
+          int tid = model.trees[j]->GetLeafIndex(feats);
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
         feats.Drop(batch[i]);
@@ -270,7 +268,7 @@ class CPUPredictor : public Predictor {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
     const int ngroup = model.param.num_output_group;
-    size_t ncolumns = model.param.num_feature + 1;
+    size_t const ncolumns = model.param.num_feature + 1;
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
     contribs.resize(info.num_row_ * ncolumns * model.param.num_output_group);
@@ -290,15 +288,13 @@ class CPUPredictor : public Predictor {
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
-        unsigned root_id = info.GetRoot(row_idx);
+        std::vector<bst_float> this_tree_contribs(ncolumns);
         RegTree::FVec& feats = thread_temp[omp_get_thread_num()];
         // loop over all classes
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float* p_contribs =
               &contribs[(row_idx * ngroup + gid) * ncolumns];
           feats.Fill(batch[i]);
-          std::vector<bst_float> this_tree_contribs;
-          this_tree_contribs.resize(ncolumns);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
             std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
@@ -306,10 +302,10 @@ class CPUPredictor : public Predictor {
               continue;
             }
             if (!approximate) {
-              model.trees[j]->CalculateContributions(feats, root_id, &this_tree_contribs[0],
+              model.trees[j]->CalculateContributions(feats, &this_tree_contribs[0],
                                                      condition, condition_feature);
             } else {
-              model.trees[j]->CalculateContributionsApprox(feats, root_id, &this_tree_contribs[0]);
+              model.trees[j]->CalculateContributionsApprox(feats, &this_tree_contribs[0]);
             }
             for (int ci = 0 ; ci < ncolumns ; ++ci) {
                 p_contribs[ci] += this_tree_contribs[ci] *

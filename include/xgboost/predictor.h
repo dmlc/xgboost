@@ -98,7 +98,6 @@ class Predictor {
   /**
    * \fn  virtual void Predictor::PredictInstance( const SparsePage::Inst&
    * inst, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model,
-   * unsigned ntree_limit = 0, unsigned root_index = 0) = 0;
    *
    * \brief online prediction function, predict score for one instance at a time
    * NOTE: use the batch prediction interface if possible, batch prediction is
@@ -109,14 +108,12 @@ class Predictor {
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from
    * \param           ntree_limit (Optional) The ntree limit.
-   * \param           root_index  (Optional) Zero-based index of the root.
    */
 
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
                                const gbm::GBTreeModel& model,
-                               unsigned ntree_limit = 0,
-                               unsigned root_index = 0) = 0;
+                               unsigned ntree_limit = 0) = 0;
 
   /**
    * \fn  virtual void Predictor::PredictLeaf(DMatrix* dmat,

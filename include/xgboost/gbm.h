@@ -88,13 +88,11 @@ class GradientBooster {
    * \param inst the instance you want to predict
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction
-   * \param root_index the root index
    * \sa Predict
    */
   virtual void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
-                       unsigned ntree_limit = 0,
-                       unsigned root_index = 0) = 0;
+                               std::vector<bst_float>* out_preds,
+                               unsigned ntree_limit = 0) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor

@@ -231,7 +231,6 @@ class TestBasic(unittest.TestCase):
         assert output == solution
 
 
-
 class TestBasicPathLike(unittest.TestCase):
     """Unit tests using the os_fspath and pathlib.Path for file interaction."""
 
