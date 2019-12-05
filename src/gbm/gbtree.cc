@@ -47,12 +47,15 @@ void GBTree::Configure(const Args& cfg) {
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("cpu_predictor", this->learner_param_));
-    cpu_predictor_->Configure(cfg, cache_);
   }
+  cpu_predictor_->Configure(cfg, cache_);
+  auto n_gpus = common::AllVisibleGPUs();
 #if defined(XGBOOST_USE_CUDA)
   if (!gpu_predictor_) {
     gpu_predictor_ = std::unique_ptr<Predictor>(
         Predictor::Create("gpu_predictor", this->learner_param_));
+  }
+  if (n_gpus != 0) {
     gpu_predictor_->Configure(cfg, cache_);
   }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -63,7 +66,7 @@ void GBTree::Configure(const Args& cfg) {
                    [](std::pair<std::string, std::string> const& arg) {
                      return arg.first == "predictor";
                    });
-  if (!specified_predictor_ && tparam_.tree_method == TreeMethod::kGPUHist) {
+  if (!specified_predictor_ && tparam_.tree_method == TreeMethod::kGPUHist && n_gpus != 0) {
     tparam_.predictor = "gpu_predictor";
   }
 
