@@ -723,37 +723,44 @@ struct GPUHistMakerDevice {
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
 
-    if (row_partitioner->GetRows().size() != n_rows) {
+    if (row_partitioner->GetRows().size() != p_fmat->Info().num_row_) {
       row_partitioner.reset();  // Release the device memory first before reallocating
       row_partitioner.reset(new RowPartitioner(device_id, p_fmat->Info().num_row_));
     }
-    for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-      page = batch.Impl();
-      auto d_matrix = page->matrix;
-      row_partitioner->FinalisePosition(
-          [=] __device__(size_t row_id, int position) {
-            if (!d_matrix.IsInRange(row_id)) {
-              return RowPartitioner::kIgnoredTreePosition;
-            }
-            auto node = d_nodes[position];
-
-            while (!node.IsLeaf()) {
-              bst_float element = d_matrix.GetElement(row_id, node.SplitIndex());
-              // Missing value
-              if (isnan(element)) {
-                position = node.DefaultChild();
-              } else {
-                if (element <= node.SplitCond()) {
-                  position = node.LeftChild();
-                } else {
-                  position = node.RightChild();
-                }
-              }
-              node = d_nodes[position];
-            }
-            return position;
-          });
+    if (page->matrix.n_rows == p_fmat->Info().num_row_) {
+      FinalisePositionInPage(page, d_nodes);
+    } else {
+      for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
+        FinalisePositionInPage(batch.Impl(), d_nodes);
+      }
     }
+  }
+
+  void FinalisePositionInPage(EllpackPageImpl* page, const common::Span<RegTree::Node> d_nodes) {
+    auto d_matrix = page->matrix;
+    row_partitioner->FinalisePosition(
+        [=] __device__(size_t row_id, int position) {
+      if (!d_matrix.IsInRange(row_id)) {
+        return RowPartitioner::kIgnoredTreePosition;
+      }
+      auto node = d_nodes[position];
+
+      while (!node.IsLeaf()) {
+        bst_float element = d_matrix.GetElement(row_id, node.SplitIndex());
+        // Missing value
+        if (isnan(element)) {
+          position = node.DefaultChild();
+        } else {
+          if (element <= node.SplitCond()) {
+            position = node.LeftChild();
+          } else {
+            position = node.RightChild();
+          }
+        }
+        node = d_nodes[position];
+      }
+      return position;
+    });
   }
 
   void UpdatePredictionCache(bst_float* out_preds_d) {
