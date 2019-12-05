@@ -410,23 +410,6 @@ void SparsePage::Push(const SparsePage &batch) {
   }
 }
 
-void SparsePage::Push(const dmlc::RowBlock<uint32_t>& batch) {
-  auto& data_vec = data.HostVector();
-  auto& offset_vec = offset.HostVector();
-  data_vec.reserve(data.Size() + batch.offset[batch.size] - batch.offset[0]);
-  offset_vec.reserve(offset.Size() + batch.size);
-  CHECK(batch.index != nullptr);
-  for (size_t i = 0; i < batch.size; ++i) {
-    offset_vec.push_back(offset_vec.back() + batch.offset[i + 1] - batch.offset[i]);
-  }
-  for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-    uint32_t index = batch.index[i];
-    bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-    data_vec.emplace_back(index, fvalue);
-  }
-  CHECK_EQ(offset_vec.back(), data.Size());
-}
-
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after

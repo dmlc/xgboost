@@ -21,6 +21,7 @@
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
+#include "adapter.h"
 #include "sparse_page_writer.h"
 #include "../common/common.h"
 
