@@ -328,7 +328,15 @@ class LearnerImpl : public Learner {
           }
         }
       }
-      attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
+      Args filtered(attr.size());
+      size_t n {0};
+      std::copy_if(attr.begin(), attr.end(), filtered.begin(),
+                   [&n](std::pair<std::string const&, std::string const&> const& kv) {
+                     bool r = kv.first != "SAVED_PARAM_gpu_id";
+                     n++;
+                     return r;
+                   });
+      attributes_ = std::map<std::string, std::string>(attr.begin(), attr.begin() + n);
     }
     if (tparam_.objective == "count:poisson") {
       std::string max_delta_step;
@@ -426,7 +434,9 @@ class LearnerImpl : public Learner {
     if (mparam.contain_extra_attrs != 0) {
       std::map<std::string, std::string> attr(attributes_);
       for (const auto& kv : extra_attr) {
-        attr[kv.first] = kv.second;
+        if (kv.first != "SAVED_PARAM_gpu_id") {
+          attr[kv.first] = kv.second;
+        }
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
                   attr.begin(), attr.end()));
