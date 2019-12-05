@@ -287,6 +287,7 @@ class LearnerImpl : public Learner {
         const std::string prefix = "SAVED_PARAM_";
         if (kv.first.find(prefix) == 0) {
           const std::string saved_param = kv.first.substr(prefix.length());
+          bool is_gpu_predictor = saved_param == "predictor" && kv.second == "gpu_predictor";
 #ifdef XGBOOST_USE_CUDA
           if (saved_param == "predictor" || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
@@ -310,7 +311,14 @@ class LearnerImpl : public Learner {
             kv.second = "cpu_predictor";
           }
 #endif  // XGBOOST_USE_CUDA
-
+          // NO visible GPU in current environment
+          if (is_gpu_predictor && common::AllVisibleGPUs() == 0) {
+            cfg_["predictor"] = "cpu_predictor";
+            kv.second = "cpu_predictor";
+            LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
+          } else if (is_gpu_predictor) {
+            cfg_["predictor"] = "gpu_predictor";
+          }
           if (saved_configs_.find(saved_param) != saved_configs_.end()) {
             cfg_[saved_param] = kv.second;
           }
