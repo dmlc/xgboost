@@ -44,7 +44,11 @@ class PeekableInStream : public dmlc::Stream {
   /*! \brief internal buffer */
   std::string buffer_;
 };
-
+/*!
+ * \brief A simple class used to consume `dmlc::Stream' all at once.
+ *
+ * With it one can load the rabit checkpoint into a known size string buffer.
+ */
 class FixedSizeStream : public PeekableInStream {
  public:
   explicit FixedSizeStream(PeekableInStream* stream);
@@ -60,6 +64,10 @@ class FixedSizeStream : public PeekableInStream {
     LOG(FATAL) << "Not implemented";
   }
 
+  /*!
+   *  \brief Take the buffer from `FixedSizeStream'.  The one in `FixedSizeStream' will be
+   *  cleared out.
+   */
   void Take(std::string* out);
 
  private:
