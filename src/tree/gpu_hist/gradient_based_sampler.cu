@@ -5,9 +5,10 @@
 #include <thrust/random.h>
 #include <thrust/transform.h>
 #include <thrust/transform_reduce.h>
-
 #include <xgboost/host_device_vector.h>
 #include <xgboost/logging.h>
+
+#include <algorithm>
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"
@@ -54,7 +55,7 @@ size_t GradientBasedSampler::MaxSampleRows() {
 }
 
 /*! \brief A functor that returns the absolute value of gradient from a gradient pair. */
-struct abs_grad : public thrust::unary_function<GradientPair, float> {
+struct AbsoluteGradient : public thrust::unary_function<GradientPair, float> {
   XGBOOST_DEVICE float operator()(const GradientPair& gpair) const {
     return fabsf(gpair.GetGrad());
   }
@@ -64,12 +65,12 @@ struct abs_grad : public thrust::unary_function<GradientPair, float> {
  *
  * Sampling probability is proportional to the absolute value of the gradient.
  */
-struct sample_gradient : public thrust::binary_function<GradientPair, size_t, GradientPair> {
+struct PoissonSampling : public thrust::binary_function<GradientPair, size_t, GradientPair> {
   const size_t sample_rows;
   const float sum_abs_gradient;
   const uint32_t seed;
 
-  XGBOOST_DEVICE sample_gradient(size_t _sample_rows, float _sum_abs_gradient, size_t _seed)
+  XGBOOST_DEVICE PoissonSampling(size_t _sample_rows, float _sum_abs_gradient, size_t _seed)
       : sample_rows(_sample_rows), sum_abs_gradient(_sum_abs_gradient), seed(_seed) {}
 
   XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t i) {
@@ -89,17 +90,17 @@ struct sample_gradient : public thrust::binary_function<GradientPair, size_t, Gr
 };
 
 /*! \brief A functor that returns true if the gradient pair is non-zero. */
-struct is_non_zero : public thrust::unary_function<GradientPair, bool> {
+struct IsNonZero : public thrust::unary_function<GradientPair, bool> {
   XGBOOST_DEVICE bool operator()(const GradientPair& gpair) const {
     return gpair.GetGrad() != 0 || gpair.GetHess() != 0;
   }
 };
 
 /*! \brief A functor that clears the row indexes with empty gradient. */
-struct clear_empty_rows : public thrust::binary_function<GradientPair, size_t, size_t> {
+struct ClearEmptyRows : public thrust::binary_function<GradientPair, size_t, size_t> {
   const size_t max_rows;
 
-  XGBOOST_DEVICE clear_empty_rows(size_t max_rows) : max_rows(max_rows) {}
+  XGBOOST_DEVICE ClearEmptyRows(size_t max_rows) : max_rows(max_rows) {}
 
   XGBOOST_DEVICE size_t operator()(const GradientPair& gpair, size_t row_index) const {
     if ((gpair.GetGrad() != 0 || gpair.GetHess() != 0) && row_index < max_rows) {
@@ -111,7 +112,7 @@ struct clear_empty_rows : public thrust::binary_function<GradientPair, size_t, s
 };
 
 /*! \brief A functor that trims extra sampled rows. */
-struct trim_extra_rows : public thrust::binary_function<GradientPair, size_t, GradientPair> {
+struct TrimExtraRows : public thrust::binary_function<GradientPair, size_t, GradientPair> {
   XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t row_index) const {
     if (row_index == SIZE_MAX) {
       return GradientPair();
@@ -131,35 +132,38 @@ GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>*
   }
 
   // Sum the absolute value of gradients as the denominator to normalize the probability.
-  float sum_abs_gradient = thrust::transform_reduce(
-      dh::tbegin(*gpair), dh::tend(*gpair), abs_grad(), 0.0f, thrust::plus<float>());
+  float sum_abs_gradient = thrust::transform_reduce(dh::tbegin(*gpair),
+                                                    dh::tend(*gpair),
+                                                    AbsoluteGradient(),
+                                                    0.0f,
+                                                    thrust::plus<float>());
 
   // Poisson sampling of the gradient pairs based on the absolute value of the gradient.
   thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
                     thrust::counting_iterator<size_t>(0),
                     dh::tbegin(*gpair),
-                    sample_gradient(sample_rows_, sum_abs_gradient, common::GlobalRandom()()));
+                    PoissonSampling(sample_rows_, sum_abs_gradient, common::GlobalRandom()()));
 
   // Map the original row index to the sample row index.
   sample_row_index_.Fill(0);
   thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
                     dh::tbegin(sample_row_index_),
-                    is_non_zero());
+                    IsNonZero());
   thrust::exclusive_scan(dh::tbegin(sample_row_index_), dh::tend(sample_row_index_),
                          dh::tbegin(sample_row_index_));
   thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
                     dh::tbegin(sample_row_index_),
                     dh::tbegin(sample_row_index_),
-                    clear_empty_rows(sample_rows_));
+                    ClearEmptyRows(sample_rows_));
 
   // Zero out the gradient pairs if there are more rows than desired.
   thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
                     dh::tbegin(sample_row_index_),
                     dh::tbegin(*gpair),
-                    trim_extra_rows());
+                    TrimExtraRows());
 
   // Compact the non-zero gradient pairs.
-  thrust::copy_if(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(gpair_), is_non_zero());
+  thrust::copy_if(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(gpair_), IsNonZero());
 
   // Compact the ELLPACK pages into the single sample page.
   for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
