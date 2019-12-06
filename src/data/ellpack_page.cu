@@ -138,6 +138,43 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   return num_elements;
 }
 
+struct CompactPageFunction {
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
+  common::Span<size_t> row_indexes;
+  size_t base_rowid;
+  size_t row_stride;
+
+  CompactPageFunction(EllpackPageImpl* dst, EllpackPageImpl* src, common::Span<size_t> row_indexes)
+      : cbw{dst->matrix.info.NumSymbols()},
+        dst_data_d{dst->gidx_buffer.data()},
+        src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
+        row_indexes(row_indexes),
+        base_rowid{src->matrix.base_rowid},
+        row_stride{src->matrix.info.row_stride} {}
+
+  __device__ void operator()(size_t i) {
+    size_t row = base_rowid + i;
+    size_t row_index = row_indexes[row];
+    if (row_index == SIZE_MAX) return;
+    size_t dst_offset = row_index * row_stride;
+    size_t src_offset = i * row_stride;
+    for (size_t j = 0; j < row_stride; j++) {
+      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset], dst_offset + j);
+    }
+  }
+};
+
+void EllpackPageImpl::Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes) {
+  monitor_.StartCuda("Compact");
+  CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
+  CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
+  CHECK_LE(page->matrix.base_rowid + page->matrix.n_rows, row_indexes.size());
+  dh::LaunchN(device, page->matrix.n_rows, CompactPageFunction(this, page, row_indexes));
+  monitor_.StopCuda("Compact");
+}
+
 // Construct an EllpackInfo based on histogram cuts of features.
 EllpackInfo::EllpackInfo(int device,
                          bool is_dense,

@@ -220,7 +220,6 @@ class EllpackPageImpl {
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
-
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *
    * @param device The GPU device to use.
@@ -229,6 +228,14 @@ class EllpackPageImpl {
    * @returns The number of elements copied.
    */
   size_t Copy(int device, EllpackPageImpl* page, size_t offset);
+
+  /*! \brief Compact the given ELLPACK page into the current page.
+   *
+   * @param device The GPU device to use.
+   * @param page The ELLPACK page to compact from.
+   * @param row_indexes Row indexes for the compacted page.
+   */
+  void Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes);
 
   /*!
    * \brief Initialize the EllpackInfo contained in the EllpackMatrix.

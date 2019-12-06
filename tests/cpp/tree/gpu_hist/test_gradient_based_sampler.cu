@@ -8,10 +8,10 @@
 namespace xgboost {
 namespace tree {
 
-TEST(GradientBasedSampler, DISABLED_Sample) {
+TEST(GradientBasedSampler, Sample) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 16;
-  constexpr size_t kSampleRows = 512;
+  constexpr size_t kSampleRows = 1024;
   constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.

@@ -51,13 +51,13 @@ class GradientBasedSampler {
 
  private:
   common::Monitor monitor_;
-  dh::BulkAllocator ba_;
   BatchParam batch_param_;
   EllpackInfo info_;
   bool is_sampling_;
   size_t sample_rows_;
   std::unique_ptr<EllpackPageImpl> page_;
-  common::Span<GradientPair> gpair_;
+  HostDeviceVector<GradientPair> gpair_;
+  HostDeviceVector<size_t> sample_row_index_;
   bool page_collected_{false};
 };
 };  // namespace tree
