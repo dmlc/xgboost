@@ -10,6 +10,7 @@
 #include <vector>
 #include <limits>
 
+#include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
 
@@ -23,6 +24,14 @@ class TreeRefresher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
+  }
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = toJson(param_);
   }
   char const* Name() const override {
     return "refresh";

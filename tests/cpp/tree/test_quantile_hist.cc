@@ -162,7 +162,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
       // Initialize split evaluator
       std::unique_ptr<SplitEvaluator> evaluator(SplitEvaluator::Create("elastic_net"));
-      evaluator->Init({});
+      evaluator->Init(&param_);
 
       // Now enumerate all feature*threshold combination to get best split
       // To simplify logic, we make some assumptions:
@@ -235,6 +235,7 @@ class QuantileHistMock : public QuantileHistMaker {
       const std::vector<std::pair<std::string, std::string> >& args) :
       cfg_{args} {
     QuantileHistMaker::Configure(args);
+    spliteval_->Init(&param_);
     builder_.reset(
         new BuilderMock(
             param_,
