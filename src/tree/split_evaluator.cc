@@ -46,7 +46,7 @@ SplitEvaluator* SplitEvaluator::Create(const std::string& name) {
 }
 
 // Default implementations of some virtual methods that aren't always needed
-void SplitEvaluator::Init(const Args& args) {}
+void SplitEvaluator::Init(const TrainParam* param) {}
 void SplitEvaluator::Reset() {}
 void SplitEvaluator::AddSplit(bst_uint nodeid,
                               bst_uint leftid,
@@ -64,36 +64,6 @@ bst_float SplitEvaluator::ComputeSplitScore(bst_uint nodeid,
   return ComputeSplitScore(nodeid, featureid, left_stats, right_stats, left_weight, right_weight);
 }
 
-//! \brief Encapsulates the parameters for ElasticNet
-struct ElasticNetParams : public XGBoostParameter<ElasticNetParams> {
-  bst_float reg_lambda;
-  bst_float reg_alpha;
-  // maximum delta update we can add in weight estimation
-  // this parameter can be used to stabilize update
-  // default=0 means no constraint on weight delta
-  float max_delta_step;
-
-  DMLC_DECLARE_PARAMETER(ElasticNetParams) {
-    DMLC_DECLARE_FIELD(reg_lambda)
-      .set_lower_bound(0.0)
-      .set_default(1.0)
-      .describe("L2 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(reg_alpha)
-      .set_lower_bound(0.0)
-      .set_default(0.0)
-      .describe("L1 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(max_delta_step)
-      .set_lower_bound(0.0f)
-      .set_default(0.0f)
-      .describe("Maximum delta step we allow each tree's weight estimate to be. "\
-                "If the value is set to 0, it means there is no constraint");
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-  }
-};
-
-DMLC_REGISTER_PARAMETER(ElasticNetParams);
-
 /*! \brief Applies an elastic net penalty and per-leaf penalty. */
 class ElasticNet final : public SplitEvaluator {
  public:
@@ -102,13 +72,14 @@ class ElasticNet final : public SplitEvaluator {
       LOG(FATAL) << "ElasticNet does not accept an inner SplitEvaluator";
     }
   }
-  void Init(const Args& args) override {
-    params_.UpdateAllowUnknown(args);
+  void Init(const TrainParam* param) override {
+    params_ = param;
   }
 
   SplitEvaluator* GetHostClone() const override {
     auto r = new ElasticNet(nullptr);
     r->params_ = this->params_;
+    CHECK(r->params_);
 
     return r;
   }
@@ -133,14 +104,14 @@ class ElasticNet final : public SplitEvaluator {
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats, bst_float weight)
       const override {
     auto loss = weight * (2.0 * stats.sum_grad + stats.sum_hess * weight
-        + params_.reg_lambda * weight)
-        + 2.0 * params_.reg_alpha * std::abs(weight);
+        + params_->reg_lambda * weight)
+        + 2.0 * params_->reg_alpha * std::abs(weight);
     return -loss;
   }
 
   bst_float ComputeScore(bst_uint parentID, const GradStats &stats) const {
-    if (params_.max_delta_step == 0.0f) {
-      return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_.reg_lambda);
+    if (params_->max_delta_step == 0.0f) {
+      return Sqr(ThresholdL1(stats.sum_grad)) / (stats.sum_hess + params_->reg_lambda);
     } else {
       return ComputeScore(parentID, stats, ComputeWeight(parentID, stats));
     }
@@ -148,21 +119,21 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
-    bst_float w = -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_.reg_lambda);
-    if (params_.max_delta_step != 0.0f && std::abs(w) > params_.max_delta_step) {
-      w = std::copysign(params_.max_delta_step, w);
+    bst_float w = -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_->reg_lambda);
+    if (params_->max_delta_step != 0.0f && std::abs(w) > params_->max_delta_step) {
+      w = std::copysign(params_->max_delta_step, w);
     }
     return w;
   }
 
  private:
-  ElasticNetParams params_;
+  TrainParam const* params_;
 
   inline double ThresholdL1(double g) const {
-    if (g > params_.reg_alpha) {
-      return g - params_.reg_alpha;
-    } else if (g < -params_.reg_alpha) {
-      return g + params_.reg_alpha;
+    if (g > params_->reg_alpha) {
+      return g - params_->reg_alpha;
+    } else if (g < -params_->reg_alpha) {
+      return g + params_->reg_alpha;
     } else {
       return 0.0;
     }
@@ -174,22 +145,6 @@ XGBOOST_REGISTER_SPLIT_EVALUATOR(ElasticNet, "elastic_net")
 .set_body([](std::unique_ptr<SplitEvaluator> inner) {
     return new ElasticNet(std::move(inner));
   });
-
-/*! \brief Encapsulates the parameters required by the MonotonicConstraint
-        split evaluator
-*/
-struct MonotonicConstraintParams
-    : public XGBoostParameter<MonotonicConstraintParams> {
-  std::vector<bst_int> monotone_constraints;
-
-  DMLC_DECLARE_PARAMETER(MonotonicConstraintParams) {
-    DMLC_DECLARE_FIELD(monotone_constraints)
-      .set_default(std::vector<bst_int>())
-      .describe("Constraint of variable monotonicity");
-  }
-};
-
-DMLC_REGISTER_PARAMETER(MonotonicConstraintParams);
 
 /*! \brief Enforces that the tree is monotonically increasing/decreasing with respect to a user specified set of
       features.
@@ -203,10 +158,9 @@ class MonotonicConstraint final : public SplitEvaluator {
     inner_ = std::move(inner);
   }
 
-  void Init(const Args& args)
-      override {
-    inner_->Init(args);
-    params_.UpdateAllowUnknown(args);
+  void Init(const TrainParam* param) override {
+    inner_->Init(param);
+    params_ = param;
     Reset();
   }
 
@@ -216,13 +170,14 @@ class MonotonicConstraint final : public SplitEvaluator {
   }
 
   SplitEvaluator* GetHostClone() const override {
-    if (params_.monotone_constraints.size() == 0) {
+    if (params_->monotone_constraints.size() == 0) {
       // No monotone constraints specified, just return a clone of inner to speed things up
       return inner_->GetHostClone();
     } else {
       auto c = new MonotonicConstraint(
         std::unique_ptr<SplitEvaluator>(inner_->GetHostClone()));
       c->params_ = this->params_;
+      CHECK(c->params_);
       c->Reset();
       return c;
     }
@@ -300,14 +255,14 @@ class MonotonicConstraint final : public SplitEvaluator {
   }
 
  private:
-  MonotonicConstraintParams params_;
+  TrainParam const* params_;
   std::unique_ptr<SplitEvaluator> inner_;
   std::vector<bst_float> lower_;
   std::vector<bst_float> upper_;
 
   inline bst_int GetConstraint(bst_uint featureid) const {
-    if (featureid < params_.monotone_constraints.size()) {
-      return params_.monotone_constraints[featureid];
+    if (featureid < params_->monotone_constraints.size()) {
+      return params_->monotone_constraints[featureid];
     } else {
       return 0;
     }

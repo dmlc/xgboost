@@ -12,6 +12,7 @@
 #include <cmath>
 #include <algorithm>
 
+#include "xgboost/json.h"
 #include "param.h"
 #include "constraints.h"
 #include "../common/random.h"
@@ -28,8 +29,19 @@ class ColMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
-    spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
-    spliteval_->Init(args);
+    if (!spliteval_) {
+      spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
+    }
+    spliteval_->Init(&param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = toJson(param_);
   }
 
   char const* Name() const override {
@@ -705,7 +717,7 @@ class DistColMaker : public ColMaker {
     pruner_.reset(TreeUpdater::Create("prune", tparam_));
     pruner_->Configure(args);
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
-    spliteval_->Init(args);
+    spliteval_->Init(&param_);
   }
 
   char const* Name() const override {
