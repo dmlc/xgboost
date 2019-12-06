@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "xgboost/base.h"
+#include "xgboost/json.h"
 #include "xgboost/tree_updater.h"
 #include "param.h"
 #include "constraints.h"
@@ -35,6 +36,15 @@ class BaseMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
+  }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = toJson(param_);
   }
 
  protected:

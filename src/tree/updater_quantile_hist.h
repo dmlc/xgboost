@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "xgboost/json.h"
 #include "constraints.h"
 #include "./param.h"
 #include "./split_evaluator.h"
@@ -79,6 +80,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
+  QuantileHistMaker() : is_gmat_initialized_{ false } {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -87,6 +89,15 @@ class QuantileHistMaker: public TreeUpdater {
 
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = toJson(param_);
+  }
 
   char const* Name() const override {
     return "grow_quantile_histmaker";
