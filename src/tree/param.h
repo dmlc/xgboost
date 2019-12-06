@@ -69,10 +69,8 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // whether refresh updater needs to update the leaf values
   bool refresh_leaf;
 
-  // FIXME(trivialfis): Following constraints are used by gpu
-  // algorithm, duplicated with those defined split evaluator due to
-  // their different code paths.
   std::vector<int> monotone_constraints;
+  // Stored as a JSON string.
   std::string interaction_constraints;
 
   // the criteria to use for ranking splits

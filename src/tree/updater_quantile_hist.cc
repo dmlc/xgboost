@@ -6,8 +6,6 @@
  */
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
-#include <xgboost/logging.h>
-#include <xgboost/tree_updater.h>
 
 #include <cmath>
 #include <memory>
@@ -19,10 +17,13 @@
 #include <string>
 #include <utility>
 
-#include "./param.h"
+#include "xgboost/logging.h"
+#include "xgboost/tree_updater.h"
+
+#include "constraints.h"
+#include "param.h"
 #include "./updater_quantile_hist.h"
 #include "./split_evaluator.h"
-#include "constraints.h"
 #include "../common/random.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
@@ -47,21 +48,19 @@ void QuantileHistMaker::Configure(const Args& args) {
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
   }
 
-  spliteval_->Init(args);
+  spliteval_->Init(&param_);
 }
 
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
   if (is_gmat_initialized_ == false) {
-    double tstart = dmlc::GetTime();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
     is_gmat_initialized_ = true;
-    LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -386,7 +385,6 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
       }
     }
   }
-
   return true;
 }
 

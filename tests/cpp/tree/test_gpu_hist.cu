@@ -11,6 +11,7 @@
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
+#include "xgboost/json.h"
 #include "../../../src/data/sparse_page_source.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/tree/updater_gpu_hist.cu"
@@ -422,6 +423,25 @@ TEST(GpuHist, ExternalMemory) {
   for (int i = 0; i < kRows; i++) {
     ASSERT_FLOAT_EQ(preds_h[i], preds_ext_h[i]);
   }
+}
+
+TEST(GpuHist, Config_IO) {
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist", &generic_param) };
+  updater->Configure(Args{});
+
+  Json j_updater { Object() };
+  updater->SaveConfig(&j_updater);
+  ASSERT_TRUE(IsA<Object>(j_updater["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater["train_param"]));
+  updater->LoadConfig(j_updater);
+
+  Json j_updater_roundtrip { Object() };
+  updater->SaveConfig(&j_updater_roundtrip);
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["train_param"]));
+
+  ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
 
 }  // namespace tree
