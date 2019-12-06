@@ -287,8 +287,7 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
                          const size_t page_size) {
   if (cache_prefix.length() == 0) {
     data::FileAdapter adapter(parser);
-    return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
+    return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   } else {
 #if DMLC_ENABLE_STD_THREAD
     if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {

@@ -47,20 +47,28 @@ class SimpleDMatrix : public DMatrix {
     auto& data_vec = mat.page_.data.HostVector();
     uint64_t inferred_num_columns = 0;
 
+    size_t num_lines_processed = 0;
+
+    using OffsetVecT = std::remove_reference<decltype(offset_vec)>::type::value_type;
+    std::vector<std::vector<OffsetVecT>> tmp_thread_ptr;
+
     adapter->BeforeFirst();
     // Iterate over batches of input data
     while (adapter->Next()) {
       auto &batch = adapter->Value();
-      common::ParallelGroupBuilder<
-        Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
-        builder(&offset_vec, &data_vec);
-      builder.InitBudget(0, nthread);
+
+      // Batch data and its offsets
+      std::vector<OffsetVecT> batch_offset_vec;
+      std::vector<Entry> batch_data_vec;
+      common::ParallelGroupBuilder<Entry, OffsetVecT> builder(&batch_offset_vec,
+                                                              &batch_data_vec,
+                                                              &tmp_thread_ptr);
 
       // First-pass over the batch counting valid elements
       size_t num_lines = batch.Size();
+      builder.InitBudget(num_lines, nthread);
 #pragma omp parallel for schedule(static)
-      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
-        ++i) {  // NOLINT(*)
+      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines); ++i) {  // NOLINT(*)
         int tid = omp_get_thread_num();
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
@@ -69,7 +77,7 @@ class SimpleDMatrix : public DMatrix {
               std::max(inferred_num_columns,
                        static_cast<uint64_t>(element.column_idx + 1));
           if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.AddBudget(element.row_idx, tid);
+            builder.AddBudget(element.row_idx - num_lines_processed, tid);
           }
         }
       }
@@ -77,15 +85,14 @@ class SimpleDMatrix : public DMatrix {
 
       // Second pass over batch, placing elements in correct position
 #pragma omp parallel for schedule(static)
-      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
-        ++i) {  // NOLINT(*)
+      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines); ++i) {  // NOLINT(*)
         int tid = omp_get_thread_num();
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
           auto element = line.GetElement(j);
           if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.Push(element.row_idx, Entry(element.column_idx, element.value),
-              tid);
+            builder.Push(element.row_idx - num_lines_processed,
+                         Entry(element.column_idx, element.value), tid);
           }
         }
       }
@@ -110,6 +117,26 @@ class SimpleDMatrix : public DMatrix {
           last_group_id = cur_group_id;
           ++group_size;
         }
+      }
+      num_lines_processed += num_lines;
+
+      if (data_vec.empty()) {
+        data_vec.swap(batch_data_vec);
+        offset_vec.swap(batch_offset_vec);
+      } else {
+        CHECK(batch_offset_vec.size() && batch_offset_vec.front() == 0);
+
+        // Recompute the dmatrix row offsets based on the data already present in it
+        auto last_val = offset_vec.back();
+        auto prev_size = offset_vec.size();
+        auto batch_offset_vec_idx = 1;  // Skip the leading 0
+        offset_vec.resize(prev_size + batch_offset_vec.size() - 1);
+        std::for_each(
+          offset_vec.begin() + prev_size, offset_vec.end(),
+          [&](OffsetVecT &v) { v = last_val + batch_offset_vec[batch_offset_vec_idx++]; });
+
+        // Append the batch data with the dmatrix data
+        data_vec.insert(data_vec.end(), batch_data_vec.begin(), batch_data_vec.end());
       }
     }
 
