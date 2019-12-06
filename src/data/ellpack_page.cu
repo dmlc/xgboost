@@ -64,7 +64,7 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
-// Construct an empty ELLPACK matrix.
+// Construct an ELLPACK matrix with the given number of empty rows.
 EllpackPageImpl::EllpackPageImpl(int device, EllpackInfo info, size_t n_rows) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(device));
@@ -110,10 +110,12 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("BinningCompression");
 }
 
+// A functor that copies the data from one EllpackPage to another.
 struct CopyPageFunction {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
   common::CompressedIterator<uint32_t> src_iterator_d;
+  // The number of elements to skip.
   size_t offset;
 
   CopyPageFunction(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
@@ -127,6 +129,7 @@ struct CopyPageFunction {
   }
 };
 
+// Copy the data from the given EllpackPage to the current page.
 size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   monitor_.StartCuda("Copy");
   size_t num_elements = page->matrix.n_rows * page->matrix.info.row_stride;
@@ -138,6 +141,7 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   return num_elements;
 }
 
+// A functor that compacts the rows from one EllpackPage into another.
 struct CompactPageFunction {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
@@ -166,6 +170,7 @@ struct CompactPageFunction {
   }
 };
 
+// Compacts the data from the given EllpackPage into the current page.
 void EllpackPageImpl::Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes) {
   monitor_.StartCuda("Compact");
   CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
