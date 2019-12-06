@@ -1162,7 +1162,6 @@ class GPUHistMakerSpecialised {
 class GPUHistMaker : public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    LOG(WARNING)<< "Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
     float_maker_.reset();
     double_maker_.reset();
