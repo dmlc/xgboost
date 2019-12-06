@@ -38,13 +38,13 @@ class GradientBasedSampler {
   explicit GradientBasedSampler(BatchParam batch_param,
                                 EllpackInfo info,
                                 size_t n_rows,
-                                size_t sample_rows = 0);
+                                float subsample = 1.0f);
 
   /*! \brief Returns the max number of rows that can fit in available GPU memory. */
   size_t MaxSampleRows();
 
   /*! \brief Sample from a DMatrix based on the given gradients. */
-  GradientBasedSample Sample(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat);
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat);
 
   /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
   void CollectPages(DMatrix* dmat);

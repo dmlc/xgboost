@@ -346,7 +346,8 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
                 DMatrix* dmat,
                 size_t gpu_page_size,
                 RegTree* tree,
-                HostDeviceVector<bst_float>* preds) {
+                HostDeviceVector<bst_float>* preds,
+                float subsample = 1.0f) {
   constexpr size_t kMaxBin = 2;
 
   if (gpu_page_size > 0) {
@@ -367,7 +368,8 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
       {"max_bin", std::to_string(kMaxBin)},
       {"min_child_weight", "0.0"},
       {"reg_alpha", "0"},
-      {"reg_lambda", "0"}
+      {"reg_lambda", "0"},
+      {"subsample", std::to_string(subsample)},
   };
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
@@ -383,6 +385,7 @@ TEST(GpuHist, ExternalMemory) {
   constexpr size_t kRows = 6;
   constexpr size_t kCols = 2;
   constexpr size_t kPageSize = 1;
+  constexpr float kSubsample = 0.99;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -402,7 +405,7 @@ TEST(GpuHist, ExternalMemory) {
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
-  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext);
+  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();

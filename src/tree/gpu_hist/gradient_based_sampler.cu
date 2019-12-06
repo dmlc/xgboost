@@ -20,12 +20,14 @@ namespace tree {
 GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
                                            EllpackInfo info,
                                            size_t n_rows,
-                                           size_t sample_rows)
-    : batch_param_(batch_param), info_(info), sample_rows_(sample_rows) {
+                                           float subsample)
+    : batch_param_(batch_param), info_(info) {
   monitor_.Init("gradient_based_sampler");
 
-  if (sample_rows_ == 0) {
+  if (subsample == 0.0f || subsample == 1.0f) {
     sample_rows_ = MaxSampleRows();
+  } else {
+    sample_rows_ = n_rows * subsample;
   }
   if (sample_rows_ >= n_rows) {
     is_sampling_ = false;
@@ -122,48 +124,47 @@ struct TrimExtraRows : public thrust::binary_function<GradientPair, size_t, Grad
   }
 };
 
-GradientBasedSample GradientBasedSampler::Sample(HostDeviceVector<GradientPair>* gpair,
+GradientBasedSample GradientBasedSampler::Sample(common::Span<GradientPair> gpair,
                                                  DMatrix* dmat) {
   // If there is enough space for all rows, just collect them in a single ELLPACK page and return.
   if (!is_sampling_) {
     CollectPages(dmat);
-    auto out_gpair = gpair->DeviceSpan();
-    return {sample_rows_, page_.get(), out_gpair};
+    return {sample_rows_, page_.get(), gpair};
   }
 
   // Sum the absolute value of gradients as the denominator to normalize the probability.
-  float sum_abs_gradient = thrust::transform_reduce(dh::tbegin(*gpair),
-                                                    dh::tend(*gpair),
+  float sum_abs_gradient = thrust::transform_reduce(dh::tbegin(gpair),
+                                                    dh::tend(gpair),
                                                     AbsoluteGradient(),
                                                     0.0f,
                                                     thrust::plus<float>());
 
   // Poisson sampling of the gradient pairs based on the absolute value of the gradient.
-  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0),
-                    dh::tbegin(*gpair),
+                    dh::tbegin(gpair),
                     PoissonSampling(sample_rows_, sum_abs_gradient, common::GlobalRandom()()));
 
   // Map the original row index to the sample row index.
   sample_row_index_.Fill(0);
-  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     dh::tbegin(sample_row_index_),
                     IsNonZero());
   thrust::exclusive_scan(dh::tbegin(sample_row_index_), dh::tend(sample_row_index_),
                          dh::tbegin(sample_row_index_));
-  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     dh::tbegin(sample_row_index_),
                     dh::tbegin(sample_row_index_),
                     ClearEmptyRows(sample_rows_));
 
   // Zero out the gradient pairs if there are more rows than desired.
-  thrust::transform(dh::tbegin(*gpair), dh::tend(*gpair),
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     dh::tbegin(sample_row_index_),
-                    dh::tbegin(*gpair),
+                    dh::tbegin(gpair),
                     TrimExtraRows());
 
   // Compact the non-zero gradient pairs.
-  thrust::copy_if(dh::tbegin(*gpair), dh::tend(*gpair), dh::tbegin(gpair_), IsNonZero());
+  thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(gpair_), IsNonZero());
 
   // Compact the ELLPACK pages into the single sample page.
   for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {

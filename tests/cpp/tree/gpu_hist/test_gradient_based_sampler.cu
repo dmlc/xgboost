@@ -10,7 +10,8 @@ namespace tree {
 TEST(GradientBasedSampler, Sample) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 16;
-  constexpr size_t kSampleRows = 1024;
+  constexpr float kSubsample = 0.5;
+  constexpr size_t kSampleRows = kRows * kSubsample;
   constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
@@ -23,8 +24,8 @@ TEST(GradientBasedSampler, Sample) {
   BatchParam param{0, 256, 0, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
-  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSampleRows);
-  auto sample = sampler.Sample(&gpair, dmat.get());
+  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSubsample);
+  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
   auto sampled_gpair = sample.gpair;
   EXPECT_EQ(sample.sample_rows, kSampleRows);
@@ -48,7 +49,6 @@ TEST(GradientBasedSampler, Sample) {
 TEST(GradientBasedSampler, FullSample) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 4;
-  constexpr size_t kSampleRows = 4096;
   constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
@@ -61,8 +61,8 @@ TEST(GradientBasedSampler, FullSample) {
   BatchParam param{0, 256, 0, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
-  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSampleRows);
-  auto sample = sampler.Sample(&gpair, dmat.get());
+  GradientBasedSampler sampler(param, page->matrix.info, kRows);
+  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
   auto sampled_gpair = sample.gpair;
   EXPECT_EQ(sample.sample_rows, kRows);

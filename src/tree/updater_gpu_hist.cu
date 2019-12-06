@@ -453,6 +453,7 @@ struct GPUHistMakerDevice {
 
   /*! \brief Gradient pair for each row. */
   common::Span<GradientPair> gpair;
+  common::Span<GradientPair> sampled_gpair;
 
   common::Span<int> monotone_constraints;
   common::Span<bst_float> prediction_cache;
@@ -501,7 +502,10 @@ struct GPUHistMakerDevice {
         batch_param(_batch_param),
         use_gradient_based_sampling(_page->matrix.n_rows != _n_rows) {
     if (use_gradient_based_sampling) {
-      sampler.reset(new GradientBasedSampler(batch_param, page->matrix.info, n_rows));
+      sampler.reset(new GradientBasedSampler(batch_param,
+                                             page->matrix.info,
+                                             n_rows,
+                                             param.subsample));
     }
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
@@ -549,16 +553,17 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
+    dh::safe_cuda(cudaMemcpyAsync(
+        gpair.data(), dh_gpair->ConstDevicePointer(),
+        gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
     if (use_gradient_based_sampling) {
-      auto sample = sampler->Sample(dh_gpair, dmat);
+      auto sample = sampler->Sample(gpair, dmat);
       n_rows = sample.sample_rows;
       page = sample.page;
-      gpair = sample.gpair;
+      sampled_gpair = sample.gpair;
     } else {
-      dh::safe_cuda(cudaMemcpyAsync(
-          gpair.data(), dh_gpair->ConstDevicePointer(),
-          gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
       SubsampleGradientPair(device_id, gpair, param.subsample);
+      sampled_gpair = gpair;
     }
 
     row_partitioner.reset();  // Release the device memory first before reallocating
@@ -652,7 +657,7 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    auto d_gpair = gpair.data();
+    auto d_gpair = sampled_gpair.data();
 
     auto n_elements = d_ridx.size() * page->matrix.info.row_stride;
 
@@ -882,7 +887,7 @@ struct GPUHistMakerDevice {
   void InitRoot(RegTree* p_tree, dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
-    dh::SumReduction(temp_memory, gpair, node_sum_gradients_d, gpair.size());
+    dh::SumReduction(temp_memory, sampled_gpair, node_sum_gradients_d, sampled_gpair.size());
     reducer->AllReduceSum(
         reinterpret_cast<float*>(node_sum_gradients_d.data()),
         reinterpret_cast<float*>(node_sum_gradients_d.data()), 2);
