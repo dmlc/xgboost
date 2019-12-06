@@ -41,6 +41,7 @@ void QuantileHistMaker::Configure(const Args& args) {
   }
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
+  is_gmat_initialized_ = false;
 
   // initialise the split evaluator
   if (!spliteval_) {
