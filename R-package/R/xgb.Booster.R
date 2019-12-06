@@ -5,20 +5,34 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = 
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
   }
-
-  handle <- .Call(XGBoosterCreate_R, cachelist)
+  ## Load existing model, dispatch for on disk model file and in memory buffer
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
+      ## A filename
+      handle <- .Call(XGBoosterCreate_R, cachelist)
       .Call(XGBoosterLoadModel_R, handle, modelfile[1])
+      class(handle) <- "xgb.Booster.handle"
+      if (length(params) > 0) {
+        xgb.parameters(handle) <- params
+      }
+      return(handle)
     } else if (typeof(modelfile) == "raw") {
-      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
+      ## A memory buffer
+      bst <- xgb.load.raw(modelfile)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
+      ## A booster object
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
-      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
+      bst <- xgb.load.raw(bst$raw)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
   }
+  ## Create new model
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   class(handle) <- "xgb.Booster.handle"
   if (length(params) > 0) {
     xgb.parameters(handle) <- params
@@ -497,6 +511,27 @@ xgb.attributes <- function(object) {
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
   }
+  object
+}
+
+#' Accessors for model parameters as JSON string.
+#'
+#' @param object Object of class \code{xgb.Booster}
+#' @param value A JSON string.
+#'
+#' @rdname xgb.config
+#' @export
+xgb.config <- function(object) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterSaveJsonConfig_R, handle);
+}
+
+#' @rdname xgb.config
+#' @export
+`xgb.config<-` <- function(object, value) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterLoadJsonConfig_R, handle, value)
+  object$raw <- xgb.save.raw(object)
   object
 }
 

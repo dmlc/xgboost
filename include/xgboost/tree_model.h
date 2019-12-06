@@ -341,7 +341,8 @@ class RegTree : public Model {
     int pleft = this->AllocNode();
     int pright = this->AllocNode();
     auto &node = nodes_[nid];
-    CHECK(node.IsLeaf());
+    CHECK(node.IsLeaf()) << "Node ID: " << nid << ", "
+                         << "Left child mark: " << node.LeftChild();
     node.SetLeftChild(pleft);
     node.SetRightChild(pright);
     nodes_[node.LeftChild()].SetParent(nid, true);

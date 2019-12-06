@@ -184,6 +184,7 @@ test_that("cb.save.model works as expected", {
   expect_equal(xgb.ntree(b1), 1)
   b2 <- xgb.load('xgboost_02.model')
   expect_equal(xgb.ntree(b2), 2)
+  xgb.config(b2) <- xgb.config(bst)
   expect_equal(bst$raw, b2$raw)
 
   # save_period = 0 saves the last iteration's model
@@ -191,8 +192,9 @@ test_that("cb.save.model works as expected", {
                    save_period = 0)
   expect_true(file.exists('xgboost.model'))
   b2 <- xgb.load('xgboost.model')
+  xgb.config(b2) <- xgb.config(bst)
   expect_equal(bst$raw, b2$raw)
-  
+
   for (f in files) if (file.exists(f)) file.remove(f)
 })
 

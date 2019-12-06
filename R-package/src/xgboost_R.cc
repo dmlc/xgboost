@@ -345,6 +345,24 @@ SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
   return R_NilValue;
 }
 
+SEXP XGBoosterSaveJsonConfig_R(SEXP handle) {
+  const char* ret;
+  R_API_BEGIN();
+  bst_ulong len {0};
+  CHECK_CALL(XGBoosterSaveJsonParameters(R_ExternalPtrAddr(handle),
+                                         &len,
+                                         &ret));
+  R_API_END();
+  return mkString(ret);
+}
+
+SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value) {
+  R_API_BEGIN();
+  XGBoosterLoadJsonParameters(R_ExternalPtrAddr(handle), CHAR(asChar(value)));
+  R_API_END();
+  return R_NilValue;
+}
+
 SEXP XGBoosterModelToRaw_R(SEXP handle) {
   SEXP ret;
   R_API_BEGIN();
