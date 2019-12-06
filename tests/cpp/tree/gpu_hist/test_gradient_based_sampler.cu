@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
 
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
