@@ -100,7 +100,7 @@ struct IsNonZero : public thrust::unary_function<GradientPair, bool> {
 struct ClearEmptyRows : public thrust::binary_function<GradientPair, size_t, size_t> {
   const size_t max_rows;
 
-  XGBOOST_DEVICE ClearEmptyRows(size_t max_rows) : max_rows(max_rows) {}
+  XGBOOST_DEVICE explicit ClearEmptyRows(size_t max_rows) : max_rows(max_rows) {}
 
   XGBOOST_DEVICE size_t operator()(const GradientPair& gpair, size_t row_index) const {
     if ((gpair.GetGrad() != 0 || gpair.GetHess() != 0) && row_index < max_rows) {
