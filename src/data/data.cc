@@ -417,8 +417,8 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   if (nthread <= 0) nthread = nthreadmax;
   int nthread_original = omp_get_max_threads();
   omp_set_num_threads(nthread);
-    auto& offset_vec = offset.HostVector();
-    auto& data_vec = data.HostVector();
+  auto& offset_vec = offset.HostVector();
+  auto& data_vec = data.HostVector();
   common::ParallelGroupBuilder<
       Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
       builder(&offset_vec, &data_vec);
@@ -437,7 +437,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       max_columns =
           std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        builder.AddBudget(element.row_idx, tid);
+        builder.AddBudget(element.row_idx - base_rowid, tid);
       }
     }
   }
@@ -452,8 +452,8 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     for (auto j = 0ull; j < line.Size(); j++) {
       auto element = line.GetElement(j);
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        builder.Push(element.row_idx, Entry(element.column_idx, element.value),
-                     tid);
+        builder.Push(element.row_idx - base_rowid,
+                     Entry(element.column_idx, element.value), tid);
       }
     }
   }

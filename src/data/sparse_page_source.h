@@ -244,6 +244,7 @@ class SparsePageSource : public DataSource<T> {
           writer.PushWrite(std::move(page));
           writer.Alloc(&page);
           page->Clear();
+          page->SetBaseRowId(inferred_num_rows);
 
           double tdiff = dmlc::GetTime() - tstart;
           if (tdiff >= tick_expected) {
