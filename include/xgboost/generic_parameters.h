@@ -12,6 +12,9 @@
 
 namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
+  // Constant representing the device ID of CPU.
+  static int constexpr kCpuId = -1;
+
   // stored random seed
   int seed;
   // whether seed the PRNG each iteration
@@ -23,6 +26,8 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   int gpu_id;
   // gpu page size in external memory mode, 0 means using the default.
   size_t gpu_page_size;
+
+  void ConfigureGpuId(bool require_gpu);
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {

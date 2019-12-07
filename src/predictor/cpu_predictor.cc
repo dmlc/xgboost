@@ -1,6 +1,8 @@
 /*!
- * Copyright by Contributors 2017
+ * Copyright by Contributors 2017-2019
  */
+#include <dmlc/omp.h>
+
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
@@ -43,10 +45,11 @@ class CPUPredictor : public Predictor {
       }
     }
   }
-  inline void PredLoopSpecalize(DMatrix* p_fmat,
-                                std::vector<bst_float>* out_preds,
-                                const gbm::GBTreeModel& model, int num_group,
-                                unsigned tree_begin, unsigned tree_end) {
+
+  void PredLoopInternal(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
+                        gbm::GBTreeModel const& model, int32_t tree_begin,
+                        int32_t tree_end) {
+    int32_t const num_group = model.param.num_output_group;
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread, model.param.num_feature);
     std::vector<bst_float>& preds = *out_preds;
@@ -99,22 +102,15 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredLoopInternal(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model, int tree_begin,
-                        unsigned ntree_limit) {
-    // TODO(Rory): Check if this specialisation actually improves performance
-    PredLoopSpecalize(dmat, out_preds, model, model.param.num_output_group,
-                      tree_begin, ntree_limit);
-  }
-
   bool PredictFromCache(DMatrix* dmat,
                         HostDeviceVector<bst_float>* out_preds,
                         const gbm::GBTreeModel& model,
-                        unsigned ntree_limit) {
+                        unsigned ntree_limit) const {
+    CHECK(cache_);
     if (ntree_limit == 0 ||
         ntree_limit * model.param.num_output_group >= model.trees.size()) {
-      auto it = cache_.find(dmat);
-      if (it != cache_.end()) {
+      auto it = cache_->find(dmat);
+      if (it != cache_->end()) {
         const HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.Size() != 0) {
           out_preds->Resize(y.Size());
@@ -130,6 +126,7 @@ class CPUPredictor : public Predictor {
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
+    CHECK_NE(model.param.num_output_group, 0);
     size_t n = model.param.num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
     out_preds->Resize(n);
@@ -150,21 +147,24 @@ class CPUPredictor : public Predictor {
           oss << "[number of data points], i.e. " << info.num_row_ << ". ";
         }
         oss << "Instead, all data points will use "
-            << "base_score = " << model.base_margin;
+            << "base_margin = " << model.base_margin;
         LOG(WARNING) << oss.str();
       }
-      std::fill(out_preds_h.begin(), out_preds_h.end(), model.base_margin);
+      std::fill(out_preds_h.begin(), out_preds_h.end(),
+                model.base_margin);
     }
   }
 
  public:
+  CPUPredictor(GenericParameter const* generic_param,
+               std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) :
+      Predictor::Predictor{generic_param, cache} {}
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
     if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
       return;
     }
-
     this->InitOutPredictions(dmat->Info(), out_preds, model);
 
     ntree_limit *= model.param.num_output_group;
@@ -174,6 +174,15 @@ class CPUPredictor : public Predictor {
 
     this->PredLoopInternal(dmat, &out_preds->HostVector(), model,
                            tree_begin, ntree_limit);
+
+    auto cache_emtry = this->FindCache(dmat);
+    if (cache_emtry == cache_->cend()) { return; }
+    if (cache_emtry->second.predictions.Size() == 0) {
+      // See comment in GPUPredictor::PredictBatch.
+      InitOutPredictions(cache_emtry->second.data->Info(),
+                         &(cache_emtry->second.predictions), model);
+      cache_emtry->second.predictions.Copy(*out_preds);
+    }
   }
 
   void UpdatePredictionCache(
@@ -182,7 +191,7 @@ class CPUPredictor : public Predictor {
       int num_new_trees) override {
     int old_ntree = model.trees.size() - num_new_trees;
     // update cache entry
-    for (auto& kv : cache_) {
+    for (auto& kv : (*cache_)) {
       PredictionCacheEntry& e = kv.second;
 
       if (e.predictions.Size() == 0) {
@@ -215,7 +224,7 @@ class CPUPredictor : public Predictor {
     out_preds->resize(model.param.num_output_group *
                       (model.param.size_leaf_vector + 1));
     // loop over output groups
-    for (int gid = 0; gid < model.param.num_output_group; ++gid) {
+    for (uint32_t gid = 0; gid < model.param.num_output_group; ++gid) {
       (*out_preds)[gid] =
           PredValue(inst, model.trees, model.tree_info, gid,
                     &thread_temp[0], 0, ntree_limit) +
@@ -254,10 +263,9 @@ class CPUPredictor : public Predictor {
   }
 
   void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
-                           const gbm::GBTreeModel& model, unsigned ntree_limit,
+                           const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
-                           bool approximate,
-                           int condition,
+                           bool approximate, int condition,
                            unsigned condition_feature) override {
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread,  model.param.num_feature);
@@ -268,7 +276,9 @@ class CPUPredictor : public Predictor {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
     const int ngroup = model.param.num_output_group;
+    CHECK_NE(ngroup, 0);
     size_t const ncolumns = model.param.num_feature + 1;
+    CHECK_NE(ncolumns, 0);
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
     contribs.resize(info.num_row_ * ncolumns * model.param.num_output_group);
@@ -292,8 +302,7 @@ class CPUPredictor : public Predictor {
         RegTree::FVec& feats = thread_temp[omp_get_thread_num()];
         // loop over all classes
         for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float* p_contribs =
-              &contribs[(row_idx * ngroup + gid) * ncolumns];
+          bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           feats.Fill(batch[i]);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
@@ -307,7 +316,7 @@ class CPUPredictor : public Predictor {
             } else {
               model.trees[j]->CalculateContributionsApprox(feats, &this_tree_contribs[0]);
             }
-            for (int ci = 0 ; ci < ncolumns ; ++ci) {
+            for (size_t ci = 0 ; ci < ncolumns ; ++ci) {
                 p_contribs[ci] += this_tree_contribs[ci] *
                     (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
@@ -330,7 +339,7 @@ class CPUPredictor : public Predictor {
                                        bool approximate) override {
     const MetaInfo& info = p_fmat->Info();
     const int ngroup = model.param.num_output_group;
-    size_t ncolumns = model.param.num_feature;
+    size_t const ncolumns = model.param.num_feature;
     const unsigned row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
     const unsigned mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
     const unsigned crow_chunk = ngroup * (ncolumns + 1);
@@ -375,7 +384,10 @@ class CPUPredictor : public Predictor {
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
-    .describe("Make predictions using CPU.")
-    .set_body([]() { return new CPUPredictor(); });
+.describe("Make predictions using CPU.")
+.set_body([](GenericParameter const* generic_param,
+             std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) {
+            return new CPUPredictor(generic_param, cache);
+          });
 }  // namespace predictor
 }  // namespace xgboost

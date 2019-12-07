@@ -45,9 +45,8 @@ class TestDistributedGPU(unittest.TestCase):
                 assert isinstance(out['booster'], dxgb.Booster)
                 assert len(out['history']['X']['rmse']) == 2
 
-                # FIXME(trivialfis): Re-enable this after #5003  is fixed
-                # predictions = dxgb.predict(client, out, dtrain).compute()
-                # assert isinstance(predictions, np.ndarray)
+                predictions = dxgb.predict(client, out, dtrain).compute()
+                assert isinstance(predictions, np.ndarray)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
