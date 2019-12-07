@@ -51,9 +51,10 @@ class SimpleDMatrix : public DMatrix {
     // Iterate over batches of input data
     while (adapter->Next()) {
       auto &batch = adapter->Value();
+
       common::ParallelGroupBuilder<
         Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
-        builder(&offset_vec, &data_vec);
+          builder(&offset_vec, &data_vec, offset_vec.size() - 1);
       builder.InitBudget(0, nthread);
 
       // First-pass over the batch counting valid elements
