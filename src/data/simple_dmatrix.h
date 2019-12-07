@@ -47,10 +47,11 @@ class SimpleDMatrix : public DMatrix {
     auto& data_vec = mat.page_.data.HostVector();
     uint64_t inferred_num_columns = 0;
 
-    size_t num_lines_processed = 0;
+    size_t num_rows_processed = 0;
+    size_t rows_from_last_batch = 0;
 
-    using OffsetVecT = std::remove_reference<decltype(offset_vec)>::type::value_type;
-    std::vector<std::vector<OffsetVecT>> tmp_thread_ptr;
+    using OffsetVecValueT = std::remove_reference<decltype(offset_vec)>::type::value_type;
+    std::vector<std::vector<OffsetVecValueT>> tmp_thread_ptr;
 
     adapter->BeforeFirst();
     // Iterate over batches of input data
@@ -58,15 +59,26 @@ class SimpleDMatrix : public DMatrix {
       auto &batch = adapter->Value();
 
       // Batch data and its offsets
-      std::vector<OffsetVecT> batch_offset_vec;
+      std::vector<OffsetVecValueT> batch_offset_vec;
       std::vector<Entry> batch_data_vec;
-      common::ParallelGroupBuilder<Entry, OffsetVecT> builder(&batch_offset_vec,
-                                                              &batch_data_vec,
-                                                              &tmp_thread_ptr);
+      common::ParallelGroupBuilder<Entry, OffsetVecValueT> builder(&batch_offset_vec,
+                                                                   &batch_data_vec,
+                                                                   &tmp_thread_ptr);
 
       // First-pass over the batch counting valid elements
       size_t num_lines = batch.Size();
-      builder.InitBudget(num_lines, nthread);
+      if (!rows_from_last_batch) rows_from_last_batch = num_lines;
+      // The first parameter is merely a hint. Hence, if the adapter is a CSC styled matrix
+      // this will be the number of columns for the *initial* batch. However, this will
+      // be dynamically resized (when there are more rows than columns) as and when the
+      // builder adds the budget for the elements from the first batch.
+      // For the subsequent batches, the initial budget will be max of rows across
+      // batches seen thus far, *if* the CSC adapter feeds in more batches, and will be a good
+      // heuristic for the initial size of the thread vector (to reduce the number of dynamic
+      // rellocations).
+      // Note: Large number of dynamic reallocations can occur, if this is a CSC type adapter,
+      // that feeds in a large number of rows with few features in a *single* batch.
+      builder.InitBudget(rows_from_last_batch, nthread);
 #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines); ++i) {  // NOLINT(*)
         int tid = omp_get_thread_num();
@@ -77,7 +89,7 @@ class SimpleDMatrix : public DMatrix {
               std::max(inferred_num_columns,
                        static_cast<uint64_t>(element.column_idx + 1));
           if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.AddBudget(element.row_idx - num_lines_processed, tid);
+            builder.AddBudget(element.row_idx - num_rows_processed, tid);
           }
         }
       }
@@ -91,7 +103,7 @@ class SimpleDMatrix : public DMatrix {
         for (auto j = 0ull; j < line.Size(); j++) {
           auto element = line.GetElement(j);
           if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.Push(element.row_idx - num_lines_processed,
+            builder.Push(element.row_idx - num_rows_processed,
                          Entry(element.column_idx, element.value), tid);
           }
         }
@@ -118,7 +130,24 @@ class SimpleDMatrix : public DMatrix {
           ++group_size;
         }
       }
-      num_lines_processed += num_lines;
+
+      // Remove all trailing empty rows, as we have now converted the data fed to us via the
+      // adapter into a CSR style dmatrix. This is required as InitBudget may oversize the thread
+      // vector with more number of columns/rows. The offset vector for the CSR matrix will now
+      // have trailing entries for the rows/columns previously forecasted but not present. Sweep
+      // through those and remove them.
+      if (batch_offset_vec.size() > 1) {
+        auto last_row_ptr_val = batch_offset_vec.back();
+        auto k =  batch_offset_vec.size() - 1;
+        for (; k; --k) {
+          auto cur_row_ptr_val = batch_offset_vec[k - 1];
+          if (cur_row_ptr_val != last_row_ptr_val) break;
+          last_row_ptr_val = cur_row_ptr_val;
+        }
+        batch_offset_vec.resize(k + 1);
+      }
+
+      rows_from_last_batch = std::max(batch_offset_vec.size() - 1, rows_from_last_batch);
 
       if (data_vec.empty()) {
         data_vec.swap(batch_data_vec);
@@ -133,11 +162,13 @@ class SimpleDMatrix : public DMatrix {
         offset_vec.resize(prev_size + batch_offset_vec.size() - 1);
         std::for_each(
           offset_vec.begin() + prev_size, offset_vec.end(),
-          [&](OffsetVecT &v) { v = last_val + batch_offset_vec[batch_offset_vec_idx++]; });
+          [&](OffsetVecValueT &v) { v = last_val + batch_offset_vec[batch_offset_vec_idx++]; });
 
         // Append the batch data with the dmatrix data
         data_vec.insert(data_vec.end(), batch_data_vec.begin(), batch_data_vec.end());
       }
+
+      num_rows_processed = offset_vec.size() - 1;
     }
 
     if (last_group_id != default_max) {
