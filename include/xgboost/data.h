@@ -22,8 +22,6 @@
 #include <vector>
 
 namespace xgboost {
-// forward declare learner.
-class LearnerImpl;
 // forward declare dmatrix.
 class DMatrix;
 

@@ -8,7 +8,6 @@
 #define XGBOOST_GBM_GBTREE_H_
 
 #include <dmlc/omp.h>
-#include <dmlc/parameter.h>
 
 #include <vector>
 #include <map>
@@ -86,7 +85,6 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .add_enum("update", TreeProcessType::kUpdate)
         .describe("Whether to run the normal boosting process that creates new trees,"\
                   " or to update the trees in an existing model.");
-    // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
     DMLC_DECLARE_FIELD(predictor)
         .set_default(PredictorType::kAuto)
@@ -153,7 +151,7 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(bst_float base_margin) : model_(base_margin) {}
+  explicit GBTree(LearnerModelParam const* booster_config) : model_(booster_config) {}
 
   void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache) {
     cache_ = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
@@ -181,16 +179,13 @@ class GBTree : public GradientBooster {
         tparam_.tree_method == TreeMethod::kGPUHist;
   }
 
-  void Load(dmlc::Stream* fi) override {
-    model_.Load(fi);
-
-    this->cfg_.clear();
-    this->cfg_.emplace_back(std::string("num_feature"),
-                            common::ToString(model_.param.num_feature));
-  }
-
   GBTreeTrainParam const& GetTrainParam() const {
     return tparam_;
+  }
+
+  void Load(dmlc::Stream* fi) override {
+    model_.Load(fi);
+    this->cfg_.clear();
   }
 
   void Save(dmlc::Stream* fo) const override {
@@ -198,7 +193,7 @@ class GBTree : public GradientBooster {
   }
 
   bool AllowLazyCheckPoint() const override {
-    return model_.param.num_output_group == 1 ||
+    return model_.learner_model_param_->num_output_group == 1 ||
         tparam_.updater_seq.find("distcol") != std::string::npos;
   }
 

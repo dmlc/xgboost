@@ -112,7 +112,7 @@ using bst_float = float;  // NOLINT
 
 /*! \brief Type for data column (feature) index. */
 using bst_feature_t = uint32_t;  // NOLINT
-/*! \breif Type for data row index.
+/*! \brief Type for data row index.
  *
  * Be careful `std::size_t' is implementation-defined.  Meaning that the binary
  * representation of DMatrix might not be portable across platform.  Booster model should

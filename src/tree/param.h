@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction.
  * \author Tianqi Chen
