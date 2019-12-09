@@ -351,13 +351,14 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
 bool QuantileHistMaker::Builder::UpdatePredictionCache(
     const DMatrix* data,
     HostDeviceVector<bst_float>* p_out_preds) {
-  std::vector<bst_float>& out_preds = p_out_preds->HostVector();
-
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
     return false;
   }
+  builder_monitor_.Start("UpdatePredictionCache");
+
+  std::vector<bst_float>& out_preds = p_out_preds->HostVector();
 
   if (leaf_value_cache_.empty()) {
     leaf_value_cache_.resize(p_last_tree_->param.num_nodes,
@@ -385,6 +386,8 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
       }
     }
   }
+
+  builder_monitor_.Stop("UpdatePredictionCache");
   return true;
 }
 
