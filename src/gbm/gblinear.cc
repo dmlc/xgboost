@@ -65,7 +65,7 @@ class GBLinear : public GradientBooster {
       model_.param.InitAllowUnknown(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
-    updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
+    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
     if (param_.updater == "gpu_coord_descent") {

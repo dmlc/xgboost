@@ -105,7 +105,7 @@ Parameters for Tree Booster
 * ``tree_method`` string [default= ``auto``]
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
-  - XGBoost supports ``hist`` and ``approx`` for distributed training and only support ``approx`` for external memory version.
+  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
   - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``
 
     - ``auto``: Use heuristic to choose the fastest method.
@@ -181,12 +181,17 @@ Parameters for Tree Booster
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
-* ``predictor``, [default=``cpu_predictor``]
+* ``predictor``, [default=``auto``]
 
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
 
+    - ``auto``: Configure predictor based on heuristics.
     - ``cpu_predictor``: Multicore CPU prediction algorithm.
-    - ``gpu_predictor``: Prediction using GPU. Default when ``tree_method`` is ``gpu_hist``.
+    - ``gpu_predictor``: Prediction using GPU.  Used when ``tree_method`` is ``gpu_hist``.
+      When ``predictor`` is set to default value ``auto``, the ``gpu_hist`` tree method is
+      able to provide GPU based prediction without copying training data to GPU memory.
+      If ``gpu_predictor`` is explicitly specified, then all data is copied into GPU, only
+      recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
