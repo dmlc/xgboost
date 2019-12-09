@@ -105,7 +105,7 @@ Parameters for Tree Booster
 * ``tree_method`` string [default= ``auto``]
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
-  - XGBoost supports ``hist`` and ``approx`` for distributed training and only support ``approx`` for external memory version.
+  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
   - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``
 
     - ``auto``: Use heuristic to choose the fastest method.
