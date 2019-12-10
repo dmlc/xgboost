@@ -4,6 +4,7 @@
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/data/adapter.h"
 #include "../helpers.h"
+#include <gtest/gtest.h>
 
 using namespace xgboost;  // NOLINT
 
@@ -162,8 +163,9 @@ TEST(SparsePageDMatrix, FromDense) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, m*n, n);
-  data::SparsePageDMatrix dmat(&adapter,-1,std::numeric_limits<float>::quiet_NaN(),tmp_file);
+  data::DenseAdapter adapter(data.data(), m, m * n, n);
+  data::SparsePageDMatrix dmat(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
@@ -187,7 +189,8 @@ TEST(SparsePageDMatrix, FromCSC) {
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
   std::vector<size_t> col_ptr = {0, 2, 5};
   data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
-  data::SparsePageDMatrix dmat(&adapter,-1,std::numeric_limits<float>::quiet_NaN(),tmp_file);
+  data::SparsePageDMatrix dmat(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), -1, tmp_file);
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);
@@ -219,7 +222,7 @@ TEST(SparsePageDMatrix, FromFile) {
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   data::SparsePageDMatrix dmat(
-      &adapter, -1, std::numeric_limits<float>::quiet_NaN(), tmp_file,1);
+      &adapter, std::numeric_limits<float>::quiet_NaN(), -1, tmp_file, 1);
   
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
     std::vector<bst_row_t> expected_offset(batch.Size() + 1);
