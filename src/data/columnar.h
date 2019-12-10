@@ -217,39 +217,17 @@ class ArrayInterfaceHandler {
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
     return common::Span<T>{p_data, length};
   }
-
-  //template <typename T>
-  //static Columnar<T> ExtractArray(std::map<std::string, Json> const& column) {
-  //  common::Span<T> s_data { ArrayInterfaceHandler::ExtractData<T>(column) };
-
-  //  Columnar<T> foreign_col;
-  //  foreign_col.data  = s_data;
-  //  foreign_col.size  = s_data.size();
-
-  //  common::Span<RBitField8::value_type> s_mask;
-  //  size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
-
-  //  foreign_col.valid = RBitField8(s_mask);
-
-  //  if (s_mask.data()) {
-  //    CHECK_EQ(n_bits, foreign_col.data.size())
-  //        << "Shape of bit mask doesn't match data shape. "
-  //        << "XGBoost doesn't support internal broadcasting.";
-  //  }
-
-  //  return foreign_col;
-  //}
 };
 
 // A view over __array_interface__
 class Columnar {
   using mask_type = unsigned char;
   using index_type = int32_t;
-public:
-  Columnar(std::map<std::string, Json> const& column)
-  {
+
+ public:
+  explicit Columnar(std::map<std::string, Json> const& column) {
     ArrayInterfaceHandler::Validate(column);
-    data = ArrayInterfaceHandler::GetPtrFromArrayData<void *>(column);
+    data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
     size = ArrayInterfaceHandler::ExtractLength(column);
 
     common::Span<RBitField8::value_type> s_mask;
@@ -268,33 +246,32 @@ public:
     type[2] = typestr.at(2);
   }
 
-  XGBOOST_DEVICE float GetElement(size_t idx) const
-  {
-    if (type[1] == 'f' && type[2] == '4') {          
-      return reinterpret_cast<float*>(data)[idx];     
+  XGBOOST_DEVICE float GetElement(size_t idx) const {
+    if (type[1] == 'f' && type[2] == '4') {
+      return reinterpret_cast<float*>(data)[idx];
     } else if (type[1] == 'f' && type[2] == '8') {
-      return reinterpret_cast<double*>(data)[idx];   
-    } else if (type[1] == 'i' && type[2] == '1') {  
-      return reinterpret_cast<int8_t*>(data)[idx]; 
+      return reinterpret_cast<double*>(data)[idx];
+    } else if (type[1] == 'i' && type[2] == '1') {
+      return reinterpret_cast<int8_t*>(data)[idx];
     } else if (type[1] == 'i' && type[2] == '2') {
       return reinterpret_cast<int16_t*>(data)[idx];
     } else if (type[1] == 'i' && type[2] == '4') {
       return reinterpret_cast<int32_t*>(data)[idx];
-    } else if (type[1] == 'i' && type[2] == '8') { 
+    } else if (type[1] == 'i' && type[2] == '8') {
       return reinterpret_cast<int64_t*>(data)[idx];
-    } else if (type[1] == 'u' && type[2] == '1') { 
+    } else if (type[1] == 'u' && type[2] == '1') {
       return reinterpret_cast<uint8_t*>(data)[idx];
-    } else if (type[1] == 'u' && type[2] == '2') { 
+    } else if (type[1] == 'u' && type[2] == '2') {
       return reinterpret_cast<uint16_t*>(data)[idx];
-    } else if (type[1] == 'u' && type[2] == '4') {  
+    } else if (type[1] == 'u' && type[2] == '4') {
       return reinterpret_cast<uint32_t*>(data)[idx];
-    } else if (type[1] == 'u' && type[2] == '8') {  
+    } else if (type[1] == 'u' && type[2] == '8') {
       return reinterpret_cast<uint64_t*>(data)[idx];
     } else {
       // TODO(Rory): Is this the best way to raise an error on device?
       SPAN_CHECK(false);
       return 0;
-    }                                                         
+    }
   }
 
   RBitField8 valid;
@@ -303,32 +280,5 @@ public:
   char type[3];
 };
 
-#define DISPATCH_TYPE(__dispatched_func, __typestr, ...) {              \
-    CHECK_EQ(__typestr.size(), 3) << ColumnarErrors::TypestrFormat();   \
-    if (__typestr.at(1) == 'f' && __typestr.at(2) == '4') {             \
-      __dispatched_func<float>(__VA_ARGS__);                            \
-    } else if (__typestr.at(1) == 'f' && __typestr.at(2) == '8') {      \
-      __dispatched_func<double>(__VA_ARGS__);                           \
-    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '1') {      \
-      __dispatched_func<int8_t>(__VA_ARGS__);                           \
-    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '2') {      \
-      __dispatched_func<int16_t>(__VA_ARGS__);                          \
-    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '4') {      \
-      __dispatched_func<int32_t>(__VA_ARGS__);                          \
-    } else if (__typestr.at(1) == 'i' && __typestr.at(2) == '8') {      \
-      __dispatched_func<int64_t>(__VA_ARGS__);                          \
-    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '1') {      \
-      __dispatched_func<uint8_t>(__VA_ARGS__);                          \
-    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '2') {      \
-      __dispatched_func<uint16_t>(__VA_ARGS__);                         \
-    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '4') {      \
-      __dispatched_func<uint32_t>(__VA_ARGS__);                         \
-    } else if (__typestr.at(1) == 'u' && __typestr.at(2) == '8') {      \
-      __dispatched_func<uint64_t>(__VA_ARGS__);                         \
-    } else {                                                            \
-      LOG(FATAL) << ColumnarErrors::UnSupportedType(__typestr);         \
-    }                                                                   \
-  }
-
-}      // namespace xgboost
+}  // namespace xgboost
 #endif  // XGBOOST_DATA_COLUMNAR_H_

@@ -12,7 +12,6 @@
 
 namespace xgboost {
 
-template <typename T>
 void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<float>* out) {
   auto SetDeviceToPtr = [](void* ptr) {
     cudaPointerAttributes attr;
@@ -21,17 +20,17 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
     dh::safe_cuda(cudaSetDevice(ptr_device));
     return ptr_device;
   };
+  Columnar foreign_column(column);
+  auto ptr_device = SetDeviceToPtr(foreign_column.data);
 
-  common::Span<T> s_data { ArrayInterfaceHandler::ExtractData<T>(column) };
-  auto ptr_device = SetDeviceToPtr(s_data.data());
-  thrust::device_ptr<T> p_src {s_data.data()};
-
-  auto length = s_data.size();
   out->SetDevice(ptr_device);
-  out->Resize(length);
+  out->Resize(foreign_column.size);
 
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
-  thrust::copy(p_src, p_src + length, p_dst);
+
+  dh::LaunchN(ptr_device, foreign_column.size, [=] __device__(size_t idx) {
+    p_dst[idx] = foreign_column.GetElement(idx);
+  });
 }
 
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
@@ -49,11 +48,11 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   if (key == "root_index") {
     LOG(FATAL) << "root index for columnar data is not supported.";
   } else if (key == "label") {
-    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &labels_);
+    CopyInfoImpl(j_arr_obj, &labels_);
   } else if (key == "weight") {
-    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &weights_);
+    CopyInfoImpl(j_arr_obj, &weights_);
   } else if (key == "base_margin") {
-    DISPATCH_TYPE(CopyInfoImpl, typestr, j_arr_obj, &base_margin_);
+    CopyInfoImpl(j_arr_obj, &base_margin_);
   } else if (key == "group") {
     // Ranking is not performed on device.
     auto s_data = ArrayInterfaceHandler::ExtractData<uint32_t>(j_arr_obj);
