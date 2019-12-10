@@ -464,11 +464,10 @@ class LearnerImpl : public Learner {
 
   void UpdateOneIter(int iter, DMatrix* train) override {
     monitor_.Start("UpdateOneIter");
-
+    this->Configure();
     if (generic_param_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(generic_param_.seed * kRandSeedMagic + iter);
     }
-    this->Configure();
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train);
 
@@ -485,10 +484,10 @@ class LearnerImpl : public Learner {
   void BoostOneIter(int iter, DMatrix* train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
+    this->Configure();
     if (generic_param_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(generic_param_.seed * kRandSeedMagic + iter);
     }
-    this->Configure();
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train);
 
