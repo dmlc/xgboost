@@ -126,3 +126,32 @@ TEST(SimpleDMatrix, EmptyRow) {
   CHECK_EQ(dmat.Info().num_row_, 2);
   CHECK_EQ(dmat.Info().num_col_, 2);
 }
+
+TEST(SimpleDMatrix, FromFile) {
+  std::string filename = "test.libsvm";
+  CreateBigTestData(filename, 3 * 5);
+  std::unique_ptr<dmlc::Parser<uint32_t>> parser(
+    dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
+  data::FileAdapter adapter(parser.get());
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
+    1);
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    EXPECT_EQ(batch.Size(), 5);
+    EXPECT_EQ(batch.offset.HostVector(),
+      std::vector<bst_row_t>({0, 3, 6, 9, 12, 15}));
+    EXPECT_EQ(batch.base_rowid, 0);
+
+    for (auto i = 0ull; i < batch.Size(); i++) {
+      if (i%2== 0) {
+        EXPECT_EQ(batch[i][0].index, 0);
+        EXPECT_EQ(batch[i][1].index, 1);
+        EXPECT_EQ(batch[i][2].index, 2);
+      }
+      else {
+        EXPECT_EQ(batch[i][0].index, 0);
+        EXPECT_EQ(batch[i][1].index, 3);
+        EXPECT_EQ(batch[i][2].index, 4);
+      }
+    }
+  }
+}

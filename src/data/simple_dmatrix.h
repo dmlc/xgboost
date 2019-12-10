@@ -51,10 +51,21 @@ class SimpleDMatrix : public DMatrix {
     // Iterate over batches of input data
     while (adapter->Next()) {
       auto &batch = adapter->Value();
+
+      size_t base_row_offset = offset_vec.empty() ? 0 : offset_vec.size() - 1;
       common::ParallelGroupBuilder<
         Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
-        builder(&offset_vec, &data_vec);
-      builder.InitBudget(0, nthread);
+          builder(&offset_vec, &data_vec, base_row_offset);
+      // Estimate expected number of rows by using last element in batch
+      // This is not required to be exact but prevents unnecessary resizing
+      size_t expected_rows = 0;
+      if (batch.Size() > 0) {
+        auto last_line = batch.GetLine(batch.Size() - 1);
+        if (last_line.Size() > 0) {
+          expected_rows = last_line.GetElement(last_line.Size() - 1).row_idx;
+        }
+      }
+      builder.InitBudget(expected_rows, nthread);
 
       // First-pass over the batch counting valid elements
       size_t num_lines = batch.Size();
