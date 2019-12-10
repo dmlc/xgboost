@@ -9,13 +9,10 @@
 #define XGBOOST_LEARNER_H_
 
 #include <rabit/rabit.h>
-
 #include <xgboost/base.h>
-#include <xgboost/gbm.h>
-#include <xgboost/metric.h>
-#include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 
 #include <utility>
@@ -25,6 +22,12 @@
 #include <vector>
 
 namespace xgboost {
+
+class Metric;
+class GradientBooster;
+class ObjFunction;
+class DMatrix;
+class Json;
 
 /*!
  * \brief Learner class that does training and prediction.
@@ -45,7 +48,7 @@ namespace xgboost {
 class Learner : public Model, public rabit::Serializable {
  public:
   /*! \brief virtual destructor */
-  ~Learner() override = default;
+  ~Learner() override;
   /*!
    * \brief Configure Learner based on set parameters.
    */
@@ -180,8 +183,6 @@ class Learner : public Model, public rabit::Serializable {
   virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
 
  protected:
-  /*! \brief internal base score of the model */
-  bst_float base_score_;
   /*! \brief objective function */
   std::unique_ptr<ObjFunction> obj_;
   /*! \brief The gradient booster used by the model*/
@@ -189,7 +190,26 @@ class Learner : public Model, public rabit::Serializable {
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
   /*! \brief Training parameter. */
-  GenericParameter generic_param_;
+  GenericParameter generic_parameters_;
+};
+
+struct LearnerModelParamLegacy;
+
+/*
+ * \brief Basic Model Parameters, used to describe the booster.
+ */
+struct LearnerModelParam {
+  /* \brief global bias */
+  bst_float base_score;
+  /* \brief number of features  */
+  uint32_t num_feature;
+  /* \brief number of classes, if it is multi-class classification  */
+  uint32_t num_output_group;
+
+  LearnerModelParam() : base_score {0.5}, num_feature{0}, num_output_group{0} {}
+  // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
+  // this one as an immutable copy.
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);
 };
 
 }  // namespace xgboost

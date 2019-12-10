@@ -39,7 +39,7 @@ struct GPUTrainingParam {
 using NodeIdT = int32_t;
 
 /** used to assign default id to a Node */
-static const int kUnusedNode = -1;
+static const bst_node_t kUnusedNode = -1;
 
 /**
  * @enum DefaultDirection node.cuh

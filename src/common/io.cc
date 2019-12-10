@@ -136,9 +136,9 @@ std::string LoadSequentialFile(std::string fname) {
 
   buffer.resize(fsize + 1);
   fread(&buffer[0], 1, fsize, f);
-  buffer.back() = '\0';
   fclose(f);
 #endif  // defined(__unix__)
+  buffer.back() = '\0';
   return buffer;
 }
 

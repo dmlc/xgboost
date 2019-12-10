@@ -11,12 +11,12 @@ namespace common {
 
 TEST(CutsBuilder, SearchGroupInd) {
   size_t constexpr kNumGroups = 4;
-  size_t constexpr kNumRows = 17;
-  size_t constexpr kNumCols = 15;
+  size_t constexpr kRows = 17;
+  size_t constexpr kCols = 15;
 
-  auto pp_mat = CreateDMatrix(kNumRows, kNumCols, 0);
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_mat {*pp_dmat};
 
-  auto& p_mat = *pp_mat;
   std::vector<bst_int> group(kNumGroups);
   group[0] = 2;
   group[1] = 3;
@@ -36,7 +36,7 @@ TEST(CutsBuilder, SearchGroupInd) {
 
   EXPECT_ANY_THROW(CutsBuilder::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
 
-  delete pp_mat;
+  delete pp_dmat;
 }
 
 namespace {
@@ -52,12 +52,11 @@ TEST(SparseCuts, SingleThreadedBuild) {
   size_t constexpr kCols = 31;
   size_t constexpr kBins = 256;
 
-  // Dense matrix.
-  auto pp_mat = CreateDMatrix(kRows, kCols, 0);
-  DMatrix* p_fmat = (*pp_mat).get();
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
 
   common::GHistIndexMatrix hmat;
-  hmat.Init(p_fmat, kBins);
+  hmat.Init(p_fmat.get(), kBins);
 
   HistogramCuts cuts;
   SparseCuts indices(&cuts);
@@ -69,7 +68,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
   ASSERT_EQ(hmat.cut.Values(), cuts.Values());
   ASSERT_EQ(hmat.cut.MinValues(), cuts.MinValues());
 
-  delete pp_mat;
+  delete pp_dmat;
 }
 
 TEST(SparseCuts, MultiThreadedBuild) {

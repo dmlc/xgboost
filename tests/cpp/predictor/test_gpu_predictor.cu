@@ -33,7 +33,7 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
 namespace xgboost {
 namespace predictor {
 
-TEST(gpu_predictor, Test) {
+TEST(GpuPredictor, Basic) {
   auto cpu_lparam = CreateEmptyGenericParam(-1);
   auto gpu_lparam = CreateEmptyGenericParam(0);
   auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
@@ -50,8 +50,12 @@ TEST(gpu_predictor, Test) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
-    gbm::GBTreeModel model = CreateTestModel();
-    model.param.num_feature = n_col;
+    LearnerModelParam param;
+    param.num_feature = n_col;
+    param.num_output_group = 1;
+    param.base_score = 0.5;
+
+    gbm::GBTreeModel model = CreateTestModel(&param);
 
     // Test predict batch
     HostDeviceVector<float> gpu_out_predictions;
@@ -76,10 +80,14 @@ TEST(gpu_predictor, ExternalMemoryTest) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam, cache));
   gpu_predictor->Configure({});
-  gbm::GBTreeModel model = CreateTestModel();
-  model.param.num_feature = 3;
+
+  LearnerModelParam param;
+  param.num_feature = 2;
   const int n_classes = 3;
-  model.param.num_output_group = n_classes;
+  param.num_output_group = n_classes;
+  param.base_score = 0.5;
+
+  gbm::GBTreeModel model = CreateTestModel(&param);
   std::vector<std::unique_ptr<DMatrix>> dmats;
   dmlc::TemporaryDirectory tmpdir;
   std::string file0 = tmpdir.path + "/big_0.libsvm";

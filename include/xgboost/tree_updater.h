@@ -22,6 +22,9 @@
 #include <string>
 
 namespace xgboost {
+
+class Json;
+
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
