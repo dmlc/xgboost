@@ -419,17 +419,18 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   omp_set_num_threads(nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
-  size_t base_row_offset = offset_vec.empty() ? 0 : offset_vec.size() - 1;
+  size_t builder_base_row_offset = this->Size();
   common::ParallelGroupBuilder<
       Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
-      builder(&offset_vec, &data_vec, base_row_offset);
+      builder(&offset_vec, &data_vec, builder_base_row_offset);
   // Estimate expected number of rows by using last element in batch
   // This is not required to be exact but prevents unnecessary resizing
   size_t expected_rows = 0;
   if (batch.Size() > 0) {
     auto last_line = batch.GetLine(batch.Size() - 1);
     if (last_line.Size() > 0) {
-      expected_rows = last_line.GetElement(last_line.Size() - 1).row_idx;
+      expected_rows =
+          last_line.GetElement(last_line.Size() - 1).row_idx - base_rowid;
     }
   }
   builder.InitBudget(expected_rows, nthread);
@@ -447,6 +448,10 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       max_columns =
           std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
       if (!common::CheckNAN(element.value) && element.value != missing) {
+        size_t key = element.row_idx -
+                     base_rowid;  // Adapter row index is absolute, here we want
+                                  // it relative to current page
+        CHECK_GE(key,  builder_base_row_offset);
         builder.AddBudget(element.row_idx - base_rowid, tid);
       }
     }
@@ -462,8 +467,10 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     for (auto j = 0ull; j < line.Size(); j++) {
       auto element = line.GetElement(j);
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        builder.Push(element.row_idx - base_rowid,
-                     Entry(element.column_idx, element.value), tid);
+        size_t key = element.row_idx -
+                     base_rowid;  // Adapter row index is absolute, here we want
+                                  // it relative to current page
+        builder.Push(key, Entry(element.column_idx, element.value), tid);
       }
     }
   }

@@ -202,7 +202,7 @@ class SparsePage {
 
   /*! \return Number of instances in the page. */
   inline size_t Size() const {
-    return offset.Size() - 1;
+    return offset.Size() == 0 ? 0 : offset.Size() - 1;
   }
 
   /*! \return estimation of memory cost of this page */
