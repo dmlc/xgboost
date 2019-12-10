@@ -1,11 +1,16 @@
 /*!
- * Copyright by Contributors 2017
+ * Copyright 2017-2019 by Contributors
+ * \file gbtree_model.h
  */
-#pragma once
+#ifndef XGBOOST_GBM_GBTREE_MODEL_H_
+#define XGBOOST_GBM_GBTREE_MODEL_H_
+
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/model.h>
 #include <xgboost/tree_model.h>
+#include <xgboost/parameter.h>
+#include <xgboost/learner.h>
 
 #include <memory>
 #include <utility>
@@ -13,45 +18,42 @@
 #include <vector>
 
 namespace xgboost {
+
+class Json;
+
 namespace gbm {
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
+ public:
   /*! \brief number of trees */
-  int num_trees;
+  int32_t num_trees;
   /*! \brief (Deprecated) number of roots */
-  int deprecated_num_roots;
+  int32_t deprecated_num_roots;
   /*! \brief number of features to be used by trees */
-  int num_feature;
+  int32_t deprecated_num_feature;
   /*! \brief pad this space, for backward compatibility reason.*/
-  int pad_32bit;
+  int32_t pad_32bit;
   /*! \brief deprecated padding space. */
-  int64_t num_pbuffer_deprecated;
-  /*!
-   * \brief how many output group a single instance can produce
-   *  this affects the behavior of number of output we have:
-   *    suppose we have n instance and k group, output will be k * n
-   */
-  int num_output_group;
+  int64_t deprecated_num_pbuffer;
+  // deprecated. use learner_model_param_->num_output_group.
+  int32_t deprecated_num_output_group;
   /*! \brief size of leaf vector needed in tree */
-  int size_leaf_vector;
+  int32_t size_leaf_vector;
   /*! \brief reserved parameters */
-  int reserved[32];
+  int32_t reserved[32];
+
   /*! \brief constructor */
   GBTreeModelParam() {
-    std::memset(this, 0, sizeof(GBTreeModelParam));
-    static_assert(sizeof(GBTreeModelParam) == (4 + 2 + 2 + 32) * sizeof(int),
+    std::memset(this, 0, sizeof(GBTreeModelParam));  // FIXME(trivialfis): Why?
+    static_assert(sizeof(GBTreeModelParam) == (4 + 2 + 2 + 32) * sizeof(int32_t),
                   "64/32 bit compatibility issue");
   }
+
   // declare parameters, only declare those that need to be set.
   DMLC_DECLARE_PARAMETER(GBTreeModelParam) {
-    DMLC_DECLARE_FIELD(num_output_group)
-        .set_lower_bound(1)
-        .set_default(1)
-        .describe(
-            "Number of output groups to be predicted,"
-            " used for multi-class classification.");
-    DMLC_DECLARE_FIELD(num_feature)
+    DMLC_DECLARE_FIELD(num_trees)
         .set_lower_bound(0)
+        .set_default(0)
         .describe("Number of features used for training and prediction.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
@@ -61,11 +63,13 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 };
 
 struct GBTreeModel : public Model {
-  explicit GBTreeModel(bst_float base_margin) : base_margin(base_margin) {}
+ public:
+  explicit GBTreeModel(LearnerModelParam const* learner_model_param) :
+      learner_model_param_{learner_model_param} {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
-      param.InitAllowUnknown(cfg);
+      param.UpdateAllowUnknown(cfg);
     }
   }
 
@@ -136,7 +140,7 @@ struct GBTreeModel : public Model {
   }
 
   // base margin
-  bst_float base_margin;
+  LearnerModelParam const* learner_model_param_;
   // model parameter
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */
@@ -148,3 +152,5 @@ struct GBTreeModel : public Model {
 };
 }  // namespace gbm
 }  // namespace xgboost
+
+#endif  // XGBOOST_GBM_GBTREE_MODEL_H_

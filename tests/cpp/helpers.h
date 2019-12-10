@@ -21,6 +21,8 @@
 #include <xgboost/json.h>
 #include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/c_api.h>
+#include <xgboost/learner.h>
 
 #include "../../src/common/common.h"
 #include "../../src/common/hist_util.h"
@@ -204,7 +206,12 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel();
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param);
+
+std::unique_ptr<GradientBooster> CreateTrainedGBM(
+    std::string name, Args kwargs, size_t kRows, size_t kCols,
+    LearnerModelParam const* learner_model_param,
+    GenericParameter const* generic_param);
 
 inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   xgboost::GenericParameter tparam;

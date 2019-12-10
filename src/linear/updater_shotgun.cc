@@ -27,7 +27,7 @@ class ShotgunUpdater : public LinearUpdater {
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     auto &gpair = in_gpair->HostVector();
     param_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->param.num_output_group;
+    const int ngroup = model->learner_model_param_->num_output_group;
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {

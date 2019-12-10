@@ -27,6 +27,9 @@ namespace xgboost {
 
 struct PathElement;  // forward declaration
 
+class Json;
+// FIXME(trivialfis): Once binary IO is gone, make this parameter internal as it should
+// not be configured by users.
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief (Deprecated) number of start root */
@@ -36,7 +39,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*!\brief number of deleted nodes */
   int num_deleted;
   /*! \brief maximum depth, this is a statistics of the tree */
-  int max_depth;
+  int deprecated_max_depth;
   /*! \brief number of features used for tree construction */
   int num_feature;
   /*!
@@ -67,7 +70,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
 
   bool operator==(const TreeParam& b) const {
     return num_nodes == b.num_nodes &&
-           num_deleted == b.num_deleted && max_depth == b.max_depth &&
+           num_deleted == b.num_deleted &&
            num_feature == b.num_feature &&
            size_leaf_vector == b.size_leaf_vector;
   }

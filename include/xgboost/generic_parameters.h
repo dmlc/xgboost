@@ -13,8 +13,9 @@
 namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // Constant representing the device ID of CPU.
-  static int constexpr kCpuId = -1;
+  static int32_t constexpr kCpuId = -1;
 
+ public:
   // stored random seed
   int seed;
   // whether seed the PRNG each iteration
@@ -26,8 +27,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   int gpu_id;
   // gpu page size in external memory mode, 0 means using the default.
   size_t gpu_page_size;
-
-  void ConfigureGpuId(bool require_gpu);
+  bool enable_experimental_json_serialization {false};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -36,6 +36,12 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
           << this->__MANAGER__()->Find("n_gpus")->GetFieldInfo().description;
     }
   }
+  /*!
+   * \brief Configure the parameter `gpu_id'.
+   *
+   * \param require_gpu  Whether GPU is explicitly required from user.
+   */
+  void ConfigureGpuId(bool require_gpu);
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
@@ -60,6 +66,10 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_default(0)
         .set_lower_bound(0)
         .describe("GPU page size when running in external memory mode.");
+    DMLC_DECLARE_FIELD(enable_experimental_json_serialization)
+        .set_default(false)
+        .describe("Enable using JSON for memory serialization (Python Pickle, "
+                  "rabit checkpoints etc.).");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)

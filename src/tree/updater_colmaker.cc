@@ -5,13 +5,13 @@
  * \author Tianqi Chen
  */
 #include <rabit/rabit.h>
-#include <xgboost/tree_updater.h>
-#include <xgboost/logging.h>
 #include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 
+#include "xgboost/tree_updater.h"
+#include "xgboost/logging.h"
 #include "xgboost/json.h"
 #include "param.h"
 #include "constraints.h"
@@ -78,16 +78,12 @@ class ColMaker: public TreeUpdater {
   struct ThreadEntry {
     /*! \brief statistics of data */
     GradStats stats;
-    /*! \brief extra statistics of data */
-    GradStats stats_extra;
     /*! \brief last feature value scanned */
     bst_float last_fvalue;
-    /*! \brief first feature value scanned */
-    bst_float first_fvalue;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    ThreadEntry() : last_fvalue{0}, first_fvalue{0} {}
+    ThreadEntry() : last_fvalue{0} {}
   };
   struct NodeEntry {
     /*! \brief statics for node entry */
@@ -251,152 +247,7 @@ class ColMaker: public TreeUpdater {
         }
       }
     }
-    // parallel find the best split of current fid
-    // this function does not support nested functions
-    inline void ParallelFindSplit(const SparsePage::Inst &col,
-                                  bst_uint fid,
-                                  DMatrix *p_fmat,
-                                  const std::vector<GradientPair> &gpair) {
-      // TODO(tqchen): double check stats order.
-      const bool ind = col.size() != 0 && col[0].fvalue == col[col.size() - 1].fvalue;
-      auto col_density = p_fmat->GetColDensity(fid);
-      bool need_forward = param_.NeedForwardSearch(col_density, ind);
-      bool need_backward = param_.NeedBackwardSearch(col_density, ind);
-      const std::vector<int> &qexpand = qexpand_;
-      #pragma omp parallel
-      {
-        const int tid = omp_get_thread_num();
-        std::vector<ThreadEntry> &temp = stemp_[tid];
-        // cleanup temp statistics
-        for (int j : qexpand) {
-          temp[j].stats = GradStats();
-        }
-        bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
-        bst_uint end = std::min(static_cast<bst_uint>(col.size()), step * (tid + 1));
-        for (bst_uint i = tid * step; i < end; ++i) {
-          const bst_uint ridx = col[i].index;
-          const int nid = position_[ridx];
-          if (nid < 0) continue;
-          const bst_float fvalue = col[i].fvalue;
-          if (temp[nid].stats.Empty()) {
-            temp[nid].first_fvalue = fvalue;
-          }
-          temp[nid].stats.Add(gpair[ridx]);
-          temp[nid].last_fvalue = fvalue;
-        }
-      }
-      // start collecting the partial sum statistics
-      auto nnode = static_cast<bst_omp_uint>(qexpand.size());
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint j = 0; j < nnode; ++j) {
-        const int nid = qexpand[j];
-        GradStats sum, tmp, c;
-        for (int tid = 0; tid < this->nthread_; ++tid) {
-          tmp = stemp_[tid][nid].stats;
-          stemp_[tid][nid].stats = sum;
-          sum.Add(tmp);
-          if (tid != 0) {
-            std::swap(stemp_[tid - 1][nid].last_fvalue, stemp_[tid][nid].first_fvalue);
-          }
-        }
-        for (int tid = 0; tid < this->nthread_; ++tid) {
-          stemp_[tid][nid].stats_extra = sum;
-          ThreadEntry &e = stemp_[tid][nid];
-          bst_float fsplit;
-          if (tid != 0) {
-            if (stemp_[tid - 1][nid].last_fvalue != e.first_fvalue) {
-              fsplit = (stemp_[tid - 1][nid].last_fvalue + e.first_fvalue) * 0.5f;
-            } else {
-              continue;
-            }
-          } else {
-            fsplit = e.first_fvalue - kRtEps;
-          }
-          if (need_forward && tid != 0) {
-            c.SetSubstract(snode_[nid].stats, e.stats);
-            if (c.sum_hess >= param_.min_child_weight &&
-                e.stats.sum_hess >= param_.min_child_weight) {
-              auto loss_chg = static_cast<bst_float>(
-                  spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
-                  snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, fsplit, false, e.stats, c);
-            }
-          }
-          if (need_backward) {
-            tmp.SetSubstract(sum, e.stats);
-            c.SetSubstract(snode_[nid].stats, tmp);
-            if (c.sum_hess >= param_.min_child_weight &&
-                tmp.sum_hess >= param_.min_child_weight) {
-              auto loss_chg = static_cast<bst_float>(
-                  spliteval_->ComputeSplitScore(nid, fid, tmp, c) -
-                  snode_[nid].root_gain);
-              e.best.Update(loss_chg, fid, fsplit, true, tmp, c);
-            }
-          }
-        }
-        if (need_backward) {
-          tmp = sum;
-          ThreadEntry &e = stemp_[this->nthread_-1][nid];
-          c.SetSubstract(snode_[nid].stats, tmp);
-          if (c.sum_hess >= param_.min_child_weight &&
-              tmp.sum_hess >= param_.min_child_weight) {
-            auto loss_chg = static_cast<bst_float>(
-                spliteval_->ComputeSplitScore(nid, fid, tmp, c) -
-                snode_[nid].root_gain);
-            e.best.Update(loss_chg, fid, e.last_fvalue + kRtEps, true, tmp, c);
-          }
-        }
-      }
-      // rescan, generate candidate split
-#pragma omp parallel
-      {
-        GradStats c, cright;
-        const int tid = omp_get_thread_num();
-        std::vector<ThreadEntry> &temp = stemp_[tid];
-        bst_uint step = (col.size() + this->nthread_ - 1) / this->nthread_;
-        bst_uint end = std::min(static_cast<bst_uint>(col.size()), step * (tid + 1));
-        for (bst_uint i = tid * step; i < end; ++i) {
-          const bst_uint ridx = col[i].index;
-          const int nid = position_[ridx];
-          if (nid < 0) continue;
-          const bst_float fvalue = col[i].fvalue;
-          // get the statistics of nid
-          ThreadEntry &e = temp[nid];
-          if (e.stats.Empty()) {
-            e.stats.Add(gpair[ridx]);
-            e.first_fvalue = fvalue;
-          } else {
-            // forward default right
-            if (fvalue != e.first_fvalue) {
-              if (need_forward) {
-                c.SetSubstract(snode_[nid].stats, e.stats);
-                if (c.sum_hess >= param_.min_child_weight &&
-                    e.stats.sum_hess >= param_.min_child_weight) {
-                  auto loss_chg = static_cast<bst_float>(
-                      spliteval_->ComputeSplitScore(nid, fid, e.stats, c) -
-                      snode_[nid].root_gain);
-                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f,
-                                false, e.stats, c);
-                }
-              }
-              if (need_backward) {
-                cright.SetSubstract(e.stats_extra, e.stats);
-                c.SetSubstract(snode_[nid].stats, cright);
-                if (c.sum_hess >= param_.min_child_weight &&
-                    cright.sum_hess >= param_.min_child_weight) {
-                  auto loss_chg = static_cast<bst_float>(
-                      spliteval_->ComputeSplitScore(nid, fid, c, cright) -
-                      snode_[nid].root_gain);
-                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, true, c, cright);
-                }
-              }
-            }
-            e.stats.Add(gpair[ridx]);
-            e.first_fvalue = fvalue;
-          }
-        }
-      }
-    }
+
     // update enumeration solution
     inline void UpdateEnumeration(int nid, GradientPair gstats,
                                   bst_float fvalue, int d_step, bst_uint fid,
@@ -421,10 +272,10 @@ class ColMaker: public TreeUpdater {
               bst_float proposed_split = (fvalue + e.last_fvalue) * 0.5f;
               if ( proposed_split == fvalue ) {
                 e.best.Update(loss_chg, fid, e.last_fvalue,
-                            d_step == -1, c, e.stats);
+                              d_step == -1, c, e.stats);
               } else {
                 e.best.Update(loss_chg, fid, proposed_split,
-                            d_step == -1, c, e.stats);
+                              d_step == -1, c, e.stats);
               }
             } else {
               loss_chg = static_cast<bst_float>(
