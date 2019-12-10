@@ -14,21 +14,9 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
-
 #include "../common/bitfield.h"
 
 namespace xgboost {
-// A view over __array_interface__
-template <typename T>
-struct Columnar {
-  using mask_type = unsigned char;
-  using index_type = int32_t;
-
-  common::Span<T>  data;
-  RBitField8 valid;
-  int32_t size;
-};
-
 // Common errors in parsing columnar format.
 struct ColumnarErrors {
   static char const* Contigious() {
@@ -200,6 +188,19 @@ class ArrayInterfaceHandler {
     return 0;
   }
 
+  static size_t ExtractLength(std::map<std::string, Json> const& column) {
+    auto j_shape = get<Array const>(column.at("shape"));
+    CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
+    auto typestr = get<String const>(column.at("typestr"));
+    if (column.find("strides") != column.cend()) {
+      auto strides = get<Array const>(column.at("strides"));
+      CHECK_EQ(strides.size(), 1) << ColumnarErrors::Dimension(1);
+      CHECK_EQ(get<Integer>(strides.at(0)), typestr.at(2) - '0')
+          << ColumnarErrors::Contigious();
+    }
+
+    return static_cast<size_t>(get<Integer const>(j_shape.at(0)));
+  }
   template <typename T>
   static common::Span<T> ExtractData(std::map<std::string, Json> const& column) {
     Validate(column);
@@ -210,42 +211,96 @@ class ArrayInterfaceHandler {
     CHECK_EQ(typestr.at(2),   static_cast<char>(sizeof(T) + 48))
         << "Input data type and typestr mismatch. typestr: " << typestr;
 
-    auto j_shape = get<Array const>(column.at("shape"));
-    CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
 
-    if (column.find("strides") != column.cend()) {
-      auto strides = get<Array const>(column.at("strides"));
-      CHECK_EQ(strides.size(),         1)              << ColumnarErrors::Dimension(1);
-      CHECK_EQ(get<Integer>(strides.at(0)), sizeof(T)) << ColumnarErrors::Contigious();
-    }
-
-    auto length = static_cast<size_t>(get<Integer const>(j_shape.at(0)));
+    auto length = ExtractLength(column);
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
     return common::Span<T>{p_data, length};
   }
 
-  template <typename T>
-  static Columnar<T> ExtractArray(std::map<std::string, Json> const& column) {
-    common::Span<T> s_data { ArrayInterfaceHandler::ExtractData<T>(column) };
+  //template <typename T>
+  //static Columnar<T> ExtractArray(std::map<std::string, Json> const& column) {
+  //  common::Span<T> s_data { ArrayInterfaceHandler::ExtractData<T>(column) };
 
-    Columnar<T> foreign_col;
-    foreign_col.data  = s_data;
-    foreign_col.size  = s_data.size();
+  //  Columnar<T> foreign_col;
+  //  foreign_col.data  = s_data;
+  //  foreign_col.size  = s_data.size();
+
+  //  common::Span<RBitField8::value_type> s_mask;
+  //  size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
+
+  //  foreign_col.valid = RBitField8(s_mask);
+
+  //  if (s_mask.data()) {
+  //    CHECK_EQ(n_bits, foreign_col.data.size())
+  //        << "Shape of bit mask doesn't match data shape. "
+  //        << "XGBoost doesn't support internal broadcasting.";
+  //  }
+
+  //  return foreign_col;
+  //}
+};
+
+// A view over __array_interface__
+class Columnar {
+  using mask_type = unsigned char;
+  using index_type = int32_t;
+public:
+  Columnar(std::map<std::string, Json> const& column)
+  {
+    ArrayInterfaceHandler::Validate(column);
+    data = ArrayInterfaceHandler::GetPtrFromArrayData<void *>(column);
+    size = ArrayInterfaceHandler::ExtractLength(column);
 
     common::Span<RBitField8::value_type> s_mask;
     size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
 
-    foreign_col.valid = RBitField8(s_mask);
+    valid = RBitField8(s_mask);
 
     if (s_mask.data()) {
-      CHECK_EQ(n_bits, foreign_col.data.size())
+      CHECK_EQ(n_bits, size)
           << "Shape of bit mask doesn't match data shape. "
           << "XGBoost doesn't support internal broadcasting.";
     }
-
-    return foreign_col;
+    auto typestr = get<String const>(column.at("typestr"));
+    type[0] = typestr.at(0);
+    type[1] = typestr.at(1);
+    type[2] = typestr.at(2);
   }
+
+  XGBOOST_DEVICE float GetElement(size_t idx) const
+  {
+    if (type[1] == 'f' && type[2] == '4') {          
+      return reinterpret_cast<float*>(data)[idx];     
+    } else if (type[1] == 'f' && type[2] == '8') {
+      return reinterpret_cast<double*>(data)[idx];   
+    } else if (type[1] == 'i' && type[2] == '1') {  
+      return reinterpret_cast<int8_t*>(data)[idx]; 
+    } else if (type[1] == 'i' && type[2] == '2') {
+      return reinterpret_cast<int16_t*>(data)[idx];
+    } else if (type[1] == 'i' && type[2] == '4') {
+      return reinterpret_cast<int32_t*>(data)[idx];
+    } else if (type[1] == 'i' && type[2] == '8') { 
+      return reinterpret_cast<int64_t*>(data)[idx];
+    } else if (type[1] == 'u' && type[2] == '1') { 
+      return reinterpret_cast<uint8_t*>(data)[idx];
+    } else if (type[1] == 'u' && type[2] == '2') { 
+      return reinterpret_cast<uint16_t*>(data)[idx];
+    } else if (type[1] == 'u' && type[2] == '4') {  
+      return reinterpret_cast<uint32_t*>(data)[idx];
+    } else if (type[1] == 'u' && type[2] == '8') {  
+      return reinterpret_cast<uint64_t*>(data)[idx];
+    } else {
+      // TODO(Rory): Is this the best way to raise an error on device?
+      SPAN_CHECK(false);
+      return 0;
+    }                                                         
+  }
+
+  RBitField8 valid;
+  int32_t size;
+  void* data;
+  char type[3];
 };
 
 #define DISPATCH_TYPE(__dispatched_func, __typestr, ...) {              \
