@@ -428,7 +428,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              const float **out_result);
 
 /*!
- * \brief load model from existing file
+ * \brief Load model from existing file
  * \param handle handle
  * \param fname file name
 * \return 0 when success, -1 when failure happens
@@ -436,7 +436,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
                                const char *fname);
 /*!
- * \brief save model into existing file
+ * \brief Save model into existing file
  * \param handle handle
  * \param fname file name
  * \return 0 when success, -1 when failure happens

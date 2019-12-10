@@ -3,6 +3,10 @@
 #include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include <xgboost/learner.h>
+
+#include "../helpers.h"
+#include "../../../src/common/io.h"
 
 TEST(c_api, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
@@ -65,8 +69,44 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
   }
 }
 
+namespace xgboost {
+
 TEST(c_api, Version) {
   int patch {0};
   XGBoostVersion(NULL, NULL, &patch);  // NOLINT
   ASSERT_EQ(patch, XGBOOST_VER_PATCH);
 }
+
+TEST(c_api, Json_ModelIO){
+  size_t constexpr kRows = 10;
+  dmlc::TemporaryDirectory tempdir;
+
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto p_dmat = *pp_dmat;
+  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+
+  std::shared_ptr<Learner> learner { Learner::Create(mat) };
+
+  learner->UpdateOneIter(0, p_dmat.get());
+  BoosterHandle handle = learner.get();
+
+  std::string modelfile_0 = tempdir.path + "/model_0.json";
+  XGBoosterSaveModel(handle, modelfile_0.c_str());
+  XGBoosterLoadModel(handle, modelfile_0.c_str());
+
+  std::string modelfile_1 = tempdir.path + "/model_1.json";
+  XGBoosterSaveModel(handle, modelfile_1.c_str());
+
+  auto model_str_0 = common::LoadSequentialFile(modelfile_0);
+  auto model_str_1 = common::LoadSequentialFile(modelfile_1);
+
+  ASSERT_EQ(model_str_0.front(), '{');
+  ASSERT_EQ(model_str_0, model_str_1);
+  delete pp_dmat;
+}
+}  // namespace xgboost

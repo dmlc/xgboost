@@ -32,7 +32,7 @@ struct LearnerModelParam;
 /*!
  * \brief interface of gradient boosting model.
  */
-class GradientBooster {
+class GradientBooster : public Model {
  protected:
   GenericParameter const* generic_param_;
 

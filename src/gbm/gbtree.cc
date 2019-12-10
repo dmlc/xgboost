@@ -289,8 +289,19 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
   monitor_.Stop("CommitModel");
 }
 
+void GBTree::LoadModel(Json const& in) {
+  CHECK_EQ(get<String>(in["name"]), "gbtree");
+  model_.LoadModel(in["model"]);
+}
 
-// dart
+void GBTree::SaveModel(Json* p_out) const {
+  auto& out = *p_out;
+  out["name"] = String("gbtree");
+  out["model"] = Object();
+  auto& model = out["model"];
+  model_.SaveModel(&model);
+}
+
 class Dart : public GBTree {
  public:
   explicit Dart(LearnerModelParam const* booster_config) :
@@ -300,6 +311,30 @@ class Dart : public GBTree {
     GBTree::Configure(cfg);
     if (model_.trees.size() == 0) {
       dparam_.UpdateAllowUnknown(cfg);
+    }
+  }
+
+  void SaveModel(Json *p_out) const override {
+    auto &out = *p_out;
+    out["name"] = String("dart");
+    out["gbtree"] = Object();
+    GBTree::SaveModel(&(out["gbtree"]));
+
+    std::vector<Json> j_weight_drop(weight_drop_.size());
+    for (size_t i = 0; i < weight_drop_.size(); ++i) {
+      j_weight_drop[i] = Number(weight_drop_[i]);
+    }
+    out["weight_drop"] = Array(j_weight_drop);
+  }
+  void LoadModel(Json const& in) override {
+    CHECK_EQ(get<String>(in["name"]), "dart");
+    auto const& gbtree = in["gbtree"];
+    GBTree::LoadModel(gbtree);
+
+    auto const& j_weight_drop = get<Array>(in["weight_drop"]);
+    weight_drop_.resize(j_weight_drop.size());
+    for (size_t i = 0; i < weight_drop_.size(); ++i) {
+      weight_drop_[i] = get<Number const>(j_weight_drop[i]);
     }
   }
 
@@ -387,7 +422,7 @@ class Dart : public GBTree {
     if (init_out_preds) {
       size_t n = num_group * p_fmat->Info().num_row_;
       const auto& base_margin =
-        p_fmat->Info().base_margin_.ConstHostVector();
+          p_fmat->Info().base_margin_.ConstHostVector();
       out_preds->resize(n);
       if (base_margin.size() != 0) {
         CHECK_EQ(out_preds->size(), n);

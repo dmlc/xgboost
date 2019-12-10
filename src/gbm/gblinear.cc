@@ -85,6 +85,20 @@ class GBLinear : public GradientBooster {
     model_.Save(fo);
   }
 
+  void SaveModel(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String{"gblinear"};
+
+    out["model"] = Object();
+    auto& model = out["model"];
+    model_.SaveModel(&model);
+  }
+  void LoadModel(Json const& in) override {
+    CHECK_EQ(get<String>(in["name"]), "gblinear");
+    auto const& model = in["model"];
+    model_.LoadModel(model);
+  }
+
   void DoBoost(DMatrix *p_fmat,
                HostDeviceVector<GradientPair> *in_gpair,
                ObjFunction* obj) override {

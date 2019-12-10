@@ -115,7 +115,7 @@ std::string LoadSequentialFile(std::string fname) {
   }
 
   size_t f_size_bytes = fs.st_size;
-  buffer.resize(f_size_bytes+1);
+  buffer.resize(f_size_bytes + 1);
   int32_t fd = open(fname.c_str(), O_RDONLY);
   posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
   ssize_t bytes_read = read(fd, &buffer[0], f_size_bytes);
