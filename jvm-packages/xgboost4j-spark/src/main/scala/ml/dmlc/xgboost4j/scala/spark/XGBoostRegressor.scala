@@ -189,7 +189,7 @@ class XGBoostRegressor (
     val trainingSet: RDD[XGBLabeledPoint] = if ($(featuresCols).nonEmpty) {
       val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
         .map(sf => col(sf.name))
-      DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
+      DataUtils.convertDataFrameToXGBLabeledPointRDDs($(missing), col($(labelCol)), featureCols,
         weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
         dataset.asInstanceOf[DataFrame]).head
     } else {
@@ -202,7 +202,8 @@ class XGBoostRegressor (
         if ($(featuresCols).nonEmpty) {
           val featureCols = dataset.schema.filter(sf => $(featuresCols).contains(sf.name))
             .map(sf => col(sf.name))
-          DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), featureCols,
+          DataUtils.convertDataFrameToXGBLabeledPointRDDs($(missing), col($(labelCol)),
+            featureCols,
             weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
             dataFrame).head
         } else {
@@ -306,6 +307,8 @@ class XGBoostRegressionModel private[ml] (
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
+    val featureColIndices = $(featuresCols).map(schema.fieldIndex)
+
     val resultRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       new AbstractIterator[Row] {
         private var batchCnt = 0
@@ -320,12 +323,10 @@ class XGBoostRegressionModel private[ml] (
 
           import DataUtils._
           val features = batchRow.iterator.map(row =>
-            if ($(featuresCols).nonEmpty) {
+            if (featureColIndices.nonEmpty) {
               // Prefer multiple columns for features
-              val values = row.schema.filter(f => $(featuresCols).contains(f.name))
-                .map(f => row.get(row.schema.fieldIndex(f.name)).toString.toFloat).toArray
-              // All are treated as dense data
-              XGBLabeledPoint(0.0f, null, values)
+              val (indices, values) = compressValues(featureColIndices.map(row.get), $(missing))
+              XGBLabeledPoint(0.0f, indices, values)
             } else {
               row.getAs[Vector]($(featuresCol)).asXGB
             })

@@ -320,6 +320,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
     val paramMap = Map(
       "eta" -> "1",
+      "missing" -> 0,
       "max_depth" -> "6",
       "silent" -> "1",
       "objective" -> "binary:logistic",

@@ -217,6 +217,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
     val paramMap = Map(
       "eta" -> "1",
+      "missing" -> 0,
       "max_depth" -> "6",
       "silent" -> "1",
       "objective" -> "reg:squarederror",
@@ -242,7 +243,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
 
   test("ranking: using multiple columns should output the same predictions with" +
     " that of single column") {
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1", "missing" -> 0,
       "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
       "group_col" -> "group")
 
