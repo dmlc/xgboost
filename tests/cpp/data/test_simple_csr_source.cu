@@ -75,6 +75,23 @@ Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
   return column;
 }
 
+void TestGetElement() {
+  thrust::device_vector<float> data;
+  auto j_column = GenerateDenseColumn("<f4", 3, &data);
+  auto const& column_obj = get<Object const>(j_column);
+  Columnar foreign_column(column_obj);
+
+  EXPECT_NO_THROW({
+    dh::LaunchN(0, 1, [=] __device__(size_t idx) {
+      KERNEL_CHECK(foreign_column.GetElement(0) == 0.0f);
+      KERNEL_CHECK(foreign_column.GetElement(1) == 2.0f);
+      KERNEL_CHECK(foreign_column.GetElement(2) == 4.0f);
+    });
+  });
+}
+
+TEST(Columnar, GetElement) { TestGetElement(); }
+
 void TestDenseColumn(std::unique_ptr<data::SimpleCSRSource> const& source,
                      size_t n_rows, size_t n_cols) {
   auto const& data = source->page_.data.HostVector();

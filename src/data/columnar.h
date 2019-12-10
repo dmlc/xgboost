@@ -228,6 +228,7 @@ class Columnar {
   explicit Columnar(std::map<std::string, Json> const& column) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
+    CHECK(data) << "Column is null";
     size = ArrayInterfaceHandler::ExtractLength(column);
 
     common::Span<RBitField8::value_type> s_mask;
