@@ -25,7 +25,9 @@
 // gbms
 #include "../src/gbm/gbm.cc"
 #include "../src/gbm/gbtree.cc"
+#include "../src/gbm/gbtree_model.cc"
 #include "../src/gbm/gblinear.cc"
+#include "../src/gbm/gblinear_model.cc"
 
 // data
 #include "../src/data/data.cc"
@@ -44,8 +46,8 @@
 #endif
 
 // tress
-#include "../src/tree/split_evaluator.cc"
 #include "../src/tree/param.cc"
+#include "../src/tree/split_evaluator.cc"
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
 #include "../src/tree/updater_colmaker.cc"
