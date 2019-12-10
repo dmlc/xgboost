@@ -7,46 +7,7 @@
 namespace xgboost {
 namespace tree {
 
-TEST(GradientBasedSampler, Sample) {
-  constexpr size_t kRows = 2048;
-  constexpr size_t kCols = 16;
-  constexpr float kSubsample = 0.5;
-  constexpr size_t kSampleRows = kRows * kSubsample;
-  constexpr size_t kPageSize = 1024;
-
-  // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  auto gpair = GenerateRandomGradients(kRows);
-  gpair.SetDevice(0);
-
-  BatchParam param{0, 256, 0, kPageSize};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-
-  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSubsample);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  auto sampled_page = sample.page;
-  auto sampled_gpair = sample.gpair;
-  EXPECT_EQ(sample.sample_rows, kSampleRows);
-  EXPECT_EQ(sampled_page->matrix.n_rows, kSampleRows);
-  EXPECT_EQ(sampled_gpair.size(), kSampleRows);
-
-  float sum_gradients = 0;
-  for (auto gp : gpair.ConstHostVector()) {
-    sum_gradients += gp.GetGrad();
-  }
-
-  float sum_sampled_gradients = 0;
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  for (auto gp : sampled_gpair_h) {
-    sum_sampled_gradients += gp.GetGrad();
-  }
-  EXPECT_FLOAT_EQ(sum_gradients, sum_sampled_gradients);
-}
-
-TEST(GradientBasedSampler, FullSample) {
+TEST(GradientBasedSampler, NoSampling) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 4;
   constexpr size_t kPageSize = 1024;
@@ -92,6 +53,46 @@ TEST(GradientBasedSampler, FullSample) {
     }
     offset += num_elements;
   }
+}
+
+TEST(GradientBasedSampler, PoissonSampling) {
+  constexpr size_t kRows = 2048;
+  constexpr size_t kCols = 16;
+  constexpr float kSubsample = 0.5;
+  constexpr size_t kSampleRows = kRows * kSubsample;
+  constexpr size_t kPageSize = 1024;
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  auto gpair = GenerateRandomGradients(kRows);
+  gpair.SetDevice(0);
+
+  BatchParam param{0, 256, 0, kPageSize};
+  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+
+  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSubsample);
+  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get(),
+                               GradientBasedSampler::kPoissonSampling);
+  auto sampled_page = sample.page;
+  auto sampled_gpair = sample.gpair;
+  EXPECT_EQ(sample.sample_rows, kSampleRows);
+  EXPECT_EQ(sampled_page->matrix.n_rows, kSampleRows);
+  EXPECT_EQ(sampled_gpair.size(), kSampleRows);
+
+  float sum_gradients = 0;
+  for (auto gp : gpair.ConstHostVector()) {
+    sum_gradients += gp.GetGrad();
+  }
+
+  float sum_sampled_gradients = 0;
+  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
+  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
+  for (auto gp : sampled_gpair_h) {
+    sum_sampled_gradients += gp.GetGrad();
+  }
+  EXPECT_FLOAT_EQ(sum_gradients, sum_sampled_gradients);
 }
 
 };  // namespace tree

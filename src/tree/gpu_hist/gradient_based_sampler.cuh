@@ -35,6 +35,13 @@ struct GradientBasedSample {
  */
 class GradientBasedSampler {
  public:
+  enum SamplingMethod {
+    kNoSampling,
+    kPoissonSampling,
+    kSequentialPoissonSampling,
+    kUniformSampling,
+  };
+
   explicit GradientBasedSampler(BatchParam batch_param,
                                 EllpackInfo info,
                                 size_t n_rows,
@@ -44,20 +51,31 @@ class GradientBasedSampler {
   size_t MaxSampleRows();
 
   /*! \brief Sample from a DMatrix based on the given gradients. */
-  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat);
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat,
+                             SamplingMethod sampling_method = kDefaultSamplingMethod);
 
   /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
   void CollectPages(DMatrix* dmat);
 
  private:
+  static const SamplingMethod kDefaultSamplingMethod = kSequentialPoissonSampling;
+
+  GradientBasedSample NoSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
+  GradientBasedSample PoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
+  GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
+  GradientBasedSample UniformSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
+
   common::Monitor monitor_;
+  dh::BulkAllocator ba_;
   BatchParam batch_param_;
   EllpackInfo info_;
-  bool is_sampling_;
+  SamplingMethod sampling_method_;
   size_t sample_rows_;
   std::unique_ptr<EllpackPageImpl> page_;
-  HostDeviceVector<GradientPair> gpair_;
-  HostDeviceVector<size_t> sample_row_index_;
+  common::Span<GradientPair> gpair_;
+  common::Span<float> row_weight_;
+  common::Span<size_t> row_index_;
+  common::Span<size_t> sample_row_index_;
   bool page_collected_{false};
 };
 };  // namespace tree
