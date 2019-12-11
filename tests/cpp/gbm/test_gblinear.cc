@@ -35,7 +35,7 @@ TEST(GBLinear, Json_IO) {
   std::string model_str;
   Json::Dump(model, &model_str);
 
-  model = Json::Load({model_str.c_str(), model_str.size()});
+  model = Json::Load(StringView{model_str.c_str(), model_str.size()});
   ASSERT_TRUE(IsA<Object>(model));
 
   {
@@ -43,14 +43,6 @@ TEST(GBLinear, Json_IO) {
     auto weights = get<Array>(model["weights"]);
     ASSERT_EQ(weights.size(), 17);
   }
-
-  {
-    model = Json::Load(StringView{model_str.c_str(), model_str.size()});
-    model = model["model"];
-    auto weights = get<Array>(model["weights"]);
-    ASSERT_EQ(weights.size(), 17);  // 16 + 1 (bias)
-  }
-
 }
 
 }  // namespace gbm
