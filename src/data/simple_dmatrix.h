@@ -50,57 +50,9 @@ class SimpleDMatrix : public DMatrix {
     adapter->BeforeFirst();
     // Iterate over batches of input data
     while (adapter->Next()) {
-      auto &batch = adapter->Value();
-
-      size_t base_row_offset = offset_vec.empty() ? 0 : offset_vec.size() - 1;
-      common::ParallelGroupBuilder<
-        Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
-          builder(&offset_vec, &data_vec, base_row_offset);
-      // Estimate expected number of rows by using last element in batch
-      // This is not required to be exact but prevents unnecessary resizing
-      size_t expected_rows = 0;
-      if (batch.Size() > 0) {
-        auto last_line = batch.GetLine(batch.Size() - 1);
-        if (last_line.Size() > 0) {
-          expected_rows = last_line.GetElement(last_line.Size() - 1).row_idx;
-        }
-      }
-      builder.InitBudget(expected_rows, nthread);
-
-      // First-pass over the batch counting valid elements
-      size_t num_lines = batch.Size();
-#pragma omp parallel for schedule(static)
-      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
-        ++i) {  // NOLINT(*)
-        int tid = omp_get_thread_num();
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
-          inferred_num_columns =
-              std::max(inferred_num_columns,
-                       static_cast<uint64_t>(element.column_idx + 1));
-          if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.AddBudget(element.row_idx, tid);
-          }
-        }
-      }
-      builder.InitStorage();
-
-      // Second pass over batch, placing elements in correct position
-#pragma omp parallel for schedule(static)
-      for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
-        ++i) {  // NOLINT(*)
-        int tid = omp_get_thread_num();
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
-          if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.Push(element.row_idx, Entry(element.column_idx, element.value),
-              tid);
-          }
-        }
-      }
-
+      auto& batch = adapter->Value();
+      auto batch_max_columns = mat.page_.Push(batch, missing, nthread);
+      inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
       // Append meta information if available
       if (batch.Labels() != nullptr) {
         auto& labels = mat.info.labels_.HostVector();

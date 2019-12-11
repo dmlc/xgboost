@@ -224,10 +224,12 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
+  data::FileAdapter adapter(parser.get());
   DMatrix* dmat {nullptr};
 
   try {
-    dmat = DMatrix::Create(parser.get(), cache_file, page_size);
+    dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1,
+                           cache_file, page_size);
   } catch (dmlc::Error& e) {
     std::vector<std::string> splited = common::Split(fname, '#');
     std::vector<std::string> args = common::Split(splited.front(), '?');
@@ -282,27 +284,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
   return dmat;
 }
 
-DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
-                         const std::string& cache_prefix,
-                         const size_t page_size) {
-  if (cache_prefix.length() == 0) {
-    data::FileAdapter adapter(parser);
-    return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  } else {
-#if DMLC_ENABLE_STD_THREAD
-    if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {
-      data::SparsePageSource<SparsePage>::CreateRowPage(parser, cache_prefix, page_size);
-    }
-    std::unique_ptr<data::SparsePageSource<SparsePage>> source(
-        new data::SparsePageSource<SparsePage>(cache_prefix, ".row.page"));
-    return DMatrix::Create(std::move(source), cache_prefix);
-#else
-    LOG(FATAL) << "External memory is not enabled in mingw";
-    return nullptr;
-#endif  // DMLC_ENABLE_STD_THREAD
-  }
-}
 
 void DMatrix::SaveToLocalFile(const std::string& fname) {
   data::SimpleCSRSource source;
@@ -352,20 +333,36 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 }
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread) {
-  return new data::SimpleDMatrix(adapter, missing, nthread);
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
+                         const std::string& cache_prefix,  size_t page_size ) {
+  if (cache_prefix.length() == 0) {
+    return new data::SimpleDMatrix(adapter, missing, nthread);
+  } else {
+#if DMLC_ENABLE_STD_THREAD
+    return new data::SparsePageDMatrix(adapter, missing, nthread, cache_prefix,
+                                       page_size);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif  // DMLC_ENABLE_STD_THREAD
+  }
 }
 
-template DMatrix* DMatrix::Create<data::DenseAdapter>(data::DenseAdapter* adapter,
-                                                float missing, int nthread);
-template DMatrix* DMatrix::Create<data::CSRAdapter>(data::CSRAdapter* adapter,
-                                              float missing, int nthread);
-template DMatrix* DMatrix::Create<data::CSCAdapter>(data::CSCAdapter* adapter,
-                                              float missing, int nthread);
+template DMatrix* DMatrix::Create<data::DenseAdapter>(
+    data::DenseAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CSRAdapter>(
+    data::CSRAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CSCAdapter>(
+    data::CSCAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 template DMatrix* DMatrix::Create<data::DataTableAdapter>(
-    data::DataTableAdapter* adapter, float missing, int nthread);
-template DMatrix* DMatrix::Create<data::FileAdapter>(data::FileAdapter* adapter,
-                                               float missing, int nthread);
+    data::DataTableAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::FileAdapter>(
+    data::FileAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
@@ -413,21 +410,72 @@ void SparsePage::Push(const SparsePage &batch) {
   }
 }
 
-void SparsePage::Push(const dmlc::RowBlock<uint32_t>& batch) {
-  auto& data_vec = data.HostVector();
+template <typename AdapterBatchT>
+uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+  // Set number of threads but keep old value so we can reset it after
+  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread = nthreadmax;
+  int nthread_original = omp_get_max_threads();
+  omp_set_num_threads(nthread);
   auto& offset_vec = offset.HostVector();
-  data_vec.reserve(data.Size() + batch.offset[batch.size] - batch.offset[0]);
-  offset_vec.reserve(offset.Size() + batch.size);
-  CHECK(batch.index != nullptr);
-  for (size_t i = 0; i < batch.size; ++i) {
-    offset_vec.push_back(offset_vec.back() + batch.offset[i + 1] - batch.offset[i]);
+  auto& data_vec = data.HostVector();
+  size_t builder_base_row_offset = this->Size();
+  common::ParallelGroupBuilder<
+      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
+      builder(&offset_vec, &data_vec, builder_base_row_offset);
+  // Estimate expected number of rows by using last element in batch
+  // This is not required to be exact but prevents unnecessary resizing
+  size_t expected_rows = 0;
+  if (batch.Size() > 0) {
+    auto last_line = batch.GetLine(batch.Size() - 1);
+    if (last_line.Size() > 0) {
+      expected_rows =
+          last_line.GetElement(last_line.Size() - 1).row_idx - base_rowid;
+    }
   }
-  for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-    uint32_t index = batch.index[i];
-    bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
-    data_vec.emplace_back(index, fvalue);
+  builder.InitBudget(expected_rows, nthread);
+  uint64_t max_columns = 0;
+
+  // First-pass over the batch counting valid elements
+  size_t num_lines = batch.Size();
+#pragma omp parallel for schedule(static)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
+       ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto line = batch.GetLine(i);
+    for (auto j = 0ull; j < line.Size(); j++) {
+      auto element = line.GetElement(j);
+      max_columns =
+          std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
+      if (!common::CheckNAN(element.value) && element.value != missing) {
+        size_t key = element.row_idx -
+                     base_rowid;  // Adapter row index is absolute, here we want
+                                  // it relative to current page
+        CHECK_GE(key,  builder_base_row_offset);
+        builder.AddBudget(element.row_idx - base_rowid, tid);
+      }
+    }
   }
-  CHECK_EQ(offset_vec.back(), data.Size());
+  builder.InitStorage();
+
+  // Second pass over batch, placing elements in correct position
+#pragma omp parallel for schedule(static)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
+       ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto line = batch.GetLine(i);
+    for (auto j = 0ull; j < line.Size(); j++) {
+      auto element = line.GetElement(j);
+      if (!common::CheckNAN(element.value) && element.value != missing) {
+        size_t key = element.row_idx -
+                     base_rowid;  // Adapter row index is absolute, here we want
+                                  // it relative to current page
+        builder.Push(key, Entry(element.column_idx, element.value), tid);
+      }
+    }
+  }
+  omp_set_num_threads(nthread_original);
+  return max_columns;
 }
 
 void SparsePage::PushCSC(const SparsePage &batch) {

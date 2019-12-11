@@ -69,6 +69,7 @@ inline SparsePageFormat<T>* CreatePageFormat(const std::string& name) {
   auto *e = ::dmlc::Registry<SparsePageFormatReg<T>>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown format type " << name;
+    return nullptr;
   }
   return (e->body)();
 }
