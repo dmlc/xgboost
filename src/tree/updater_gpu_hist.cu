@@ -1039,7 +1039,6 @@ class GPUHistMakerSpecialised {
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     monitor_.StartCuda("Update");
-
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -1163,8 +1162,6 @@ class GPUHistMakerSpecialised {
 class GPUHistMaker : public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    // Used in test to count how many configurations are performed
-    LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
     // The passed in args can be empty, if we simply purge the old maker without
     // preserving parameters then we can't do Update on it.
