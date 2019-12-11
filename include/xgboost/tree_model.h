@@ -303,12 +303,15 @@ class RegTree : public Model {
    * \brief load model from stream
    * \param fi input stream
    */
-  void LoadModel(dmlc::Stream* fi) override;
+  void Load(dmlc::Stream* fi);
   /*!
    * \brief save model to stream
    * \param fo output stream
    */
-  void SaveModel(dmlc::Stream* fo) const override;
+  void Save(dmlc::Stream* fo) const;
+
+  void LoadModel(Json const& in) override;
+  void SaveModel(Json* out) const override;
 
   bool operator==(const RegTree& b) const {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&

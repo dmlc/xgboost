@@ -1110,12 +1110,12 @@ class GPUHistMakerSpecialised {
     common::MemoryBufferStream fs(&s_model);
     int rank = rabit::GetRank();
     if (rank == 0) {
-      local_tree->SaveModel(&fs);
+      local_tree->Save(&fs);
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
     RegTree reference_tree {};  // rank 0 tree
-    reference_tree.LoadModel(&fs);
+    reference_tree.Load(&fs);
     CHECK(*local_tree == reference_tree);
   }
 

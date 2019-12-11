@@ -192,6 +192,9 @@ class GBTree : public GradientBooster {
     model_.Save(fo);
   }
 
+  void SaveModel(Json* p_out) const override;
+  void LoadModel(Json const& in) override;
+
   bool AllowLazyCheckPoint() const override {
     return model_.learner_model_param_->num_output_group == 1 ||
         tparam_.updater_seq.find("distcol") != std::string::npos;

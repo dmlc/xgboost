@@ -84,43 +84,11 @@ struct GBTreeModel : public Model {
     }
   }
 
-  void LoadModel(dmlc::Stream* fi) override {
-    // They are the same right now until we can split up the saved parameter from model.
-    this->Load(fi);
-  }
-  void SaveModel(dmlc::Stream* fo) const override {
-    // They are the same right now until we can split up the saved parameter from model.
-    this->Save(fo);
-  }
+  void Load(dmlc::Stream* fi);
+  void Save(dmlc::Stream* fo) const;
 
-  void Load(dmlc::Stream* fi) {
-    CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param))
-        << "GBTree: invalid model file";
-    trees.clear();
-    trees_to_update.clear();
-    for (int i = 0; i < param.num_trees; ++i) {
-      std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->LoadModel(fi);
-      trees.push_back(std::move(ptr));
-    }
-    tree_info.resize(param.num_trees);
-    if (param.num_trees != 0) {
-      CHECK_EQ(
-          fi->Read(dmlc::BeginPtr(tree_info), sizeof(int) * param.num_trees),
-          sizeof(int) * param.num_trees);
-    }
-  }
-
-  void Save(dmlc::Stream* fo) const {
-    CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
-    fo->Write(&param, sizeof(param));
-    for (const auto & tree : trees) {
-      tree->SaveModel(fo);
-    }
-    if (tree_info.size() != 0) {
-      fo->Write(dmlc::BeginPtr(tree_info), sizeof(int) * tree_info.size());
-    }
-  }
+  void SaveModel(Json* p_out) const override;
+  void LoadModel(Json const& p_out) override;
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) const {
