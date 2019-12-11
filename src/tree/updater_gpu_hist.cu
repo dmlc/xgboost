@@ -453,7 +453,6 @@ struct GPUHistMakerDevice {
 
   /*! \brief Gradient pair for each row. */
   common::Span<GradientPair> gpair;
-  common::Span<GradientPair> sampled_gpair;
 
   common::Span<int> monotone_constraints;
   common::Span<bst_float> prediction_cache;
@@ -553,17 +552,14 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
-    dh::safe_cuda(cudaMemcpyAsync(
-        gpair.data(), dh_gpair->ConstDevicePointer(),
-        gpair.size() * sizeof(GradientPair), cudaMemcpyDeviceToDevice));
     if (use_gradient_based_sampling) {
-      auto sample = sampler->Sample(gpair, dmat);
+      auto sample = sampler->Sample(dh_gpair->DeviceSpan(), dmat);
       n_rows = sample.sample_rows;
       page = sample.page;
-      sampled_gpair = sample.gpair;
+      gpair = sample.gpair;
     } else {
+      gpair = dh_gpair->DeviceSpan();
       SubsampleGradientPair(device_id, gpair, param.subsample);
-      sampled_gpair = gpair;
     }
 
     row_partitioner.reset();  // Release the device memory first before reallocating
@@ -657,7 +653,7 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    auto d_gpair = sampled_gpair.data();
+    auto d_gpair = gpair.data();
 
     auto n_elements = d_ridx.size() * page->matrix.info.row_stride;
 
@@ -887,7 +883,7 @@ struct GPUHistMakerDevice {
   void InitRoot(RegTree* p_tree, dh::AllReducer* reducer, int64_t num_columns) {
     constexpr int kRootNIdx = 0;
 
-    dh::SumReduction(temp_memory, sampled_gpair, node_sum_gradients_d, sampled_gpair.size());
+    dh::SumReduction(temp_memory, gpair, node_sum_gradients_d, gpair.size());
     reducer->AllReduceSum(
         reinterpret_cast<float*>(node_sum_gradients_d.data()),
         reinterpret_cast<float*>(node_sum_gradients_d.data()), 2);
@@ -982,7 +978,6 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
       param.max_leaves > 0 ? param.max_leaves * 2 : MaxNodesDepth(param.max_depth);
 
   ba.Allocate(device_id,
-              &gpair, n_rows,
               &prediction_cache, n_rows,
               &node_sum_gradients_d, max_nodes,
               &monotone_constraints, param.monotone_constraints.size());

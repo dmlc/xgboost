@@ -89,12 +89,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(kNRows);
-  for (auto &gpair : h_gpair) {
+  HostDeviceVector<GradientPair> gpair(kNRows);
+  for (auto &gp : gpair.HostVector()) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
-    gpair = GradientPair(grad, hess);
+    gp = GradientPair(grad, hess);
   }
+  gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.size());
 
@@ -105,7 +106,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
-  dh::CopyVectorToDeviceSpan(maker.gpair, h_gpair);
+  maker.gpair = gpair.DeviceSpan();
 
   maker.use_shared_memory_histograms = use_shared_memory_histograms;
   maker.BuildHist(0);
