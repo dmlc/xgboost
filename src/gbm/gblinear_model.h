@@ -112,7 +112,8 @@ class GBLinearModel : public Model {
          << "    \"weight\": [" << std::endl;
       for (unsigned i = 0; i < nfeature; ++i) {
         for (int gid = 0; gid < ngroup; ++gid) {
-          if (i != 0 || gid != 0) fo << "," << std::endl;
+          if (i != 0 || gid != 0)
+            fo << "," << std::endl;
           fo << "      " << (*this)[i][gid];
         }
       }
@@ -134,5 +135,6 @@ class GBLinearModel : public Model {
     return v;
   }
 };
+
 }  // namespace gbm
 }  // namespace xgboost

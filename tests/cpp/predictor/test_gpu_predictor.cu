@@ -13,23 +13,6 @@
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
 
-namespace {
-
-inline void CheckCAPICall(int ret) {
-  ASSERT_EQ(ret, 0) << XGBGetLastError();
-}
-
-}  // namespace anonymous
-
-const std::map<std::string, std::string>&
-QueryBoosterConfigurationArguments(BoosterHandle handle) {
-  CHECK_NE(handle, static_cast<void*>(nullptr));
-  auto* bst = static_cast<xgboost::Learner*>(handle);
-  bst->Configure();
-  return bst->GetConfigurationArguments();
-}
-
-
 namespace xgboost {
 namespace predictor {
 
@@ -109,78 +92,6 @@ TEST(gpu_predictor, ExternalMemoryTest) {
       ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);
     }
   }
-}
-
-// Test whether pickling preserves predictor parameters
-TEST(gpu_predictor, PicklingTest) {
-  int const gpuid = 0;
-
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  CreateBigTestData(tmp_file, 600);
-
-  DMatrixHandle dmat[1];
-  BoosterHandle bst, bst2;
-  std::vector<bst_float> label;
-  for (int i = 0; i < 200; ++i) {
-    label.push_back((i % 2 ? 1 : 0));
-  }
-
-  // Load data matrix
-  ASSERT_EQ(XGDMatrixCreateFromFile(
-      tmp_file.c_str(), 0, &dmat[0]), 0) << XGBGetLastError();
-  ASSERT_EQ(XGDMatrixSetFloatInfo(
-      dmat[0], "label", label.data(), 200), 0) << XGBGetLastError();
-  // Create booster
-  ASSERT_EQ(XGBoosterCreate(dmat, 1, &bst), 0) << XGBGetLastError();
-  // Set parameters
-  ASSERT_EQ(XGBoosterSetParam(bst, "seed", "0"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "base_score", "0.5"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "booster", "gbtree"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "learning_rate", "0.01"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "max_depth", "8"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(
-      bst, "objective", "binary:logistic"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "seed", "123"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(
-      bst, "tree_method", "gpu_hist"), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(
-      bst, "gpu_id", std::to_string(gpuid).c_str()), 0) << XGBGetLastError();
-  ASSERT_EQ(XGBoosterSetParam(bst, "predictor", "gpu_predictor"), 0) << XGBGetLastError();
-
-  // Run boosting iterations
-  for (int i = 0; i < 10; ++i) {
-    ASSERT_EQ(XGBoosterUpdateOneIter(bst, i, dmat[0]), 0) << XGBGetLastError();
-  }
-
-  // Delete matrix
-  CheckCAPICall(XGDMatrixFree(dmat[0]));
-
-  // Pickle
-  const char* dptr;
-  bst_ulong len;
-  std::string buf;
-  CheckCAPICall(XGBoosterGetModelRaw(bst, &len, &dptr));
-  buf = std::string(dptr, len);
-  CheckCAPICall(XGBoosterFree(bst));
-
-  // Unpickle
-  CheckCAPICall(XGBoosterCreate(nullptr, 0, &bst2));
-  CheckCAPICall(XGBoosterLoadModelFromBuffer(bst2, buf.c_str(), len));
-
-  {  // Query predictor
-    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
-    ASSERT_EQ(kwargs.at("predictor"), "gpu_predictor");
-    ASSERT_EQ(kwargs.at("gpu_id"), std::to_string(gpuid).c_str());
-  }
-
-  {  // Change predictor and query again
-    CheckCAPICall(XGBoosterSetParam(bst2, "predictor", "cpu_predictor"));
-    const auto& kwargs = QueryBoosterConfigurationArguments(bst2);
-    ASSERT_EQ(kwargs.at("predictor"), "cpu_predictor");
-  }
-
-  CheckCAPICall(XGBoosterFree(bst2));
 }
 }  // namespace predictor
 }  // namespace xgboost

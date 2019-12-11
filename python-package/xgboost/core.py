@@ -1098,6 +1098,7 @@ class Booster(object):
         if handle is not None:
             raw = self.save_raw()
             this["handle"] = raw
+        this['config'] = self.save_config()
         return this
 
     def __setstate__(self, state):
@@ -1107,12 +1108,35 @@ class Booster(object):
             buf = handle
             dmats = c_array(ctypes.c_void_p, [])
             handle = ctypes.c_void_p()
-            _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(0), ctypes.byref(handle)))
+            _check_call(_LIB.XGBoosterCreate(
+                dmats, c_bst_ulong(0), ctypes.byref(handle)))
             length = c_bst_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(handle, ptr, length))
             state['handle'] = handle
+        config = state['config']
+        del state['config']
         self.__dict__.update(state)
+        self.load_config(config)
+
+    def save_config(self):
+        '''Output internal parameter configuration of Booster as a JSON
+        string.'''
+        json_string = ctypes.c_char_p()
+        length = c_bst_ulong()
+        _check_call(_LIB.XGBoosterSaveJsonConfig(
+            self.handle,
+            ctypes.byref(length),
+            ctypes.byref(json_string)))
+        json_string = json_string.value.decode()
+        return json_string
+
+    def load_config(self, config):
+        '''Load configuration returned by `save_config`.'''
+        assert isinstance(config, str)
+        _check_call(_LIB.XGBoosterLoadJsonConfig(
+            self.handle,
+            c_str(config)))
 
     def __copy__(self):
         return self.__deepcopy__(None)

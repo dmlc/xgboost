@@ -117,15 +117,22 @@ TEST(GBTree, Json_IO) {
     CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &gparam) };
 
   Json model {Object()};
+  auto& j_model = model["model"];
 
-  gbm->SaveModel(&model);
+  model["parameters"] = Object();
+  auto& j_param = model["parameters"];
+
+  gbm->SaveModel(&j_model);
+  gbm->SaveConfig(&j_param);
 
   std::string model_str;
   Json::Dump(model, &model_str);
 
-  auto loaded_model = Json::Load(StringView{model_str.c_str(), model_str.size()});
-  ASSERT_EQ(get<String>(loaded_model["name"]), "gbtree");
-  ASSERT_TRUE(IsA<Object>(loaded_model["model"]["gbtree_model_param"]));
+  model = Json::Load({model_str.c_str(), model_str.size()});
+  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree");
+
+  auto j_train_param = model["parameters"]["gbtree_train_param"];
+  ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 }
 
 TEST(Dart, Json_IO) {
@@ -147,18 +154,19 @@ TEST(Dart, Json_IO) {
   auto& j_model = model["model"];
   model["parameters"] = Object();
 
+  auto& j_param = model["parameters"];
+
   gbm->SaveModel(&j_model);
+  gbm->SaveConfig(&j_param);
 
   std::string model_str;
   Json::Dump(model, &model_str);
 
   model = Json::Load({model_str.c_str(), model_str.size()});
 
-  {
-    auto const& gbtree = model["model"]["gbtree"];
-    ASSERT_TRUE(IsA<Object>(gbtree));
-    ASSERT_EQ(get<String>(model["model"]["name"]), "dart");
-    ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0);
-  }
+  ASSERT_EQ(get<String>(model["model"]["name"]), "dart") << model;
+  ASSERT_EQ(get<String>(model["parameters"]["name"]), "dart");
+  ASSERT_TRUE(IsA<Object>(model["model"]["gbtree"]));
+  ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0);
 }
 }  // namespace xgboost

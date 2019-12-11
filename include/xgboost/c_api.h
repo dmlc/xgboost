@@ -464,6 +464,44 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
 XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
                                  bst_ulong *out_len,
                                  const char **out_dptr);
+
+/*!
+ * \brief Initialize the booster from rabit checkpoint.
+ *  This is used in distributed training API.
+ * \param handle handle
+ * \param version The output version of the model.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
+                                         int* version);
+
+/*!
+ * \brief Save the current checkpoint to rabit.
+ * \param handle handle
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
+
+
+/*!
+ * \brief Save XGBoost's internal configuration into a JSON document.
+ * \param handle handle to Booster object.
+ * \param out_str A valid pointer to array of characters.  The characters array is
+ *                allocated and managed by XGBoost, while pointer to that array needs to
+ *                be managed by caller.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
+                                    char const **out_str);
+/*!
+ * \brief Load XGBoost's internal configuration from a JSON document.
+ * \param handle handle to Booster object.
+ * \param json_parameters string representation of a JSON document.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle,
+                                    char const *json_parameters);
+
 /*!
  * \brief dump model, return array of strings representing model dump
  * \param handle handle
@@ -570,25 +608,4 @@ XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                                   bst_ulong* out_len,
                                   const char*** out);
-
-// --- Distributed training API----
-// NOTE: functions in rabit/c_api.h will be also available in libxgboost.so
-/*!
- * \brief Initialize the booster from rabit checkpoint.
- *  This is used in distributed training API.
- * \param handle handle
- * \param version The output version of the model.
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterLoadRabitCheckpoint(
-    BoosterHandle handle,
-    int* version);
-
-/*!
- * \brief Save the current checkpoint to rabit.
- * \param handle handle
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
-
 #endif  // XGBOOST_C_API_H_

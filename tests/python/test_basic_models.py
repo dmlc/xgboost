@@ -203,7 +203,7 @@ class TestModels(unittest.TestCase):
         self.assertRaises(ValueError, bst.predict, dm1)
         bst.predict(dm2)  # success
 
-    def test_json_model_io(self):
+    def test_model_json_io(self):
         X = np.random.random((10, 3))
         y = np.random.randint(2, size=(10,))
 
