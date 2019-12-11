@@ -143,7 +143,7 @@ TEST(Learner, Json_ModelIO) {
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat.get());
     }
-    learner->SetAttr("bset_score", "15.2");
+    learner->SetAttr("best_score", "15.2");
 
     Json out { Object() };
     learner->SaveModel(&out);
@@ -153,8 +153,8 @@ TEST(Learner, Json_ModelIO) {
     learner->Configure();
     learner->SaveModel(&new_in);
 
-    ASSERT_TRUE(IsA<Object>(out["Learner"]["attributes"]));
-    ASSERT_EQ(get<Object>(out["Learner"]["attributes"]).size(), 1);
+    ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
+    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
     ASSERT_EQ(out, new_in);
   }
 
