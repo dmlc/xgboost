@@ -1076,14 +1076,30 @@ class Booster(object):
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
-        self.set_param({'seed': 0})
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
             self.booster = params['booster']
         else:
             self.booster = 'gbtree'
-        if model_file is not None:
+        if isinstance(model_file, Booster):
+            assert self.handle is not None
+            state = model_file.__getstate__()
+            handle = state['handle']
+            del state['handle']
+            ptr = (ctypes.c_char * len(handle)).from_buffer(handle)
+            length = c_bst_ulong(len(handle))
+            _check_call(
+                _LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
+            config = state['config']
+            del state['config']
+            self.__dict__.update(state)
+            self.load_config(config)
+        elif isinstance(model_file, STRING_TYPES):
             self.load_model(model_file)
+        elif model_file is None:
+            pass
+        else:
+            raise TypeError('Unknown type:', model_file)
 
     def __del__(self):
         if self.handle is not None:
@@ -1091,12 +1107,16 @@ class Booster(object):
             self.handle = None
 
     def __getstate__(self):
-        # can't pickle ctypes pointers
-        # put model content in bytearray
+        # can't pickle ctypes pointers, put model content in bytearray
         this = self.__dict__.copy()
         handle = this['handle']
         if handle is not None:
-            raw = self.save_raw()
+            length = c_bst_ulong()
+            cptr = ctypes.POINTER(ctypes.c_char)()
+            _check_call(_LIB.XGBoosterGetModelRaw(self.handle,
+                                                  ctypes.byref(length),
+                                                  ctypes.byref(cptr)))
+            raw = ctypes2buffer(cptr, length.value)
             this["handle"] = raw
         this['config'] = self.save_config()
         return this
@@ -1142,7 +1162,12 @@ class Booster(object):
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, _):
-        return Booster(model_file=self.save_raw())
+        '''Return a copy of booster.  Caches for DMatrix are not copied so continue
+        training on copied booster will result in lower performance and
+        slightly different result.
+
+        '''
+        return Booster(model_file=self)
 
     def copy(self):
         """Copy the booster object.
@@ -1518,13 +1543,12 @@ class Booster(object):
             Input file name or memory buffer(see also save_raw)
         """
         if isinstance(fname, (STRING_TYPES, os_PathLike)):
-            # assume file name, cannot use os.path.exist to check, file can be from URL.
-            _check_call(_LIB.XGBoosterLoadModel(self.handle, c_str(os_fspath(fname))))
+            # assume file name, cannot use os.path.exist to check, file can be
+            # from URL.
+            _check_call(_LIB.XGBoosterLoadModel(
+                self.handle, c_str(os_fspath(fname))))
         else:
-            buf = fname
-            length = c_bst_ulong(len(buf))
-            ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
-            _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
+            raise TypeError('Unknown file type: ', fname)
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.

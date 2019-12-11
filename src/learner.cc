@@ -35,6 +35,11 @@
 #include "common/timer.h"
 #include "common/version.h"
 
+namespace {
+
+const char* kMaxDeltaStepDefaultValue = "0.7";
+}  // anonymous namespace
+
 namespace xgboost {
 
 enum class DataSplitMode : int {
@@ -337,8 +342,7 @@ class LearnerImpl : public Learner {
   }
 
   void SaveConfig(Json* p_out) const override {
-    CHECK(!this->need_configuration_) <<
-        "Call Configure before extracting configuration to JSON.";
+    CHECK(!this->need_configuration_) << "Call Configure before saving model.";
     Version::Save(p_out);
     Json& out { *p_out };
     // parameters
@@ -431,6 +435,11 @@ class LearnerImpl : public Learner {
       }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
     }
+    if (tparam_.objective == "count:poisson") {
+      std::string max_delta_step;
+      fi->Read(&max_delta_step);
+      cfg_["max_delta_step"] = max_delta_step;
+    }
     if (mparam_.contain_eval_metrics != 0) {
       std::vector<std::string> metr;
       fi->Read(&metr);
@@ -441,6 +450,9 @@ class LearnerImpl : public Learner {
 
     cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+
+    auto n = tparam_.__DICT__();
+    cfg_.insert(n.cbegin(), n.cend());
 
     Args args = {cfg_.cbegin(), cfg_.cend()};
     generic_parameters_.UpdateAllowUnknown(args);
@@ -456,6 +468,8 @@ class LearnerImpl : public Learner {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
+    // There's no logic for state machine for binary IO, as it has a mix of everything and
+    // half loaded model.
     this->Configure();
   }
 
@@ -469,9 +483,9 @@ class LearnerImpl : public Learner {
       memory_snapshot["Config"] = Object();
       auto &config = memory_snapshot["Config"];
       // FIXME(trivialfis): The configuration will be saved twice as currently we
-      // concatonate the model and config at language binding level.  This has to be done
-      // as we the `Save` function in binary IO is used for both model IO and
-      // serialisation.  It can be resolved once we have JSON as default format.
+      // concatennate the model and config at language binding level.  It can be resolved
+      // once we have JSON as default format and remove the concatenation in language
+      // bindings.
       this->SaveConfig(&config);
       std::string out_str;
       Json::Dump(memory_snapshot, &out_str);
@@ -495,6 +509,14 @@ class LearnerImpl : public Learner {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     // extra attributed to be added just before saving
+    if (tparam_.objective == "count:poisson") {
+      auto it = cfg_.find("max_delta_step");
+      if (it != cfg_.end()) {
+        // write `max_delta_step` parameter as extra attribute of booster
+        mparam.contain_extra_attrs = 1;
+        extra_attr.emplace_back("count_poisson_max_delta_step", it->second);
+      }
+    }
     {
       std::vector<std::string> saved_params;
       // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
@@ -523,6 +545,18 @@ class LearnerImpl : public Learner {
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
                   attr.begin(), attr.end()));
+    }
+    if (tparam_.objective == "count:poisson") {
+      auto it = cfg_.find("max_delta_step");
+      if (it != cfg_.end()) {
+        fo->Write(it->second);
+      } else {
+        // recover value of max_delta_step from extra attributes
+        auto it2 = attributes_.find("count_poisson_max_delta_step");
+        const std::string max_delta_step
+          = (it2 != attributes_.end()) ? it2->second : kMaxDeltaStepDefaultValue;
+        fo->Write(max_delta_step);
+      }
     }
     if (mparam.contain_eval_metrics != 0) {
       std::vector<std::string> metr;
@@ -700,6 +734,7 @@ class LearnerImpl : public Learner {
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+    // Once binary IO is gone, NONE of these config is useful.
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0") {
       cfg_["num_output_group"] = cfg_["num_class"];
       if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
@@ -707,6 +742,13 @@ class LearnerImpl : public Learner {
       }
     }
 
+    if (cfg_.find("max_delta_step") == cfg_.cend() &&
+        cfg_.find("objective") != cfg_.cend() &&
+        tparam_.objective == "count:poisson") {
+      // max_delta_step is a duplicated parameter in Poisson regression and tree param.
+      // Rename one of them once binary IO is gone.
+      cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
+    }
     if (obj_ == nullptr || tparam_.objective != old.objective) {
       obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
     }

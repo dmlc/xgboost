@@ -2,7 +2,6 @@
 #include <dmlc/filesystem.h>
 #include <xgboost/generic_parameters.h>
 
-#include "xgboost/json.h"
 #include "xgboost/learner.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree.h"
@@ -118,11 +117,10 @@ TEST(GBTree, Json_IO) {
     CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &gparam) };
 
   Json model {Object()};
-  model["Model"] = Object();
-  auto& j_model = model["Model"];
+  auto& j_model = model["model"];
 
-  model["Parameters"] = Object();
-  auto& j_param = model["Parameters"];
+  model["parameters"] = Object();
+  auto& j_param = model["parameters"];
 
   gbm->SaveModel(&j_model);
   gbm->SaveConfig(&j_param);
@@ -130,11 +128,10 @@ TEST(GBTree, Json_IO) {
   std::string model_str;
   Json::Dump(model, &model_str);
 
-  auto loaded_model = Json::Load({model_str.c_str(), model_str.size()});
-  ASSERT_EQ(get<String>(loaded_model["Model"]["name"]), "gbtree");
-  ASSERT_TRUE(IsA<Object>(loaded_model["Model"]["model"]["gbtree_model_param"]));
+  model = Json::Load({model_str.c_str(), model_str.size()});
+  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree");
 
-  auto j_train_param = loaded_model["Parameters"]["gbtree_train_param"];
+  auto j_train_param = model["parameters"]["gbtree_train_param"];
   ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 }
 
@@ -153,11 +150,11 @@ TEST(Dart, Json_IO) {
     CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &gparam) };
 
   Json model {Object()};
-  model["Model"] = Object();
-  auto& j_model = model["Model"];
+  model["model"] = Object();
+  auto& j_model = model["model"];
+  model["parameters"] = Object();
 
-  model["Parameters"] = Object();
-  auto& j_param = model["Parameters"];
+  auto& j_param = model["parameters"];
 
   gbm->SaveModel(&j_model);
   gbm->SaveConfig(&j_param);
@@ -167,9 +164,9 @@ TEST(Dart, Json_IO) {
 
   model = Json::Load({model_str.c_str(), model_str.size()});
 
-  ASSERT_EQ(get<String>(model["Model"]["name"]), "dart") << model;
-  ASSERT_EQ(get<String>(model["Parameters"]["name"]), "dart");
-  ASSERT_TRUE(IsA<Object>(model["Model"]["gbtree"]));
-  ASSERT_NE(get<Array>(model["Model"]["weight_drop"]).size(), 0);
+  ASSERT_EQ(get<String>(model["model"]["name"]), "dart") << model;
+  ASSERT_EQ(get<String>(model["parameters"]["name"]), "dart");
+  ASSERT_TRUE(IsA<Object>(model["model"]["gbtree"]));
+  ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0);
 }
 }  // namespace xgboost
