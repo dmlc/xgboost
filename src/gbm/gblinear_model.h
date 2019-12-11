@@ -62,25 +62,19 @@ class GBLinearModel : public Model {
                   learner_model_param_->num_output_group);
     std::fill(weight.begin(), weight.end(), 0.0f);
   }
+
+  void SaveModel(Json *p_out) const override;
+  void LoadModel(Json const &in) override;
+
   // save the model to file
-  inline void Save(dmlc::Stream* fo) const {
+  void Save(dmlc::Stream *fo) const {
     fo->Write(&param, sizeof(param));
     fo->Write(weight);
   }
   // load model from file
-  inline void Load(dmlc::Stream* fi) {
+  void Load(dmlc::Stream *fi) {
     CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
     fi->Read(&weight);
-  }
-
-  void LoadModel(dmlc::Stream* fi) override {
-    // They are the same right now until we can split up the saved parameter from model.
-    this->Load(fi);
-  }
-
-  void SaveModel(dmlc::Stream* fo) const override {
-    // They are the same right now until we can split up the saved parameter from model.
-    this->Save(fo);
   }
 
   // model bias

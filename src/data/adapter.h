@@ -124,9 +124,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
       : row_ptr(row_ptr),
         feature_idx(feature_idx),
         values(values),
-        num_rows(num_rows),
-        num_elements(num_elements),
-        num_features(num_features) {}
+        num_rows(num_rows) {}
   const Line GetLine(size_t idx) const {
     size_t begin_offset = row_ptr[idx];
     size_t end_offset = row_ptr[idx + 1];
@@ -139,9 +137,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
   const size_t* row_ptr;
   const unsigned* feature_idx;
   const float* values;
-  size_t num_elements;
   size_t num_rows;
-  size_t num_features;
 };
 
 class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {

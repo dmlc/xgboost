@@ -96,6 +96,71 @@ TEST(GBTree, ChoosePredictor) {
   }
   // data is not pulled back into host
   ASSERT_FALSE(data.HostCanWrite());
+
+  delete pp_dmat;
 }
-#endif
+#endif  // XGBOOST_USE_CUDA
+
+// Some other parts of test are in `Tree.Json_IO'.
+TEST(GBTree, Json_IO) {
+  size_t constexpr kRows = 16, kCols = 16;
+
+  LearnerModelParam mparam;
+  mparam.num_feature = kCols;
+  mparam.num_output_group = 1;
+  mparam.base_score = 0.5;
+
+  GenericParameter gparam;
+  gparam.Init(Args{});
+
+  std::unique_ptr<GradientBooster> gbm {
+    CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &gparam) };
+
+  Json model {Object()};
+  model["model"] = Object();
+  auto& j_model = model["model"];
+
+  gbm->SaveModel(&j_model);
+
+  std::stringstream ss;
+  Json::Dump(model, &ss);
+
+  auto model_str = ss.str();
+  model = Json::Load({model_str.c_str(), model_str.size()});
+  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree");
+}
+
+TEST(Dart, Json_IO) {
+  size_t constexpr kRows = 16, kCols = 16;
+
+  LearnerModelParam mparam;
+  mparam.num_feature = kCols;
+  mparam.base_score = 0.5;
+  mparam.num_output_group = 1;
+
+  GenericParameter gparam;
+  gparam.Init(Args{});
+
+  std::unique_ptr<GradientBooster> gbm {
+    CreateTrainedGBM("dart", Args{}, kRows, kCols, &mparam, &gparam) };
+
+  Json model {Object()};
+  model["model"] = Object();
+  auto& j_model = model["model"];
+  model["parameters"] = Object();
+
+  gbm->SaveModel(&j_model);
+
+  std::string model_str;
+  Json::Dump(model, &model_str);
+
+  model = Json::Load({model_str.c_str(), model_str.size()});
+
+  {
+    auto const& gbtree = model["model"]["gbtree"];
+    ASSERT_TRUE(IsA<Object>(gbtree));
+    ASSERT_EQ(get<String>(model["model"]["name"]), "dart");
+    ASSERT_NE(get<Array>(model["model"]["weight_drop"]).size(), 0);
+  }
+}
 }  // namespace xgboost

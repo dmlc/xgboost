@@ -16,15 +16,15 @@ class Json;
 
 struct Model {
   /*!
-   * \brief Save the model to stream.
-   * \param fo output write stream
+   * \brief load the model from a json object
+   * \param in json object where to load the model from
    */
-  virtual void SaveModel(dmlc::Stream* fo) const = 0;
+  virtual void LoadModel(Json const& in) = 0;
   /*!
-   * \brief Load the model from stream.
-   * \param fi input read stream
+   * \brief saves the model config to a json object
+   * \param out json container where to save the model to
    */
-  virtual void LoadModel(dmlc::Stream* fi) = 0;
+  virtual void SaveModel(Json* out) const = 0;
 };
 
 struct Configurable {

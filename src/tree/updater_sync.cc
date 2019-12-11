@@ -40,13 +40,13 @@ class TreeSyncher: public TreeUpdater {
     int rank = rabit::GetRank();
     if (rank == 0) {
       for (auto tree : trees) {
-        tree->SaveModel(&fs);
+        tree->Save(&fs);
       }
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
     for (auto tree : trees) {
-      tree->LoadModel(&fs);
+      tree->Load(&fs);
     }
   }
 };
