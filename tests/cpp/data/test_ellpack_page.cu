@@ -143,8 +143,8 @@ TEST(EllpackPage, Copy) {
 
 TEST(EllpackPage, Compact) {
   constexpr size_t kRows = 16;
-  constexpr size_t kCols = 16;
-  constexpr size_t kPageSize = 16;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
   constexpr size_t kCompactedRows = 8;
 
   // Create a DMatrix with multiple batches.

@@ -252,11 +252,9 @@ GradientBasedSample GradientBasedSampler::SequentialPoissonSampling(
   // Clear the gradient pairs not in the sample.
   thrust::fill(dh::tbegin(gpair) + sample_rows_, dh::tend(gpair), GradientPair());
 
-  // Index the sample rows.
-  thrust::copy(thrust::counting_iterator<size_t>(0),
-               thrust::counting_iterator<size_t>(sample_rows_),
-               dh::tbegin(sample_row_index_));
-  thrust::fill(dh::tbegin(sample_row_index_) + sample_rows_, dh::tend(sample_row_index_), SIZE_MAX);
+  // Mask the sample rows.
+  thrust::fill(dh::tbegin(sample_row_index_), dh::tbegin(sample_row_index_) + sample_rows_, 1);
+  thrust::fill(dh::tbegin(sample_row_index_) + sample_rows_, dh::tend(sample_row_index_), 0);
 
   // Sort the gradient pairs and sample row indexed by the original row index.
   thrust::sort_by_key(dh::tbegin(row_index_), dh::tend(row_index_),
@@ -265,6 +263,14 @@ GradientBasedSample GradientBasedSampler::SequentialPoissonSampling(
 
   // Compact the non-zero gradient pairs.
   thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(gpair_), IsNonZero());
+
+  // Index the sample rows.
+  thrust::exclusive_scan(dh::tbegin(sample_row_index_), dh::tend(sample_row_index_),
+                         dh::tbegin(sample_row_index_));
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    dh::tbegin(sample_row_index_),
+                    dh::tbegin(sample_row_index_),
+                    ClearEmptyRows(sample_rows_));
 
   // Compact the ELLPACK pages into the single sample page.
   for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {

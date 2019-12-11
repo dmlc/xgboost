@@ -165,7 +165,7 @@ struct CompactPageFunction {
     size_t dst_offset = row_index * row_stride;
     size_t src_offset = i * row_stride;
     for (size_t j = 0; j < row_stride; j++) {
-      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset], dst_offset + j);
+      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j], dst_offset + j);
     }
   }
 };

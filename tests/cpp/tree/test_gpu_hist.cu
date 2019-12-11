@@ -411,7 +411,7 @@ TEST(GpuHist, ExternalMemory) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    ASSERT_FLOAT_EQ(preds_h[i], preds_ext_h[i]);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-6);
   }
 }
 
