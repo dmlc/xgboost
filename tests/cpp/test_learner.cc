@@ -143,7 +143,7 @@ TEST(Learner, Json_ModelIO) {
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat.get());
     }
-    learner->SetAttr("bset_score", "15.2");
+    learner->SetAttr("best_score", "15.2");
 
     Json out { Object() };
     learner->SaveModel(&out);
