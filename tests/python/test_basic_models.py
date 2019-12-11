@@ -213,12 +213,12 @@ class TestModels(unittest.TestCase):
 
         with open('./model.json', 'r') as fd:
             j_model = json.load(fd)
-        assert isinstance(j_model['Learner'], dict)
+        assert isinstance(j_model['learner'], dict)
 
         bst = xgb.Booster(model_file='./model.json')
 
         with open('./model.json', 'r') as fd:
             j_model = json.load(fd)
-        assert isinstance(j_model['Learner'], dict)
+        assert isinstance(j_model['learner'], dict)
 
         os.remove('model.json')
