@@ -269,7 +269,7 @@ class LearnerImpl : public Learner {
   void LoadModel(Json const& in) override {
     CHECK(IsA<Object>(in));
     Version::Load(in, false);
-    auto const& learner = get<Object>(in["Learner"]);
+    auto const& learner = get<Object>(in["learner"]);
     mparam_.FromJson(learner.at("learner_model_param"));
 
     auto const& objective_fn = learner.at("objective");
@@ -305,8 +305,8 @@ class LearnerImpl : public Learner {
     Version::Save(p_out);
     Json& out { *p_out };
 
-    out["Learner"] = Object();
-    auto& learner = out["Learner"];
+    out["learner"] = Object();
+    auto& learner = out["learner"];
 
     learner["learner_model_param"] = mparam_.ToJson();
     learner["gradient_booster"] = Object();

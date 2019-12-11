@@ -64,7 +64,7 @@ TEST(GBTree, ChoosePredictor) {
   }
   ASSERT_TRUE(data.HostCanWrite());
   dmlc::TemporaryDirectory tempdir;
-  const std::string fname = tempdir.path + "/model_para.bst";
+  const std::string fname = tempdir.path + "/model_param.bst";
 
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
@@ -117,17 +117,15 @@ TEST(GBTree, Json_IO) {
     CreateTrainedGBM("gbtree", Args{}, kRows, kCols, &mparam, &gparam) };
 
   Json model {Object()};
-  model["model"] = Object();
-  auto& j_model = model["model"];
 
-  gbm->SaveModel(&j_model);
+  gbm->SaveModel(&model);
 
-  std::stringstream ss;
-  Json::Dump(model, &ss);
+  std::string model_str;
+  Json::Dump(model, &model_str);
 
-  auto model_str = ss.str();
-  model = Json::Load({model_str.c_str(), model_str.size()});
-  ASSERT_EQ(get<String>(model["model"]["name"]), "gbtree");
+  auto loaded_model = Json::Load(StringView{model_str.c_str(), model_str.size()});
+  ASSERT_EQ(get<String>(loaded_model["name"]), "gbtree");
+  ASSERT_TRUE(IsA<Object>(loaded_model["model"]["gbtree_model_param"]));
 }
 
 TEST(Dart, Json_IO) {
