@@ -307,7 +307,6 @@ void GBTree::LoadConfig(Json const& in) {
     tparam_.UpdateAllowUnknown(Args{{"predictor", "auto"}});
   }
   if (n_gpus == 0 && tparam_.tree_method == TreeMethod::kGPUHist) {
-    tparam_.tree_method = TreeMethod::kHist;
     tparam_.UpdateAllowUnknown(Args{{"tree_method", "hist"}});
     LOG(WARNING)
         << "Loading from a raw memory buffer on CPU only machine.  "

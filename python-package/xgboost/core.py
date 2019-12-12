@@ -1111,12 +1111,7 @@ class Booster(object):
         this = self.__dict__.copy()
         handle = this['handle']
         if handle is not None:
-            length = c_bst_ulong()
-            cptr = ctypes.POINTER(ctypes.c_char)()
-            _check_call(_LIB.XGBoosterGetModelRaw(self.handle,
-                                                  ctypes.byref(length),
-                                                  ctypes.byref(cptr)))
-            raw = ctypes2buffer(cptr, length.value)
+            raw = self.save_raw()
             this["handle"] = raw
         this['config'] = self.save_config()
         return this

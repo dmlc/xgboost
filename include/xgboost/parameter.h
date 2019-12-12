@@ -80,23 +80,6 @@ class FieldEntry<EnumClass> : public FieldEntry<int> {  \
 }  /* namespace dmlc */
 
 namespace xgboost {
-
-template <typename P, typename Base, typename Container>
-Args UpdateAllowUnknownImpl(P* parameter, Base* base,
-                            Container const& kwargs, bool* out_changed = nullptr) {
-  static_assert(std::is_base_of<Base, P>::value, "");
-  if (parameter->GetInitialised()) {
-    return base->UpdateAllowUnknown(kwargs, out_changed);
-  } else {
-    auto unknown = base->InitAllowUnknown(kwargs);
-    if (out_changed) {
-      *out_changed = true;
-    }
-    parameter->SetInitialised();
-    return unknown;
-  }
-}
-
 template <typename Type>
 struct XGBoostParameter : public dmlc::Parameter<Type> {
  protected:
@@ -105,11 +88,17 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
  public:
   template <typename Container>
   Args UpdateAllowUnknown(Container const& kwargs, bool* out_changed = nullptr) {
-    return UpdateAllowUnknownImpl(this, dynamic_cast<dmlc::Parameter<Type>*>(this),
-                                  kwargs, out_changed);
+    if (initialised_) {
+      return dmlc::Parameter<Type>::UpdateAllowUnknown(kwargs, out_changed);
+    } else {
+      auto unknown = dmlc::Parameter<Type>::InitAllowUnknown(kwargs);
+      if (out_changed) {
+        *out_changed = true;
+      }
+      initialised_ = true;
+      return unknown;
+    }
   }
-
-  void SetInitialised() { this->initialised_ = true; }
   bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
 };
 }  // namespace xgboost
