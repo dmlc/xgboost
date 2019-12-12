@@ -1094,7 +1094,7 @@ class Booster(object):
             del state['config']
             self.__dict__.update(state)
             self.load_config(config)
-        elif isinstance(model_file, STRING_TYPES):
+        elif isinstance(model_file, (STRING_TYPES, os_PathLike)):
             self.load_model(model_file)
         elif model_file is None:
             pass
@@ -1500,20 +1500,22 @@ class Booster(object):
     def save_model(self, fname):
         """Save the model to a file.
 
-        The model is saved in an XGBoost internal binary format which is
-        universal among the various XGBoost interfaces. Auxiliary attributes of
-        the Python Booster object (such as feature_names) will not be saved.
-        To preserve all attributes, pickle the Booster object.
+        The model is saved in an XGBoost internal format which is universal
+        among the various XGBoost interfaces. Auxiliary attributes of the
+        Python Booster object (such as feature_names) will not be saved.  To
+        preserve all attributes, pickle the Booster object.
 
         Parameters
         ----------
         fname : string or os.PathLike
             Output file name
+
         """
         if isinstance(fname, (STRING_TYPES, os_PathLike)):  # assume file name
-            _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(os_fspath(fname))))
+            _check_call(_LIB.XGBoosterSaveModel(
+                self.handle, c_str(os_fspath(fname))))
         else:
-            raise TypeError("fname must be a string")
+            raise TypeError("fname must be a string or os_PathLike")
 
     def save_raw(self):
         """Save the model to a in memory buffer representation
@@ -1530,17 +1532,18 @@ class Booster(object):
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
-        """Load the model from a file.
+        """Load the model from a file, local or as URI.
 
-        The model is loaded from an XGBoost internal binary format which is
-        universal among the various XGBoost interfaces. Auxiliary attributes of
-        the Python Booster object (such as feature_names) will not be loaded.
-        To preserve all attributes, pickle the Booster object.
+        The model is loaded from an XGBoost format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster
+        object (such as feature_names) will not be loaded.  To preserve all
+        attributes, pickle the Booster object.
 
         Parameters
         ----------
         fname : string, os.PathLike, or a memory buffer
             Input file name or memory buffer(see also save_raw)
+
         """
         if isinstance(fname, (STRING_TYPES, os_PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
