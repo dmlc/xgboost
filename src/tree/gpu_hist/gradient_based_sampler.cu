@@ -33,7 +33,7 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
   if (sample_rows_ >= n_rows) {
     sampling_method_ = kNoSampling;
     sample_rows_ = n_rows;
-    LOG(CONSOLE) << "Keeping " << sample_rows_ << " in GPU memory, not sampling";
+    LOG(CONSOLE) << "Keeping " << sample_rows_ << " rows in GPU memory, not sampling";
   } else {
     LOG(CONSOLE) << "Sampling " << sample_rows_ << " rows";
   }
@@ -273,6 +273,7 @@ GradientBasedSample GradientBasedSampler::SequentialPoissonSampling(
                     ClearEmptyRows(sample_rows_));
 
   // Compact the ELLPACK pages into the single sample page.
+  thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
     page_->Compact(batch_param_.gpu_id, batch.Impl(), sample_row_index_);
   }

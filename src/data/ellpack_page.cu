@@ -214,9 +214,7 @@ void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
       matrix.info.row_stride * num_rows, num_symbols);
   ba_.Allocate(device, &gidx_buffer, compressed_size_bytes);
 
-  thrust::fill(
-      thrust::device_pointer_cast(gidx_buffer.data()),
-      thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
+  thrust::fill(dh::tbegin(gidx_buffer), dh::tend(gidx_buffer), 0);
 
   matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
