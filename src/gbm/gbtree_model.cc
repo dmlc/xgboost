@@ -46,7 +46,8 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   for (auto const& tree : trees) {
     Json tree_json{Object()};
     tree->SaveModel(&tree_json);
-    tree_json["id"] = std::to_string(t);
+    // The field is not used in XGBoost, but might be useful for external project.
+    tree_json["id"] = Integer(t);
     trees_json.emplace_back(tree_json);
     t++;
   }
