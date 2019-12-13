@@ -4,6 +4,8 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
+#include <bits/stdint-uintn.h>
+#include <cstddef>
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 
@@ -16,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "dmlc/logging.h"
 #include "xgboost/base.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
@@ -367,7 +370,7 @@ class LearnerImpl : public Learner {
     learner_parameters["generic_param"] = toJson(generic_parameters_);
   }
 
-  void Load(dmlc::Stream* fi) override {
+  void LoadModel(dmlc::Stream* fi) override {
     generic_parameters_.UpdateAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
@@ -388,9 +391,8 @@ class LearnerImpl : public Learner {
       auto json_stream = common::FixedSizeStream(&fp);
       std::string buffer;
       json_stream.Take(&buffer);
-      auto memory_snapshot = Json::Load({buffer.c_str(), buffer.size()});
-      this->LoadModel(memory_snapshot["Model"]);
-      this->LoadConfig(memory_snapshot["Config"]);
+      auto model = Json::Load({buffer.c_str(), buffer.size()});
+      this->LoadModel(model);
       return;
     }
     // use the peekable reader.
@@ -468,31 +470,11 @@ class LearnerImpl : public Learner {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
-    // There's no logic for state machine for binary IO, as it has a mix of everything and
-    // half loaded model.
     this->Configure();
   }
 
   // rabit save model to rabit checkpoint
-  void Save(dmlc::Stream* fo) const override {
-    if (generic_parameters_.enable_experimental_json_serialization) {
-      Json memory_snapshot{Object()};
-      memory_snapshot["Model"] = Object();
-      auto &model = memory_snapshot["Model"];
-      this->SaveModel(&model);
-      memory_snapshot["Config"] = Object();
-      auto &config = memory_snapshot["Config"];
-      // FIXME(trivialfis): The configuration will be saved twice as currently we
-      // concatennate the model and config at language binding level.  It can be resolved
-      // once we have JSON as default format and remove the concatenation in language
-      // bindings.
-      this->SaveConfig(&config);
-      std::string out_str;
-      Json::Dump(memory_snapshot, &out_str);
-      fo->Write(out_str.c_str(), out_str.size());
-      return;
-    }
-
+  void SaveModel(dmlc::Stream* fo) const override {
     if (this->need_configuration_) {
       // Save empty model.  Calling Configure in a dummy LearnerImpl avoids violating
       // constness.
@@ -525,7 +507,6 @@ class LearnerImpl : public Learner {
         std::copy(saved_configs_.begin(), saved_configs_.end(),
                   std::back_inserter(saved_params));
       }
-      // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
       for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
@@ -564,6 +545,63 @@ class LearnerImpl : public Learner {
         metr.emplace_back(ev->Name());
       }
       fo->Write(metr);
+    }
+  }
+
+  void Save(dmlc::Stream* fo) const override {
+    if (generic_parameters_.enable_experimental_json_serialization) {
+      Json memory_snapshot{Object()};
+      memory_snapshot["Model"] = Object();
+      auto &model = memory_snapshot["Model"];
+      this->SaveModel(&model);
+      memory_snapshot["Config"] = Object();
+      auto &config = memory_snapshot["Config"];
+      this->SaveConfig(&config);
+      std::string out_str;
+      Json::Dump(memory_snapshot, &out_str);
+      fo->Write(out_str.c_str(), out_str.size());
+    } else {
+      std::string binary_buf;
+      common::MemoryBufferStream s(&binary_buf);
+      this->SaveModel(&s);
+      Json config{ Object() };
+      // Do not use std::size_t as it's not portable.
+      int64_t const json_offset = binary_buf.size();
+      this->SaveConfig(&config);
+      std::string config_str;
+      Json::Dump(config, &config_str);
+
+      fo->Write(&json_offset, sizeof(json_offset));
+      fo->Write(&binary_buf[0], binary_buf.size());
+      fo->Write(&config_str[0], config_str.size());
+    }
+  }
+
+  void Load(dmlc::Stream* fi) override {
+    common::PeekableInStream fp(fi);
+    char c {0};
+    fp.PeekRead(&c, 1);
+    if (c == '{') {
+      auto json_stream = common::FixedSizeStream(&fp);
+      std::string buffer;
+      json_stream.Take(&buffer);
+      auto memory_snapshot = Json::Load({buffer.c_str(), buffer.size()});
+      this->LoadModel(memory_snapshot["Model"]);
+      this->LoadConfig(memory_snapshot["Config"]);
+    } else {
+      int64_t json_offset {-1};
+      CHECK_EQ(fp.Read(&json_offset, sizeof(json_offset)), sizeof(json_offset));
+      CHECK_GT(json_offset, 0);
+      std::string buffer;
+      common::FixedSizeStream{&fp}.Take(&buffer);
+
+      common::MemoryFixSizeBuffer binary_buf(&buffer[0], json_offset);
+      this->LoadModel(&binary_buf);
+
+      common::MemoryFixSizeBuffer json_buf {&buffer[0] + json_offset,
+                                            buffer.size() - json_offset};
+      auto config = Json::Load({buffer.c_str() + json_offset, buffer.size() - json_offset});
+      this->LoadConfig(config);
     }
   }
 

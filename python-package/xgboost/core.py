@@ -1083,17 +1083,17 @@ class Booster(object):
             self.booster = 'gbtree'
         if isinstance(model_file, Booster):
             assert self.handle is not None
+            # We use the pickle interface for getting memory snapshot
+            # from another model, and load the snapshot with this
+            # booster.
             state = model_file.__getstate__()
             handle = state['handle']
             del state['handle']
             ptr = (ctypes.c_char * len(handle)).from_buffer(handle)
             length = c_bst_ulong(len(handle))
             _check_call(
-                _LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
-            config = state['config']
-            del state['config']
+                _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
             self.__dict__.update(state)
-            self.load_config(config)
         elif isinstance(model_file, (STRING_TYPES, os_PathLike)):
             self.load_model(model_file)
         elif model_file is None:
@@ -1111,9 +1111,13 @@ class Booster(object):
         this = self.__dict__.copy()
         handle = this['handle']
         if handle is not None:
-            raw = self.save_raw()
-            this["handle"] = raw
-        this['config'] = self.save_config()
+            length = c_bst_ulong()
+            cptr = ctypes.POINTER(ctypes.c_char)()
+            _check_call(_LIB.XGBoosterSerializeToBuffer(self.handle,
+                                                        ctypes.byref(length),
+                                                        ctypes.byref(cptr)))
+            buf = ctypes2buffer(cptr, length.value)
+            this["handle"] = buf
         return this
 
     def __setstate__(self, state):
@@ -1127,12 +1131,10 @@ class Booster(object):
                 dmats, c_bst_ulong(0), ctypes.byref(handle)))
             length = c_bst_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
-            _check_call(_LIB.XGBoosterLoadModelFromBuffer(handle, ptr, length))
+            _check_call(
+                _LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
             state['handle'] = handle
-        config = state['config']
-        del state['config']
         self.__dict__.update(state)
-        self.load_config(config)
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON

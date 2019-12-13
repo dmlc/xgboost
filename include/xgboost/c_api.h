@@ -461,9 +461,31 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  * \param out_dptr the argument to hold the output data pointer
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
-                                 bst_ulong *out_len,
+XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
                                  const char **out_dptr);
+
+/*!
+ * \brief Memory snapshot based serialization method.  Saves everything states
+ * into buffer.
+ *
+ * \param handle handle
+ * \param out_len the argument to hold the output length
+ * \param out_dptr the argument to hold the output data pointer
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle, bst_ulong *out_len,
+                                       const char **out_dptr);
+/*!
+ * \brief Memory snapshot based serialization method.  Loads the buffer returned
+ *        from `XGBoosterSerializeToBuffer'.
+ *
+ * \param handle handle
+ * \param buf pointer to the buffer
+ * \param len the length of the buffer
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterUnserializeFromBuffer(BoosterHandle handle,
+                                           const void *buf, bst_ulong len);
 
 /*!
  * \brief Initialize the booster from rabit checkpoint.

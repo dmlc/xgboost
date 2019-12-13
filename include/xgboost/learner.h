@@ -100,6 +100,13 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
                        bool pred_contribs = false,
                        bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
+
+  void LoadModel(Json const& in) override = 0;
+  void SaveModel(Json* out) const override = 0;
+
+  virtual void LoadModel(dmlc::Stream* fi) = 0;
+  virtual void SaveModel(dmlc::Stream* fo) const = 0;
+
   /*!
    * \brief Set multiple parameters at once.
    *

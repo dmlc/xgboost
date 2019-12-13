@@ -604,7 +604,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
     static_cast<Learner*>(handle)->LoadModel(in);
   } else {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
-    static_cast<Learner*>(handle)->Load(fi.get());
+    static_cast<Learner*>(handle)->LoadModel(fi.get());
   }
   API_END();
 }
@@ -623,20 +623,18 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* c_fname) {
     fo->Write(str.c_str(), str.size());
   } else {
     auto *bst = static_cast<Learner*>(handle);
-    bst->Save(fo.get());
+    bst->SaveModel(fo.get());
   }
   API_END();
 }
 
-// The following two functions are `Load` and `Save` for memory based serialization
-// methods. E.g. Python pickle.
 XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
                                          const void* buf,
                                          xgboost::bst_ulong len) {
   API_BEGIN();
   CHECK_HANDLE();
   common::MemoryFixSizeBuffer fs((void*)buf, len);  // NOLINT(*)
-  static_cast<Learner*>(handle)->Load(&fs);
+  static_cast<Learner*>(handle)->LoadModel(&fs);
   API_END();
 }
 
@@ -651,9 +649,38 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
   common::MemoryBufferStream fo(&raw_str);
   auto *learner = static_cast<Learner*>(handle);
   learner->Configure();
+  learner->SaveModel(&fo);
+  *out_dptr = dmlc::BeginPtr(raw_str);
+  *out_len = static_cast<xgboost::bst_ulong>(raw_str.length());
+  API_END();
+}
+
+// The following two functions are `Load` and `Save` for memory based
+// serialization methods. E.g. Python pickle.
+XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle,
+                                       xgboost::bst_ulong *out_len,
+                                       const char **out_dptr) {
+  std::string &raw_str = XGBAPIThreadLocalStore::Get()->ret_str;
+  raw_str.resize(0);
+
+  API_BEGIN();
+  CHECK_HANDLE();
+  common::MemoryBufferStream fo(&raw_str);
+  auto *learner = static_cast<Learner*>(handle);
+  learner->Configure();
   learner->Save(&fo);
   *out_dptr = dmlc::BeginPtr(raw_str);
   *out_len = static_cast<xgboost::bst_ulong>(raw_str.length());
+  API_END();
+}
+
+XGB_DLL int XGBoosterUnserializeFromBuffer(BoosterHandle handle,
+                                           const void *buf,
+                                           xgboost::bst_ulong len) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  common::MemoryFixSizeBuffer fs((void*)buf, len);  // NOLINT(*)
+  static_cast<Learner*>(handle)->Load(&fs);
   API_END();
 }
 
