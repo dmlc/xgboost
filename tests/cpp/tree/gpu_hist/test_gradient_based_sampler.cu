@@ -55,7 +55,7 @@ TEST(GradientBasedSampler, NoSampling) {
   }
 }
 
-TEST(GradientBasedSampler, PoissonSampling) {
+TEST(GradientBasedSampler, SequentialPoissonSampling) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 16;
   constexpr float kSubsample = 0.5;
@@ -72,9 +72,9 @@ TEST(GradientBasedSampler, PoissonSampling) {
   BatchParam param{0, 256, 0, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
-  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSubsample);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get(),
-                               GradientBasedSampler::kPoissonSampling);
+  GradientBasedSampler sampler(param, page->matrix.info, kRows, kSubsample,
+                               GradientBasedSampler::kSequentialPoissonSampling);
+  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
   auto sampled_gpair = sample.gpair;
   EXPECT_EQ(sample.sample_rows, kSampleRows);
