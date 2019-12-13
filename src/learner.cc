@@ -367,6 +367,7 @@ class LearnerImpl : public Learner {
     learner_parameters["generic_param"] = toJson(generic_parameters_);
   }
 
+  // About to be deprecated by JSON format
   void LoadModel(dmlc::Stream* fi) override {
     generic_parameters_.UpdateAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
@@ -470,21 +471,9 @@ class LearnerImpl : public Learner {
     this->Configure();
   }
 
-  // rabit save model to rabit checkpoint
+  // Save model into binary format.  The code is about to be deprecated by more robust
+  // JSON serialization format.
   void SaveModel(dmlc::Stream* fo) const override {
-    if (this->need_configuration_) {
-      // Save empty model.  Calling Configure in a dummy LearnerImpl avoids violating
-      // constness.
-      LearnerImpl empty(std::move(this->cache_));
-      empty.SetParams({this->cfg_.cbegin(), this->cfg_.cend()});
-      for (auto const& kv : attributes_) {
-        empty.SetAttr(kv.first, kv.second);
-      }
-      empty.Configure();
-      empty.Save(fo);
-      return;
-    }
-
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     // extra attributed to be added just before saving
@@ -567,7 +556,9 @@ class LearnerImpl : public Learner {
       this->SaveConfig(&config);
       std::string config_str;
       Json::Dump(config, &config_str);
-
+      // concatonate the model and config at final output, it's a temporary solution for
+      // continuing support for binary model format
+      fo->Write(&serialisation_header_[0], serialisation_header_.size());
       fo->Write(&json_offset, sizeof(json_offset));
       fo->Write(&binary_buf[0], binary_buf.size());
       fo->Write(&config_str[0], config_str.size());
@@ -579,13 +570,17 @@ class LearnerImpl : public Learner {
     char c {0};
     fp.PeekRead(&c, 1);
     if (c == '{') {
-      auto json_stream = common::FixedSizeStream(&fp);
       std::string buffer;
-      json_stream.Take(&buffer);
+      common::FixedSizeStream{&fp}.Take(&buffer);
       auto memory_snapshot = Json::Load({buffer.c_str(), buffer.size()});
       this->LoadModel(memory_snapshot["Model"]);
       this->LoadConfig(memory_snapshot["Config"]);
     } else {
+      std::string header;
+      header.resize(serialisation_header_.size());
+      CHECK_EQ(fp.Read(&header[0], header.size()), serialisation_header_.size());
+      CHECK_EQ(header, serialisation_header_);
+
       int64_t json_offset {-1};
       CHECK_EQ(fp.Read(&json_offset, sizeof(json_offset)), sizeof(json_offset));
       CHECK_GT(json_offset, 0);
@@ -858,6 +853,10 @@ class LearnerImpl : public Learner {
   LearnerModelParamLegacy mparam_;
   LearnerModelParam learner_model_param_;
   LearnerTrainParam tparam_;
+  // Used to identify the offset of JSON string when
+  // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
+  // takes over.
+  std::string const serialisation_header_ { u8"CONFIG-offset:" };
   // configurations
   std::map<std::string, std::string> cfg_;
   std::map<std::string, std::string> attributes_;

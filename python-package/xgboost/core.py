@@ -1083,9 +1083,8 @@ class Booster(object):
             self.booster = 'gbtree'
         if isinstance(model_file, Booster):
             assert self.handle is not None
-            # We use the pickle interface for getting memory snapshot
-            # from another model, and load the snapshot with this
-            # booster.
+            # We use the pickle interface for getting memory snapshot from
+            # another model, and load the snapshot with this booster.
             state = model_file.__getstate__()
             handle = state['handle']
             del state['handle']
@@ -1102,7 +1101,7 @@ class Booster(object):
             raise TypeError('Unknown type:', model_file)
 
     def __del__(self):
-        if self.handle is not None:
+        if hasattr(self, 'handle') and self.handle is not None:
             _check_call(_LIB.XGBoosterFree(self.handle))
             self.handle = None
 
