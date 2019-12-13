@@ -4,8 +4,6 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include <bits/stdint-uintn.h>
-#include <cstddef>
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 
@@ -18,7 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include "dmlc/logging.h"
 #include "xgboost/base.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
