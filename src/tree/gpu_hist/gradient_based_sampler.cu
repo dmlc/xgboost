@@ -26,7 +26,7 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
   monitor_.Init("gradient_based_sampler");
 
   if (subsample == 0.0f || subsample == 1.0f) {
-    sample_rows_ = MaxSampleRows();
+    sample_rows_ = MaxSampleRows(n_rows);
   } else {
     sample_rows_ = n_rows * subsample;
   }
@@ -52,10 +52,12 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
   }
 }
 
-size_t GradientBasedSampler::MaxSampleRows() {
+size_t GradientBasedSampler::MaxSampleRows(size_t n_rows) {
   size_t available_memory = dh::AvailableMemory(batch_param_.gpu_id);
-  size_t usable_memory = available_memory * 0.95;
-  size_t extra_bytes = sizeof(float) + 2 * sizeof(size_t);
+  // Subtract row_weight_, row_index_, and sample_row_index_.
+  available_memory -= n_rows * (sizeof(float) + 2 * sizeof(size_t));
+  size_t usable_memory = available_memory * 0.5;
+  size_t extra_bytes = sizeof(GradientPair);
   size_t max_rows = common::CompressedBufferWriter::CalculateMaxRows(
       usable_memory, info_.NumSymbols(), info_.row_stride, extra_bytes);
   return max_rows;

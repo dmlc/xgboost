@@ -58,7 +58,7 @@ class GradientBasedSampler {
   GradientBasedSample UniformSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
   /*! \brief Returns the max number of rows that can fit in available GPU memory. */
-  size_t MaxSampleRows();
+  size_t MaxSampleRows(size_t n_rows);
 
   /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
   void CollectPages(DMatrix* dmat);
