@@ -14,6 +14,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
 #include <functional>
 #include <vector>
@@ -21,10 +22,13 @@
 #include <string>
 
 namespace xgboost {
+
+class Json;
+
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
-class TreeUpdater {
+class TreeUpdater : public Configurable {
  protected:
   GenericParameter const* tparam_;
 

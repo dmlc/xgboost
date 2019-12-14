@@ -45,12 +45,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param src source data iter.
    */
   void CopyFrom(DMatrix* src);
-  /*!
-   * \brief copy content of data from parser, also set the additional information.
-   * \param src source data iter.
-   * \param info The additional information reflected in the parser.
-   */
-  void CopyFrom(dmlc::Parser<uint32_t>* src);
+
   /*!
    * \brief copy content of data from foreign **GPU** columnar buffer.
    * \param interfaces_str JSON representation of cuda array interfaces.

@@ -69,6 +69,8 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
+  matrix.n_rows = dmat->Info().num_row_;
+
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   common::HistogramCuts hmat;
@@ -206,7 +208,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
 
 // Return the number of rows contained in this page.
 size_t EllpackPageImpl::Size() const {
-  return n_rows;
+  return matrix.n_rows;
 }
 
 // Clear the current page.
@@ -214,44 +216,50 @@ void EllpackPageImpl::Clear() {
   ba_.Clear();
   gidx_buffer = {};
   idx_buffer.clear();
-  n_rows = 0;
+  sparse_page_.Clear();
+  matrix.base_rowid = 0;
+  matrix.n_rows = 0;
+  device_initialized_ = false;
 }
 
 // Push a CSR page to the current page.
 //
-// First compress the CSR page into ELLPACK, then the compressed buffer is copied to host and
-// appended to the existing host vector.
+// The CSR pages are accumulated in memory until they reach a certain size, then written out as
+// compressed ELLPACK.
 void EllpackPageImpl::Push(int device, const SparsePage& batch) {
+  sparse_page_.Push(batch);
+  matrix.n_rows += batch.Size();
+}
+
+// Compress the accumulated SparsePage.
+void EllpackPageImpl::CompressSparsePage(int device) {
   monitor_.StartCuda("InitCompressedData");
-  InitCompressedData(device, batch.Size());
+  InitCompressedData(device, matrix.n_rows);
   monitor_.StopCuda("InitCompressedData");
 
   monitor_.StartCuda("BinningCompression");
-  DeviceHistogramBuilderState hist_builder_row_state(batch.Size());
-  hist_builder_row_state.BeginBatch(batch);
-  CreateHistIndices(device, batch, hist_builder_row_state.GetRowStateOnDevice());
+  DeviceHistogramBuilderState hist_builder_row_state(matrix.n_rows);
+  hist_builder_row_state.BeginBatch(sparse_page_);
+  CreateHistIndices(device, sparse_page_, hist_builder_row_state.GetRowStateOnDevice());
   hist_builder_row_state.EndBatch();
   monitor_.StopCuda("BinningCompression");
 
   monitor_.StartCuda("CopyDeviceToHost");
-  std::vector<common::CompressedByteT> buffer(gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&buffer, gidx_buffer);
-  int offset = 0;
-  if (!idx_buffer.empty()) {
-    offset = ::xgboost::common::detail::kPadding;
-  }
-  idx_buffer.reserve(idx_buffer.size() + buffer.size() - offset);
-  idx_buffer.insert(idx_buffer.end(), buffer.begin() + offset, buffer.end());
+  idx_buffer.resize(gidx_buffer.size());
+  dh::CopyDeviceSpanToVector(&idx_buffer, gidx_buffer);
   ba_.Clear();
   gidx_buffer = {};
   monitor_.StopCuda("CopyDeviceToHost");
-
-  n_rows += batch.Size();
 }
 
 // Return the memory cost for storing the compressed features.
 size_t EllpackPageImpl::MemCostBytes() const {
-  return idx_buffer.size() * sizeof(common::CompressedByteT);
+  size_t num_symbols = matrix.info.n_bins + 1;
+
+  // Required buffer size for storing data matrix in ELLPack format.
+  size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
+      matrix.info.row_stride * matrix.n_rows, num_symbols);
+  return compressed_size_bytes;
 }
 
 // Copy the compressed features to GPU.

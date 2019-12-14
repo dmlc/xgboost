@@ -33,24 +33,29 @@ QueryBoosterConfigurationArguments(BoosterHandle handle) {
 namespace xgboost {
 namespace predictor {
 
-TEST(gpu_predictor, Test) {
+TEST(GpuPredictor, Basic) {
   auto cpu_lparam = CreateEmptyGenericParam(-1);
   auto gpu_lparam = CreateEmptyGenericParam(0);
+  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
 
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &gpu_lparam, cache));
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &cpu_lparam, cache));
 
-  gpu_predictor->Configure({}, {});
-  cpu_predictor->Configure({}, {});
+  gpu_predictor->Configure({});
+  cpu_predictor->Configure({});
 
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
     auto dmat = CreateDMatrix(n_row, n_col, 0);
 
-    gbm::GBTreeModel model = CreateTestModel();
-    model.param.num_feature = n_col;
+    LearnerModelParam param;
+    param.num_feature = n_col;
+    param.num_output_group = 1;
+    param.base_score = 0.5;
+
+    gbm::GBTreeModel model = CreateTestModel(&param);
 
     // Test predict batch
     HostDeviceVector<float> gpu_out_predictions;
@@ -71,13 +76,18 @@ TEST(gpu_predictor, Test) {
 
 TEST(gpu_predictor, ExternalMemoryTest) {
   auto lparam = CreateEmptyGenericParam(0);
+  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
-  gpu_predictor->Configure({}, {});
-  gbm::GBTreeModel model = CreateTestModel();
-  model.param.num_feature = 3;
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam, cache));
+  gpu_predictor->Configure({});
+
+  LearnerModelParam param;
+  param.num_feature = 2;
   const int n_classes = 3;
-  model.param.num_output_group = n_classes;
+  param.num_output_group = n_classes;
+  param.base_score = 0.5;
+
+  gbm::GBTreeModel model = CreateTestModel(&param);
   std::vector<std::unique_ptr<DMatrix>> dmats;
   dmlc::TemporaryDirectory tmpdir;
   std::string file0 = tmpdir.path + "/big_0.libsvm";

@@ -19,45 +19,9 @@
 #include "../tree/param.h"
 #include "./quantile.h"
 #include "./timer.h"
-#include "random.h"
+#include "../include/rabit/rabit.h"
 
 namespace xgboost {
-
-/*!
- * \brief A C-style array with in-stack allocation. As long as the array is smaller than
- * MaxStackSize, it will be allocated inside the stack. Otherwise, it will be
- * heap-allocated.
- */
-template<typename T, size_t MaxStackSize>
-class MemStackAllocator {
- public:
-  explicit MemStackAllocator(size_t required_size): required_size_(required_size) {
-  }
-
-  T* Get() {
-    if (!ptr_) {
-      if (MaxStackSize >= required_size_) {
-        ptr_ = stack_mem_;
-      } else {
-        ptr_ =  reinterpret_cast<T*>(malloc(required_size_ * sizeof(T)));
-        do_free_ = true;
-      }
-    }
-
-    return ptr_;
-  }
-
-  ~MemStackAllocator() {
-    if (do_free_) free(ptr_);
-  }
-
- private:
-  T* ptr_ = nullptr;
-  bool do_free_ = false;
-  size_t required_size_;
-  T stack_mem_[MaxStackSize];
-};
-
 namespace common {
 
 /*
@@ -287,7 +251,7 @@ class DenseCuts  : public CutsBuilder {
 
 // FIXME(trivialfis): Merge this into generic cut builder.
 /*! \brief Builds the cut matrix on the GPU.
- *
+ *  
  *  \return The row stride across the entire dataset.
  */
 size_t DeviceSketch(int device,
@@ -303,10 +267,9 @@ size_t DeviceSketch(int device,
  */
 struct GHistIndexMatrix {
   /*! \brief row pointer to rows by element position */
-  // std::vector<size_t> row_ptr;
-  SimpleArray<size_t> row_ptr;
+  std::vector<size_t> row_ptr;
   /*! \brief The index data */
-  SimpleArray<uint32_t> index;
+  std::vector<uint32_t> index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
@@ -377,63 +340,12 @@ class GHistIndexBlockMatrix {
 };
 
 /*!
- * \brief used instead of GradStats to have float instead of double to reduce histograms
- * this improves performance by 10-30% and memory consumption for histograms by 2x
- * accuracy in both cases is the same
+ * \brief histogram of graident statistics for a single node.
+ *  Consists of multiple GradStats, each entry showing total graident statistics
+ *     for that particular bin
+ *  Uses global bin id so as to represent all features simultaneously
  */
-struct GradStatHist {
-  typedef float GradType;
-  /*! \brief sum gradient statistics */
-  GradType sum_grad;
-  /*! \brief sum hessian statistics */
-  GradType sum_hess;
-
-  GradStatHist() : sum_grad{0}, sum_hess{0} {
-    static_assert(sizeof(GradStatHist) == 8,
-                  "Size of GradStatHist is not 8 bytes.");
-  }
-
-  inline void Add(const GradStatHist& b) {
-    sum_grad += b.sum_grad;
-    sum_hess += b.sum_hess;
-  }
-
-  inline void Add(const tree::GradStats& b) {
-    sum_grad += b.sum_grad;
-    sum_hess += b.sum_hess;
-  }
-
-  inline void Add(const GradientPair& p) {
-    this->Add(p.GetGrad(), p.GetHess());
-  }
-
-  inline void Add(const GradType& grad, const GradType& hess) {
-    sum_grad += grad;
-    sum_hess += hess;
-  }
-
-  inline tree::GradStats ToGradStat() const {
-    return tree::GradStats(sum_grad, sum_hess);
-  }
-
-  inline void SetSubstract(const GradStatHist& a, const GradStatHist& b) {
-    sum_grad = a.sum_grad - b.sum_grad;
-    sum_hess = a.sum_hess - b.sum_hess;
-  }
-
-  inline void SetSubstract(const tree::GradStats& a, const GradStatHist& b) {
-    sum_grad = a.sum_grad - b.sum_grad;
-    sum_hess = a.sum_hess - b.sum_hess;
-  }
-
-  inline GradType GetGrad() const { return sum_grad; }
-  inline GradType GetHess() const { return sum_hess; }
-  inline static void Reduce(GradStatHist& a, const GradStatHist& b) { // NOLINT(*)
-    a.Add(b);
-  }
-};
-
-using GHistRow = Span<GradStatHist>;
+using GHistRow = Span<tree::GradStats>;
 
 /*!
  * \brief histogram of gradient statistics for multiple nodes
@@ -441,42 +353,48 @@ using GHistRow = Span<GradStatHist>;
 class HistCollection {
  public:
   // access histogram for i-th node
-  inline GHistRow operator[](bst_uint nid) {
-    AddHistRow(nid);
-    return { const_cast<GradStatHist*>(dmlc::BeginPtr(data_arr_[nid])), nbins_};
+  GHistRow operator[](bst_uint nid) const {
+    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
+    CHECK_NE(row_ptr_[nid], kMax);
+    tree::GradStats* ptr =
+        const_cast<tree::GradStats*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
+    return {ptr, nbins_};
   }
 
   // have we computed a histogram for i-th node?
-  inline bool RowExists(bst_uint nid) const {
-    return nid < data_arr_.size();
+  bool RowExists(bst_uint nid) const {
+    const uint32_t k_max = std::numeric_limits<uint32_t>::max();
+    return (nid < row_ptr_.size() && row_ptr_[nid] != k_max);
   }
 
   // initialize histogram collection
-  inline void Init(uint32_t nbins) {
-    if (nbins_ != nbins) {
-      data_arr_.clear();
-      nbins_ = nbins;
-    }
+  void Init(uint32_t nbins) {
+    nbins_ = nbins;
+    row_ptr_.clear();
+    data_.clear();
   }
 
   // create an empty histogram for i-th node
-  inline void AddHistRow(bst_uint nid) {
-    if (data_arr_.size() <= nid) {
-      size_t prev = data_arr_.size();
-      data_arr_.resize(nid + 1);
-
-      for (size_t i = prev; i < data_arr_.size(); ++i) {
-        data_arr_[i].resize(nbins_);
-      }
+  void AddHistRow(bst_uint nid) {
+    constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
+    if (nid >= row_ptr_.size()) {
+      row_ptr_.resize(nid + 1, kMax);
     }
+    CHECK_EQ(row_ptr_[nid], kMax);
+
+    row_ptr_[nid] = data_.size();
+    data_.resize(data_.size() + nbins_);
   }
 
  private:
   /*! \brief number of all bins over all features */
-  uint32_t nbins_ = 0;
-  std::vector<std::vector<GradStatHist>> data_arr_;
-};
+  uint32_t nbins_;
 
+  std::vector<tree::GradStats> data_;
+
+  /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
+  std::vector<size_t> row_ptr_;
+};
 
 /*!
  * \brief builder for histograms of gradient statistics
@@ -487,55 +405,21 @@ class GHistBuilder {
   inline void Init(size_t nthread, uint32_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
+    thread_init_.resize(nthread_);
   }
 
+  // construct a histogram via histogram aggregation
+  void BuildHist(const std::vector<GradientPair>& gpair,
+                 const RowSetCollection::Elem row_indices,
+                 const GHistIndexMatrix& gmat,
+                 GHistRow hist);
+  // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
-                                    const RowSetCollection::Elem row_indices,
-                                    const GHistIndexBlockMatrix& gmatb,
-                                    GHistRow hist) {
-    constexpr int kUnroll = 8;  // loop unrolling factor
-    const int32_t nblock = gmatb.GetNumBlock();
-    const size_t nrows = row_indices.end - row_indices.begin;
-    const size_t rest = nrows % kUnroll;
-
-    #pragma omp parallel for
-    for (int32_t bid = 0; bid < nblock; ++bid) {
-      auto gmat = gmatb[bid];
-
-      for (size_t i = 0; i < nrows - rest; i += kUnroll) {
-        size_t rid[kUnroll];
-        size_t ibegin[kUnroll];
-        size_t iend[kUnroll];
-        GradientPair stat[kUnroll];
-        for (int k = 0; k < kUnroll; ++k) {
-          rid[k] = row_indices.begin[i + k];
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          ibegin[k] = gmat.row_ptr[rid[k]];
-          iend[k] = gmat.row_ptr[rid[k] + 1];
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          stat[k] = gpair[rid[k]];
-        }
-        for (int k = 0; k < kUnroll; ++k) {
-          for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-            const uint32_t bin = gmat.index[j];
-            hist[bin].Add(stat[k]);
-          }
-        }
-      }
-      for (size_t i = nrows - rest; i < nrows; ++i) {
-        const size_t rid = row_indices.begin[i];
-        const size_t ibegin = gmat.row_ptr[rid];
-        const size_t iend = gmat.row_ptr[rid + 1];
-        const GradientPair stat = gpair[rid];
-        for (size_t j = ibegin; j < iend; ++j) {
-          const uint32_t bin = gmat.index[j];
-          hist[bin].Add(stat);
-        }
-      }
-    }
-  }
+                      const RowSetCollection::Elem row_indices,
+                      const GHistIndexBlockMatrix& gmatb,
+                      GHistRow hist);
+  // construct a histogram via subtraction trick
+  void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
   uint32_t GetNumBins() {
       return nbins_;
@@ -546,18 +430,10 @@ class GHistBuilder {
   size_t nthread_;
   /*! \brief number of all bins over all features */
   uint32_t nbins_;
+  std::vector<size_t> thread_init_;
+  std::vector<tree::GradStats> data_;
 };
 
-
-void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t* rid,
-    const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
-    GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat);
-
-void BuildHistLocalSparse(size_t istart, size_t iend, size_t nrows, const size_t* rid,
-    const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
-    GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat);
-
-void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
 }  // namespace common
 }  // namespace xgboost

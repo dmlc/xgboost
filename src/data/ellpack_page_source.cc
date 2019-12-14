@@ -3,8 +3,8 @@
  */
 #ifndef XGBOOST_USE_CUDA
 
+#include <xgboost/data.h>
 #include "ellpack_page_source.h"
-
 namespace xgboost {
 namespace data {
 

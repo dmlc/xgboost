@@ -5,7 +5,7 @@ sudo: required
 os:
   - osx
 
-osx_image: xcode9.3
+osx_image: xcode10.3
 
 # Use Build Matrix to do lint and build seperately
 env:
@@ -15,16 +15,18 @@ env:
     # java package test
     - TASK=java_test
     # cmake test
-    # - TASK=cmake_test
+    - TASK=cmake_test
 
-# dependent apt packages
+# dependent brew packages
 addons:
   homebrew:
     packages:
-      - gcc@7
+      - gcc@9
       - graphviz
       - openssl
       - libgit2
+      - cmake
+      - wget
       - r
     update: true
 

@@ -16,36 +16,40 @@ set -x
 oldpath=`pwd`
 cd ./xgboost/
 
+GCC_PATH=""
 if echo "${OSTYPE}" | grep -q "darwin"; then
-  LIB_XGBOOST=libxgboost.dylib
   # Use OpenMP-capable compiler if possible
-  if which g++-5; then
-    export CC=gcc-5
-    export CXX=g++-5
+  if [ "v"`sw_vers -buildVersion` -ge "v17G65" ]; then
+    if which g++-9; then
+      GCC_PATH="CC=gcc-9 CXX=g++-9"
+    else
+      echo "For MacOS version higher than High Sierra, please install gcc@9 first."
+    fi
+  elif which g++-5; then
+    GCC_PATH="CC=gcc-5 CXX=g++-5"
   elif which g++-7; then
-    export CC=gcc-7
-    export CXX=g++-7
+    GCC_PATH="CC=gcc-7 CXX=g++-7"
   elif which g++-8; then
-    export CC=gcc-8
-    export CXX=g++-8
+    GCC_PATH="CC=gcc-8 CXX=g++-8"
   elif which clang++; then
-    export CC=clang
-    export CXX=clang++
+    GCC_PATH="CC=clang CXX=clang++"
   fi
-else
-  LIB_XGBOOST=libxgboost.so
 fi
 
 #remove the pre-compiled .so and trigger the system's on-the-fly compiling
-make clean
-if make lib/${LIB_XGBOOST} -j4; then
+mkdir -p build
+cd build
+if [ -f * ]; then
+  rm -r *
+fi
+if eval $GCC_PATH" cmake .." && eval $GCC_PATH" make -j4"; then
     echo "Successfully build multi-thread xgboost"
 else
     echo "-----------------------------"
     echo "Building multi-thread xgboost failed"
     echo "Start to build single-thread xgboost"
-    make clean
-    make lib/${LIB_XGBOOST} -j4 USE_OPENMP=0
+    eval $GCC_PATH" cmake .. -DUSE_OPENMP=0"
+    eval $GCC_PATH" make -j4"
     echo "Successfully build single-thread xgboost"
     echo "If you want multi-threaded version"
     echo "See additional instructions in doc/build.md"

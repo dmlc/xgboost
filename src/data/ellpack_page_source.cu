@@ -1,14 +1,14 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
-
-#include "ellpack_page_source.h"
-
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "../common/hist_util.h"
+
+#include "ellpack_page_source.h"
+#include "sparse_page_source.h"
 #include "ellpack_page.cuh"
 
 namespace xgboost {
@@ -40,11 +40,13 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   const std::string kPageType_{".ellpack.page"};
 
   int device_{-1};
+  size_t page_size_{DMatrix::kPageSize};
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
   /*! \brief The EllpackInfo, with the underlying GPU memory shared by all pages. */
   EllpackInfo ellpack_info_;
   std::unique_ptr<SparsePageSource<EllpackPage>> source_;
+  std::string cache_info_;
 };
 
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,
@@ -72,8 +74,12 @@ const EllpackPage& EllpackPageSource::Value() const {
 // each CSR page, and write the accumulated ELLPACK pages to disk.
 EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
                                              const std::string& cache_info,
-                                             const BatchParam& param) noexcept(false) {
-  device_ = param.gpu_id;
+                                             const BatchParam& param) noexcept(false)
+    : device_(param.gpu_id), cache_info_(cache_info) {
+
+  if (param.gpu_page_size > 0) {
+    page_size_ = param.gpu_page_size;
+  }
 
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(device_));
@@ -92,10 +98,11 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   WriteEllpackPages(dmat, cache_info);
   monitor_.StopCuda("WriteEllpackPages");
 
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info, kPageType_));
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
 }
 
 void EllpackPageSourceImpl::BeforeFirst() {
+  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
   source_->BeforeFirst();
 }
 
@@ -133,20 +140,23 @@ void EllpackPageSourceImpl::WriteEllpackPages(DMatrix* dmat, const std::string& 
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     impl->Push(device_, batch);
 
-    if (impl->MemCostBytes() >= DMatrix::kPageSize) {
-      bytes_write += impl->MemCostBytes();
+    size_t mem_cost_bytes = impl->MemCostBytes();
+    if (mem_cost_bytes >= page_size_) {
+      bytes_write += mem_cost_bytes;
+      impl->CompressSparsePage(device_);
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);
       impl = page->Impl();
       impl->matrix.info = ellpack_info_;
       impl->Clear();
       double tdiff = dmlc::GetTime() - tstart;
-      LOG(INFO) << "Writing to " << cache_info << " in "
+      LOG(INFO) << "Writing " << kPageType_ << " to " << cache_info << " in "
                 << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
                 << (bytes_write >> 20UL) << " written";
     }
   }
   if (impl->Size() != 0) {
+    impl->CompressSparsePage(device_);
     writer.PushWrite(std::move(page));
   }
 }

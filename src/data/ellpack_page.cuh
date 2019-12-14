@@ -78,13 +78,14 @@ struct EllpackInfo {
  * kernels.*/
 struct EllpackMatrix {
   EllpackInfo info;
+  size_t base_rowid{};
+  size_t n_rows{};
   common::CompressedIterator<uint32_t> gidx_iter;
-
-  XGBOOST_DEVICE size_t BinCount() const { return info.gidx_fvalue_map.size(); }
 
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
   __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
+    ridx -= base_rowid;
     auto row_begin = info.row_stride * ridx;
     auto row_end = row_begin + info.row_stride;
     auto gidx = -1;
@@ -101,6 +102,11 @@ struct EllpackMatrix {
       return nan("");
     }
     return info.gidx_fvalue_map[gidx];
+  }
+
+  // Check if the row id is withing range of the current batch.
+  __device__ bool IsInRange(size_t row_id) const {
+    return row_id >= base_rowid && row_id < base_rowid + n_rows;
   }
 };
 
@@ -185,7 +191,6 @@ class EllpackPageImpl {
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   common::Span<common::CompressedByteT> gidx_buffer;
   std::vector<common::CompressedByteT> idx_buffer;
-  size_t n_rows{};
 
   /*!
    * \brief Default constructor.
@@ -240,7 +245,7 @@ class EllpackPageImpl {
 
   /*! \brief Set the base row id for this page. */
   inline void SetBaseRowId(size_t row_id) {
-    base_rowid_ = row_id;
+    matrix.base_rowid = row_id;
   }
 
   /*! \brief clear the page. */
@@ -263,11 +268,17 @@ class EllpackPageImpl {
    */
   void InitDevice(int device, EllpackInfo info);
 
+  /*! \brief Compress the accumulated SparsePage into ELLPACK format.
+   *
+   * @param device The GPU device to use.
+   */
+  void CompressSparsePage(int device);
+
  private:
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
-  size_t base_rowid_{};
   bool device_initialized_{false};
+  SparsePage sparse_page_{};
 };
 
 }  // namespace xgboost

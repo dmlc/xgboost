@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file updater_sync.cc
  * \brief synchronize the tree in all distributed nodes
  */
@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <limits>
+
+#include "xgboost/json.h"
 #include "../common/io.h"
 
 namespace xgboost {
@@ -22,6 +24,9 @@ class TreeSyncher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {}
 
+  void LoadConfig(Json const& in) override {}
+  void SaveConfig(Json* p_out) const override {}
+
   char const* Name() const override {
     return "prune";
   }
@@ -35,13 +40,13 @@ class TreeSyncher: public TreeUpdater {
     int rank = rabit::GetRank();
     if (rank == 0) {
       for (auto tree : trees) {
-        tree->SaveModel(&fs);
+        tree->Save(&fs);
       }
     }
     fs.Seek(0);
     rabit::Broadcast(&s_model, 0);
     for (auto tree : trees) {
-      tree->LoadModel(&fs);
+      tree->Load(&fs);
     }
   }
 };
