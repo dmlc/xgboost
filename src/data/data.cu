@@ -45,9 +45,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   }
   auto const& typestr = get<String const>(j_arr_obj.at("typestr"));
 
-  if (key == "root_index") {
-    LOG(FATAL) << "root index for columnar data is not supported.";
-  } else if (key == "label") {
+  if (key == "label") {
     CopyInfoImpl(j_arr_obj, &labels_);
   } else if (key == "weight") {
     CopyInfoImpl(j_arr_obj, &weights_);
