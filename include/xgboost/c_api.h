@@ -426,6 +426,22 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              bst_ulong *out_len,
                              const float **out_result);
+/*
+ * Short note for serialization APIs.  There are 3 different sets of serialization API.
+ *
+ * - Functions with the term "Model" handles saving/loading XGBoost model like trees or
+ *   linear weights.  Striping out parameters configuration like training algorithms or
+ *   CUDA device ID helps user to reuse the trained model for different tasks, examples
+ *   are prediction, training continuation or interpretation.
+ *
+ * - Functions with the term "Config" handles save/loading configuration.  It helps user
+ *   to study the internal of XGBoost.  Also user can use the load method for specifying
+ *   paramters in a structured way.
+ *
+ * - Functions with the term "Serialization" are combined of above two.  They are used in
+ *   situations like check-pointing or continuing training task in distributed.  In these
+ *   cases the task must be carried out without any user intervention.
+ */
 
 /*!
  * \brief Load model from existing file
