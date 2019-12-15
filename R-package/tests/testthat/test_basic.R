@@ -27,7 +27,7 @@ test_that("train and predict binary classification", {
 
   pred <- predict(bst, test$data)
   expect_length(pred, 1611)
-  
+
   pred1 <- predict(bst, train$data, ntreelimit = 1)
   expect_length(pred1, 6513)
   err_pred1 <- sum((pred1 > 0.5) != train$label)/length(train$label)
@@ -74,7 +74,7 @@ test_that("train and predict softmax", {
   expect_false(is.null(bst$evaluation_log))
   expect_lt(bst$evaluation_log[, min(train_merror)], 0.025)
   expect_equal(bst$niter * 3, xgb.ntree(bst))
-  
+
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris))
   err <- sum(pred != lb)/length(lb)
@@ -90,12 +90,12 @@ test_that("train and predict RF", {
                  num_parallel_tree = 20, subsample = 0.6, colsample_bytree = 0.1)
   expect_equal(bst$niter, 1)
   expect_equal(xgb.ntree(bst), 20)
-  
+
   pred <- predict(bst, train$data)
   pred_err <- sum((pred > 0.5) != lb)/length(lb)
   expect_lt(abs(bst$evaluation_log[1, train_error] - pred_err), 10e-6)
   #expect_lt(pred_err, 0.03)
-  
+
   pred <- predict(bst, train$data, ntreelimit = 20)
   pred_err_20 <- sum((pred > 0.5) != lb)/length(lb)
   expect_equal(pred_err_20, pred_err)
@@ -211,7 +211,7 @@ test_that("train and predict with non-strict classes", {
   bst <- xgboost(data = train_dense, label = train$label, max_depth = 2,
                  eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
   pr0 <- predict(bst, train_dense)
-  
+
   # dense matrix-like input of non-matrix class
   class(train_dense) <- 'shmatrix'
   expect_true(is.matrix(train_dense))
@@ -221,7 +221,7 @@ test_that("train and predict with non-strict classes", {
     , regexp = NA)
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
   expect_equal(pr0, pr)
-  
+
   # dense matrix-like input of non-matrix class with some inheritance
   class(train_dense) <- c('pphmatrix','shmatrix')
   expect_true(is.matrix(train_dense))
@@ -231,7 +231,7 @@ test_that("train and predict with non-strict classes", {
     , regexp = NA)
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
   expect_equal(pr0, pr)
-  
+
   # when someone inhertis from xgb.Booster, it should still be possible to use it as xgb.Booster
   class(bst) <- c('super.Booster', 'xgb.Booster')
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
@@ -275,4 +275,14 @@ test_that("colsample_bytree works", {
   # If colsample_bytree works properly, a variety of features should be used
   # in the 100 trees
   expect_gte(nrow(xgb.importance(model = bst)), 30)
+})
+
+test_that("Configuration works", {
+  bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+                 eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
+                 eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+  config <- xgb.config(bst)
+  xgb.config(bst) <- config
+  reloaded_config <- xgb.config(bst)
+  expect_equal(config, reloaded_config);
 })

@@ -193,6 +193,19 @@ XGB_DLL SEXP XGBoosterSaveJsonConfig_R(SEXP handle);
  * \return R_NilValue
  */
 XGB_DLL SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value);
+/*!
+  * \brief Memory snapshot based serialization method.  Saves everything states
+  *        into buffer.
+  * \param handle handle to booster
+  */
+XGB_DLL SEXP XGBoosterSerializeToBuffer_R(SEXP handle);
+/*!
+ * \brief Memory snapshot based serialization method.  Loads the buffer returned
+ *        from `XGBoosterSerializeToBuffer'.
+ * \param handle handle to booster
+ * \return raw byte array
+ */
+XGB_DLL SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw);
 
 /*!
  * \brief dump model into a string

@@ -19,7 +19,5 @@
 #' @export
 xgb.save.raw <- function(model) {
   handle <- xgb.get.handle(model)
-  model <- .Call(XGBoosterModelToRaw_R, handle)
-  config <- .Call(XGBoosterSaveJsonConfig_R, handle)
-  serialize(list(model=model, config=config), NULL)
+  .Call(XGBoosterSerializeToBuffer_R, handle)
 }

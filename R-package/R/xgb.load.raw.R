@@ -8,9 +8,7 @@
 xgb.load.raw <- function(buffer) {
   cachelist <- list()
   handle <- .Call(XGBoosterCreate_R, cachelist)
-  modellst <- unserialize(buffer)
-  .Call(XGBoosterLoadModelFromRaw_R, handle, modellst$model)
-  .Call(XGBoosterLoadJsonConfig_R, handle, modellst$config)
+  .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer)
   class(handle) <- "xgb.Booster.handle"
   return (handle)
 }

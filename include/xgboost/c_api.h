@@ -484,9 +484,9 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle, bst_ulong *out_len,
 
 /*!
  * \brief Memory snapshot based serialization method.  Saves everything states
- * into buffer.
+ *        into buffer.
  *
- * \param handle handle
+ * \param handle handle to booster
  * \param out_len the argument to hold the output length
  * \param out_dptr the argument to hold the output data pointer
  * \return 0 when success, -1 when failure happens
