@@ -99,6 +99,16 @@ class GBLinear : public GradientBooster {
     model_.LoadModel(model);
   }
 
+  void LoadConfig(Json const& in) override {
+    CHECK_EQ(get<String>(in["name"]), "gblinear");
+    fromJson(in["gblinear_train_param"], &param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String{"gblinear"};
+    out["gblinear_train_param"] = toJson(param_);
+  }
+
   void DoBoost(DMatrix *p_fmat,
                HostDeviceVector<GradientPair> *in_gpair,
                ObjFunction* obj) override {

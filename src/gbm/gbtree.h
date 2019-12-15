@@ -192,6 +192,9 @@ class GBTree : public GradientBooster {
     model_.Save(fo);
   }
 
+  void LoadConfig(Json const& in) override;
+  void SaveConfig(Json* p_out) const override;
+
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& in) override;
 
