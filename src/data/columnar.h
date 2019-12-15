@@ -85,8 +85,8 @@ struct ColumnarErrors {
     }
   }
 
-  static std::string UnSupportedType(std::string const& typestr) {
-    return TypeStr(typestr.at(1)) + " is not supported.";
+  static std::string UnSupportedType(const char (&typestr)[3]) {
+    return TypeStr(typestr[1]) + " is not supported.";
   }
 };
 
@@ -245,6 +245,34 @@ class Columnar {
     type[0] = typestr.at(0);
     type[1] = typestr.at(1);
     type[2] = typestr.at(2);
+    this->CheckType();
+  }
+
+  void CheckType() const {
+    if (type[1] == 'f' && type[2] == '4') {
+      return;
+    } else if (type[1] == 'f' && type[2] == '8') {
+      return;
+    } else if (type[1] == 'i' && type[2] == '1') {
+      return;
+    } else if (type[1] == 'i' && type[2] == '2') {
+      return;
+    } else if (type[1] == 'i' && type[2] == '4') {
+      return;
+    } else if (type[1] == 'i' && type[2] == '8') {
+      return;
+    } else if (type[1] == 'u' && type[2] == '1') {
+      return;
+    } else if (type[1] == 'u' && type[2] == '2') {
+      return;
+    } else if (type[1] == 'u' && type[2] == '4') {
+      return;
+    } else if (type[1] == 'u' && type[2] == '8') {
+      return;
+    } else {
+      LOG(FATAL) << ColumnarErrors::UnSupportedType(type);
+      return;
+    }
   }
 
   XGBOOST_DEVICE float GetElement(size_t idx) const {
@@ -269,7 +297,6 @@ class Columnar {
     } else if (type[1] == 'u' && type[2] == '8') {
       return reinterpret_cast<uint64_t*>(data)[idx];
     } else {
-      // TODO(Rory): Is this the best way to raise an error on device?
       SPAN_CHECK(false);
       return 0;
     }
