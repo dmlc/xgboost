@@ -30,16 +30,16 @@ param <- list(objective = "binary:logistic", max_depth = 2, nthread = 2)
 
 
 test_that("cb.print.evaluation works as expected", {
-  
+
   bst_evaluation <- c('train-auc'=0.9, 'test-auc'=0.8)
   bst_evaluation_err <- NULL
   begin_iteration <- 1
   end_iteration <- 7
-  
+
   f0 <- cb.print.evaluation(period=0)
   f1 <- cb.print.evaluation(period=1)
   f5 <- cb.print.evaluation(period=5)
-  
+
   expect_false(is.null(attr(f1, 'call')))
   expect_equal(attr(f1, 'name'), 'cb.print.evaluation')
 
@@ -48,15 +48,15 @@ test_that("cb.print.evaluation works as expected", {
   expect_output(f1(), "\\[1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_output(f5(), "\\[1\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_null(f1())
-  
+
   iteration <- 2
   expect_output(f1(), "\\[2\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_silent(f5())
-  
+
   iteration <- 7
   expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_output(f5(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
-  
+
   bst_evaluation_err  <- c('train-auc'=0.1, 'test-auc'=0.2)
   expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\\+0.100000\ttest-auc:0.800000\\+0.200000")
 })
@@ -65,40 +65,40 @@ test_that("cb.evaluation.log works as expected", {
 
   bst_evaluation <- c('train-auc'=0.9, 'test-auc'=0.8)
   bst_evaluation_err <- NULL
-  
+
   evaluation_log <- list()
   f <- cb.evaluation.log()
-  
+
   expect_false(is.null(attr(f, 'call')))
   expect_equal(attr(f, 'name'), 'cb.evaluation.log')
-  
+
   iteration <- 1
   expect_silent(f())
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                list(c(iter=1, bst_evaluation)))
   iteration <- 2
   expect_silent(f())
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                list(c(iter=1, bst_evaluation), c(iter=2, bst_evaluation)))
   expect_silent(f(finalize = TRUE))
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                data.table(iter=1:2, train_auc=c(0.9,0.9), test_auc=c(0.8,0.8)))
-  
+
   bst_evaluation_err  <- c('train-auc'=0.1, 'test-auc'=0.2)
   evaluation_log <- list()
   f <- cb.evaluation.log()
-  
+
   iteration <- 1
   expect_silent(f())
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                list(c(iter=1, c(bst_evaluation, bst_evaluation_err))))
   iteration <- 2
   expect_silent(f())
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                list(c(iter=1, c(bst_evaluation, bst_evaluation_err)),
                     c(iter=2, c(bst_evaluation, bst_evaluation_err))))
   expect_silent(f(finalize = TRUE))
-  expect_equal(evaluation_log, 
+  expect_equal(evaluation_log,
                data.table(iter=1:2,
                           train_auc_mean=c(0.9,0.9), train_auc_std=c(0.1,0.1),
                           test_auc_mean=c(0.8,0.8), test_auc_std=c(0.2,0.2)))
@@ -130,18 +130,18 @@ test_that("cb.reset.parameters works as expected", {
   bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
   expect_false(is.null(bst1$evaluation_log$train_error))
-  expect_equal(bst0$evaluation_log$train_error, 
+  expect_equal(bst0$evaluation_log$train_error,
                bst1$evaluation_log$train_error)
-  
+
   # same eta but re-set via a function in the callback
   set.seed(111)
   my_par <- list(eta = function(itr, itr_end) 0.9)
   bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0,
                     callbacks = list(cb.reset.parameters(my_par)))
   expect_false(is.null(bst2$evaluation_log$train_error))
-  expect_equal(bst0$evaluation_log$train_error, 
+  expect_equal(bst0$evaluation_log$train_error,
                bst2$evaluation_log$train_error)
-  
+
   # different eta re-set as a vector parameter in the callback
   set.seed(111)
   my_par <- list(eta = c(0.6, 0.5))
@@ -149,7 +149,7 @@ test_that("cb.reset.parameters works as expected", {
                     callbacks = list(cb.reset.parameters(my_par)))
   expect_false(is.null(bst3$evaluation_log$train_error))
   expect_false(all(bst0$evaluation_log$train_error == bst3$evaluation_log$train_error))
-  
+
   # resetting multiple parameters at the same time runs with no error
   my_par <- list(eta = c(1., 0.5), gamma = c(1, 2), max_depth = c(4, 8))
   expect_error(
@@ -175,7 +175,7 @@ test_that("cb.reset.parameters works as expected", {
 test_that("cb.save.model works as expected", {
   files <- c('xgboost_01.model', 'xgboost_02.model', 'xgboost.model')
   for (f in files) if (file.exists(f)) file.remove(f)
-  
+
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
                    save_period = 1, save_name = "xgboost_%02d.model")
   expect_true(file.exists('xgboost_01.model'))
@@ -184,6 +184,9 @@ test_that("cb.save.model works as expected", {
   expect_equal(xgb.ntree(b1), 1)
   b2 <- xgb.load('xgboost_02.model')
   expect_equal(xgb.ntree(b2), 2)
+
+  xgb.config(b2) <- xgb.config(bst)
+  expect_equal(xgb.config(bst), xgb.config(b2))
   expect_equal(bst$raw, b2$raw)
 
   # save_period = 0 saves the last iteration's model
@@ -191,8 +194,9 @@ test_that("cb.save.model works as expected", {
                    save_period = 0)
   expect_true(file.exists('xgboost.model'))
   b2 <- xgb.load('xgboost.model')
+  xgb.config(b2) <- xgb.config(bst)
   expect_equal(bst$raw, b2$raw)
-  
+
   for (f in files) if (file.exists(f)) file.remove(f)
 })
 
@@ -211,7 +215,7 @@ test_that("early stopping xgb.train works", {
   err_pred <- err(ltest, pred)
   err_log <- bst$evaluation_log[bst$best_iteration, test_error]
   expect_equal(err_log, err_pred, tolerance = 5e-6)
-  
+
   set.seed(11)
   expect_silent(
     bst0 <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.3,
@@ -288,13 +292,13 @@ test_that("prediction in early-stopping xgb.cv works", {
                  early_stopping_rounds = 5, maximize = FALSE, stratified = FALSE,
                  prediction = TRUE)
   , "Stopping. Best iteration")
-  
+
   expect_false(is.null(cv$best_iteration))
   expect_lt(cv$best_iteration, 19)
   expect_false(is.null(cv$evaluation_log))
   expect_false(is.null(cv$pred))
   expect_length(cv$pred, nrow(train$data))
-  
+
   err_pred <- mean( sapply(cv$folds, function(f) mean(err(ltrain[f], cv$pred[f]))) )
   err_log <- cv$evaluation_log[cv$best_iteration, test_error_mean]
   expect_equal(err_pred, err_log, tolerance = 1e-6)
