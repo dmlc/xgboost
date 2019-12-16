@@ -333,7 +333,7 @@ class LearnerImpl : public Learner {
     for (size_t i = 0; i < n_metrics; ++i) {
       metric_names_[i]= get<String>(j_metrics[i]);
       metrics_[i] = std::unique_ptr<Metric>(
-          Metric::Create(metric_names_.back(), &generic_parameters_));
+          Metric::Create(metric_names_[i], &generic_parameters_));
     }
 
     fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
@@ -362,7 +362,7 @@ class LearnerImpl : public Learner {
     for (size_t i = 0; i < metrics_.size(); ++i) {
       metrics[i] = String(metrics_[i]->Name());
     }
-    learner_parameters["metrics"] = Array(metrics);
+    learner_parameters["metrics"] = Array(std::move(metrics));
 
     learner_parameters["generic_param"] = toJson(generic_parameters_);
   }
