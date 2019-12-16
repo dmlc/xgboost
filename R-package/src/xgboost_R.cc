@@ -1,4 +1,4 @@
-// Copyright (c) 2014 by Contributors
+// Copyright (c) 2014-2019 by Contributors
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
@@ -243,9 +243,12 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
 
 SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
-  CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),
-                               CHAR(asChar(name)),
-                               CHAR(asChar(val))));
+  auto key = CHAR(asChar(name));
+  auto value = CHAR(asChar(val));
+  if (!strcmp(key, "seed")) {
+    LOG(WARNING) << "Parameter `seed` is ignored for R package.  Use `set.seed()` from R instead.";
+  }
+  CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle), key, value));
   R_API_END();
   return R_NilValue;
 }
