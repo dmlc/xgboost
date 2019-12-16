@@ -96,7 +96,7 @@ class SegmentSorter {
     uint32_t ngroups = dgroups_.size();
     auto ComputeGroupIDLambda = [=] __device__(uint32_t idx) {
       return dh::UpperBound(dgroups, ngroups, idx) - 1;
-    };
+    };  // NOLINT
 
     thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
                       thrust::make_counting_iterator(num_elems),
@@ -311,11 +311,11 @@ class BaseLambdaWeightMultiplier {
         segment_pred_sorter.GetIndexableSortedPositions().data().get()) {}
 
  protected:
-   const float *dsorted_labels_{nullptr};  // Labels sorted within a group
-   const uint32_t *dorig_pos_{nullptr};  // Original indices of the labels before they are sorted
-   const uint32_t *dgroups_{nullptr};  // The group indices
-   // Where can a prediction for a label be found in the original array, when they are sorted
-   const uint32_t *dindexable_sorted_preds_pos_ptr_{nullptr};
+  const float *dsorted_labels_{nullptr};  // Labels sorted within a group
+  const uint32_t *dorig_pos_{nullptr};  // Original indices of the labels before they are sorted
+  const uint32_t *dgroups_{nullptr};  // The group indices
+  // Where can a prediction for a label be found in the original array, when they are sorted
+  const uint32_t *dindexable_sorted_preds_pos_ptr_{nullptr};
 };
 
 // While computing the weight that needs to be adjusted by this ranking objective, we need
@@ -684,7 +684,7 @@ class MAPLambdaWeightComputer
     const float *unsorted_labels = dlabels;
     auto DeterminePositiveLabelLambda = [=] __device__(uint32_t idx) {
       return (unsorted_labels[pred_original_pos[idx]] > 0.0f) ? 1 : 0;
-    };
+    };  // NOLINT
 
     thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
                       thrust::make_counting_iterator(nitems),
@@ -716,7 +716,7 @@ class MAPLambdaWeightComputer
                         1.0f);
       }
       return MAPStats();
-    };
+    };  // NOLINT
 
     thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
                       thrust::make_counting_iterator(nitems),
