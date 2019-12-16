@@ -414,11 +414,13 @@ class Dart : public GBTree {
     out["dart_train_param"] = toJson(dparam_);
   }
 
-  // predict the leaf scores with dropout if ntree_limit = 0
   void PredictBatch(DMatrix* p_fmat,
                     HostDeviceVector<bst_float>* out_preds,
-                    unsigned ntree_limit) override {
-    DropTrees(ntree_limit);
+                    unsigned ntree_limit,
+                    bool dropout = true) override {
+    if (dropout) {
+        DropTrees(0);
+    }
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 

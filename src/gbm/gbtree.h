@@ -205,7 +205,8 @@ class GBTree : public GradientBooster {
 
   void PredictBatch(DMatrix* p_fmat,
                     HostDeviceVector<bst_float>* out_preds,
-                    unsigned ntree_limit) override {
+                    unsigned ntree_limit,
+                    bool dropout = true) override {
     CHECK(configured_);
     GetPredictor(out_preds, p_fmat)->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
