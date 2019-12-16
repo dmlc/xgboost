@@ -553,7 +553,7 @@ class MAPLambdaWeightComputer
     /* \brief the accumulated positive instance count */
     float hits{0.0f};
 
-    MAPStats() = default;
+    XGBOOST_DEVICE MAPStats() {}  // NOLINT
     XGBOOST_DEVICE MAPStats(float ap_acc, float ap_acc_miss, float ap_acc_add, float hits)
       : ap_acc(ap_acc), ap_acc_miss(ap_acc_miss), ap_acc_add(ap_acc_add), hits(hits) {}
 
