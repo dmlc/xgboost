@@ -56,7 +56,7 @@ size_t GradientBasedSampler::MaxSampleRows(size_t n_rows) {
   size_t available_memory = dh::AvailableMemory(batch_param_.gpu_id);
   // Subtract row_weight_, row_index_, and sample_row_index_.
   available_memory -= n_rows * (sizeof(float) + 2 * sizeof(size_t));
-  size_t usable_memory = available_memory * 0.5;
+  size_t usable_memory = available_memory * 0.7;
   size_t extra_bytes = sizeof(GradientPair);
   size_t max_rows = common::CompressedBufferWriter::CalculateMaxRows(
       usable_memory, info_.NumSymbols(), info_.row_stride, extra_bytes);
