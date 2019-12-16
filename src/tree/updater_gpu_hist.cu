@@ -1007,8 +1007,6 @@ class GPUHistMakerSpecialised {
     param_.UpdateAllowUnknown(args);
     generic_param_ = generic_param;
     hist_maker_param_.UpdateAllowUnknown(args);
-    device_ = generic_param_->gpu_id;
-    CHECK_GE(device_, 0) << "Must have at least one device";
     dh::CheckComputeCapability();
 
     monitor_.Init("updater_gpu_hist");
@@ -1021,6 +1019,7 @@ class GPUHistMakerSpecialised {
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     monitor_.StartCuda("Update");
+
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -1044,6 +1043,8 @@ class GPUHistMakerSpecialised {
   }
 
   void InitDataOnce(DMatrix* dmat) {
+    device_ = generic_param_->gpu_id;
+    CHECK_GE(device_, 0) << "Must have at least one device";
     info_ = &dmat->Info();
     reducer_.Init({device_});
 
@@ -1142,14 +1143,24 @@ class GPUHistMakerSpecialised {
 class GPUHistMaker : public TreeUpdater {
  public:
   void Configure(const Args& args) override {
+    // Used in test to count how many configurations are performed
+    LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    float_maker_.reset();
-    double_maker_.reset();
+    // The passed in args can be empty, if we simply purge the old maker without
+    // preserving parameters then we can't do Update on it.
+    TrainParam param;
+    if (float_maker_) {
+      param = float_maker_->param_;
+    } else if (double_maker_) {
+      param = double_maker_->param_;
+    }
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
+      float_maker_->param_ = param;
       float_maker_->Configure(args, tparam_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
+      double_maker_->param_ = param;
       double_maker_->Configure(args, tparam_);
     }
   }

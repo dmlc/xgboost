@@ -45,7 +45,7 @@ class Json;
  *
  *  \endcode
  */
-class Learner : public Model, public rabit::Serializable {
+class Learner : public Model, public Configurable, public rabit::Serializable {
  public:
   /*! \brief virtual destructor */
   ~Learner() override;
@@ -53,16 +53,6 @@ class Learner : public Model, public rabit::Serializable {
    * \brief Configure Learner based on set parameters.
    */
   virtual void Configure() = 0;
-  /*!
-   * \brief load model from stream
-   * \param fi input stream.
-   */
-  void Load(dmlc::Stream* fi) override = 0;
-  /*!
-   * \brief save model to stream.
-   * \param fo output stream
-   */
-  void Save(dmlc::Stream* fo) const override = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.
@@ -110,6 +100,13 @@ class Learner : public Model, public rabit::Serializable {
                        bool pred_contribs = false,
                        bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
+
+  void LoadModel(Json const& in) override = 0;
+  void SaveModel(Json* out) const override = 0;
+
+  virtual void LoadModel(dmlc::Stream* fi) = 0;
+  virtual void SaveModel(dmlc::Stream* fo) const = 0;
+
   /*!
    * \brief Set multiple parameters at once.
    *

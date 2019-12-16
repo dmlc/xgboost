@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 import subprocess
 import os
-import sys
+import json
 import xgboost as xgb
 from xgboost import XGBClassifier
 
@@ -39,18 +39,17 @@ class TestPickling(unittest.TestCase):
         bst = xgb.train(param, train_x)
 
         save_pickle(bst, model_path)
-        args = ["pytest",
-                "--verbose",
-                "-s",
-                "--fulltrace",
-                "./tests/python-gpu/load_pickle.py"]
+        args = [
+            "pytest", "--verbose", "-s", "--fulltrace",
+            "./tests/python-gpu/load_pickle.py::TestLoadPickle::test_load_pkl"
+        ]
         command = ''
         for arg in args:
             command += arg
             command += ' '
 
-        cuda_environment = {'CUDA_VISIBLE_DEVICES': ''}
-        env = os.environ
+        cuda_environment = {'CUDA_VISIBLE_DEVICES': '-1'}
+        env = os.environ.copy()
         # Passing new_environment directly to `env' argument results
         # in failure on Windows:
         #    Fatal Python error: _Py_HashRandomization_Init: failed to
@@ -62,12 +61,55 @@ class TestPickling(unittest.TestCase):
         assert status == 0
         os.remove(model_path)
 
+    def test_pickled_predictor(self):
+        args_templae = [
+            "pytest",
+            "--verbose",
+            "-s",
+            "--fulltrace"]
+
+        x, y = build_dataset()
+        train_x = xgb.DMatrix(x, label=y)
+
+        param = {'tree_method': 'gpu_hist',
+                 'verbosity': 1, 'predictor': 'gpu_predictor'}
+        bst = xgb.train(param, train_x)
+        config = json.loads(bst.save_config())
+        assert config['learner']['gradient_booster']['gbtree_train_param'][
+            'predictor'] == 'gpu_predictor'
+
+        save_pickle(bst, model_path)
+
+        args = args_templae.copy()
+        args.append(
+            "./tests/python-gpu/"
+            "load_pickle.py::TestLoadPickle::test_predictor_type_is_auto")
+
+        cuda_environment = {'CUDA_VISIBLE_DEVICES': '-1'}
+        env = os.environ.copy()
+        env.update(cuda_environment)
+
+        # Load model in a CPU only environment.
+        status = subprocess.call(args, env=env)
+        assert status == 0
+
+        args = args_templae.copy()
+        args.append(
+            "./tests/python-gpu/"
+            "load_pickle.py::TestLoadPickle::test_predictor_type_is_gpu")
+
+        # Load in environment that has GPU.
+        env = os.environ.copy()
+        assert 'CUDA_VISIBLE_DEVICES' not in env.keys()
+        status = subprocess.call(args, env=env)
+        assert status == 0
+
     def test_predict_sklearn_pickle(self):
         x, y = build_dataset()
 
         kwargs = {'tree_method': 'gpu_hist',
                   'predictor': 'gpu_predictor',
-                  'verbosity': 2,
+                  'verbosity': 1,
                   'objective': 'binary:logistic',
                   'n_estimators': 10}
 

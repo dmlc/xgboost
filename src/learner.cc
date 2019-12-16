@@ -30,6 +30,7 @@
 
 #include "common/common.h"
 #include "common/io.h"
+#include "common/observer.h"
 #include "common/random.h"
 #include "common/timer.h"
 #include "common/version.h"
@@ -37,27 +38,6 @@
 namespace {
 
 const char* kMaxDeltaStepDefaultValue = "0.7";
-
-inline bool IsFloat(const std::string& str) {
-  std::stringstream ss(str);
-  float f{};
-  return !((ss >> std::noskipws >> f).rdstate() ^ std::ios_base::eofbit);
-}
-
-inline bool IsInt(const std::string& str) {
-  std::stringstream ss(str);
-  int i{};
-  return !((ss >> std::noskipws >> i).rdstate() ^ std::ios_base::eofbit);
-}
-
-inline std::string RenderParamVal(const std::string& str) {
-  if (IsFloat(str) || IsInt(str)) {
-    return str;
-  } else {
-    return std::string("'") + str + "'";
-  }
-}
-
 }  // anonymous namespace
 
 namespace xgboost {
@@ -323,11 +303,77 @@ class LearnerImpl : public Learner {
     }
   }
 
-  void Load(dmlc::Stream* fi) override {
+  void LoadConfig(Json const& in) override {
+    CHECK(IsA<Object>(in));
+    Version::Load(in, true);
+
+    auto const& learner_parameters = get<Object>(in["learner"]);
+    fromJson(learner_parameters.at("learner_train_param"), &tparam_);
+
+    auto const& gradient_booster = learner_parameters.at("gradient_booster");
+
+    auto const& objective_fn = learner_parameters.at("objective");
+    if (!obj_) {
+      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
+    }
+    obj_->LoadConfig(objective_fn);
+
+    tparam_.booster = get<String>(gradient_booster["name"]);
+    if (!gbm_) {
+      gbm_.reset(GradientBooster::Create(tparam_.booster,
+                                         &generic_parameters_, &learner_model_param_,
+                                         cache_));
+    }
+    gbm_->LoadConfig(gradient_booster);
+
+    auto const& j_metrics = learner_parameters.at("metrics");
+    auto n_metrics = get<Array const>(j_metrics).size();
+    metric_names_.resize(n_metrics);
+    metrics_.resize(n_metrics);
+    for (size_t i = 0; i < n_metrics; ++i) {
+      metric_names_[i]= get<String>(j_metrics[i]);
+      metrics_[i] = std::unique_ptr<Metric>(
+          Metric::Create(metric_names_[i], &generic_parameters_));
+    }
+
+    fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
+
+    this->need_configuration_ = true;
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    CHECK(!this->need_configuration_) << "Call Configure before saving model.";
+    Version::Save(p_out);
+    Json& out { *p_out };
+    // parameters
+    out["learner"] = Object();
+    auto& learner_parameters = out["learner"];
+
+    learner_parameters["learner_train_param"] = toJson(tparam_);
+    learner_parameters["gradient_booster"] = Object();
+    auto& gradient_booster = learner_parameters["gradient_booster"];
+    gbm_->SaveConfig(&gradient_booster);
+
+    learner_parameters["objective"] = Object();
+    auto& objective_fn = learner_parameters["objective"];
+    obj_->SaveConfig(&objective_fn);
+
+    std::vector<Json> metrics(metrics_.size());
+    for (size_t i = 0; i < metrics_.size(); ++i) {
+      metrics[i] = String(metrics_[i]->Name());
+    }
+    learner_parameters["metrics"] = Array(std::move(metrics));
+
+    learner_parameters["generic_param"] = toJson(generic_parameters_);
+  }
+
+  // About to be deprecated by JSON format
+  void LoadModel(dmlc::Stream* fi) override {
     generic_parameters_.UpdateAllowUnknown(Args{});
     tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
+
     // backward compatible header check.
     std::string header;
     header.resize(4);
@@ -337,6 +383,15 @@ class LearnerImpl : public Learner {
       if (header == "binf") {
         CHECK_EQ(fp.Read(&header[0], 4), 4U);
       }
+    }
+
+    if (header[0] == '{') {
+      auto json_stream = common::FixedSizeStream(&fp);
+      std::string buffer;
+      json_stream.Take(&buffer);
+      auto model = Json::Load({buffer.c_str(), buffer.size()});
+      this->LoadModel(model);
+      return;
     }
     // use the peekable reader.
     fi = &fp;
@@ -370,43 +425,9 @@ class LearnerImpl : public Learner {
       std::vector<std::pair<std::string, std::string> > attr;
       fi->Read(&attr);
       for (auto& kv : attr) {
-        // Load `predictor`, `gpu_id` parameters from extra attributes
         const std::string prefix = "SAVED_PARAM_";
         if (kv.first.find(prefix) == 0) {
           const std::string saved_param = kv.first.substr(prefix.length());
-          bool is_gpu_predictor = saved_param == "predictor" && kv.second == "gpu_predictor";
-#ifdef XGBOOST_USE_CUDA
-          if (saved_param == "predictor" || saved_param == "gpu_id") {
-            cfg_[saved_param] = kv.second;
-            LOG(INFO)
-              << "Parameter '" << saved_param << "' has been recovered from "
-              << "the saved model. It will be set to "
-              << RenderParamVal(kv.second) << " for prediction. To "
-              << "override the predictor behavior, explicitly set '"
-              << saved_param << "' parameter as follows:\n"
-              << "  * Python package: bst.set_param('"
-              << saved_param << "', [new value])\n"
-              << "  * R package:      xgb.parameters(bst) <- list("
-              << saved_param << " = [new value])\n"
-              << "  * JVM packages:   bst.setParam(\""
-              << saved_param << "\", [new value])";
-          }
-#else
-          if (is_gpu_predictor) {
-            cfg_["predictor"] = "cpu_predictor";
-            kv.second = "cpu_predictor";
-          }
-#endif  // XGBOOST_USE_CUDA
-#if defined(XGBOOST_USE_CUDA)
-          // NO visible GPU in current environment
-          if (is_gpu_predictor && common::AllVisibleGPUs() == 0) {
-            cfg_["predictor"] = "cpu_predictor";
-            kv.second = "cpu_predictor";
-            LOG(INFO) << "Switch gpu_predictor to cpu_predictor.";
-          } else if (is_gpu_predictor) {
-            cfg_["predictor"] = "gpu_predictor";
-          }
-#endif  // defined(XGBOOST_USE_CUDA)
           if (saved_configs_.find(saved_param) != saved_configs_.end()) {
             cfg_[saved_param] = kv.second;
           }
@@ -447,26 +468,12 @@ class LearnerImpl : public Learner {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
-    // There's no logic for state machine for binary IO, as it has a mix of everything and
-    // half loaded model.
     this->Configure();
   }
 
-  // rabit save model to rabit checkpoint
-  void Save(dmlc::Stream* fo) const override {
-    if (this->need_configuration_) {
-      // Save empty model.  Calling Configure in a dummy LearnerImpl avoids violating
-      // constness.
-      LearnerImpl empty(std::move(this->cache_));
-      empty.SetParams({this->cfg_.cbegin(), this->cfg_.cend()});
-      for (auto const& kv : attributes_) {
-        empty.SetAttr(kv.first, kv.second);
-      }
-      empty.Configure();
-      empty.Save(fo);
-      return;
-    }
-
+  // Save model into binary format.  The code is about to be deprecated by more robust
+  // JSON serialization format.
+  void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     // extra attributed to be added just before saving
@@ -479,14 +486,13 @@ class LearnerImpl : public Learner {
       }
     }
     {
-      std::vector<std::string> saved_params{"predictor", "gpu_id"};
+      std::vector<std::string> saved_params;
       // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
       if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
         (cfg_.find("rabit_bootstrap_cache"))->second != "0") {
         std::copy(saved_configs_.begin(), saved_configs_.end(),
                   std::back_inserter(saved_params));
       }
-      // Write `predictor`, `n_gpus`, `gpu_id` parameters as extra attributes
       for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
@@ -495,19 +501,6 @@ class LearnerImpl : public Learner {
         }
       }
     }
-#if defined(XGBOOST_USE_CUDA)
-    {
-      // Force save gpu_id.
-      if (std::none_of(extra_attr.cbegin(), extra_attr.cend(),
-                   [](std::pair<std::string, std::string> const& it) {
-                     return it.first == "SAVED_PARAM_gpu_id";
-                   })) {
-        mparam.contain_extra_attrs = 1;
-        extra_attr.emplace_back("SAVED_PARAM_gpu_id",
-                                std::to_string(generic_parameters_.gpu_id));
-      }
-    }
-#endif  // defined(XGBOOST_USE_CUDA)
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);
@@ -541,6 +534,69 @@ class LearnerImpl : public Learner {
     }
   }
 
+  void Save(dmlc::Stream* fo) const override {
+    if (generic_parameters_.enable_experimental_json_serialization) {
+      Json memory_snapshot{Object()};
+      memory_snapshot["Model"] = Object();
+      auto &model = memory_snapshot["Model"];
+      this->SaveModel(&model);
+      memory_snapshot["Config"] = Object();
+      auto &config = memory_snapshot["Config"];
+      this->SaveConfig(&config);
+      std::string out_str;
+      Json::Dump(memory_snapshot, &out_str);
+      fo->Write(out_str.c_str(), out_str.size());
+    } else {
+      std::string binary_buf;
+      common::MemoryBufferStream s(&binary_buf);
+      this->SaveModel(&s);
+      Json config{ Object() };
+      // Do not use std::size_t as it's not portable.
+      int64_t const json_offset = binary_buf.size();
+      this->SaveConfig(&config);
+      std::string config_str;
+      Json::Dump(config, &config_str);
+      // concatonate the model and config at final output, it's a temporary solution for
+      // continuing support for binary model format
+      fo->Write(&serialisation_header_[0], serialisation_header_.size());
+      fo->Write(&json_offset, sizeof(json_offset));
+      fo->Write(&binary_buf[0], binary_buf.size());
+      fo->Write(&config_str[0], config_str.size());
+    }
+  }
+
+  void Load(dmlc::Stream* fi) override {
+    common::PeekableInStream fp(fi);
+    char c {0};
+    fp.PeekRead(&c, 1);
+    if (c == '{') {
+      std::string buffer;
+      common::FixedSizeStream{&fp}.Take(&buffer);
+      auto memory_snapshot = Json::Load({buffer.c_str(), buffer.size()});
+      this->LoadModel(memory_snapshot["Model"]);
+      this->LoadConfig(memory_snapshot["Config"]);
+    } else {
+      std::string header;
+      header.resize(serialisation_header_.size());
+      CHECK_EQ(fp.Read(&header[0], header.size()), serialisation_header_.size());
+      CHECK_EQ(header, serialisation_header_);
+
+      int64_t json_offset {-1};
+      CHECK_EQ(fp.Read(&json_offset, sizeof(json_offset)), sizeof(json_offset));
+      CHECK_GT(json_offset, 0);
+      std::string buffer;
+      common::FixedSizeStream{&fp}.Take(&buffer);
+
+      common::MemoryFixSizeBuffer binary_buf(&buffer[0], json_offset);
+      this->LoadModel(&binary_buf);
+
+      common::MemoryFixSizeBuffer json_buf {&buffer[0] + json_offset,
+                                            buffer.size() - json_offset};
+      auto config = Json::Load({buffer.c_str() + json_offset, buffer.size() - json_offset});
+      this->LoadConfig(config);
+    }
+  }
+
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
@@ -551,6 +607,7 @@ class LearnerImpl : public Learner {
 
   void UpdateOneIter(int iter, DMatrix* train) override {
     monitor_.Start("UpdateOneIter");
+    TrainingObserver::Instance().Update(iter);
     this->Configure();
     if (generic_parameters_.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
@@ -561,9 +618,13 @@ class LearnerImpl : public Learner {
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_[train]);
     monitor_.Stop("PredictRaw");
+    TrainingObserver::Instance().Observe(preds_[train], "Predictions");
+
     monitor_.Start("GetGradient");
     obj_->GetGradient(preds_[train], train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
+    TrainingObserver::Instance().Observe(gpair_, "Gradients");
+
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");
   }
@@ -792,6 +853,10 @@ class LearnerImpl : public Learner {
   LearnerModelParamLegacy mparam_;
   LearnerModelParam learner_model_param_;
   LearnerTrainParam tparam_;
+  // Used to identify the offset of JSON string when
+  // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
+  // takes over.
+  std::string const serialisation_header_ { u8"CONFIG-offset:" };
   // configurations
   std::map<std::string, std::string> cfg_;
   std::map<std::string, std::string> attributes_;
@@ -811,9 +876,8 @@ class LearnerImpl : public Learner {
 
   common::Monitor monitor_;
 
-  /*! \brief saved config keys used to restore failed worker */
-  std::set<std::string> saved_configs_ = {"max_depth", "tree_method", "dsplit",
-    "seed", "silent", "num_round", "gamma", "min_child_weight"};
+  /*! \brief (Deprecated) saved config keys used to restore failed worker */
+  std::set<std::string> saved_configs_ = {"num_round"};
 };
 
 std::string const LearnerImpl::kEvalMetric {"eval_metric"};  // NOLINT

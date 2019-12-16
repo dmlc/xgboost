@@ -682,13 +682,13 @@ void RegTree::LoadModel(Json const& in) {
     s.leaf_child_cnt = get<Integer const>(leaf_child_counts[i]);
 
     auto& n = nodes_[i];
-    auto left = get<Integer const>(lefts[i]);
-    auto right = get<Integer const>(rights[i]);
-    auto parent = get<Integer const>(parents[i]);
-    auto ind = get<Integer const>(indices[i]);
-    auto cond = get<Number const>(conds[i]);
-    auto dft_left = get<Boolean const>(default_left[i]);
-    n = Node(left, right, parent, ind, cond, dft_left);
+    bst_node_t left = get<Integer const>(lefts[i]);
+    bst_node_t right = get<Integer const>(rights[i]);
+    bst_node_t parent = get<Integer const>(parents[i]);
+    bst_feature_t ind = get<Integer const>(indices[i]);
+    float cond { get<Number const>(conds[i]) };
+    bool dft_left { get<Boolean const>(default_left[i]) };
+    n = Node{left, right, parent, ind, cond, dft_left};
   }
 
 
