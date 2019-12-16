@@ -21,6 +21,7 @@ import java.io.File
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.spark.{SparkConf, SparkContext, TaskFailedListener}
 import org.apache.spark.sql._
+import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
 import scala.math.min
@@ -106,5 +107,37 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
       .toDF("id", "label", "features", "group")
+  }
+
+  protected def buildDataFrameWithMulti(
+      labeledPoints: Seq[XGBLabeledPoint],
+      featureNames: Array[String],
+      numPartitions: Int = numWorkers): DataFrame = {
+    val it: Iterator[Row] = labeledPoints.iterator.zipWithIndex.map {
+      case (lp: XGBLabeledPoint, id: Int) => Row.merge(Row(id), Row(lp.label), Row(lp.values: _*))
+    }
+    val schema = StructType(
+      StructField("id", IntegerType)::
+      StructField("label", FloatType)::
+      featureNames.map(StructField(_, FloatType)).toList
+    )
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions), schema)
+  }
+
+  protected def buildDataFrameWithMultiGroup(
+      labeledPoints: Seq[XGBLabeledPoint],
+      featureNames: Array[String],
+      numPartitions: Int = numWorkers): DataFrame = {
+    val it: Iterator[Row] = labeledPoints.iterator.zipWithIndex.map {
+      case (lp: XGBLabeledPoint, id: Int) =>
+        Row.merge(Row(id, lp.group), Row(lp.label), Row(lp.values: _*))
+    }
+    val schema = StructType(
+      StructField("id", IntegerType)::
+        StructField("group", IntegerType)::
+        StructField("label", FloatType)::
+        featureNames.map(StructField(_, FloatType)).toList
+    )
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions), schema)
   }
 }

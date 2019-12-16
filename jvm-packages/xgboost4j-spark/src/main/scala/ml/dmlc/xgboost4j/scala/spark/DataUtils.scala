@@ -17,7 +17,6 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.spark.HashPartitioner
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
@@ -26,6 +25,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{FloatType, IntegerType}
+
+import scala.collection.mutable
 
 object DataUtils extends Serializable {
   private[spark] implicit class XGBLabeledPointFeatures(
@@ -176,6 +177,76 @@ object DataUtils extends Serializable {
           val xgbLp = XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
       }
+    }
+    repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
+  }
+
+  private[spark] def compressValues(
+      rawValues: Seq[Any],
+      missing: Float): (Array[Int], Array[Float]) = {
+    val indices = mutable.ArrayBuilder.make[Int]
+    val values = mutable.ArrayBuilder.make[Float]
+    var featureIdx = 0
+    def keepCondition = (v: Float) => if (missing.isNaN) !v.isNaN else v != missing
+    // Build sparse array based on missing value directly from the raw rows
+    rawValues.foreach {rv =>
+      if (rv != null) {
+        val typedValue = rv match {
+          case _: Float => rv.asInstanceOf[Float]
+          case _: Double => rv.asInstanceOf[Double].toFloat
+          case _: Byte => rv.asInstanceOf[Byte].toFloat
+          case _: Short => rv.asInstanceOf[Short].toFloat
+          case _: Int => rv.asInstanceOf[Int].toFloat
+          case _: Long => rv.asInstanceOf[Long].toFloat
+          case _ => throw new RuntimeException(s"Unsupported type of feature value @index" +
+            s" $featureIdx, only numeric is allowed.")
+        }
+        if (keepCondition(typedValue)) {
+          indices += featureIdx
+          values += typedValue
+        }
+      } // else { Always remove null values }
+      featureIdx += 1
+    }
+    (indices.result, values.result)
+  }
+
+  private[spark] def convertDataFrameToXGBLabeledPointRDDs(
+      missing: Float,
+      labelCol: Column,
+      featuresCols: Seq[Column],
+      weight: Column,
+      baseMargin: Column,
+      group: Option[Column],
+      numWorkers: Int,
+      deterministicPartition: Boolean,
+      dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
+    // Order is [label, weight, margin, features, group]
+    val hasGroup = group.nonEmpty
+    val commonColumns = Seq(
+      labelCol.cast(FloatType),
+      weight.cast(FloatType),
+      baseMargin.cast(FloatType)) ++ featuresCols.map(_.cast(FloatType))
+    val selectedColumns = if (hasGroup) {
+      commonColumns :+ group.get.cast(IntegerType)
+    } else {
+      commonColumns
+    }
+    val featureSize = featuresCols.length
+    val fStartPos = 3
+    val arrayOfRDDs = dataFrames.toArray.map {
+      df => df.select(selectedColumns: _*).rdd.map (row => {
+        val (label, weight, baseMargin) = (row.getFloat(0), row.getFloat(1), row.getFloat(2))
+        val rawValues = (fStartPos until fStartPos + featureSize).map(row.get)
+        val (indices, values) = compressValues(rawValues, missing)
+        val xgbLp = if (hasGroup) {
+          val group = row.getInt(row.size - 1)
+          XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
+        } else {
+          XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
+        }
+        attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+      })
     }
     repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
   }

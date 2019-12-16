@@ -205,4 +205,62 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
   }
+
+  test("XGBoostRegressor using multiple columns should output the same predictions with" +
+    " that of single column") {
+    // multiple feature columns version
+    val mTrainingDF = buildDataFrameWithMulti(Regression.train, Regression.featureColNames)
+    val mTestDF = buildDataFrameWithMulti(Regression.test, Regression.featureColNames)
+    // single feature column
+    val sTrainingDF = buildDataFrame(Regression.train)
+    val sTestDF = buildDataFrame(Regression.test)
+
+    val paramMap = Map(
+      "eta" -> "1",
+      "missing" -> 0,
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "reg:squarederror",
+      "num_round" -> 5,
+      "num_workers" -> numWorkers)
+
+    val mModel = new XGBoostRegressor(paramMap)
+      .setFeaturesCol(Regression.featureColNames)
+      .fit(mTrainingDF)
+    val mPrediction = mModel.transform(mTestDF).collect()
+      .map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
+
+    val sModel = new XGBoostRegressor(paramMap).fit(sTrainingDF)
+    val sPrediction = sModel.transform(sTestDF).collect()
+      .map(row => (row.getAs[Int]("id"), row.getAs[Double]("prediction"))).toMap
+
+    assert(mPrediction.size === mTestDF.count)
+    assert(mPrediction.size === sPrediction.size)
+    (0 until mPrediction.size).foreach {
+      i => assert(math.abs(mPrediction(i) - sPrediction(i)) <= 0.01f)
+    }
+  }
+
+  test("ranking: using multiple columns should output the same predictions with" +
+    " that of single column") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1", "missing" -> 0,
+      "objective" -> "rank:pairwise", "num_workers" -> numWorkers, "num_round" -> 5,
+      "group_col" -> "group")
+
+    // multiple feature columns version
+    val mTrainingDF = buildDataFrameWithMultiGroup(Ranking.train, Ranking.featureColNames)
+    val mTestDF = buildDataFrameWithMulti(Ranking.test, Ranking.featureColNames)
+    val mModel = new XGBoostRegressor(paramMap)
+      .setFeaturesCol(Ranking.featureColNames).fit(mTrainingDF)
+    val mPrediction = mModel.transform(mTestDF).collect()
+
+    // single feature column
+    val sTrainingDF = buildDataFrameWithGroup(Ranking.train)
+    val sTestDF = buildDataFrame(Ranking.test)
+    val sModel = new XGBoostRegressor(paramMap).fit(sTrainingDF)
+    val sPrediction = sModel.transform(sTestDF).collect()
+
+    assert(sTestDF.count() === sPrediction.length)
+    assert(mPrediction.length === sPrediction.length)
+  }
 }

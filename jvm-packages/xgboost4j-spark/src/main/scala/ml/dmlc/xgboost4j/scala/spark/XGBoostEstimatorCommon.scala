@@ -17,8 +17,8 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.spark.params._
-
 import org.apache.spark.ml.param.shared.HasWeightCol
+import org.apache.spark.sql.types.StructType
 
 private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
   with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables {
@@ -30,8 +30,40 @@ private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
 
 private[spark] trait XGBoostClassifierParams extends HasWeightCol with HasBaseMarginCol
   with HasNumClass with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+  with XGBoostEstimatorCommon with HasFeaturesCols {
+
+  def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      labelColName: String): StructType = {
+    $(featuresCols).foreach(SchemaUtils.checkNumericType(schema, _))
+    if (fitting) {
+      SchemaUtils.checkNumericType(schema, labelColName)
+      if (isDefined(weightCol) && $(weightCol).nonEmpty) {
+        SchemaUtils.checkNumericType(schema, $(weightCol))
+      }
+    }
+    // It is ok to return the original schema now since XGBoost only validates the column types
+    schema
+  }
+}
 
 private[spark] trait XGBoostRegressorParams extends HasBaseMarginCol with HasWeightCol
   with HasGroupCol with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+  with XGBoostEstimatorCommon with HasFeaturesCols {
+
+  def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      labelColName: String): StructType = {
+    $(featuresCols).foreach(SchemaUtils.checkNumericType(schema, _))
+    if (fitting) {
+      SchemaUtils.checkNumericType(schema, labelColName)
+      if (isDefined(weightCol) && $(weightCol).nonEmpty) {
+        SchemaUtils.checkNumericType(schema, $(weightCol))
+      }
+    }
+    // It is ok to return the original schema now since XGBoost only validates the column types
+    schema
+  }
+}

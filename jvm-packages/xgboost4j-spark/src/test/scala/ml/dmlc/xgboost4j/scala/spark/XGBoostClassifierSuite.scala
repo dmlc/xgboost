@@ -308,4 +308,44 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val xgb = new XGBoostClassifier(paramMap)
     xgb.fit(repartitioned)
   }
+
+  test("XGBoostClassifier using multiple columns should output the same probabilities with" +
+      " that of single column") {
+    // multiple feature columns version
+    val mTrainingDF = buildDataFrameWithMulti(Classification.train, Classification.featureColNames)
+    val mTestDF = buildDataFrameWithMulti(Classification.test, Classification.featureColNames)
+    // single feature column
+    val sTrainingDF = buildDataFrame(Classification.train)
+    val sTestDF = buildDataFrame(Classification.test)
+
+    val paramMap = Map(
+      "eta" -> "1",
+      "missing" -> 0,
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "num_round" -> 5,
+      "num_workers" -> numWorkers)
+
+    val mModel = new XGBoostClassifier(paramMap)
+      .setFeaturesCol(Classification.featureColNames)
+      .fit(mTrainingDF)
+    val mPrediction = mModel.transform(mTestDF).collect()
+      .map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
+
+    val sModel = new XGBoostClassifier(paramMap).fit(sTrainingDF)
+    val sPrediction = sModel.transform(sTestDF).collect()
+      .map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
+
+    assert(mPrediction.size === mTestDF.count)
+    assert(mPrediction.size === sPrediction.size)
+    (0 until mPrediction.size).foreach {
+      i =>
+        val mLen = mPrediction(i).values.length
+        assert(mLen === sPrediction(i).values.length)
+        (0 until mLen).foreach {
+          j => assert(mPrediction(i)(j) === sPrediction(i)(j))
+        }
+    }
+  }
 }

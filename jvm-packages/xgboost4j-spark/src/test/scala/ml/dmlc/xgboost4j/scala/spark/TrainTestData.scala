@@ -59,6 +59,8 @@ trait TrainTestData {
       XGBLabeledPoint(label, null, values, 1f, group, Float.NaN)
     }.toList
   }
+
+  def featureColNames: Array[String] = (1 to 126).map(i => s"feature$i").toArray
 }
 
 object Classification extends TrainTestData {
@@ -97,6 +99,8 @@ object Ranking extends TrainTestData {
   private def getGroups(resource: String): Seq[Int] = {
     getResourceLines(resource).map(_.toInt).toList
   }
+
+  override def featureColNames: Array[String] = (1 to 3).map(i => s"feature$i").toArray
 }
 
 object Synthetic extends {
