@@ -378,7 +378,7 @@ class NDCGLambdaWeightComputer
  public:
 #if defined(__CUDACC__)
   // This function object computes the item's DCG value
-  class ComputeItemDCG : thrust::unary_function<uint32_t, float> {
+  class ComputeItemDCG : public thrust::unary_function<uint32_t, float> {
    public:
     XGBOOST_DEVICE ComputeItemDCG(const float *dsorted_labels,
                                   const uint32_t *dgroups,
@@ -553,14 +553,14 @@ class MAPLambdaWeightComputer
     /* \brief the accumulated positive instance count */
     float hits{0.0f};
 
-    XGBOOST_DEVICE MAPStats() {}
+    MAPStats() = default;
     XGBOOST_DEVICE MAPStats(float ap_acc, float ap_acc_miss, float ap_acc_add, float hits)
       : ap_acc(ap_acc), ap_acc_miss(ap_acc_miss), ap_acc_add(ap_acc_add), hits(hits) {}
 
     // For prefix scan
     XGBOOST_DEVICE MAPStats operator +(const MAPStats &v1) const {
-      return MAPStats(ap_acc + v1.ap_acc, ap_acc_miss + v1.ap_acc_miss,
-                      ap_acc_add + v1.ap_acc_add, hits + v1.hits);
+      return {ap_acc + v1.ap_acc, ap_acc_miss + v1.ap_acc_miss,
+              ap_acc_add + v1.ap_acc_add, hits + v1.hits};
     }
 
     // For test purposes - compare for equality
