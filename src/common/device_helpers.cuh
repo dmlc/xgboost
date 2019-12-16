@@ -142,31 +142,91 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
+namespace internal {
+
+// Items of size 'n' are sorted in an order determined by the Comparator
+// If left is true,  find the number of elements > v; 0 if nothing is greater
+// If left is false, find the number of elements < v; 0 if nothing is lesser
+template <typename T, typename Comparator = thrust::greater<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t
+CountNumItemsImpl(bool left, const T * __restrict__ items, uint32_t n, T v,
+                  const Comparator &comp = Comparator()) {
+  const T *items_begin = items;
+  uint32_t num_remaining = n;
+  const T *middle_item = nullptr;
+  uint32_t middle;
+  while (num_remaining > 0) {
+    middle_item = items_begin;
+    middle = num_remaining / 2;
+    middle_item += middle;
+    if ((left && comp(*middle_item, v)) || (!left && !comp(v, *middle_item))) {
+      items_begin = ++middle_item;
+      num_remaining -= middle + 1;
+    } else {
+      num_remaining = middle;
+    }
+  }
+
+  return left ? items_begin - items : items + n - items_begin;
+}
+
+}
+
 /*!
  * \brief Find the strict upper bound for an element in a sorted array
  *  using binary search.
- * \param cuts pointer to the first element of the sorted array
+ * \param items pointer to the first element of the sorted array
  * \param n length of the sorted array
  * \param v value for which to find the upper bound
- * \return the smallest index i such that v < cuts[i], or n if v is greater or equal
- *  than all elements of the array
+ * \param comp determines how the items are sorted ascending/descending order - should conform
+ *        to ordering semantics
+ * \return the smallest index i that has a value > v, or n if none is larger when sorted ascendingly
+ *         or, an index i with a value < v, or 0 if none is smaller when sorted descendingly
 */
-template <typename T>
-DEV_INLINE int UpperBound(const T* __restrict__ cuts, int n, T v) {
-  if (n == 0)           { return 0; }
-  if (cuts[n - 1] <= v) { return n; }
-  if (cuts[0] > v)      { return 0; }
-
-  int left = 0, right = n - 1;
-  while (right - left > 1) {
-    int middle = left + (right - left) / 2;
-    if (cuts[middle] > v) {
-      right = middle;
-    } else {
-      left = middle;
-    }
+// Preserve existing default behavior of upper bound
+template <typename T, typename Comp = thrust::less<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t UpperBound(const T *__restrict__ items,
+                                                   uint32_t n,
+                                                   T v,
+                                                   const Comp &comp = Comp()) {
+  if (std::is_same<Comp, thrust::less<T>>::value ||
+      std::is_same<Comp, thrust::greater<T>>::value) {
+    return n - internal::CountNumItemsImpl(false, items, n, v, comp);
+  } else {
+    static_assert(std::is_same<Comp, thrust::less<T>>::value ||
+                  std::is_same<Comp, thrust::greater<T>>::value,
+                  "Invalid comparator used in Upperbound - can only be thrust::greater/less");
+    return std::numeric_limits<uint32_t>::max(); // Simply to quiesce the compiler
   }
-  return right;
+}
+
+/*!
+ * \brief Find the strict lower bound for an element in a sorted array
+ *  using binary search.
+ * \param items pointer to the first element of the sorted array
+ * \param n length of the sorted array
+ * \param v value for which to find the upper bound
+ * \param comp determines how the items are sorted ascending/descending order - should conform
+ *        to ordering semantics
+ * \return the smallest index i that has a value >= v, or n if none is larger
+ *         when sorted ascendingly
+ *         or, an index i with a value <= v, or 0 if none is smaller when sorted descendingly
+*/
+// Preserve existing default behavior of upper bound
+template <typename T, typename Comp = thrust::less<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t LowerBound(const T *__restrict__ items,
+                                                   uint32_t n,
+                                                   T v,
+                                                   const Comp &comp = Comp()) {
+  if (std::is_same<Comp, thrust::less<T>>::value ||
+      std::is_same<Comp, thrust::greater<T>>::value) {
+    return internal::CountNumItemsImpl(true, items, n, v, comp);
+  } else {
+    static_assert(std::is_same<Comp, thrust::less<T>>::value ||
+                  std::is_same<Comp, thrust::greater<T>>::value,
+                  "Invalid comparator used in LowerBound - can only be thrust::greater/less");
+    return std::numeric_limits<uint32_t>::max(); // Simply to quiesce the compiler
+  }
 }
 
 template <typename T>
@@ -510,7 +570,7 @@ void CopyDeviceSpan(xgboost::common::Span<T> dst,
 class BulkAllocator {
   std::vector<char *> d_ptr_;
   std::vector<size_t> size_;
-  std::vector<int> device_idx_;
+  int device_idx_{-1};
 
   static const int kAlign = 256;
 
@@ -593,14 +653,15 @@ class BulkAllocator {
    * This frees the GPU memory managed by this allocator.
    */
   void Clear() {
-    for (size_t i = 0; i < d_ptr_.size(); i++) { // NOLINT(modernize-loop-convert)
-      if (d_ptr_[i] != nullptr) {
-        safe_cuda(cudaSetDevice(device_idx_[i]));
-        XGBDeviceAllocator<char> allocator;
-        allocator.deallocate(thrust::device_ptr<char>(d_ptr_[i]), size_[i]);
-        d_ptr_[i] = nullptr;
-      }
-    }
+    if (d_ptr_.empty()) return;
+
+    safe_cuda(cudaSetDevice(device_idx_));
+    size_t idx = 0;
+    std::for_each(d_ptr_.begin(), d_ptr_.end(), [&](char *dptr) {
+      XGBDeviceAllocator<char>().deallocate(thrust::device_ptr<char>(dptr), size_[idx++]);
+    });
+    d_ptr_.clear();
+    size_.clear();
   }
 
   ~BulkAllocator() {
@@ -614,6 +675,8 @@ class BulkAllocator {
 
   template <typename... Args>
   void Allocate(int device_idx, Args... args) {
+    if (device_idx_ == -1) device_idx_ = device_idx;
+    else CHECK(device_idx_ == device_idx);
     size_t size = GetSizeBytes(args...);
 
     char *ptr = AllocateDevice(device_idx, size);
@@ -622,7 +685,6 @@ class BulkAllocator {
 
     d_ptr_.push_back(ptr);
     size_.push_back(size);
-    device_idx_.push_back(device_idx);
   }
 };
 
