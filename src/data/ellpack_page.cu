@@ -111,21 +111,21 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
 }
 
 // A functor that copies the data from one EllpackPage to another.
-struct CopyPageFunction {
+struct CopyPage {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
   common::CompressedIterator<uint32_t> src_iterator_d;
   // The number of elements to skip.
   size_t offset;
 
-  CopyPageFunction(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
+  CopyPage(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
       : cbw{dst->matrix.info.NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
         src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
         offset(offset) {}
 
-  __device__ void operator()(size_t i) {
-    cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[i], i + offset);
+  __device__ void operator()(size_t element_id) {
+    cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[element_id], element_id + offset);
   }
 };
 
@@ -136,21 +136,30 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
   CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
   CHECK_GE(matrix.n_rows * matrix.info.row_stride, offset + num_elements);
-  dh::LaunchN(device, num_elements, CopyPageFunction(this, page, offset));
+  dh::LaunchN(device, num_elements, CopyPage(this, page, offset));
   monitor_.StopCuda("Copy");
   return num_elements;
 }
 
 // A functor that compacts the rows from one EllpackPage into another.
-struct CompactPageFunction {
+struct CompactPage {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
   common::CompressedIterator<uint32_t> src_iterator_d;
+  /*! \brief An array that maps the rows from the full DMatrix to the compacted page.
+   *
+   * The total size is the number of rows in the original, uncompacted DMatrix. Elements are the
+   * row ids in the compacted page. Rows not needed are set to SIZE_MAX.
+   *
+   * An example compacting 16 rows to 8 rows:
+   * [SIZE_MAX, 0, 1, SIZE_MAX, SIZE_MAX, 2, SIZE_MAX, 3, 4, 5, SIZE_MAX, 6, SIZE_MAX, 7, SIZE_MAX,
+   * SIZE_MAX]
+   */
   common::Span<size_t> row_indexes;
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPageFunction(EllpackPageImpl* dst, EllpackPageImpl* src, common::Span<size_t> row_indexes)
+  CompactPage(EllpackPageImpl* dst, EllpackPageImpl* src, common::Span<size_t> row_indexes)
       : cbw{dst->matrix.info.NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
         src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
@@ -158,12 +167,12 @@ struct CompactPageFunction {
         base_rowid{src->matrix.base_rowid},
         row_stride{src->matrix.info.row_stride} {}
 
-  __device__ void operator()(size_t i) {
-    size_t row = base_rowid + i;
-    size_t row_index = row_indexes[row];
-    if (row_index == SIZE_MAX) return;
-    size_t dst_offset = row_index * row_stride;
-    size_t src_offset = i * row_stride;
+  __device__ void operator()(size_t row_id) {
+    size_t src_row = base_rowid + row_id;
+    size_t dst_row = row_indexes[src_row];
+    if (dst_row == SIZE_MAX) return;
+    size_t dst_offset = dst_row * row_stride;
+    size_t src_offset = row_id * row_stride;
     for (size_t j = 0; j < row_stride; j++) {
       cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j], dst_offset + j);
     }
@@ -176,7 +185,7 @@ void EllpackPageImpl::Compact(int device, EllpackPageImpl* page, common::Span<si
   CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
   CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
   CHECK_LE(page->matrix.base_rowid + page->matrix.n_rows, row_indexes.size());
-  dh::LaunchN(device, page->matrix.n_rows, CompactPageFunction(this, page, row_indexes));
+  dh::LaunchN(device, page->matrix.n_rows, CompactPage(this, page, row_indexes));
   monitor_.StopCuda("Compact");
 }
 

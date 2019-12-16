@@ -4,7 +4,6 @@
 #include <thrust/functional.h>
 #include <thrust/random.h>
 #include <thrust/transform.h>
-#include <thrust/transform_reduce.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/logging.h>
 
@@ -25,12 +24,15 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
     : batch_param_(batch_param), info_(info), sampling_method_(sampling_method) {
   monitor_.Init("gradient_based_sampler");
 
+  // If `subsample` is not specified, try to figure out how many rows to sample based on available
+  // free GPU memory.
   if (subsample == 0.0f || subsample == 1.0f) {
     sample_rows_ = MaxSampleRows(n_rows);
   } else {
     sample_rows_ = n_rows * subsample;
   }
 
+  // If there is enough GPU memory to keep all the rows, don't sample.
   if (sample_rows_ >= n_rows) {
     sampling_method_ = kNoSampling;
     sample_rows_ = n_rows;
@@ -39,7 +41,10 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
     LOG(CONSOLE) << "Sampling " << sample_rows_ << " rows";
   }
 
+  // Create a new ELLPACK page with empty rows.
   page_.reset(new EllpackPageImpl(batch_param.gpu_id, info, sample_rows_));
+
+  // Allocate GPU memory for sampling.
   if (sampling_method_ != kNoSampling) {
     ba_.Allocate(batch_param_.gpu_id,
                  &gpair_, sample_rows_,
@@ -52,6 +57,7 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
   }
 }
 
+// Determine the maximum number of rows that can fit into the available GPU memory.
 size_t GradientBasedSampler::MaxSampleRows(size_t n_rows) {
   size_t available_memory = dh::AvailableMemory(batch_param_.gpu_id);
   // Subtract row_weight_, row_index_, and sample_row_index_.
@@ -63,21 +69,30 @@ size_t GradientBasedSampler::MaxSampleRows(size_t n_rows) {
   return max_rows;
 }
 
+// Sample a DMatrix based on the given gradient pairs.
 GradientBasedSample GradientBasedSampler::Sample(common::Span<GradientPair> gpair,
                                                  DMatrix* dmat) {
+  monitor_.StartCuda("Sample");
+  GradientBasedSample sample;
   switch (sampling_method_) {
     case kNoSampling:
-      return NoSampling(gpair, dmat);
+      sample = NoSampling(gpair, dmat);
+      break;
     case kSequentialPoissonSampling:
-      return SequentialPoissonSampling(gpair, dmat);
+      sample = SequentialPoissonSampling(gpair, dmat);
+      break;
     case kUniformSampling:
-      return UniformSampling(gpair, dmat);
+      sample = UniformSampling(gpair, dmat);
+      break;
     default:
       LOG(FATAL) << "unknown sampling method";
-      return {sample_rows_, page_.get(), gpair};
+      sample = {sample_rows_, page_.get(), gpair};
   }
+  monitor_.StopCuda("Sample");
+  return sample;
 }
 
+// When not sampling, collect all the external memory ELLPACK pages into a single in-memory page.
 void GradientBasedSampler::CollectPages(DMatrix* dmat) {
   if (page_collected_) {
     return;
@@ -98,7 +113,7 @@ GradientBasedSample GradientBasedSampler::NoSampling(common::Span<GradientPair> 
   return {sample_rows_, page_.get(), gpair};
 }
 
-/*! \brief A functor that calculate the weight of each row as random(0, 1) / abs(grad). */
+/*! \brief A functor that calculates the weight of each row as random(0, 1) / abs(grad). */
 struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
   const uint32_t seed;
 
@@ -124,12 +139,8 @@ struct IsNonZero : public thrust::unary_function<GradientPair, bool> {
 
 /*! \brief A functor that clears the row indexes with empty gradient. */
 struct ClearEmptyRows : public thrust::binary_function<GradientPair, size_t, size_t> {
-  const size_t max_rows;
-
-  XGBOOST_DEVICE explicit ClearEmptyRows(size_t max_rows) : max_rows(max_rows) {}
-
   XGBOOST_DEVICE size_t operator()(const GradientPair& gpair, size_t row_index) const {
-    if ((gpair.GetGrad() != 0 || gpair.GetHess() != 0) && row_index < max_rows) {
+    if (gpair.GetGrad() != 0 || gpair.GetHess() != 0) {
       return row_index;
     } else {
       return SIZE_MAX;
@@ -147,6 +158,7 @@ GradientBasedSample GradientBasedSampler::SequentialPoissonSampling(
   return WeightedSampling(gpair, dmat);
 }
 
+// Perform sampling after the weights are calculated.
 GradientBasedSample GradientBasedSampler::WeightedSampling(
       common::Span<xgboost::GradientPair> gpair, DMatrix* dmat) {
   // Sort the gradient pairs and row indexes by weight.
@@ -154,7 +166,7 @@ GradientBasedSample GradientBasedSampler::WeightedSampling(
                       thrust::make_zip_iterator(thrust::make_tuple(dh::tbegin(gpair),
                                                                    dh::tbegin(row_index_))));
 
-  // Clear the gradient pairs not in the sample.
+  // Clear the gradient pairs not included in the sample.
   thrust::fill(dh::tbegin(gpair) + sample_rows_, dh::tend(gpair), GradientPair());
 
   // Mask the sample rows.
@@ -175,7 +187,7 @@ GradientBasedSample GradientBasedSampler::WeightedSampling(
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     dh::tbegin(sample_row_index_),
                     dh::tbegin(sample_row_index_),
-                    ClearEmptyRows(sample_rows_));
+                    ClearEmptyRows());
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);

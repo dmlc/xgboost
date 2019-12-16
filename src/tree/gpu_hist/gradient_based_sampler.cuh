@@ -17,7 +17,7 @@ struct GradientBasedSample {
   size_t sample_rows;
   /*!\brief Sampled rows in ELLPACK format. */
   EllpackPageImpl* page;
-  /*!\brief Rescaled gradient pairs for the sampled rows. */
+  /*!\brief Gradient pairs for the sampled rows. */
   common::Span<GradientPair> gpair;
 };
 

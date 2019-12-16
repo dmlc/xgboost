@@ -72,6 +72,7 @@ struct EllpackInfo {
                        const common::HistogramCuts& hmat,
                        dh::BulkAllocator* ba);
 
+  /*! \brief Return the total number of symbols (total number of bins plus 1 for not found). */
   inline size_t NumSymbols() const {
     return n_bins + 1;
   }
