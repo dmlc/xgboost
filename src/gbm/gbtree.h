@@ -249,9 +249,16 @@ class GBTree : public GradientBooster {
     auto n_trees = model_.learner_model_param->num_output_group * tparam_.num_parallel_tree;
     return n_trees;
   }
+
   // slice the trees, out must be already allocated
   void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
              GradientBooster *out, bool* out_of_bound) const override;
+
+  int32_t BoostedRounds() const override {
+    CHECK_NE(tparam_.num_parallel_tree, 0);
+    CHECK_NE(model_.learner_model_param->num_output_group, 0);
+    return model_.trees.size() / this->LayerTrees();
+  }
 
   void PredictBatch(DMatrix* p_fmat,
                     PredictionCacheEntry* out_preds,

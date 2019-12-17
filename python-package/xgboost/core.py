@@ -1177,23 +1177,6 @@ class Booster(object):
         """
         return self.__copy__()
 
-    def load_rabit_checkpoint(self):
-        """Initialize the model by load from rabit checkpoint.
-
-        Returns
-        -------
-        version: integer
-            The version number of the model.
-        """
-        version = ctypes.c_int()
-        _check_call(_LIB.XGBoosterLoadRabitCheckpoint(
-            self.handle, ctypes.byref(version)))
-        return version.value
-
-    def save_rabit_checkpoint(self):
-        """Save the current booster to rabit checkpoint."""
-        _check_call(_LIB.XGBoosterSaveRabitCheckpoint(self.handle))
-
     def attr(self, key):
         """Get attribute string from the Booster.
 
@@ -1744,6 +1727,17 @@ class Booster(object):
                                                           length))
         else:
             raise TypeError('Unknown file type: ', fname)
+
+    def num_boosted_rounds(self) -> int:
+        '''Get number of boosted rounds.  For gblinear this is reset to 0 after
+        serializing the model.
+
+        '''
+        rounds = ctypes.c_int()
+        assert self.handle is not None
+        _check_call(_LIB.XGBoosterBoostedRounds(
+            self.handle, ctypes.byref(rounds)))
+        return rounds.value
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.  Unlike `save_model`, the

@@ -1107,6 +1107,12 @@ class LearnerImpl : public LearnerIO {
     }
   }
 
+  int32_t BoostedRounds() const override {
+    if (!this->gbm_) { return 0; }  // haven't call train or LoadModel.
+    CHECK(!this->need_configuration_);
+    return this->gbm_->BoostedRounds();
+  }
+
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
     return (*LearnerAPIThreadLocalStore::Get())[this];
   }

@@ -615,6 +615,15 @@ XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
                            BoosterHandle *out);
 
 /*!
+ * \brief Get number of boosted rounds from gradient booster.  When process_type is
+ *        update, this number might drop due to removed tree.
+ * \param handle Handle to booster.
+ * \param out Pointer to output integer.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out);
+
+/*!
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name

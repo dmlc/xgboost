@@ -4,11 +4,10 @@
 """Training Library containing training routines."""
 import warnings
 import copy
-
+import json
 import numpy as np
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
-from . import rabit
 from . import callback
 
 
@@ -51,28 +50,12 @@ def _train_internal(params, dtrain,
     evals = list(evals)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    nboost = 0
-    num_parallel_tree = 1
 
     if xgb_model is not None:
         bst = Booster(params, [dtrain] + [d[0] for d in evals],
                       model_file=xgb_model)
-        nboost = len(bst.get_dump())
 
-    _params = dict(params) if isinstance(params, list) else params
-
-    if 'num_parallel_tree' in _params and _params[
-            'num_parallel_tree'] is not None:
-        num_parallel_tree = _params['num_parallel_tree']
-        nboost //= num_parallel_tree
-    if 'num_class' in _params and _params['num_class'] is not None:
-        nboost //= _params['num_class']
-
-    # Distributed code: Load the checkpoint from rabit.
-    version = bst.load_rabit_checkpoint()
-    assert rabit.get_world_size() != 1 or version == 0
-    start_iteration = int(version / 2)
-    nboost += start_iteration
+    start_iteration = 0
 
     is_new_callback = _is_new_callback(callbacks)
     if is_new_callback:
@@ -92,26 +75,13 @@ def _train_internal(params, dtrain,
             show_stdv=False, cvfolds=None)
 
     bst = callbacks.before_training(bst)
+
     for i in range(start_iteration, num_boost_round):
         if callbacks.before_iteration(bst, i, dtrain, evals):
             break
-        # Distributed code: need to resume to this point.
-        # Skip the first update if it is a recovery step.
-        if version % 2 == 0:
-            bst.update(dtrain, i, obj)
-            bst.save_rabit_checkpoint()
-            version += 1
-
-        assert rabit.get_world_size() == 1 or version == rabit.version_number()
-
-        nboost += 1
-        # check evaluation result.
+        bst.update(dtrain, i, obj)
         if callbacks.after_iteration(bst, i, dtrain, evals):
             break
-        # do checkpoint after evaluation, in case evaluation also updates
-        # booster.
-        bst.save_rabit_checkpoint()
-        version += 1
 
     bst = callbacks.after_training(bst)
 
@@ -122,7 +92,12 @@ def _train_internal(params, dtrain,
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
     else:
-        bst.best_iteration = nboost - 1
+        bst.best_iteration = bst.num_boosted_rounds() - 1
+    try:
+        num_parallel_tree = int(json.loads(bst.save_config())['learner'][
+            'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
+    except KeyError:            # gblinear
+        num_parallel_tree = 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
@@ -234,7 +209,7 @@ class CVPack(object):
 
 
 class _PackedBooster:
-    def __init__(self, cvfolds):
+    def __init__(self, cvfolds) -> None:
         self.cvfolds = cvfolds
 
     def update(self, iteration, obj):
@@ -261,6 +236,10 @@ class _PackedBooster:
         '''Get best_iteration'''
         ret = self.cvfolds[0].bst.attr('best_iteration')
         return int(ret)
+
+    def num_boosted_rounds(self) -> int:
+        '''Number of boosted rounds.'''
+        return self.cvfolds[0].bst.num_boosted_rounds()
 
 
 def groups_to_rows(groups, boundaries):
