@@ -30,7 +30,7 @@ from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
 from .core import DMatrix, Booster, _expect
 from .training import train as worker_train
 from .tracker import RabitTracker
-from .sklearn import XGBModel, XGBClassifierBase
+from .sklearn import XGBModel, XGBClassifierBase, xgboost_model_doc
 
 # Current status is considered as initial support, many features are
 # not properly supported yet.
@@ -580,13 +580,10 @@ class DaskScikitLearnBase(XGBModel):
     def client(self, clt):
         self._client = clt
 
-
+@xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
+                   ['estimators', 'model'])
 class DaskXGBRegressor(DaskScikitLearnBase):
     # pylint: disable=missing-docstring
-    __doc__ = ('Implementation of the scikit-learn API for XGBoost ' +
-               'regression. \n\n') + '\n'.join(
-                   XGBModel.__doc__.split('\n')[2:])
-
     def fit(self,
             X,
             y,
@@ -616,12 +613,13 @@ class DaskXGBRegressor(DaskScikitLearnBase):
         return pred_probs
 
 
+@xgboost_model_doc(
+    'Implementation of the scikit-learn API for XGBoost classification.',
+    ['estimators', 'model']
+)
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     # pylint: disable=missing-docstring
     _client = None
-    __doc__ = ('Implementation of the scikit-learn API for XGBoost ' +
-               'classification.\n\n') + '\n'.join(
-                   XGBModel.__doc__.split('\n')[2:])
 
     def fit(self,
             X,

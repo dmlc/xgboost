@@ -6,6 +6,7 @@ import os
 import shutil
 import pytest
 import unittest
+import json
 
 rng = np.random.RandomState(1994)
 
@@ -116,9 +117,10 @@ def test_feature_importances_weight():
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
-
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -133,12 +135,16 @@ def test_feature_importances_weight():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -150,7 +156,9 @@ def test_feature_importances_gain():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -168,11 +176,15 @@ def test_feature_importances_gain():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -189,6 +201,10 @@ def test_num_parallel_tree():
     bst = reg.fit(X=boston['data'], y=boston['target'])
     dump = bst.get_booster().get_dump(dump_format='json')
     assert len(dump) == 4
+
+    config = json.loads(bst.get_booster().save_config())
+    assert int(config['learner']['gradient_booster']['gbtree_train_param'][
+        'num_parallel_tree']) == 4
 
 
 def test_boston_housing_regression():
@@ -243,7 +259,7 @@ def test_parameter_tuning():
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    xgb_model = xgb.XGBRegressor()
+    xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
                        cv=3, verbose=1, iid=True)
