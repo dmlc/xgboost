@@ -419,14 +419,16 @@ class Dart : public GBTree {
                     unsigned ntree_limit,
                     bool dropout = true) override {
     if (dropout) {
-        DropTrees(0);
+      DropTrees(false);
+    } else {
+      DropTrees(true);
     }
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds, unsigned ntree_limit) override {
-    DropTrees(1);
+    DropTrees(true);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
       thread_temp_[0].Init(model_.learner_model_param_->num_feature);
@@ -592,9 +594,10 @@ class Dart : public GBTree {
   }
 
   // select which trees to drop
-  inline void DropTrees(unsigned ntree_limit_drop) {
+  // passing clear=True will clear selection
+  inline void DropTrees(bool clear) {
     idx_drop_.clear();
-    if (ntree_limit_drop > 0) return;
+    if (clear) return;
 
     std::uniform_real_distribution<> runif(0.0, 1.0);
     auto& rnd = common::GlobalRandom();
