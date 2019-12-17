@@ -349,7 +349,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed`` [default=0]
 
-  - Random number seed.
+  - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
 
 ***********************
 Command Line Parameters
