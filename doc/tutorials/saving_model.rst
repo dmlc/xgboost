@@ -15,10 +15,11 @@ name with ``.json`` as file extension when saving/loading model:
 ``booster.save_model('model.json')``.  More details below.
 
 Before we get started, XGBoost is a gradient boosting library with focus on tree model,
-which means inside XGBoost, there are 2 distinct parts: the model and algorithms used to
-build it.  If you come from Deep Learning community, then it should be clear to you that
-there are differences between the neural network structures composed of weights with fixed
-tensor operations, and the optimizers used to train them.
+which means inside XGBoost, there are 2 distinct parts: the model consisted of trees and
+algorithms used to build it.  If you come from Deep Learning community, then it should be
+clear to you that there are differences between the neural network structures composed of
+weights with fixed tensor operations, and the optimizers (like RMSprop) used to train
+them.
 
 So when one calls ``booster.save_model``, XGBoost saves the trees, some model parameters
 like number of input columns in trained trees, and the objective function, which combined
@@ -41,8 +42,7 @@ with normal model IO operation.  In Python, this can be invoked by pickling the
   The old binary format doesn't distinguish difference between model and raw memory
   serialisation format, it's a mix of everything, which is part of the reason why we want
   to replace it with a more robust serialisation method.  JVM Package has its own memory
-  based serialisation methods, which may lead to some inconsistance in output model.  It's
-  a known issue we are trying to address.
+  based serialisation methods.
 
 To enable JSON format support for model IO (saving only the trees and objective), provide
 a filename with ``.json`` as file extension:
