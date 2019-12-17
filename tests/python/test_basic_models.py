@@ -196,6 +196,20 @@ class TestModels(unittest.TestCase):
         predt_2 = bst.predict(dtrain)
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
+    def test_boost_from_existing_model(self):
+        X = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4)
+        assert booster.num_boosted_rounds() == 4
+        booster = xgb.train({'tree_method': 'hist'}, X, num_boost_round=4,
+                            xgb_model=booster)
+        assert booster.num_boosted_rounds() == 8
+        booster = xgb.train({'updater': 'prune', 'process_type': 'update'}, X,
+                            num_boost_round=4, xgb_model=booster)
+        # Trees are moved for update, the rounds is reduced.  This test is
+        # written for being compatible with current code (1.0.0).  If the
+        # behaviour is considered sub-optimal, feel free to change.
+        assert booster.num_boosted_rounds() == 4
+
     def test_custom_objective(self):
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]

@@ -198,6 +198,14 @@ class GBTree : public GradientBooster {
     return model_.learner_model_param->num_output_group == 1;
   }
 
+  int32_t BoostedRounds() const override {
+    CHECK_NE(tparam_.num_parallel_tree, 0);
+    CHECK_NE(model_.learner_model_param->num_output_group, 0);
+    return model_.trees.size() /
+           model_.learner_model_param->num_output_group /
+           tparam_.num_parallel_tree;
+  }
+
   void PredictBatch(DMatrix* p_fmat,
                     PredictionCacheEntry* out_preds,
                     bool training,

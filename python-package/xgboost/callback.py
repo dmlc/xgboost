@@ -204,7 +204,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             rabit.tracker_print(msg.format(metric_label, stopping_rounds))
 
         state['maximize_score'] = maximize_score
-        state['best_iteration'] = 0
+
         if maximize_score:
             state['best_score'] = float('-inf')
         else:
@@ -216,9 +216,11 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                 state['best_iteration'] = int(bst.attr('best_iteration'))
                 state['best_msg'] = bst.attr('best_msg')
             else:
+                state['best_iteration'] = 0
                 bst.set_attr(best_iteration=str(state['best_iteration']))
                 bst.set_attr(best_score=str(state['best_score']))
         else:
+            state['best_iteration'] = 0
             assert env.cvfolds is not None
 
     def callback(env):

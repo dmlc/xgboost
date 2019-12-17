@@ -8,6 +8,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
+#include <xgboost/c_api.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>

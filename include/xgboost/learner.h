@@ -135,6 +135,10 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
                               uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
+  /*
+   * \brief Get number of boosted rounds from gradient booster.
+   */
+  virtual int32_t BoostedRounds() const = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;

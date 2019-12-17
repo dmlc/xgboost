@@ -68,6 +68,9 @@ class GradientBooster : public Model, public Configurable {
   virtual bool AllowLazyCheckPoint() const {
     return false;
   }
+  /*! \brief Return number of boosted rounds.
+   */
+  virtual int32_t BoostedRounds() const = 0;
   /*!
    * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features

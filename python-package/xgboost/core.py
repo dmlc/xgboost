@@ -1786,6 +1786,13 @@ class Booster(object):
         else:
             raise TypeError('Unknown file type: ', fname)
 
+    def num_boosted_rounds(self):
+        rounds = ctypes.c_int()
+        assert self.handle is not None
+        _check_call(_LIB.XGBoosterBoostedRounds(
+            self.handle, ctypes.byref(rounds)))
+        return rounds.value
+
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.
 

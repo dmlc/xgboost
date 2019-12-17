@@ -47,7 +47,7 @@ class TestEarlyStopping(unittest.TestCase):
     @staticmethod
     def assert_metrics_length(cv, expected_length):
         for key, value in cv.items():
-          assert len(value) == expected_length
+            assert len(value) == expected_length
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_cv_early_stopping(self):

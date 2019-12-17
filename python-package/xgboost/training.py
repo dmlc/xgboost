@@ -28,29 +28,17 @@ def _train_internal(params, dtrain,
             params += [('eval_metric', eval_metric)]
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    nboost = 0
     num_parallel_tree = 1
 
     if xgb_model is not None:
         bst = Booster(params, [dtrain] + [d[0] for d in evals],
                       model_file=xgb_model)
-        nboost = len(bst.get_dump())
-
-    _params = dict(params) if isinstance(params, list) else params
-
-    if 'num_parallel_tree' in _params and _params[
-            'num_parallel_tree'] is not None:
-        num_parallel_tree = _params['num_parallel_tree']
-        nboost //= num_parallel_tree
-    if 'num_class' in _params and _params['num_class'] is not None:
-        nboost //= _params['num_class']
 
     # Distributed code: Load the checkpoint from rabit.
     version = bst.load_rabit_checkpoint()
     assert rabit.get_world_size() != 1 or version == 0
     rank = rabit.get_rank()
     start_iteration = int(version / 2)
-    nboost += start_iteration
 
     callbacks_before_iter = [
         cb for cb in callbacks
@@ -59,7 +47,8 @@ def _train_internal(params, dtrain,
         cb for cb in callbacks
         if not cb.__dict__.get('before_iteration', False)]
 
-    for i in range(start_iteration, num_boost_round):
+    for i in range(start_iteration + bst.num_boosted_rounds(),
+                   num_boost_round + bst.num_boosted_rounds()):
         for cb in callbacks_before_iter:
             cb(CallbackEnv(model=bst,
                            cvfolds=None,
@@ -77,7 +66,6 @@ def _train_internal(params, dtrain,
 
         assert rabit.get_world_size() == 1 or version == rabit.version_number()
 
-        nboost += 1
         evaluation_result_list = []
         # check evaluation result.
         if evals:
@@ -107,7 +95,7 @@ def _train_internal(params, dtrain,
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
     else:
-        bst.best_iteration = nboost - 1
+        bst.best_iteration = bst.num_boosted_rounds()
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
     return bst
 
