@@ -426,6 +426,24 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              bst_ulong *out_len,
                              const float **out_result);
+/*
+ * Short note for serialization APIs.  There are 3 different sets of serialization API.
+ *
+ * - Functions with the term "Model" handles saving/loading XGBoost model like trees or
+ *   linear weights.  Striping out parameters configuration like training algorithms or
+ *   CUDA device ID helps user to reuse the trained model for different tasks, examples
+ *   are prediction, training continuation or interpretation.
+ *
+ * - Functions with the term "Config" handles save/loading configuration.  It helps user
+ *   to study the internal of XGBoost.  Also user can use the load method for specifying
+ *   paramters in a structured way.  These functions are introduced in 1.0.0, and are not
+ *   yet stable.
+ *
+ * - Functions with the term "Serialization" are combined of above two.  They are used in
+ *   situations like check-pointing, or continuing training task in distributed
+ *   environment.  In these cases the task must be carried out without any user
+ *   intervention.
+ */
 
 /*!
  * \brief Load model from existing file
@@ -506,7 +524,10 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
 
 /*!
- * \brief Save XGBoost's internal configuration into a JSON document.
+ * \brief Save XGBoost's internal configuration into a JSON document.  Currently the
+ *        support is experimental, function signature may change in the future without
+ *        notice.
+ *
  * \param handle handle to Booster object.
  * \param out_str A valid pointer to array of characters.  The characters array is
  *                allocated and managed by XGBoost, while pointer to that array needs to
@@ -516,7 +537,10 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
                                     char const **out_str);
 /*!
- * \brief Load XGBoost's internal configuration from a JSON document.
+ * \brief Load XGBoost's internal configuration from a JSON document.  Currently the
+ *        support is experimental, function signature may change in the future without
+ *        notice.
+ *
  * \param handle handle to Booster object.
  * \param json_parameters string representation of a JSON document.
  * \return 0 when success, -1 when failure happens

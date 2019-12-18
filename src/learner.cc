@@ -472,7 +472,10 @@ class LearnerImpl : public Learner {
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
-  // JSON serialization format.
+  // JSON serialization format.  This function is uneffected by
+  // `enable_experimental_json_serialization` as user might enable this flag for pickle
+  // while still want a binary output.  As we are progressing at replacing the binary
+  // format, there's no need to put too much effort on it.
   void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
