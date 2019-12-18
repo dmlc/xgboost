@@ -723,7 +723,7 @@ class MAPLambdaWeightComputer
                       this->dmap_stats_.begin(),
                       ComputeItemPrecisionLambda);
 
-    // Lastly, compute the accumulated precisions for all the items segmentd by groups.
+    // Lastly, compute the accumulated precisions for all the items segmented by groups.
     // The precisions are accumulated within each group
     thrust::inclusive_scan_by_key(group_segments.begin(), group_segments.end(),
                                   this->dmap_stats_.begin(),  // Input map stats
