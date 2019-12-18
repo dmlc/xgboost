@@ -156,9 +156,24 @@ labels. A DataFrame like this (containing vector-represented features and numeri
 Dealing with missing values
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-XGBoost supports missing values by default (`as desribed here <https://xgboost.readthedocs.io/en/latest/faq.html#how-to-deal-with-missing-value>`_).
-If given a SparseVector, XGBoost will treat any values absent from the SparseVector as missing. You are also able to
-specify to XGBoost to treat a specific value in your Dataset as if it was a missing value. By default XGBoost will treat NaN as the value representing missing.
+Strategies to handle missing values (and therefore overcome issues as above):
+
+In the case that a feature column contains missing values for any reason (could be related to business logic / wrong data ingestion process / etc.), the user should decide on a strategy of how to handle it.
+The choice of approach depends on the value representing 'missing' which fall into four different categories:
+
+1. 0
+2. NaN
+3. Null
+4. Any other value which is not mentioned in (1) / (2) / (3)
+
+We introduce the following approaches dealing with missing value and their fitting scenarios:
+
+1. Skip VectorAssembler (using setHandleInvalid = "skip") directly. Used in (2), (3).
+2. Keep it (using setHandleInvalid = "keep"), and set the "missing" parameter in XGBClassifier/XGBRegressor as the value representing missing. Used in (2) and (4).
+3. Keep it (using setHandleInvalid = "keep") and transform to other irregular values. Used in (3).
+4. Nothing to be done, used in (1).
+
+Then, XGBoost will automatically learn what's the ideal direction to go when a value is missing, based on that value and strategy.
 
 Example of setting a missing value (e.g. -999) to the "missing" parameter in XGBoostClassifier:
 
@@ -175,37 +190,11 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
         setFeaturesCol("features").
         setLabelCol("classIndex")
 
-.. note:: Missing values with Spark's VectorAssembler
+.. note:: Using 0 to represent meaningful value
 
-  If given a Dataset with enough features having a value of 0 Spark's VectorAssembler transformer class will return a
-  SparseVector where the absent values are meant to indicate a value of 0. This conflicts with XGBoost's default to
-  treat values absent from the SparseVector as missing. The model would effectively be
-  treating 0 as missing but not declaring that to be so which can lead to confusion when using the trained model on
-  other platforms. To avoid this, XGBoost will raise an exception if it receives a SparseVector and the "missing"
-  parameter has not been explicitly set to 0. To workaround this issue the user has three options:
+  Due to the fact that Spark's VectorAssembler transformer only accepts 0 as a missing values, this one creates a problem when the user has 0 as meaningful value plus there are enough 0's to use SparseVector (However, In case the dataset is represented by a DenseVector, the 0 is kept)
 
-  1. Explicitly convert the Vector returned from VectorAssembler to a DenseVector to return the zeros to the dataset. If
-  doing this with missing values encoded as NaN, you will want to set ``setHandleInvalid = "keep"`` on VectorAssembler
-  in order to keep the NaN values in the dataset. You would then set the "missing" parameter to whatever you want to be
-  treated as missing. However this may cause a large amount of memory use if your dataset is very sparse.
-  2. Before calling VectorAssembler you can transform the values you want to represent missing into an irregular value
-  that is not 0, NaN, or Null and set the "missing" parameter to 0. The irregular value should ideally be chosen to be
-  outside the range of values that your features have.
-  3. Do not use the VectorAssembler class and instead use a custom way of constructing a SparseVector that allows for
-  specifying sparsity to indicate a non-zero value. You can then set the "missing" parameter to whatever sparsity
-  indicates in your Dataset. If this approach is taken you can pass the parameter
-  ``"allow_non_zero_for_missing_value" -> true`` to bypass XGBoost's assertion that "missing" must be zero when given a
-  SparseVector.
-
-  Option 1 is recommended if memory constraints are not an issue. Option 3 requires more work to get set up but is
-  guaranteed to give you correct results while option 2 will be quicker to set up but may be difficult to find a good
-  irregular value that does not conflict with your feature values.
-
-.. note:: Using a non-default missing value when using other bindings of XGBoost.
-
-  When XGBoost is saved in native format only the booster itself is saved, the value of the missing parameter is not
-  saved alongside the model. Thus, if a non-default missing parameter is used to train the model in Spark the user should
-  take care to use the same missing parameter when using the saved model in another binding.
+  In this case, users are also supposed to transform 0 to some other values to avoid the issue.
 
 Training
 ========
