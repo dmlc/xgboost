@@ -163,7 +163,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
-    val allowNonZeroForMissing = overridedParams.getOrElse("allow_non_zero_for_missing", false).asInstanceOf[Boolean]
+    val allowNonZeroForMissing = overridedParams
+                                 .getOrElse("allow_non_zero_for_missing", false)
+                                 .asInstanceOf[Boolean]
     validateSparkSslConf
 
     if (overridedParams.contains("tree_method")) {
@@ -441,7 +443,8 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
-          processMissingValues(labeledPoints, xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing),
+          processMissingValues(labeledPoints, xgbExecutionParams.missing,
+            xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
           xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
@@ -472,7 +475,8 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
-          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing),
+          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
+            xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
