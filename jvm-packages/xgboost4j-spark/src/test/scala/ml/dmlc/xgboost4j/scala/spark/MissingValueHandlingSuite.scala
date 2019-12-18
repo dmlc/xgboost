@@ -151,7 +151,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     }
   }
 
-  test("specify a non-zero missing value but set allow_non_zero_missing_value " +
+  test("specify a non-zero missing value but set allow_non_zero_missing " +
     "does not stop application") {
     val spark = ss
     import spark.implicits._
@@ -174,7 +174,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     inputDF.show()
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f,
-      "num_workers" -> 1, "allow_non_zero_for_missing_value" -> "true").toMap
+      "num_workers" -> 1, "allow_non_zero_for_missing" -> "true").toMap
     val model = new XGBoostClassifier(paramMap).fit(inputDF)
     model.transform(inputDF).collect()
   }

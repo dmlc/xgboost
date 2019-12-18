@@ -262,15 +262,15 @@ object XGBoost extends Serializable {
   private def verifyMissingSetting(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
-    if (missing != 0.0f && !allowNonZeroMissingValue) {
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
+    if (missing != 0.0f && !allowNonZeroMissing) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
             throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
               s" set value $missing) when you have SparseVector or Empty vector as your feature" +
               s" format. If you didn't use Spark's VectorAssembler class to build your feature " +
               s"vector but instead did so in a way that preserves zeros in your feature vector " +
-              s"you can avoid this check by using the 'allow_non_zero_missing_value parameter'" +
+              s"you can avoid this check by using the 'allow_non_zero_missing parameter'" +
               s" (only use if you know what you are doing)")
         }
         labeledPoint
@@ -298,12 +298,12 @@ object XGBoost extends Serializable {
   private[spark] def processMissingValues(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => !v.isNaN)
     }
   }
@@ -311,13 +311,13 @@ object XGBoost extends Serializable {
   private def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[Array[XGBLabeledPoint]] = {
+      allowNonZeroMissing: Boolean): Iterator[Array[XGBLabeledPoint]] = {
     if (!missing.isNaN) {
       xgbLabelPointGroups.map {
         labeledPoints => XGBoost.processMissingValues(
           labeledPoints.iterator,
           missing,
-          allowNonZeroMissingValue
+          allowNonZeroMissing
         ).toArray
       }
     } else {

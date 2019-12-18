@@ -242,7 +242,7 @@ class XGBoostRegressionModel private[ml] (
   def setMissing(value: Float): this.type = set(missing, value)
 
   def setAllowZeroForMissingValue(value: Boolean): this.type = set(
-    allowNonZeroForMissingValue,
+    allowNonZeroForMissing,
     value
   )
 
@@ -257,7 +257,7 @@ class XGBoostRegressionModel private[ml] (
     val dm = new DMatrix(XGBoost.processMissingValues(
       Iterator(features.asXGB),
       $(missing),
-      $(allowNonZeroForMissingValue)
+      $(allowNonZeroForMissing)
     ))
     _booster.predict(data = dm)(0)(0)
   }
@@ -299,7 +299,7 @@ class XGBoostRegressionModel private[ml] (
             XGBoost.processMissingValues(
               features.map(_.asXGB),
               $(missing),
-              $(allowNonZeroForMissingValue)
+              $(allowNonZeroForMissing)
             ),
             cacheInfo)
           try {
