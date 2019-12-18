@@ -106,6 +106,21 @@ private[spark] trait GeneralParams extends Params {
   final def getMissing: Float = $(missing)
 
   /**
+    * Allows for having a non-zero value for missing when training on prediction
+    * on a Sparse or Empty vector.
+    */
+  final val allowNonZeroForMissingValue = new BooleanParam(
+    this,
+    "allowNonZeroForMissingValue",
+    "Allow to have a non-zero value for missing when training or " +
+      "predicting on a Sparse or Empty vector. Should only be used if did " +
+      "not use Spark's VectorAssembler class to construct the feature vector " +
+      "but instead used a method that preserves zeros in your vector."
+  )
+
+  final def getAllowNonZeroForMissingValue: Boolean = $(allowNonZeroForMissingValue)
+
+  /**
     * the maximum time to wait for the job requesting new workers. default: 30 minutes
     */
   final val timeoutRequestWorkers = new LongParam(this, "timeoutRequestWorkers", "the maximum " +
@@ -175,7 +190,8 @@ private[spark] trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1)
+    checkpointPath -> "", checkpointInterval -> -1,
+    allowNonZeroForMissingValue -> false)
 }
 
 trait HasLeafPredictionCol extends Params {
