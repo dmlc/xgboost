@@ -164,7 +164,8 @@ private[scala] case class ExternalCheckpointParams(
     skipCleanCheckpoint: Boolean)
 
 private[scala] object ExternalCheckpointParams {
-  def extractParams(params: Map[String, Any]): ExternalCheckpointParams = {
+
+  def extractParams(params: Map[String, Any]): Option[ExternalCheckpointParams] = {
     val checkpointPath: String = params.get("checkpoint_path") match {
       case None | Some(null) | Some("") => null
       case Some(path: String) => path
@@ -185,7 +186,11 @@ private[scala] object ExternalCheckpointParams {
       case _ => throw new IllegalArgumentException("parameter \"skip_clean_checkpoint\" must be" +
         " an instance of Boolean")
     }
-    ExternalCheckpointParams(checkpointInterval, checkpointPath, skipCleanCheckpointFile)
+    if (checkpointPath == null || checkpointInterval == 0) {
+      None
+    } else {
+      Some(ExternalCheckpointParams(checkpointInterval, checkpointPath, skipCleanCheckpointFile))
+    }
   }
 }
 

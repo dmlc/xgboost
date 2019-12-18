@@ -15,24 +15,27 @@ public class ExternalCheckpointManager {
 
   private Log logger = LogFactory.getLog("ExternalCheckpointManager");
   private String modelSuffix = ".model";
-  private String checkpointPath;
+  private Path checkpointPath;
   private FileSystem fs;
 
-  public ExternalCheckpointManager(String checkpointPath, FileSystem fs) {
-    this.checkpointPath = checkpointPath;
+  public ExternalCheckpointManager(String checkpointPath, FileSystem fs) throws XGBoostError {
+    if (checkpointPath == null || checkpointPath.isEmpty()) {
+      throw new XGBoostError("cannot create ExternalCheckpointManager with null or" +
+              " empty checkpoint path");
+    }
+    this.checkpointPath = new Path(checkpointPath);
     this.fs = fs;
   }
 
   private String getPath(int version) {
-    return checkpointPath + "/" + version + modelSuffix;
+    return checkpointPath.toUri().getPath() + "/" + version + modelSuffix;
   }
 
   private List<Integer> getExistingVersions() throws IOException {
-    if (checkpointPath == null || checkpointPath.isEmpty() ||
-            !fs.exists(new Path(checkpointPath))) {
+    if (!fs.exists(checkpointPath)) {
       return new ArrayList<>();
     } else {
-      return Arrays.stream(fs.listStatus(new Path(checkpointPath)))
+      return Arrays.stream(fs.listStatus(checkpointPath))
               .map(path -> path.getPath().getName())
               .filter(fileName -> fileName.endsWith(modelSuffix))
               .map(fileName -> Integer.valueOf(
@@ -42,9 +45,7 @@ public class ExternalCheckpointManager {
   }
 
   public void cleanPath() throws IOException {
-    if (checkpointPath != null) {
-      fs.delete(new Path(checkpointPath), true);
-    }
+    fs.delete(checkpointPath, true);
   }
 
   public Booster loadCheckpointAsBooster() throws IOException, XGBoostError {
@@ -67,18 +68,18 @@ public class ExternalCheckpointManager {
             .map(this::getPath).collect(Collectors.toList());
     String eventualPath = getPath(boosterToCheckpoint.getVersion());
     String tempPath = eventualPath + "-" + UUID.randomUUID();
-    OutputStream out = fs.create(new Path(tempPath), true);
-    boosterToCheckpoint.saveModel(out);
-    out.close();
-    fs.rename(new Path(tempPath), new Path(eventualPath));
-    logger.info("saving checkpoint with version " + boosterToCheckpoint.getVersion());
-    prevModelPaths.stream().forEach(path -> {
-      try {
-        fs.delete(new Path(path), true);
-      } catch (IOException e) {
-        logger.error("failed to delete outdated checkpoint at " + path, e);
-      }
-    });
+    try (OutputStream out = fs.create(new Path(tempPath), true)) {
+      boosterToCheckpoint.saveModel(out);
+      fs.rename(new Path(tempPath), new Path(eventualPath));
+      logger.info("saving checkpoint with version " + boosterToCheckpoint.getVersion());
+      prevModelPaths.stream().forEach(path -> {
+        try {
+          fs.delete(new Path(path), true);
+        } catch (IOException e) {
+          logger.error("failed to delete outdated checkpoint at " + path, e);
+        }
+      });
+    }
   }
 
   public void cleanUpHigherVersions(int currentRound) throws IOException {
@@ -86,14 +87,14 @@ public class ExternalCheckpointManager {
       try {
         fs.delete(new Path(getPath(v)), true);
       } catch (IOException e) {
-        e.printStackTrace();
+        logger.error("failed to clean checkpoint from other training instance", e);
       }
     });
   }
 
   public List<Integer> getCheckpointRounds(int checkpointInterval, int numOfRounds)
       throws IOException {
-    if (checkpointPath != null && checkpointInterval > 0) {
+    if (checkpointInterval > 0) {
       List<Integer> prevRounds =
               getExistingVersions().stream().map(v -> v / 2).collect(Collectors.toList());
       prevRounds.add(0);

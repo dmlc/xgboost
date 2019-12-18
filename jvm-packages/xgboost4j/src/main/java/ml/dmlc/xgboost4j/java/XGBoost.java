@@ -122,9 +122,8 @@ public class XGBoost {
         ecm.updateCheckpoint(booster);
       }
     } catch (Exception e) {
-      logger.error("failed to save checkpoint in XGBoost4J", e);
-      throw new XGBoostError("failed to save checkpoint in XGBoost4J, due to " + e);
-
+      logger.error("failed to save checkpoint in XGBoost4J at iteration " + iter, e);
+      throw new XGBoostError("failed to save checkpoint in XGBoost4J at iteration" + iter, e);
     }
   }
 
@@ -287,7 +286,7 @@ public class XGBoost {
               -1, null, null);
     } catch (IOException e) {
       logger.error("training failed in xgboost4j", e);
-      throw new XGBoostError("training failed in xgboost4j " + e);
+      throw new XGBoostError("training failed in xgboost4j ", e);
     }
   }
 

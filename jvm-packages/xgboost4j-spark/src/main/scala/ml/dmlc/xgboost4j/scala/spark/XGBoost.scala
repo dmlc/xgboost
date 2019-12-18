@@ -73,7 +73,7 @@ private[this] case class XGBoostExecutionParams(
     allowNonZeroForMissing: Boolean,
     trackerConf: TrackerConf,
     timeoutRequestWorkers: Long,
-    checkpointParam: ExternalCheckpointParams,
+    checkpointParam: Option[ExternalCheckpointParams],
     xgbInputParams: XGBoostExecutionInputParams,
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
     cacheTrainingSet: Boolean) {
@@ -355,9 +355,7 @@ object XGBoost extends Serializable {
     rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
     val numRounds = xgbExecutionParam.numRounds
-    val makeCheckpoint = xgbExecutionParam.checkpointParam.checkpointPath != null &&
-      xgbExecutionParam.checkpointParam.checkpointPath.nonEmpty &&
-      taskId.toInt == 0
+    val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
     try {
       Rabit.init(rabitEnv)
       val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds
@@ -367,7 +365,7 @@ object XGBoost extends Serializable {
         SXGBoost.trainAndSaveCheckpoint(
           watches.toMap("train"), xgbExecutionParam.toMap, numRounds,
           watches.toMap, metrics, obj, eval,
-          earlyStoppingRound = numEarlyStoppingRounds, prevBooster, Some(externalCheckpointParams))
+          earlyStoppingRound = numEarlyStoppingRounds, prevBooster, externalCheckpointParams)
       } else {
         SXGBoost.train(watches.toMap("train"), xgbExecutionParam.toMap, numRounds,
           watches.toMap, metrics, obj, eval,
@@ -536,7 +534,7 @@ object XGBoost extends Serializable {
     val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
     val sc = trainingData.sparkContext
     val checkpointManager = new ExternalCheckpointManager(
-      xgbExecParams.checkpointParam.checkpointPath, FileSystem.get(sc.hadoopConfiguration))
+      xgbExecParams.checkpointParam.get.checkpointPath, FileSystem.get(sc.hadoopConfiguration))
     checkpointManager.cleanUpHigherVersions(xgbExecParams.numRounds)
     val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
       hasGroup, xgbExecParams.numWorkers)
@@ -573,7 +571,7 @@ object XGBoost extends Serializable {
         tracker.stop()
       }
       // we should delete the checkpoint directory after a successful training
-      if (!xgbExecParams.checkpointParam.skipCleanCheckpoint) {
+      if (!xgbExecParams.checkpointParam.get.skipCleanCheckpoint) {
         checkpointManager.cleanPath()
       }
       (booster, metrics)
