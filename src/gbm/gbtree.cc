@@ -418,11 +418,7 @@ class Dart : public GBTree {
                     HostDeviceVector<bst_float>* out_preds,
                     unsigned ntree_limit,
                     bool dropout = true) override {
-    if (dropout) {
-      DropTrees(false);
-    } else {
-      DropTrees(true);
-    }
+    DropTrees(!dropout);
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 
