@@ -69,6 +69,7 @@ private[this] case class XGBoostExecutionParams(
     obj: ObjectiveTrait,
     eval: EvalTrait,
     missing: Float,
+    allowNonZeroForMissing: Boolean,
     trackerConf: TrackerConf,
     timeoutRequestWorkers: Long,
     checkpointParam: CheckpointParam,
@@ -162,6 +163,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
+    val allowNonZeroForMissing = overridedParams.getOrElse("allow_non_zero_for_missing", false).asInstanceOf[Boolean]
     validateSparkSslConf
 
     if (overridedParams.contains("tree_method")) {
@@ -212,7 +214,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       .asInstanceOf[Boolean]
 
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
-      missing, trackerConf,
+      missing, allowNonZeroForMissing, trackerConf,
       timeoutRequestWorkers,
       checkpointParam,
       inputParams,
@@ -255,14 +257,19 @@ private[spark] case class XGBLabeledPointGroup(
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
-      Iterator[XGBLabeledPoint] = {
-    if (missing != 0.0f) {
+  private def verifyMissingSetting(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
+      missing: Float,
+      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
+    if (missing != 0.0f && !allowNonZeroMissingValue) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
             throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
               s" set value $missing) when you have SparseVector or Empty vector as your feature" +
-              " format")
+              s" format. If you didn't use Spark's VectorAssembler class to build your feature " +
+              s"vector but instead did so in a way that preserves zeros in your feature vector " +
+              s"you can avoid this check by using the 'allow_non_zero_missing_value parameter'" +
+              s" (only use if you know what you are doing)")
         }
         labeledPoint
       })
@@ -288,22 +295,28 @@ object XGBoost extends Serializable {
 
   private[spark] def processMissingValues(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
-      missing: Float): Iterator[XGBLabeledPoint] = {
+      missing: Float,
+      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
         missing, (v: Float) => !v.isNaN)
     }
   }
 
   private def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
-      missing: Float): Iterator[Array[XGBLabeledPoint]] = {
+      missing: Float,
+      allowNonZeroMissingValue: Boolean): Iterator[Array[XGBLabeledPoint]] = {
     if (!missing.isNaN) {
       xgbLabelPointGroups.map {
-        labeledPoints => XGBoost.processMissingValues(labeledPoints.iterator, missing).toArray
+        labeledPoints => XGBoost.processMissingValues(
+          labeledPoints.iterator,
+          missing,
+          allowNonZeroMissingValue
+        ).toArray
       }
     } else {
       xgbLabelPointGroups
@@ -428,7 +441,7 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
-          processMissingValues(labeledPoints, xgbExecutionParams.missing),
+          processMissingValues(labeledPoints, xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
           xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
@@ -440,7 +453,7 @@ object XGBoost extends Serializable {
             val watches = Watches.buildWatches(
               nameAndLabeledPointSets.map {
                 case (name, iter) => (name, processMissingValues(iter,
-                  xgbExecutionParams.missing))
+                  xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
             buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
@@ -459,7 +472,7 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
-          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing),
+          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
@@ -470,7 +483,7 @@ object XGBoost extends Serializable {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
               case (name, iter) => (name, processMissingValuesWithGroup(iter,
-                xgbExecutionParam.missing))
+                xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
           buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
