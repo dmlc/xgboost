@@ -262,8 +262,8 @@ object XGBoost extends Serializable {
   private def verifyMissingSetting(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
-    if (missing != 0.0f && !allowNonZeroMissingValue) {
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
+    if (missing != 0.0f && !allowNonZeroMissing) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
             throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
@@ -298,12 +298,12 @@ object XGBoost extends Serializable {
   private[spark] def processMissingValues(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[XGBLabeledPoint] = {
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissingValue),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => !v.isNaN)
     }
   }
@@ -311,13 +311,13 @@ object XGBoost extends Serializable {
   private def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
       missing: Float,
-      allowNonZeroMissingValue: Boolean): Iterator[Array[XGBLabeledPoint]] = {
+      allowNonZeroMissing: Boolean): Iterator[Array[XGBLabeledPoint]] = {
     if (!missing.isNaN) {
       xgbLabelPointGroups.map {
         labeledPoints => XGBoost.processMissingValues(
           labeledPoints.iterator,
           missing,
-          allowNonZeroMissingValue
+          allowNonZeroMissing
         ).toArray
       }
     } else {
@@ -534,14 +534,16 @@ object XGBoost extends Serializable {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
     val sc = trainingData.sparkContext
-    val checkpointManager = new ExternalCheckpointManager(
-      xgbExecParams.checkpointParam.get.checkpointPath, FileSystem.get(sc.hadoopConfiguration))
-    checkpointManager.cleanUpHigherVersions(xgbExecParams.numRounds)
     val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
       hasGroup, xgbExecParams.numWorkers)
-    val prevBooster = checkpointManager.loadCheckpointAsScalaBooster()
+    val prevBooster = xgbExecParams.checkpointParam.map { checkpointParam =>
+      val checkpointManager = new ExternalCheckpointManager(
+        checkpointParam.checkpointPath,
+        FileSystem.get(sc.hadoopConfiguration))
+      checkpointManager.cleanUpHigherVersions(xgbExecParams.numRounds)
+      checkpointManager.loadCheckpointAsScalaBooster()
+    }.orNull
     try {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
@@ -574,8 +576,14 @@ object XGBoost extends Serializable {
         tracker.stop()
       }
       // we should delete the checkpoint directory after a successful training
-      if (!xgbExecParams.checkpointParam.get.skipCleanCheckpoint) {
-        checkpointManager.cleanPath()
+      xgbExecParams.checkpointParam.foreach {
+        cpParam =>
+          if (!xgbExecParams.checkpointParam.get.skipCleanCheckpoint) {
+            val checkpointManager = new ExternalCheckpointManager(
+              cpParam.checkpointPath,
+              FileSystem.get(sc.hadoopConfiguration))
+            checkpointManager.cleanPath()
+          }
       }
       (booster, metrics)
     } catch {

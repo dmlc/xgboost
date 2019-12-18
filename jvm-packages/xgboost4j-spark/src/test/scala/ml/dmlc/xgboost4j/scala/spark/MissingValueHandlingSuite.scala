@@ -127,7 +127,6 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     " stop the application") {
     val spark = ss
     import spark.implicits._
-    ss.sparkContext.setLogLevel("INFO")
     // spark uses 1.5 * (nnz + 1.0) < size as the condition to decide whether using sparse or dense
     // vector,
     val testDF = Seq(
@@ -155,7 +154,6 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     "does not stop application") {
     val spark = ss
     import spark.implicits._
-    ss.sparkContext.setLogLevel("INFO")
     // spark uses 1.5 * (nnz + 1.0) < size as the condition to decide whether using sparse or dense
     // vector,
     val testDF = Seq(
@@ -174,7 +172,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     inputDF.show()
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f,
-      "num_workers" -> 1, "allow_non_zero_for_missing_value" -> "true").toMap
+      "num_workers" -> 1, "allow_non_zero_for_missing" -> "true").toMap
     val model = new XGBoostClassifier(paramMap).fit(inputDF)
     model.transform(inputDF).collect()
   }
