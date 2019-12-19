@@ -238,7 +238,6 @@ class TestModels(unittest.TestCase):
         path = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         doc = os.path.join(path, 'doc', 'model.schema')
-        print(doc)
         with open(doc, 'r') as fd:
             schema = json.load(fd)
         jsonschema.validate(instance=json_model(), schema=schema)
