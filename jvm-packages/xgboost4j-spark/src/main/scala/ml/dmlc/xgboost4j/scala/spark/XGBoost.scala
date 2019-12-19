@@ -164,10 +164,10 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
-    val allowNonZeroForMissing = overridedParams.getOrElse("allow_non_zero_for_missing", false).
-      asInstanceOf[Boolean]
+    val allowNonZeroForMissing = overridedParams
+                                 .getOrElse("allow_non_zero_for_missing", false)
+                                 .asInstanceOf[Boolean]
     validateSparkSslConf
-
     if (overridedParams.contains("tree_method")) {
       require(overridedParams("tree_method") == "hist" ||
         overridedParams("tree_method") == "approx" ||
@@ -270,7 +270,7 @@ object XGBoost extends Serializable {
               s" set value $missing) when you have SparseVector or Empty vector as your feature" +
               s" format. If you didn't use Spark's VectorAssembler class to build your feature " +
               s"vector but instead did so in a way that preserves zeros in your feature vector " +
-              s"you can avoid this check by using the 'allow_non_zero_missing_value parameter'" +
+              s"you can avoid this check by using the 'allow_non_zero_missing parameter'" +
               s" (only use if you know what you are doing)")
         }
         labeledPoint
