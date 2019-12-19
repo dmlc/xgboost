@@ -17,7 +17,7 @@ RUN \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
     /opt/python/bin/pip install awscli && \
     # Maven
-    wget http://apache.osuosl.org/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
+    wget https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
     # Spark
