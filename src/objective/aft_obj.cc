@@ -51,6 +51,7 @@ class AFTObj : public ObjFunction {
     double first_order_grad;
     double second_order_grad;
 
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];

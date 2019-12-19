@@ -65,6 +65,7 @@ struct EvalAFT : public Metric {
     const bool is_null_weight = weights.empty();
     const size_t nsize = yhat.size();
 
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
