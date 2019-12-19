@@ -204,15 +204,14 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
+#ifndef XGBOOST_USE_CUDA
 XGB_DLL int XGDMatrixCreateFromArrayInterfaces(
-    char const* c_json_strs, bst_int has_missing, bst_float missing, DMatrixHandle* out) {
+  char const* c_json_strs, bst_int has_missing, bst_float missing, DMatrixHandle* out) {
   API_BEGIN();
-  std::string json_str {c_json_strs};
-  std::unique_ptr<data::SimpleCSRSource> source (new data::SimpleCSRSource());
-  source->CopyFrom(json_str, has_missing, missing);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  LOG(FATAL) << "Xgboost not compiled with cuda";
   API_END();
 }
+#endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,

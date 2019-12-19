@@ -148,7 +148,7 @@ struct Entry {
    * \param index The feature or row index.
    * \param fvalue The feature value.
    */
-  Entry(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
+  XGBOOST_DEVICE Entry(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
   /*! \brief reversely compare feature values */
   inline static bool CmpValue(const Entry& a, const Entry& b) {
     return a.fvalue < b.fvalue;
