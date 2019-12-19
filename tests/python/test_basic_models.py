@@ -3,12 +3,28 @@ import xgboost as xgb
 import unittest
 import os
 import json
+import testing as tm
+import pytest
 
 dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
 dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
 rng = np.random.RandomState(1994)
+
+
+def json_model():
+    X = np.random.random((10, 3))
+    y = np.random.randint(2, size=(10,))
+
+    dm1 = xgb.DMatrix(X, y)
+
+    bst = xgb.train({'tree_method': 'hist'}, dm1)
+    bst.save_model('./model.json')
+
+    with open('./model.json', 'r') as fd:
+        model = json.load(fd)
+    return model
 
 
 class TestModels(unittest.TestCase):
@@ -204,21 +220,26 @@ class TestModels(unittest.TestCase):
         bst.predict(dm2)  # success
 
     def test_model_json_io(self):
-        X = np.random.random((10, 3))
-        y = np.random.randint(2, size=(10,))
-
-        dm1 = xgb.DMatrix(X, y)
-        bst = xgb.train({'tree_method': 'hist'}, dm1)
-        bst.save_model('./model.json')
-
-        with open('./model.json', 'r') as fd:
-            j_model = json.load(fd)
+        j_model = json_model()
         assert isinstance(j_model['learner'], dict)
 
         bst = xgb.Booster(model_file='./model.json')
 
+        bst.save_model(fname='./model.json')
         with open('./model.json', 'r') as fd:
             j_model = json.load(fd)
         assert isinstance(j_model['learner'], dict)
 
-        os.remove('model.json')
+        os.remove('./model.json')
+
+    @pytest.mark.skipif(**tm.no_json_schema())
+    def test_json_schema(self):
+        import jsonschema
+        path = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        doc = os.path.join(path, 'doc', 'model.schema')
+        print(doc)
+        with open(doc, 'r') as fd:
+            schema = json.load(fd)
+        jsonschema.validate(instance=json_model(), schema=schema)
+        os.remove('./model.json')
