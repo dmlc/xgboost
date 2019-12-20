@@ -412,16 +412,16 @@ class NDCGLambdaWeightComputer
 
       uint32_t group_begin = dgroups_[gidx];
 
-      auto ppred_idx = dorig_pos_[pidx];
-      auto npred_idx = dorig_pos_[nidx];
-      KERNEL_CHECK(ppred_idx != npred_idx);
+      auto pos_lab_orig_posn = dorig_pos_[pidx];
+      auto neg_lab_orig_posn = dorig_pos_[nidx];
+      KERNEL_CHECK(pos_lab_orig_posn != neg_lab_orig_posn);
 
       // Note: the label positive and negative indices are relative to the entire dataset.
       // Hence, scale them back to an index within the group
-      ppred_idx = dindexable_sorted_preds_pos_ptr_[ppred_idx] - group_begin;
-      npred_idx = dindexable_sorted_preds_pos_ptr_[npred_idx] - group_begin;
+      auto pos_pred_pos = dindexable_sorted_preds_pos_ptr_[pos_lab_orig_posn] - group_begin;
+      auto neg_pred_pos = dindexable_sorted_preds_pos_ptr_[neg_lab_orig_posn] - group_begin;
       return NDCGLambdaWeightComputer::ComputeDeltaWeight(
-        ppred_idx, npred_idx,
+        pos_pred_pos, neg_pred_pos,
         static_cast<int>(dsorted_labels_[pidx]), static_cast<int>(dsorted_labels_[nidx]),
         dgroup_dcg_ptr_[gidx]);
     }
@@ -508,15 +508,16 @@ class NDCGLambdaWeightComputer
   }
 
   // Compute the weight adjustment for an item within a group:
-  // ppred_idx => Where does the positive label live, had the list been sorted by prediction
-  // npred_idx => Where does the negative label live, had the list been sorted by prediction
+  // pos_pred_pos => Where does the positive label live, had the list been sorted by prediction
+  // neg_pred_pos => Where does the negative label live, had the list been sorted by prediction
   // pos_label => positive label value from sorted label list
   // neg_label => negative label value from sorted label list
-  XGBOOST_DEVICE inline static bst_float ComputeDeltaWeight(uint32_t ppred_idx, uint32_t npred_idx,
+  XGBOOST_DEVICE inline static bst_float ComputeDeltaWeight(uint32_t pos_pred_pos,
+                                                            uint32_t neg_pred_pos,
                                                             int pos_label, int neg_label,
                                                             float idcg) {
-    float pos_loginv = 1.0f / std::log2(ppred_idx + 2.0f);
-    float neg_loginv = 1.0f / std::log2(npred_idx + 2.0f);
+    float pos_loginv = 1.0f / std::log2(pos_pred_pos + 2.0f);
+    float neg_loginv = 1.0f / std::log2(neg_pred_pos + 2.0f);
     bst_float original = ((1 << pos_label) - 1) * pos_loginv + ((1 << neg_label) - 1) * neg_loginv;
     float changed = ((1 << neg_label) - 1) * pos_loginv + ((1 << pos_label) - 1) * neg_loginv;
     bst_float delta = (original - changed) * (1.0f / idcg);
@@ -581,37 +582,40 @@ class MAPLambdaWeightComputer
   }
 
   /*!
-   * \brief Obtain the delta MAP by trying to switch the positions of labels in ppred_idx or
-   *        npred_idx when sorted by predictions
-   * \param ppred_idx, npred_idx the position of the chosen labels when sorted by predictions
+   * \brief Obtain the delta MAP by trying to switch the positions of labels in pos_pred_pos or
+   *        neg_pred_pos when sorted by predictions
+   * \param pos_pred_pos positive label's prediction value position when the groups prediction
+   *        values are sorted
+   * \param neg_pred_pos negative label's prediction value position when the groups prediction
+   *        values are sorted
    * \param pos_label, neg_label the chosen positive and negative labels
    * \param p_map_stats a vector containing the accumulated precisions for each position in a list
    * \param map_stats_size size of the accumulated precisions vector
    */
   XGBOOST_DEVICE inline static bst_float GetLambdaMAP(
-    int ppred_idx, int npred_idx,
+    int pos_pred_pos, int neg_pred_pos,
     bst_float pos_label, bst_float neg_label,
     const MAPStats *p_map_stats, uint32_t map_stats_size) {
-    if (ppred_idx == npred_idx || p_map_stats[map_stats_size - 1].hits == 0) {
+    if (pos_pred_pos == neg_pred_pos || p_map_stats[map_stats_size - 1].hits == 0) {
       return 0.0f;
     }
-    if (ppred_idx > npred_idx) {
-      Swap(ppred_idx, npred_idx);
+    if (pos_pred_pos > neg_pred_pos) {
+      Swap(pos_pred_pos, neg_pred_pos);
       Swap(pos_label, neg_label);
     }
-    bst_float original = p_map_stats[npred_idx].ap_acc;
-    if (ppred_idx != 0) original -= p_map_stats[ppred_idx - 1].ap_acc;
+    bst_float original = p_map_stats[neg_pred_pos].ap_acc;
+    if (pos_pred_pos != 0) original -= p_map_stats[pos_pred_pos - 1].ap_acc;
     bst_float changed = 0;
     bst_float label1 = pos_label > 0.0f ? 1.0f : 0.0f;
     bst_float label2 = neg_label > 0.0f ? 1.0f : 0.0f;
     if (label1 == label2) {
       return 0.0;
     } else if (label1 < label2) {
-      changed += p_map_stats[npred_idx - 1].ap_acc_add - p_map_stats[ppred_idx].ap_acc_add;
-      changed += (p_map_stats[ppred_idx].hits + 1.0f) / (ppred_idx + 1);
+      changed += p_map_stats[neg_pred_pos - 1].ap_acc_add - p_map_stats[pos_pred_pos].ap_acc_add;
+      changed += (p_map_stats[pos_pred_pos].hits + 1.0f) / (pos_pred_pos + 1);
     } else {
-      changed += p_map_stats[npred_idx - 1].ap_acc_miss - p_map_stats[ppred_idx].ap_acc_miss;
-      changed += p_map_stats[npred_idx].hits / (npred_idx + 1);
+      changed += p_map_stats[neg_pred_pos - 1].ap_acc_miss - p_map_stats[pos_pred_pos].ap_acc_miss;
+      changed += p_map_stats[neg_pred_pos].hits / (neg_pred_pos + 1);
     }
     bst_float ans = (changed - original) / (p_map_stats[map_stats_size - 1].hits);
     if (ans < 0) ans = -ans;
@@ -691,11 +695,15 @@ class MAPLambdaWeightComputer
                       dhits.begin(),
                       DeterminePositiveLabelLambda);
 
+    // Allocator to be used by sort for managing space overhead while performing prefix scans
+    dh::XGBCachingDeviceAllocator<char> alloc;
+
     // Next, prefix scan the positive labels that are segmented to accumulate them.
     // This is required for computing the accumulated precisions
     const auto &group_segments = segment_label_sorter.GetGroupSegments();
     // Data segmented into different groups...
-    thrust::inclusive_scan_by_key(group_segments.begin(), group_segments.end(),
+    thrust::inclusive_scan_by_key(thrust::cuda::par(alloc),
+                                  group_segments.begin(), group_segments.end(),
                                   dhits.begin(),  // Input value
                                   dhits.begin());  // In-place scan
 
@@ -725,7 +733,8 @@ class MAPLambdaWeightComputer
 
     // Lastly, compute the accumulated precisions for all the items segmented by groups.
     // The precisions are accumulated within each group
-    thrust::inclusive_scan_by_key(group_segments.begin(), group_segments.end(),
+    thrust::inclusive_scan_by_key(thrust::cuda::par(alloc),
+                                  group_segments.begin(), group_segments.end(),
                                   this->dmap_stats_.begin(),  // Input map stats
                                   this->dmap_stats_.begin());  // In-place scan and output here
   }
@@ -747,16 +756,16 @@ class MAPLambdaWeightComputer
       uint32_t group_begin = dgroups_[gidx];
       uint32_t group_end = dgroups_[gidx + 1];
 
-      auto ppred_idx = dorig_pos_[pidx];
-      auto npred_idx = dorig_pos_[nidx];
-      KERNEL_CHECK(ppred_idx != npred_idx);
+      auto pos_lab_orig_posn = dorig_pos_[pidx];
+      auto neg_lab_orig_posn = dorig_pos_[nidx];
+      KERNEL_CHECK(pos_lab_orig_posn != neg_lab_orig_posn);
 
       // Note: the label positive and negative indices are relative to the entire dataset.
       // Hence, scale them back to an index within the group
-      ppred_idx = dindexable_sorted_preds_pos_ptr_[ppred_idx] - group_begin;
-      npred_idx = dindexable_sorted_preds_pos_ptr_[npred_idx] - group_begin;
+      auto pos_pred_pos = dindexable_sorted_preds_pos_ptr_[pos_lab_orig_posn] - group_begin;
+      auto neg_pred_pos = dindexable_sorted_preds_pos_ptr_[neg_lab_orig_posn] - group_begin;
       return MAPLambdaWeightComputer::GetLambdaMAP(
-        ppred_idx, npred_idx,
+        pos_pred_pos, neg_pred_pos,
         dsorted_labels_[pidx], dsorted_labels_[nidx],
         &dmap_stats_ptr_[group_begin], group_end - group_begin);
     }

@@ -137,8 +137,8 @@ TEST(LowerBound, DataAscending) {
   // Test boundary conditions
   TestLowerBoundImpl(hvec, hvec.front());  // Result 0
   TestLowerBoundImpl(hvec, hvec.front() - 1);  // Result 0
-  TestLowerBoundImpl(hvec, hvec.back());  // Result hvec.size()
-  TestLowerBoundImpl(hvec, hvec.back() + 1);  // Result 7
+  TestLowerBoundImpl(hvec, hvec.back());  // Result 7
+  TestLowerBoundImpl(hvec, hvec.back() + 1);  // Result hvec.size()
 
   // Test other values - both missing and present
   TestLowerBoundImpl(hvec, 3);  // Result 1

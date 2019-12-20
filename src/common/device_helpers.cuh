@@ -145,8 +145,10 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
 namespace internal {
 
 // Items of size 'n' are sorted in an order determined by the Comparator
-// If left is true,  find the number of elements > v; 0 if nothing is greater
-// If left is false, find the number of elements < v; 0 if nothing is lesser
+// If left is true, find the number of elements where 'comp(item, v)' returns true;
+// 0 if nothing is true
+// If left is false, find the number of elements where '!comp(item, v)' returns true;
+// 0 if nothing is true
 template <typename T, typename Comparator = thrust::greater<T>>
 XGBOOST_DEVICE __forceinline__ uint32_t
 CountNumItemsImpl(bool left, const T * __restrict__ items, uint32_t n, T v,
@@ -174,7 +176,7 @@ CountNumItemsImpl(bool left, const T * __restrict__ items, uint32_t n, T v,
 
 /*!
  * \brief Find the strict upper bound for an element in a sorted array
- *  using binary search.
+ *        using binary search.
  * \param items pointer to the first element of the sorted array
  * \param n length of the sorted array
  * \param v value for which to find the upper bound
@@ -202,7 +204,7 @@ XGBOOST_DEVICE __forceinline__ uint32_t UpperBound(const T *__restrict__ items,
 
 /*!
  * \brief Find the strict lower bound for an element in a sorted array
- *  using binary search.
+ *        using binary search.
  * \param items pointer to the first element of the sorted array
  * \param n length of the sorted array
  * \param v value for which to find the upper bound
@@ -212,7 +214,6 @@ XGBOOST_DEVICE __forceinline__ uint32_t UpperBound(const T *__restrict__ items,
  *         when sorted ascendingly
  *         or, an index i with a value <= v, or 0 if none is smaller when sorted descendingly
 */
-// Preserve existing default behavior of upper bound
 template <typename T, typename Comp = thrust::less<T>>
 XGBOOST_DEVICE __forceinline__ uint32_t LowerBound(const T *__restrict__ items,
                                                    uint32_t n,
