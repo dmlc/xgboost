@@ -200,7 +200,7 @@ Another important feature of JSON format is a documented `Schema
 <https://json-schema.org/>`_, based on which one can easily reuse the output model from
 XGBoost.  Here is the initial draft of JSON schema for the output model (not
 serialization, which will not be stable as noted above).  It's subject to change due to
-the beta status.
+the beta status.  For an example of parsing XGBoost tree model, see ``/demo/json-model``.
 
 .. include:: ../model.schema
    :code: json
