@@ -41,10 +41,15 @@ class TestModels(unittest.TestCase):
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         assert err < 0.2
 
+    def my_logloss(self, preds, dtrain):
+        labels = dtrain.get_label()
+        return 'logloss', 3  #-np.sum(np.log(np.where(labels, preds, 1 - preds)))
+
     def test_dart(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 5, 'objective': 'binary:logistic', 'booster': 'dart', 'verbosity': 1}
+        param = {'max_depth': 5, 'objective': 'binary:logistic',
+            'eval_metric': 'logloss', 'booster': 'dart', 'verbosity': 1}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -67,6 +72,12 @@ class TestModels(unittest.TestCase):
         preds2 = bst2.predict(dtest2, ntree_limit=num_round)
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
+
+        # check whether custom evaluation metrics work
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+            feval=self.my_logloss)
+        preds3 = bst.predict(dtest, ntree_limit=num_round)
+        assert all(preds3 == preds)
 
         # check whether sample_type and normalize_type work
         num_round = 50
