@@ -61,7 +61,12 @@ GradientBasedSampler::GradientBasedSampler(BatchParam batch_param,
 size_t GradientBasedSampler::MaxSampleRows(size_t n_rows) {
   size_t available_memory = dh::AvailableMemory(batch_param_.gpu_id);
   // Subtract row_weight_, row_index_, and sample_row_index_.
-  available_memory -= n_rows * (sizeof(float) + 2 * sizeof(size_t));
+  size_t index_bytes = n_rows * (sizeof(float) + 2 * sizeof(size_t));
+  CHECK_GT(available_memory, index_bytes)
+    << "not enough GPU memory for indexes, "
+    << "available: " << available_memory
+    << "indexes: " << index_bytes;
+  available_memory -= index_bytes;
   size_t usable_memory = available_memory * 0.7;
   size_t extra_bytes = sizeof(GradientPair);
   size_t max_rows = common::CompressedBufferWriter::CalculateMaxRows(
@@ -223,7 +228,7 @@ GradientBasedSample GradientBasedSampler::UniformSampling(common::Span<GradientP
                                                           DMatrix* dmat) {
   // Generate random weights.
   thrust::transform(thrust::counting_iterator<size_t>(0),
-                    thrust::counting_iterator<size_t>(0) + gpair.size(),
+                    thrust::counting_iterator<size_t>(gpair.size()),
                     dh::tbegin(row_weight_),
                     RandomWeight(common::GlobalRandom()()));
   return WeightedSampling(gpair, dmat);
