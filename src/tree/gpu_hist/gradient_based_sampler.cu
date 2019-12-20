@@ -113,20 +113,27 @@ GradientBasedSample GradientBasedSampler::NoSampling(common::Span<GradientPair> 
   return {sample_rows_, page_.get(), gpair};
 }
 
-/*! \brief A functor that calculates the weight of each row as random(0, 1) / abs(grad). */
+/*! \brief A functor that calculates the weight of each row.
+ *
+ * The approach here is based on Minimal Variance Sampling (MVS), with lambda set to 0.1.
+ *
+ * \see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
+ * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
+ */
 struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
   const uint32_t seed;
+  const float lambda{0.1};
 
   XGBOOST_DEVICE explicit CalculateWeight(size_t _seed) : seed(_seed) {}
 
   XGBOOST_DEVICE float operator()(const GradientPair& gpair, size_t i) {
-    if (gpair.GetGrad() == 0) {
+    if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
       return FLT_MAX;
     }
     thrust::default_random_engine rng(seed);
     thrust::uniform_real_distribution<float> dist;
     rng.discard(i);
-    return dist(rng) / fabsf(gpair.GetGrad());
+    return dist(rng) / sqrtf(powf(gpair.GetGrad(), 2) + lambda * powf(gpair.GetHess(), 2));
   }
 };
 
