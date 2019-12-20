@@ -32,7 +32,7 @@ RUN \
     wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Maven
-    wget http://apache.osuosl.org/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
+    wget https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven
 
