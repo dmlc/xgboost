@@ -122,7 +122,7 @@ GradientBasedSample GradientBasedSampler::NoSampling(common::Span<GradientPair> 
  */
 struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
   const uint32_t seed;
-  const float lambda{0.1};
+  const float lambda{0.1f};
 
   XGBOOST_DEVICE explicit CalculateWeight(size_t _seed) : seed(_seed) {}
 
