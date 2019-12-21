@@ -26,8 +26,7 @@
 namespace xgboost {
 namespace data {
 
-template <typename T>
-__global__ void CountValidKernel(Columnar<T> const column,
+__global__ void CountValidKernel(Columnar const column,
                                  bool has_missing, float missing,
                                  int32_t* flag, common::Span<bst_row_t> offsets) {
   auto const tid =  threadIdx.x + blockDim.x * blockIdx.x;
@@ -40,18 +39,18 @@ __global__ void CountValidKernel(Columnar<T> const column,
 
   if (!has_missing) {
     if ((mask.Data() == nullptr || mask.Check(tid)) &&
-        !common::CheckNAN(column.data[tid])) {
+        !common::CheckNAN(column.GetElement(tid))) {
       offsets[tid+1] += 1;
     }
   } else if (missing_is_nan) {
-    if (!common::CheckNAN(column.data[tid])) {
+    if (!common::CheckNAN(column.GetElement(tid))) {
       offsets[tid+1] += 1;
     }
   } else {
-    if (!common::CloseTo(column.data[tid], missing)) {
+    if (!common::CloseTo(column.GetElement(tid), missing)) {
       offsets[tid+1] += 1;
     }
-    if (common::CheckNAN(column.data[tid])) {
+    if (common::CheckNAN(column.GetElement(tid))) {
       *flag = 1;
     }
   }
@@ -67,8 +66,7 @@ __device__ void AssignValue(T fvalue, int32_t colid,
   out_offsets[tid] += 1;
 }
 
-template <typename T>
-__global__ void CreateCSRKernel(Columnar<T> const column,
+__global__ void CreateCSRKernel(Columnar const column,
                                 int32_t colid, bool has_missing, float missing,
                                 common::Span<bst_row_t> offsets, common::Span<Entry> out_data) {
   auto const tid = threadIdx.x + blockDim.x * blockIdx.x;
@@ -79,23 +77,22 @@ __global__ void CreateCSRKernel(Columnar<T> const column,
   if (!has_missing) {
     // no missing value is specified
     if ((column.valid.Data() == nullptr || column.valid.Check(tid)) &&
-        !common::CheckNAN(column.data[tid])) {
-      AssignValue(column.data[tid], colid, offsets, out_data);
+        !common::CheckNAN(column.GetElement(tid))) {
+      AssignValue(column.GetElement(tid), colid, offsets, out_data);
     }
   } else if (missing_is_nan) {
     // specified missing value, but it's NaN
-    if (!common::CheckNAN(column.data[tid])) {
-      AssignValue(column.data[tid], colid, offsets, out_data);
+    if (!common::CheckNAN(column.GetElement(tid))) {
+      AssignValue(column.GetElement(tid), colid, offsets, out_data);
     }
   } else {
     // specified missing value, and it's not NaN
-    if (!common::CloseTo(column.data[tid], missing)) {
-      AssignValue(column.data[tid], colid, offsets, out_data);
+    if (!common::CloseTo(column.GetElement(tid), missing)) {
+      AssignValue(column.GetElement(tid), colid, offsets, out_data);
     }
   }
 }
 
-template <typename T>
 void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
                 bool has_missing, float missing,
                 HostDeviceVector<bst_row_t>* out_offset,
@@ -104,10 +101,10 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
   uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);
-  Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
+  Columnar foreign_column(column_obj);
   uint32_t const n_rows = foreign_column.size;
 
-  auto ptr = foreign_column.data.data();
+  auto ptr = foreign_column.data;
   int32_t device = dh::CudaGetPointerDevice(ptr);
   CHECK_NE(device, -1);
   dh::safe_cuda(cudaSetDevice(device));
@@ -125,24 +122,23 @@ void CountValid(std::vector<Json> const& j_columns, uint32_t column_id,
 
   uint32_t const kBlocks = common::DivRoundUp(n_rows, kThreads);
   dh::LaunchKernel {kBlocks, kThreads} (
-      CountValidKernel<T>,
+      CountValidKernel,
       foreign_column,
       has_missing, missing,
       out_d_flag->data().get(), s_offsets);
   *out_n_rows = n_rows;
 }
 
-template <typename T>
 void CreateCSR(std::vector<Json> const& j_columns, uint32_t column_id, uint32_t n_rows,
                bool has_missing, float missing,
                dh::device_vector<bst_row_t>* tmp_offset, common::Span<Entry> s_data) {
   uint32_t constexpr kThreads = 256;
   auto const& j_column = j_columns[column_id];
   auto const& column_obj = get<Object const>(j_column);
-  Columnar<T> foreign_column = ArrayInterfaceHandler::ExtractArray<T>(column_obj);
+  Columnar foreign_column(column_obj);
   uint32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
   dh::LaunchKernel {kBlocks, kThreads} (
-      CreateCSRKernel<T>,
+      CreateCSRKernel,
       foreign_column, column_id, has_missing, missing,
       dh::ToSpan(*tmp_offset), s_data);
 }
@@ -159,9 +155,8 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
   }
   uint32_t n_rows {0};
   for (size_t i = 0; i < n_cols; ++i) {
-    auto const& typestr = get<String const>(columns[i]["typestr"]);
-    DISPATCH_TYPE(CountValid, typestr,
-                  columns, i, has_missing, missing, &(this->page_.offset), &d_flag, &n_rows);
+    CountValid(columns, i, has_missing, missing, &(this->page_.offset), &d_flag,
+               &n_rows);
   }
   // don't pay for what you don't use.
   if (!common::CheckNAN(missing)) {
@@ -197,9 +192,7 @@ void SimpleCSRSource::FromDeviceColumnar(std::vector<Json> const& columns,
 
   int32_t kBlocks = common::DivRoundUp(n_rows, kThreads);
   for (size_t i = 0; i < n_cols; ++i) {
-    auto const& typestr = get<String const>(columns[i]["typestr"]);
-    DISPATCH_TYPE(CreateCSR, typestr, columns, i, n_rows,
-                  has_missing, missing, &tmp_offset, s_data);
+    CreateCSR(columns, i, n_rows, has_missing, missing, &tmp_offset, s_data);
   }
 }
 
