@@ -3,12 +3,10 @@ from __future__ import print_function
 import numpy as np
 import unittest
 import xgboost as xgb
-import pytest
 
 rng = np.random.RandomState(1994)
 
 
-@pytest.mark.gpu
 class TestGPUPredict(unittest.TestCase):
     def test_predict(self):
         iterations = 10
