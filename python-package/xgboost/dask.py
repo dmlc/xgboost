@@ -113,7 +113,10 @@ def _assert_client(client):
 
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
-    '''DMatrix holding on references to Dask DataFrame or Dask Array.
+    '''DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing
+    a `DaskDMatrix` forces all lazy computation to be carried out.  Wait for
+    the input data explicitly if you want to see actual computation of
+    constructing `DaskDMatrix`.
 
       Parameters
       ----------

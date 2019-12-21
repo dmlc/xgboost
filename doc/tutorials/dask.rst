@@ -77,6 +77,26 @@ interface with ``DaskXGBClassifier`` and ``DaskXGBRegressor``.  See ``xgboost/de
 for more examples.
 
 
+*****************************************************************************
+Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
+*****************************************************************************
+
+The dask API in XGBoost requires construction of ``DaskDMatrix``.  With ``Scikit-Learn``
+interface, ``DaskDMatrix`` is implicitly constructed for each input data during `fit` or
+`predict`.  You might have observed its construction is taking incredible amount of time,
+and sometimes throws errors that doesn't seem relevant to `DaskDMatrix`.  Here is a brief
+explanation for why.  By default most of dask's computation is `lazy
+<https://docs.dask.org/en/latest/user-interfaces.html#laziness-and-computing>`_, which
+means the computation is not carried out until you explicitly ask for result, either by
+calling `compute()` or `wait()`.  See above link for details in dask, and `this wiki
+<https://en.wikipedia.org/wiki/Lazy_evaluation>`_ for general concept of lazy evaluation.
+The `DaskDMatrix` constructor forces all lazy computation to materialize, which means it's
+where all your earlier computation actually carried out, including operations like
+`dd.read_csv()`.  To see the actual computation in `DaskDMatrix`, one can explicitly wait
+for results of input data before calling constructor of `DaskDMatrix`.  Also dask's `web
+interface <https://distributed.dask.org/en/latest/web.html>`_ can be used to monitor what
+operations are currently being performed.
+
 ***********
 Limitations
 ***********
