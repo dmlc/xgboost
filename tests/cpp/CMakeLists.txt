@@ -25,7 +25,6 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
     $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
@@ -55,18 +54,12 @@ set_target_properties(
   testxgboost PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON)
-if ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))  # old CMake doesn't define this variable
-  set(OpenMP_CXX_LIBRARIES "gomp;pthread")
-endif ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES}
   ${LINKED_LIBRARIES_PRIVATE}
-  ${OpenMP_CXX_LIBRARIES})
+  OpenMP::OpenMP_CXX)
 target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
-if (USE_OPENMP)
-  target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-endif (USE_OPENMP)
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
 # This grouping organises source files nicely in visual studio

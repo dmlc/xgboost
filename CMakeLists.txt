@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.9)
 project(xgboost LANGUAGES CXX C VERSION 1.0.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
@@ -10,6 +10,7 @@ endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUA
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 if (MSVC)
+  # Require CMake 3.11+ with Visual Studio to use COMPILE_LANGUAGE generator expression
   cmake_minimum_required(VERSION 3.11)
 endif (MSVC)
 
@@ -99,6 +100,14 @@ if (USE_CUDA)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
 
+if (USE_OPENMP)
+  if (APPLE)
+    # Require CMake 3.12+ on Mac OSX to support OpenMP
+    cmake_minimum_required(VERSION 3.12)
+  endif (APPLE)
+  find_package(OpenMP REQUIRED)
+endif (USE_OPENMP)
+
 # dmlc-core
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
@@ -146,11 +155,6 @@ endif (JVM_BINDINGS)
 
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
-# For cli_main.cc only
-if (USE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
-endif (USE_OPENMP)
 
 target_include_directories(runxgboost
   PRIVATE
