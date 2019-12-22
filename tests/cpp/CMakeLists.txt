@@ -25,6 +25,7 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
     $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)

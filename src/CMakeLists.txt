@@ -29,6 +29,10 @@ if (USE_CUDA)
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
   endif (USE_NVTX)
 
+  target_compile_options(objxgboost PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
+  )
+
   set_target_properties(objxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
