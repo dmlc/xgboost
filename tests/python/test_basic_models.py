@@ -132,6 +132,21 @@ class TestModels(unittest.TestCase):
         bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=eta_decay)
         assert isinstance(bst, xgb.core.Booster)
 
+    def test_boost_from_prediction(self):
+        # Re-construct dtrain here to avoid modification
+        margined = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        bst = xgb.train({'tree_method': 'hist'}, margined, 1)
+        predt_0 = bst.predict(margined, output_margin=True)
+        margined.set_base_margin(predt_0)
+        bst = xgb.train({'tree_method': 'hist'}, margined, 1)
+        predt_1 = bst.predict(margined)
+
+        assert np.any(np.abs(predt_1 - predt_0) > 1e-6)
+
+        bst = xgb.train({'tree_method': 'hist'}, dtrain, 2)
+        predt_2 = bst.predict(dtrain)
+        assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
+
     def test_custom_objective(self):
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
