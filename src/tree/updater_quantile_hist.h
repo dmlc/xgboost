@@ -80,7 +80,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() : is_gmat_initialized_{ false } {}
+  QuantileHistMaker() {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -112,7 +112,7 @@ class QuantileHistMaker: public TreeUpdater {
   GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
-  bool is_gmat_initialized_;
+  std::unordered_map<DMatrix*, bool> is_gmat_initialized_;
 
   // data structure
   struct NodeEntry {

@@ -41,7 +41,6 @@ void QuantileHistMaker::Configure(const Args& args) {
   }
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
-  is_gmat_initialized_ = false;
 
   // initialise the split evaluator
   if (!spliteval_) {
@@ -54,13 +53,17 @@ void QuantileHistMaker::Configure(const Args& args) {
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  if (is_gmat_initialized_ == false) {
+  if (is_gmat_initialized_.find(dmat) == is_gmat_initialized_.cend() ||
+      is_gmat_initialized_.at(dmat) == false) {
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
-    is_gmat_initialized_ = true;
+    // A proper solution is puting cut matrix in DMatrix, see:
+    // https://github.com/dmlc/xgboost/issues/5143
+    is_gmat_initialized_.clear();
+    is_gmat_initialized_[dmat] = true;
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
