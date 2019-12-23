@@ -55,3 +55,12 @@ def no_dask_cudf():
         return {'condition': False, 'reason': reason}
     except ImportError:
         return {'condition': True, 'reason': reason}
+
+
+def no_json_schema():
+    reason = 'jsonschema is not installed'
+    try:
+        import jsonschema       # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
