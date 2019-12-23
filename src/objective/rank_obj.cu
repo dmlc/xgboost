@@ -969,7 +969,7 @@ class LambdaRankObj : public ObjFunction {
                              int iter,
                              HostDeviceVector<GradientPair>* out_gpair,
                              const std::vector<unsigned> &gptr) {
-    LOG(DEBUG) << "Computing pairwise gradients on CPU.";
+    LOG(DEBUG) << "Computing " << LambdaWeightComputerT::Name() << " gradients on CPU.";
 
     bst_float weight_normalization_factor = ComputeWeightNormalizationFactor(info, gptr);
 
@@ -1053,7 +1053,7 @@ class LambdaRankObj : public ObjFunction {
                              int iter,
                              HostDeviceVector<GradientPair>* out_gpair,
                              const std::vector<unsigned> &gptr) {
-    LOG(DEBUG) << "Computing pairwise gradients on GPU.";
+    LOG(DEBUG) << "Computing " << LambdaWeightComputerT::Name() << " gradients on GPU.";
 
     auto device = tparam_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
