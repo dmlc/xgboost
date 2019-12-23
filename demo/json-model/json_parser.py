@@ -84,9 +84,9 @@ class Tree:
 
             if not self.is_leaf(nid) and not self.is_deleted(nid):
                 left = self.left_child(nid)
-                rigth = self.right_child(nid)
+                right = self.right_child(nid)
                 stacks.append(left)
-                stacks.append(rigth)
+                stacks.append(right)
 
         string = '\n'.join(map(lambda x: '  ' + str(x), nodes))
         return string
