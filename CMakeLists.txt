@@ -10,6 +10,12 @@ endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUA
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
+if (APPLE)
+  # Require CMake 3.16+ on Mac OSX, as previous versions of CMake had trouble locating
+  # OpenMP on Mac. See https://github.com/dmlc/xgboost/pull/5146#issuecomment-568312706
+  cmake_minimum_required(VERSION 3.16)
+endif (APPLE)
+
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
   message(FATAL_ERROR "GCC version must be at least 5.0!")
 endif()
