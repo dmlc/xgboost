@@ -7,7 +7,7 @@ if [ ${TASK} == "python_test" ]; then
     # Build/test
     rm -rf build
     mkdir build && cd build
-    cmake .. -DUSE_OPENMP=ON
+    cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
     make -j2
     cd ..
 
@@ -44,7 +44,7 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf build
     mkdir build && cd build
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
+    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
     make -j2
     ./testxgboost
     cd ..
