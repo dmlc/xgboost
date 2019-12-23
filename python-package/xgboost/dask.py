@@ -118,23 +118,23 @@ class DaskDMatrix:
     the input data explicitly if you want to see actual computation of
     constructing `DaskDMatrix`.
 
-      Parameters
-      ----------
-      client: dask.distributed.Client
+    Parameters
+    ----------
+    client: dask.distributed.Client
         Specify the dask client used for training.  Use default client
         returned from dask if it's set to None.
-      data : dask.array.Array/dask.dataframe.DataFrame
+    data : dask.array.Array/dask.dataframe.DataFrame
         data source of DMatrix.
-      label: dask.array.Array/dask.dataframe.DataFrame
+    label: dask.array.Array/dask.dataframe.DataFrame
         label used for trainin.
-      missing : float, optional
-          Value in the  input data (e.g. `numpy.ndarray`) which needs
-          to be present as a missing value. If None, defaults to np.nan.
-      weight : dask.array.Array/dask.dataframe.DataFrame
+    missing : float, optional
+        Value in the  input data (e.g. `numpy.ndarray`) which needs
+        to be present as a missing value. If None, defaults to np.nan.
+    weight : dask.array.Array/dask.dataframe.DataFrame
         Weight for each instance.
-      feature_names : list, optional
+    feature_names : list, optional
         Set names for features.
-      feature_types : list, optional
+    feature_types : list, optional
         Set types for features
 
     '''
@@ -352,23 +352,23 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     Parameters
     ----------
     client: dask.distributed.Client
-      Specify the dask client used for training.  Use default client
-      returned from dask if it's set to None.
-
-    Other parameters are the same as `xgboost.train` except for `evals_result`,
-    which is returned as part of function return value instead of argument.
+        Specify the dask client used for training.  Use default client
+        returned from dask if it's set to None.
+    \\*\\*kwargs:
+        Other parameters are the same as `xgboost.train` except for `evals_result`,
+        which is returned as part of function return value instead of argument.
 
     Returns
     -------
     results: dict
-      A dictionary containing trained booster and evaluation history.
-     `history` field is the same as `eval_result` from `xgboost.train`.
+        A dictionary containing trained booster and evaluation history.
+        `history` field is the same as `eval_result` from `xgboost.train`.
 
-      .. code-block:: python
+        .. code-block:: python
 
-        {'booster': xgboost.Booster,
-         'history': {'train': {'logloss': ['0.48253', '0.35953']},
-                     'eval': {'logloss': ['0.480385', '0.357756']}}}
+            {'booster': xgboost.Booster,
+             'history': {'train': {'logloss': ['0.48253', '0.35953']},
+                         'eval': {'logloss': ['0.480385', '0.357756']}}}
 
     '''
     _assert_dask_support()
@@ -423,15 +423,15 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 def predict(client, model, data, *args):
     '''Run prediction with a trained booster.
 
-      .. note::
+    .. note::
 
-          Only default prediction mode is supported right now.
+        Only default prediction mode is supported right now.
 
     Parameters
     ----------
     client: dask.distributed.Client
-      Specify the dask client used for training.  Use default client
-      returned from dask if it's set to None.
+        Specify the dask client used for training.  Use default client
+        returned from dask if it's set to None.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix
