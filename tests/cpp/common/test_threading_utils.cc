@@ -37,7 +37,7 @@ TEST(ParallelFor2d, Test) {
       return kDim2;
   }, kGrainSize);
 
-  ParallelFor2d(space, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       matrix[i*kDim2 + j] += 1;
     }
@@ -65,7 +65,7 @@ TEST(ParallelFor2dNonUniform, Test) {
     working_space[i].resize(dim2[i], 0);
   }
 
-  ParallelFor2d(space, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       working_space[i][j] += 1;
     }

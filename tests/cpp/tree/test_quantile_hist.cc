@@ -107,7 +107,7 @@ class QuantileHistMock : public QuantileHistMaker {
       GHistIndexBlockMatrix dummy;
       hist_.AddHistRow(nid);
       BuildHist(gpair, row_set_collection_[nid],
-                gmat, dummy, hist_[nid], false);
+                gmat, dummy, hist_[nid]);
 
       // Check if number of histogram bins is correct
       ASSERT_EQ(hist_[nid].size(), gmat.cut.Ptrs().back());
@@ -149,7 +149,7 @@ class QuantileHistMock : public QuantileHistMaker {
       hist_.AddHistRow(0);
 
       BuildHist(row_gpairs, row_set_collection_[0],
-                gmat, quantile_index_block, hist_[0], false);
+                gmat, quantile_index_block, hist_[0]);
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), tree);
 
@@ -211,7 +211,8 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      ExpandEntry node(0, tree.GetDepth(0), snode_[0].best.loss_chg, 0);
+      ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
+          tree.GetDepth(0), snode_[0].best.loss_chg, 0);
       RealImpl::EvaluateSplit({node}, gmat, hist_, *(*dmat), tree);
       ASSERT_EQ(snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
