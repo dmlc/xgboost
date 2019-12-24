@@ -434,9 +434,11 @@ class DMatrix(object):
     _feature_names = None  # for previous version's pickle
     _feature_types = None
 
-    def __init__(self, data, label=None, missing=None,
-                 weight=None, silent=False,
-                 feature_names=None, feature_types=None,
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 missing=None,
+                 silent=False,
+                 feature_names=None,
+                 feature_types=None,
                  nthread=None):
         """Parameters
         ----------
@@ -492,6 +494,7 @@ class DMatrix(object):
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)
+        base_margin = _maybe_dt_array(base_margin)
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
@@ -518,19 +521,11 @@ class DMatrix(object):
                                 ' {}'.format(type(data).__name__))
 
         if label is not None:
-            if isinstance(label, np.ndarray):
-                self.set_label_npy2d(label)
-            elif _use_columnar_initializer(label):
-                self.set_interface_info('label', label)
-            else:
-                self.set_label(label)
+            self.set_label(label)
         if weight is not None:
-            if isinstance(weight, np.ndarray):
-                self.set_weight_npy2d(weight)
-            elif _use_columnar_initializer(label):
-                self.set_interface_info('weight', weight)
-            else:
-                self.set_weight(weight)
+            self.set_weight(weight)
+        if base_margin is not None:
+            self.set_base_margin(base_margin)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -792,7 +787,12 @@ class DMatrix(object):
         label: array like
             The label information to be set into DMatrix
         """
-        self.set_float_info('label', label)
+        if isinstance(label, np.ndarray):
+            self.set_label_npy2d(label)
+        elif _use_columnar_initializer(label):
+            self.set_interface_info('label', label)
+        else:
+            self.set_float_info('label', label)
 
     def set_label_npy2d(self, label):
         """Set label of dmatrix
@@ -820,7 +820,12 @@ class DMatrix(object):
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
         """
-        self.set_float_info('weight', weight)
+        if isinstance(weight, np.ndarray):
+            self.set_weight_npy2d(weight)
+        elif _use_columnar_initializer(weight):
+            self.set_interface_info('weight', weight)
+        else:
+            self.set_float_info('weight', weight)
 
     def set_weight_npy2d(self, weight):
         """ Set weight of each instance

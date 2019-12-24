@@ -288,9 +288,9 @@ class XGBModel(XGBModelBase):
             self._Booster = Booster({'n_jobs': self.n_jobs})
         self._Booster.load_model(fname)
 
-    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, callbacks=None):
+    def fit(self, X, y, sample_weight=None, base_margin=None,
+            eval_set=None, eval_metric=None, early_stopping_rounds=None,
+            verbose=True, xgb_model=None, sample_weight_eval_set=None, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
 
@@ -302,6 +302,8 @@ class XGBModel(XGBModelBase):
             Labels
         sample_weight : array_like
             instance weights
+        base_margin : array_like
+            global bias for each instance.
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
@@ -346,14 +348,10 @@ class XGBModel(XGBModelBase):
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
         """
-        if sample_weight is not None:
-            trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
-                                   missing=self.missing,
-                                   nthread=self.n_jobs)
-        else:
-            trainDmatrix = DMatrix(X, label=y, missing=self.missing,
-                                   nthread=self.n_jobs)
-
+        trainDmatrix = DMatrix(data=X, label=y, weight=sample_weight,
+                               base_margin=base_margin,
+                               missing=self.missing,
+                               nthread=self.n_jobs)
         evals_result = {}
 
         if eval_set is not None:
@@ -404,7 +402,8 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None, validate_features=True):
+    def predict(self, data, output_margin=False, ntree_limit=None,
+                validate_features=True, base_margin=None):
         """
         Predict with `data`.
 
@@ -442,7 +441,8 @@ class XGBModel(XGBModelBase):
         prediction : numpy array
         """
         # pylint: disable=missing-docstring,invalid-name
-        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        test_dmatrix = DMatrix(data, base_margin=base_margin,
+                               missing=self.missing, nthread=self.n_jobs)
         # get ntree_limit to use - if none specified, default to
         # best_ntree_limit if defined, otherwise 0.
         if ntree_limit is None:
@@ -621,7 +621,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             base_score=base_score, random_state=random_state, missing=missing,
             **kwargs)
 
-    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, base_margin=None,
+            eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
@@ -675,13 +676,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             raise ValueError(
                 'Please reshape the input data X into 2-dimensional matrix.')
         self._features_count = X.shape[1]
-
-        if sample_weight is not None:
-            train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
-                                    missing=self.missing, nthread=self.n_jobs)
-        else:
-            train_dmatrix = DMatrix(X, label=training_labels,
-                                    missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
+                                base_margin=base_margin,
+                                missing=self.missing, nthread=self.n_jobs)
 
         self._Booster = train(xgb_options, train_dmatrix, self.get_num_boosting_rounds(),
                               evals=evals, early_stopping_rounds=early_stopping_rounds,
@@ -706,7 +703,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     fit.__doc__ = XGBModel.fit.__doc__.replace('Fit gradient boosting model',
                                                'Fit gradient boosting classifier', 1)
 
-    def predict(self, data, output_margin=False, ntree_limit=None, validate_features=True):
+    def predict(self, data, output_margin=False, ntree_limit=None,
+                validate_features=True, base_margin=None):
         """
         Predict with `data`.
 
@@ -729,7 +727,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        data : DMatrix
+        data : array_like
             The dmatrix storing the input.
         output_margin : bool
             Whether to output the raw untransformed margin value.
@@ -743,7 +741,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         -------
         prediction : numpy array
         """
-        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        test_dmatrix = DMatrix(data, base_margin=base_margin,
+                               missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
@@ -761,7 +760,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, ntree_limit=None, validate_features=True):
+    def predict_proba(self, data, ntree_limit=None, validate_features=True,
+                      base_margin=None):
         """
         Predict the probability of each `data` example being of a given class.
 
@@ -787,7 +787,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         prediction : numpy array
             a numpy array with the probability of each data example being of a given class.
         """
-        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        test_dmatrix = DMatrix(data, base_margin=base_margin,
+                               missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
         class_probs = self.get_booster().predict(test_dmatrix,
@@ -1045,7 +1046,8 @@ class XGBRanker(XGBModel):
         if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
-    def fit(self, X, y, group, sample_weight=None, eval_set=None,
+    def fit(self, X, y, group, sample_weight=None, base_margin=None,
+            eval_set=None,
             sample_weight_eval_set=None, eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
             callbacks=None):
@@ -1072,6 +1074,8 @@ class XGBRanker(XGBModel):
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
 
+        base_margin : array_like
+            Global bias for each instance.
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
@@ -1138,14 +1142,10 @@ class XGBRanker(XGBModel):
             ret.set_group(group)
             return ret
 
-        if sample_weight is not None:
-            train_dmatrix = _dmat_init(
-                group, data=X, label=y, weight=sample_weight,
-                missing=self.missing, nthread=self.n_jobs)
-        else:
-            train_dmatrix = _dmat_init(
-                group, data=X, label=y,
-                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
+                                base_margin=base_margin,
+                                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.set_group(group)
 
         evals_result = {}
 
@@ -1192,9 +1192,11 @@ class XGBRanker(XGBModel):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0, validate_features=True):
+    def predict(self, data, output_margin=False,
+                ntree_limit=0, validate_features=True, base_margin=None):
 
-        test_dmatrix = DMatrix(data, missing=self.missing)
+        test_dmatrix = DMatrix(data, base_margin=base_margin,
+                               missing=self.missing)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
 
