@@ -53,8 +53,7 @@ void QuantileHistMaker::Configure(const Args& args) {
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  if (is_gmat_initialized_.find(dmat) == is_gmat_initialized_.cend() ||
-      is_gmat_initialized_.at(dmat) == false) {
+  if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
@@ -62,8 +61,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
     }
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
-    is_gmat_initialized_.clear();
-    is_gmat_initialized_[dmat] = true;
+    is_gmat_initialized_ = true;
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -75,12 +73,14 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
         param_,
         std::move(pruner_),
         std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
-        int_constraint_));
+        int_constraint_, dmat));
   }
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
   }
   param_.learning_rate = lr;
+
+  p_last_dmat_ = dmat;
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(
@@ -511,12 +511,8 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
       data_layout_ = kSparseData;
     }
   }
-  {
-    // store a pointer to the tree
-    p_last_tree_ = &tree;
-    // store a pointer to training data
-    p_last_fmat_ = &fmat;
-  }
+  // store a pointer to the tree
+  p_last_tree_ = &tree;
   if (data_layout_ == kDenseDataOneBased) {
     column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
             param_.colsample_bytree, true);

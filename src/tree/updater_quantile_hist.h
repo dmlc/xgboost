@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "constraints.h"
 #include "./param.h"
@@ -112,7 +113,8 @@ class QuantileHistMaker: public TreeUpdater {
   GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
-  std::unordered_map<DMatrix*, bool> is_gmat_initialized_;
+  DMatrix const* p_last_dmat_ {nullptr};
+  bool is_gmat_initialized_ {false};
 
   // data structure
   struct NodeEntry {
@@ -136,10 +138,11 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval,
-                     FeatureInteractionConstraintHost int_constraints_)
+                     FeatureInteractionConstraintHost int_constraints_,
+                     DMatrix const* fmat)
       : param_(param), pruner_(std::move(pruner)),
         spliteval_(std::move(spliteval)), interaction_constraints_{int_constraints_},
-        p_last_tree_(nullptr), p_last_fmat_(nullptr) {
+        p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
@@ -313,7 +316,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
-    const DMatrix* p_last_fmat_;
+    DMatrix const* const p_last_fmat_;
 
     using ExpandQueue =
        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
