@@ -236,7 +236,6 @@ class LearnerImpl : public Learner {
   }
 
   void ValidateParameters() {
-    std::vector<Json> parameters;
     std::vector<std::string> keys;
 
     Json config { Object() };
