@@ -12,7 +12,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
-#include <ios>
+#include <stack>
 #include <utility>
 #include <vector>
 
@@ -231,7 +231,67 @@ class LearnerImpl : public Learner {
                                              obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
+    this->ValidateParameters();
     monitor_.Stop("Configure");
+  }
+
+  void ValidateParameters() {
+    std::vector<Json> parameters;
+    std::vector<std::string> keys;
+
+    Json config { Object() };
+    this->SaveConfig(&config);
+    std::stack<Json> stack;
+    stack.push(config);
+    std::string postfix{"_param"};
+
+    // Extract all parameters
+    while (!stack.empty()) {
+      auto obj = stack.top();
+      stack.pop();
+      auto &o = get<Object>(obj);
+
+      for (auto const &kv : o) {
+        if (kv.first.size() > postfix.size() &&
+            std::equal(postfix.rbegin(), postfix.rend(), kv.first.rbegin())) {
+          auto parameter = get<Object const>(kv.second);
+          std::transform(parameter.begin(), parameter.end(), std::back_inserter(keys),
+                         [](std::pair<std::string const&, Json const&> const& kv) {
+                           return kv.first;
+                         });
+        } else if (IsA<Object>(kv.second)) {
+          stack.push(kv.second);
+        }
+      }
+    }
+
+    std::sort(keys.begin(), keys.end());
+
+    std::vector<std::string> provided;
+    for (auto const &kv : cfg_) {
+      // `num_feature` and `num_class` are automatically added due to legacy reason.
+      // `verbosity` in logger is not saved, we should move it into generic_param_.
+      // TODO(trivialfis): Make eval_metric a training parameter.
+      if (kv.first != "num_feature" && kv.first != "verbosity" &&
+          kv.first != "num_class" && kv.first != kEvalMetric) {
+        provided.push_back(kv.first);
+      }
+    }
+    std::sort(provided.begin(), provided.end());
+
+    std::vector<std::string> diff;
+    std::set_difference(provided.begin(), provided.end(), keys.begin(),
+                        keys.end(), std::back_inserter(diff));
+    if (diff.size() != 0) {
+      std::stringstream ss;
+      ss << "Parameters: { ";
+      for (size_t i = 0; i < diff.size() - 1; ++i) {
+        ss << diff[i] << ", ";
+      }
+      ss << diff.back();
+      ss << " } are not used.";
+      LOG(WARNING) << ss.str();
+    }
   }
 
   void CheckDataSplitMode() {
