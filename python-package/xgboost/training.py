@@ -4,7 +4,6 @@
 """Training Library containing training routines."""
 from __future__ import absolute_import
 
-import warnings
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -54,9 +53,11 @@ def _train_internal(params, dtrain,
     nboost += start_iteration
 
     callbacks_before_iter = [
-        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
-        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if not cb.__dict__.get('before_iteration', False)]
 
     for i in range(start_iteration, num_boost_round):
         for cb in callbacks_before_iter:
