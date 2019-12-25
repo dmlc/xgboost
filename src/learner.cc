@@ -250,11 +250,11 @@ class LearnerImpl : public Learner {
     // Extract all parameters
     std::vector<std::string> keys;
     while (!stack.empty()) {
-      auto obj = stack.top();
+      auto j_obj = stack.top();
       stack.pop();
-      auto &o = get<Object>(obj);
+      auto const &obj = get<Object const>(j_obj);
 
-      for (auto const &kv : o) {
+      for (auto const &kv : obj) {
         if (is_parameter(kv.first)) {
           auto parameter = get<Object const>(kv.second);
           std::transform(parameter.begin(), parameter.end(), std::back_inserter(keys),
