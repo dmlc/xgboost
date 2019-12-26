@@ -1,5 +1,5 @@
 FROM ubuntu:18.04
-ARG CMAKE_VERSION=3.3
+ARG CMAKE_VERSION=3.12
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive

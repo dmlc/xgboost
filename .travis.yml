@@ -21,11 +21,11 @@ env:
 addons:
   homebrew:
     packages:
-      - gcc@9
+      - cmake
+      - libomp
       - graphviz
       - openssl
       - libgit2
-      - cmake
       - wget
       - r
     update: true

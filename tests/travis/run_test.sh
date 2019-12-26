@@ -1,14 +1,18 @@
 #!/bin/bash
 
-cp make/travis.mk config.mk
 make -f dmlc-core/scripts/packages.mk lz4
 
-if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-    echo 'USE_OPENMP=0' >> config.mk
-fi
+source $HOME/miniconda/bin/activate
 
 if [ ${TASK} == "python_test" ]; then
-    make all || exit -1
+    set -e
+    # Build/test
+    rm -rf build
+    mkdir build && cd build
+    cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+    make -j$(nproc)
+    cd ..
+
     echo "-------------------------------"
     conda activate python3
     python --version
@@ -42,8 +46,8 @@ if [ ${TASK} == "cmake_test" ]; then
     rm -rf build
     mkdir build && cd build
     PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    CC=gcc-9 CXX=g++-9 cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
-    make
+    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
+    make -j$(nproc)
     ./testxgboost
     cd ..
     rm -rf build

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.12)
 project(xgboost LANGUAGES CXX C VERSION 1.0.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
@@ -9,9 +9,6 @@ if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3
 endif ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
 
 message(STATUS "CMake version ${CMAKE_VERSION}")
-if (MSVC)
-  cmake_minimum_required(VERSION 3.11)
-endif (MSVC)
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
   message(FATAL_ERROR "GCC version must be at least 5.0!")
@@ -80,14 +77,11 @@ endif (USE_AVX)
 
 #-- Sanitizer
 if (USE_SANITIZER)
-  # Older CMake versions have had troubles with Sanitizer
-  cmake_minimum_required(VERSION 3.12)
   include(cmake/Sanitizer.cmake)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)
 
 if (USE_CUDA)
-  cmake_minimum_required(VERSION 3.12)
   SET(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
   set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
@@ -98,6 +92,15 @@ if (USE_CUDA)
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
+
+if (USE_OPENMP)
+  if (APPLE)
+    # Require CMake 3.16+ on Mac OSX, as previous versions of CMake had trouble locating
+    # OpenMP on Mac. See https://github.com/dmlc/xgboost/pull/5146#issuecomment-568312706
+    cmake_minimum_required(VERSION 3.16)
+  endif (APPLE)
+  find_package(OpenMP REQUIRED)
+endif (USE_OPENMP)
 
 # dmlc-core
 msvc_use_static_runtime()
@@ -146,11 +149,6 @@ endif (JVM_BINDINGS)
 
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
-# For cli_main.cc only
-if (USE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  target_compile_options(runxgboost PRIVATE ${OpenMP_CXX_FLAGS})
-endif (USE_OPENMP)
 
 target_include_directories(runxgboost
   PRIVATE
