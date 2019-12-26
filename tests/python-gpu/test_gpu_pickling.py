@@ -5,6 +5,9 @@ import numpy as np
 import subprocess
 import os
 import json
+import pytest
+import copy
+
 import xgboost as xgb
 from xgboost import XGBClassifier
 
@@ -31,6 +34,12 @@ def load_pickle(path):
 
 
 class TestPickling(unittest.TestCase):
+    args_tempale = [
+        "pytest",
+        "--verbose",
+        "-s",
+        "--fulltrace"]
+
     def test_pickling(self):
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
@@ -61,13 +70,29 @@ class TestPickling(unittest.TestCase):
         assert status == 0
         os.remove(model_path)
 
-    def test_pickled_predictor(self):
-        args_templae = [
-            "pytest",
-            "--verbose",
-            "-s",
-            "--fulltrace"]
+    @pytest.mark.mgpu
+    def test_wrap_gpu_id(self):
+        X, y = build_dataset()
+        dtrain = xgb.DMatrix(X, y)
 
+        bst = xgb.train({'tree_method': 'gpu_hist',
+                         'gpu_id': 1},
+                        dtrain, num_boost_round=6)
+
+        model_path = 'model.pkl'
+        save_pickle(bst, model_path)
+        cuda_environment = {'CUDA_VISIBLE_DEVICES': '0'}
+        env = os.environ.copy()
+        env.update(cuda_environment)
+        args = self.args_tempale.copy()
+        args.append(
+            "./tests/python-gpu/"
+            "load_pickle.py::TestLoadPickle::test_wrap_gpu_id"
+        )
+        status = subprocess.call(args, env=env)
+        assert status == 0
+
+    def test_pickled_predictor(self):
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
 
@@ -80,7 +105,7 @@ class TestPickling(unittest.TestCase):
 
         save_pickle(bst, model_path)
 
-        args = args_templae.copy()
+        args = self.args_tempale.copy()
         args.append(
             "./tests/python-gpu/"
             "load_pickle.py::TestLoadPickle::test_predictor_type_is_auto")
@@ -93,7 +118,7 @@ class TestPickling(unittest.TestCase):
         status = subprocess.call(args, env=env)
         assert status == 0
 
-        args = args_templae.copy()
+        args = self.args_tempale.copy()
         args.append(
             "./tests/python-gpu/"
             "load_pickle.py::TestLoadPickle::test_predictor_type_is_gpu")
@@ -109,7 +134,6 @@ class TestPickling(unittest.TestCase):
 
         kwargs = {'tree_method': 'gpu_hist',
                   'predictor': 'gpu_predictor',
-                  'verbosity': 1,
                   'objective': 'binary:logistic',
                   'n_estimators': 10}
 

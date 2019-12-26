@@ -354,7 +354,6 @@ class SparsePageSource : public DataSource<T> {
       writer.Alloc(&page);
       page->Clear();
 
-      MetaInfo info = src->Info();
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
       for (auto& batch : src->GetBatches<SparsePage>()) {

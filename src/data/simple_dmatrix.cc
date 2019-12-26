@@ -41,7 +41,7 @@ BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
-    auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
+    auto const& page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
     column_page_.reset(new CSCPage(page.GetTranspose(source_->info.num_col_)));
   }
   auto begin_iter =
@@ -52,7 +52,7 @@ BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
 BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
-    auto page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
+    auto const& page = dynamic_cast<SimpleCSRSource*>(source_.get())->page_;
     sorted_column_page_.reset(
         new SortedCSCPage(page.GetTranspose(source_->info.num_col_)));
     sorted_column_page_->SortRows();
