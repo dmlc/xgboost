@@ -10,6 +10,7 @@
 #include <cmath>
 #include <algorithm>
 
+#include "xgboost/parameter.h"
 #include "xgboost/tree_updater.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -24,11 +25,37 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_colmaker);
 
+struct ColMakerTrainParam : XGBoostParameter<ColMakerTrainParam> {
+  // speed optimization for dense column
+  float opt_dense_col;
+  DMLC_DECLARE_PARAMETER(ColMakerTrainParam) {
+    DMLC_DECLARE_FIELD(opt_dense_col)
+        .set_range(0.0f, 1.0f)
+        .set_default(1.0f)
+        .describe("EXP Param: speed optimization for dense column.");
+  }
+
+  /*! \brief whether need forward small to big search: default right */
+  inline bool NeedForwardSearch(int default_direction, float col_density,
+                                bool indicator) const {
+    return default_direction == 2 ||
+           (default_direction == 0 && (col_density < opt_dense_col) &&
+            !indicator);
+  }
+  /*! \brief whether need backward big to small search: default left */
+  inline bool NeedBackwardSearch(int default_direction) const {
+    return default_direction != 2;
+  }
+};
+
+DMLC_REGISTER_PARAMETER(ColMakerTrainParam);
+
 /*! \brief column-wise update to construct a tree */
 class ColMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
+    colmaker_param_.UpdateAllowUnknown(args);
     if (!spliteval_) {
       spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     }
@@ -38,10 +65,12 @@ class ColMaker: public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     fromJson(config.at("train_param"), &this->param_);
+    fromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["train_param"] = toJson(param_);
+    out["colmaker_train_param"] = toJson(colmaker_param_);
   }
 
   char const* Name() const override {
@@ -59,6 +88,7 @@ class ColMaker: public TreeUpdater {
     for (auto tree : trees) {
       Builder builder(
         param_,
+        colmaker_param_,
         std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
         interaction_constraints_);
       builder.Update(gpair->ConstHostVector(), dmat, tree);
@@ -69,6 +99,7 @@ class ColMaker: public TreeUpdater {
  protected:
   // training parameter
   TrainParam param_;
+  ColMakerTrainParam colmaker_param_;
   // SplitEvaluator that will be cloned for each Builder
   std::unique_ptr<SplitEvaluator> spliteval_;
 
@@ -102,9 +133,11 @@ class ColMaker: public TreeUpdater {
    public:
     // constructor
     explicit Builder(const TrainParam& param,
+                     const ColMakerTrainParam& colmaker_train_param,
                      std::unique_ptr<SplitEvaluator> spliteval,
                      FeatureInteractionConstraintHost _interaction_constraints)
-        : param_(param), nthread_(omp_get_max_threads()),
+        : param_(param), colmaker_train_param_{colmaker_train_param},
+          nthread_(omp_get_max_threads()),
           spliteval_(std::move(spliteval)),
           interaction_constraints_{std::move(_interaction_constraints)} {}
     // update one tree, growing
@@ -392,7 +425,6 @@ class ColMaker: public TreeUpdater {
           std::max(static_cast<int>(num_features / this->nthread_ / 32), 1);
 #endif  // defined(_OPENMP)
 
-      CHECK_EQ(param_.parallel_option, 0) << "Support for `parallel_option' is removed in 1.0.0";
       {
         std::vector<float> densities(num_features);
         CHECK_EQ(feat_set.size(), num_features);
@@ -408,11 +440,12 @@ class ColMaker: public TreeUpdater {
           auto c = batch[fid];
           const bool ind = c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
           auto const density = densities[i];
-          if (param_.NeedForwardSearch(density, ind)) {
+          if (colmaker_train_param_.NeedForwardSearch(
+                  param_.default_direction, density, ind)) {
             this->EnumerateSplit(c.data(), c.data() + c.size(), +1,
                                  fid, gpair, stemp_[tid]);
           }
-          if (param_.NeedBackwardSearch(density, ind)) {
+          if (colmaker_train_param_.NeedBackwardSearch(param_.default_direction)) {
             this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
                                  fid, gpair, stemp_[tid]);
           }
@@ -542,6 +575,7 @@ class ColMaker: public TreeUpdater {
     }
     //  --data fields--
     const TrainParam& param_;
+    const ColMakerTrainParam& colmaker_train_param_;
     // number of omp thread used during training
     const int nthread_;
     common::ColumnSampler column_sampler_;
@@ -581,6 +615,7 @@ class DistColMaker : public ColMaker {
     CHECK_EQ(trees.size(), 1U) << "DistColMaker: only support one tree at a time";
     Builder builder(
       param_,
+      colmaker_param_,
       std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
       interaction_constraints_);
     // build the tree
@@ -595,9 +630,12 @@ class DistColMaker : public ColMaker {
   class Builder : public ColMaker::Builder {
    public:
     explicit Builder(const TrainParam &param,
+                     ColMakerTrainParam const& colmaker_train_param,
                      std::unique_ptr<SplitEvaluator> spliteval,
                      FeatureInteractionConstraintHost _interaction_constraints)
-        : ColMaker::Builder(param, std::move(spliteval), std::move(_interaction_constraints)) {}
+        : ColMaker::Builder(param, colmaker_train_param,
+                            std::move(spliteval),
+                            std::move(_interaction_constraints)) {}
     inline void UpdatePosition(DMatrix* p_fmat, const RegTree &tree) {
       const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
       #pragma omp parallel for schedule(static)

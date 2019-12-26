@@ -359,9 +359,7 @@ class Dart : public GBTree {
 
   void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
-    if (model_.trees.size() == 0) {
-      dparam_.UpdateAllowUnknown(cfg);
-    }
+    dparam_.UpdateAllowUnknown(cfg);
   }
 
   void SaveModel(Json *p_out) const override {

@@ -12,7 +12,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
-#include <ios>
+#include <stack>
 #include <utility>
 #include <vector>
 
@@ -215,7 +215,6 @@ class LearnerImpl : public Learner {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
-
     // set seed only before the model is initialized
     common::GlobalRandom().seed(generic_parameters_.seed);
     // must precede configure gbm since num_features is required for gbm
@@ -231,7 +230,70 @@ class LearnerImpl : public Learner {
                                              obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
+    this->ValidateParameters();
+    // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
+  }
+
+  void ValidateParameters() {
+    Json config { Object() };
+    this->SaveConfig(&config);
+    std::stack<Json> stack;
+    stack.push(config);
+    std::string const postfix{"_param"};
+
+    auto is_parameter = [&postfix](std::string const &key) {
+      return key.size() > postfix.size() &&
+             std::equal(postfix.rbegin(), postfix.rend(), key.rbegin());
+    };
+
+    // Extract all parameters
+    std::vector<std::string> keys;
+    while (!stack.empty()) {
+      auto j_obj = stack.top();
+      stack.pop();
+      auto const &obj = get<Object const>(j_obj);
+
+      for (auto const &kv : obj) {
+        if (is_parameter(kv.first)) {
+          auto parameter = get<Object const>(kv.second);
+          std::transform(parameter.begin(), parameter.end(), std::back_inserter(keys),
+                         [](std::pair<std::string const&, Json const&> const& kv) {
+                           return kv.first;
+                         });
+        } else if (IsA<Object>(kv.second)) {
+          stack.push(kv.second);
+        }
+      }
+    }
+
+    std::sort(keys.begin(), keys.end());
+
+    std::vector<std::string> provided;
+    for (auto const &kv : cfg_) {
+      // `num_feature` and `num_class` are automatically added due to legacy reason.
+      // `verbosity` in logger is not saved, we should move it into generic_param_.
+      // FIXME(trivialfis): Make eval_metric a training parameter.
+      if (kv.first != "num_feature" && kv.first != "verbosity" &&
+          kv.first != "num_class" && kv.first != kEvalMetric) {
+        provided.push_back(kv.first);
+      }
+    }
+    std::sort(provided.begin(), provided.end());
+
+    std::vector<std::string> diff;
+    std::set_difference(provided.begin(), provided.end(), keys.begin(),
+                        keys.end(), std::back_inserter(diff));
+    if (diff.size() != 0) {
+      std::stringstream ss;
+      ss << "Parameters: { ";
+      for (size_t i = 0; i < diff.size() - 1; ++i) {
+        ss << diff[i] << ", ";
+      }
+      ss << diff.back();
+      ss << " } are not used.";
+      LOG(WARNING) << ss.str();
+    }
   }
 
   void CheckDataSplitMode() {
