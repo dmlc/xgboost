@@ -5,8 +5,6 @@ which is a specialized version for xgboost tasks.
 
 # pylint: disable=invalid-name, missing-docstring, too-many-arguments, too-many-locals
 # pylint: disable=too-many-branches, too-many-statements, too-many-instance-attributes
-from __future__ import absolute_import
-
 import socket
 import struct
 import time
@@ -336,4 +334,4 @@ class RabitTracker(object):
             self.thread.join(100)
 
     def alive(self):
-        return self.thread.isAlive()
+        return self.thread.is_alive()

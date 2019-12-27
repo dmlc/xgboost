@@ -1,7 +1,6 @@
 # coding: utf-8
 # pylint: disable=invalid-name, too-many-statements
 """Training Library containing training routines."""
-from __future__ import absolute_import
 
 from . import rabit
 from .core import EarlyStopException

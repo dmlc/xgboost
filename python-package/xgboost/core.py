@@ -18,7 +18,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (
-    STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
+    STRING_TYPES, DataFrame, MultiIndex, py_str,
     PANDAS_INSTALLED, DataTable,
     CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
     os_fspath, os_PathLike)
@@ -70,11 +70,7 @@ def from_pystr_to_cstr(data):
     if not isinstance(data, list):
         raise NotImplementedError
     pointers = (ctypes.c_char_p * len(data))()
-    if PY3:
-        data = [bytes(d, 'utf-8') for d in data]
-    else:
-        data = [d.encode('utf-8') if isinstance(d, unicode) else d  # pylint: disable=undefined-variable
-                for d in data]
+    data = [bytes(d, 'utf-8') for d in data]
     pointers[:] = data
     return pointers
 
@@ -89,21 +85,12 @@ def from_cstr_to_pystr(data, length):
     length : ctypes pointer
         pointer to length of data
     """
-    if PY3:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
-                res.append(str(data[i].decode('utf-8')))
-    else:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
-                # pylint: disable=undefined-variable
-                res.append(unicode(data[i].decode('utf-8')))
+    res = []
+    for i in range(length.value):
+        try:
+            res.append(str(data[i].decode('ascii')))
+        except UnicodeDecodeError:
+            res.append(str(data[i].decode('utf-8')))
     return res
 
 
