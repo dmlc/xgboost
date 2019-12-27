@@ -34,7 +34,7 @@ def load_pickle(path):
 
 
 class TestPickling(unittest.TestCase):
-    args_tempale = [
+    args_template = [
         "pytest",
         "--verbose",
         "-s",
@@ -84,7 +84,7 @@ class TestPickling(unittest.TestCase):
         cuda_environment = {'CUDA_VISIBLE_DEVICES': '0'}
         env = os.environ.copy()
         env.update(cuda_environment)
-        args = self.args_tempale.copy()
+        args = self.args_template.copy()
         args.append(
             "./tests/python-gpu/"
             "load_pickle.py::TestLoadPickle::test_wrap_gpu_id"
@@ -105,7 +105,7 @@ class TestPickling(unittest.TestCase):
 
         save_pickle(bst, model_path)
 
-        args = self.args_tempale.copy()
+        args = self.args_template.copy()
         args.append(
             "./tests/python-gpu/"
             "load_pickle.py::TestLoadPickle::test_predictor_type_is_auto")
@@ -118,7 +118,7 @@ class TestPickling(unittest.TestCase):
         status = subprocess.call(args, env=env)
         assert status == 0
 
-        args = self.args_tempale.copy()
+        args = self.args_template.copy()
         args.append(
             "./tests/python-gpu/"
             "load_pickle.py::TestLoadPickle::test_predictor_type_is_gpu")
