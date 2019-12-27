@@ -3,8 +3,8 @@
 """Distributed XGBoost Rabit related API."""
 import sys
 import ctypes
-import numpy as np
 import pickle
+import numpy as np
 
 from .core import _LIB, c_str, STRING_TYPES
 
