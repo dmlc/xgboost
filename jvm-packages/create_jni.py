@@ -20,6 +20,7 @@ CONFIG = {
     "USE_S3": "OFF",
 
     "USE_CUDA": "OFF",
+    "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON"
 }
 

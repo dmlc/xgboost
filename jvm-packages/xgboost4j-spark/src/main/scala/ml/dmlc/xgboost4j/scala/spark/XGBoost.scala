@@ -171,8 +171,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     if (overridedParams.contains("tree_method")) {
       require(overridedParams("tree_method") == "hist" ||
         overridedParams("tree_method") == "approx" ||
-        overridedParams("tree_method") == "auto", "xgboost4j-spark only supports tree_method as" +
-        " 'hist', 'approx' and 'auto'")
+        overridedParams("tree_method") == "auto" ||
+        overridedParams("tree_method") == "gpu_hist", "xgboost4j-spark only supports tree_method" +
+        " as 'hist', 'approx', 'gpu_hist', and 'auto'")
     }
     if (overridedParams.contains("train_test_ratio")) {
       logger.warn("train_test_ratio is deprecated since XGBoost 0.82, we recommend to explicitly" +
