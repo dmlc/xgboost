@@ -275,7 +275,8 @@ class LearnerImpl : public Learner {
       // `verbosity` in logger is not saved, we should move it into generic_param_.
       // FIXME(trivialfis): Make eval_metric a training parameter.
       if (kv.first != "num_feature" && kv.first != "verbosity" &&
-          kv.first != "num_class" && kv.first != kEvalMetric) {
+          kv.first != "num_class" && kv.first != "num_output_group" &&
+          kv.first != kEvalMetric) {
         provided.push_back(kv.first);
       }
     }
@@ -399,6 +400,8 @@ class LearnerImpl : public Learner {
     }
 
     fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
+    // make sure the GPU ID is valid in new environment before start running configure.
+    generic_parameters_.ConfigureGpuId(false);
 
     this->need_configuration_ = true;
   }
