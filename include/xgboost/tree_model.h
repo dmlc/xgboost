@@ -33,13 +33,13 @@ class Json;
 /*! \brief meta parameters of the tree */
 struct TreeParam : public dmlc::Parameter<TreeParam> {
   /*! \brief (Deprecated) number of start root */
-  int deprecated_num_roots { 1 };
+  int deprecated_num_roots;
   /*! \brief total number of nodes */
   int num_nodes;
   /*!\brief number of deleted nodes */
   int num_deleted;
   /*! \brief maximum depth, this is a statistics of the tree */
-  int deprecated_max_depth { -1 };
+  int deprecated_max_depth;
   /*! \brief number of features used for tree construction */
   int num_feature;
   /*!
@@ -56,6 +56,8 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
                   "TreeParam: 64 bit align");
     std::memset(this, 0, sizeof(TreeParam));
     num_nodes = 1;
+    deprecated_num_roots = 1;
+    deprecated_max_depth = -1;
   }
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
