@@ -422,24 +422,27 @@ class Span {
 
   template <class Container,
             class = typename std::enable_if<
-              !std::is_const<element_type>::value && !detail::IsSpan<Container>::value &&
+              !std::is_const<element_type>::value &&
+              !detail::IsSpan<Container>::value &&
+              std::is_convertible<typename Container::pointer, pointer>::value &&
               std::is_convertible<typename Container::pointer,
-                                  pointer>::value &&
-              std::is_convertible<
-                typename Container::pointer,
-                decltype(std::declval<Container>().data())>::value>>
-  XGBOOST_DEVICE Span(Container& _cont) :  // NOLINT
-      size_(_cont.size()), data_(_cont.data()) {}
+                                  decltype(std::declval<Container>().data())>::value>::type>
+  Span(Container& _cont) :  // NOLINT
+      size_(_cont.size()), data_(_cont.data()) {
+    static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
+  }
 
   template <class Container,
             class = typename std::enable_if<
-              std::is_const<element_type>::value && !detail::IsSpan<Container>::value &&
+              std::is_const<element_type>::value &&
+              !detail::IsSpan<Container>::value &&
               std::is_convertible<typename Container::pointer, pointer>::value &&
-              std::is_convertible<
-                typename Container::pointer,
-                decltype(std::declval<Container>().data())>::value>>
-  XGBOOST_DEVICE Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
-                                                data_(_cont.data()) {}
+              std::is_convertible<typename Container::pointer,
+                                  decltype(std::declval<Container>().data())>::value>::type>
+  Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
+                                 data_(_cont.data()) {
+    static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
+  }
 
   template <class U, std::size_t OtherExtent,
             class = typename std::enable_if<
