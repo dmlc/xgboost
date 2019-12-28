@@ -31,6 +31,7 @@ TEST(Learner, Basic) {
 }
 
 TEST(Learner, ParameterValidation) {
+  ConsoleLogger::Configure({{"verbosity", "2"}});
   size_t constexpr kRows = 1;
   size_t constexpr kCols = 1;
   auto pp_mat = CreateDMatrix(kRows, kCols, 0);
@@ -45,7 +46,7 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence } are not used.") != std::string::npos);
+  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
   delete pp_mat;
 }
 
