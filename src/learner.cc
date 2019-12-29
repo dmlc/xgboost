@@ -278,8 +278,6 @@ class LearnerImpl : public Learner {
 
     std::vector<std::string> provided;
     for (auto const &kv : cfg_) {
-      // `num_feature` and `num_class` are automatically added due to legacy reason.
-      // `verbosity` in logger is not saved, we should move it into generic_param_.
       // FIXME(trivialfis): Make eval_metric a training parameter.
       provided.push_back(kv.first);
     }
