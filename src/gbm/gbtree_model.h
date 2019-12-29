@@ -47,6 +47,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
     std::memset(this, 0, sizeof(GBTreeModelParam));  // FIXME(trivialfis): Why?
     static_assert(sizeof(GBTreeModelParam) == (4 + 2 + 2 + 32) * sizeof(int32_t),
                   "64/32 bit compatibility issue");
+    deprecated_num_roots = 1;
   }
 
   // declare parameters, only declare those that need to be set.
