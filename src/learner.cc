@@ -291,15 +291,18 @@ class LearnerImpl : public Learner {
                         keys.end(), std::back_inserter(diff));
     if (diff.size() != 0) {
       std::stringstream ss;
-      ss << "Parameters: { ";
+      ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
         ss << diff[i] << ", ";
       }
       ss << diff.back();
-      ss << " } might not be used.  This may not be accurate due to some "
-            "parameters are only used in language bindings but passed down to "
-            "XGBoost core.  Or some parameters are not used but slip through "
-            "this verification. Please open an issue if you find above cases.";
+      ss << R"W( } might not be used.
+
+  This may not be accurate due to some parameters are only used in language bindings but
+  passed down to XGBoost core.  Or some parameters are not used but slip through this
+  verification. Please open an issue if you find above cases.
+
+)W";
       LOG(WARNING) << ss.str();
     }
   }
