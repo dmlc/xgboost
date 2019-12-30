@@ -18,6 +18,7 @@ struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
   HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
   explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)) {}
+  HostDeviceVectorImpl(HostDeviceVectorImpl&& that) : data_h_(std::move(that.data_h_)) {}
 
   void Swap(HostDeviceVectorImpl &other) {
      data_h_.swap(other.data_h_);
@@ -48,13 +49,18 @@ HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
 }
 
 template <typename T>
+HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& that) {
+  impl_ = new HostDeviceVectorImpl<T>(std::move(*that.impl_));
+}
+
+template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
   delete impl_;
   impl_ = nullptr;
 }
 
 template <typename T>
-HostDeviceVector<T>::DeviceAccess() const {
+GPUAccess HostDeviceVector<T>::DeviceAccess() const {
   return kNone;
 }
 

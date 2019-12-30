@@ -262,17 +262,6 @@ HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& other)
     : impl_(new HostDeviceVectorImpl<T>(std::move(*other.impl_))) {}
 
 template <typename T>
-HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& other) {
-  if (this == &other) { return *this; }
-
-  std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
-      new HostDeviceVectorImpl<T>(std::move(*other.impl_)));
-  delete impl_;
-  impl_ = new_impl.release();
-  return *this;
-}
-
-template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
   delete impl_;
   impl_ = nullptr;
