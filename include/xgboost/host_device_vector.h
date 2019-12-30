@@ -93,6 +93,7 @@ class HostDeviceVector {
   HostDeviceVector(HostDeviceVector<T>&&);
 
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&) = delete;
+  HostDeviceVector<T>& operator=(HostDeviceVector<T>&&);
 
   size_t Size() const;
   int DeviceIdx() const;

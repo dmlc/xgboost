@@ -8,6 +8,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include "xgboost/host_device_vector.h"
 
@@ -51,6 +52,17 @@ HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& that) {
   impl_ = new HostDeviceVectorImpl<T>(std::move(*that.impl_));
+}
+
+template <typename T>
+HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& that) {
+  if (this == &that) { return *this; }
+
+  std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
+      new HostDeviceVectorImpl<T>(std::move(*that.impl_)));
+  delete impl_;
+  impl_ = new_impl.release();
+  return *this;
 }
 
 template <typename T>
