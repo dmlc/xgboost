@@ -261,10 +261,10 @@ private[spark] trait ParamMapFuncs extends Params {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
-          paramValue != "hist" && paramValue != "grow_gpu_hist")) {
+          paramValue != "grow_quantile_histmaker" && paramValue != "grow_gpu_hist")) {
         throw new IllegalArgumentException(s"you specified $paramName as $paramValue," +
-          s" XGBoost-Spark only supports gbtree as booster type" +
-          " and grow_histmaker,prune, hist or grow_gpu_hist as the updater type")
+          s" XGBoost-Spark only supports gbtree as booster type and grow_histmaker,prune or" +
+          s" grow_quantile_histmaker or grow_gpu_hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
       params.find(_.name == name).foreach {
