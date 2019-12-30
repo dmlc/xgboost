@@ -29,6 +29,8 @@ def _train_internal(params, dtrain,
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
     num_parallel_tree = 1
+    if 'validate_parameters' not in params.keys():
+        params['validate_parameters'] = True
 
     if xgb_model is not None:
         bst = Booster(params, [dtrain] + [d[0] for d in evals],

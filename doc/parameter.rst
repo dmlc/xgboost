@@ -32,9 +32,13 @@ General Parameters
   - Verbosity of printing messages.  Valid values are 0 (silent), 1 (warning), 2 (info), 3
     (debug).  Sometimes XGBoost tries to change configurations based on heuristics, which
     is displayed as warning message.  If there's unexpected behaviour, please try to
-    increase value of verbosity.  When set to 1 (info), XGBoost will perform verification
-    of input parameters.  The feature is still experimental.  It's expected to have some
-    false positives, especially when used with Scikit-Learn interface.
+    increase value of verbosity.
+
+* ``validate_parameters`` [default to false, except for Python ``train`` function]
+
+  - When set to True, XGBoost will perform validation of input parameters to check whether
+    a parameter is used or not.  The feature is still experimental.  It's expected to have
+    some false positives, especially when used with Scikit-Learn interface.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 

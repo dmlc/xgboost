@@ -38,6 +38,7 @@ TEST(Learner, ParameterValidation) {
   auto& p_mat = *pp_mat;
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  learner->SetParam("validate_parameters", "1");
   learner->SetParam("Knock Knock", "Who's there?");
   learner->SetParam("Silence", "....");
   learner->SetParam("tree_method", "exact");

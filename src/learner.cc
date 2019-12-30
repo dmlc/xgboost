@@ -230,7 +230,10 @@ class LearnerImpl : public Learner {
                                              obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
-    this->ValidateParameters();
+    if (generic_parameters_.validate_parameters) {
+      this->ValidateParameters();
+    }
+
     // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
   }
@@ -297,7 +300,7 @@ class LearnerImpl : public Learner {
             "parameters are only used in language bindings but passed down to "
             "XGBoost core.  Or some parameters are not used but slip through "
             "this verification. Please open an issue if you find above cases.";
-      LOG(INFO) << ss.str();
+      LOG(WARNING) << ss.str();
     }
   }
 
