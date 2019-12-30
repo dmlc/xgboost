@@ -71,6 +71,10 @@ void AllReducer::Init(int _device_ordinal) {
   dh::safe_nccl(ncclCommInitRank(&comm, rabit::GetWorldSize(), id, rank));
   safe_cuda(cudaStreamCreate(&stream));
   initialised_ = true;
+#else
+  if (rabit::IsDistributed()) {
+    LOG(FATAL) << "XGBoost is not compiled with NCCL.";
+  }
 #endif  // XGBOOST_USE_NCCL
 }
 
