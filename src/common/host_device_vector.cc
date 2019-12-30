@@ -54,21 +54,8 @@ HostDeviceVector<T>::~HostDeviceVector() {
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const HostDeviceVector<T>& other)
-  : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
-}
-
-template <typename T>
-HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& other) {
-  if (this == &other) {
-    return *this;
-  }
-
-  HostDeviceVectorImpl<T> newInstance(*other.impl_);
-  newInstance.Swap(*impl_);
-
-  return *this;
+HostDeviceVector<T>::DeviceAccess() const {
+  return kNone;
 }
 
 template <typename T>

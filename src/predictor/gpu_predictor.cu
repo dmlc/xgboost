@@ -339,6 +339,7 @@ class GPUPredictor : public xgboost::Predictor {
       // the first step only modifies prediction store in learner without following code.
       InitOutPredictions(cache_emtry->second.data->Info(),
                          &(cache_emtry->second.predictions), model);
+      CHECK_EQ(cache_emtry->second.predictions.Size(), out_preds->Size());
       cache_emtry->second.predictions.Copy(*out_preds);
     }
   }

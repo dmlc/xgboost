@@ -59,8 +59,25 @@ class MetaInfo {
    * can be used to specify initial prediction to boost from.
    */
   HostDeviceVector<bst_float> base_margin_;
+
   /*! \brief default constructor */
   MetaInfo()  = default;
+  MetaInfo& operator=(MetaInfo const& that) {
+    this->num_row_ = that.num_row_;
+    this->num_col_ = that.num_col_;
+    this->num_nonzero_ = that.num_nonzero_;
+
+    this->labels_.Resize(that.labels_.Size());
+    this->labels_.Copy(that.labels_);
+
+    this->group_ptr_ = that.group_ptr_;
+
+    this->weights_.Resize(that.weights_.Size());
+    this->weights_.Copy(that.weights_);
+    this->base_margin_.Resize(that.base_margin_.Size());
+    this->base_margin_.Copy(that.base_margin_);
+    return *this;
+  }
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -246,10 +263,10 @@ class SparsePage {
   /**
    * \brief Pushes external data batch onto this page
    *
-   * \tparam  AdapterBatchT 
-   * \param batch 
-   * \param missing 
-   * \param nthread 
+   * \tparam  AdapterBatchT
+   * \param batch
+   * \param missing
+   * \param nthread
    *
    * \return  The maximum number of columns encountered in this input batch. Useful when pushing many adapter batches to work out the total number of columns.
    */
