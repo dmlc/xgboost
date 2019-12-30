@@ -81,13 +81,14 @@ else:
 # pandas
 try:
     from pandas import DataFrame, Series
-    from pandas import MultiIndex
+    from pandas import MultiIndex, Int64Index
     from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
+    Int64Index = object
     DataFrame = object
     Series = object
     pandas_concat = None

@@ -83,6 +83,13 @@ class TestPandas(unittest.TestCase):
         assert dm.num_row() == 3
         assert dm.num_col() == 2
 
+        df_int = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=[9, 10])
+        dm_int = xgb.DMatrix(df_int)
+        df_range = pd.DataFrame([[1, 1.1], [2, 2.2]], columns=range(9, 11, 1))
+        dm_range = xgb.DMatrix(df_range)
+        assert dm_int.feature_names == ['9', '10']  # assert not "9 "
+        assert dm_int.feature_names == dm_range.feature_names
+
         # test MultiIndex as columns
         df = pd.DataFrame(
             [
