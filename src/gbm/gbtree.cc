@@ -14,6 +14,8 @@
 #include <limits>
 #include <algorithm>
 
+#include "rabit/rabit.h"
+#include "xgboost/base.h"
 #include "xgboost/gbm.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -33,7 +35,6 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
 void GBTree::Configure(const Args& cfg) {
-  this->cfg_ = cfg;
   std::string updater_seq = tparam_.updater_seq;
   tparam_.UpdateAllowUnknown(cfg);
 
@@ -77,8 +78,7 @@ void GBTree::Configure(const Args& cfg) {
     // Don't drive users to silent XGBOost.
     showed_updater_warning_ = true;
   }
-
-  this->ConfigureUpdaters();
+  this->PerformTreeMethodHeuristic();
   if (updater_seq != tparam_.updater_seq) {
     updaters_.clear();
     this->InitUpdater(cfg);
@@ -91,29 +91,7 @@ void GBTree::Configure(const Args& cfg) {
   configured_ = true;
 }
 
-// FIXME(trivialfis): This handles updaters.  Because the choice of updaters depends on
-// whether external memory is used and how large is dataset.  We can remove the dependency
-// on DMatrix once `hist` tree method can handle external memory so that we can make it
-// default.
-void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
-  CHECK(this->configured_);
-  std::string updater_seq = tparam_.updater_seq;
-  CHECK(tparam_.GetInitialised());
-
-  tparam_.UpdateAllowUnknown(cfg);
-
-  this->PerformTreeMethodHeuristic(fmat);
-  this->ConfigureUpdaters();
-
-  // initialize the updaters only when needed.
-  if (updater_seq != tparam_.updater_seq) {
-    LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
-    this->updaters_.clear();
-    this->InitUpdater(cfg);
-  }
-}
-
-void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
+void GBTree::PerformTreeMethodHeuristic() {
   if (specified_updater_) {
     // This method is disabled when `updater` parameter is explicitly
     // set, since only experts are expected to do so.
@@ -121,56 +99,36 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
   }
   // tparam_ is set before calling this function.
   if (tparam_.tree_method != TreeMethod::kAuto) {
+    if (rabit::IsDistributed() && tparam_.tree_method == TreeMethod::kExact) {
+      LOG(FATAL) << R"(Distributed training is supported by following tree methods:
+  - gpu_hist
+  - hist
+  - approx
+)";
+    }
     return;
   }
 
-  tparam_.updater_seq = "grow_histmaker,prune";
-  if (rabit::IsDistributed()) {
-    LOG(WARNING) <<
-      "Tree method is automatically selected to be 'approx' "
-      "for distributed training.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else if (!fmat->SingleColBlock()) {
-    LOG(WARNING) << "Tree method is automatically set to 'approx' "
-                    "since external-memory data matrix is used.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
-    /* Choose tree_method='approx' automatically for large data matrix */
-    LOG(WARNING) << "Tree method is automatically selected to be "
-        "'approx' for faster speed. To use old behavior "
-        "(exact greedy algorithm on single machine), "
-        "set tree_method to 'exact'.";
-    tparam_.tree_method = TreeMethod::kApprox;
-  } else {
-    tparam_.tree_method = TreeMethod::kExact;
-  }
-  LOG(DEBUG) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
-}
+  // Default tree method.
+  tparam_.tree_method = TreeMethod::kHist;
 
-void GBTree::ConfigureUpdaters() {
-  if (specified_updater_) {
-    return;
-  }
-  // `updater` parameter was manually specified
-  /* Choose updaters according to tree_method parameters */
   switch (tparam_.tree_method) {
-    case TreeMethod::kAuto:
-      // Use heuristic to choose between 'exact' and 'approx' This
-      // choice is carried out in PerformTreeMethodHeuristic() before
-      // calling this function.
+    case TreeMethod::kAuto: {
+      LOG(FATAL) << "[Internal error]: tree method is not configured.";
       break;
-    case TreeMethod::kApprox:
+    }
+    case TreeMethod::kApprox: {
       tparam_.updater_seq = "grow_histmaker,prune";
       break;
-    case TreeMethod::kExact:
+    }
+    case TreeMethod::kExact: {
       tparam_.updater_seq = "grow_colmaker,prune";
       break;
-    case TreeMethod::kHist:
-      LOG(INFO) <<
-          "Tree method is selected to be 'hist', which uses a "
-          "single updater grow_quantile_histmaker.";
+    }
+    case TreeMethod::kHist: {
       tparam_.updater_seq = "grow_quantile_histmaker";
       break;
+    }
     case TreeMethod::kGPUHist: {
       this->AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
@@ -180,6 +138,7 @@ void GBTree::ConfigureUpdaters() {
       LOG(FATAL) << "Unknown tree_method ("
                  << static_cast<int>(tparam_.tree_method) << ") detected";
   }
+  LOG(INFO) << "Using tree method: " << static_cast<int>(tparam_.tree_method);
 }
 
 void GBTree::DoBoost(DMatrix* p_fmat,
@@ -187,7 +146,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      ObjFunction* obj) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
   const int ngroup = model_.learner_model_param_->num_output_group;
-  ConfigureWithKnownData(this->cfg_, p_fmat);
+  ValidateTreeMethod(p_fmat);
   monitor_.Start("BoostNewTrees");
   CHECK_NE(ngroup, 0);
   if (ngroup == 1) {
@@ -264,12 +223,17 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
                            std::vector<std::unique_ptr<RegTree> >* ret) {
   std::vector<RegTree*> new_trees;
   ret->clear();
+  Args const tree_param {
+    {"num_feature",
+     std::to_string(model_.learner_model_param_->num_feature)}
+  };
+
   // create the trees
   for (int i = 0; i < tparam_.num_parallel_tree; ++i) {
     if (tparam_.process_type == TreeProcessType::kDefault) {
       // create new tree
       std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->param.UpdateAllowUnknown(this->cfg_);
+      ptr->param.UpdateAllowUnknown(tree_param);
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
     } else if (tparam_.process_type == TreeProcessType::kUpdate) {

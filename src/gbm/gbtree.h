@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/gbm.h"
 #include "xgboost/predictor.h"
@@ -159,14 +160,21 @@ class GBTree : public GradientBooster {
       (*cache_)[d.get()].data = d;
     }
   }
-
-  void Configure(const Args& cfg) override;
-  // Revise `tree_method` and `updater` parameters after seeing the training
-  // data matrix, only useful when tree_method is auto.
-  void PerformTreeMethodHeuristic(DMatrix* fmat);
+  void PerformTreeMethodHeuristic();
   /*! \brief Map `tree_method` parameter to `updater` parameter */
-  void ConfigureUpdaters();
-  void ConfigureWithKnownData(Args const& cfg, DMatrix* fmat);
+  void Configure(const Args& cfg) override;
+
+  void ValidateTreeMethod(DMatrix const* fmat) const {
+    if (!fmat->SingleColBlock() &&
+        (tparam_.tree_method != TreeMethod::kApprox) &&
+        (tparam_.tree_method != TreeMethod::kGPUHist) &&
+        (tparam_.tree_method != TreeMethod::kExact)) {
+      LOG(FATAL) << "External memory data matrix is used (out of core).  Use "
+                 << "`tree_method=approx` for CPU based external memory training, and "
+                 << "`tree_method=gpu_hist` for GPU based external memory training.";
+    }
+  }
+
 
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat,
@@ -185,7 +193,6 @@ class GBTree : public GradientBooster {
 
   void Load(dmlc::Stream* fi) override {
     model_.Load(fi);
-    this->cfg_.clear();
   }
 
   void Save(dmlc::Stream* fo) const override {
@@ -327,8 +334,6 @@ class GBTree : public GradientBooster {
   bool showed_updater_warning_ {false};
   bool specified_updater_   {false};
   bool configured_ {false};
-  // configurations for tree
-  Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
   /**
