@@ -641,7 +641,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             obj = None
 
         if self.n_classes_ > 2:
-            # Switch to using a multiclass objective in the underlying XGB instance
+            # Switch to using a multiclass objective in the underlying
+            # XGB instance
             xgb_options["objective"] = "multi:softprob"
             xgb_options['num_class'] = self.n_classes_
 
@@ -659,7 +660,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             if sample_weight_eval_set is None:
                 sample_weight_eval_set = [None] * len(eval_set)
             evals = list(
-                DMatrix(eval_set[i][0], label=self._le.transform(eval_set[i][1]),
+                DMatrix(eval_set[i][0],
+                        label=self._le.transform(eval_set[i][1]),
                         missing=self.missing, weight=sample_weight_eval_set[i],
                         nthread=self.n_jobs)
                 for i in range(len(eval_set))
@@ -680,8 +682,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
 
-        self._Booster = train(xgb_options, train_dmatrix, self.get_num_boosting_rounds(),
-                              evals=evals, early_stopping_rounds=early_stopping_rounds,
+        self._Booster = train(xgb_options, train_dmatrix,
+                              num_boost_round=self.get_num_boosting_rounds(),
+                              evals=evals,
+                              early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
@@ -690,7 +694,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+                evals_result[val[0]][evals_result_key] = val[1][
+                    evals_result_key]
             self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:

@@ -718,7 +718,7 @@ class TestBoostFromPrediction(unittest.TestCase):
             learning_rate=0.3, random_state=0, n_estimators=8,
             tree_method=tree_method)
         cls_2.fit(X=X, y=y)
-        predictions_2 = cls_2.predict(X, base_margin=margin)
+        predictions_2 = cls_2.predict(X)
         assert np.all(predictions_1 == predictions_2)
 
     @pytest.mark.skipif(**tm.no_sklearn())
