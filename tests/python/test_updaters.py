@@ -23,7 +23,7 @@ class TestUpdaters(unittest.TestCase):
     def test_colmaker(self):
         variable_param = {'updater': ['grow_colmaker'], 'max_depth': [2, 8]}
         for param in parameter_combinations(variable_param):
-            result = run_suite(param, out_of_core=False)
+            result = run_suite(param)
             assert_results_non_increasing(result, 1e-2)
 
     @pytest.mark.skipif(**tm.no_sklearn())

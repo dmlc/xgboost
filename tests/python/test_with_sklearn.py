@@ -243,7 +243,7 @@ def test_parameter_tuning():
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    xgb_model = xgb.XGBRegressor()
+    xgb_model = xgb.XGBRegressor(tree_method='approx')
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
                        cv=3, verbose=1, iid=True)
