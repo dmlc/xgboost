@@ -126,9 +126,11 @@ def parameter_combinations(variable_param):
     return result
 
 
-def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
-    """
-    Run the given parameters on a range of datasets. Objective and eval metric will be automatically set
+def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False,
+              out_of_core=True):
+    """Run the given parameters on a range of datasets. Objective and eval metric
+    will be automatically set
+
     """
     datasets = [
         Dataset("Boston", get_boston, "reg:squarederror", "rmse"),
@@ -139,13 +141,15 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
                 "reg:squarederror", "rmse", has_weights=True),
         Dataset("Small weights regression", get_small_weights,
                 "reg:squarederror", "rmse", has_weights=True),
-        Dataset("Boston External Memory", get_boston,
-                "reg:squarederror", "rmse",
-                use_external_memory=True)
     ]
+    if out_of_core:
+        datasets.append(
+            Dataset("Boston External Memory", get_boston,
+                    "reg:squarederror", "rmse",
+                    use_external_memory=True)
+        )
 
-    results = [
-    ]
+    results = []
     for d in datasets:
         if select_datasets is None or d.name in select_datasets:
             results.append(

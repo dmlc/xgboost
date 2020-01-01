@@ -115,7 +115,6 @@ class TestRanking(unittest.TestCase):
         # model training parameters
         cls.params = {'objective': 'rank:pairwise',
                       'booster': 'gbtree',
-                      'silent': 0,
                       'eval_metric': ['ndcg']
                       }
 

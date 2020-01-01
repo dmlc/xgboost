@@ -23,7 +23,7 @@ class TestUpdaters(unittest.TestCase):
     def test_colmaker(self):
         variable_param = {'updater': ['grow_colmaker'], 'max_depth': [2, 8]}
         for param in parameter_combinations(variable_param):
-            result = run_suite(param)
+            result = run_suite(param, out_of_core=False)
             assert_results_non_increasing(result, 1e-2)
 
     @pytest.mark.skipif(**tm.no_sklearn())
@@ -35,7 +35,7 @@ class TestUpdaters(unittest.TestCase):
                           'max_leaves': [64, 0],
                           'verbosity': [0]}
         for param in parameter_combinations(variable_param):
-            result = run_suite(param)
+            result = run_suite(param, out_of_core=False)
             assert_results_non_increasing(result, 1e-2)
 
         # hist must be same as exact on all-categorial data

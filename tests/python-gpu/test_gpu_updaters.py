@@ -16,9 +16,6 @@ def assert_gpu_results(cpu_results, gpu_results):
                            gpu_res["eval"][-1], 1e-2, 1e-2)
 
 
-datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
-            "Sparse regression with weights", "Small weights regression"]
-
 test_param = parameter_combinations({
     'gpu_id': [0],
     'max_depth': [2, 8],
@@ -34,21 +31,24 @@ class TestGPU(unittest.TestCase):
     def test_gpu_hist(self):
         for param in test_param:
             param['tree_method'] = 'gpu_hist'
-            gpu_results = run_suite(param, select_datasets=datasets)
+            gpu_results = run_suite(param, out_of_core=False)
             assert_results_non_increasing(gpu_results, 1e-2)
             param['tree_method'] = 'hist'
-            cpu_results = run_suite(param, select_datasets=datasets)
+            cpu_results = run_suite(param, out_of_core=False)
             assert_gpu_results(cpu_results, gpu_results)
 
-    # NOTE(rongou): Because the `Boston` dataset is too small, this only tests external memory mode
-    # with a single page. To test multiple pages, set DMatrix::kPageSize to, say, 1024.
+    # NOTE(rongou): Because the `Boston` dataset is too small, this only tests
+    # external memory mode
+    # with a single page. To test multiple pages, set DMatrix::kPageSize to,
+    # say, 1024.
     def test_external_memory(self):
         for param in reversed(test_param):
             param['tree_method'] = 'gpu_hist'
             param['gpu_page_size'] = 1024
             gpu_results = run_suite(param, select_datasets=["Boston"])
             assert_results_non_increasing(gpu_results, 1e-2)
-            ext_mem_results = run_suite(param, select_datasets=["Boston External Memory"])
+            ext_mem_results = run_suite(param, select_datasets=[
+                "Boston External Memory"])
             assert_results_non_increasing(ext_mem_results, 1e-2)
             assert_gpu_results(gpu_results, ext_mem_results)
             break
@@ -87,5 +87,5 @@ class TestGPU(unittest.TestCase):
                           'grow_policy': ['lossguide'],
                           'tree_method': ['gpu_hist']}
         for param in parameter_combinations(variable_param):
-            gpu_results = run_suite(param, select_datasets=datasets)
+            gpu_results = run_suite(param, out_of_core=False)
             assert_results_non_increasing(gpu_results, 1e-2)

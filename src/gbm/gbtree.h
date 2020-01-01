@@ -165,7 +165,7 @@ class GBTree : public GradientBooster {
   void Configure(const Args& cfg) override;
 
   void ValidateTreeMethod(DMatrix const* fmat) const {
-    if (!fmat->SingleColBlock() &&
+    if (!fmat->SingleColBlock() && !specified_updater_ &&
         (tparam_.tree_method != TreeMethod::kApprox) &&
         (tparam_.tree_method != TreeMethod::kGPUHist) &&
         (tparam_.tree_method != TreeMethod::kExact)) {
