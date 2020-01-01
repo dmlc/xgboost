@@ -32,7 +32,7 @@
 namespace xgboost {
 enum class TreeMethod : int {
   kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
-  kGPUHist = 5
+  kGPUHist = 5, kRefresh = 6
 };
 
 // boosting process types
@@ -169,9 +169,11 @@ class GBTree : public GradientBooster {
         (tparam_.tree_method != TreeMethod::kApprox) &&
         (tparam_.tree_method != TreeMethod::kGPUHist) &&
         (tparam_.tree_method != TreeMethod::kExact)) {
-      LOG(FATAL) << "External memory data matrix is used (out of core).  Use "
-                 << "`tree_method=approx` for CPU based external memory training, and "
-                 << "`tree_method=gpu_hist` for GPU based external memory training.";
+      LOG(FATAL) << R"(
+External memory data matrix is used (out of core training).  Set `tree_method` to:
+  - `approx` for CPU based out of core training.
+  - `gpu_hist` for GPU based out of core training.
+)";
     }
   }
 

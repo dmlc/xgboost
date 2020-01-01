@@ -101,20 +101,18 @@ void GBTree::PerformTreeMethodHeuristic() {
   if (tparam_.tree_method != TreeMethod::kAuto) {
     if (rabit::IsDistributed() && tparam_.tree_method == TreeMethod::kExact) {
       LOG(FATAL) << R"(Distributed training is supported by following tree methods:
-  - gpu_hist
-  - hist
-  - approx
+  - `gpu_hist`
+  - `hist`
+  - `approx`
 )";
     }
-    return;
+  } else {
+    // Default tree method.
+    tparam_.tree_method = TreeMethod::kHist;
   }
-
-  // Default tree method.
-  tparam_.tree_method = TreeMethod::kHist;
 
   switch (tparam_.tree_method) {
     case TreeMethod::kAuto: {
-      LOG(FATAL) << "[Internal error]: tree method is not configured.";
       break;
     }
     case TreeMethod::kApprox: {
@@ -132,6 +130,10 @@ void GBTree::PerformTreeMethodHeuristic() {
     case TreeMethod::kGPUHist: {
       this->AssertGPUSupport();
       tparam_.updater_seq = "grow_gpu_hist";
+      break;
+    }
+    case TreeMethod::kRefresh: {
+      tparam_.updater_seq = "refresh";
       break;
     }
     default:
