@@ -53,7 +53,8 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "eta" -> "1",
       "max_depth" -> "6",
       "silent" -> "1",
-      "objective" -> "binary:logistic")
+      "objective" -> "binary:logistic",
+      "tree_method" -> "hist")
 
     val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
     val prediction1 = model1.predict(testDM)
