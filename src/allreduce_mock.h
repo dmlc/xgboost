@@ -71,7 +71,8 @@ class AllreduceMock : public AllreduceRobust {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "Allgather");
     double tstart = utils::GetTime();
     AllreduceRobust::Allgather(sendrecvbuf, total_size,
-                                   slice_begin, slice_end, size_prev_slice);
+                                   slice_begin, slice_end,
+                                   size_prev_slice, _file, _line, _caller);
     tsum_allgather += utils::GetTime() - tstart;
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,

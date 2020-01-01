@@ -69,13 +69,14 @@ class IEngine {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */ 
-  virtual void Allgather(void *sendrecvbuf, size_t total_size,
-                             size_t slice_begin,
-                             size_t slice_end,
-                             size_t size_prev_slice,
-                             const char* _file = _FILE,
-                             const int _line = _LINE,
-                             const char* _caller = _CALLER) = 0;
+  virtual void Allgather(void *sendrecvbuf,
+                         size_t total_size,
+                         size_t slice_begin,
+                         size_t slice_end,
+                         size_t size_prev_slice,
+                         const char* _file = _FILE,
+                         const int _line = _LINE,
+                         const char* _caller = _CALLER) = 0;
   /*!
    * \brief performs in-place Allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
@@ -249,14 +250,18 @@ enum DataType {
  * \param slice_begin beginning of the current slice
  * \param slice_end end of the current slice
  * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
- * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
- * \sa ReturnType
+ * \param _file caller file name used to generate unique cache key
+ * \param _line caller line number used to generate unique cache key
+ * \param _caller caller function name used to generate unique cache key
  */
 void Allgather(void* sendrecvbuf,
                    size_t total_size,
                    size_t slice_begin,
                    size_t slice_end,
-                   size_t size_prev_slice);
+                   size_t size_prev_slice,
+                   const char* _file = _FILE,
+                   const int _line = _LINE,
+                   const char* _caller = _CALLER);
 /*!
  * \brief perform in-place Allreduce, on sendrecvbuf
  *   this is an internal function used by rabit to be able to compile with MPI

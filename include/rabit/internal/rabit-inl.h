@@ -196,17 +196,22 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
                      engine::mpi::GetType<DType>(), OP::kType, InvokeLambda_, &prepare_fun,
                      _file, _line, _caller);
 }
-#endif  // C++11
 
 // Performs inplace Allgather
 template<typename DType>
-inline void Allgather(DType *sendrecvbuf, size_t totalSize,
-                      size_t beginIndex, size_t sizeNodeSlice,
-                      size_t sizePrevSlice) {
-  engine::Allgather(sendrecvbuf, totalSize * sizeof(DType), beginIndex * sizeof(DType),
+inline void Allgather(DType *sendrecvbuf,
+                      size_t totalSize,
+                      size_t beginIndex,
+                      size_t sizeNodeSlice,
+                      size_t sizePrevSlice,
+                      const char* _file,
+                      const int _line,
+                      const char* _caller) {
+  engine::GetEngine()->Allgather(sendrecvbuf, totalSize * sizeof(DType), beginIndex * sizeof(DType),
                         (beginIndex + sizeNodeSlice) * sizeof(DType),
-                        sizePrevSlice * sizeof(DType));
+                        sizePrevSlice * sizeof(DType), _file, _line, _caller);
 }
+#endif  // C++11
 
 // print message to the tracker
 inline void TrackerPrint(const std::string &msg) {

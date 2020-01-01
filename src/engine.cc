@@ -88,8 +88,12 @@ IEngine *GetEngine() {
 void Allgather(void *sendrecvbuf_, size_t total_size,
                    size_t slice_begin,
                    size_t slice_end,
-                   size_t size_prev_slice) {
-  GetEngine()->Allgather(sendrecvbuf_, total_size, slice_begin, slice_end, size_prev_slice);
+                   size_t size_prev_slice,
+                   const char* _file,
+                   const int _line,
+                   const char* _caller) {
+  GetEngine()->Allgather(sendrecvbuf_, total_size, slice_begin,
+    slice_end, size_prev_slice, _file, _line, _caller);
 }
 
 
