@@ -915,6 +915,9 @@ class LearnerImpl : public Learner {
           << "num rows: "     << p_fmat->Info().num_row_   << "\n"
           << "Number of weights should be equal to number of groups in ranking task.";
     }
+    if (tparam_.dsplit == DataSplitMode::kRow || tparam_.dsplit == DataSplitMode::kAuto) {
+      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_);
+    }
   }
 
   // model parameter
