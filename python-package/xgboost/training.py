@@ -13,7 +13,7 @@ from . import callback
 def _train_internal(params, dtrain,
                     num_boost_round=10, evals=(),
                     obj=None, feval=None,
-                    xgb_model=None, callbacks=None):
+                    xgb_model=None, callbacks=None, eval_start=None, eval_interval=1):
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
@@ -52,6 +52,9 @@ def _train_internal(params, dtrain,
     start_iteration = int(version / 2)
     nboost += start_iteration
 
+    eval_start = start_iteration if eval_start is None else eval_start
+    score_tree_interval = set([i for i in range(eval_start, num_boost_round, eval_interval)])
+
     callbacks_before_iter = [
         cb for cb in callbacks
         if cb.__dict__.get('before_iteration', False)]
@@ -80,7 +83,7 @@ def _train_internal(params, dtrain,
         nboost += 1
         evaluation_result_list = []
         # check evaluation result.
-        if evals:
+        if evals and i in score_tree_interval:
             bst_eval_set = bst.eval_set(evals, i, feval)
             if isinstance(bst_eval_set, STRING_TYPES):
                 msg = bst_eval_set
@@ -114,7 +117,8 @@ def _train_internal(params, dtrain,
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, xgb_model=None, callbacks=None):
+          verbose_eval=True, xgb_model=None, callbacks=None, eval_start=None,
+          eval_interval=1):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -206,7 +210,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                            num_boost_round=num_boost_round,
                            evals=evals,
                            obj=obj, feval=feval,
-                           xgb_model=xgb_model, callbacks=callbacks)
+                           xgb_model=xgb_model, callbacks=callbacks,
+                           eval_start=eval_start,
+                           eval_interval=eval_interval)
 
 
 class CVPack(object):
