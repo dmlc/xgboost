@@ -516,6 +516,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                                iteration=i,
                                begin_iteration=0,
                                end_iteration=num_boost_round,
+                               score_tree_interval=None,
                                rank=0,
                                evaluation_result_list=res))
         except EarlyStopException as e:

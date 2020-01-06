@@ -375,8 +375,9 @@ class XGBModel(XGBModelBase):
         self._Booster.load_model(fname)
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None, early_stopping_rounds=None,
-            verbose=True, xgb_model=None, sample_weight_eval_set=None, callbacks=None):
+            eval_set=None, eval_metric=None, eval_start=None, eval_interval=1,
+            early_stopping_rounds=None, verbose=True, xgb_model=None,
+            sample_weight_eval_set=None, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
 
@@ -408,6 +409,13 @@ class XGBModel(XGBModelBase):
             method. It must return a str, value pair where the str is a name
             for the evaluation and value is the value of the evaluation
             function. The callable custom objective is always minimized.
+        eval_start : int, optional
+            An integer representing the i-th validation iteration to start evaluating
+            the performance of the model on. Useful for improving performance if you know
+            when the model starts to converge
+        eval_interval : int, optional
+            An integer representing the interval to evaluate the model during training.
+            If None, defaults to 1.
         early_stopping_rounds : int
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.
@@ -475,7 +483,9 @@ class XGBModel(XGBModelBase):
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+                              callbacks=callbacks,
+                              eval_start=eval_start,
+                              eval_interval=eval_interval)
 
         if evals_result:
             for val in evals_result.items():
@@ -683,7 +693,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         super().__init__(objective=objective, **kwargs)
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None,
+            eval_set=None, eval_metric=None, eval_start=None, eval_interval=1,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
@@ -749,7 +759,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+                              callbacks=callbacks,
+                              eval_start=eval_start,
+                              eval_interval=eval_interval)
 
         self.objective = xgb_options["objective"]
         if evals_result:
@@ -1016,7 +1028,7 @@ class XGBRanker(XGBModel):
             raise ValueError("please use XGBRanker for ranking task")
 
     def fit(self, X, y, group, sample_weight=None, base_margin=None,
-            eval_set=None,
+            eval_set=None, eval_start=None, eval_interval=1,
             sample_weight_eval_set=None, eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
             callbacks=None):
@@ -1067,6 +1079,13 @@ class XGBRanker(XGBModel):
             doc/parameter.rst.
             If a list of str, should be the list of multiple built-in evaluation metrics
             to use. The custom evaluation metric is not yet supported for the ranker.
+        eval_start : int, optional
+            An integer representing the i-th validation iteration to start evaluating
+            the performance of the model on. Useful for improving performance if you know
+            when the model starts to converge
+        eval_interval : int, optional
+            An integer representing the interval to evaluate the model during training.
+            If None, defaults to 1.
         early_stopping_rounds : int
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.
@@ -1153,7 +1172,9 @@ class XGBRanker(XGBModel):
                               evals=evals,
                               evals_result=evals_result, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+                              callbacks=callbacks,
+                              eval_start=eval_start,
+                              eval_interval=eval_interval)
 
         self.objective = params["objective"]
 
