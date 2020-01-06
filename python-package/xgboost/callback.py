@@ -241,7 +241,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                 state['best_msg'] = msg
                 state['best_score'] = score
                 state['best_iteration'] = env.iteration
-                state['iterations_since_best'] = 1
+                state['iterations_since_best'] = 0
                 # save the property to attributes, so they will occur in checkpoint.
                 if env.model is not None:
                     env.model.set_attr(best_score=str(state['best_score']),
@@ -253,6 +253,5 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                     msg = "Stopping. Best iteration:\n{}\n\n"
                     rabit.tracker_print(msg.format(best_msg))
                 raise EarlyStopException(best_iteration)
-            else:
-                state['iterations_since_best'] += 1
+            state['iterations_since_best'] += 1
     return callback
