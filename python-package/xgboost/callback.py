@@ -227,13 +227,10 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         if not state:
             init(env)
 
-        rabit.tracker_print(f"\n\n{state}\n\n")
-
         score = env.evaluation_result_list[-1][1]
         best_score = state['best_score']
         best_iteration = state['best_iteration']
         maximize_score = state['maximize_score']
-
         if (maximize_score and score > best_score) or \
                 (not maximize_score and score < best_score):
             msg = '[%d]\t%s' % (
