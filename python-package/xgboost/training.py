@@ -98,6 +98,7 @@ def _train_internal(params, dtrain,
                                iteration=i,
                                begin_iteration=start_iteration,
                                end_iteration=num_boost_round,
+                               score_tree_interval=score_tree_interval,
                                rank=rank,
                                evaluation_result_list=evaluation_result_list))
         except EarlyStopException:
