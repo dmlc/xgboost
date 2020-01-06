@@ -53,7 +53,7 @@ def _train_internal(params, dtrain,
     nboost += start_iteration
 
     eval_start = start_iteration if eval_start is None else eval_start
-    score_tree_interval = set([i for i in range(eval_start, num_boost_round, eval_interval)])
+    score_tree_interval = set(range(eval_start, num_boost_round, eval_interval))
 
     callbacks_before_iter = [
         cb for cb in callbacks
@@ -94,13 +94,13 @@ def _train_internal(params, dtrain,
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=bst,
-                               cvfolds=None,
-                               iteration=i,
-                               begin_iteration=start_iteration,
-                               end_iteration=num_boost_round,
-                               score_tree_interval=score_tree_interval,
-                               rank=rank,
-                               evaluation_result_list=evaluation_result_list))
+                            cvfolds=None,
+                            iteration=i,
+                            begin_iteration=start_iteration,
+                            end_iteration=num_boost_round,
+                            score_tree_interval=score_tree_interval,
+                            rank=rank,
+                            evaluation_result_list=evaluation_result_list))
         except EarlyStopException:
             break
         # do checkpoint after evaluation, in case evaluation also updates booster.
@@ -201,9 +201,18 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             callbacks.append(callback.print_evaluation(verbose_eval))
 
     if early_stopping_rounds is not None:
-        callbacks.append(callback.early_stop(early_stopping_rounds,
-                                             maximize=maximize,
-                                             verbose=bool(verbose_eval)))
+        if eval_start is not None or eval_interval > 1:
+            callbacks.append(
+                callback.early_stop_interval(
+                    early_stopping_rounds,
+                    maximize=maximize,
+                    verbose=bool(verbose_eval)
+                )
+            )
+        else:
+            callbacks.append(callback.early_stop(early_stopping_rounds,
+                                                maximize=maximize,
+                                                verbose=bool(verbose_eval)))
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
 
@@ -512,13 +521,13 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=None,
-                               cvfolds=cvfolds,
-                               iteration=i,
-                               begin_iteration=0,
-                               end_iteration=num_boost_round,
-                               score_tree_interval=None,
-                               rank=0,
-                               evaluation_result_list=res))
+                            cvfolds=cvfolds,
+                            iteration=i,
+                            begin_iteration=0,
+                            end_iteration=num_boost_round,
+                            score_tree_interval=None,
+                            rank=0,
+                            evaluation_result_list=res))
         except EarlyStopException as e:
             for k in results:
                 results[k] = results[k][:(e.best_iteration + 1)]
