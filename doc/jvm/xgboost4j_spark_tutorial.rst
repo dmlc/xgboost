@@ -188,9 +188,11 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
   doing this with missing values encoded as NaN, you will want to set ``setHandleInvalid = "keep"`` on VectorAssembler
   in order to keep the NaN values in the dataset. You would then set the "missing" parameter to whatever you want to be
   treated as missing. However this may cause a large amount of memory use if your dataset is very sparse.
+
   2. Before calling VectorAssembler you can transform the values you want to represent missing into an irregular value
   that is not 0, NaN, or Null and set the "missing" parameter to 0. The irregular value should ideally be chosen to be
   outside the range of values that your features have.
+
   3. Do not use the VectorAssembler class and instead use a custom way of constructing a SparseVector that allows for
   specifying sparsity to indicate a non-zero value. You can then set the "missing" parameter to whatever sparsity
   indicates in your Dataset. If this approach is taken you can pass the parameter
