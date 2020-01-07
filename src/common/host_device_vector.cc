@@ -8,6 +8,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include "xgboost/host_device_vector.h"
 
@@ -18,6 +19,7 @@ struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
   HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
   explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)) {}
+  HostDeviceVectorImpl(HostDeviceVectorImpl&& that) : data_h_(std::move(that.data_h_)) {}
 
   void Swap(HostDeviceVectorImpl &other) {
      data_h_.swap(other.data_h_);
@@ -48,27 +50,30 @@ HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
 }
 
 template <typename T>
+HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& that) {
+  impl_ = new HostDeviceVectorImpl<T>(std::move(*that.impl_));
+}
+
+template <typename T>
+HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& that) {
+  if (this == &that) { return *this; }
+
+  std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
+      new HostDeviceVectorImpl<T>(std::move(*that.impl_)));
+  delete impl_;
+  impl_ = new_impl.release();
+  return *this;
+}
+
+template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
   delete impl_;
   impl_ = nullptr;
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const HostDeviceVector<T>& other)
-  : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
-}
-
-template <typename T>
-HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& other) {
-  if (this == &other) {
-    return *this;
-  }
-
-  HostDeviceVectorImpl<T> newInstance(*other.impl_);
-  newInstance.Swap(*impl_);
-
-  return *this;
+GPUAccess HostDeviceVector<T>::DeviceAccess() const {
+  return kNone;
 }
 
 template <typename T>
