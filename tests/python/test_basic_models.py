@@ -3,12 +3,28 @@ import xgboost as xgb
 import unittest
 import os
 import json
+import testing as tm
+import pytest
 
 dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
 dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
 rng = np.random.RandomState(1994)
+
+
+def json_model(model_path):
+    X = np.random.random((10, 3))
+    y = np.random.randint(2, size=(10,))
+
+    dm1 = xgb.DMatrix(X, y)
+
+    bst = xgb.train({'tree_method': 'hist'}, dm1)
+    bst.save_model(model_path)
+
+    with open(model_path, 'r') as fd:
+        model = json.load(fd)
+    return model
 
 
 class TestModels(unittest.TestCase):
@@ -42,8 +58,9 @@ class TestModels(unittest.TestCase):
 
         # save dmatrix into binary buffer
         dtest.save_binary('dtest.buffer')
+        model_path = 'xgb.model.dart'
         # save model
-        bst.save_model('xgb.model.dart')
+        bst.save_model(model_path)
         # load model and data in
         bst2 = xgb.Booster(params=param, model_file='xgb.model.dart')
         dtest2 = xgb.DMatrix('dtest.buffer')
@@ -69,50 +86,98 @@ class TestModels(unittest.TestCase):
         for ii in range(len(preds_list)):
             for jj in range(ii + 1, len(preds_list)):
                 assert np.sum(np.abs(preds_list[ii] - preds_list[jj])) > 0
+        os.remove(model_path)
 
-    def test_eta_decay(self):
+    def run_eta_decay(self, tree_method):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
         param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+                 'objective': 'binary:logistic', 'tree_method': tree_method}
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[xgb.callback.reset_learning_rate([
+                            0.8, 0.7, 0.6, 0.5
+                        ])],
                         evals_result=evals_result)
-        eval_errors = list(map(float, evals_result['eval']['error']))
+        eval_errors_0 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if eta > 0
-        assert eval_errors[0] > eval_errors[-1]
+        assert eval_errors_0[0] > eval_errors_0[-1]
 
         # init learning_rate with 0 to check whether learning_rates work
         param = {'max_depth': 2, 'learning_rate': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+                 'objective': 'binary:logistic', 'tree_method': tree_method}
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[xgb.callback.reset_learning_rate(
+                            [0.8, 0.7, 0.6, 0.5])],
                         evals_result=evals_result)
-        eval_errors = list(map(float, evals_result['eval']['error']))
+        eval_errors_1 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if learning_rate > 0
-        assert eval_errors[0] > eval_errors[-1]
+        assert eval_errors_1[0] > eval_errors_1[-1]
 
         # check if learning_rates override default value of eta/learning_rate
-        param = {'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic'}
+        param = {
+            'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic',
+            'tree_method': tree_method
+        }
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0, 0, 0, 0],
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[xgb.callback.reset_learning_rate(
+                            [0, 0, 0, 0]
+                        )],
                         evals_result=evals_result)
-        eval_errors = list(map(float, evals_result['eval']['error']))
+        eval_errors_2 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should not decrease, if eta/learning_rate = 0
-        assert eval_errors[0] == eval_errors[-1]
+        assert eval_errors_2[0] == eval_errors_2[-1]
 
         # learning_rates as a customized decay function
         def eta_decay(ithround, num_boost_round):
             return num_boost_round / (ithround + 1)
 
-        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=eta_decay)
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[
+                            xgb.callback.reset_learning_rate(eta_decay)
+                        ],
+                        evals_result=evals_result)
+        eval_errors_3 = list(map(float, evals_result['eval']['error']))
+
         assert isinstance(bst, xgb.core.Booster)
+
+        assert eval_errors_3[0] == eval_errors_2[0]
+
+        for i in range(1, len(eval_errors_0)):
+            assert eval_errors_3[i] != eval_errors_2[i]
+
+    def test_eta_decay_hist(self):
+        self.run_eta_decay('hist')
+
+    def test_eta_decay_approx(self):
+        self.run_eta_decay('approx')
+
+    def test_eta_decay_exact(self):
+        self.run_eta_decay('exact')
+
+    def test_boost_from_prediction(self):
+        # Re-construct dtrain here to avoid modification
+        margined = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        bst = xgb.train({'tree_method': 'hist'}, margined, 1)
+        predt_0 = bst.predict(margined, output_margin=True)
+        margined.set_base_margin(predt_0)
+        bst = xgb.train({'tree_method': 'hist'}, margined, 1)
+        predt_1 = bst.predict(margined)
+
+        assert np.any(np.abs(predt_1 - predt_0) > 1e-6)
+
+        bst = xgb.train({'tree_method': 'hist'}, dtrain, 2)
+        predt_2 = bst.predict(dtrain)
+        assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
     def test_custom_objective(self):
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0}
@@ -204,21 +269,27 @@ class TestModels(unittest.TestCase):
         bst.predict(dm2)  # success
 
     def test_model_json_io(self):
-        X = np.random.random((10, 3))
-        y = np.random.randint(2, size=(10,))
-
-        dm1 = xgb.DMatrix(X, y)
-        bst = xgb.train({'tree_method': 'hist'}, dm1)
-        bst.save_model('./model.json')
-
-        with open('./model.json', 'r') as fd:
-            j_model = json.load(fd)
+        model_path = './model.json'
+        j_model = json_model(model_path)
         assert isinstance(j_model['learner'], dict)
 
         bst = xgb.Booster(model_file='./model.json')
 
+        bst.save_model(fname=model_path)
         with open('./model.json', 'r') as fd:
             j_model = json.load(fd)
         assert isinstance(j_model['learner'], dict)
 
-        os.remove('model.json')
+        os.remove(model_path)
+
+    @pytest.mark.skipif(**tm.no_json_schema())
+    def test_json_schema(self):
+        import jsonschema
+        model_path = './model.json'
+        path = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        doc = os.path.join(path, 'doc', 'model.schema')
+        with open(doc, 'r') as fd:
+            schema = json.load(fd)
+        jsonschema.validate(instance=json_model(model_path), schema=schema)
+        os.remove(model_path)

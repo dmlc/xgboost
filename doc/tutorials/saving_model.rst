@@ -191,5 +191,16 @@ Future Plans
 Right now using the JSON format incurs longer serialisation time, we have been working on
 optimizing the JSON implementation to close the gap between binary format and JSON format.
 You can track the progress in `#5046 <https://github.com/dmlc/xgboost/pull/5046>`_.
-Another important item for JSON format support is a stable and documented `schema
-<https://json-schema.org/>`_, based on which one can easily reuse the saved model.
+
+***********
+JSON Schema
+***********
+
+Another important feature of JSON format is a documented `Schema
+<https://json-schema.org/>`_, based on which one can easily reuse the output model from
+XGBoost.  Here is the initial draft of JSON schema for the output model (not
+serialization, which will not be stable as noted above).  It's subject to change due to
+the beta status.  For an example of parsing XGBoost tree model, see ``/demo/json-model``.
+
+.. include:: ../model.schema
+   :code: json

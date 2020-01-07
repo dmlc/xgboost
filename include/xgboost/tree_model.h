@@ -56,6 +56,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
                   "TreeParam: 64 bit align");
     std::memset(this, 0, sizeof(TreeParam));
     num_nodes = 1;
+    deprecated_num_roots = 1;
   }
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {

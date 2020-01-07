@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "constraints.h"
 #include "./param.h"
@@ -80,7 +81,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() : is_gmat_initialized_{ false } {}
+  QuantileHistMaker() {}
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -112,7 +113,8 @@ class QuantileHistMaker: public TreeUpdater {
   GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
-  bool is_gmat_initialized_;
+  DMatrix const* p_last_dmat_ {nullptr};
+  bool is_gmat_initialized_ {false};
 
   // data structure
   struct NodeEntry {
@@ -136,10 +138,11 @@ class QuantileHistMaker: public TreeUpdater {
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      std::unique_ptr<SplitEvaluator> spliteval,
-                     FeatureInteractionConstraintHost int_constraints_)
+                     FeatureInteractionConstraintHost int_constraints_,
+                     DMatrix const* fmat)
       : param_(param), pruner_(std::move(pruner)),
         spliteval_(std::move(spliteval)), interaction_constraints_{int_constraints_},
-        p_last_tree_(nullptr), p_last_fmat_(nullptr) {
+        p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
     // update one tree, growing
@@ -180,6 +183,7 @@ class QuantileHistMaker: public TreeUpdater {
    protected:
     /* tree growing policies */
     struct ExpandEntry {
+      static const int kRootNid = 0;
       int nid;
       int depth;
       bst_float loss_chg;
@@ -194,7 +198,7 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-    void EvaluateSplit(const int nid,
+    void EvaluateSplit(const std::vector<ExpandEntry>& nodes_set,
                        const GHistIndexMatrix& gmat,
                        const HistCollection& hist,
                        const DMatrix& fmat,
@@ -229,8 +233,11 @@ class QuantileHistMaker: public TreeUpdater {
                      const DMatrix& fmat,
                      const RegTree& tree);
 
-    // enumerate the split values of specific feature
-    void EnumerateSplit(int d_step,
+    // Enumerate the split values of specific feature
+    // Returns the sum of gradients corresponding to the data points that contains a non-missing
+    // value for the particular feature fid.
+    template<int d_step>
+    GradStats EnumerateSplit(
                         const GHistIndexMatrix& gmat,
                         const GHistRow& hist,
                         const NodeEntry& snode,
@@ -238,6 +245,12 @@ class QuantileHistMaker: public TreeUpdater {
                         SplitEntry* p_best,
                         bst_uint fid,
                         bst_uint nodeID);
+
+    // if sum of statistics for non-missing values in the node
+    // is equal to sum of statistics for all values:
+    // then - there are no missing values
+    // else - there are missing values
+    bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
 
     void ExpandWithDepthWise(const GHistIndexMatrix &gmat,
                              const GHistIndexBlockMatrix &gmatb,
@@ -313,7 +326,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
-    const DMatrix* p_last_fmat_;
+    DMatrix const* const p_last_fmat_;
 
     using ExpandQueue =
        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,

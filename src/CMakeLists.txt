@@ -29,8 +29,6 @@ if (USE_CUDA)
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
   endif (USE_NVTX)
 
-  # OpenMP is mandatory for cuda version
-  find_package(OpenMP REQUIRED)
   target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
@@ -78,17 +76,12 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
-if (USE_OPENMP)
+if (USE_OPENMP OR USE_CUDA)  # CUDA requires OpenMP
   find_package(OpenMP REQUIRED)
-  if (OpenMP_CXX_FOUND OR OPENMP_FOUND)
-    target_compile_options(objxgboost PRIVATE  $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-    if ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))  # old CMake doesn't define this variable
-      set(OpenMP_CXX_LIBRARIES "gomp;pthread")
-    endif ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))
-    list(APPEND SRC_LIBS ${OpenMP_CXX_LIBRARIES})
-    set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
-  endif (OpenMP_CXX_FOUND OR OPENMP_FOUND)
-endif (USE_OPENMP)
+  list(APPEND SRC_LIBS OpenMP::OpenMP_CXX)
+  set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
+  target_link_libraries(objxgboost PRIVATE OpenMP::OpenMP_CXX)
+endif (USE_OPENMP OR USE_CUDA)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462

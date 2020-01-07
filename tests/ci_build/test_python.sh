@@ -26,11 +26,11 @@ fi
 # Run specified test suite
 case "$suite" in
   gpu)
-    pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests/python-gpu
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu
     ;;
 
   mgpu)
-    pytest -v -s --fulltrace -m "(not slow) and mgpu" tests/python-gpu
+    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu
     cd tests/distributed
     ./runtests-gpu.sh
     cd -

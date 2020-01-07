@@ -12,7 +12,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
-#include <ios>
+#include <stack>
 #include <utility>
 #include <vector>
 
@@ -215,7 +215,6 @@ class LearnerImpl : public Learner {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
-
     // set seed only before the model is initialized
     common::GlobalRandom().seed(generic_parameters_.seed);
     // must precede configure gbm since num_features is required for gbm
@@ -231,7 +230,81 @@ class LearnerImpl : public Learner {
                                              obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
+    if (generic_parameters_.validate_parameters) {
+      this->ValidateParameters();
+    }
+
+    // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
+  }
+
+  void ValidateParameters() {
+    Json config { Object() };
+    this->SaveConfig(&config);
+    std::stack<Json> stack;
+    stack.push(config);
+    std::string const postfix{"_param"};
+
+    auto is_parameter = [&postfix](std::string const &key) {
+      return key.size() > postfix.size() &&
+             std::equal(postfix.rbegin(), postfix.rend(), key.rbegin());
+    };
+
+    // Extract all parameters
+    std::vector<std::string> keys;
+    while (!stack.empty()) {
+      auto j_obj = stack.top();
+      stack.pop();
+      auto const &obj = get<Object const>(j_obj);
+
+      for (auto const &kv : obj) {
+        if (is_parameter(kv.first)) {
+          auto parameter = get<Object const>(kv.second);
+          std::transform(parameter.begin(), parameter.end(), std::back_inserter(keys),
+                         [](std::pair<std::string const&, Json const&> const& kv) {
+                           return kv.first;
+                         });
+        } else if (IsA<Object>(kv.second)) {
+          stack.push(kv.second);
+        }
+      }
+    }
+    auto learner_model_param = mparam_.ToJson();
+    for (auto const& kv : get<Object>(learner_model_param)) {
+      keys.emplace_back(kv.first);
+    }
+    keys.emplace_back(kEvalMetric);
+    keys.emplace_back("verbosity");
+    keys.emplace_back("num_output_group");
+
+    std::sort(keys.begin(), keys.end());
+
+    std::vector<std::string> provided;
+    for (auto const &kv : cfg_) {
+      // FIXME(trivialfis): Make eval_metric a training parameter.
+      provided.push_back(kv.first);
+    }
+    std::sort(provided.begin(), provided.end());
+
+    std::vector<std::string> diff;
+    std::set_difference(provided.begin(), provided.end(), keys.begin(),
+                        keys.end(), std::back_inserter(diff));
+    if (diff.size() != 0) {
+      std::stringstream ss;
+      ss << "\nParameters: { ";
+      for (size_t i = 0; i < diff.size() - 1; ++i) {
+        ss << diff[i] << ", ";
+      }
+      ss << diff.back();
+      ss << R"W( } might not be used.
+
+  This may not be accurate due to some parameters are only used in language bindings but
+  passed down to XGBoost core.  Or some parameters are not used but slip through this
+  verification. Please open an issue if you find above cases.
+
+)W";
+      LOG(WARNING) << ss.str();
+    }
   }
 
   void CheckDataSplitMode() {
@@ -337,6 +410,8 @@ class LearnerImpl : public Learner {
     }
 
     fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
+    // make sure the GPU ID is valid in new environment before start running configure.
+    generic_parameters_.ConfigureGpuId(false);
 
     this->need_configuration_ = true;
   }

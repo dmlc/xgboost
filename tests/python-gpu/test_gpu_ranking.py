@@ -141,3 +141,21 @@ class TestRanking(unittest.TestCase):
         Train an XGBoost ranking model with ndcg objective function and compare ndcg metric
         """
         self.__test_training_with_rank_objective('rank:ndcg', 'ndcg')
+
+    def test_training_rank_map_map(self):
+        """
+        Train an XGBoost ranking model with map objective function and compare map metric
+        """
+        self.__test_training_with_rank_objective('rank:map', 'map')
+
+    def test_training_rank_map_auc(self):
+        """
+        Train an XGBoost ranking model with map objective function and compare auc metric
+        """
+        self.__test_training_with_rank_objective('rank:map', 'auc')
+
+    def test_training_rank_map_ndcg(self):
+        """
+        Train an XGBoost ranking model with map objective function and compare ndcg metric
+        """
+        self.__test_training_with_rank_objective('rank:map', 'ndcg')

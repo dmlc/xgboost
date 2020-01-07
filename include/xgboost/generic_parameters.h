@@ -28,6 +28,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   // gpu page size in external memory mode, 0 means using the default.
   size_t gpu_page_size;
   bool enable_experimental_json_serialization {false};
+  bool validate_parameters {false};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -70,6 +71,9 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_default(false)
         .describe("Enable using JSON for memory serialization (Python Pickle, "
                   "rabit checkpoints etc.).");
+    DMLC_DECLARE_FIELD(validate_parameters)
+        .set_default(false)
+        .describe("Enable to check whether parameters are used or not.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)

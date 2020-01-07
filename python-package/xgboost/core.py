@@ -18,7 +18,7 @@ import numpy as np
 import scipy.sparse
 
 from .compat import (
-    STRING_TYPES, PY3, DataFrame, MultiIndex, py_str,
+    STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
     PANDAS_INSTALLED, DataTable,
     CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
     os_fspath, os_PathLike)
@@ -70,11 +70,7 @@ def from_pystr_to_cstr(data):
     if not isinstance(data, list):
         raise NotImplementedError
     pointers = (ctypes.c_char_p * len(data))()
-    if PY3:
-        data = [bytes(d, 'utf-8') for d in data]
-    else:
-        data = [d.encode('utf-8') if isinstance(d, unicode) else d  # pylint: disable=undefined-variable
-                for d in data]
+    data = [bytes(d, 'utf-8') for d in data]
     pointers[:] = data
     return pointers
 
@@ -89,21 +85,12 @@ def from_cstr_to_pystr(data, length):
     length : ctypes pointer
         pointer to length of data
     """
-    if PY3:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
-                res.append(str(data[i].decode('utf-8')))
-    else:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
-                # pylint: disable=undefined-variable
-                res.append(unicode(data[i].decode('utf-8')))
+    res = []
+    for i in range(length.value):
+        try:
+            res.append(str(data[i].decode('ascii')))
+        except UnicodeDecodeError:
+            res.append(str(data[i].decode('utf-8')))
     return res
 
 
@@ -309,6 +296,8 @@ def _maybe_pandas_data(data, feature_names, feature_types):
                 ' '.join([str(x) for x in i])
                 for i in data.columns
             ]
+        elif isinstance(data.columns, Int64Index):
+            feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
 
@@ -434,9 +423,11 @@ class DMatrix(object):
     _feature_names = None  # for previous version's pickle
     _feature_types = None
 
-    def __init__(self, data, label=None, missing=None,
-                 weight=None, silent=False,
-                 feature_names=None, feature_types=None,
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 missing=None,
+                 silent=False,
+                 feature_names=None,
+                 feature_types=None,
                  nthread=None):
         """Parameters
         ----------
@@ -492,6 +483,7 @@ class DMatrix(object):
         label = _maybe_pandas_label(label)
         label = _maybe_dt_array(label)
         weight = _maybe_dt_array(weight)
+        base_margin = _maybe_dt_array(base_margin)
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
@@ -518,19 +510,11 @@ class DMatrix(object):
                                 ' {}'.format(type(data).__name__))
 
         if label is not None:
-            if isinstance(label, np.ndarray):
-                self.set_label_npy2d(label)
-            elif _use_columnar_initializer(label):
-                self.set_interface_info('label', label)
-            else:
-                self.set_label(label)
+            self.set_label(label)
         if weight is not None:
-            if isinstance(weight, np.ndarray):
-                self.set_weight_npy2d(weight)
-            elif _use_columnar_initializer(label):
-                self.set_interface_info('weight', weight)
-            else:
-                self.set_weight(weight)
+            self.set_weight(weight)
+        if base_margin is not None:
+            self.set_base_margin(base_margin)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -792,7 +776,12 @@ class DMatrix(object):
         label: array like
             The label information to be set into DMatrix
         """
-        self.set_float_info('label', label)
+        if isinstance(label, np.ndarray):
+            self.set_label_npy2d(label)
+        elif _use_columnar_initializer(label):
+            self.set_interface_info('label', label)
+        else:
+            self.set_float_info('label', label)
 
     def set_label_npy2d(self, label):
         """Set label of dmatrix
@@ -820,7 +809,12 @@ class DMatrix(object):
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
         """
-        self.set_float_info('weight', weight)
+        if isinstance(weight, np.ndarray):
+            self.set_weight_npy2d(weight)
+        elif _use_columnar_initializer(weight):
+            self.set_interface_info('weight', weight)
+        else:
+            self.set_float_info('weight', weight)
 
     def set_weight_npy2d(self, weight):
         """ Set weight of each instance
@@ -1076,6 +1070,10 @@ class Booster(object):
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
+
+        if isinstance(params, dict) and \
+           'validate_parameters' not in params.keys():
+            params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
             self.booster = params['booster']

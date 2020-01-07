@@ -2,9 +2,6 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
-from __future__ import absolute_import
-
-import warnings
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -54,9 +51,11 @@ def _train_internal(params, dtrain,
     nboost += start_iteration
 
     callbacks_before_iter = [
-        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
-        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if not cb.__dict__.get('before_iteration', False)]
 
     for i in range(start_iteration, num_boost_round):
         for cb in callbacks_before_iter:
@@ -113,7 +112,7 @@ def _train_internal(params, dtrain,
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
+          verbose_eval=True, xgb_model=None, callbacks=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -169,11 +168,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         / the boosting stage found by using **early_stopping_rounds** is also printed.
         Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    learning_rates: list or function (deprecated - use callback API instead)
-        List of learning rate for each boosting round
-        or a customized function that calculates eta in terms of
-        current number of round and the total number of boosting round (e.g. yields
-        learning rate decay)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
     callbacks : list of callback functions
@@ -205,11 +199,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                                              verbose=bool(verbose_eval)))
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
-
-    if learning_rates is not None:
-        warnings.warn("learning_rates parameter is deprecated - use callback API instead",
-                      DeprecationWarning)
-        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     return _train_internal(params, dtrain,
                            num_boost_round=num_boost_round,
@@ -485,9 +474,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             callbacks.append(callback.print_evaluation(verbose_eval, show_stdv=show_stdv))
 
     callbacks_before_iter = [
-        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks if
+        cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
-        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks if
+        not cb.__dict__.get('before_iteration', False)]
 
     for i in range(num_boost_round):
         for cb in callbacks_before_iter:

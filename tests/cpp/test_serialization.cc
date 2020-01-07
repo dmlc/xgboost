@@ -334,7 +334,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
   }
   ASSERT_EQ(occureences, 2);
 
-  xgboost::ConsoleLogger::Configure({{"verbosity", "1"}});
+  xgboost::ConsoleLogger::Configure({{"verbosity", "2"}});
 }
 
 TEST_F(SerializationTest, GPU_CoordDescent) {

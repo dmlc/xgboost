@@ -51,14 +51,14 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_EQ(dmat->GetColDensity(1), 0.5);
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
+  for (auto const& col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
   }
 
   // Loop over the batches and assert the data is as expected
-  for (auto col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
+  for (auto const& col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
     EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
     EXPECT_EQ(col_batch[1].size(), 1);
@@ -223,7 +223,7 @@ TEST(SparsePageDMatrix, FromFile) {
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), -1, tmp_file, 1);
-  
+
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
     std::vector<bst_row_t> expected_offset(batch.Size() + 1);
     int n = -3;

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import glob
 import itertools as it
 import numpy as np
