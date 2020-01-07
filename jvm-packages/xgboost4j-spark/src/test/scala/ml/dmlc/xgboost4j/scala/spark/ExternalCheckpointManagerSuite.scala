@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, ExternalCheckpointManager, XGB
 import org.scalatest.{FunSuite, Ignore}
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-class DeprecatedCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
+class ExternalCheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   private def produceParamMap(checkpointPath: String, checkpointInterval: Int):
   Map[String, Any] = {
