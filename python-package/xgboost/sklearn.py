@@ -224,7 +224,8 @@ class XGBModel(XGBModelBase):
     def get_params(self, deep=False):
         """Get parameters."""
         params = super(XGBModel, self).get_params(deep=deep)
-        if isinstance(self.kwargs, dict):  # if kwargs is a dict, update params accordingly
+        # if kwargs is a dict, update params accordingly
+        if isinstance(self.kwargs, dict):
             params.update(self.kwargs)
         if params['missing'] is np.nan:
             params['missing'] = None  # sklearn doesn't handle nan. see #4725
@@ -233,6 +234,11 @@ class XGBModel(XGBModelBase):
         if isinstance(params['random_state'], np.random.RandomState):
             params['random_state'] = params['random_state'].randint(
                 np.iinfo(np.int32).max)
+        # Parameter validation is not working with Scikit-Learn interface, as
+        # it passes all paraemters into XGBoost core, whether they are used or
+        # not.
+        if 'validate_parameters' not in params.keys():
+            params['validate_parameters'] = False
         return params
 
     def get_xgb_params(self):

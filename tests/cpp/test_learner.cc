@@ -31,12 +31,14 @@ TEST(Learner, Basic) {
 }
 
 TEST(Learner, ParameterValidation) {
+  ConsoleLogger::Configure({{"verbosity", "2"}});
   size_t constexpr kRows = 1;
   size_t constexpr kCols = 1;
   auto pp_mat = CreateDMatrix(kRows, kCols, 0);
   auto& p_mat = *pp_mat;
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  learner->SetParam("validate_parameters", "1");
   learner->SetParam("Knock Knock", "Who's there?");
   learner->SetParam("Silence", "....");
   learner->SetParam("tree_method", "exact");
@@ -45,7 +47,7 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence } are not used.") != std::string::npos);
+  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
   delete pp_mat;
 }
 

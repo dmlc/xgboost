@@ -92,6 +92,8 @@ class TestPickling(unittest.TestCase):
         status = subprocess.call(args, env=env)
         assert status == 0
 
+        os.remove(model_path)
+
     def test_pickled_predictor(self):
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
@@ -128,6 +130,8 @@ class TestPickling(unittest.TestCase):
         assert 'CUDA_VISIBLE_DEVICES' not in env.keys()
         status = subprocess.call(args, env=env)
         assert status == 0
+
+        os.remove(model_path)
 
     def test_predict_sklearn_pickle(self):
         x, y = build_dataset()

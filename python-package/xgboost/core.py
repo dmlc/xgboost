@@ -1070,6 +1070,10 @@ class Booster(object):
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
+
+        if isinstance(params, dict) and \
+           'validate_parameters' not in params.keys():
+            params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
             self.booster = params['booster']

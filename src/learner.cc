@@ -230,7 +230,10 @@ class LearnerImpl : public Learner {
                                              obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
-    this->ValidateParameters();
+    if (generic_parameters_.validate_parameters) {
+      this->ValidateParameters();
+    }
+
     // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
   }
@@ -266,19 +269,20 @@ class LearnerImpl : public Learner {
         }
       }
     }
+    auto learner_model_param = mparam_.ToJson();
+    for (auto const& kv : get<Object>(learner_model_param)) {
+      keys.emplace_back(kv.first);
+    }
+    keys.emplace_back(kEvalMetric);
+    keys.emplace_back("verbosity");
+    keys.emplace_back("num_output_group");
 
     std::sort(keys.begin(), keys.end());
 
     std::vector<std::string> provided;
     for (auto const &kv : cfg_) {
-      // `num_feature` and `num_class` are automatically added due to legacy reason.
-      // `verbosity` in logger is not saved, we should move it into generic_param_.
       // FIXME(trivialfis): Make eval_metric a training parameter.
-      if (kv.first != "num_feature" && kv.first != "verbosity" &&
-          kv.first != "num_class" && kv.first != "num_output_group" &&
-          kv.first != kEvalMetric) {
-        provided.push_back(kv.first);
-      }
+      provided.push_back(kv.first);
     }
     std::sort(provided.begin(), provided.end());
 
@@ -287,12 +291,18 @@ class LearnerImpl : public Learner {
                         keys.end(), std::back_inserter(diff));
     if (diff.size() != 0) {
       std::stringstream ss;
-      ss << "Parameters: { ";
+      ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
         ss << diff[i] << ", ";
       }
       ss << diff.back();
-      ss << " } are not used.";
+      ss << R"W( } might not be used.
+
+  This may not be accurate due to some parameters are only used in language bindings but
+  passed down to XGBoost core.  Or some parameters are not used but slip through this
+  verification. Please open an issue if you find above cases.
+
+)W";
       LOG(WARNING) << ss.str();
     }
   }
