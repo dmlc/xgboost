@@ -122,19 +122,27 @@ class TestEarlyStopping(unittest.TestCase):
         eval_interval = 3
 
         clf = xgb.XGBClassifier()
-        clf.fit(X_train, y_train, early_stopping_rounds=5, eval_metric='auc', eval_set=[(X_test,y_test)])
+        clf.fit(X_train, y_train, early_stopping_rounds=5, eval_metric='auc',
+                eval_set=[(X_test,y_test)])
 
         clf1 = xgb.XGBClassifier()
-        clf1.fit(X_train, y_train, early_stopping_rounds=5, eval_metric='auc', eval_start=eval_start, eval_set=[(X_test,y_test)])
+        clf1.fit(X_train, y_train, early_stopping_rounds=5, eval_metric='auc',
+                 eval_start=eval_start, eval_set=[(X_test,y_test)])
 
         clf2 = xgb.XGBClassifier()
-        clf2.fit(X_train, y_train, early_stopping_rounds=2, eval_metric='auc', eval_interval=eval_interval, eval_set=[(X_test,y_test)])
+        clf2.fit(X_train, y_train, early_stopping_rounds=2, eval_metric='auc',
+                 eval_interval=eval_interval, eval_set=[(X_test,y_test)])
 
         clf3 = xgb.XGBClassifier()
-        clf3.fit(X_train, y_train, early_stopping_rounds=1, eval_metric='auc', eval_start=eval_start, eval_interval=eval_interval, eval_set=[(X_test,y_test)])
+        clf3.fit(X_train, y_train, early_stopping_rounds=1, eval_metric='auc',
+                 eval_start=eval_start, eval_interval=eval_interval,
+                 eval_set=[(X_test,y_test)])
 
         baseline = clf.evals_result()['validation_0']['auc']
 
         assert clf1.evals_result()['validation_0']['auc'] == baseline[eval_start:]
         assert clf2.evals_result()['validation_0']['auc'] == baseline[::eval_interval]
-        assert clf3.evals_result()['validation_0']['auc'] == baseline[eval_start::eval_interval]
+        assert (
+            clf3.evals_result()['validation_0']['auc'] ==
+                baseline[eval_start::eval_interval]
+        )

@@ -161,7 +161,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
     Parameters
     ----------
-    stopp_rounds : int
+    stopping_rounds : int
        The stopping rounds before the trend occur.
 
     maximize : bool
@@ -255,6 +255,31 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
     return callback
 
 def early_stop_interval(stopping_rounds, maximize=False, verbose=True):
+    """Create a callback that enables score tree interval evaluation
+
+    If the current iteration is not in the score tree interval (set by
+    ``eval_start`` or ``eval_interval``) it will not evaluate for early
+    stopping.
+
+    Aside from not evaluating for early stopping this method performs the
+    same functionality as :meth:`callback.early_stop`
+
+    Parameters
+    ----------
+    stoppint_rounds : int
+       The stopping rounds before the trend occur.
+
+    maximize : bool
+        Whether to maximize evaluation metric.
+
+    verbose : optional, bool
+        Whether to print message about early stopping information.
+
+    Returns
+    -------
+    callback : function
+        The requested callback function.
+    """
     cb = early_stop(stopping_rounds, maximize=maximize, verbose=verbose)
 
     def callback(env):
