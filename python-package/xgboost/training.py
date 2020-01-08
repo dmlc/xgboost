@@ -211,8 +211,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             )
         else:
             callbacks.append(callback.early_stop(early_stopping_rounds,
-                                                maximize=maximize,
-                                                verbose=bool(verbose_eval)))
+                                                 maximize=maximize,
+                                                 verbose=bool(verbose_eval)))
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
 

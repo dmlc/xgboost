@@ -243,8 +243,8 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             # save the property to attributes, so they will occur in checkpoint.
             if env.model is not None:
                 env.model.set_attr(best_score=str(state['best_score']),
-                                best_iteration=str(state['best_iteration']),
-                                best_msg=state['best_msg'])
+                                   best_iteration=str(state['best_iteration']),
+                                   best_msg=state['best_msg'])
         elif state['iterations_since_best'] >= stopping_rounds:
             best_msg = state['best_msg']
             if verbose and env.rank == 0:
