@@ -832,15 +832,15 @@ class LearnerImpl : public Learner {
    * \param out_preds output vector that stores the prediction
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
-   * \param dropout allow dropout when the DART booster is being used
+   * \param training allow dropout when the DART booster is being used
    */
   void PredictRaw(DMatrix* data, HostDeviceVector<bst_float>* out_preds,
                   unsigned ntree_limit = 0,
-                  bool dropout = true) const {
+                  bool training = true) const {
     CHECK(gbm_ != nullptr)
         << "Predict must happen after Load or configuration";
     this->ValidateDMatrix(data);
-    gbm_->PredictBatch(data, out_preds, ntree_limit, dropout);
+    gbm_->PredictBatch(data, out_preds, ntree_limit, training);
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {

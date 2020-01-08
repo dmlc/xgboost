@@ -417,8 +417,8 @@ class Dart : public GBTree {
   void PredictBatch(DMatrix* p_fmat,
                     HostDeviceVector<bst_float>* out_preds,
                     unsigned ntree_limit,
-                    bool dropout = true) override {
-    DropTrees(!dropout);
+                    bool training = true) override {
+    DropTrees(!training);
     PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
   }
 
