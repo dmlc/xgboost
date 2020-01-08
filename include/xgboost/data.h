@@ -38,6 +38,9 @@ enum class DataType : uint8_t {
  */
 class MetaInfo {
  public:
+  /*! \brief number of data fields in MetaInfo */
+  static constexpr uint32_t kNumField = 7;
+
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};
   /*! \brief number of columns in the data */
@@ -133,6 +136,12 @@ class MetaInfo {
  private:
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
+
+  /* Facilities to binary serialization of DMatrix::MetaInfo */
+  struct FieldRecord {
+    std::string name;
+    uint64_t offset;
+  };
 };
 
 /*! \brief Element from a sparse vector */

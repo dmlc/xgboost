@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include "../../../src/data/simple_csr_source.h"
+#include "../../../src/common/version.h"
 
 #include "../helpers.h"
 
@@ -54,17 +55,43 @@ TEST(MetaInfo, SaveLoadBinary) {
     info.SaveBinary(fs.get());
   }
 
-  ASSERT_EQ(GetFileSize(tmp_file), 84)
-      << "Expected saved binary file size to be same as object size";
+  const auto tmp_file_size = GetFileSize(tmp_file);
 
-  std::unique_ptr<dmlc::Stream> fs {
-    dmlc::Stream::Create(tmp_file.c_str(), "r")
-  };
-  xgboost::MetaInfo inforead;
-  inforead.LoadBinary(fs.get());
-  EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
-  EXPECT_EQ(inforead.num_col_, info.num_col_);
-  EXPECT_EQ(inforead.num_row_, info.num_row_);
+  {
+    // Inspect content of header
+    std::unique_ptr<dmlc::Stream> fs{
+      dmlc::Stream::Create(tmp_file.c_str(), "r")
+    };
+    auto version = xgboost::Version::Load(fs.get());
+    EXPECT_TRUE(xgboost::Version::Same(version));
+    uint64_t num_field;
+    EXPECT_TRUE(fs->Read(&num_field));
+    EXPECT_TRUE(num_field == xgboost::MetaInfo::kNumField);
+
+    std::string field_name;
+    uint64_t field_offset;
+    for (uint64_t i = 0; i < num_field; ++i) {
+      EXPECT_TRUE(fs->Read(&field_name));
+      EXPECT_TRUE(fs->Read(&field_offset));
+    }
+  }
+
+  {
+    // Round-trip test
+    std::unique_ptr<dmlc::Stream> fs{
+      dmlc::Stream::Create(tmp_file.c_str(), "r")
+    };
+    xgboost::MetaInfo inforead;
+    inforead.LoadBinary(fs.get());
+    EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
+    EXPECT_EQ(inforead.num_col_, info.num_col_);
+    EXPECT_EQ(inforead.num_row_, info.num_row_);
+    EXPECT_EQ(inforead.num_nonzero_, info.num_nonzero_);
+    EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
+    EXPECT_EQ(inforead.group_ptr_, info.group_ptr_);
+    EXPECT_EQ(inforead.weights_.HostVector(), info.weights_.HostVector());
+    EXPECT_EQ(inforead.base_margin_.HostVector(), info.base_margin_.HostVector());
+  }
 }
 
 TEST(MetaInfo, LoadQid) {

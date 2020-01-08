@@ -40,10 +40,35 @@ void MetaInfo::Clear() {
 }
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
+  /**
+   * Header: version, num_field, followed by list of form [ (field_name, field_offset) ].
+   * Offset is to be calculated from the end of the header.
+   **/
   Version::Save(fo);
-  fo->Write(&num_row_, sizeof(num_row_));
-  fo->Write(&num_col_, sizeof(num_col_));
-  fo->Write(&num_nonzero_, sizeof(num_nonzero_));
+  const uint64_t num_field = kNumField;
+  fo->Write(num_field);
+  uint64_t offset = 0;
+  int field_cnt = 0;  // make sure we are actually writing kNumField fields
+  fo->Write(std::string(u8"num_row")); fo->Write(offset);
+  offset += sizeof(num_row_); ++field_cnt;
+  fo->Write(std::string(u8"num_col")); fo->Write(offset);
+  offset += sizeof(num_col_); ++field_cnt;
+  fo->Write(std::string(u8"num_nonzero")); fo->Write(offset);
+  offset += sizeof(num_nonzero_); ++field_cnt;
+  fo->Write(std::string(u8"labels")); fo->Write(offset);
+  offset += sizeof(decltype(labels_)::value_type) * labels_.Size(); ++field_cnt;
+  fo->Write(std::string(u8"group_ptr")); fo->Write(offset);
+  offset += sizeof(decltype(group_ptr_)::value_type) * group_ptr_.size(); ++field_cnt;
+  fo->Write(std::string(u8"weights")); fo->Write(offset);
+  offset += sizeof(decltype(weights_)::value_type) * weights_.Size(); ++field_cnt;
+  fo->Write(std::string(u8"base_margin")); fo->Write(offset);
+  offset += sizeof(decltype(base_margin_)::value_type) * base_margin_.Size(); ++field_cnt;
+  CHECK(field_cnt == kNumField) << "Wrong number of fields";
+
+  /* Write data */
+  fo->Write(num_row_);
+  fo->Write(num_col_);
+  fo->Write(num_nonzero_);
   fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
   fo->Write(weights_.HostVector());
@@ -59,13 +84,39 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
                      << Version::String(version) << " is no longer supported. "
                      << "Please process and save your data in current version: "
                      << Version::String(Version::Self()) << " again.";
-  CHECK(fi->Read(&num_row_, sizeof(num_row_)) == sizeof(num_row_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_col_, sizeof(num_col_)) == sizeof(num_col_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_nonzero_, sizeof(num_nonzero_)) == sizeof(num_nonzero_))
-      << "MetaInfo: invalid format";
+
+  uint64_t num_field;
+  CHECK(fi->Read(&num_field)) << "MetaInfo: invalid format";
+  CHECK(num_field >= kNumField)
+    << "MetaInfo: insufficient number of fields (expected at least " << kNumField << " fields, but "
+    << "the binary file only contains " << num_field << "fields.)";
+  if (num_field > kNumField) {
+    LOG(WARNING) << "MetaInfo: the given binary file contains extra fields which will be ignored.";
+  }
+
+  /* Header */
+  std::vector<FieldRecord> field_info;
+  FieldRecord record;
+  for (uint64_t i = 0; i < kNumField; ++i) {
+    fi->Read(&record.name);
+    fi->Read(&record.offset);
+    field_info.push_back(record);
+  }
+
+  int idx = 0;
+  for (const char* expected_field_name : {u8"num_row", u8"num_col", u8"num_nonzero", u8"labels",
+                                          u8"group_ptr", u8"weights", u8"base_margin"}) {
+    CHECK_EQ(field_info[idx].name, expected_field_name)
+      << "MetaInfo: invalid format; expected field " << expected_field_name
+      << ", got field " << field_info[idx].name;
+    ++idx;
+  }
+
+  CHECK(fi->Read(&num_row_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&num_col_)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&num_nonzero_)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&labels_.HostVector())) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
-
   CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
   CHECK(fi->Read(&base_margin_.HostVector())) << "MetaInfo: invalid format";
 }
