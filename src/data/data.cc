@@ -62,7 +62,6 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(std::string(u8"weights")); fo->Write(offset);
   offset += sizeof(decltype(weights_)::value_type) * weights_.Size(); ++field_cnt;
   fo->Write(std::string(u8"base_margin")); fo->Write(offset);
-  offset += sizeof(decltype(base_margin_)::value_type) * base_margin_.Size(); ++field_cnt;
   CHECK(field_cnt == kNumField) << "Wrong number of fields";
 
   /* Write data */

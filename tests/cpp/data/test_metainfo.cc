@@ -55,8 +55,6 @@ TEST(MetaInfo, SaveLoadBinary) {
     info.SaveBinary(fs.get());
   }
 
-  const auto tmp_file_size = GetFileSize(tmp_file);
-
   {
     // Inspect content of header
     std::unique_ptr<dmlc::Stream> fs{
