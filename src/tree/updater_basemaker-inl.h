@@ -148,6 +148,8 @@ class BaseMaker: public TreeUpdater {
       }
       // mark subsample
       if (param_.subsample < 1.0f) {
+        CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
+          << "Only uniform sampling is supported";
         std::bernoulli_distribution coin_flip(param_.subsample);
         auto& rnd = common::GlobalRandom();
         for (size_t i = 0; i < position_.size(); ++i) {

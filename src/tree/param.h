@@ -50,6 +50,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   float max_delta_step;
   // whether we want to do subsample
   float subsample;
+  // sampling method
+  enum SamplingMethod { kUniform = 0, kGradientBased = 1 };
+  int sampling_method;
   // whether to subsample columns in each split (node)
   float colsample_bynode;
   // whether to subsample columns in each level
@@ -144,6 +147,14 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
         .describe("Row subsample ratio of training instance.");
+    DMLC_DECLARE_FIELD(sampling_method)
+        .set_default(kUniform)
+        .add_enum("uniform", kUniform)
+        .add_enum("gradient_based", kGradientBased)
+        .describe(
+            "Sampling method. 0: select random training instances uniformly. "
+            "1: select random training instances with higher probability when the "
+            "gradient and hessian are larger. (cf. CatBoost)");
     DMLC_DECLARE_FIELD(colsample_bynode)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
