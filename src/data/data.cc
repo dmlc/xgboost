@@ -312,10 +312,8 @@ template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix,  size_t page_size ) {
   if (cache_prefix.length() == 0) {
-    auto data = new data::SimpleDMatrix(adapter, missing, nthread);
     // Data split mode is fixed to be row right now.
-    rabit::Allreduce<rabit::op::Max>(&data->Info().num_col_, 1);
-    return data;
+    return new data::SimpleDMatrix(adapter, missing, nthread);
   } else {
 #if DMLC_ENABLE_STD_THREAD
     return new data::SparsePageDMatrix(adapter, missing, nthread, cache_prefix,
