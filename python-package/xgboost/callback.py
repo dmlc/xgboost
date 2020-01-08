@@ -162,7 +162,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
     Parameters
     ----------
     stopping_rounds : int
-       The stopping rounds before the trend occur.
+       The stopping rounds before the trend occurs.
 
     maximize : bool
         Whether to maximize evaluation metric.
@@ -266,8 +266,8 @@ def early_stop_interval(stopping_rounds, maximize=False, verbose=True):
 
     Parameters
     ----------
-    stoppint_rounds : int
-       The stopping rounds before the trend occur.
+    stopping_rounds : int
+       The stopping rounds before the trend occurs.
 
     maximize : bool
         Whether to maximize evaluation metric.
