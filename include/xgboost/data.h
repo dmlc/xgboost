@@ -26,7 +26,7 @@ namespace xgboost {
 class DMatrix;
 
 /*! \brief data type accepted by xgboost interface */
-enum DataType {
+enum class DataType : uint8_t {
   kFloat32 = 1,
   kDouble = 2,
   kUInt32 = 3,

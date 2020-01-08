@@ -102,19 +102,19 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 // macro to dispatch according to specified pointer types
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
   switch (dtype) {                                                      \
-    case kFloat32: {                                                    \
+    case xgboost::DataType::kFloat32: {                                 \
       auto cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
     }                                                                   \
-    case kDouble: {                                                     \
+    case xgboost::DataType::kDouble: {                                  \
       auto cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
     }                                                                   \
-    case kUInt32: {                                                     \
+    case xgboost::DataType::kUInt32: {                                  \
       auto cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
     }                                                                   \
-    case kUInt64: {                                                     \
+    case xgboost::DataType::kUInt64: {                                  \
       auto cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
     }                                                                   \
-    default: LOG(FATAL) << "Unknown data type" << dtype;                \
+    default: LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype); \
   }                                                                     \
 
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {

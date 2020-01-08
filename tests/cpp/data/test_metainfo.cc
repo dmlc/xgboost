@@ -14,23 +14,23 @@ TEST(MetaInfo, GetSet) {
   double double2[2] = {1.0, 2.0};
 
   EXPECT_EQ(info.labels_.Size(), 0);
-  info.SetInfo("label", double2, xgboost::kFloat32, 2);
+  info.SetInfo("label", double2, xgboost::DataType::kFloat32, 2);
   EXPECT_EQ(info.labels_.Size(), 2);
 
   float float2[2] = {1.0f, 2.0f};
   EXPECT_EQ(info.GetWeight(1), 1.0f)
     << "When no weights are given, was expecting default value 1";
-  info.SetInfo("weight", float2, xgboost::kFloat32, 2);
+  info.SetInfo("weight", float2, xgboost::DataType::kFloat32, 2);
   EXPECT_EQ(info.GetWeight(1), 2.0f);
 
   uint32_t uint32_t2[2] = {1U, 2U};
   EXPECT_EQ(info.base_margin_.Size(), 0);
-  info.SetInfo("base_margin", uint32_t2, xgboost::kUInt32, 2);
+  info.SetInfo("base_margin", uint32_t2, xgboost::DataType::kUInt32, 2);
   EXPECT_EQ(info.base_margin_.Size(), 2);
 
   uint64_t uint64_t2[2] = {1U, 2U};
   EXPECT_EQ(info.group_ptr_.size(), 0);
-  info.SetInfo("group", uint64_t2, xgboost::kUInt64, 2);
+  info.SetInfo("group", uint64_t2, xgboost::DataType::kUInt64, 2);
   ASSERT_EQ(info.group_ptr_.size(), 3);
   EXPECT_EQ(info.group_ptr_[2], 3);
 
@@ -41,7 +41,7 @@ TEST(MetaInfo, GetSet) {
 TEST(MetaInfo, SaveLoadBinary) {
   xgboost::MetaInfo info;
   double vals[2] = {1.0, 2.0};
-  info.SetInfo("label", vals, xgboost::kDouble, 2);
+  info.SetInfo("label", vals, xgboost::DataType::kDouble, 2);
   info.num_row_ = 2;
   info.num_col_ = 1;
 
