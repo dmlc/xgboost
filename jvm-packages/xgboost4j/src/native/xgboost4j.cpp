@@ -556,7 +556,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
   DMatrixHandle dmat = (DMatrixHandle) jdmat;
   bst_ulong len;
   float *result;
-  int ret = XGBoosterPredict(handle, dmat, joption_mask, (unsigned int) jntree_limit, &len, (const float **) &result);
+  int ret = XGBoosterPredict(handle, dmat, joption_mask, (unsigned int) jntree_limit, 0,
+                             &len, (const float **) &result);
   if (len) {
     jsize jlen = (jsize) len;
     jfloatArray jarray = jenv->NewFloatArray(jlen);

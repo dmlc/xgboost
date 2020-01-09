@@ -96,6 +96,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
                        bool output_margin,
                        HostDeviceVector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
+                       bool training = false,
                        bool pred_leaf = false,
                        bool pred_contribs = false,
                        bool approx_contribs = false,

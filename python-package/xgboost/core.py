@@ -196,7 +196,8 @@ def ctypes2numpy(cptr, length, dtype):
         np.uint32: ctypes.c_uint,
     }
     if dtype not in NUMPY_TO_CTYPES_MAPPING:
-        raise RuntimeError('Supported types: {}'.format(NUMPY_TO_CTYPES_MAPPING.keys()))
+        raise RuntimeError('Supported types: {}'.format(
+            NUMPY_TO_CTYPES_MAPPING.keys()))
     ctype = NUMPY_TO_CTYPES_MAPPING[dtype]
     if not isinstance(cptr, ctypes.POINTER(ctype)):
         raise RuntimeError('expected {} pointer'.format(ctype))
@@ -1275,14 +1276,16 @@ class Booster(object):
 
         """
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+            raise TypeError('invalid training matrix: {}'.format(
+                type(dtrain).__name__))
         self._validate_features(dtrain)
 
         if fobj is None:
-            _check_call(_LIB.XGBoosterUpdateOneIter(self.handle, ctypes.c_int(iteration),
+            _check_call(_LIB.XGBoosterUpdateOneIter(self.handle,
+                                                    ctypes.c_int(iteration),
                                                     dtrain.handle))
         else:
-            pred = self.predict(dtrain)
+            pred = self.predict(dtrain, training=True)
             grad, hess = fobj(pred, dtrain)
             self.boost(dtrain, grad, hess)
 
@@ -1332,22 +1335,25 @@ class Booster(object):
         """
         for d in evals:
             if not isinstance(d[0], DMatrix):
-                raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
+                raise TypeError('expected DMatrix, got {}'.format(
+                    type(d[0]).__name__))
             if not isinstance(d[1], STRING_TYPES):
-                raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
+                raise TypeError('expected string, got {}'.format(
+                    type(d[1]).__name__))
             self._validate_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
         evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
         msg = ctypes.c_char_p()
-        _check_call(_LIB.XGBoosterEvalOneIter(self.handle, ctypes.c_int(iteration),
+        _check_call(_LIB.XGBoosterEvalOneIter(self.handle,
+                                              ctypes.c_int(iteration),
                                               dmats, evnames,
                                               c_bst_ulong(len(evals)),
                                               ctypes.byref(msg)))
         res = msg.value.decode()
         if feval is not None:
             for dmat, evname in evals:
-                feval_ret = feval(self.predict(dmat), dmat)
+                feval_ret = feval(self.predict(dmat, training=False), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
                         res += '\t%s-%s:%f' % (evname, name, val)
@@ -1393,8 +1399,9 @@ class Booster(object):
         .. note:: This function is not thread safe.
 
           For each booster object, predict can only be called from one thread.
-          If you want to run prediction using multiple thread, call ``bst.copy()`` to make copies
-          of model object and then call ``predict()``.
+          If you want to run prediction using multiple thread, call
+          ``bst.copy()`` to make copies of model object and then call
+          ``predict()``.
 
         Parameters
         ----------
@@ -1409,26 +1416,29 @@ class Booster(object):
             trees).
 
         pred_leaf : bool
-            When this option is on, the output will be a matrix of (nsample, ntrees)
-            with each record indicating the predicted leaf index of each sample in each tree.
-            Note that the leaf index of a tree is unique per tree, so you may find leaf 1
-            in both tree 1 and tree 0.
+            When this option is on, the output will be a matrix of (nsample,
+            ntrees) with each record indicating the predicted leaf index of
+            each sample in each tree.  Note that the leaf index of a tree is
+            unique per tree, so you may find leaf 1 in both tree 1 and tree 0.
 
         pred_contribs : bool
-            When this is True the output will be a matrix of size (nsample, nfeats + 1)
-            with each record indicating the feature contributions (SHAP values) for that
-            prediction. The sum of all feature contributions is equal to the raw untransformed
-            margin value of the prediction. Note the final column is the bias term.
+            When this is True the output will be a matrix of size (nsample,
+            nfeats + 1) with each record indicating the feature contributions
+            (SHAP values) for that prediction. The sum of all feature
+            contributions is equal to the raw untransformed margin value of the
+            prediction. Note the final column is the bias term.
 
         approx_contribs : bool
             Approximate the contributions of each feature
 
         pred_interactions : bool
-            When this is True the output will be a matrix of size (nsample, nfeats + 1, nfeats + 1)
-            indicating the SHAP interaction values for each pair of features. The sum of each
-            row (or column) of the interaction values equals the corresponding SHAP value (from
-            pred_contribs), and the sum of the entire matrix equals the raw untransformed margin
-            value of the prediction. Note the last row and column correspond to the bias term.
+            When this is True the output will be a matrix of size (nsample,
+            nfeats + 1, nfeats + 1) indicating the SHAP interaction values for
+            each pair of features. The sum of each row (or column) of the
+            interaction values equals the corresponding SHAP value (from
+            pred_contribs), and the sum of the entire matrix equals the raw
+            untransformed margin value of the prediction. Note the last row and
+            column correspond to the bias term.
 
         validate_features : bool
             When this is True, validate that the Booster's and data's
@@ -1475,9 +1485,9 @@ class Booster(object):
         _check_call(_LIB.XGBoosterPredict(self.handle, data.handle,
                                           ctypes.c_int(option_mask),
                                           ctypes.c_uint(ntree_limit),
+                                          ctypes.c_int(training),
                                           ctypes.byref(length),
-                                          ctypes.byref(preds),
-                                          ctypes.byref(training)))
+                                          ctypes.byref(preds)))
         preds = ctypes2numpy(preds, length.value, np.float32)
         if pred_leaf:
             preds = preds.astype(np.int32)
