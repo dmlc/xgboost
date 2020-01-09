@@ -1378,9 +1378,16 @@ class Booster(object):
         self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
-    def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False, approx_contribs=False, pred_interactions=False,
-                validate_features=True):
+    def predict(self,
+                data,
+                output_margin=False,
+                ntree_limit=0,
+                pred_leaf=False,
+                pred_contribs=False,
+                approx_contribs=False,
+                pred_interactions=False,
+                validate_features=True,
+                training=False):
         """Predict with data.
 
         .. note:: This function is not thread safe.
@@ -1388,17 +1395,6 @@ class Booster(object):
           For each booster object, predict can only be called from one thread.
           If you want to run prediction using multiple thread, call ``bst.copy()`` to make copies
           of model object and then call ``predict()``.
-
-        .. note:: Using ``predict()`` with DART booster
-
-          If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
-          some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-          not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
-          a nonzero value, e.g.
-
-          .. code-block:: python
-
-            preds = bst.predict(dtest, ntree_limit=num_round)
 
         Parameters
         ----------
@@ -1409,7 +1405,8 @@ class Booster(object):
             Whether to output the raw untransformed margin value.
 
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all trees).
+            Limit number of trees in the prediction; defaults to 0 (use all
+            trees).
 
         pred_leaf : bool
             When this option is on, the output will be a matrix of (nsample, ntrees)
@@ -1438,9 +1435,21 @@ class Booster(object):
             feature_names are identical.  Otherwise, it is assumed that the
             feature_names are the same.
 
+        training : bool
+            Whether the prediction value is used for training.  This can effect
+            `dart` booster, which performs dropouts during training iterations.
+
+        .. note:: Using ``predict()`` with DART booster
+
+          If the booster object is DART type, ``predict()`` will perform
+          dropouts, i.e. only some of the trees will be evaluated. This will
+          produce incorrect results if ``data`` is not the training data. To
+          obtain correct results on test sets, set ``training`` to True.
+
         Returns
         -------
         prediction : numpy array
+
         """
         option_mask = 0x00
         if output_margin:
@@ -1467,7 +1476,8 @@ class Booster(object):
                                           ctypes.c_int(option_mask),
                                           ctypes.c_uint(ntree_limit),
                                           ctypes.byref(length),
-                                          ctypes.byref(preds)))
+                                          ctypes.byref(preds),
+                                          ctypes.byref(training)))
         preds = ctypes2numpy(preds, length.value, np.float32)
         if pred_leaf:
             preds = preds.astype(np.int32)
@@ -1476,11 +1486,16 @@ class Booster(object):
             chunk_size = int(preds.size / nrow)
 
             if pred_interactions:
-                ngroup = int(chunk_size / ((data.num_col() + 1) * (data.num_col() + 1)))
+                ngroup = int(chunk_size / ((data.num_col() + 1) *
+                                           (data.num_col() + 1)))
                 if ngroup == 1:
-                    preds = preds.reshape(nrow, data.num_col() + 1, data.num_col() + 1)
+                    preds = preds.reshape(nrow,
+                                          data.num_col() + 1,
+                                          data.num_col() + 1)
                 else:
-                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1, data.num_col() + 1)
+                    preds = preds.reshape(nrow, ngroup,
+                                          data.num_col() + 1,
+                                          data.num_col() + 1)
             elif pred_contribs:
                 ngroup = int(chunk_size / (data.num_col() + 1))
                 if ngroup == 1:
