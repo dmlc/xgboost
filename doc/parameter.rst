@@ -112,18 +112,26 @@ Parameters for Tree Booster
 
   - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_.
   - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``
+
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``, this is a
+    combination of commonly used updaters.  For other updaters like ``refresh``, set the
+    parameter ``updater`` directly.
 
     - ``auto``: Use heuristic to choose the fastest method.
 
-      - For small to medium dataset, exact greedy (``exact``) will be used.
-      - For very large dataset, approximate algorithm (``approx``) will be chosen.
-      - Because old behavior is always use exact greedy in single machine,
-        user will get a message when approximate algorithm is chosen to notify this choice.
+      - For small dataset, exact greedy (``exact``) will be used.
+      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
+        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
+        dataset.  The reasons they aren't default yet are because XGBoost has some
+        existing tests tied to ``approx``, and only GPU version of ``hist``
+        (``gpu_hist``)has support for ``external memory``.
 
-    - ``exact``: Exact greedy algorithm.
+      - Because old behavior is always use exact greedy in single machine, user will get a
+        message when approximate algorithm is chosen to notify this choice.
+    - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
-    - ``hist``: Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
+    - ``hist``: Faster histogram optimized approximate greedy algorithm. It uses some
+      performance improvements such as bins caching.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``sketch_eps`` [default=0.03]
