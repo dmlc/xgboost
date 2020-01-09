@@ -6,7 +6,7 @@
 #include "../../../src/common/timer.h"
 #include "../helpers.h"
 using namespace xgboost;  // NOLINT
-TEST(c_api, CSRAdapter) {
+TEST(adapter, CSRAdapter) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5};
@@ -29,7 +29,7 @@ TEST(c_api, CSRAdapter) {
   EXPECT_EQ(line2 .GetElement(0).column_idx, 1);
 }
 
-TEST(c_api, CSCAdapterColsMoreThanRows) {
+TEST(adapter, CSCAdapterColsMoreThanRows) {
   std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8};
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 0, 1, 0, 1};
   std::vector<size_t> col_ptr = {0, 2, 4, 6, 8};
