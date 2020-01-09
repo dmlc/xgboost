@@ -4,9 +4,11 @@
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
 #define XGBOOST_DATA_ADAPTER_H_
+#include <dmlc/data.h>
 #include <limits>
 #include <memory>
 #include <string>
+
 namespace xgboost {
 namespace data {
 

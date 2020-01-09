@@ -261,8 +261,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     for (auto& batch : dmat.GetBatches<SparsePage>()) {
       for (auto i = 0ull; i < batch.Size(); i++) {
         auto inst = batch[i];
-        for (auto j = 0ull; j < inst.size(); j++) {
-          ASSERT_NE(inst[j].fvalue, 2.0);
+        for (auto e : inst) {
+          ASSERT_NE(e.fvalue, 2.0);
         }
       }
     }

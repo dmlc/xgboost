@@ -27,7 +27,9 @@ void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_row_t> offset,
   dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
     auto element = batch.GetElement(idx);
     if (IsValid(element.value, missing)) {
-      atomicAdd(&offset[element.row_idx], 1);
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+                    &offset[element.row_idx]),
+                static_cast<unsigned long long>(1));  // NOLINT
     }
   });
 
@@ -49,7 +51,9 @@ void CopyDataColumnMajor(AdapterT* adapter, common::Span<Entry> data,
   // Populate column sizes
   dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
     const auto& e = batch.GetElement(idx);
-    atomicAdd(&d_column_sizes[e.column_idx], 1);
+    atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+                  &d_column_sizes[e.column_idx]),
+              static_cast<unsigned long long>(1));  // NOLINT
   });
 
   thrust::host_vector<size_t> host_column_sizes = column_sizes;
