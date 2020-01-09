@@ -1,5 +1,4 @@
 // Copyright (c) 2014-2019 by Contributors
-#include <bits/stdint-intn.h>
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <rabit/c_api.h>
