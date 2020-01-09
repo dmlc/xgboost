@@ -925,6 +925,25 @@ class LearnerImpl : public Learner {
           << "num rows: "     << p_fmat->Info().num_row_   << "\n"
           << "Number of weights should be equal to number of groups in ranking task.";
     }
+
+    auto const row_based_split = [this]() {
+      return tparam_.dsplit == DataSplitMode::kRow ||
+             tparam_.dsplit == DataSplitMode::kAuto;
+    };
+    bool const valid_features =
+        !row_based_split() ||
+        (learner_model_param_.num_feature == p_fmat->Info().num_col_);
+    std::string const msg {
+      "Number of columns does not match number of features in booster."
+    };
+    if (generic_parameters_.validate_features) {
+      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_) << msg;
+    } else if (!valid_features) {
+      // Remove this and make the equality check fatal once spark can fix all failing tests.
+      LOG(WARNING) << msg << " "
+                   << "Columns: " << p_fmat->Info().num_col_ << " "
+                   << "Features: " << learner_model_param_.num_feature;
+    }
   }
 
   // model parameter

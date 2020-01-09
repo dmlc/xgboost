@@ -71,6 +71,12 @@ class TrainingObserver {
     auto const& h_vec = vec.HostVector();
     this->Observe(h_vec, name);
   }
+  template <typename T>
+  void Observe(HostDeviceVector<T>* vec, std::string name) const {
+    if (XGBOOST_EXPECT(!observe_, true)) { return; }
+    this->Observe(*vec, name);
+  }
+
   /*\brief Observe objects with `XGBoostParamer' type. */
   template <typename Parameter,
             typename std::enable_if<

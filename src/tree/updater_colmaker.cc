@@ -60,6 +60,10 @@ class ColMaker: public TreeUpdater {
       spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
     }
     spliteval_->Init(&param_);
+
+    if (rabit::IsDistributed()) {
+      LOG(FATAL) << "Updater `grow_colmaker` Exact doesn't support distributed training.";
+    }
   }
 
   void LoadConfig(Json const& in) override {
