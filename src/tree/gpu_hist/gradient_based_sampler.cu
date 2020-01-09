@@ -157,10 +157,10 @@ GradientBasedSample GradientBasedSampler::UniformSampling(common::Span<GradientP
  * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
  */
 struct CombineGradientPair : public thrust::unary_function<GradientPair, float> {
-  static constexpr float lambda = 0.1f;
+  static constexpr float kLambda = 0.1f;
 
   XGBOOST_DEVICE float operator()(const GradientPair& gpair) const {
-    return sqrtf(powf(gpair.GetGrad(), 2) + lambda * powf(gpair.GetHess(), 2));
+    return sqrtf(powf(gpair.GetGrad(), 2) + kLambda * powf(gpair.GetHess(), 2));
   }
 };
 
