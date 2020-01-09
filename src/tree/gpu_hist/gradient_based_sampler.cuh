@@ -32,45 +32,35 @@ struct GradientBasedSample {
  */
 class GradientBasedSampler {
  public:
-  enum SamplingMethod {
-    /*! \brief When all rows can fit in GPU memory, no sampling is needed. */
-    kNoSampling,
-    /*! \brief Fixed-sized random sampling, weighted by the absolute value of the gradient. */
-    kSequentialPoissonSampling,
-    /*! \brief This is for comparison purposes only, not recommended for real use. */
-    kUniformSampling
-  };
 
-  explicit GradientBasedSampler(BatchParam batch_param,
-                                EllpackInfo info,
-                                size_t n_rows,
-                                float subsample = 1.0f,
-                                SamplingMethod sampling_method = kDefaultSamplingMethod);
+  GradientBasedSampler(EllpackPageImpl* page,
+                       size_t n_rows,
+                       BatchParam batch_param,
+                       float subsample,
+                       int sampling_method);
 
-  /*! \brief Sample from a DMatrix based on the given gradients. */
+  /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat);
 
  private:
-  static const SamplingMethod kDefaultSamplingMethod = kSequentialPoissonSampling;
-
   GradientBasedSample NoSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-  GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
   GradientBasedSample UniformSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-
-  /*! \brief Returns the max number of rows that can fit in available GPU memory. */
-  size_t MaxSampleRows(size_t n_rows);
+  GradientBasedSample GradientBasedSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
   /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
   void CollectPages(DMatrix* dmat);
 
-  /*! \brief Do weighted sampling after the row weights are calculated. */
-  GradientBasedSample WeightedSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
+  /*! \brief Fixed-size Poisson sampling after the row weights are calculated. */
+  GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
   common::Monitor monitor_;
   dh::BulkAllocator ba_;
+  EllpackPageImpl* original_page_;
+  float subsample_;
+  bool is_external_memory_;
+  bool is_sampling_;
   BatchParam batch_param_;
-  EllpackInfo info_;
-  SamplingMethod sampling_method_;
+  int sampling_method_;
   size_t sample_rows_;
   std::unique_ptr<EllpackPageImpl> page_;
   common::Span<GradientPair> gpair_;

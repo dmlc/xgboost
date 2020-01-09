@@ -500,12 +500,11 @@ struct GPUHistMakerDevice {
         interaction_constraints(param, n_features),
         batch_param(_batch_param),
         use_gradient_based_sampling(_page->matrix.n_rows != _n_rows) {
-    if (use_gradient_based_sampling) {
-      sampler.reset(new GradientBasedSampler(batch_param,
-                                             page->matrix.info,
-                                             n_rows,
-                                             param.subsample));
-    }
+    sampler.reset(new GradientBasedSampler(page,
+                                           n_rows,
+                                           batch_param,
+                                           param.subsample,
+                                           param.sampling_method));
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
@@ -552,15 +551,10 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
-    if (use_gradient_based_sampling) {
-      auto sample = sampler->Sample(dh_gpair->DeviceSpan(), dmat);
-      n_rows = sample.sample_rows;
-      page = sample.page;
-      gpair = sample.gpair;
-    } else {
-      gpair = dh_gpair->DeviceSpan();
-      SubsampleGradientPair(device_id, gpair, param.subsample);
-    }
+    auto sample = sampler->Sample(dh_gpair->DeviceSpan(), dmat);
+    n_rows = sample.sample_rows;
+    page = sample.page;
+    gpair = sample.gpair;
 
     row_partitioner.reset();  // Release the device memory first before reallocating
     row_partitioner.reset(new RowPartitioner(device_id, n_rows));
