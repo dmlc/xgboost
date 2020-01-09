@@ -7,6 +7,7 @@
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
+#include <thrust/logical.h>
 
 #include <omp.h>
 #include <rabit/rabit.h>
@@ -371,6 +372,10 @@ public:
     int current_device;
     safe_cuda(cudaGetDevice(&current_device));
     stats_.RegisterDeallocation(ptr, n, current_device);
+  }
+  size_t PeakMemory()
+  {
+    return stats_.peak_allocated_bytes;
   }
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))

@@ -225,6 +225,7 @@ class Columnar {
   using index_type = int32_t;
 
  public:
+  Columnar() = default;
   explicit Columnar(std::map<std::string, Json> const& column) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);

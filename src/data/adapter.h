@@ -4,9 +4,11 @@
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
 #define XGBOOST_DATA_ADAPTER_H_
+#include <dmlc/data.h>
 #include <limits>
 #include <memory>
 #include <string>
+
 namespace xgboost {
 namespace data {
 
@@ -56,7 +58,7 @@ namespace data {
 constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
 struct COOTuple {
-  COOTuple(size_t row_idx, size_t column_idx, float value)
+  XGBOOST_DEVICE COOTuple(size_t row_idx, size_t column_idx, float value)
       : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
   size_t row_idx{0};
