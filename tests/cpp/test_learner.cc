@@ -159,7 +159,6 @@ TEST(Learner, Json_ModelIO) {
 
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
-    learner->SetParam("verbosity", "3");
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat.get());
     }
