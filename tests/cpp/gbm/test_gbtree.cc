@@ -209,7 +209,7 @@ TEST(Dart, Prediction) {
   auto& h_predts_inference = predts_inference.ConstHostVector();
   ASSERT_EQ(h_predts_training.size(), h_predts_inference.size());
   for (size_t i = 0; i < predts_inference.Size(); ++i) {
-    // Inference doesn't drop tree nor use weight drop.
+    // Inference doesn't drop tree.
     ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps);
   }
 
