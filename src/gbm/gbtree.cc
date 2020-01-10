@@ -457,7 +457,7 @@ class Dart : public GBTree {
     // loop over output groups
     for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
       (*out_preds)[gid] =
-          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit, true) +
+          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit) +
           model_.learner_model_param_->base_score;
     }
   }
@@ -521,7 +521,7 @@ class Dart : public GBTree {
             for (int gid = 0; gid < num_group; ++gid) {
               const size_t offset = ridx[k] * num_group + gid;
               preds[offset] +=
-                  this->PredValue(inst[k], gid, &feats, tree_begin, tree_end, training);
+                  this->PredValue(inst[k], gid, &feats, tree_begin, tree_end);
             }
           }
         }
@@ -535,7 +535,7 @@ class Dart : public GBTree {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
               this->PredValue(inst, gid,
-                              &feats, tree_begin, tree_end, training);
+                              &feats, tree_begin, tree_end);
         }
       }
     }
@@ -557,7 +557,7 @@ class Dart : public GBTree {
   // predict the leaf scores without dropped trees
   bst_float PredValue(const SparsePage::Inst &inst, int bst_group,
                       RegTree::FVec *p_feats, unsigned tree_begin,
-                      unsigned tree_end, bool training) const {
+                      unsigned tree_end) const {
     bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
@@ -565,7 +565,7 @@ class Dart : public GBTree {
         bool drop = std::binary_search(idx_drop_.begin(), idx_drop_.end(), i);
         if (!drop) {
           int tid = model_.trees[i]->GetLeafIndex(*p_feats);
-          psum += (training ? weight_drop_[i] : 1.0f) * (*model_.trees[i])[tid].LeafValue();
+          psum += weight_drop_[i] * (*model_.trees[i])[tid].LeafValue();
         }
       }
     }
