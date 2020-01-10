@@ -415,16 +415,35 @@ class Dart : public GBTree {
   }
 
   void PredictBatch(DMatrix* p_fmat,
-                    HostDeviceVector<bst_float>* out_preds,
+                    HostDeviceVector<bst_float>* p_out_preds,
                     bool training,
                     unsigned ntree_limit) override {
     DropTrees(training);
-    PredLoopInternal<Dart>(p_fmat, &out_preds->HostVector(), 0, ntree_limit, true);
+    int num_group = model_.learner_model_param_->num_output_group;
+    ntree_limit *= num_group;
+    if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
+      ntree_limit = static_cast<unsigned>(model_.trees.size());
+    }
+    size_t n = num_group * p_fmat->Info().num_row_;
+    const auto &base_margin = p_fmat->Info().base_margin_.ConstHostVector();
+    auto& out_preds = p_out_preds->HostVector();
+    out_preds.resize(n);
+    if (base_margin.size() != 0) {
+      CHECK_EQ(out_preds.size(), n);
+      std::copy(base_margin.begin(), base_margin.end(), out_preds.begin());
+    } else {
+      std::fill(out_preds.begin(), out_preds.end(),
+                model_.learner_model_param_->base_score);
+    }
+
+    PredLoopSpecalize(p_fmat, &out_preds, num_group, 0,
+                      ntree_limit, training);
   }
 
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds,
                        unsigned ntree_limit) override {
+    LOG(FATAL) << __func__;
     DropTrees(false);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
@@ -466,36 +485,6 @@ class Dart : public GBTree {
 
 
  protected:
-  friend class GBTree;
-  // internal prediction loop
-  // add predictions to out_preds
-  template<typename Derived>
-  inline void PredLoopInternal(
-      DMatrix* p_fmat,
-      std::vector<bst_float>* out_preds,
-      unsigned tree_begin,
-      unsigned ntree_limit, bool training) {
-    int num_group = model_.learner_model_param_->num_output_group;
-    ntree_limit *= num_group;
-    if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
-      ntree_limit = static_cast<unsigned>(model_.trees.size());
-    }
-    size_t n = num_group * p_fmat->Info().num_row_;
-    const auto &base_margin = p_fmat->Info().base_margin_.ConstHostVector();
-    out_preds->resize(n);
-    if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
-    } else {
-      std::fill(out_preds->begin(), out_preds->end(),
-                model_.learner_model_param_->base_score);
-    }
-
-    PredLoopSpecalize<Derived>(p_fmat, out_preds, num_group, tree_begin,
-                               ntree_limit, training);
-  }
-
-  template<typename Derived>
   inline void PredLoopSpecalize(
       DMatrix* p_fmat,
       std::vector<bst_float>* out_preds,
@@ -511,7 +500,6 @@ class Dart : public GBTree {
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
-    auto* self = static_cast<Derived*>(this);
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
@@ -533,7 +521,7 @@ class Dart : public GBTree {
             for (int gid = 0; gid < num_group; ++gid) {
               const size_t offset = ridx[k] * num_group + gid;
               preds[offset] +=
-                  self->PredValue(inst[k], gid, &feats, tree_begin, tree_end, training);
+                  this->PredValue(inst[k], gid, &feats, tree_begin, tree_end, training);
             }
           }
         }
@@ -546,7 +534,7 @@ class Dart : public GBTree {
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
-              self->PredValue(inst, gid,
+              this->PredValue(inst, gid,
                               &feats, tree_begin, tree_end, training);
         }
       }
@@ -577,7 +565,7 @@ class Dart : public GBTree {
         bool drop = std::binary_search(idx_drop_.begin(), idx_drop_.end(), i);
         if (!drop) {
           int tid = model_.trees[i]->GetLeafIndex(*p_feats);
-          psum += training ? weight_drop_[i] : 1.0f * (*model_.trees[i])[tid].LeafValue();
+          psum += (training ? weight_drop_[i] : 1.0f) * (*model_.trees[i])[tid].LeafValue();
         }
       }
     }
