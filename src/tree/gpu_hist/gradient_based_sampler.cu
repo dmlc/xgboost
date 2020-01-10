@@ -168,7 +168,7 @@ struct CombineGradientPair : public thrust::unary_function<GradientPair, float> 
  */
 struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
   RandomWeight rnd;
-  CombineGradientPair combine{};
+  CombineGradientPair combine;
 
   XGBOOST_DEVICE explicit CalculateWeight(RandomWeight _rnd) : rnd(_rnd) {}
 
@@ -186,8 +186,8 @@ struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, fl
 struct PoissonSampling : public thrust::binary_function<GradientPair, size_t, GradientPair> {
   size_t sample_rows;
   float normalization;
-  const RandomWeight rnd;
-  const CombineGradientPair combine{};
+  RandomWeight rnd;
+  CombineGradientPair combine;
 
   XGBOOST_DEVICE PoissonSampling(size_t _sample_rows, float _normalization, RandomWeight _rnd)
       : sample_rows(_sample_rows), normalization(_normalization), rnd(_rnd) {}

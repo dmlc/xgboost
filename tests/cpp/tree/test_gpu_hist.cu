@@ -370,6 +370,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
       {"reg_alpha", "0"},
       {"reg_lambda", "0"},
       {"subsample", std::to_string(subsample)},
+      {"sampling_method", "gradient_based"},
   };
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
