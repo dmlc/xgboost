@@ -438,7 +438,7 @@ class Dart : public GBTree {
     // loop over output groups
     for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
       (*out_preds)[gid] =
-          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit) +
+          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit, true) +
           model_.learner_model_param_->base_score;
     }
   }
@@ -474,29 +474,25 @@ class Dart : public GBTree {
       DMatrix* p_fmat,
       std::vector<bst_float>* out_preds,
       unsigned tree_begin,
-      unsigned ntree_limit,
-      bool init_out_preds) {
+      unsigned ntree_limit, bool training) {
     int num_group = model_.learner_model_param_->num_output_group;
     ntree_limit *= num_group;
     if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
       ntree_limit = static_cast<unsigned>(model_.trees.size());
     }
-
-    if (init_out_preds) {
-      size_t n = num_group * p_fmat->Info().num_row_;
-      const auto& base_margin =
-          p_fmat->Info().base_margin_.ConstHostVector();
-      out_preds->resize(n);
-      if (base_margin.size() != 0) {
-        CHECK_EQ(out_preds->size(), n);
-        std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
-      } else {
-        std::fill(out_preds->begin(), out_preds->end(),
-                  model_.learner_model_param_->base_score);
-      }
+    size_t n = num_group * p_fmat->Info().num_row_;
+    const auto &base_margin = p_fmat->Info().base_margin_.ConstHostVector();
+    out_preds->resize(n);
+    if (base_margin.size() != 0) {
+      CHECK_EQ(out_preds->size(), n);
+      std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
+    } else {
+      std::fill(out_preds->begin(), out_preds->end(),
+                model_.learner_model_param_->base_score);
     }
+
     PredLoopSpecalize<Derived>(p_fmat, out_preds, num_group, tree_begin,
-                               ntree_limit);
+                               ntree_limit, training);
   }
 
   template<typename Derived>
@@ -505,7 +501,8 @@ class Dart : public GBTree {
       std::vector<bst_float>* out_preds,
       int num_group,
       unsigned tree_begin,
-      unsigned tree_end) {
+      unsigned tree_end,
+      bool training) {
     const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, model_.learner_model_param_->num_output_group);
     InitThreadTemp(nthread);
@@ -520,7 +517,7 @@ class Dart : public GBTree {
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
       if (nsize >= kUnroll) {
-        #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
           const int tid = omp_get_thread_num();
           RegTree::FVec& feats = thread_temp_[tid];
@@ -536,7 +533,7 @@ class Dart : public GBTree {
             for (int gid = 0; gid < num_group; ++gid) {
               const size_t offset = ridx[k] * num_group + gid;
               preds[offset] +=
-                  self->PredValue(inst[k], gid, &feats, tree_begin, tree_end);
+                  self->PredValue(inst[k], gid, &feats, tree_begin, tree_end, training);
             }
           }
         }
@@ -550,7 +547,7 @@ class Dart : public GBTree {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
               self->PredValue(inst, gid,
-                              &feats, tree_begin, tree_end);
+                              &feats, tree_begin, tree_end, training);
         }
       }
     }
@@ -570,11 +567,9 @@ class Dart : public GBTree {
   }
 
   // predict the leaf scores without dropped trees
-  inline bst_float PredValue(const SparsePage::Inst &inst,
-                             int bst_group,
-                             RegTree::FVec *p_feats,
-                             unsigned tree_begin,
-                             unsigned tree_end) {
+  bst_float PredValue(const SparsePage::Inst &inst, int bst_group,
+                      RegTree::FVec *p_feats, unsigned tree_begin,
+                      unsigned tree_end, bool training) const {
     bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
@@ -582,7 +577,7 @@ class Dart : public GBTree {
         bool drop = std::binary_search(idx_drop_.begin(), idx_drop_.end(), i);
         if (!drop) {
           int tid = model_.trees[i]->GetLeafIndex(*p_feats);
-          psum += weight_drop_[i] * (*model_.trees[i])[tid].LeafValue();
+          psum += training ? weight_drop_[i] : 1.0f * (*model_.trees[i])[tid].LeafValue();
         }
       }
     }
