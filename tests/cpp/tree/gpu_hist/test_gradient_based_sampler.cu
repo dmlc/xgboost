@@ -110,7 +110,7 @@ TEST(GradientBasedSampler, UniformSampling) {
   for (auto gp : sampled_gpair_h) {
     sum_sampled_gradients += gp.GetGrad();
   }
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.002);
+  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.02);
 }
 
 TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
@@ -148,7 +148,7 @@ TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
   for (auto gp : sampled_gpair_h) {
     sum_sampled_gradients += gp.GetGrad();
   }
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.01);
+  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.02);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling) {
