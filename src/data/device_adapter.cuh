@@ -39,6 +39,53 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
   size_t num_elements;
 };
 
+/*!
+ * Please be careful that, in official specification, the only three required fields are
+ * `shape', `version' and `typestr'.  Any other is optional, including `data'.  But here
+ * we have one additional requirements for input data:
+ *
+ * - `data' field is required, passing in an empty dataset is not accepted, as most (if
+ *   not all) of our algorithms don't have test for empty dataset.  An error is better
+ *   than a crash.
+ *
+ * What if invalid value from dataframe is 0 but I specify missing=NaN in XGBoost?  Since
+ * validity mask is ignored, all 0s are preserved in XGBoost.
+ *
+ * FIXME(trivialfis): Put above into document after we have a consistent way for
+ * processing input data.
+ *
+ * Sample input:
+ * [
+ *   {
+ *     "shape": [
+ *       10
+ *     ],
+ *     "strides": [
+ *       4
+ *     ],
+ *     "data": [
+ *       30074864128,
+ *       false
+ *     ],
+ *     "typestr": "<f4",
+ *     "version": 1,
+ *     "mask": {
+ *       "shape": [
+ *         64
+ *       ],
+ *       "strides": [
+ *         1
+ *       ],
+ *       "data": [
+ *         30074864640,
+ *         false
+ *       ],
+ *       "typestr": "|i1",
+ *       "version": 1
+ *     }
+ *   }
+ * ]
+ */
 class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
  public:
   explicit CudfAdapter(std::string cuda_interfaces_str) {
