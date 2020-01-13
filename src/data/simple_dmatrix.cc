@@ -111,6 +111,11 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
       weights.insert(weights.end(), batch.Weights(),
                      batch.Weights() + batch.Size());
     }
+    if (batch.BaseMargin() != nullptr) {
+      auto& base_margin = mat.info.base_margin_.HostVector();
+      base_margin.insert(base_margin.end(), batch.BaseMargin(),
+                     batch.BaseMargin() + batch.Size());
+    }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());
       // get group
@@ -165,6 +170,8 @@ template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing,
 template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing,
                                      int nthread);
 template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing,
+                                     int nthread);
+template SimpleDMatrix::SimpleDMatrix(DMatrixSliceAdapter* adapter, float missing,
                                      int nthread);
 }  // namespace data
 }  // namespace xgboost
