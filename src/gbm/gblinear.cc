@@ -127,6 +127,7 @@ class GBLinear : public GradientBooster {
 
   void PredictBatch(DMatrix *p_fmat,
                     HostDeviceVector<bst_float> *out_preds,
+                    bool training,
                     unsigned ntree_limit) override {
     monitor_.Start("PredictBatch");
     CHECK_EQ(ntree_limit, 0U)
