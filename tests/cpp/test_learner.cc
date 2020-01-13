@@ -91,7 +91,6 @@ TEST(Learner, CheckGroup) {
 }
 
 TEST(Learner, SLOW_CheckMultiBatch) {
-  using Arg = std::pair<std::string, std::string>;
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
@@ -107,7 +106,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->SetParams({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
+  learner->SetParams(Args{{"objective", "binary:logistic"}});
   learner->UpdateOneIter(0, dmat.get());
 }
 
@@ -160,7 +159,6 @@ TEST(Learner, Json_ModelIO) {
 
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
-    learner->SetParam("verbosity", "3");
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat.get());
     }

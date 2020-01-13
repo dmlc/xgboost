@@ -18,7 +18,7 @@ DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
 class CPUPredictor : public Predictor {
  protected:
-  static bst_float PredValue(const  SparsePage::Inst& inst,
+  static bst_float PredValue(const SparsePage::Inst& inst,
                              const std::vector<std::unique_ptr<RegTree>>& trees,
                              const std::vector<int>& tree_info, int bst_group,
                              RegTree::FVec* p_feats,
@@ -175,13 +175,15 @@ class CPUPredictor : public Predictor {
     this->PredLoopInternal(dmat, &out_preds->HostVector(), model,
                            tree_begin, ntree_limit);
 
-    auto cache_emtry = this->FindCache(dmat);
-    if (cache_emtry == cache_->cend()) { return; }
-    if (cache_emtry->second.predictions.Size() == 0) {
+    auto cache_entry = this->FindCache(dmat);
+    if (cache_entry == cache_->cend()) {
+      return;
+    }
+    if (cache_entry->second.predictions.Size() == 0) {
       // See comment in GPUPredictor::PredictBatch.
-      InitOutPredictions(cache_emtry->second.data->Info(),
-                         &(cache_emtry->second.predictions), model);
-      cache_emtry->second.predictions.Copy(*out_preds);
+      InitOutPredictions(cache_entry->second.data->Info(),
+                         &(cache_entry->second.predictions), model);
+      cache_entry->second.predictions.Copy(*out_preds);
     }
   }
 

@@ -80,6 +80,10 @@ class ColMaker: public TreeUpdater {
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
+    if (rabit::IsDistributed()) {
+      LOG(FATAL) << "Updater `grow_colmaker` or `exact` tree method doesn't "
+                    "support distributed training.";
+    }
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();

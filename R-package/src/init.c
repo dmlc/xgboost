@@ -24,7 +24,7 @@ extern SEXP XGBoosterGetAttr_R(SEXP, SEXP);
 extern SEXP XGBoosterLoadModelFromRaw_R(SEXP, SEXP);
 extern SEXP XGBoosterLoadModel_R(SEXP, SEXP);
 extern SEXP XGBoosterModelToRaw_R(SEXP);
-extern SEXP XGBoosterPredict_R(SEXP, SEXP, SEXP, SEXP);
+extern SEXP XGBoosterPredict_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSaveModel_R(SEXP, SEXP);
 extern SEXP XGBoosterSetAttr_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterSetParam_R(SEXP, SEXP, SEXP);
@@ -50,7 +50,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGBoosterLoadModelFromRaw_R", (DL_FUNC) &XGBoosterLoadModelFromRaw_R, 2},
   {"XGBoosterLoadModel_R",        (DL_FUNC) &XGBoosterLoadModel_R,        2},
   {"XGBoosterModelToRaw_R",       (DL_FUNC) &XGBoosterModelToRaw_R,       1},
-  {"XGBoosterPredict_R",          (DL_FUNC) &XGBoosterPredict_R,          4},
+  {"XGBoosterPredict_R",          (DL_FUNC) &XGBoosterPredict_R,          5},
   {"XGBoosterSaveModel_R",        (DL_FUNC) &XGBoosterSaveModel_R,        2},
   {"XGBoosterSetAttr_R",          (DL_FUNC) &XGBoosterSetAttr_R,          3},
   {"XGBoosterSetParam_R",         (DL_FUNC) &XGBoosterSetParam_R,         3},

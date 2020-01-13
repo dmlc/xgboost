@@ -416,6 +416,7 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          4:output feature contributions to individual predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
+ * \param training Whether the prediction value is used for training.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
  * \return 0 when success, -1 when failure happens
@@ -424,6 +425,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              DMatrixHandle dmat,
                              int option_mask,
                              unsigned ntree_limit,
+                             int training,
                              bst_ulong *out_len,
                              const float **out_result);
 /*
