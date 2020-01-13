@@ -45,6 +45,10 @@ if (USE_CUDA)
   endif (USE_NVTX)
 endif (USE_CUDA)
 
+if (MSVC)
+  target_compile_options(objxgboost PRIVATE "/utf-8")
+endif (MSVC)
+
 target_include_directories(testxgboost
   PRIVATE
   ${GTEST_INCLUDE_DIRS}

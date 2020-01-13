@@ -52,6 +52,10 @@ if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
 
+if (MSVC)
+  target_compile_options(objxgboost PRIVATE "/utf-8")
+endif (MSVC)
+
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   CXX_STANDARD 11
