@@ -49,7 +49,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
     init(cacheMats);
-    setParam("validate_features", "0");
+    setParam("seed", "0");
     setParams(params);
   }
 
