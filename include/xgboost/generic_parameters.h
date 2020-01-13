@@ -29,6 +29,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   size_t gpu_page_size;
   bool enable_experimental_json_serialization {false};
   bool validate_parameters {false};
+  bool validate_features {true};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -73,7 +74,10 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
                   "rabit checkpoints etc.).");
     DMLC_DECLARE_FIELD(validate_parameters)
         .set_default(false)
-        .describe("Enable to check whether parameters are used or not.");
+        .describe("Enable checking whether parameters are used or not.");
+    DMLC_DECLARE_FIELD(validate_features)
+        .set_default(false)
+        .describe("Enable validating input DMatrix.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)

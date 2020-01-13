@@ -13,6 +13,10 @@ class TestGPUPredict(unittest.TestCase):
         np.random.seed(1)
         test_num_rows = [10, 1000, 5000]
         test_num_cols = [10, 50, 500]
+        # This test passes for tree_method=gpu_hist and tree_method=exact. but
+        # for `hist` and `approx` the floating point error accumulates faster
+        # and fails even tol is set to 1e-4.  For `hist`, the mismatching rate
+        # with 5000 rows is 0.04.
         for num_rows in test_num_rows:
             for num_cols in test_num_cols:
                 dtrain = xgb.DMatrix(np.random.randn(num_rows, num_cols),
@@ -27,7 +31,7 @@ class TestGPUPredict(unittest.TestCase):
                     "objective": "binary:logistic",
                     "predictor": "gpu_predictor",
                     'eval_metric': 'auc',
-                    'verbosity': '3'
+                    'tree_method': 'gpu_hist'
                 }
                 bst = xgb.train(param, dtrain, iterations, evals=watchlist,
                                 evals_result=res)
@@ -43,11 +47,11 @@ class TestGPUPredict(unittest.TestCase):
                 cpu_pred_val = bst_cpu.predict(dval, output_margin=True)
 
                 np.testing.assert_allclose(cpu_pred_train, gpu_pred_train,
-                                           rtol=1e-3)
+                                           rtol=1e-6)
                 np.testing.assert_allclose(cpu_pred_val, gpu_pred_val,
-                                           rtol=1e-3)
+                                           rtol=1e-6)
                 np.testing.assert_allclose(cpu_pred_test, gpu_pred_test,
-                                           rtol=1e-3)
+                                           rtol=1e-6)
 
     def non_decreasing(self, L):
         return all((x - y) < 0.001 for x, y in zip(L, L[1:]))

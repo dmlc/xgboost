@@ -124,7 +124,6 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     return;
   }
 
-  tparam_.updater_seq = "grow_histmaker,prune";
   if (rabit::IsDistributed()) {
     LOG(WARNING) <<
       "Tree method is automatically selected to be 'approx' "

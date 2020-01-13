@@ -6,7 +6,6 @@ import subprocess
 import os
 import json
 import pytest
-import copy
 
 import xgboost as xgb
 from xgboost import XGBClassifier
