@@ -1451,10 +1451,9 @@ class Booster(object):
 
         .. note:: Using ``predict()`` with DART booster
 
-          If the booster object is DART type, ``predict()`` will perform
-          dropouts, i.e. only some of the trees will be evaluated. This will
-          produce incorrect results if ``data`` is not the training data. To
-          obtain correct results on test sets, set ``training`` to True.
+          If the booster object is DART type, ``predict()`` will not perform
+          dropouts, i.e. all the trees will be evaluated.  If you want to
+          obtain result with dropouts, provide `training=True`.
 
         Returns
         -------

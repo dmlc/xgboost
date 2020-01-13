@@ -201,7 +201,6 @@ TEST(Dart, Prediction) {
 
   HostDeviceVector<float> predts_training;
   learner->Predict(p_mat.get(), false, &predts_training, 0, true);
-  std::cerr << "Inference" << std::endl;
   HostDeviceVector<float> predts_inference;
   learner->Predict(p_mat.get(), false, &predts_inference, 0, false);
 
