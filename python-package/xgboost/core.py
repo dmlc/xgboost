@@ -20,7 +20,7 @@ import scipy.sparse
 from .compat import (
     STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
     PANDAS_INSTALLED, DataTable,
-    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
+    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex, CUPY_Array,
     os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
@@ -501,7 +501,9 @@ class DMatrix(object):
         elif isinstance(data, DataTable):
             self._init_from_dt(data, nthread)
         elif _use_columnar_initializer(data):
-            self._init_from_columnar(data, missing)
+            self._init_from_columnar(data, missing, nthread)
+        elif isinstance(data, CUPY_Array):
+            self._init_from_cupy(data, missing, nthread)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -614,16 +616,28 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
-    def _init_from_columnar(self, df, missing):
+    def _init_from_columnar(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
         interfaces = _extract_interface_from_cudf(df)
         handle = ctypes.c_void_p()
-        has_missing = missing is not None
-        missing = missing if has_missing else np.nan
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
         _check_call(
-            _LIB.XGDMatrixCreateFromArrayInterfaces(
-                interfaces, ctypes.c_int32(has_missing),
-                ctypes.c_float(missing), ctypes.byref(handle)))
+            _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
+                interfaces,
+                ctypes.c_float(missing), ctypes.c_int(nthread), ctypes.byref(handle)))
+        self.handle = handle
+
+    def _init_from_cupy(self, data, missing, nthread):
+        """Initialize DMatrix from cupy ndarray."""
+        interface_str = bytes(json.dumps(data.__cuda_array_interface__, indent=2), 'utf-8')
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDMatrixCreateFromArrayInterface(
+                interface_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread), ctypes.byref(handle)))
         self.handle = handle
 
     def __del__(self):

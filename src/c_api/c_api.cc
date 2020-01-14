@@ -206,12 +206,24 @@ int XGDMatrixCreateFromDataIter(
 }
 
 #ifndef XGBOOST_USE_CUDA
-XGB_DLL int XGDMatrixCreateFromArrayInterfaces(
-  char const* c_json_strs, bst_int has_missing, bst_float missing, DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
+                                                     bst_float missing,
+                                                     int nthread,
+                                                     DMatrixHandle* out) {
   API_BEGIN();
   LOG(FATAL) << "Xgboost not compiled with cuda";
   API_END();
 }
+
+XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
+                                                     bst_float missing,
+                                                     int nthread,
+                                                     DMatrixHandle* out) {
+  API_BEGIN();
+  LOG(FATAL) << "Xgboost not compiled with cuda";
+  API_END();
+}
+
 #endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,

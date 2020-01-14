@@ -115,6 +115,7 @@ except ImportError:
     DT_INSTALLED = False
 
 
+# cudf
 try:
     from cudf import DataFrame as CUDF_DataFrame
     from cudf import Series as CUDF_Series
@@ -127,6 +128,14 @@ except ImportError:
     CUDF_MultiIndex = object
     CUDF_INSTALLED = False
     CUDF_concat = None
+
+# cudf
+try:
+    from cupy import ndarray as CUPY_Array
+    CUPY_INSTALLED = True
+except ImportError:
+    CUPY_INSTALLED = False
+    CUPY_Array = object
 
 # sklearn
 try:

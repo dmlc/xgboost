@@ -7,7 +7,7 @@
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
-#include "columnar.h"
+#include "array_interface.h"
 #include "../common/device_helpers.cuh"
 #include "device_adapter.cuh"
 #include "simple_dmatrix.h"
@@ -22,15 +22,15 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
     dh::safe_cuda(cudaSetDevice(ptr_device));
     return ptr_device;
   };
-  Columnar foreign_column(column);
+  ArrayInterface foreign_column(column);
   auto ptr_device = SetDeviceToPtr(foreign_column.data);
 
   out->SetDevice(ptr_device);
-  out->Resize(foreign_column.size);
+  out->Resize(foreign_column.num_rows);
 
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
 
-  dh::LaunchN(ptr_device, foreign_column.size, [=] __device__(size_t idx) {
+  dh::LaunchN(ptr_device, foreign_column.num_rows, [=] __device__(size_t idx) {
     p_dst[idx] = foreign_column.GetElement(idx);
   });
 }
@@ -38,7 +38,7 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr = get<Array>(j_interface);
-  CHECK_EQ(j_arr.size(), 1) << "MetaInfo: " << c_key << ". " << ColumnarErrors::Dimension(1);;
+  CHECK_EQ(j_arr.size(), 1) << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);;
   auto const& j_arr_obj = get<Object const>(j_arr[0]);
   std::string key {c_key};
   ArrayInterfaceHandler::Validate(j_arr_obj);
@@ -81,5 +81,8 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(
     data::CudfAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CupyAdapter>(
+    data::CupyAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
 }  // namespace xgboost
