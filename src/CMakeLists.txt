@@ -33,6 +33,12 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
 
+  if (MSVC)
+    target_compile_options(objxgboost PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
+    )
+  endif (MSVC)
+
   set_target_properties(objxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
@@ -53,7 +59,9 @@ if (WIN32 AND MINGW)
 endif (WIN32 AND MINGW)
 
 if (MSVC)
-  target_compile_options(objxgboost PRIVATE "/utf-8")
+  target_compile_options(objxgboost PRIVATE
+    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+  )
 endif (MSVC)
 
 set_target_properties(objxgboost PROPERTIES
