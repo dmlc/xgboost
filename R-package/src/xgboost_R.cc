@@ -313,7 +313,7 @@ SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask,
                               R_ExternalPtrAddr(dmat),
                               asInteger(option_mask),
                               asInteger(ntree_limit),
-                              0,
+                              asInteger(training),
                               &olen, &res));
   ret = PROTECT(allocVector(REALSXP, olen));
   for (size_t i = 0; i < olen; ++i) {
