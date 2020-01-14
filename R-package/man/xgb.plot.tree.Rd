@@ -4,9 +4,16 @@
 \alias{xgb.plot.tree}
 \title{Plot a boosted tree model}
 \usage{
-xgb.plot.tree(feature_names = NULL, model = NULL, trees = NULL,
-  plot_width = NULL, plot_height = NULL, render = TRUE,
-  show_node_id = FALSE, ...)
+xgb.plot.tree(
+  feature_names = NULL,
+  model = NULL,
+  trees = NULL,
+  plot_width = NULL,
+  plot_height = NULL,
+  render = TRUE,
+  show_node_id = FALSE,
+  ...
+)
 }
 \arguments{
 \item{feature_names}{names of each feature as a \code{character} vector.}

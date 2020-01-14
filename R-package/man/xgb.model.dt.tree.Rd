@@ -4,8 +4,14 @@
 \alias{xgb.model.dt.tree}
 \title{Parse a boosted tree model text dump}
 \usage{
-xgb.model.dt.tree(feature_names = NULL, model = NULL, text = NULL,
-  trees = NULL, use_int_id = FALSE, ...)
+xgb.model.dt.tree(
+  feature_names = NULL,
+  model = NULL,
+  text = NULL,
+  trees = NULL,
+  use_int_id = FALSE,
+  ...
+)
 }
 \arguments{
 \item{feature_names}{character vector of feature names. If the model already

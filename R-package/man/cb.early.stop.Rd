@@ -4,8 +4,12 @@
 \alias{cb.early.stop}
 \title{Callback closure to activate the early stopping.}
 \usage{
-cb.early.stop(stopping_rounds, maximize = FALSE, metric_name = NULL,
-  verbose = TRUE)
+cb.early.stop(
+  stopping_rounds,
+  maximize = FALSE,
+  metric_name = NULL,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{stopping_rounds}{The number of rounds with no improvement in

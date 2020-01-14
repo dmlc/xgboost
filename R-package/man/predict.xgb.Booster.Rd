@@ -5,10 +5,20 @@
 \alias{predict.xgb.Booster.handle}
 \title{Predict method for eXtreme Gradient Boosting model}
 \usage{
-\method{predict}{xgb.Booster}(object, newdata, missing = NA,
-  outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-  reshape = FALSE, ...)
+\method{predict}{xgb.Booster}(
+  object,
+  newdata,
+  missing = NA,
+  outputmargin = FALSE,
+  ntreelimit = NULL,
+  predleaf = FALSE,
+  predcontrib = FALSE,
+  approxcontrib = FALSE,
+  predinteraction = FALSE,
+  reshape = FALSE,
+  training = FALSE,
+  ...
+)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }

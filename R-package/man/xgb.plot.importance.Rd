@@ -5,12 +5,25 @@
 \alias{xgb.plot.importance}
 \title{Plot feature importance as a bar graph}
 \usage{
-xgb.ggplot.importance(importance_matrix = NULL, top_n = NULL,
-  measure = NULL, rel_to_first = FALSE, n_clusters = c(1:10), ...)
+xgb.ggplot.importance(
+  importance_matrix = NULL,
+  top_n = NULL,
+  measure = NULL,
+  rel_to_first = FALSE,
+  n_clusters = c(1:10),
+  ...
+)
 
-xgb.plot.importance(importance_matrix = NULL, top_n = NULL,
-  measure = NULL, rel_to_first = FALSE, left_margin = 10, cex = NULL,
-  plot = TRUE, ...)
+xgb.plot.importance(
+  importance_matrix = NULL,
+  top_n = NULL,
+  measure = NULL,
+  rel_to_first = FALSE,
+  left_margin = 10,
+  cex = NULL,
+  plot = TRUE,
+  ...
+)
 }
 \arguments{
 \item{importance_matrix}{a \code{data.table} returned by \code{\link{xgb.importance}}.}
