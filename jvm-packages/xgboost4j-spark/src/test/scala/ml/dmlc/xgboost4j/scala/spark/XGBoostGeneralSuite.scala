@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
 
+import scala.util.Random
+
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
@@ -26,7 +28,9 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.TaskContext
 import org.scalatest.FunSuite
 
-class XGBoostGeneralSuite extends FunSuite with PerTest {
+import org.apache.spark.ml.feature.VectorAssembler
+
+class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   test("distributed training with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
@@ -173,60 +177,6 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val model = new XGBoostClassifier(paramMap).fit(training)
     val x = eval.eval(model._booster.predict(testDM, outPutMargin = true), testDM)
     assert(x < 0.1)
-  }
-
-  test("training with checkpoint boosters") {
-    val eval = new EvalError()
-    val training = buildDataFrame(Classification.train)
-    val testDM = new DMatrix(Classification.test.iterator)
-
-    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
-    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
-      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
-      "checkpoint_interval" -> 2, "num_workers" -> numWorkers)
-
-    val prevModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 5)).fit(training)
-    def error(model: Booster): Float = eval.eval(
-      model.predict(testDM, outPutMargin = true), testDM)
-
-    // Check only one model is kept after training
-    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
-    assert(files.length == 1)
-    assert(files.head.getPath.getName == "8.model")
-    val tmpModel = SXGBoost.loadModel(s"$tmpPath/8.model")
-
-    // Train next model based on prev model
-    val nextModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 8)).fit(training)
-    assert(error(tmpModel) > error(prevModel._booster))
-    assert(error(prevModel._booster) > error(nextModel._booster))
-    assert(error(nextModel._booster) < 0.1)
-  }
-
-  test("training with checkpoint boosters with cached training dataset") {
-    val eval = new EvalError()
-    val training = buildDataFrame(Classification.train)
-    val testDM = new DMatrix(Classification.test.iterator)
-
-    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
-    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
-      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
-      "checkpoint_interval" -> 2, "num_workers" -> numWorkers, "cacheTrainingSet" -> true)
-
-    val prevModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 5)).fit(training)
-    def error(model: Booster): Float = eval.eval(
-      model.predict(testDM, outPutMargin = true), testDM)
-
-    // Check only one model is kept after training
-    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
-    assert(files.length == 1)
-    assert(files.head.getPath.getName == "8.model")
-    val tmpModel = SXGBoost.loadModel(s"$tmpPath/8.model")
-
-    // Train next model based on prev model
-    val nextModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 8)).fit(training)
-    assert(error(tmpModel) > error(prevModel._booster))
-    assert(error(prevModel._booster) > error(nextModel._booster))
-    assert(error(nextModel._booster) < 0.1)
   }
 
   test("repartitionForTrainingGroup with group data") {
@@ -394,5 +344,23 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(clsRet1 sameElements clsRet2)
     assert(clsRet1 sameElements clsRet3)
     assert(clsRet1 sameElements clsRet4)
+  }
+
+  test("chaining the prediction") {
+    val modelPath = getClass.getResource("/model/0.82/model").getPath
+    val model = XGBoostClassificationModel.read.load(modelPath)
+    val r = new Random(0)
+    val df = ss.createDataFrame(Seq.fill(100000)(1).map(i => (i, i))).
+      toDF("feature", "label").repartition(5)
+    val assembler = new VectorAssembler()
+      .setInputCols(df.columns.filter(!_.contains("label")))
+      .setOutputCol("features")
+    val df1 = model.transform(assembler.transform(df)).withColumnRenamed(
+      "prediction", "prediction1").withColumnRenamed(
+      "rawPrediction", "rawPrediction1").withColumnRenamed(
+      "probability", "probability1")
+    val df2 = model.transform(df1)
+    df1.collect()
+    df2.collect()
   }
 }

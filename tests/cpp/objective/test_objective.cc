@@ -7,7 +7,7 @@
 
 TEST(Objective, UnknownFunction) {
   xgboost::ObjFunction* obj = nullptr;
-  xgboost::LearnerTrainParam tparam;
+  xgboost::GenericParameter tparam;
   std::vector<std::pair<std::string, std::string>> args;
   tparam.InitAllowUnknown(args);
 

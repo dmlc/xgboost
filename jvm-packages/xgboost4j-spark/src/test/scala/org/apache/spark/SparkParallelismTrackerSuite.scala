@@ -18,16 +18,17 @@ package org.apache.spark
 
 import org.scalatest.FunSuite
 import _root_.ml.dmlc.xgboost4j.scala.spark.PerTest
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 
+import scala.math.min
+
 class SparkParallelismTrackerSuite extends FunSuite with PerTest {
 
-  val numParallelism: Int = Runtime.getRuntime.availableProcessors()
+  val numParallelism: Int = min(Runtime.getRuntime.availableProcessors(), 4)
 
   override protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
-    .master("local[*]")
+    .master(s"local[${numParallelism}]")
     .appName("XGBoostSuite")
     .config("spark.ui.enabled", true)
     .config("spark.driver.memory", "512m")

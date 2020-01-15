@@ -4,12 +4,13 @@
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
-#include <xgboost/objective.h>
+#include "xgboost/objective.h"
+#include "xgboost/span.h"
+#include "xgboost/host_device_vector.h"
+
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
-#include "../common/span.h"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace obj {
@@ -58,7 +59,7 @@ class HingeObj : public ObjFunction {
           _out_gpair[_idx] = GradientPair(g, h);
         },
         common::Range{0, static_cast<int64_t>(ndata)},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, ndata)).Eval(
+        tparam_->gpu_id).Eval(
             out_gpair, &preds, &info.labels_, &info.weights_);
   }
 
@@ -68,7 +69,7 @@ class HingeObj : public ObjFunction {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size()), 1},
-        GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size()))
+        tparam_->gpu_id)
         .Eval(io_preds);
   }
 

@@ -128,8 +128,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     num_boost_round: int
         Number of boosting iterations.
     evals: list of pairs (DMatrix, string)
-        List of items to be evaluated during training, this allows user to watch
-        performance on the validation set.
+        List of validation sets for which metrics will evaluated during training.
+        Validation metrics will help us track the performance of the model.
     obj : function
         Customized objective function.
     feval : function
@@ -137,11 +137,14 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
-        Activates early stopping. Validation error needs to decrease at least
+        Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.
         Requires at least one item in **evals**.
-        If there's more than one, will use the last.
-        Returns the model from the last iteration (not the best one).
+        The method returns the model from the last iteration (not the best one).
+        If there's more than one item in **evals**, the last entry will be used
+        for early stopping.
+        If there's more than one metric in the **eval_metric** parameter given in
+        **params**, the last metric will be used for early stopping.
         If early stopping occurs, the model will have three additional fields:
         ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
         (Use ``bst.best_ntree_limit`` to get the correct value if
@@ -363,16 +366,16 @@ def aggcv(rlist):
     for line in rlist:
         arr = line.split()
         assert idx == arr[0]
-        for it in arr[1:]:
+        for metric_idx, it in enumerate(arr[1:]):
             if not isinstance(it, STRING_TYPES):
                 it = it.decode()
             k, v = it.split(':')
-            if k not in cvmap:
-                cvmap[k] = []
-            cvmap[k].append(float(v))
+            if (metric_idx, k) not in cvmap:
+                cvmap[(metric_idx, k)] = []
+            cvmap[(metric_idx, k)].append(float(v))
     msg = idx
     results = []
-    for k, v in sorted(cvmap.items(), key=lambda x: (x[0].startswith('test'), x[0])):
+    for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
         v = np.array(v)
         if not isinstance(msg, STRING_TYPES):
             msg = msg.decode()

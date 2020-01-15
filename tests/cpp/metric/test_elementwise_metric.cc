@@ -6,7 +6,7 @@
 #include "../helpers.h"
 
 TEST(Metric, DeclareUnifiedTest(RMSE)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmse");
@@ -19,8 +19,20 @@ TEST(Metric, DeclareUnifiedTest(RMSE)) {
   delete metric;
 }
 
+TEST(Metric, DeclareUnifiedTest(RMSLE)) {
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Metric * metric = xgboost::Metric::Create("rmsle", &lparam);
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "rmsle");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},
+                            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f}), 0.40632, 1e-4);
+  delete metric;
+}
+
 TEST(Metric, DeclareUnifiedTest(MAE)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("mae", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mae");
@@ -33,7 +45,7 @@ TEST(Metric, DeclareUnifiedTest(MAE)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("logloss", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "logloss");
@@ -46,7 +58,7 @@ TEST(Metric, DeclareUnifiedTest(LogLoss)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(Error)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("error", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error");
@@ -78,7 +90,7 @@ TEST(Metric, DeclareUnifiedTest(Error)) {
 }
 
 TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
-  auto lparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("poisson-nloglik", &lparam);
   metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
@@ -89,32 +101,3 @@ TEST(Metric, DeclareUnifiedTest(PoissionNegLogLik)) {
               1.1280f, 0.001f);
   delete metric;
 }
-
-#if defined(XGBOOST_USE_NCCL) && defined(__CUDACC__)
-TEST(Metric, MGPU_RMSE) {
-  {
-    auto lparam = xgboost::CreateEmptyGenericParam(0, -1);
-    xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
-    metric->Configure({});
-    ASSERT_STREQ(metric->Name(), "rmse");
-    EXPECT_NEAR(GetMetricEval(metric, {0}, {0}), 0, 1e-10);
-    EXPECT_NEAR(GetMetricEval(metric,
-                              {0.1f, 0.9f, 0.1f, 0.9f},
-                              {  0,   0,   1,   1}),
-                0.6403f, 0.001f);
-    delete metric;
-  }
-
-  {
-    auto lparam = xgboost::CreateEmptyGenericParam(1, -1);
-    xgboost::Metric * metric = xgboost::Metric::Create("rmse", &lparam);
-    ASSERT_STREQ(metric->Name(), "rmse");
-    EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
-    EXPECT_NEAR(GetMetricEval(metric,
-                              {0.1f, 0.9f, 0.1f, 0.9f},
-                              {  0,   0,   1,   1}),
-                0.6403f, 0.001f);
-    delete metric;
-  }
-}
-#endif

@@ -6,7 +6,7 @@
 #include "../helpers.h"
 
 TEST(Objective, DeclareUnifiedTest(HingeObj)) {
-  xgboost::LearnerTrainParam tparam = xgboost::CreateEmptyGenericParam(0, NGPUS);
+  xgboost::GenericParameter tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("binary:hinge", &tparam);
 
   xgboost::bst_float eps = std::numeric_limits<xgboost::bst_float>::min();

@@ -20,15 +20,6 @@ int main() {
 }
 " XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
-# Add plugins to source files
-if (PLUGIN_LZ4)
-  list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/lz4/sparse_page_lz4_format.cc)
-  list(APPEND SRC_LIBS lz4)
-endif (PLUGIN_LZ4)
-if (PLUGIN_DENSE_PARSER)
-  list(APPEND PLUGINS_SOURCES ${PROJECT_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
-endif (PLUGIN_DENSE_PARSER)
-
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared
 # library.
@@ -59,7 +50,7 @@ if (USE_CUDA)
 
   # OpenMP is mandatory for cuda version
   find_package(OpenMP REQUIRED)
-  target_compile_options(objxgboost PRIVATE  
+  target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
 

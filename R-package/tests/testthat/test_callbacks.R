@@ -236,7 +236,7 @@ test_that("early stopping using a specific metric works", {
   expect_equal(length(pred), 1611)
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
   logloss_log <- bst$evaluation_log[bst$best_iteration, test_logloss]
-  expect_equal(logloss_log, logloss_pred, tolerance = 5e-6)
+  expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
 })
 
 test_that("early stopping xgb.cv works", {
@@ -285,7 +285,8 @@ test_that("prediction in early-stopping xgb.cv works", {
   set.seed(11)
   expect_output(
     cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
-                 early_stopping_rounds = 5, maximize = FALSE, prediction = TRUE)
+                 early_stopping_rounds = 5, maximize = FALSE, stratified = FALSE,
+                 prediction = TRUE)
   , "Stopping. Best iteration")
   
   expect_false(is.null(cv$best_iteration))

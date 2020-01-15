@@ -101,7 +101,7 @@ Sample Script
   # specify parameters via map
   param = {'booster': 'dart',
            'max_depth': 5, 'learning_rate': 0.1,
-           'objective': 'binary:logistic', 'silent': True,
+           'objective': 'binary:logistic',
            'sample_type': 'uniform',
            'normalize_type': 'tree',
            'rate_drop': 0.1,

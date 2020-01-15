@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y wget unzip bzip2 libgomp1 && \
+    apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
@@ -17,7 +17,7 @@ ENV PATH=/opt/python/bin:$PATH
 # Install Python packages
 RUN \
     pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
-    conda install dask
+    pip install "dask[complete]==2.0.0"
 
 ENV GOSU_VERSION 1.10
 

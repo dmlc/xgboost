@@ -15,14 +15,16 @@ RUN \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
+    /opt/python/bin/pip install awscli && \
     # Maven
     wget http://apache.osuosl.org/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
     # Spark
-    wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop2.7.tgz && \
-    tar xvf spark-$SPARK_VERSION-bin-hadoop2.7.tgz -C /opt && \
-    ln -s /opt/spark-$SPARK_VERSION-bin-hadoop2.7 /opt/spark
+    # This should be: wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz
+    /opt/python/bin/python -m awscli s3 cp s3://xgboost-ci-jenkins-artifacts/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz . && \
+    tar xvf spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7.tgz -C /opt && \
+    ln -s /opt/spark-$SPARK_VERSION-bin-scala2.12-hadoop2.7 /opt/spark
 
 ENV PATH=/opt/python/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 

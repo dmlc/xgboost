@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.java;
 import java.util.Iterator;
 
 import ml.dmlc.xgboost4j.LabeledPoint;
+import ml.dmlc.xgboost4j.java.util.BigDenseMatrix;
 
 /**
  * DMatrix for xgboost.
@@ -78,7 +79,8 @@ public class DMatrix {
    * @throws XGBoostError
    */
   @Deprecated
-  public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XGBoostError {
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st)
+      throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
       XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromCSREx(headers, indices, data, 0, out));
@@ -100,7 +102,7 @@ public class DMatrix {
    *                     row number
    * @throws XGBoostError
    */
-  public DMatrix(long[] headers, int[] indices, float[] data, SparseType st, int shapeParam)
+  public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st, int shapeParam)
           throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
@@ -130,6 +132,16 @@ public class DMatrix {
   }
 
   /**
+   * create DMatrix from a BigDenseMatrix
+   *
+   * @param matrix instance of BigDenseMatrix
+   * @throws XGBoostError native error
+   */
+  public DMatrix(BigDenseMatrix matrix) throws XGBoostError {
+    this(matrix, 0.0f);
+  }
+
+  /**
    * create DMatrix from dense matrix
    * @param data data values
    * @param nrow number of rows
@@ -139,6 +151,18 @@ public class DMatrix {
   public DMatrix(float[] data, int nrow, int ncol, float missing) throws XGBoostError {
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, missing, out));
+    handle = out[0];
+  }
+
+  /**
+   * create DMatrix from dense matrix
+   * @param matrix instance of BigDenseMatrix
+   * @param missing the specified value to represent the missing value
+   */
+  public DMatrix(BigDenseMatrix matrix, float missing) throws XGBoostError {
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMatRef(matrix.address, matrix.nrow,
+        matrix.ncol, missing, out));
     handle = out[0];
   }
 
@@ -200,7 +224,17 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setGroup(int[] group) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetGroup(handle, group));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetUIntInfo(handle, "group", group));
+  }
+
+  /**
+   * Get group sizes of DMatrix
+   *
+   * @throws XGBoostError native error
+   * @return group size as array
+   */
+  public int[] getGroup() throws XGBoostError {
+    return getIntInfo("group_ptr");
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {

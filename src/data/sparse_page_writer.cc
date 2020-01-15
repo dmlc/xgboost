@@ -39,7 +39,7 @@ SparsePageWriter::SparsePageWriter(
             qrecycle_.Push(std::move(page));
           }
           fo.reset(nullptr);
-          LOG(CONSOLE) << "SparsePage::Writer Finished writing to " << name_shard;
+          LOG(INFO) << "SparsePage::Writer Finished writing to " << name_shard;
         }));
   }
 }

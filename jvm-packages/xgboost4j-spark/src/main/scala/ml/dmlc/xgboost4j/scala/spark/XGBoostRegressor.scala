@@ -41,10 +41,6 @@ import scala.collection.mutable.ListBuffer
 
 import org.apache.spark.broadcast.Broadcast
 
-private[spark] trait XGBoostRegressorParams extends GeneralParams with BoosterParams
-  with LearningTaskParams with HasBaseMarginCol with HasWeightCol with HasGroupCol
-  with ParamMapFuncs with HasLeafPredictionCol with HasContribPredictionCol with NonParamVariables
-
 class XGBoostRegressor (
     override val uid: String,
     private val xgboostParams: Map[String, Any])
@@ -178,11 +174,12 @@ class XGBoostRegressor (
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
     val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
       col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      dataset.asInstanceOf[DataFrame]).head
+      $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
     val evalRDDMap = getEvalSets(xgboostParams).map {
       case (name, dataFrame) => (name,
         DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), dataFrame).head)
+          weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
+          dataFrame).head)
     }
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
@@ -242,6 +239,8 @@ class XGBoostRegressionModel private[ml] (
 
   def setTreeLimit(value: Int): this.type = set(treeLimit, value)
 
+  def setMissing(value: Float): this.type = set(missing, value)
+
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**
@@ -269,7 +268,9 @@ class XGBoostRegressionModel private[ml] (
 
         private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
           if (batchCnt == 0) {
-            val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+            val rabitEnv = Array(
+              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
+              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
             Rabit.init(rabitEnv.asJava)
           }
 

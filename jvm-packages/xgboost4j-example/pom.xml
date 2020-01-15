@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboost-jvm</artifactId>
-        <version>0.90</version>
+        <artifactId>xgboost-jvm_2.12</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>xgboost4j-example</artifactId>
-    <version>0.90</version>
+    <artifactId>xgboost4j-example_2.12</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <build>
         <plugins>
@@ -25,8 +25,8 @@
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-spark</artifactId>
-            <version>0.90</version>
+            <artifactId>xgboost4j-spark_${scala.binary.version}</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
@@ -36,8 +36,8 @@
         </dependency>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-flink</artifactId>
-            <version>0.90</version>
+            <artifactId>xgboost4j-flink_${scala.binary.version}</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>

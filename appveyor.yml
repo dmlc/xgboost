@@ -3,10 +3,6 @@ environment:
     USE_RTOOLS: true
     matrix:
         - target: msvc
-          ver: 2013
-          generator: "Visual Studio 12 2013 Win64"
-          configuration: Release
-        - target: msvc
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Debug
@@ -98,7 +94,7 @@ build_script:
         cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
         cmake --build . --target install --config Release
       )
-    - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j
+    - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j_2.12
 
 test_script:
     - cd %APPVEYOR_BUILD_FOLDER%
@@ -106,6 +102,7 @@ test_script:
     # mingw R package: run the R check (which includes unit tests), and also keep the built binary package
     - if /i "%target%" == "rmingw" (
         set _R_CHECK_CRAN_INCOMING_=FALSE&&
+        set _R_CHECK_FORCE_SUGGESTS_=FALSE&&
         R.exe CMD check xgboost*.tar.gz --no-manual --no-build-vignettes --as-cran --install-args=--build
       )
     # MSVC R package: run only the unit tests

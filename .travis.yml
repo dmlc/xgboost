@@ -1,7 +1,7 @@
 # disable sudo for container build.
 sudo: required
 
-# Enabling test on Linux and OS X
+# Enabling test OS X
 os:
   - osx
 

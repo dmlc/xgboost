@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
+import org.apache.spark.HashPartitioner
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
 import org.apache.spark.ml.param.Param
@@ -73,12 +74,81 @@ object DataUtils extends Serializable {
     }
   }
 
+  private def featureValueOfDenseVector(rowHashCode: Int, features: DenseVector): Float = {
+    val featureId = {
+      if (rowHashCode > 0) {
+        rowHashCode % features.size
+      } else {
+        // prevent overflow
+        math.abs(rowHashCode + 1) % features.size
+      }
+    }
+    features.values(featureId).toFloat
+  }
+
+  private def featureValueOfSparseVector(rowHashCode: Int, features: SparseVector): Float = {
+    val featureId = {
+      if (rowHashCode > 0) {
+        rowHashCode % features.indices.length
+      } else {
+        // prevent overflow
+        math.abs(rowHashCode + 1) % features.indices.length
+      }
+    }
+    features.values(featureId).toFloat
+  }
+
+  private def calculatePartitionKey(row: Row, numPartitions: Int): Int = {
+    val Row(_, features: Vector, _, _) = row
+    val rowHashCode = row.hashCode()
+    val featureValue = features match {
+      case denseVector: DenseVector =>
+        featureValueOfDenseVector(rowHashCode, denseVector)
+      case sparseVector: SparseVector =>
+        featureValueOfSparseVector(rowHashCode, sparseVector)
+    }
+    math.abs((rowHashCode.toLong + featureValue).toString.hashCode % numPartitions)
+  }
+
+  private def attachPartitionKey(
+      row: Row,
+      deterministicPartition: Boolean,
+      numWorkers: Int,
+      xgbLp: XGBLabeledPoint): (Int, XGBLabeledPoint) = {
+    if (deterministicPartition) {
+      (calculatePartitionKey(row, numWorkers), xgbLp)
+    } else {
+      (1, xgbLp)
+    }
+  }
+
+  private def repartitionRDDs(
+      deterministicPartition: Boolean,
+      numWorkers: Int,
+      arrayOfRDDs: Array[RDD[(Int, XGBLabeledPoint)]]): Array[RDD[XGBLabeledPoint]] = {
+    if (deterministicPartition) {
+      arrayOfRDDs.map {rdd => rdd.partitionBy(new HashPartitioner(numWorkers))}.map {
+        rdd => rdd.map(_._2)
+      }
+    } else {
+      arrayOfRDDs.map(rdd => {
+        if (rdd.getNumPartitions != numWorkers) {
+          rdd.map(_._2).repartition(numWorkers)
+        } else {
+          rdd.map(_._2)
+        }
+      })
+    }
+  }
+
   private[spark] def convertDataFrameToXGBLabeledPointRDDs(
       labelCol: Column,
       featuresCol: Column,
       weight: Column,
       baseMargin: Column,
       group: Option[Column],
+      numWorkers: Int,
+      deterministicPartition: Boolean,
       dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
     val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
       featuresCol,
@@ -88,22 +158,26 @@ object DataUtils extends Serializable {
       featuresCol,
       weight.cast(FloatType),
       baseMargin.cast(FloatType)))
-    dataFrames.toArray.map {
+    val arrayOfRDDs = dataFrames.toArray.map {
       df => df.select(selectedColumns: _*).rdd.map {
-        case Row(label: Float, features: Vector, weight: Float, group: Int, baseMargin: Float) =>
+        case row @ Row(label: Float, features: Vector, weight: Float, group: Int,
+          baseMargin: Float) =>
           val (indices, values) = features match {
             case v: SparseVector => (v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (null, v.values.map(_.toFloat))
           }
-          XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
-        case Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
+          val xgbLp = XGBLabeledPoint(label, indices, values, weight, group, baseMargin)
+          attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+        case row @ Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
           val (indices, values) = features match {
             case v: SparseVector => (v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (null, v.values.map(_.toFloat))
           }
-          XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
+          val xgbLp = XGBLabeledPoint(label, indices, values, weight, baseMargin = baseMargin)
+          attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
       }
     }
+    repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
   }
 
 }

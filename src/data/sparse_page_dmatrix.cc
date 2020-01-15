@@ -6,12 +6,11 @@
  */
 #include <dmlc/base.h>
 #include <dmlc/timer.h>
-#include <xgboost/logging.h>
-#include <memory>
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_dmatrix.h"
-#include "../common/random.h"
+
+#include "./simple_batch_iterator.h"
 
 namespace xgboost {
 namespace data {
@@ -24,64 +23,72 @@ const MetaInfo& SparsePageDMatrix::Info() const {
   return row_source_->info;
 }
 
-class SparseBatchIteratorImpl : public BatchIteratorImpl {
+template<typename T>
+class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
-  explicit SparseBatchIteratorImpl(SparsePageSource* source) : source_(source) {
+  explicit SparseBatchIteratorImpl(SparsePageSource<T>* source) : source_(source) {
     CHECK(source_ != nullptr);
   }
-  SparsePage& operator*() override { return source_->Value(); }
-  const SparsePage& operator*() const override { return source_->Value(); }
+  T& operator*() override { return source_->Value(); }
+  const T& operator*() const override { return source_->Value(); }
   void operator++() override { at_end_ = !source_->Next(); }
   bool AtEnd() const override { return at_end_; }
-  SparseBatchIteratorImpl* Clone() override {
-    return new SparseBatchIteratorImpl(*this);
-  }
 
  private:
-  SparsePageSource* source_{nullptr};
+  SparsePageSource<T>* source_{nullptr};
   bool at_end_{ false };
 };
 
-BatchSet SparsePageDMatrix::GetRowBatches() {
-  auto cast = dynamic_cast<SparsePageSource*>(row_source_.get());
+BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
+  auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
   cast->BeforeFirst();
   cast->Next();
-  auto begin_iter = BatchIterator(new SparseBatchIteratorImpl(cast));
-  return BatchSet(begin_iter);
+  auto begin_iter = BatchIterator<SparsePage>(new SparseBatchIteratorImpl<SparsePage>(cast));
+  return BatchSet<SparsePage>(begin_iter);
 }
 
-BatchSet SparsePageDMatrix::GetSortedColumnBatches() {
-  // Lazily instantiate
-  if (!sorted_column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, true);
-    sorted_column_source_.reset(
-        new SparsePageSource(cache_info_, ".sorted.col.page"));
-  }
-  sorted_column_source_->BeforeFirst();
-  sorted_column_source_->Next();
-  auto begin_iter =
-      BatchIterator(new SparseBatchIteratorImpl(sorted_column_source_.get()));
-  return BatchSet(begin_iter);
-}
-
-BatchSet SparsePageDMatrix::GetColumnBatches() {
+BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   // Lazily instantiate
   if (!column_source_) {
-    SparsePageSource::CreateColumnPage(this, cache_info_, false);
-    column_source_.reset(new SparsePageSource(cache_info_, ".col.page"));
+    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, false);
+    column_source_.reset(new SparsePageSource<CSCPage>(cache_info_, ".col.page"));
   }
   column_source_->BeforeFirst();
   column_source_->Next();
   auto begin_iter =
-      BatchIterator(new SparseBatchIteratorImpl(column_source_.get()));
-  return BatchSet(begin_iter);
+      BatchIterator<CSCPage>(new SparseBatchIteratorImpl<CSCPage>(column_source_.get()));
+  return BatchSet<CSCPage>(begin_iter);
+}
+
+BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
+  // Lazily instantiate
+  if (!sorted_column_source_) {
+    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, true);
+    sorted_column_source_.reset(
+        new SparsePageSource<SortedCSCPage>(cache_info_, ".sorted.col.page"));
+  }
+  sorted_column_source_->BeforeFirst();
+  sorted_column_source_->Next();
+  auto begin_iter = BatchIterator<SortedCSCPage>(
+      new SparseBatchIteratorImpl<SortedCSCPage>(sorted_column_source_.get()));
+  return BatchSet<SortedCSCPage>(begin_iter);
+}
+
+BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches() {
+  // ELLPACK page doesn't exist, generate it
+  if (!ellpack_page_) {
+    ellpack_page_.reset(new EllpackPage(this));
+  }
+  auto begin_iter =
+      BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_.get()));
+  return BatchSet<EllpackPage>(begin_iter);
 }
 
 float SparsePageDMatrix::GetColDensity(size_t cidx) {
   // Finds densities if we don't already have them
   if (col_density_.empty()) {
     std::vector<size_t> column_size(this->Info().num_col_);
-    for (const auto &batch : this->GetColumnBatches()) {
+    for (const auto &batch : this->GetBatches<CSCPage>()) {
       for (auto i = 0u; i < batch.Size(); i++) {
         column_size[i] += batch[i].size();
       }

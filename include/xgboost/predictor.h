@@ -8,6 +8,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 #include <functional>
 #include <memory>
@@ -16,12 +17,12 @@
 #include <utility>
 #include <vector>
 
-#include "../../src/gbm/gbtree_model.h"
-#include "../../src/common/host_device_vector.h"
-
 // Forward declarations
 namespace xgboost {
 class TreeUpdater;
+namespace gbm {
+class GBTreeModel;
+}  // namespace gbm
 }
 
 namespace xgboost {
@@ -40,7 +41,7 @@ namespace xgboost {
 
 class Predictor {
  protected:
-  LearnerTrainParam const* learner_param_;
+  GenericParameter const* learner_param_;
 
  public:
   virtual ~Predictor() = default;
@@ -55,8 +56,8 @@ class Predictor {
    * \param cache Vector of DMatrix's to be used in prediction.
    */
 
-  virtual void Init(const std::vector<std::pair<std::string, std::string>>& cfg,
-                    const std::vector<std::shared_ptr<DMatrix>>& cache);
+  virtual void Configure(const std::vector<std::pair<std::string, std::string>>& cfg,
+                         const std::vector<std::shared_ptr<DMatrix>>& cache);
 
   /**
    * \brief Generate batch predictions for a given feature matrix. May use
@@ -174,7 +175,7 @@ class Predictor {
    *
    */
 
-  static Predictor* Create(std::string const& name, LearnerTrainParam const*);
+  static Predictor* Create(std::string const& name, GenericParameter const*);
 
  protected:
   /**
@@ -191,7 +192,6 @@ class Predictor {
    * \brief Map of matrices and associated cached predictions to facilitate
    * storing and looking up predictions.
    */
-
   std::unordered_map<DMatrix*, PredictionCacheEntry> cache_;
 };
 

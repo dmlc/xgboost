@@ -17,12 +17,12 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
-import java.nio.file.Files
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import org.scalatest.FunSuite
 import org.apache.hadoop.fs.{FileSystem, Path}
 
-class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAll {
+class CheckpointManagerSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
   private lazy val (model4, model8) = {
     val training = buildDataFrame(Classification.train)
@@ -33,7 +33,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test update/load models") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model4._booster)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
@@ -49,7 +49,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test cleanUpHigherVersions") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     manager.updateCheckpoint(model8._booster)
     manager.cleanUpHigherVersions(round = 8)
@@ -60,7 +60,7 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
   }
 
   test("test checkpoint rounds") {
-    val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
+    val tmpPath = createTmpFolder("test").toAbsolutePath.toString
     val manager = new CheckpointManager(sc, tmpPath)
     assertResult(Seq(7))(manager.getCheckpointRounds(checkpointInterval = 0, round = 7))
     assertResult(Seq(2, 4, 6, 7))(manager.getCheckpointRounds(checkpointInterval = 2, round = 7))
@@ -68,4 +68,50 @@ class CheckpointManagerSuite extends FunSuite with PerTest with BeforeAndAfterAl
     assertResult(Seq(4, 6, 7))(manager.getCheckpointRounds(2, 7))
   }
 
+
+  private def trainingWithCheckpoint(cacheData: Boolean, skipCleanCheckpoint: Boolean): Unit = {
+    val eval = new EvalError()
+    val training = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+
+    val tmpPath = createTmpFolder("model1").toAbsolutePath.toString
+    val cacheDataMap = if (cacheData) Map("cacheTrainingSet" -> true) else Map()
+    val skipCleanCheckpointMap =
+      if (skipCleanCheckpoint) Map("skip_clean_checkpoint" -> true) else Map()
+    val paramMap = Map("eta" -> "1", "max_depth" -> 2,
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "checkpoint_interval" -> 2, "num_workers" -> numWorkers) ++ cacheDataMap ++
+      skipCleanCheckpointMap
+
+    val prevModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 5)).fit(training)
+    def error(model: Booster): Float = eval.eval(
+      model.predict(testDM, outPutMargin = true), testDM)
+
+    if (skipCleanCheckpoint) {
+      // Check only one model is kept after training
+      val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+      assert(files.length == 1)
+      assert(files.head.getPath.getName == "8.model")
+      val tmpModel = SXGBoost.loadModel(s"$tmpPath/8.model")
+      // Train next model based on prev model
+      val nextModel = new XGBoostClassifier(paramMap ++ Seq("num_round" -> 8)).fit(training)
+      assert(error(tmpModel) > error(prevModel._booster))
+      assert(error(prevModel._booster) > error(nextModel._booster))
+      assert(error(nextModel._booster) < 0.1)
+    } else {
+      assert(!FileSystem.get(sc.hadoopConfiguration).exists(new Path(tmpPath)))
+    }
+  }
+
+  test("training with checkpoint boosters") {
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = true)
+  }
+
+  test("training with checkpoint boosters with cached training dataset") {
+    trainingWithCheckpoint(cacheData = true, skipCleanCheckpoint = true)
+  }
+
+  test("the checkpoint file should be cleaned after a successful training") {
+    trainingWithCheckpoint(cacheData = false, skipCleanCheckpoint = false)
+  }
 }

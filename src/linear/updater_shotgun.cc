@@ -14,7 +14,7 @@ DMLC_REGISTRY_FILE_TAG(updater_shotgun);
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Init(const std::vector<std::pair<std::string, std::string> > &args) override {
+  void Configure(Args const& args) override {
     param_.InitAllowUnknown(args);
     if (param_.feature_selector != kCyclic &&
         param_.feature_selector != kShuffle) {
@@ -42,7 +42,7 @@ class ShotgunUpdater : public LinearUpdater {
     // lock-free parallel updates of weights
     selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
-    for (const auto &batch : p_fmat->GetColumnBatches()) {
+    for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {

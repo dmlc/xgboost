@@ -21,8 +21,11 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 /*! \brief pruner that prunes a tree after growing finishs */
 class TreeRefresher: public TreeUpdater {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const Args& args) override {
     param_.InitAllowUnknown(args);
+  }
+  char const* Name() const override {
+    return "refresh";
   }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
@@ -53,7 +56,7 @@ class TreeRefresher: public TreeUpdater {
     auto lazy_get_stats = [&]() {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
-      for (const auto &batch : p_fmat->GetRowBatches()) {
+      for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
         #pragma omp parallel for schedule(static)

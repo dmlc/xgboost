@@ -1,10 +1,10 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-    
+
  http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
@@ -65,6 +65,9 @@ class XGBoostJNI {
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);
 
+  public final static native int XGDMatrixCreateFromMatRef(long dataRef, int nrow, int ncol,
+                                                           float missing, long[] out);
+
   public final static native int XGDMatrixSliceDMatrix(long handle, int[] idxset, long[] out);
 
   public final static native int XGDMatrixFree(long handle);
@@ -74,8 +77,6 @@ class XGBoostJNI {
   public final static native int XGDMatrixSetFloatInfo(long handle, String field, float[] array);
 
   public final static native int XGDMatrixSetUIntInfo(long handle, String field, int[] array);
-
-  public final static native int XGDMatrixSetGroup(long handle, int[] group);
 
   public final static native int XGDMatrixGetFloatInfo(long handle, String field, float[][] info);
 

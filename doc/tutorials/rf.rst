@@ -13,9 +13,9 @@ Scikit-Learn wrapper after 0.82 (not included in 0.82).  Please note that the ne
 Scikit-Learn wrapper is still **experimental**, which means we might change the interface
 whenever needed.
 
-****************
+*****************************************
 Standalone Random Forest With XGBoost API
-****************
+*****************************************
 
 The following parameters must be set to enable random forest training.
 
@@ -64,9 +64,9 @@ A random forest model can then be trained as follows::
   bst = train(params, dmatrix, num_boost_round=1)
 
 
-**************************
+***************************************************
 Standalone Random Forest With Scikit-Learn-Like API
-**************************
+***************************************************
 
 ``XGBRFClassifier`` and ``XGBRFRegressor`` are SKL-like classes that provide random forest
 functionality. They are basically versions of ``XGBClassifier`` and ``XGBRegressor`` that

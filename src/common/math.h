@@ -9,11 +9,11 @@
 
 #include <xgboost/base.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <utility>
 #include <vector>
-#include <cmath>
-#include <algorithm>
-#include <utility>
 
 namespace xgboost {
 namespace common {
@@ -24,6 +24,23 @@ namespace common {
  */
 XGBOOST_DEVICE inline float Sigmoid(float x) {
   return 1.0f / (1.0f + expf(-x));
+}
+
+/*!
+ * \brief Equality test for both integer and floating point.
+ */
+template <typename T, typename U>
+XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
+  using Casted =
+      typename std::conditional<
+        std::is_floating_point<T>::value || std::is_floating_point<U>::value,
+          double,
+          typename std::conditional<
+            std::is_signed<T>::value || std::is_signed<U>::value,
+            int64_t,
+            uint64_t>::type>::type;
+  return std::is_floating_point<Casted>::value ?
+      std::abs(static_cast<Casted>(a) -static_cast<Casted>(b)) < 1e-6 : a == b;
 }
 
 /*!
@@ -115,20 +132,38 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
   return a.second > b.second;
 }
 
-#if XGBOOST_STRICT_R_MODE
-// check nan
-bool CheckNAN(double v);
-#else
-template<typename T>
-inline bool CheckNAN(T v) {
-#ifdef _MSC_VER
-  return (_isnan(v) != 0);
-#else
-  return std::isnan(v);
-#endif  // _MSC_VER
+// Redefined here to workaround a VC bug that doesn't support overloadng for integer
+// types.
+template <typename T>
+XGBOOST_DEVICE typename std::enable_if<
+  std::numeric_limits<T>::is_integer, bool>::type
+CheckNAN(T) {
+  return false;
 }
-#endif  // XGBOOST_STRICT_R_MODE_
 
+#if XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
+
+bool CheckNAN(double v);
+
+#else
+
+XGBOOST_DEVICE bool inline CheckNAN(float x) {
+#if defined(__CUDA_ARCH__)
+  return isnan(x);
+#else
+  return std::isnan(x);
+#endif  // defined(__CUDA_ARCH__)
+}
+
+XGBOOST_DEVICE bool inline CheckNAN(double x) {
+#if defined(__CUDA_ARCH__)
+  return isnan(x);
+#else
+  return std::isnan(x);
+#endif  // defined(__CUDA_ARCH__)
+}
+
+#endif  // XGBOOST_STRICT_R_MODE && !defined(__CUDA_ARCH__)
 // GPU version is not uploaded in CRAN anyway.
 // Specialize only when using R with CPU.
 #if XGBOOST_STRICT_R_MODE && !defined(XGBOOST_USE_CUDA)

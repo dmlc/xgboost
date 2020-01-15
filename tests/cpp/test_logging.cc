@@ -10,14 +10,14 @@ TEST(Logging, Basic) {
   std::string output;
 
   args["verbosity"] = "0";  // silent
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
   testing::internal::CaptureStderr();
   LOG(DEBUG) << "Test silent.";
   output = testing::internal::GetCapturedStderr();
   ASSERT_EQ(output.length(), 0);
 
   args["verbosity"] = "3";  // debug
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
 
   testing::internal::CaptureStderr();
   LOG(WARNING) << "Test Log Warning.";
@@ -35,14 +35,14 @@ TEST(Logging, Basic) {
   ASSERT_NE(output.find("DEBUG"), std::string::npos);
 
   args["verbosity"] = "1";  // warning
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
   testing::internal::CaptureStderr();
   LOG(INFO) << "INFO should not be displayed when set to warning.";
   output = testing::internal::GetCapturedStderr();
   ASSERT_EQ(output.size(), 0);
 
   args["silent"] = "True";
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
   testing::internal::CaptureStderr();
   LOG(INFO) << "Test silent parameter.";
   output = testing::internal::GetCapturedStderr();
@@ -54,7 +54,7 @@ TEST(Logging, Basic) {
   ASSERT_NE(output.find("Test Log Console"), std::string::npos);
 
   args["verbosity"] = "1";  // restore
-  ConsoleLogger::Configure(args.cbegin(), args.cend());
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
 }
 
 }  // namespace xgboost

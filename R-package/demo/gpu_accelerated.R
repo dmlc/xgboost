@@ -30,7 +30,7 @@ wl <- list(train = dtrain, test = dtest)
 # - similar to the 'hist'
 # - the fastest option for moderately large datasets
 # - current limitations: max_depth < 16, does not implement guided loss
-# You can use tree_method = 'gpu_exact' for another GPU accelerated algorithm,
+# You can use tree_method = 'gpu_hist' for another GPU accelerated algorithm,
 # which is slower, more memory-hungry, but does not use binning.
 param <- list(objective = 'reg:logistic', eval_metric = 'auc', subsample = 0.5, nthread = 4,
               max_bin = 64, tree_method = 'gpu_hist')

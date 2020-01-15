@@ -14,6 +14,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 #include <vector>
 #include <utility>
@@ -21,7 +22,6 @@
 #include <functional>
 #include <memory>
 #include "./model_visitor.h"
-#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
@@ -29,19 +29,11 @@ namespace xgboost {
  */
 class GradientBooster {
  protected:
-  LearnerTrainParam const* learner_param_;
+  GenericParameter const* learner_param_;
 
  public:
   /*! \brief virtual destructor */
   virtual ~GradientBooster() = default;
-  /*!
-   * \brief set configuration from pair iterators.
-   * \param begin The beginning iterator.
-   * \param end The end iterator.
-   * \tparam PairIter iterator<std::pair<std::string, std::string> >
-   */
-  template<typename PairIter>
-  inline void Configure(PairIter begin, PairIter end);
   /*!
    * \brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
@@ -154,6 +146,10 @@ class GradientBooster {
   virtual void Accept(ModelVisitor& v) = 0;
 
   /*!
+   * \brief Whether the current booster use GPU.
+   */
+  virtual bool UseGPU() const = 0;
+  /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster
    * \param cache_mats The cache data matrix of the Booster.
@@ -162,17 +158,16 @@ class GradientBooster {
    */
   static GradientBooster* Create(
       const std::string& name,
-      LearnerTrainParam const* gparam,
+      GenericParameter const* gparam,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
-};
 
-// implementing configure.
-template<typename PairIter>
-inline void GradientBooster::Configure(PairIter begin, PairIter end) {
-  std::vector<std::pair<std::string, std::string> > vec(begin, end);
-  this->Configure(vec);
-}
+  static void AssertGPUSupport() {
+#ifndef XGBOOST_USE_CUDA
+    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#endif  // XGBOOST_USE_CUDA
+  }
+};
 
 /*!
  * \brief Registry entry for tree updater.

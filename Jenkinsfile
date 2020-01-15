@@ -11,14 +11,15 @@ pipeline {
   agent none
 
   environment {
-    DOCKER_CACHE_REPO = '492475357299.dkr.ecr.us-west-2.amazonaws.com'
+    DOCKER_CACHE_ECR_ID = '492475357299'
+    DOCKER_CACHE_ECR_REGION = 'us-west-2'
   }
 
   // Setup common job properties
   options {
     ansiColor('xterm')
     timestamps()
-    timeout(time: 120, unit: 'MINUTES')
+    timeout(time: 240, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '10'))
     preserveStashes()
   }
@@ -55,7 +56,7 @@ pipeline {
         script {
           parallel ([
             'build-cpu': { BuildCPU() },
-            'build-gpu-cuda8.0': { BuildCUDA(cuda_version: '8.0') },
+            'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
@@ -72,11 +73,11 @@ pipeline {
         script {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
-            'test-python-gpu-cuda8.0': { TestPythonGPU(cuda_version: '8.0') },
             'test-python-gpu-cuda9.0': { TestPythonGPU(cuda_version: '9.0') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-cpp-rabit': {TestCppRabit()},
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
@@ -115,7 +116,7 @@ def ClangTidy() {
     def docker_binary = "docker"
     def dockerArgs = "--build-arg CUDA_VERSION=9.2"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} tests/ci_build/clang_tidy.sh
+    ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
     """
     deleteDir()
   }
@@ -186,6 +187,22 @@ def BuildCPU() {
   }
 }
 
+def BuildCPUMock() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Build CPU with rabit mock"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_mock_cmake.sh
+    """
+     echo 'Stashing rabit C++ test executable (xgboost)...'
+    stash name: 'xgboost_rabit_tests', includes: 'xgboost'
+    deleteDir()
+  }
+}
+
+
 def BuildCUDA(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
@@ -197,11 +214,8 @@ def BuildCUDA(args) {
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     """
-    // Stash wheel for CUDA 8.0 / 9.0 target
-    if (args.cuda_version == '8.0') {
-      echo 'Stashing Python wheel...'
-      stash name: 'xgboost_whl_cuda8', includes: 'python-package/dist/*.whl'
-    } else if (args.cuda_version == '9.0') {
+    // Stash wheel for CUDA 9.0 target
+    if (args.cuda_version == '9.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
       archiveArtifacts artifacts: "python-package/dist/*.whl", allowEmptyArchive: true
@@ -262,11 +276,7 @@ def TestPythonCPU() {
 def TestPythonGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
-    if (args.cuda_version == '8.0') {
-      unstash name: 'xgboost_whl_cuda8'
-    } else {
-      unstash name: 'xgboost_whl_cuda9'
-    }
+    unstash name: 'xgboost_whl_cuda9'
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
     def container_type = "gpu"
@@ -283,6 +293,27 @@ def TestPythonGPU(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
     }
+    // For CUDA 10.0 target, run cuDF tests too
+    if (args.cuda_version == '10.0') {
+      echo "Running tests with cuDF..."
+      sh """
+      ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh cudf
+      """
+    }
+    deleteDir()
+  }
+}
+
+def TestCppRabit() {
+  node(nodeReq) {
+    unstash name: 'xgboost_rabit_tests'
+    unstash name: 'srcs'
+    echo "Test C++, rabit mock on"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh xgboost tests/ci_build/approx.conf.in
+    """
     deleteDir()
   }
 }
@@ -338,10 +369,8 @@ def TestR(args) {
     def use_r35_flag = (args.use_r35) ? "1" : "0"
     def docker_args = "--build-arg USE_R35=${use_r35_flag}"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh || tests/ci_build/print_r_stacktrace.sh
     """
-    // Save error log, if any
-    archiveArtifacts artifacts: "xgboost.Rcheck/00install.out", allowEmptyArchive: true
     deleteDir()
   }
 }

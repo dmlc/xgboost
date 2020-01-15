@@ -12,16 +12,25 @@ DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
 }
 
 namespace xgboost {
-Metric* Metric::Create(const std::string& name, LearnerTrainParam const* tparam) {
+Metric* Metric::Create(const std::string& name, GenericParameter const* tparam) {
   std::string buf = name;
   std::string prefix = name;
+  const char* param;
   auto pos = buf.find('@');
   if (pos == std::string::npos) {
-    auto *e = ::dmlc::Registry< ::xgboost::MetricReg>::Get()->Find(name);
+    if (!buf.empty() && buf.back() == '-') {
+      // Metrics of form "metric-"
+      prefix = buf.substr(0, buf.length() - 1);  // Chop off '-'
+      param = "-";
+    } else {
+      prefix = buf;
+      param = nullptr;
+    }
+    auto *e = ::dmlc::Registry< ::xgboost::MetricReg>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       LOG(FATAL) << "Unknown metric function " << name;
     }
-    auto p_metric = (e->body)(nullptr);
+    auto p_metric = (e->body)(param);
     p_metric->tparam_ = tparam;
     return p_metric;
   } else {

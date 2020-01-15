@@ -11,7 +11,7 @@
 
 #include <vector>
 
-#include "../common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 #include "../common/math.h"
 
 namespace {
@@ -191,24 +191,27 @@ struct EvalAuc : public Metric {
       sum_nneg += buf_neg;
       // check weird conditions
       if (sum_npos <= 0.0 || sum_nneg <= 0.0) {
-        auc_error = 1;
+        auc_error += 1;
         continue;
       }
       // this is the AUC
       sum_auc += sum_pospair / (sum_npos * sum_nneg);
     }
-    CHECK(!auc_error)
-      << "AUC: the dataset only contains pos or neg samples";
-    /* Report average AUC across all groups */
-    if (distributed) {
-      bst_float dat[2];
+
+    // Report average AUC across all groups
+    // In distributed mode, workers which only contains pos or neg samples
+    // will be ignored when aggregate AUC.
+    bst_float dat[2] = {0.0f, 0.0f};
+    if (auc_error < static_cast<int>(ngroup)) {
       dat[0] = static_cast<bst_float>(sum_auc);
-      dat[1] = static_cast<bst_float>(ngroup);
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-      return dat[0] / dat[1];
-    } else {
-      return static_cast<bst_float>(sum_auc) / ngroup;
+      dat[1] = static_cast<bst_float>(static_cast<int>(ngroup) - auc_error);
     }
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    CHECK_GT(dat[1], 0.0f)
+      << "AUC: the dataset only contains pos or neg samples";
+    return dat[0] / dat[1];
   }
 
  public:
@@ -285,10 +288,13 @@ struct EvalRankList : public Metric {
     minus_ = false;
     if (param != nullptr) {
       std::ostringstream os;
-      os << name << '@' << param;
-      name_ = os.str();
-      if (sscanf(param, "%u[-]?", &topn_) != 1) {
+      if (sscanf(param, "%u[-]?", &topn_) == 1) {
+        os << name << '@' << param;
+        name_ = os.str();
+      } else {
         topn_ = std::numeric_limits<unsigned>::max();
+        os << name << param;
+        name_ = os.str();
       }
       if (param[strlen(param) - 1] == '-') {
         minus_ = true;
@@ -478,7 +484,8 @@ struct EvalAucPR : public Metric {
       XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
       // we need pos > 0 && neg > 0
       if (0.0 == total_pos || 0.0 == total_neg) {
-        auc_error = 1;
+        auc_error += 1;
+        continue;
       }
       // calculate AUC
       double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0, b = 0.0;
@@ -512,19 +519,22 @@ struct EvalAucPR : public Metric {
         CHECK(!auc_error) << "AUC-PR: error in calculation";
       }
     }
-    CHECK(!auc_error) << "AUC-PR: the dataset only contains pos or neg samples";
-    /* Report average AUC across all groups */
-    if (distributed) {
-      bst_float dat[2];
+
+    // Report average AUC-PR across all groups
+    // In distributed mode, workers which only contains pos or neg samples
+    // will be ignored when aggregate AUC-PR.
+    bst_float dat[2] = {0.0f, 0.0f};
+    if (auc_error < static_cast<int>(ngroup)) {
       dat[0] = static_cast<bst_float>(sum_auc);
-      dat[1] = static_cast<bst_float>(ngroup);
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-      CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
-      return dat[0] / dat[1];
-    } else {
-      CHECK_LE(sum_auc, static_cast<double>(ngroup)) << "AUC-PR: AUC > 1.0";
-      return static_cast<bst_float>(sum_auc) / ngroup;
+      dat[1] = static_cast<bst_float>(static_cast<int>(ngroup) - auc_error);
     }
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    CHECK_GT(dat[1], 0.0f)
+      << "AUC-PR: the dataset only contains pos or neg samples";
+    CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
+    return dat[0] / dat[1];
   }
 
  public:

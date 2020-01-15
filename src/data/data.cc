@@ -1,16 +1,17 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file data.cc
  */
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 #include <dmlc/registry.h>
 #include <cstring>
+
 #include "./sparse_page_writer.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
-#include "../common/common.h"
 #include "../common/io.h"
+#include "../common/group_data.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -28,7 +29,6 @@ void MetaInfo::Clear() {
   labels_.HostVector().clear();
   root_index_.clear();
   group_ptr_.clear();
-  qids_.clear();
   weights_.HostVector().clear();
   base_margin_.HostVector().clear();
 }
@@ -41,7 +41,6 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(&num_nonzero_, sizeof(num_nonzero_));
   fo->Write(labels_.HostVector());
   fo->Write(group_ptr_);
-  fo->Write(qids_);
   fo->Write(weights_.HostVector());
   fo->Write(root_index_);
   fo->Write(base_margin_.HostVector());
@@ -57,10 +56,9 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << "MetaInfo: invalid format";
   CHECK(fi->Read(&labels_.HostVector())) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
-  if (version >= kVersionQidAdded) {
-    CHECK(fi->Read(&qids_)) << "MetaInfo: invalid format";
-  } else {  // old format doesn't contain qid field
-    qids_.clear();
+  if (version == kVersionWithQid) {
+    std::vector<uint64_t> qids;
+    CHECK(fi->Read(&qids)) << "MetaInfo: invalid format";
   }
   CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
   CHECK(fi->Read(&root_index_)) << "MetaInfo: invalid format";
@@ -114,7 +112,6 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
     default: LOG(FATAL) << "Unknown data type" << dtype;                \
   }                                                                     \
 
-
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
   if (!std::strcmp(key, "root_index")) {
     root_index_.resize(num);
@@ -143,9 +140,16 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     for (size_t i = 1; i < group_ptr_.size(); ++i) {
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
+  } else {
+    LOG(FATAL) << "Unknown metainfo: " << key;
   }
 }
 
+#if !defined(XGBOOST_USE_CUDA)
+void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
+  LOG(FATAL) << "XGBoost version is not compiled with GPU support";
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
@@ -226,7 +230,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
-  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
+  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1, nullptr,
+    nullptr, fname.c_str());
   // backward compatiblity code.
   if (!load_row_split) {
     MetaInfo& info = dmat->Info();
@@ -257,11 +262,11 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
     return DMatrix::Create(std::move(source), cache_prefix);
   } else {
 #if DMLC_ENABLE_STD_THREAD
-    if (!data::SparsePageSource::CacheExist(cache_prefix, ".row.page")) {
-      data::SparsePageSource::CreateRowPage(parser, cache_prefix, page_size);
+    if (!data::SparsePageSource<SparsePage>::CacheExist(cache_prefix, ".row.page")) {
+      data::SparsePageSource<SparsePage>::CreateRowPage(parser, cache_prefix, page_size);
     }
-    std::unique_ptr<data::SparsePageSource> source(
-        new data::SparsePageSource(cache_prefix, ".row.page"));
+    std::unique_ptr<data::SparsePageSource<SparsePage>> source(
+        new data::SparsePageSource<SparsePage>(cache_prefix, ".row.page"));
     return DMatrix::Create(std::move(source), cache_prefix);
 #else
     LOG(FATAL) << "External memory is not enabled in mingw";
@@ -277,7 +282,7 @@ void DMatrix::SaveToLocalFile(const std::string& fname) {
   source.SaveBinary(fo.get());
 }
 
-DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
+DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix) {
   if (cache_prefix.length() == 0) {
     return new data::SimpleDMatrix(std::move(source));
@@ -318,7 +323,35 @@ data::SparsePageFormat::DecideFormat(const std::string& cache_prefix) {
     return std::make_pair(raw, raw);
   }
 }
-
+SparsePage SparsePage::GetTranspose(int num_columns) const {
+  SparsePage transpose;
+  common::ParallelGroupBuilder<Entry> builder(&transpose.offset.HostVector(),
+                                              &transpose.data.HostVector());
+  const int nthread = omp_get_max_threads();
+  builder.InitBudget(num_columns, nthread);
+  long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
+#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto inst = (*this)[i];
+    for (const auto& entry : inst) {
+      builder.AddBudget(entry.index, tid);
+    }
+  }
+  builder.InitStorage();
+#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    auto inst = (*this)[i];
+    for (const auto& entry : inst) {
+      builder.Push(
+          entry.index,
+          Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
+          tid);
+    }
+  }
+  return transpose;
+}
 void SparsePage::Push(const SparsePage &batch) {
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();
@@ -410,6 +443,18 @@ void SparsePage::PushCSC(const SparsePage &batch) {
 
   self_data = std::move(data);
   self_offset = std::move(offset);
+}
+
+void SparsePage::Push(const Inst &inst) {
+  auto& data_vec = data.HostVector();
+  auto& offset_vec = offset.HostVector();
+  offset_vec.push_back(offset_vec.back() + inst.size());
+  size_t begin = data_vec.size();
+  data_vec.resize(begin + inst.size());
+  if (inst.size() != 0) {
+    std::memcpy(dmlc::BeginPtr(data_vec) + begin, inst.data(),
+                sizeof(Entry) * inst.size());
+  }
 }
 
 namespace data {

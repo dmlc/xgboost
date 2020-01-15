@@ -1,21 +1,20 @@
-#include <xgboost/base.h>
 #include <gtest/gtest.h>
+#include <xgboost/base.h>
+#include <xgboost/span.h>
+#include <xgboost/host_device_vector.h>
+
 #include <vector>
 
-#include "../../../src/common/host_device_vector.h"
 #include "../../../src/common/transform.h"
-#include "../../../src/common/span.h"
 #include "../helpers.h"
 
 #if defined(__CUDACC__)
 
-#define TRANSFORM_GPU_RANGE GPUSet::Range(0, 1)
-#define TRANSFORM_GPU_DIST GPUDistribution::Block(GPUSet::Range(0, 1))
+#define TRANSFORM_GPU 0
 
 #else
 
-#define TRANSFORM_GPU_RANGE GPUSet::Empty()
-#define TRANSFORM_GPU_DIST GPUDistribution::Block(GPUSet::Empty())
+#define TRANSFORM_GPU -1
 
 #endif
 
@@ -46,13 +45,13 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   std::vector<bst_float> h_sol(size);
   InitializeRange(h_sol.begin(), h_sol.end());
 
-  const HostDeviceVector<bst_float> in_vec{h_in, TRANSFORM_GPU_DIST};
-  HostDeviceVector<bst_float> out_vec{h_out, TRANSFORM_GPU_DIST};
+  const HostDeviceVector<bst_float> in_vec{h_in, TRANSFORM_GPU};
+  HostDeviceVector<bst_float> out_vec{h_out, TRANSFORM_GPU};
   out_vec.Fill(0);
 
   Transform<>::Init(TestTransformRange<bst_float>{},
 	                Range{0, static_cast<Range::DifferenceType>(size)},
-	                TRANSFORM_GPU_RANGE)
+	                TRANSFORM_GPU)
       .Eval(&out_vec, &in_vec);
   std::vector<bst_float> res = out_vec.HostVector();
 

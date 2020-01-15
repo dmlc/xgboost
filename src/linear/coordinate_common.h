@@ -80,7 +80,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
                                              const std::vector<GradientPair> &gpair,
                                              DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  for (const auto &batch : p_fmat->GetColumnBatches()) {
+  for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.size());
     for (bst_omp_uint j = 0; j < ndata; ++j) {
@@ -109,7 +109,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
                                                      const std::vector<GradientPair> &gpair,
                                                      DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  for (const auto &batch : p_fmat->GetColumnBatches()) {
+  for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
     auto col = batch[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.size());
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
@@ -164,7 +164,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
                                    float dw, std::vector<GradientPair> *in_gpair,
                                    DMatrix *p_fmat) {
   if (dw == 0.0f) return;
-  for (const auto &batch : p_fmat->GetColumnBatches()) {
+  for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
     auto col = batch[fidx];
     // update grad value
     const auto num_row = static_cast<bst_omp_uint>(col.size());
@@ -332,7 +332,7 @@ class GreedyFeatureSelector : public FeatureSelector {
     const bst_omp_uint nfeat = model.param.num_feature;
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
-  for (const auto &batch : p_fmat->GetColumnBatches()) {
+  for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const auto col = batch[i];
@@ -397,7 +397,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
     }
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
-    for (const auto &batch : p_fmat->GetColumnBatches()) {
+    for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
 // column-parallel is usually faster than row-parallel
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {

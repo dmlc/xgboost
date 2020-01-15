@@ -33,9 +33,7 @@ struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
         .describe("Number of output class in the multi-class classification.");
   }
 };
-// TODO(trivialfis): Currently the sharding in softmax is less than ideal
-// due to repeated copying data between CPU and GPUs.  Maybe we just use single
-// GPU?
+
 class SoftmaxMultiClassObj : public ObjFunction {
  public:
   explicit SoftmaxMultiClassObj(bool output_prob)
@@ -50,19 +48,23 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    HostDeviceVector<GradientPair>* out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels_.Size()))
-        << "SoftmaxMultiClassObj: label size and pred size does not match";
+        << "SoftmaxMultiClassObj: label size and pred size does not match.\n"
+        << "label.Size() * num_class: "
+        << info.labels_.Size() * static_cast<size_t>(param_.num_class) << "\n"
+        << "num_class: " << param_.num_class << "\n"
+        << "preds.Size(): " << preds.Size();
 
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(preds.Size() / nclass);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, preds.Size());
-    out_gpair->Shard(GPUDistribution::Granular(devices, nclass));
-    info.labels_.Shard(GPUDistribution::Block(devices));
-    info.weights_.Shard(GPUDistribution::Block(devices));
-    preds.Shard(GPUDistribution::Granular(devices, nclass));
+    auto device = tparam_->gpu_id;
+    out_gpair->SetDevice(device);
+    info.labels_.SetDevice(device);
+    info.weights_.SetDevice(device);
+    preds.SetDevice(device);
 
-    label_correct_.Resize(devices.IsEmpty() ? 1 : devices.Size());
-    label_correct_.Shard(GPUDistribution::Block(devices));
+    label_correct_.Resize(1);
+    label_correct_.SetDevice(device);
 
     out_gpair->Resize(preds.Size());
     label_correct_.Fill(1);
@@ -96,7 +98,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             p = label == k ? p - 1.0f : p;
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
-        }, common::Range{0, ndata}, devices, false)
+        }, common::Range{0, ndata}, device, false)
         .Eval(out_gpair, &info.labels_, &preds, &info.weights_, &label_correct_);
 
     std::vector<int>& label_correct_h = label_correct_.HostVector();
@@ -121,7 +123,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
 
-    auto devices = GPUSet::All(tparam_->gpu_id, tparam_->n_gpus, io_preds->Size());
+    auto device = tparam_->gpu_id;
     if (prob) {
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
@@ -129,11 +131,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 _preds.subspan(_idx * nclass, nclass);
             common::Softmax(point.begin(), point.end());
           },
-          common::Range{0, ndata}, GPUDistribution::Granular(devices, nclass))
+          common::Range{0, ndata}, device)
         .Eval(io_preds);
     } else {
-      io_preds->Shard(GPUDistribution::Granular(devices, nclass));
-      max_preds_.Shard(GPUDistribution::Block(devices));
+      io_preds->SetDevice(device);
+      max_preds_.SetDevice(device);
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx,
                              common::Span<const bst_float> _preds,
@@ -144,7 +146,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                 common::FindMaxIndex(point.cbegin(),
                                      point.cend()) - point.cbegin();
           },
-          common::Range{0, ndata}, devices, false)
+          common::Range{0, ndata}, device, false)
         .Eval(io_preds, &max_preds_);
     }
     if (!prob) {

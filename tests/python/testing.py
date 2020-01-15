@@ -1,5 +1,6 @@
 # coding: utf-8
-from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED, DASK_INSTALLED
+from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
+from xgboost.compat import CUDF_INSTALLED, DASK_INSTALLED
 
 
 def no_sklearn():
@@ -31,3 +32,17 @@ def no_matplotlib():
     except ImportError:
         return {'condition': True,
                 'reason': reason}
+
+
+def no_cudf():
+    return {'condition': not CUDF_INSTALLED,
+            'reason': 'CUDF is not installed'}
+
+
+def no_dask_cudf():
+    reason = 'dask_cudf is not installed.'
+    try:
+        import dask_cudf as _   # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}

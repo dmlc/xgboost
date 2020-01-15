@@ -6,7 +6,7 @@
 #include <xgboost/objective.h>
 #include <dmlc/registry.h>
 
-#include "../common/host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
@@ -14,7 +14,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 
 namespace xgboost {
 // implement factory functions
-ObjFunction* ObjFunction::Create(const std::string& name, LearnerTrainParam const* tparam) {
+ObjFunction* ObjFunction::Create(const std::string& name, GenericParameter const* tparam) {
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {
