@@ -32,13 +32,13 @@ print("Install libxgboost from: %s" % LIB_PATH)
 # Please use setup_pip.py for generating and deploying pip installation
 # detailed instruction in setup_pip.py
 
-package_data={'xgboost':'*'}
-
 
 setup(name='xgboost',
-      version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+      version=open(os.path.join(
+          CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       description="XGBoost Python Package",
-      long_description=io.open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8').read(),
+      long_description=io.open(os.path.join(
+          CURRENT_DIR, 'README.rst'), encoding='utf-8').read(),
       install_requires=[
           'numpy',
           'scipy',
@@ -56,8 +56,8 @@ setup(name='xgboost',
       packages=['xgboost'],
       # this will use MANIFEST.in during install where we specify additional files,
       # this is the golden line
-      #include_package_data=True,
-      package_data=package_data,
+      # include_package_data=True,
+      data_files=[('xgboost', LIB_PATH)],
       license='Apache-2.0',
       classifiers=['License :: OSI Approved :: Apache Software License',
                    'Development Status :: 5 - Production/Stable',
