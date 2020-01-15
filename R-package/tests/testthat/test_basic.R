@@ -35,8 +35,10 @@ test_that("train and predict binary classification", {
   expect_lt(abs(err_pred1 - err_log), 10e-6)
 })
 
-test_that("dart prediction", {
+test_that("dart prediction works", {
   nrounds = 32
+  set.seed(1994)
+
   d <- cbind(
     x1 = rnorm(100),
     x2 = rnorm(100),
@@ -44,15 +46,41 @@ test_that("dart prediction", {
   y <- d[,"x1"] + d[,"x2"]^2 +
     ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
     rnorm(100)
-  bst <- xgboost(data = d, label = y, max_depth = 2, booster = "dart",
-                 rate_drop = 0.5, one_drop = TRUE,
-                 eta = 1, nthread = 2, nrounds = nrounds, objective = "reg:squarederror")
-  pred0 <- predict(bst, newdata = d, ntreelimit = 0)
-  pred1 <- predict(bst, newdata = d, ntreelimit = nrounds)
-  expect_true(all(matrix(pred0, byrow=TRUE) == matrix(pred1, byrow=TRUE)))
 
-  pred2 <- predict(bst, newdata = d, training = TRUE)
-  expect_false(all(matrix(pred0, byrow=TRUE) == matrix(pred2, byrow=TRUE)))
+  set.seed(1994)
+  booster_by_xgboost <- xgboost(data = d, label = y, max_depth = 2, booster = "dart",
+                                rate_drop = 0.5, one_drop = TRUE,
+                                eta = 1, nthread = 2, nrounds = nrounds, objective = "reg:squarederror")
+  pred_by_xgboost_0 <- predict(booster_by_xgboost, newdata = d, ntreelimit = 0)
+  pred_by_xgboost_1 <- predict(booster_by_xgboost, newdata = d, ntreelimit = nrounds)
+  expect_true(all(matrix(pred_by_xgboost_0, byrow=TRUE) == matrix(pred_by_xgboost_1, byrow=TRUE)))
+
+  pred_by_xgboost_2 <- predict(booster_by_xgboost, newdata = d, training = TRUE)
+  expect_false(all(matrix(pred_by_xgboost_0, byrow=TRUE) == matrix(pred_by_xgboost_2, byrow=TRUE)))
+
+  set.seed(1994)
+  dtrain <- xgb.DMatrix(data=d, info = list(label=y))
+  booster_by_train <- xgb.train( params = list(
+                                   booster = "dart",
+                                   max_depth = 2,
+                                   eta = 1,
+                                   rate_drop = 0.5,
+                                   one_drop = TRUE,
+                                   nthread = 1,
+                                   tree_method= "exact",
+                                   verbosity = 3,
+                                   objective = "reg:squarederror"
+                                 ),
+                                data = dtrain,
+                                nrounds = nrounds
+                                )
+  pred_by_train_0 <- predict(booster_by_train, newdata = dtrain, ntreelimit = 0)
+  pred_by_train_1 <- predict(booster_by_train, newdata = dtrain, ntreelimit = nrounds)
+  pred_by_train_2 <- predict(booster_by_train, newdata = dtrain, training = TRUE)
+
+  expect_true(all(matrix(pred_by_train_0, byrow=TRUE) == matrix(pred_by_xgboost_0, byrow=TRUE)))
+  expect_true(all(matrix(pred_by_train_1, byrow=TRUE) == matrix(pred_by_xgboost_1, byrow=TRUE)))
+  expect_true(all(matrix(pred_by_train_2, byrow=TRUE) == matrix(pred_by_xgboost_2, byrow=TRUE)))
 })
 
 test_that("train and predict softprob", {
