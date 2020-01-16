@@ -39,40 +39,87 @@ void MetaInfo::Clear() {
   base_margin_.HostVector().clear();
 }
 
+template <typename T>
+inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
+                      DataType field_type, const T& field) {
+  const uint64_t sz = 1;
+  strm->Write(field_name);
+  strm->Write(field_type);
+  strm->Write(sz);
+  strm->Write(field);
+}
+
+template <typename T>
+inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
+                      DataType field_type, const std::vector<T>& field) {
+  strm->Write(field_name);
+  strm->Write(field_type);
+  strm->Write(field);
+}
+
+template <typename T>
+inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
+                      DataType field_type, const HostDeviceVector<T>& field) {
+  SaveField(strm, field_name, field_type, field.ConstHostVector());
+}
+
+template <typename T>
+inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
+                      DataType expected_field_type, T* field) {
+  std::string field_name;
+  DataType field_type;
+  uint64_t sz;
+  CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
+  CHECK_EQ(field_name, expected_field_name)
+    << "MetaInfo: invalid format; expected field " << expected_field_name
+    << ", got field " << field_name;
+  CHECK(strm->Read(&field_type)) << "MetaInfo: invalid format";
+  CHECK(field_type == expected_field_type)
+    << "MetaInfo: invalid format; expected field of type " << static_cast<int>(expected_field_type)
+    << ", got field type " << static_cast<int>(field_type);
+  CHECK(strm->Read(&sz)) << "MetaInfo: invalid format";
+  CHECK_EQ(sz, 1)
+    << "MetaInfo: invalid format; expected field consisting of a single element, got field "
+    << "consisting of " << sz << " elements";
+  CHECK(strm->Read(field)) << "MetaInfo: invalid format";
+}
+
+template <typename T>
+inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
+                      DataType expected_field_type, std::vector<T>* field) {
+  std::string field_name;
+  DataType field_type;
+  CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
+  CHECK_EQ(field_name, expected_field_name)
+    << "MetaInfo: invalid format; expected field " << expected_field_name
+    << ", got field " << field_name;
+  CHECK(strm->Read(&field_type)) << "MetaInfo: invalid format";
+  CHECK(field_type == expected_field_type)
+    << "MetaInfo: invalid format; expected field of type " << static_cast<int>(expected_field_type)
+    << ", got field type " << static_cast<int>(field_type);
+  CHECK(strm->Read(field)) << "MetaInfo: invalid format";
+}
+
+template <typename T>
+inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
+                      DataType expected_field_type, HostDeviceVector<T>* field) {
+  LoadField(strm, expected_field_name, expected_field_type, &field->HostVector());
+}
+
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
-  /**
-   * Header: version, num_field, followed by list of form [ (field_name, field_offset) ].
-   * Offset is to be calculated from the end of the header.
-   **/
   Version::Save(fo);
   const uint64_t num_field = kNumField;
   fo->Write(num_field);
-  uint64_t offset = 0;
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
-  fo->Write(std::string(u8"num_row")); fo->Write(offset);
-  offset += sizeof(num_row_); ++field_cnt;
-  fo->Write(std::string(u8"num_col")); fo->Write(offset);
-  offset += sizeof(num_col_); ++field_cnt;
-  fo->Write(std::string(u8"num_nonzero")); fo->Write(offset);
-  offset += sizeof(num_nonzero_); ++field_cnt;
-  fo->Write(std::string(u8"labels")); fo->Write(offset);
-  offset += sizeof(decltype(labels_)::value_type) * labels_.Size(); ++field_cnt;
-  fo->Write(std::string(u8"group_ptr")); fo->Write(offset);
-  offset += sizeof(decltype(group_ptr_)::value_type) * group_ptr_.size(); ++field_cnt;
-  fo->Write(std::string(u8"weights")); fo->Write(offset);
-  offset += sizeof(decltype(weights_)::value_type) * weights_.Size(); ++field_cnt;
-  fo->Write(std::string(u8"base_margin")); fo->Write(offset);
-  ++field_cnt;
-  CHECK(field_cnt == kNumField) << "Wrong number of fields";
 
-  /* Write data */
-  fo->Write(num_row_);
-  fo->Write(num_col_);
-  fo->Write(num_nonzero_);
-  fo->Write(labels_.HostVector());
-  fo->Write(group_ptr_);
-  fo->Write(weights_.HostVector());
-  fo->Write(base_margin_.HostVector());
+  SaveField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
+  SaveField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
+  SaveField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
+  SaveField(fo, u8"labels", DataType::kFloat32, labels_); ++field_cnt;
+  SaveField(fo, u8"group_ptr", DataType::kUInt32, group_ptr_); ++field_cnt;
+  SaveField(fo, u8"weights", DataType::kFloat32, weights_); ++field_cnt;
+  SaveField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
+  CHECK_EQ(field_cnt, num_field) << "Wrong number of fields";
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
@@ -85,40 +132,24 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
                      << "Please process and save your data in current version: "
                      << Version::String(Version::Self()) << " again.";
 
+  const uint64_t expected_num_field = kNumField;
   uint64_t num_field;
   CHECK(fi->Read(&num_field)) << "MetaInfo: invalid format";
-  CHECK(num_field >= kNumField)
-    << "MetaInfo: insufficient number of fields (expected at least " << kNumField << " fields, but "
-    << "the binary file only contains " << num_field << "fields.)";
-  if (num_field > kNumField) {
+  CHECK_GE(num_field, expected_num_field)
+    << "MetaInfo: insufficient number of fields (expected at least " << expected_num_field
+    << " fields, but the binary file only contains " << num_field << "fields.)";
+  if (num_field > expected_num_field) {
     LOG(WARNING) << "MetaInfo: the given binary file contains extra fields which will be ignored.";
   }
 
-  /* Header */
-  std::vector<FieldRecord> field_info;
-  FieldRecord record;
-  for (uint64_t i = 0; i < kNumField; ++i) {
-    fi->Read(&record.name);
-    fi->Read(&record.offset);
-    field_info.push_back(record);
-  }
+  LoadField(fi, u8"num_row", DataType::kUInt64, &num_row_);
+  LoadField(fi, u8"num_col", DataType::kUInt64, &num_col_);
+  LoadField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
+  LoadField(fi, u8"labels", DataType::kFloat32, &labels_);
+  LoadField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
+  LoadField(fi, u8"weights", DataType::kFloat32, &weights_);
+  LoadField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
 
-  int idx = 0;
-  for (const char* expected_field_name : {u8"num_row", u8"num_col", u8"num_nonzero", u8"labels",
-                                          u8"group_ptr", u8"weights", u8"base_margin"}) {
-    CHECK_EQ(field_info[idx].name, expected_field_name)
-      << "MetaInfo: invalid format; expected field " << expected_field_name
-      << ", got field " << field_info[idx].name;
-    ++idx;
-  }
-
-  CHECK(fi->Read(&num_row_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_col_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_nonzero_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&labels_.HostVector())) <<  "MetaInfo: invalid format";
-  CHECK(fi->Read(&group_ptr_)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&weights_.HostVector())) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&base_margin_.HostVector())) << "MetaInfo: invalid format";
 }
 
 // try to load group information from file, if exists

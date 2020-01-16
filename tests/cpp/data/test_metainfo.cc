@@ -67,10 +67,47 @@ TEST(MetaInfo, SaveLoadBinary) {
     EXPECT_TRUE(num_field == xgboost::MetaInfo::kNumField);
 
     std::string field_name;
-    uint64_t field_offset;
+    xgboost::DataType field_type;
+
+    const std::vector<std::pair<std::string, xgboost::DataType>> expected_fields{
+      {u8"num_row", xgboost::DataType::kUInt64},
+      {u8"num_col", xgboost::DataType::kUInt64},
+      {u8"num_nonzero", xgboost::DataType::kUInt64},
+      {u8"labels", xgboost::DataType::kFloat32},
+      {u8"group_ptr", xgboost::DataType::kUInt32},
+      {u8"weights", xgboost::DataType::kFloat32},
+      {u8"base_margin", xgboost::DataType::kFloat32}
+    };
+
     for (uint64_t i = 0; i < num_field; ++i) {
       EXPECT_TRUE(fs->Read(&field_name));
-      EXPECT_TRUE(fs->Read(&field_offset));
+      EXPECT_EQ(field_name, expected_fields[i].first);
+      EXPECT_TRUE(fs->Read(&field_type));
+      EXPECT_EQ(field_type, expected_fields[i].second);
+      switch (field_type) {
+        case xgboost::DataType::kFloat32: {
+          std::vector<float> vec;
+          EXPECT_TRUE(fs->Read(&vec));
+          break;
+        }
+        case xgboost::DataType::kDouble: {
+          std::vector<double> vec;
+          EXPECT_TRUE(fs->Read(&vec));
+          break;
+        }
+        case xgboost::DataType::kUInt32: {
+          std::vector<uint32_t> vec;
+          EXPECT_TRUE(fs->Read(&vec));
+          break;
+        }
+        case xgboost::DataType::kUInt64: {
+          std::vector<uint64_t> vec;
+          EXPECT_TRUE(fs->Read(&vec));
+          break;
+        }
+        default:
+          LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(field_type);
+      }
     }
   }
 
@@ -81,9 +118,8 @@ TEST(MetaInfo, SaveLoadBinary) {
     };
     xgboost::MetaInfo inforead;
     inforead.LoadBinary(fs.get());
-    EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
-    EXPECT_EQ(inforead.num_col_, info.num_col_);
     EXPECT_EQ(inforead.num_row_, info.num_row_);
+    EXPECT_EQ(inforead.num_col_, info.num_col_);
     EXPECT_EQ(inforead.num_nonzero_, info.num_nonzero_);
     EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
     EXPECT_EQ(inforead.group_ptr_, info.group_ptr_);
