@@ -136,12 +136,6 @@ class MetaInfo {
  private:
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
-
-  /* Facilities to binary serialization of DMatrix::MetaInfo */
-  struct FieldRecord {
-    std::string name;
-    uint64_t offset;
-  };
 };
 
 /*! \brief Element from a sparse vector */

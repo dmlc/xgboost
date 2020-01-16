@@ -29,19 +29,11 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SortedCSCPa
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::EllpackPage>);
 }  // namespace dmlc
 
-namespace xgboost {
-// implementation of inline functions
-void MetaInfo::Clear() {
-  num_row_ = num_col_ = num_nonzero_ = 0;
-  labels_.HostVector().clear();
-  group_ptr_.clear();
-  weights_.HostVector().clear();
-  base_margin_.HostVector().clear();
-}
+namespace {
 
 template <typename T>
 inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      DataType field_type, const T& field) {
+                      xgboost::DataType field_type, const T& field) {
   const uint64_t sz = 1;
   strm->Write(field_name);
   strm->Write(field_type);
@@ -51,7 +43,7 @@ inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
 
 template <typename T>
 inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      DataType field_type, const std::vector<T>& field) {
+                      xgboost::DataType field_type, const std::vector<T>& field) {
   strm->Write(field_name);
   strm->Write(field_type);
   strm->Write(field);
@@ -59,15 +51,15 @@ inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
 
 template <typename T>
 inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      DataType field_type, const HostDeviceVector<T>& field) {
+                      xgboost::DataType field_type, const xgboost::HostDeviceVector<T>& field) {
   SaveField(strm, field_name, field_type, field.ConstHostVector());
 }
 
 template <typename T>
 inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      DataType expected_field_type, T* field) {
+                      xgboost::DataType expected_field_type, T* field) {
   std::string field_name;
-  DataType field_type;
+  xgboost::DataType field_type;
   uint64_t sz;
   CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
   CHECK_EQ(field_name, expected_field_name)
@@ -86,9 +78,9 @@ inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name
 
 template <typename T>
 inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      DataType expected_field_type, std::vector<T>* field) {
+                      xgboost::DataType expected_field_type, std::vector<T>* field) {
   std::string field_name;
-  DataType field_type;
+  xgboost::DataType field_type;
   CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
   CHECK_EQ(field_name, expected_field_name)
     << "MetaInfo: invalid format; expected field " << expected_field_name
@@ -102,8 +94,20 @@ inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name
 
 template <typename T>
 inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      DataType expected_field_type, HostDeviceVector<T>* field) {
+                      xgboost::DataType expected_field_type, xgboost::HostDeviceVector<T>* field) {
   LoadField(strm, expected_field_name, expected_field_type, &field->HostVector());
+}
+
+}  // namespace anonymous
+
+namespace xgboost {
+// implementation of inline functions
+void MetaInfo::Clear() {
+  num_row_ = num_col_ = num_nonzero_ = 0;
+  labels_.HostVector().clear();
+  group_ptr_.clear();
+  weights_.HostVector().clear();
+  base_margin_.HostVector().clear();
 }
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
