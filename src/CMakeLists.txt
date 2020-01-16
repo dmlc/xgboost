@@ -33,6 +33,12 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
   )
 
+  if (MSVC)
+    target_compile_options(objxgboost PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
+    )
+  endif (MSVC)
+
   set_target_properties(objxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
@@ -51,6 +57,12 @@ target_compile_options(objxgboost
 if (WIN32 AND MINGW)
   target_compile_options(objxgboost PUBLIC -static-libstdc++)
 endif (WIN32 AND MINGW)
+
+if (MSVC)
+  target_compile_options(objxgboost PRIVATE
+    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+  )
+endif (MSVC)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
