@@ -98,7 +98,7 @@ inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name
   LoadField(strm, expected_field_name, expected_field_type, &field->HostVector());
 }
 
-}  // namespace anonymous
+}  // anonymous namespace
 
 namespace xgboost {
 // implementation of inline functions
@@ -153,7 +153,6 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadField(fi, u8"weights", DataType::kFloat32, &weights_);
   LoadField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
-
 }
 
 // try to load group information from file, if exists
