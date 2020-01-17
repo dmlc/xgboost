@@ -226,7 +226,7 @@ def c_str(string):
 def c_array(ctype, values):
     """Convert a python string to c array."""
     if (isinstance(values, np.ndarray)
-        and values.dtype.itemsize == ctypes.sizeof(ctype)):
+            and values.dtype.itemsize == ctypes.sizeof(ctype)):
         return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
 
@@ -433,7 +433,7 @@ class DMatrix(object):
         """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
-               dt.Frame/cudf.DataFrame
+               dt.Frame/cudf.DataFrame/cupy.array
             Data source of DMatrix.
             When data is string or os.PathLike type, it represents the path
             libsvm format txt file, csv file (by specifying uri parameter
