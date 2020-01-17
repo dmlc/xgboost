@@ -129,7 +129,7 @@ except ImportError:
     CUDF_INSTALLED = False
     CUDF_concat = None
 
-# cudf
+# cupy
 try:
     from cupy import ndarray as CUPY_Array
     CUPY_INSTALLED = True

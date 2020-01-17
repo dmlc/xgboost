@@ -2,6 +2,7 @@ import numpy as np
 import xgboost as xgb
 import sys
 import pytest
+
 sys.path.append("tests/python")
 import testing as tm
 
@@ -21,6 +22,7 @@ def dmatrix_from_cupy(input_type, missing=np.NAN):
     dtrain = xgb.DMatrix(X, missing=missing, label=y)
     assert dtrain.num_col() == kCols
     assert dtrain.num_row() == kRows
+    return dtrain
 
 
 class TestFromArrayInterface:
@@ -30,7 +32,7 @@ Arrow specification.'''
     @pytest.mark.skipif(**tm.no_cupy())
     def test_from_cupy(self):
         '''Test constructing DMatrix from cudf'''
-        import cupy
+        import cupy as cp
         dmatrix_from_cupy(np.float32, np.NAN)
         dmatrix_from_cupy(np.float64, np.NAN)
 
@@ -43,5 +45,21 @@ Arrow specification.'''
         dmatrix_from_cupy(np.int64, -3)
 
         with pytest.raises(Exception):
-            np_X = cp.random.randn(2, 2, dtype="float32")
+            X = cp.random.randn(2, 2, dtype="float32")
             dtrain = xgb.DMatrix(X, label=X)
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_cupy_training(self):
+        import cupy as cp
+        X = cp.random.randn(50, 10, dtype="float32")
+        y = cp.random.randn(50, dtype="float32")
+
+        evals_result_cupy = {}
+        dtrain_cp = xgb.DMatrix(X, y)
+        xgb.train({'gpu_id': 0}, dtrain_cp, evals=[(dtrain_cp, "train")],
+                  evals_result=evals_result_cupy)
+        evals_result_np = {}
+        dtrain_np = xgb.DMatrix(cp.asnumpy(X), cp.asnumpy(y))
+        xgb.train({'gpu_id': 0}, dtrain_np, evals=[(dtrain_np, "train")],
+                  evals_result=evals_result_np)
+        assert np.array_equal(evals_result_cupy["train"]["rmse"], evals_result_np["train"]["rmse"])

@@ -24,7 +24,6 @@ from .compat import (
     os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
-
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
 
@@ -41,6 +40,7 @@ class EarlyStopException(Exception):
     best_iteration : int
         The best iteration stopped.
     """
+
     def __init__(self, best_iteration):
         super(EarlyStopException, self).__init__()
         self.best_iteration = best_iteration
@@ -226,7 +226,7 @@ def c_str(string):
 def c_array(ctype, values):
     """Convert a python string to c array."""
     if (isinstance(values, np.ndarray)
-            and values.dtype.itemsize == ctypes.sizeof(ctype)):
+        and values.dtype.itemsize == ctypes.sizeof(ctype)):
         return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
 
@@ -598,7 +598,8 @@ class DMatrix(object):
                 ptrs[icol] = ctypes.c_void_p(ptr)
         else:
             # datatable<=0.8.0
-            from datatable.internal import frame_column_data_r  # pylint: disable=no-name-in-module,import-error
+            from datatable.internal import \
+                frame_column_data_r  # pylint: disable=no-name-in-module,import-error
             for icol in range(data.ncols):
                 ptrs[icol] = frame_column_data_r(data, icol)
 
@@ -709,7 +710,10 @@ class DMatrix(object):
 
     def set_interface_info(self, field, data):
         """Set info type peoperty into DMatrix."""
-        interfaces = _extract_interface_from_cudf(data)
+        if isinstance(data, CUPY_Array):
+            interfaces = bytes(json.dumps([data.__cuda_array_interface__], indent=2), 'utf-8')
+        else:
+            interfaces = _extract_interface_from_cudf(data)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
                                                        c_str(field),
                                                        interfaces))
@@ -793,7 +797,7 @@ class DMatrix(object):
         """
         if isinstance(label, np.ndarray):
             self.set_label_npy2d(label)
-        elif _use_columnar_initializer(label):
+        elif hasattr(label, '__cuda_array_interface__'):
             self.set_interface_info('label', label)
         else:
             self.set_float_info('label', label)
@@ -1087,7 +1091,7 @@ class Booster(object):
                                          ctypes.byref(self.handle)))
 
         if isinstance(params, dict) and \
-           'validate_parameters' not in params.keys():
+            'validate_parameters' not in params.keys():
             params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):

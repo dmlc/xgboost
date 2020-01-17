@@ -137,6 +137,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     CopyDataColumnMajor(adapter, mat.page_.data.DeviceSpan(),
                         adapter->DeviceIdx(), missing, s_offset);
   }
+  // Sync
+  mat.page_.data.HostVector();
 
   mat.info.num_col_ = adapter->NumColumns();
   mat.info.num_row_ = adapter->NumRows();

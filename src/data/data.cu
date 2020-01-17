@@ -14,7 +14,7 @@
 
 namespace xgboost {
 
-void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<float>* out) {
+void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
   auto SetDeviceToPtr = [](void* ptr) {
     cudaPointerAttributes attr;
     dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
@@ -22,43 +22,42 @@ void CopyInfoImpl(std::map<std::string, Json> const& column, HostDeviceVector<fl
     dh::safe_cuda(cudaSetDevice(ptr_device));
     return ptr_device;
   };
-  ArrayInterface foreign_column(column);
-  auto ptr_device = SetDeviceToPtr(foreign_column.data);
+  auto ptr_device = SetDeviceToPtr(column.data);
 
   out->SetDevice(ptr_device);
-  out->Resize(foreign_column.num_rows);
+  out->Resize(column.num_rows);
 
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
 
-  dh::LaunchN(ptr_device, foreign_column.num_rows, [=] __device__(size_t idx) {
-    p_dst[idx] = foreign_column.GetElement(idx);
+  dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
+    p_dst[idx] = column.GetElement(idx);
   });
 }
 
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr = get<Array>(j_interface);
-  CHECK_EQ(j_arr.size(), 1) << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);;
-  auto const& j_arr_obj = get<Object const>(j_arr[0]);
-  std::string key {c_key};
-  ArrayInterfaceHandler::Validate(j_arr_obj);
-  if (j_arr_obj.find("mask") != j_arr_obj.cend()) {
-    LOG(FATAL) << "Meta info " << key << " should be dense, found validity mask";
-  }
-  auto const& typestr = get<String const>(j_arr_obj.at("typestr"));
+  CHECK_EQ(j_arr.size(), 1)
+      << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
+  ArrayInterface array_interface(get<Object const>(j_arr[0]));
+  std::string key{c_key};
+  CHECK(!array_interface.valid.Data())
+      << "Meta info " << key << " should be dense, found validity mask";
+  CHECK_EQ(array_interface.num_cols, 1)
+      << "Meta info should be a single column.";
 
   if (key == "label") {
-    CopyInfoImpl(j_arr_obj, &labels_);
+    CopyInfoImpl(array_interface, &labels_);
   } else if (key == "weight") {
-    CopyInfoImpl(j_arr_obj, &weights_);
+    CopyInfoImpl(array_interface, &weights_);
   } else if (key == "base_margin") {
-    CopyInfoImpl(j_arr_obj, &base_margin_);
+    CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
     // Ranking is not performed on device.
-    auto s_data = ArrayInterfaceHandler::ExtractData<uint32_t>(j_arr_obj);
-    thrust::device_ptr<uint32_t> p_src {s_data.data()};
+    thrust::device_ptr<uint32_t> p_src{
+        reinterpret_cast<uint32_t*>(array_interface.data)};
 
-    auto length = s_data.size();
+    auto length = array_interface.num_rows;
     group_ptr_.resize(length + 1);
     group_ptr_[0] = 0;
     thrust::copy(p_src, p_src + length, group_ptr_.begin() + 1);
