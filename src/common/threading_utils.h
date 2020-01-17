@@ -20,11 +20,11 @@ class Range1d {
     CHECK_LT(begin, end);
   }
 
-  size_t begin() {
+  size_t begin() const {
     return begin_;
   }
 
-  size_t end() {
+  size_t end() const {
     return end_;
   }
 

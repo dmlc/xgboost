@@ -30,12 +30,12 @@ class TrainingObserver {
 #endif  // defined(XGBOOST_USE_DEBUG_OUTPUT)
 
  public:
-  void Update(int32_t iter) const {
+  static void Update(int32_t iter) const {
     if (XGBOOST_EXPECT(!observe_, true)) { return; }
     std::cout << "Iter: " << iter << std::endl;
   }
   /*\brief Observe tree. */
-  void Observe(RegTree const& tree) {
+  static void Observe(RegTree const& tree) {
     if (XGBOOST_EXPECT(!observe_, true)) { return; }
     std::cout << "Tree:" << std::endl;
     Json j_tree {Object()};
@@ -52,7 +52,7 @@ class TrainingObserver {
   }
   /*\brief Observe data hosted by `std::vector'. */
   template <typename T>
-  void Observe(std::vector<T> const& h_vec, std::string name) const {
+  static void Observe(std::vector<T> const& h_vec, std::string name) const {
     if (XGBOOST_EXPECT(!observe_, true)) { return; }
     std::cout << "Procedure: " << name << std::endl;
 
@@ -81,14 +81,14 @@ class TrainingObserver {
   template <typename Parameter,
             typename std::enable_if<
               std::is_base_of<XGBoostParameter<Parameter>, Parameter>::value>::type* = nullptr>
-  void Observe(const Parameter &p, std::string name) const {
+  static void Observe(const Parameter &p, std::string name) const {
     if (XGBOOST_EXPECT(!observe_, true)) { return; }
 
     Json obj {toJson(p)};
     std::cout << "Parameter: " << name << ":\n" << obj << std::endl;
   }
   /*\brief Observe parameters provided by users. */
-  void Observe(Args const& args) const {
+  static void Observe(Args const& args) const {
     if (XGBOOST_EXPECT(!observe_, true)) { return; }
 
     for (auto kv : args) {
