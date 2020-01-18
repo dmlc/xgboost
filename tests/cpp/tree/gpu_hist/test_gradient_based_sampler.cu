@@ -7,32 +7,55 @@
 namespace xgboost {
 namespace tree {
 
-TEST(GradientBasedSampler, NoSampling) {
-  constexpr size_t kRows = 1024;
-  constexpr size_t kCols = 4;
-  constexpr float kSubsample = 1.0;
-  constexpr size_t kPageSize = 0;
+void VerifySampling(size_t page_size, float subsample, int sampling_method) {
+  constexpr size_t kRows = 2048;
+  constexpr size_t kCols = 1;
+  size_t sample_rows = kRows * subsample;
 
-  // Create a DMatrix with a single batche.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true));
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix> dmat(
+      CreateSparsePageDMatrixWithRC(kRows, kCols, page_size, true, tmpdir));
   auto gpair = GenerateRandomGradients(kRows);
+  GradientPair sum_gpair{};
+  for (const auto& gp : gpair.ConstHostVector()) {
+    sum_gpair += gp;
+  }
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, 0, page_size};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  if (page_size != 0) {
+    EXPECT_NE(page->matrix.n_rows, kRows);
+  }
 
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
+  GradientBasedSampler sampler(page, kRows, param, subsample, sampling_method);
   auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  EXPECT_EQ(sample.sample_rows, kRows);
-  EXPECT_EQ(sample.page, page);
-  EXPECT_EQ(sample.gpair.size(), gpair.Size());
-  EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
+  EXPECT_EQ(sample.sample_rows, sample_rows);
+  EXPECT_EQ(sample.page->matrix.n_rows, sample_rows);
+  EXPECT_EQ(sample.gpair.size(), sample_rows);
+
+  GradientPair sum_sampled_gpair{};
+  std::vector<GradientPair> sampled_gpair_h(sample.gpair.size());
+  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sample.gpair);
+  for (const auto& gp : sampled_gpair_h) {
+    sum_sampled_gpair += gp;
+  }
+  EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.01f * kRows);
+  EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.01f * kRows);
 }
 
+TEST(GradientBasedSampler, NoSampling) {
+  constexpr size_t kPageSize = 0;
+  constexpr float kSubsample = 1.0f;
+  constexpr int kSamplingMethod = TrainParam::kUniform;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+}
+
+// In external mode, when not sampling, we concatenate the pages together.
 TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
-  constexpr size_t kRows = 1024;
-  constexpr size_t kCols = 4;
-  constexpr float kSubsample = 1.0;
+  constexpr size_t kRows = 2048;
+  constexpr size_t kCols = 1;
+  constexpr float kSubsample = 1.0f;
   constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
@@ -44,19 +67,15 @@ TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
 
   BatchParam param{0, 256, 0, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+  EXPECT_NE(page->matrix.n_rows, kRows);
 
   GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
   auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
   auto sampled_page = sample.page;
-  auto sampled_gpair = sample.gpair;
   EXPECT_EQ(sample.sample_rows, kRows);
-  EXPECT_EQ(sampled_gpair.size(), kRows);
+  EXPECT_EQ(sample.gpair.size(), gpair.Size());
+  EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
   EXPECT_EQ(sampled_page->matrix.n_rows, kRows);
-
-  auto gpair_h = gpair.ConstHostVector();
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  EXPECT_EQ(gpair_h, sampled_gpair_h);
 
   std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.size());
   dh::CopyDeviceSpanToVector(&buffer, sampled_page->gidx_buffer);
@@ -79,151 +98,31 @@ TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
 }
 
 TEST(GradientBasedSampler, UniformSampling) {
-  constexpr size_t kRows = 2048;
-  constexpr size_t kCols = 16;
-  constexpr float kSubsample = 0.5;
-  constexpr size_t kSampleRows = kRows * kSubsample;
   constexpr size_t kPageSize = 0;
-
-  // Create a DMatrix with a single batche.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true));
-  auto gpair = GenerateRandomGradients(kRows);
-  float sum_gradients = 0;
-  for (auto gp : gpair.ConstHostVector()) {
-    sum_gradients += gp.GetGrad();
-  }
-  gpair.SetDevice(0);
-
-  BatchParam param{0, 256, 0, kPageSize};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  auto sampled_gpair = sample.gpair;
-  EXPECT_EQ(sample.sample_rows, kRows);
-  EXPECT_EQ(sample.page, page);
-  EXPECT_EQ(sample.gpair.size(), kRows);
-
-  float sum_sampled_gradients = 0;
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  for (auto gp : sampled_gpair_h) {
-    sum_sampled_gradients += gp.GetGrad();
-  }
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.02);
+  constexpr float kSubsample = 0.5;
+  constexpr int kSamplingMethod = TrainParam::kUniform;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
-  constexpr size_t kRows = 2048;
-  constexpr size_t kCols = 16;
-  constexpr float kSubsample = 0.5;
-  constexpr size_t kSampleRows = kRows * kSubsample;
   constexpr size_t kPageSize = 1024;
-
-  // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  auto gpair = GenerateRandomGradients(kRows);
-  float sum_gradients = 0;
-  for (auto gp : gpair.ConstHostVector()) {
-    sum_gradients += gp.GetGrad();
-  }
-  gpair.SetDevice(0);
-
-  BatchParam param{0, 256, 0, kPageSize};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  auto sampled_page = sample.page;
-  auto sampled_gpair = sample.gpair;
-  EXPECT_EQ(sample.sample_rows, kSampleRows);
-  EXPECT_EQ(sampled_page->matrix.n_rows, kSampleRows);
-  EXPECT_EQ(sampled_gpair.size(), kSampleRows);
-
-  float sum_sampled_gradients = 0;
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  for (auto gp : sampled_gpair_h) {
-    sum_sampled_gradients += gp.GetGrad();
-  }
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.02);
+  constexpr float kSubsample = 0.5;
+  constexpr int kSamplingMethod = TrainParam::kUniform;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling) {
-  constexpr size_t kRows = 2048;
-  constexpr size_t kCols = 16;
-  constexpr float kSubsample = 0.5;
-  constexpr size_t kSampleRows = kRows * kSubsample;
   constexpr size_t kPageSize = 0;
-
-  // Create a DMatrix with a single batche.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true));
-  auto gpair = GenerateRandomGradients(kRows);
-  float sum_gradients = 0;
-  for (auto gp : gpair.ConstHostVector()) {
-    sum_gradients += gp.GetGrad();
-  }
-  gpair.SetDevice(0);
-
-  BatchParam param{0, 256, 0, kPageSize};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kGradientBased);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  auto sampled_gpair = sample.gpair;
-  EXPECT_EQ(sample.sample_rows, kRows);
-  EXPECT_EQ(sample.page, page);
-  EXPECT_EQ(sampled_gpair.size(), kRows);
-
-  float sum_sampled_gradients = 0;
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  for (auto gp : sampled_gpair_h) {
-    sum_sampled_gradients += gp.GetGrad();
-  }
-  // TODO(rongou): gradient pairs need to be rescaled to get accurate statistics.
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.15);
+  constexpr float kSubsample = 0.5;
+  constexpr int kSamplingMethod = TrainParam::kGradientBased;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling_ExternalMemory) {
-  constexpr size_t kRows = 2048;
-  constexpr size_t kCols = 16;
-  constexpr float kSubsample = 0.5;
-  constexpr size_t kSampleRows = kRows * kSubsample;
   constexpr size_t kPageSize = 1024;
-
-  // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  auto gpair = GenerateRandomGradients(kRows);
-  float sum_gradients = 0;
-  for (auto gp : gpair.ConstHostVector()) {
-    sum_gradients += gp.GetGrad();
-  }
-  gpair.SetDevice(0);
-
-  BatchParam param{0, 256, 0, kPageSize};
-  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-
-  GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kGradientBased);
-  auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  auto sampled_page = sample.page;
-  auto sampled_gpair = sample.gpair;
-  EXPECT_EQ(sample.sample_rows, kSampleRows);
-  EXPECT_EQ(sampled_page->matrix.n_rows, kSampleRows);
-  EXPECT_EQ(sampled_gpair.size(), kSampleRows);
-
-  float sum_sampled_gradients = 0;
-  std::vector<GradientPair> sampled_gpair_h(sampled_gpair.size());
-  dh::CopyDeviceSpanToVector(&sampled_gpair_h, sampled_gpair);
-  for (auto gp : sampled_gpair_h) {
-    sum_sampled_gradients += gp.GetGrad();
-  }
-  // TODO(rongou): gradient pairs need to be rescaled to get accurate statistics.
-  EXPECT_NEAR(sum_gradients / kRows, sum_sampled_gradients / kSampleRows, 0.15);
+  constexpr float kSubsample = 0.5;
+  constexpr int kSamplingMethod = TrainParam::kGradientBased;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 };  // namespace tree

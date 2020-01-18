@@ -31,22 +31,22 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl* page,
       sample_rows_(n_rows * subsample) {
   monitor_.Init("gradient_based_sampler");
 
-  if (is_external_memory_) {
+  if (is_sampling_ || is_external_memory_) {
     // Create a new ELLPACK page with empty rows.
     page_.reset(new EllpackPageImpl(batch_param.gpu_id,
                                     original_page_->matrix.info,
                                     sample_rows_));
-    // Allocate GPU memory for sampling.
-    if (is_sampling_) {
-      ba_.Allocate(batch_param_.gpu_id,
-                   &gpair_, sample_rows_,
-                   &row_weight_, n_rows,
-                   &row_index_, n_rows,
-                   &sample_row_index_, n_rows);
-      thrust::copy(thrust::counting_iterator<size_t>(0),
-                   thrust::counting_iterator<size_t>(n_rows),
-                   dh::tbegin(row_index_));
-    }
+  }
+  // Allocate GPU memory for sampling.
+  if (is_sampling_) {
+    ba_.Allocate(batch_param_.gpu_id,
+                 &gpair_, sample_rows_,
+                 &row_weight_, n_rows,
+                 &row_index_, n_rows,
+                 &sample_row_index_, n_rows);
+    thrust::copy(thrust::counting_iterator<size_t>(0),
+                 thrust::counting_iterator<size_t>(n_rows),
+                 dh::tbegin(row_index_));
   }
 }
 
@@ -77,16 +77,17 @@ GradientBasedSample GradientBasedSampler::Sample(common::Span<GradientPair> gpai
 GradientBasedSample GradientBasedSampler::NoSampling(common::Span<GradientPair> gpair,
                                                      DMatrix* dmat) {
   if (is_external_memory_) {
-    CollectPages(dmat);
+    ConcatenatePages(dmat);
     return {dmat->Info().num_row_, page_.get(), gpair};
   } else {
     return {dmat->Info().num_row_, original_page_, gpair};
   }
 }
 
-// When not sampling, collect all the external memory ELLPACK pages into a single in-memory page.
-void GradientBasedSampler::CollectPages(DMatrix* dmat) {
-  if (page_collected_) {
+// When not sampling, concatenate all the external memory ELLPACK pages into a single in-memory
+// page.
+void GradientBasedSampler::ConcatenatePages(DMatrix* dmat) {
+  if (page_concatenated_) {
     return;
   }
 
@@ -96,7 +97,7 @@ void GradientBasedSampler::CollectPages(DMatrix* dmat) {
     size_t num_elements = page_->Copy(batch_param_.gpu_id, page, offset);
     offset += num_elements;
   }
-  page_collected_ = true;
+  page_concatenated_ = true;
 }
 
 /*! \brief A functor that returns random weights. */
@@ -113,40 +114,29 @@ struct RandomWeight : public thrust::unary_function<size_t, float> {
   }
 };
 
-/*! \brief A functor that performs Bernoulli sampling on gradient pairs. */
-struct BernoulliSampling : public thrust::binary_function<GradientPair, size_t, GradientPair> {
+/*! \brief A functor that scales gradient pairs by 1/p. */
+struct FixedScaling : public thrust::unary_function<GradientPair, GradientPair> {
   float p;
-  RandomWeight rnd;
 
-  XGBOOST_DEVICE BernoulliSampling(float _p, RandomWeight _rnd) : p(_p), rnd(_rnd) {}
+  XGBOOST_DEVICE explicit FixedScaling(float _p) : p(_p) {}
 
-  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t i) const {
-    if (rnd(i) <= p) {
-      return gpair;
-    } else {
-      return GradientPair();
-    }
+  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair) const {
+    return gpair / p;
   }
 };
 
 GradientBasedSample GradientBasedSampler::UniformSampling(common::Span<GradientPair> gpair,
                                                           DMatrix* dmat) {
-  RandomWeight rnd(common::GlobalRandom()());
-  if (is_external_memory_) {
-    // Generate random weights.
-    thrust::transform(thrust::counting_iterator<size_t>(0),
-                      thrust::counting_iterator<size_t>(gpair.size()),
-                      dh::tbegin(row_weight_),
-                      rnd);
-    return SequentialPoissonSampling(gpair, dmat);
-  } else {
-    // Set gradient pair to 0 with p = 1 - subsample
-    thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                      thrust::counting_iterator<size_t>(0),
-                      dh::tbegin(gpair),
-                      BernoulliSampling(subsample_, rnd));
-    return {dmat->Info().num_row_, original_page_, gpair};
-  }
+  // Generate random weights.
+  thrust::transform(thrust::counting_iterator<size_t>(0),
+                    thrust::counting_iterator<size_t>(gpair.size()),
+                    dh::tbegin(row_weight_),
+                    RandomWeight(common::GlobalRandom()()));
+  // Scale gradient pairs by 1/subsample.
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    dh::tbegin(gpair),
+                    FixedScaling(subsample_));
+  return SequentialPoissonSampling(gpair, dmat);
 }
 
 /*! \brief A functor that combines the gradient pair into a single float.
@@ -167,61 +157,67 @@ struct CombineGradientPair : public thrust::unary_function<GradientPair, float> 
 /*! \brief A functor that calculates the weight of each row.
  */
 struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
-  RandomWeight rnd;
-  CombineGradientPair combine;
-
-  XGBOOST_DEVICE explicit CalculateWeight(RandomWeight _rnd) : rnd(_rnd) {}
-
-  XGBOOST_DEVICE float operator()(const GradientPair& gpair, size_t i) {
-    if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
-      return FLT_MAX;
-    }
-    return rnd(i) / combine(gpair);
-  }
-};
-
-/*! \brief A functor that performs Poisson sampling with probability proportional to the combined
- * gradient pair.
- */
-struct PoissonSampling : public thrust::binary_function<GradientPair, size_t, GradientPair> {
   size_t sample_rows;
   float normalization;
   RandomWeight rnd;
   CombineGradientPair combine;
 
-  XGBOOST_DEVICE PoissonSampling(size_t _sample_rows, float _normalization, RandomWeight _rnd)
+  XGBOOST_DEVICE CalculateWeight(size_t _sample_rows, float _normalization, RandomWeight _rnd)
       : sample_rows(_sample_rows), normalization(_normalization), rnd(_rnd) {}
 
-  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair, size_t i) const {
-    if (rnd(i) <= sample_rows * combine(gpair) / normalization) {
-      return gpair;
+  XGBOOST_DEVICE float operator()(const GradientPair& gpair, size_t i) {
+    // If the gradient and hessian are both empty, we should never select this row.
+    if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
+      return FLT_MAX;
+    }
+    float combined_gradient = combine(gpair);
+    float p = sample_rows * combined_gradient / normalization;
+    if (p >= 1) {
+      // Always select this row.
+      return 0.0f;
     } else {
-      return GradientPair();
+      // Select this row randomly with probability proportional to the combined gradient.
+      return rnd(i) / combined_gradient;
     }
   }
 };
 
+/*! \brief A functor that scales gradient pairs by 1/p_i. */
+struct WeightedScaling : public thrust::unary_function<GradientPair, GradientPair> {
+  size_t sample_rows;
+  float normalization;
+  CombineGradientPair combine;
+
+  XGBOOST_DEVICE WeightedScaling(size_t _sample_rows, float _normalization)
+    : sample_rows(_sample_rows), normalization(_normalization) {}
+
+  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair) const {
+    float p = sample_rows * combine(gpair) / normalization;
+    if (p >= 1) {
+      return gpair;
+    } else {
+      return gpair / p;
+    }
+  }
+};
+
+
 GradientBasedSample GradientBasedSampler::GradientBasedSampling(
     common::Span<GradientPair> gpair, DMatrix* dmat) {
-  RandomWeight rnd(common::GlobalRandom()());
-  if (is_external_memory_) {
-    thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                      thrust::counting_iterator<size_t>(0),
-                      dh::tbegin(row_weight_),
-                      CalculateWeight(rnd));
-    return SequentialPoissonSampling(gpair, dmat);
-  } else {
-    float normalization = thrust::transform_reduce(dh::tbegin(gpair), dh::tend(gpair),
-                                                   CombineGradientPair(),
-                                                   0.0f,
-                                                   thrust::plus<float>());
-    // Set gradient pair to 0 with p = 1 - p_i
-    thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                      thrust::counting_iterator<size_t>(0),
-                      dh::tbegin(gpair),
-                      PoissonSampling(sample_rows_, normalization, rnd));
-    return {dmat->Info().num_row_, original_page_, gpair};
-  }
+  float normalization = thrust::transform_reduce(dh::tbegin(gpair), dh::tend(gpair),
+                                                 CombineGradientPair(),
+                                                 0.0f,
+                                                 thrust::plus<float>());
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    thrust::counting_iterator<size_t>(0),
+                    dh::tbegin(row_weight_),
+                    CalculateWeight(sample_rows_, normalization,
+                        RandomWeight(common::GlobalRandom()())));
+  // Scale gradient pairs by 1/p.
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    dh::tbegin(gpair),
+                    WeightedScaling(sample_rows_, normalization));
+  return SequentialPoissonSampling(gpair, dmat);
 }
 
 /*! \brief A functor that returns true if the gradient pair is non-zero. */

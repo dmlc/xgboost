@@ -193,6 +193,32 @@ class GradientPairInternal {
     return g;
   }
 
+  XGBOOST_DEVICE GradientPairInternal<T> &operator*=(float multiplier) {
+    grad_ *= multiplier;
+    hess_ *= multiplier;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> operator*(float multiplier) const {
+    GradientPairInternal<T> g;
+    g.grad_ = grad_ * multiplier;
+    g.hess_ = hess_ * multiplier;
+    return g;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> &operator/=(float divisor) {
+    grad_ /= divisor;
+    hess_ /= divisor;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> operator/(float divisor) const {
+    GradientPairInternal<T> g;
+    g.grad_ = grad_ / divisor;
+    g.hess_ = hess_ / divisor;
+    return g;
+  }
+
   XGBOOST_DEVICE bool operator==(const GradientPairInternal<T> &rhs) const {
     return grad_ == rhs.grad_ && hess_ == rhs.hess_;
   }

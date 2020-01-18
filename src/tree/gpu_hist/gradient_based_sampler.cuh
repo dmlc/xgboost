@@ -47,8 +47,8 @@ class GradientBasedSampler {
   GradientBasedSample UniformSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
   GradientBasedSample GradientBasedSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
-  /*! \brief Collect all the rows from a DMatrix into a single ELLPACK page. */
-  void CollectPages(DMatrix* dmat);
+  /*! \brief Concatenate all the rows from a DMatrix into a single ELLPACK page. */
+  void ConcatenatePages(DMatrix* dmat);
 
   /*! \brief Fixed-size Poisson sampling after the row weights are calculated. */
   GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
@@ -67,7 +67,7 @@ class GradientBasedSampler {
   common::Span<float> row_weight_;
   common::Span<size_t> row_index_;
   common::Span<size_t> sample_row_index_;
-  bool page_collected_{false};
+  bool page_concatenated_{false};
 };
 };  // namespace tree
 };  // namespace xgboost
