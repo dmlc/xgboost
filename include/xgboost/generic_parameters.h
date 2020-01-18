@@ -76,7 +76,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
     DMLC_DECLARE_FIELD(validate_features)
-        .set_default(false)
+        .set_default(true)
         .describe("Enable validating input DMatrix.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
