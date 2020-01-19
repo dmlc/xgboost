@@ -20,7 +20,7 @@ import scipy.sparse
 from .compat import (
     STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
     PANDAS_INSTALLED, DataTable,
-    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex, CUPY_Array,
+    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
     os_fspath, os_PathLike)
 from .libpath import find_lib_path
 
@@ -502,7 +502,7 @@ class DMatrix(object):
             self._init_from_dt(data, nthread)
         elif _use_columnar_initializer(data):
             self._init_from_columnar(data, missing, nthread)
-        elif isinstance(data, CUPY_Array):
+        elif hasattr(data, "__cuda_array_interface__"):
             self._init_from_cupy(data, missing, nthread)
         else:
             try:
@@ -709,14 +709,11 @@ class DMatrix(object):
                                                c_bst_ulong(len(data))))
 
     def set_interface_info(self, field, data):
-        """Set info type peoperty into DMatrix."""
-        if isinstance(data, CUPY_Array):
-            interfaces = bytes(json.dumps([data.__cuda_array_interface__], indent=2), 'utf-8')
-        else:
-            interfaces = _extract_interface_from_cudf(data)
+        """Set info type property into DMatrix."""
+        interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), 'utf-8')
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
                                                        c_str(field),
-                                                       interfaces))
+                                                       interface))
 
     def set_float_info_npy2d(self, field, data):
         """Set float type property into the DMatrix

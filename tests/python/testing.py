@@ -1,6 +1,6 @@
 # coding: utf-8
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
-from xgboost.compat import CUDF_INSTALLED, CUPY_INSTALLED, DASK_INSTALLED
+from xgboost.compat import CUDF_INSTALLED, DASK_INSTALLED
 
 
 def no_sklearn():
@@ -49,8 +49,12 @@ def no_cudf():
 
 
 def no_cupy():
-    return {'condition': not CUPY_INSTALLED,
-            'reason': 'cupy is not installed'}
+    reason = 'cupy is not installed.'
+    try:
+        import cupy as _   # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
 
 
 def no_dask_cudf():

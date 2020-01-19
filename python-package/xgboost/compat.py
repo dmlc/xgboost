@@ -129,14 +129,6 @@ except ImportError:
     CUDF_INSTALLED = False
     CUDF_concat = None
 
-# cupy
-try:
-    from cupy import ndarray as CUPY_Array
-    CUPY_INSTALLED = True
-except ImportError:
-    CUPY_INSTALLED = False
-    CUPY_Array = object
-
 # sklearn
 try:
     from sklearn.base import BaseEstimator
