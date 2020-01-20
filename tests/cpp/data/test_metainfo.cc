@@ -47,11 +47,11 @@ TEST(MetaInfo, SaveLoadBinary) {
                      static float f = 0;
                      return f++;
                    };
-  std::vector<float> values { kRows };
+  std::vector<float> values (kRows);
   std::generate(values.begin(), values.end(), generator);
-  info.SetInfo("label", values.data(), xgboost::DataType::kFloat32, 2);
-  info.SetInfo("weight", values.data(), xgboost::DataType::kFloat32, 2);
-  info.SetInfo("base_margin", values.data(), xgboost::DataType::kFloat32, 2);
+  info.SetInfo("label", values.data(), xgboost::DataType::kFloat32, kRows);
+  info.SetInfo("weight", values.data(), xgboost::DataType::kFloat32, kRows);
+  info.SetInfo("base_margin", values.data(), xgboost::DataType::kFloat32, kRows);
   info.num_row_ = kRows;
   info.num_col_ = kCols;
 
@@ -71,9 +71,12 @@ TEST(MetaInfo, SaveLoadBinary) {
     };
     xgboost::MetaInfo inforead;
     inforead.LoadBinary(fs.get());
+    ASSERT_EQ(inforead.num_row_, kRows);
     EXPECT_EQ(inforead.num_row_, info.num_row_);
     EXPECT_EQ(inforead.num_col_, info.num_col_);
     EXPECT_EQ(inforead.num_nonzero_, info.num_nonzero_);
+
+    ASSERT_EQ(inforead.labels_.HostVector(), values);
     EXPECT_EQ(inforead.labels_.HostVector(), info.labels_.HostVector());
     EXPECT_EQ(inforead.group_ptr_, info.group_ptr_);
     EXPECT_EQ(inforead.weights_.HostVector(), info.weights_.HostVector());
