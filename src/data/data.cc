@@ -1,11 +1,13 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file data.cc
  */
 #include <dmlc/registry.h>
 #include <cstring>
 
+#include "dmlc/io.h"
 #include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
 #include "sparse_page_writer.h"
@@ -32,75 +34,85 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::EllpackPage
 namespace {
 
 template <typename T>
-inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      xgboost::DataType field_type, const T& field) {
-  const uint64_t sz = 1;
-  strm->Write(field_name);
-  strm->Write(field_type);
-  strm->Write(sz);
+void SaveScaleField(dmlc::Stream *strm, const std::string &name,
+                    xgboost::DataType type, const T &field) {
+  strm->Write(name);
+  strm->Write(type);
   strm->Write(field);
 }
 
 template <typename T>
-inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      xgboost::DataType field_type, const std::vector<T>& field) {
-  strm->Write(field_name);
-  strm->Write(field_type);
+void SaveVectorField(dmlc::Stream *strm, const std::string &name,
+                     xgboost::DataType type, std::pair<uint64_t, uint64_t> shape,
+                     const std::vector<T> &field) {
+  strm->Write(name);
+  strm->Write(type);
+  strm->Write(shape.first);
+  strm->Write(shape.second);
   strm->Write(field);
 }
 
 template <typename T>
-inline void SaveField(dmlc::Stream* strm, const std::string& field_name,
-                      xgboost::DataType field_type, const xgboost::HostDeviceVector<T>& field) {
-  SaveField(strm, field_name, field_type, field.ConstHostVector());
+void SaveVectorField(dmlc::Stream* strm, const std::string& name,
+                     xgboost::DataType type,
+                     std::pair<uint64_t, uint64_t> shape,
+                     const xgboost::HostDeviceVector<T>& field) {
+  SaveVectorField(strm, name, type, shape, field.ConstHostVector());
 }
 
 template <typename T>
-inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      xgboost::DataType expected_field_type, T* field) {
+void LoadScaleField(dmlc::Stream* strm, const std::string& expected_field_name,
+                    xgboost::DataType expected_field_type, T* field) {
+  std::string invalid {"MetaInfo: Invalid format. "};
   std::string field_name;
   xgboost::DataType field_type;
-  uint64_t sz;
+  CHECK(strm->Read(&field_name)) << invalid;
+  CHECK_EQ(field_name, expected_field_name)
+      << invalid << " Expected field: " << expected_field_name
+      << ", got: " << field_name;
+  CHECK(strm->Read(&field_type)) << invalid;
+  CHECK(field_type == expected_field_type)
+      << invalid << "Expected field of type: " << static_cast<int>(expected_field_type) << ", "
+      << "got field type: " << static_cast<int>(field_type);
+  CHECK(strm->Read(field, sizeof(T))) << invalid;
+}
+
+template <typename T>
+void LoadVectorField(dmlc::Stream *strm, const std::string &expected_field_name,
+                     xgboost::DataType expected_type, std::vector<T> *field) {
+  std::string field_name;
+  xgboost::DataType type;
   CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
   CHECK_EQ(field_name, expected_field_name)
     << "MetaInfo: invalid format; expected field " << expected_field_name
     << ", got field " << field_name;
-  CHECK(strm->Read(&field_type)) << "MetaInfo: invalid format";
-  CHECK(field_type == expected_field_type)
-    << "MetaInfo: invalid format; expected field of type " << static_cast<int>(expected_field_type)
-    << ", got field type " << static_cast<int>(field_type);
-  CHECK(strm->Read(&sz)) << "MetaInfo: invalid format";
-  CHECK_EQ(sz, 1)
-    << "MetaInfo: invalid format; expected field consisting of a single element, got field "
-    << "consisting of " << sz << " elements";
+  CHECK(strm->Read(&type)) << "MetaInfo: invalid format";
+  CHECK(type == expected_type)
+      << "MetaInfo: invalid format; expected field of type: "
+      << static_cast<int>(expected_type)
+      << ", got field type: " << static_cast<int>(type);
+  std::pair<uint64_t, uint64_t> shape;
+
+  CHECK(strm->Read(&shape.first));
+  CHECK(strm->Read(&shape.second));
+  CHECK_EQ(shape.second, 1) << "MetaInfo: invalid format.  Number of columns is expected to be 1.";
+
   CHECK(strm->Read(field)) << "MetaInfo: invalid format";
 }
 
 template <typename T>
-inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      xgboost::DataType expected_field_type, std::vector<T>* field) {
-  std::string field_name;
-  xgboost::DataType field_type;
-  CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
-  CHECK_EQ(field_name, expected_field_name)
-    << "MetaInfo: invalid format; expected field " << expected_field_name
-    << ", got field " << field_name;
-  CHECK(strm->Read(&field_type)) << "MetaInfo: invalid format";
-  CHECK(field_type == expected_field_type)
-    << "MetaInfo: invalid format; expected field of type " << static_cast<int>(expected_field_type)
-    << ", got field type " << static_cast<int>(field_type);
-  CHECK(strm->Read(field)) << "MetaInfo: invalid format";
-}
-
-template <typename T>
-inline void LoadField(dmlc::Stream* strm, const std::string& expected_field_name,
-                      xgboost::DataType expected_field_type, xgboost::HostDeviceVector<T>* field) {
-  LoadField(strm, expected_field_name, expected_field_type, &field->HostVector());
+void LoadVectorField(dmlc::Stream *strm, const std::string &expected_field_name,
+                     xgboost::DataType expected_field_type,
+                     xgboost::HostDeviceVector<T> *field) {
+  LoadVectorField(strm, expected_field_name, expected_field_type, &field->HostVector());
 }
 
 }  // anonymous namespace
 
 namespace xgboost {
+
+uint64_t constexpr MetaInfo::kNumField;
+
 // implementation of inline functions
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
@@ -110,20 +122,42 @@ void MetaInfo::Clear() {
   base_margin_.HostVector().clear();
 }
 
+/*
+ * Used format:
+ *
+ * | name        | type     | rows    | columns | value           |
+ * |-------------+----------+---------+---------+-----------------|
+ * | num_row     | kUInt64  | NA      |      NA | ${num_row_}     |
+ * | num_col     | kUInt64  | NA      |      NA | ${num_col_}     |
+ * | num_nonzero | kUInt64  | NA      |      NA | ${num_nonzero_} |
+ * | labels      | kFloat32 | ${size} |       1 | ${labels_}      |
+ * | group_ptr   | kUInt32  | ${size} |       1 | ${group_ptr_}   |
+ * | weights     | kFloat32 | ${size} |       1 | ${weights_}     |
+ * | base_margin | kFloat32 | ${size} |       1 | ${abse_margin}  |
+ *
+ * Notice the difference between saved name and the name used in `SetInfo': the former
+ * uses plural.
+ */
+
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   Version::Save(fo);
-  const uint64_t num_field = kNumField;
-  fo->Write(num_field);
+  fo->Write(kNumField);
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
 
-  SaveField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
-  SaveField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
-  SaveField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
-  SaveField(fo, u8"labels", DataType::kFloat32, labels_); ++field_cnt;
-  SaveField(fo, u8"group_ptr", DataType::kUInt32, group_ptr_); ++field_cnt;
-  SaveField(fo, u8"weights", DataType::kFloat32, weights_); ++field_cnt;
-  SaveField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
-  CHECK_EQ(field_cnt, num_field) << "Wrong number of fields";
+  SaveScaleField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
+  SaveScaleField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
+  SaveScaleField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
+
+  SaveVectorField(fo, u8"labels", DataType::kFloat32,
+                  {labels_.Size(), 1}, labels_); ++field_cnt;
+  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32,
+                  {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
+  SaveVectorField(fo, u8"weights", DataType::kFloat32,
+                  {weights_.Size(), 1}, weights_); ++field_cnt;
+  SaveVectorField(fo, u8"base_margin", DataType::kFloat32,
+                  {base_margin_.Size(), 1}, base_margin_); ++field_cnt;
+
+  CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
@@ -137,7 +171,7 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
                      << Version::String(Version::Self()) << " again.";
 
   const uint64_t expected_num_field = kNumField;
-  uint64_t num_field;
+  uint64_t num_field { 0 };
   CHECK(fi->Read(&num_field)) << "MetaInfo: invalid format";
   CHECK_GE(num_field, expected_num_field)
     << "MetaInfo: insufficient number of fields (expected at least " << expected_num_field
@@ -146,13 +180,13 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
     LOG(WARNING) << "MetaInfo: the given binary file contains extra fields which will be ignored.";
   }
 
-  LoadField(fi, u8"num_row", DataType::kUInt64, &num_row_);
-  LoadField(fi, u8"num_col", DataType::kUInt64, &num_col_);
-  LoadField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
-  LoadField(fi, u8"labels", DataType::kFloat32, &labels_);
-  LoadField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
-  LoadField(fi, u8"weights", DataType::kFloat32, &weights_);
-  LoadField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
+  LoadScaleField(fi, u8"num_row", DataType::kUInt64, &num_row_);
+  LoadScaleField(fi, u8"num_col", DataType::kUInt64, &num_col_);
+  LoadScaleField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
+  LoadVectorField(fi, u8"labels", DataType::kFloat32, &labels_);
+  LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
+  LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
+  LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
 }
 
 // try to load group information from file, if exists

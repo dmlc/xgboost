@@ -1,4 +1,4 @@
-// Copyright by Contributors
+// Copyright 2016-2020 by Contributors
 #include <dmlc/io.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/data.h>
@@ -8,6 +8,7 @@
 #include "../../../src/common/version.h"
 
 #include "../helpers.h"
+#include "xgboost/base.h"
 
 TEST(MetaInfo, GetSet) {
   xgboost::MetaInfo info;
@@ -41,10 +42,18 @@ TEST(MetaInfo, GetSet) {
 
 TEST(MetaInfo, SaveLoadBinary) {
   xgboost::MetaInfo info;
-  double vals[2] = {1.0, 2.0};
-  info.SetInfo("label", vals, xgboost::DataType::kDouble, 2);
-  info.num_row_ = 2;
-  info.num_col_ = 1;
+  uint64_t constexpr kRows { 64 }, kCols { 32 };
+  auto generator = []() {
+                     static float f = 0;
+                     return f++;
+                   };
+  std::vector<float> values { kRows };
+  std::generate(values.begin(), values.end(), generator);
+  info.SetInfo("label", values.data(), xgboost::DataType::kFloat32, 2);
+  info.SetInfo("weight", values.data(), xgboost::DataType::kFloat32, 2);
+  info.SetInfo("base_margin", values.data(), xgboost::DataType::kFloat32, 2);
+  info.num_row_ = kRows;
+  info.num_col_ = kCols;
 
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/metainfo.binary";
@@ -56,64 +65,8 @@ TEST(MetaInfo, SaveLoadBinary) {
   }
 
   {
-    // Inspect content of header
-    std::unique_ptr<dmlc::Stream> fs{
-      dmlc::Stream::Create(tmp_file.c_str(), "r")
-    };
-    auto version = xgboost::Version::Load(fs.get());
-    EXPECT_TRUE(xgboost::Version::Same(version));
-    uint64_t num_field;
-    EXPECT_TRUE(fs->Read(&num_field));
-    EXPECT_TRUE(num_field == xgboost::MetaInfo::kNumField);
-
-    std::string field_name;
-    xgboost::DataType field_type;
-
-    const std::vector<std::pair<std::string, xgboost::DataType>> expected_fields{
-      {u8"num_row", xgboost::DataType::kUInt64},
-      {u8"num_col", xgboost::DataType::kUInt64},
-      {u8"num_nonzero", xgboost::DataType::kUInt64},
-      {u8"labels", xgboost::DataType::kFloat32},
-      {u8"group_ptr", xgboost::DataType::kUInt32},
-      {u8"weights", xgboost::DataType::kFloat32},
-      {u8"base_margin", xgboost::DataType::kFloat32}
-    };
-
-    for (uint64_t i = 0; i < num_field; ++i) {
-      EXPECT_TRUE(fs->Read(&field_name));
-      EXPECT_EQ(field_name, expected_fields[i].first);
-      EXPECT_TRUE(fs->Read(&field_type));
-      EXPECT_EQ(field_type, expected_fields[i].second);
-      switch (field_type) {
-        case xgboost::DataType::kFloat32: {
-          std::vector<float> vec;
-          EXPECT_TRUE(fs->Read(&vec));
-          break;
-        }
-        case xgboost::DataType::kDouble: {
-          std::vector<double> vec;
-          EXPECT_TRUE(fs->Read(&vec));
-          break;
-        }
-        case xgboost::DataType::kUInt32: {
-          std::vector<uint32_t> vec;
-          EXPECT_TRUE(fs->Read(&vec));
-          break;
-        }
-        case xgboost::DataType::kUInt64: {
-          std::vector<uint64_t> vec;
-          EXPECT_TRUE(fs->Read(&vec));
-          break;
-        }
-        default:
-          LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(field_type);
-      }
-    }
-  }
-
-  {
     // Round-trip test
-    std::unique_ptr<dmlc::Stream> fs{
+    std::unique_ptr<dmlc::Stream> fs {
       dmlc::Stream::Create(tmp_file.c_str(), "r")
     };
     xgboost::MetaInfo inforead;
