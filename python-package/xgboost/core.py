@@ -231,45 +231,6 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _use_columnar_initializer(data):
-    """Whether should we use columnar format initializer (pass data in as json
-    string).  Currently cudf is the only valid option.  For other dataframe
-    types, use their sepcific API instead.
-    """
-    if CUDF_INSTALLED and (isinstance(data, (CUDF_DataFrame, CUDF_Series))):
-        return True
-    return False
-
-
-def _extract_interface_from_cudf_series(data):
-    """This returns the array interface from the cudf series. This function
-    should be upstreamed to cudf.
-    """
-    interface = data.__cuda_array_interface__
-    if data.has_null_mask:
-        interface['mask'] = interface['mask'].__cuda_array_interface__
-    return interface
-
-
-def _extract_interface_from_cudf(df):
-    """This function should be upstreamed to cudf."""
-    if not _use_columnar_initializer(df):
-        raise ValueError('Only cudf is supported for initializing as json ' +
-                         'columnar format.  For other libraries please ' +
-                         'refer to specific API.')
-
-    array_interfaces = []
-    if isinstance(df, CUDF_DataFrame):
-        for col in df.columns:
-            array_interfaces.append(
-                _extract_interface_from_cudf_series(df[col]))
-    else:
-        array_interfaces.append(_extract_interface_from_cudf_series(df))
-
-    interfaces = bytes(json.dumps(array_interfaces, indent=2), 'utf-8')
-    return interfaces
-
-
 PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
                        'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
                        'float16': 'float', 'float32': 'float', 'float64': 'float',
@@ -500,10 +461,10 @@ class DMatrix(object):
             self._init_from_npy2d(data, missing, nthread)
         elif isinstance(data, DataTable):
             self._init_from_dt(data, nthread)
-        elif _use_columnar_initializer(data):
-            self._init_from_columnar(data, missing, nthread)
         elif hasattr(data, "__cuda_array_interface__"):
-            self._init_from_cupy(data, missing, nthread)
+            self._init_from_array_interface(data, missing, nthread)
+        elif isinstance(data, CUDF_DataFrame):
+            self._init_from_array_interface_columns(data, missing, nthread)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -617,21 +578,31 @@ class DMatrix(object):
             nthread))
         self.handle = handle
 
-    def _init_from_columnar(self, df, missing, nthread):
+    def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
-        interfaces = _extract_interface_from_cudf(df)
+        interfaces = []
+        for col in df:
+            interface = df[col].__cuda_array_interface__
+            if 'mask' in interface:
+                interface['mask'] = interface['mask'].__cuda_array_interface__
+            interfaces.append(interface)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
+        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
-                interfaces,
+                interfaces_str,
                 ctypes.c_float(missing), ctypes.c_int(nthread), ctypes.byref(handle)))
         self.handle = handle
 
-    def _init_from_cupy(self, data, missing, nthread):
+    def _init_from_array_interface(self, data, missing, nthread):
         """Initialize DMatrix from cupy ndarray."""
-        interface_str = bytes(json.dumps(data.__cuda_array_interface__, indent=2), 'utf-8')
+        interface = data.__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
@@ -827,7 +798,7 @@ class DMatrix(object):
         """
         if isinstance(weight, np.ndarray):
             self.set_weight_npy2d(weight)
-        elif _use_columnar_initializer(weight):
+        elif hasattr(weight, "__cuda_array_interface__"):
             self.set_interface_info('weight', weight)
         else:
             self.set_float_info('weight', weight)
@@ -864,7 +835,7 @@ class DMatrix(object):
         margin: array like
             Prediction margin of each datapoint
         """
-        if _use_columnar_initializer(margin):
+        if hasattr(margin, "__cuda_array_interface__"):
             self.set_interface_info('base_margin', margin)
         else:
             self.set_float_info('base_margin', margin)
@@ -877,7 +848,7 @@ class DMatrix(object):
         group : array like
             Group size of each group
         """
-        if _use_columnar_initializer(group):
+        if hasattr(group, "__cuda_array_interface__"):
             self.set_interface_info('group', group)
         else:
             self.set_uint_info('group', group)
