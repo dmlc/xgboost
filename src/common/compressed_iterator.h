@@ -209,7 +209,7 @@ class CompressedIterator {
         (bits_per_byte - ((offset_ + 1) * symbol_bits_)) % bits_per_byte;
     tmp >>= bit_shift;
     // Mask off unneeded bits
-    uint64_t mask = (1 << symbol_bits_) - 1;
+    uint64_t mask = (static_cast<uint64_t>(1) << symbol_bits_) - 1;
     return static_cast<T>(tmp & mask);
   }
 
