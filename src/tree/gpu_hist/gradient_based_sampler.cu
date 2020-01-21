@@ -9,6 +9,7 @@
 #include <xgboost/logging.h>
 
 #include <algorithm>
+#include <limits>
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"
@@ -169,7 +170,7 @@ struct CalculateWeight
                                                                size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
     if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
-      return thrust::make_tuple(FLT_MAX, gpair);
+      return thrust::make_tuple(std::numeric_limits<float>::max(), gpair);
     }
     float combined_gradient = combine(gpair);
     float p = sample_rows * combined_gradient / normalization;
@@ -212,7 +213,7 @@ struct ClearEmptyRows : public thrust::binary_function<GradientPair, size_t, siz
     if (gpair.GetGrad() != 0 || gpair.GetHess() != 0) {
       return row_index;
     } else {
-      return SIZE_MAX;
+      return std::numeric_limits<std::size_t>::max();
     }
   }
 };
@@ -238,6 +239,7 @@ GradientBasedSample GradientBasedSampler::SequentialPoissonSampling(
                                                                    dh::tbegin(sample_row_index_))));
 
   // Compact the non-zero gradient pairs.
+  thrust::fill(dh::tbegin(gpair_), dh::tend(gpair_), GradientPair());
   thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(gpair_), IsNonZero());
 
   // Index the sample rows.
