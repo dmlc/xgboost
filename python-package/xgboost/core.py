@@ -372,7 +372,7 @@ def _convert_dataframes(data, feature_names, feature_types,
     return data, feature_names, feature_types
 
 
-def _maybe_np_slice(data):
+def _maybe_np_slice(data, dtype=np.float32):
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
     try:
@@ -381,11 +381,11 @@ def _maybe_np_slice(data):
                 "Use subset (sliced data) of np.ndarray is not recommended " +
                 "because it will generate extra copies and increase " +
                 "memory consumption")
-            data = np.array(data, copy=True, dtype=np.float32)
+            data = np.array(data, copy=True, dtype=dtype)
         else:
-            data = np.array(data, copy=False, dtype=np.float32)
+            data = np.array(data, copy=False, dtype=dtype)
     except AttributeError:
-        data = np.array(data, copy=False, dtype=np.float32)
+        data = np.array(data, copy=False, dtype=dtype)
     return data
 
 
@@ -698,7 +698,7 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        data = _maybe_np_slice(data)
+        data = _maybe_np_slice(data, np.float32)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -716,8 +716,9 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        data = _maybe_np_slice(data)
+        data = _maybe_np_slice(data, np.uint32)
         data, _, _ = _convert_dataframes(data, None, None, field, 'uint32')
+        data = np.array(data, copy=False, dtype=ctypes.c_uint)
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
                                               c_array(ctypes.c_uint, data),

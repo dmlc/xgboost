@@ -97,6 +97,7 @@ def test_ranking():
     valid_data = xgb.DMatrix(x_valid, y_valid)
     test_data = xgb.DMatrix(x_test)
     train_data.set_group(train_group)
+    assert train_data.get_label().shape[0] == x_train.shape[0]
     valid_data.set_group(valid_group)
 
     params_orig = {'tree_method': 'exact', 'objective': 'rank:pairwise',

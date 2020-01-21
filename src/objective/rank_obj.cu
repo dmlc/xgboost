@@ -920,7 +920,10 @@ class LambdaRankObj : public ObjFunction {
     std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels_.Size());
     const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
     CHECK(gptr.size() != 0 && gptr.back() == info.labels_.Size())
-          << "group structure not consistent with #rows";
+          << "group structure not consistent with #rows" << ", "
+          << "group ponter size: " << gptr.size() << ", "
+          << "labels size: " << info.labels_.Size() << ", "
+          << "group pointer back: " << (gptr.size() == 0 ? 0 : gptr.back());
 
 #if defined(__CUDACC__)
     // Check if we have a GPU assignment; else, revert back to CPU
