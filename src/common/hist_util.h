@@ -31,14 +31,17 @@ namespace common {
 template<typename T>
 struct SimpleArray {
   ~SimpleArray() {
-    free(ptr_);
+    std::free(ptr_);
     ptr_ = nullptr;
   }
 
   void resize(size_t n) {
-    T* ptr = static_cast<T*>(malloc(n*sizeof(T)));
-    memcpy(ptr, ptr_, n_ * sizeof(T));
-    free(ptr_);
+    T* ptr = static_cast<T*>(std::malloc(n * sizeof(T)));
+    CHECK(ptr) << "Failed to allocate memory";
+    if (ptr_) {
+      std::memcpy(ptr, ptr_, n_ * sizeof(T));
+      std::free(ptr_);
+    }
     ptr_ = ptr;
     n_ = n;
   }
