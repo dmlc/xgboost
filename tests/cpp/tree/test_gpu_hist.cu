@@ -383,10 +383,9 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
 }
 
 TEST(GpuHist, ExternalMemory) {
-  constexpr size_t kRows = 6;
+  constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
-  constexpr float kSubsample = 0.99;
+  constexpr size_t kPageSize = 1024;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -402,6 +401,40 @@ TEST(GpuHist, ExternalMemory) {
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&gpair, dmat.get(), 0, &tree, &preds);
+
+  // Build another tree using multiple ELLPACK pages.
+  RegTree tree_ext;
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext);
+
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_ext_h = preds_ext.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-6);
+  }
+}
+
+TEST(GpuHist, ExternalMemoryWithSampling) {
+  constexpr size_t kRows = 4096;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1024;
+  constexpr float kSubsample = 0.5;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  auto gpair = GenerateRandomGradients(kRows);
+
+  // Build a tree using the in-memory DMatrix.
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds, kSubsample);
 
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
