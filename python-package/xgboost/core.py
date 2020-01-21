@@ -231,10 +231,11 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
-                       'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
-                       'float16': 'float', 'float32': 'float', 'float64': 'float',
-                       'bool': 'i'}
+PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64':
+                       'int', 'uint8': 'int', 'uint16': 'int', 'uint32': 'int',
+                       'uint64': 'int', 'float16': 'float', 'float32': 'float',
+                       'float64': 'float', 'bool': 'i'}
+
 
 # Either object has cuda array interface or contains columns with interfaces
 def _has_cuda_array_interface(data):
@@ -242,7 +243,8 @@ def _has_cuda_array_interface(data):
         CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))
 
 
-def _maybe_pandas_data(data, feature_names, feature_types):
+def _maybe_pandas_data(data, feature_names, feature_types,
+                       meta=None, meta_type=None):
     """Extract internal data from pd.DataFrame for DMatrix data"""
 
     if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
@@ -250,49 +252,39 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_fields = [str(data.columns[i]) for i, dtype in
-                      enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
+        bad_fields = [
+            str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
+            if dtype.name not in PANDAS_DTYPE_MAPPER
+        ]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
-    if feature_names is None:
+    if feature_names is None and meta is None:
         if isinstance(data.columns, MultiIndex):
             feature_names = [
-                ' '.join([str(x) for x in i])
-                for i in data.columns
+                ' '.join([str(x) for x in i]) for i in data.columns
             ]
         elif isinstance(data.columns, Int64Index):
             feature_names = list(map(str, data.columns))
         else:
             feature_names = data.columns.format()
 
-    if feature_types is None:
-        feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
+    if feature_types is None and meta is None:
+        feature_types = [
+            PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes
+        ]
 
-    data = data.values.astype('float')
+    if meta and len(data.columns) > 1:
+        raise ValueError(
+            'DataFrame for {meta} cannot have multiple columns'.format(
+                meta=meta))
+
+    dtype = meta_type if meta_type else 'float'
+    data = data.values.astype(dtype)
 
     return data, feature_names, feature_types
-
-
-def _maybe_pandas_label(label):
-    """Extract internal data from pd.DataFrame for DMatrix label."""
-
-    if PANDAS_INSTALLED and isinstance(label, DataFrame):
-        if len(label.columns) > 1:
-            raise ValueError(
-                'DataFrame for label cannot have multiple columns')
-
-        label_dtypes = label.dtypes
-        if not all(dtype.name in PANDAS_DTYPE_MAPPER
-                   for dtype in label_dtypes):
-            raise ValueError(
-                'DataFrame.dtypes for label must be int, float or bool')
-        label = label.values.astype('float')
-    # pd.Series can be passed to xgb as it is
-
-    return label
 
 
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
@@ -324,10 +316,20 @@ DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
 
-def _maybe_dt_data(data, feature_names, feature_types):
+def _maybe_dt_data(data, feature_names, feature_types,
+                   meta=None, meta_type=None):
     """Validate feature names and types if data table"""
     if not isinstance(data, DataTable):
         return data, feature_names, feature_types
+
+    if meta and data.shape[1] > 1:
+        raise ValueError(
+            'DataTable for label or weight cannot have multiple columns')
+    if meta:
+        # below requires new dt version
+        # extract first column
+        data = data.to_numpy()[:, 0].astype(meta_type)
+        return data, None, None
 
     data_types_names = tuple(lt.name for lt in data.ltypes)
     bad_fields = [data.names[i]
@@ -338,45 +340,53 @@ def _maybe_dt_data(data, feature_names, feature_types):
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
-    if feature_names is None:
+    if feature_names is None and meta is None:
         feature_names = data.names
 
         # always return stypes for dt ingestion
         if feature_types is not None:
-            raise ValueError('DataTable has own feature types, cannot pass them in')
+            raise ValueError(
+                'DataTable has own feature types, cannot pass them in.')
         feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
 
     return data, feature_names, feature_types
 
 
-def _maybe_dt_array(array):
-    """Extract numpy array from single column data table"""
-    if not isinstance(array, DataTable) or array is None:
-        return array
-
-    if array.shape[1] > 1:
-        raise ValueError('DataTable for label or weight cannot have multiple columns')
-
-    # below requires new dt version
-    # extract first column
-    array = array.to_numpy()[:, 0].astype('float')
-
-    return array
-
-
-def _convert_dataframes(data, feature_names, feature_types):
+def _convert_dataframes(data, feature_names, feature_types,
+                        meta=None, meta_type=None):
     data, feature_names, feature_types = _maybe_pandas_data(data,
                                                             feature_names,
-                                                            feature_types)
+                                                            feature_types,
+                                                            meta,
+                                                            meta_type)
 
     data, feature_names, feature_types = _maybe_dt_data(data,
                                                         feature_names,
-                                                        feature_types)
+                                                        feature_types,
+                                                        meta,
+                                                        meta_type)
 
     data, feature_names, feature_types = _maybe_cudf_dataframe(
         data, feature_names, feature_types)
 
     return data, feature_names, feature_types
+
+
+def _maybe_np_slice(data):
+    '''Handle numpy slice.  This can be removed if we use __array_interface__.
+    '''
+    try:
+        if not data.flags.c_contiguous:
+            warnings.warn(
+                "Use subset (sliced data) of np.ndarray is not recommended " +
+                "because it will generate extra copies and increase " +
+                "memory consumption")
+            data = np.array(data, copy=True, dtype=np.float32)
+        else:
+            data = np.array(data, copy=False, dtype=np.float32)
+    except AttributeError:
+        data = np.array(data, copy=False, dtype=np.float32)
+    return data
 
 
 class DMatrix(object):
@@ -415,10 +425,10 @@ class DMatrix(object):
 
             .. note:: For ranking task, weights are per-group.
 
-                In ranking task, one weight is assigned to each group (not each data
-                point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign
-                weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each
+                data point). This is because we only care about the relative
+                ordering of data points within each group, so it doesn't make
+                sense to assign weights to individual data points.
 
         silent : boolean, optional
             Whether print messages during construction
@@ -429,6 +439,7 @@ class DMatrix(object):
         nthread : integer, optional
             Number of threads to use for loading data from numpy array. If -1,
             uses maximum threads available on the system.
+
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -446,11 +457,6 @@ class DMatrix(object):
         data, feature_names, feature_types = _convert_dataframes(
             data, feature_names, feature_types
         )
-
-        label = _maybe_pandas_label(label)
-        label = _maybe_dt_array(label)
-        weight = _maybe_dt_array(weight)
-        base_margin = _maybe_dt_array(base_margin)
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
@@ -519,13 +525,15 @@ class DMatrix(object):
     def _init_from_npy2d(self, mat, missing, nthread):
         """Initialize data from a 2-D numpy matrix.
 
-        If ``mat`` does not have ``order='C'`` (aka row-major) or is not contiguous,
-        a temporary copy will be made.
+        If ``mat`` does not have ``order='C'`` (aka row-major) or is
+        not contiguous, a temporary copy will be made.
 
-        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will be made.
+        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will
+        be made.
 
-        So there could be as many as two temporary data copies; be mindful of input layout
-        and type if memory use is a concern.
+        So there could be as many as two temporary data copies; be mindful of
+        input layout and type if memory use is a concern.
+
         """
         if len(mat.shape) != 2:
             raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
@@ -536,21 +544,14 @@ class DMatrix(object):
         data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
-        if nthread is None:
-            _check_call(_LIB.XGDMatrixCreateFromMat(
-                data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                c_bst_ulong(mat.shape[0]),
-                c_bst_ulong(mat.shape[1]),
-                ctypes.c_float(missing),
-                ctypes.byref(handle)))
-        else:
-            _check_call(_LIB.XGDMatrixCreateFromMat_omp(
-                data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                c_bst_ulong(mat.shape[0]),
-                c_bst_ulong(mat.shape[1]),
-                ctypes.c_float(missing),
-                ctypes.byref(handle),
-                nthread))
+        nthread = nthread if nthread is not None else 1
+        _check_call(_LIB.XGDMatrixCreateFromMat_omp(
+            data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            c_bst_ulong(mat.shape[0]),
+            c_bst_ulong(mat.shape[1]),
+            ctypes.c_float(missing),
+            ctypes.byref(handle),
+            c_bst_ulong(nthread)))
         self.handle = handle
 
     def _init_from_dt(self, data, nthread):
@@ -675,6 +676,7 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        data, _, _ = _convert_dataframes(data, None, None, field, 'float')
         if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
@@ -683,20 +685,6 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
-
-    def set_interface_info(self, field, data):
-        """Set info type property into DMatrix."""
-
-        # If we are passed a dataframe, extract the series
-        if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
-            if len(data.columns) != 1:
-                raise ValueError('Expecting meta-info to contain a single column')
-            data = data[data.columns[0]]
-
-        interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), 'utf-8')
-        _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
-                                                       c_str(field),
-                                                       interface))
 
     def set_float_info_npy2d(self, field, data):
         """Set float type property into the DMatrix
@@ -710,16 +698,7 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        try:
-            if not data.flags.c_contiguous:
-                warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                              "because it will generate extra copies and increase " +
-                              "memory consumption")
-                data = np.array(data, copy=True, dtype=np.float32)
-            else:
-                data = np.array(data, copy=False, dtype=np.float32)
-        except AttributeError:
-            data = np.array(data, copy=False, dtype=np.float32)
+        data = _maybe_np_slice(data)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -737,20 +716,27 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        try:
-            if not data.flags.c_contiguous:
-                warnings.warn("Use subset (sliced data) of np.ndarray is not recommended " +
-                              "because it will generate extra copies and increase " +
-                              "memory consumption")
-                data = np.array(data, copy=True, dtype=ctypes.c_uint)
-            else:
-                data = np.array(data, copy=False, dtype=ctypes.c_uint)
-        except AttributeError:
-            data = np.array(data, copy=False, dtype=ctypes.c_uint)
+        data = _maybe_np_slice(data)
+        data, _, _ = _convert_dataframes(data, None, None, field, 'uint32')
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
                                               c_array(ctypes.c_uint, data),
                                               c_bst_ulong(len(data))))
+
+    def set_interface_info(self, field, data):
+        """Set info type property into DMatrix."""
+        # If we are passed a dataframe, extract the series
+        if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
+            if len(data.columns) != 1:
+                raise ValueError(
+                    'Expecting meta-info to contain a single column')
+            data = data[data.columns[0]]
+
+        interface = bytes(json.dumps([data.__cuda_array_interface__],
+                                     indent=2), 'utf-8')
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
+                                                       c_str(field),
+                                                       interface))
 
     def save_binary(self, fname, silent=True):
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
@@ -775,26 +761,13 @@ class DMatrix(object):
         label: array like
             The label information to be set into DMatrix
         """
-        if isinstance(label, np.ndarray):
-            self.set_label_npy2d(label)
-        elif _has_cuda_array_interface(label):
+        if _has_cuda_array_interface(label):
             self.set_interface_info('label', label)
         else:
             self.set_float_info('label', label)
 
-    def set_label_npy2d(self, label):
-        """Set label of dmatrix
-
-        Parameters
-        ----------
-        label: array like
-            The label information to be set into DMatrix
-            from numpy 2D array
-        """
-        self.set_float_info_npy2d('label', label)
-
     def set_weight(self, weight):
-        """ Set weight of each instance.
+        """Set weight of each instance.
 
         Parameters
         ----------
@@ -803,49 +776,30 @@ class DMatrix(object):
 
             .. note:: For ranking task, weights are per-group.
 
-                In ranking task, one weight is assigned to each group (not each data
-                point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign
-                weights to individual data points.
+                In ranking task, one weight is assigned to each group (not each
+                data point). This is because we only care about the relative
+                ordering of data points within each group, so it doesn't make
+                sense to assign weights to individual data points.
+
         """
-        if isinstance(weight, np.ndarray):
-            self.set_weight_npy2d(weight)
-        elif _has_cuda_array_interface(weight):
+        if _has_cuda_array_interface(weight):
             self.set_interface_info('weight', weight)
         else:
             self.set_float_info('weight', weight)
 
-    def set_weight_npy2d(self, weight):
-        """ Set weight of each instance
-            for numpy 2D array
-
-        Parameters
-        ----------
-        weight : array like
-            Weight for each data point in numpy 2D array
-
-            .. note:: For ranking task, weights are per-group.
-
-                In ranking task, one weight is assigned to each group (not each data
-                point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign
-                weights to individual data points.
-        """
-        self.set_float_info_npy2d('weight', weight)
-
     def set_base_margin(self, margin):
-        """ Set base margin of booster to start from.
+        """Set base margin of booster to start from.
 
-        This can be used to specify a prediction value of
-        existing model to be base_margin
-        However, remember margin is needed, instead of transformed prediction
-        e.g. for logistic regression: need to put in value before logistic transformation
-        see also example/demo.py
+        This can be used to specify a prediction value of existing model to be
+        base_margin However, remember margin is needed, instead of transformed
+        prediction e.g. for logistic regression: need to put in value before
+        logistic transformation see also example/demo.py
 
         Parameters
         ----------
         margin: array like
             Prediction margin of each datapoint
+
         """
         if _has_cuda_array_interface(margin):
             self.set_interface_info('base_margin', margin)

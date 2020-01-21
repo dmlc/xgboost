@@ -29,6 +29,7 @@ class TestPandas(unittest.TestCase):
         assert dm.feature_types == ['int', 'float', 'i']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
+        np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
         # overwrite feature_names and feature_types
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]),
@@ -51,6 +52,7 @@ class TestPandas(unittest.TestCase):
         assert dm.feature_types == ['int', 'float', 'i']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
+        np.testing.assert_array_equal(dm.get_label(), np.array([1, 2]))
 
         df = pd.DataFrame([[1, 2., 1], [2, 3., 1]], columns=[4, 5, 6])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
@@ -110,20 +112,37 @@ class TestPandas(unittest.TestCase):
     def test_pandas_label(self):
         # label must be a single column
         df = pd.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
-        self.assertRaises(ValueError, xgb.core._maybe_pandas_label, df)
+        self.assertRaises(ValueError, xgb.core._maybe_pandas_data, df,
+                          None, None, 'label', 'float')
 
         # label must be supported dtype
         df = pd.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
-        self.assertRaises(ValueError, xgb.core._maybe_pandas_label, df)
+        self.assertRaises(ValueError, xgb.core._maybe_pandas_data, df,
+                          None, None, 'label', 'float')
 
         df = pd.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
-        result = xgb.core._maybe_pandas_label(df)
+        result, _, _ = xgb.core._maybe_pandas_data(df, None, None,
+                                                   'label', 'float')
         np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
                                                        dtype=float))
-
         dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
         assert dm.num_row() == 3
         assert dm.num_col() == 2
+
+    def test_pandas_weight(self):
+        kRows = 32
+        kCols = 8
+
+        X = np.random.randn(kRows, kCols)
+        y = np.random.randn(kRows)
+        w = np.random.randn(kRows).astype(np.float32)
+        w_pd = pd.DataFrame(w)
+        data = xgb.DMatrix(X, y, w_pd)
+
+        assert data.num_row() == kRows
+        assert data.num_col() == kCols
+
+        np.testing.assert_array_equal(data.get_weight(), w)
 
     def test_cv_as_pandas(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
