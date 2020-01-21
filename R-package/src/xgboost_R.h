@@ -179,9 +179,22 @@ XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
  * \brief save model into R's raw array
  * \param handle handle
  * \return raw array
-   */
+ */
 XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
 
+/*!
+ * \brief Save internal parameters as a JSON string
+ * \param handle handle
+ * \return JSON string
+ */
+XGB_DLL SEXP XGBoosterSaveJsonConfig_R(SEXP handle);
+/*!
+ * \brief Load the JSON string returnd by XGBoosterSaveJsonConfig_R
+ * \param handle handle
+ * \param value JSON string
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value);
 /*!
  * \brief dump model into a string
  * \param handle handle

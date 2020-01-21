@@ -501,6 +501,27 @@ xgb.attributes <- function(object) {
   object
 }
 
+#' Accessors for model parameters as JSON string.
+#'
+#' @param object Object of class \code{xgb.Booster}
+#' @param value A JSON string.
+#'
+#' @rdname xgb.config
+#' @export
+xgb.config <- function(object) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterSaveJsonConfig_R, handle);
+}
+
+#' @rdname xgb.config
+#' @export
+`xgb.config<-` <- function(object, value) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterLoadJsonConfig_R, handle, value)
+  object$raw <- xgb.Booster.complete(object)
+  object
+}
+
 #' Accessors for model parameters.
 #'
 #' Only the setter for xgboost parameters is currently implemented.

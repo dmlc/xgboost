@@ -4,7 +4,7 @@
 \name{agaricus.test}
 \alias{agaricus.test}
 \title{Test part from Mushroom Data Set}
-\format{A list containing a label vector, and a dgCMatrix object with 1611 
+\format{A list containing a label vector, and a dgCMatrix object with 1611
 rows and 126 variables}
 \usage{
 data(agaricus.test)
@@ -24,8 +24,8 @@ This data set includes the following fields:
 \references{
 https://archive.ics.uci.edu/ml/datasets/Mushroom
 
-Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository 
-[http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, 
+Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
+[http://archive.ics.uci.edu/ml]. Irvine, CA: University of California,
 School of Information and Computer Science.
 }
 \keyword{datasets}

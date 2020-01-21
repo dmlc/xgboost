@@ -362,6 +362,24 @@ SEXP XGBoosterModelToRaw_R(SEXP handle) {
   return ret;
 }
 
+SEXP XGBoosterSaveJsonConfig_R(SEXP handle) {
+  const char* ret;
+  R_API_BEGIN();
+  bst_ulong len {0};
+  CHECK_CALL(XGBoosterSaveJsonConfig(R_ExternalPtrAddr(handle),
+                                     &len,
+                                     &ret));
+  R_API_END();
+  return mkString(ret);
+}
+
+SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value) {
+  R_API_BEGIN();
+  XGBoosterLoadJsonConfig(R_ExternalPtrAddr(handle), CHAR(asChar(value)));
+  R_API_END();
+  return R_NilValue;
+}
+
 SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_format) {
   SEXP out;
   R_API_BEGIN();
