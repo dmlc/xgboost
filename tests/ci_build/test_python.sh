@@ -39,7 +39,7 @@ case "$suite" in
 
   cudf)
     source activate cudf_test
-    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_columnar.py tests\python-gpu\test_from_cupy.py
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_columnar.py tests/python-gpu/test_from_cupy.py
     ;;
 
   cpu)

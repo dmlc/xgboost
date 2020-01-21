@@ -236,6 +236,11 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
                        'float16': 'float', 'float32': 'float', 'float64': 'float',
                        'bool': 'i'}
 
+# Either object has cuda array interface or contains columns with interfaces
+def _has_cuda_array_interface(data):
+    return hasattr(data, '__cuda_array_interface__') or (
+        CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))
+
 
 def _maybe_pandas_data(data, feature_names, feature_types):
     """Extract internal data from pd.DataFrame for DMatrix data"""
@@ -463,7 +468,7 @@ class DMatrix(object):
             self._init_from_dt(data, nthread)
         elif hasattr(data, "__cuda_array_interface__"):
             self._init_from_array_interface(data, missing, nthread)
-        elif isinstance(data, CUDF_DataFrame):
+        elif CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
             self._init_from_array_interface_columns(data, missing, nthread)
         else:
             try:
@@ -681,6 +686,13 @@ class DMatrix(object):
 
     def set_interface_info(self, field, data):
         """Set info type property into DMatrix."""
+
+        # If we are passed a dataframe, extract the series
+        if isinstance(data, CUDF_DataFrame):
+            if len(data.columns) != 1:
+                raise ValueError('Expecting meta-info to contain a single column')
+            data = data[data.columns[0]]
+
         interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), 'utf-8')
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
                                                        c_str(field),
@@ -765,7 +777,7 @@ class DMatrix(object):
         """
         if isinstance(label, np.ndarray):
             self.set_label_npy2d(label)
-        elif hasattr(label, '__cuda_array_interface__'):
+        elif _has_cuda_array_interface(label):
             self.set_interface_info('label', label)
         else:
             self.set_float_info('label', label)
@@ -798,7 +810,7 @@ class DMatrix(object):
         """
         if isinstance(weight, np.ndarray):
             self.set_weight_npy2d(weight)
-        elif hasattr(weight, "__cuda_array_interface__"):
+        elif _has_cuda_array_interface(weight):
             self.set_interface_info('weight', weight)
         else:
             self.set_float_info('weight', weight)
@@ -835,7 +847,7 @@ class DMatrix(object):
         margin: array like
             Prediction margin of each datapoint
         """
-        if hasattr(margin, "__cuda_array_interface__"):
+        if _has_cuda_array_interface(margin):
             self.set_interface_info('base_margin', margin)
         else:
             self.set_float_info('base_margin', margin)
@@ -848,7 +860,7 @@ class DMatrix(object):
         group : array like
             Group size of each group
         """
-        if hasattr(group, "__cuda_array_interface__"):
+        if _has_cuda_array_interface(group):
             self.set_interface_info('group', group)
         else:
             self.set_uint_info('group', group)
