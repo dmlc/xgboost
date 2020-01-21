@@ -89,13 +89,21 @@ working with different language bindings.
 Saving and Loading the internal parameters configuration
 ********************************************************
 
-XGBoost's ``C API`` and ``Python API`` supports saving and loading the internal
+XGBoost's ``C API``, ``Python API`` and ``R API`` support saving and loading the internal
 configuration directly as a JSON string.  In Python package:
 
 .. code-block:: python
 
   bst = xgboost.train(...)
   config = bst.save_config()
+  print(config)
+
+
+or
+
+.. code-block:: R
+
+  config <- xgb.config(bst)
   print(config)
 
 Will print out something similiar to (not actual output as it's too long for demonstration):

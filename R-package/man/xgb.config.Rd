@@ -17,3 +17,12 @@ xgb.config(object) <- value
 \description{
 Accessors for model parameters as JSON string.
 }
+\examples{
+data(agaricus.train, package='xgboost')
+train <- agaricus.train
+
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+config <- xgb.config(bst)
+
+}

@@ -506,6 +506,14 @@ xgb.attributes <- function(object) {
 #' @param object Object of class \code{xgb.Booster}
 #' @param value A JSON string.
 #'
+#' @examples
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#'
+#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' config <- xgb.config(bst)
+#'
 #' @rdname xgb.config
 #' @export
 xgb.config <- function(object) {
