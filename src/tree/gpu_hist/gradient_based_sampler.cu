@@ -154,9 +154,9 @@ struct CombineGradientPair : public thrust::unary_function<GradientPair, float> 
   }
 };
 
-/*! \brief A functor that calculates the weight of each row.
- */
-struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, float> {
+/*! \brief A functor that calculates the weight of each row, and scales gradient pairs by 1/p_i. */
+struct CalculateWeight
+    : public thrust::binary_function<GradientPair, size_t, thrust::tuple<float, GradientPair>> {
   size_t sample_rows;
   float normalization;
   RandomWeight rnd;
@@ -165,42 +165,24 @@ struct CalculateWeight : public thrust::binary_function<GradientPair, size_t, fl
   XGBOOST_DEVICE CalculateWeight(size_t _sample_rows, float _normalization, RandomWeight _rnd)
       : sample_rows(_sample_rows), normalization(_normalization), rnd(_rnd) {}
 
-  XGBOOST_DEVICE float operator()(const GradientPair& gpair, size_t i) {
+  XGBOOST_DEVICE thrust::tuple<float, GradientPair> operator()(const GradientPair& gpair,
+                                                               size_t i) {
     // If the gradient and hessian are both empty, we should never select this row.
     if (gpair.GetGrad() == 0 && gpair.GetHess() == 0) {
-      return FLT_MAX;
+      return thrust::make_tuple(FLT_MAX, gpair);
     }
     float combined_gradient = combine(gpair);
     float p = sample_rows * combined_gradient / normalization;
     if (p >= 1) {
       // Always select this row.
-      return 0.0f;
+      return thrust::make_tuple(0.0f, gpair);
     } else {
       // Select this row randomly with probability proportional to the combined gradient.
-      return rnd(i) / combined_gradient;
+      // Scale gpair by 1/p.
+      return thrust::make_tuple(rnd(i) / combined_gradient, gpair / p);
     }
   }
 };
-
-/*! \brief A functor that scales gradient pairs by 1/p_i. */
-struct WeightedScaling : public thrust::unary_function<GradientPair, GradientPair> {
-  size_t sample_rows;
-  float normalization;
-  CombineGradientPair combine;
-
-  XGBOOST_DEVICE WeightedScaling(size_t _sample_rows, float _normalization)
-    : sample_rows(_sample_rows), normalization(_normalization) {}
-
-  XGBOOST_DEVICE GradientPair operator()(const GradientPair& gpair) const {
-    float p = sample_rows * combine(gpair) / normalization;
-    if (p >= 1) {
-      return gpair;
-    } else {
-      return gpair / p;
-    }
-  }
-};
-
 
 GradientBasedSample GradientBasedSampler::GradientBasedSampling(
     common::Span<GradientPair> gpair, DMatrix* dmat) {
@@ -210,13 +192,10 @@ GradientBasedSample GradientBasedSampler::GradientBasedSampling(
                                                  thrust::plus<float>());
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0),
-                    dh::tbegin(row_weight_),
+                    thrust::make_zip_iterator(thrust::make_tuple(
+                        dh::tbegin(row_weight_), dh::tbegin(gpair))),
                     CalculateWeight(sample_rows_, normalization,
                         RandomWeight(common::GlobalRandom()())));
-  // Scale gradient pairs by 1/p.
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
-                    dh::tbegin(gpair),
-                    WeightedScaling(sample_rows_, normalization));
   return SequentialPoissonSampling(gpair, dmat);
 }
 
